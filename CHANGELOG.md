@@ -4,6 +4,16 @@ Newest first. Each entry is what changed, what it makes possible, and what to do
 `journal upgrade` prints the entries since the version you had; a session started on a
 newer version than the last one it saw is handed the same.
 
+## 1.12.0 — the stop queue
+
+Stop holds are a queue the hook runs one by one: context, deferral, untagged message,
+open work, auto — one subject per stop, each at most once per turn, each pending until
+its condition is actually resolved. One reply no longer clears three, and nothing can
+loop. After a resolved context decision the same turn raises "auto is on, pick up the
+next to-do".
+
+After updating: nothing.
+
 ## 1.11.2 — the loop is said where auto is explained
 
 The skill's to-do section says that auto mode means keeping a loop running (`loop`
