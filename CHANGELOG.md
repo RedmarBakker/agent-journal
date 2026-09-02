@@ -4,6 +4,11 @@ Newest first. Each entry is what changed, what it makes possible, and what to do
 `journal upgrade` prints the entries since the version you had; a session started on a
 newer version than the last one it saw is handed the same.
 
+## 1.11.1 — the package's own journal is not part of the package
+
+agent-journal is now developed in its own repository, which keeps its own `.journal/`;
+pulls skip it. Nothing to do after updating.
+
 ## 1.11.0 — worktrees share the journal; no update-check cache
 
 In a linked git worktree the checked-out copy of `.journal/` becomes a symlink to the

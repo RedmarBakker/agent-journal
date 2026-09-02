@@ -65,7 +65,7 @@ SKILL_DST = ".claude/skills/journal"
 
 #: What belongs to THIS project and never comes across on a pull.
 DATA = ("record.json", "record.json.lock", "settings.json", "state.json", "state.json.retired",
-        "runtime", "todo", "docs", "tools", "__pycache__")
+        "runtime", "todo", "docs", "tools", ".journal", "__pycache__")
 
 
 def _package_files(root: Path) -> list[Path]:
