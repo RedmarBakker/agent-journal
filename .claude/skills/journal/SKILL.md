@@ -1,329 +1,596 @@
 ---
 name: journal
-description: "The project's journal, core skill: the first decision on every request (the current work, a to-do, or work to do now), the tag on each message, declaring work, choosing the environment, looking before you answer, and what to do at a start, after a compaction or when a hook holds you. Use it whenever the user asks for a feature, a fix or any piece of work, even a small one; whenever a hook holds your stop or refuses a tool call; when the user says later, not yet, also or by the way; when you are about to say 'I think we decided'; and at every start and after every compaction. The detail lives in nine focused skills that load beside it: journal-todos, journal-questions, journal-messages, journal-memory, journal-docs, journal-agents, journal-plans, journal-reports and journal-transcripts. It also carries the one rule for every dispatch: name the model. Not for subagents: a subagent reports what it found and the main conversation files it."
+description: The journal, its commands and when each applies; load it before the first write
 ---
 
 # The journal
 
-**If you are a subagent, stop here.** The journal is the main conversation's. You cannot
-write it and its rules do not apply to you; report what you found, and the conversation
-that dispatched you files what matters. Reads like `journal search` are fine if you need
-something said earlier.
+**If you are a subagent, stop here.** The journal is the main conversation's; report what you found and it files what matters. Reads are fine.
 
-A compaction keeps what was **done** and drops what was **decided**. The transcript on disk
-loses nothing. The journal is the index that gets you back to it, and the small set of
-facts that must be handed to you again after the loss.
+A compaction keeps what was **done** and drops what was **decided**. The journal is the record of what was decided, handed back to you at every start, and the engine beside your terminal is what tells you what to read next. You never poll it: when something is owed — a message the user left, a question answered, a reminder, the next row under auto — the engine types one line into your terminal while you are idle, in a tiny vocabulary: `message 3 created`, `2 unseen question`, `work 1 open`, `todo 5 next`, or a nudge in plain words. Read it as a line from the user's side and act on it.
 
-Everything runs through one script, `.journal/journal.py <command>`; `journal` is an alias
-for it. Bare `journal` shows where things stand. This file is about *when*. The full
-command reference, environments, what is shared, and why the design is what it is are in
-[references/commands.md](references/commands.md); read it when you need an option or a
-verb you do not remember.
+Everything runs through one command, `journal`, and every command is a **noun and a word**: `journal <type> <word> …`. The nouns are the resource types; the words are the one controller's methods, renamed by the type where the type has its own word (a to-do is *added* and *done*, work *started* and *ended*, a question *asked* and *answered*, a pin *struck*, a report *archived*, a plan *acknowledged*, a message *processed*). Every resource has a title (at most 80 characters, never a colon), an abstract, a brief, sections, links, comments, who has seen it, and an outcome written when it completes. `journal <type> --help` lists the words; the reference at the end lists every noun.
 
 ## When the user asks for work
 
-Every request is one of three things, and deciding which comes before anything else.
+1. **It is the current work**, a step of it, or a correction: carry on; `journal work section <n> "<what moved>" "<how far>"` when the direction changes.
+2. **It is different.** A to-do — the default: `journal todo add "<title>" --brief "<why, where to start>"`, say "parked as to-do n", and carry on.
+3. **It is different and the user said NOW** — their word, not your judgement: update the open work with where it got to, then start the new one.
 
-1. **It is the current work**, a step of it, or a correction to it. Carry on. If the
-   direction changes, `journal work update "<what changed>"` says so.
-2. **It is different. This is a to-do — the default, and it needs no justification.**
-   `journal todos add "<title>" --brief` with the brief on stdin, then say in your reply
-   that it is parked as to-do n, and carry on with what is open. If it builds on or has to
-   wait for another open to-do, add `--after=<n>` (the `journal-todos` skill). **Do not `work end` to
-   make room**: ending work is not finishing a row, and the row you are on stays yours.
-3. **It is different and the user said to do it NOW.** That is the exception and it is
-   THEIR word, not your judgement — "now", "first", "stop", "instead", "actually" — or it
-   blocks the open work, or it makes the open work wrong. `update` the open work with where
-   it got to, then `work start` the new one. If you are genuinely abandoning the old work,
-   `work end` it — and know that the to-do of that title STAYS OPEN unless you pass
-   `--todo`, because abandoning work is not finishing a row.
+With nothing open, the request is the work: read until you can name it, `journal work start "<the work>"`, go. **Declare before the first write**: a write with no work open is refused by the gate. Start work on a row with `--set todo=<n>`; end it with `journal work end <n> --how "<the same words>" --set todo=true` to close the row with it, without `--set todo=true` the row stays open. A commit closes a row when its message carries `Journal: todos done <n>` at column 0.
 
-With nothing open, the request *is* the work: read until you can name it, `work start` it, go.
-
-**A title names the thing; the brief explains it** (rule 13). Work, a to-do, a plan and a report
-are refused a title past 80 characters or with a colon in it — "the plan page restyled after the
-user's mockup", not "the plan page restyled: status line, title and goal, phase progress with…".
-
-**THE DEFAULT IS 2, AND THE BURDEN IS ON 3.** The question is not "can this wait?" — that
-puts the call on you, and you will get it wrong in the user's favour every time, because
-answering feels helpful. The question is "did they tell me to do it now?" If the sentence
-does not say so, it is a to-do. "Later", "after this", "also", "by the way", "when you get
-to it" are not needed to make it one; they only confirm what was already true.
-
-**"I'll do it after this" is a to-do, every time**, even when "after this" is five
-minutes away. The sentence you are about to write — "once the agent finishes", "next",
-"I'll come back to that" — is the title of a to-do; write the to-do before the reply goes
-out. Held only in words, the work is one distraction or one compaction from gone. The
-hooks enforce this: when the user asks for work while something is open, a reminder rides
-in with the prompt; if your reply then defers work and nothing was parked, your next tool
-call is refused once, naming the sentence.
-
-When unsure, park it and say so. Parking is cheap and visible, the user decides with one
-word, and nothing is lost in either direction. Switching silently is the expensive mistake:
-the open work is left half done with no note, and the new work has no declaration. A
-parked request is answered, never ignored: the reply names the to-do and its number.
-
-**Example 1.** Open work: "convert the widgets to state-only". The user: "also the login
-form's error banner is misaligned, can you fix that at some point".
-→ `journal todos add "align the login form's error banner" --brief` with what they said, and
-the reply says: "Parked as to-do 4; I'll keep going on the widgets."
-
-**Example 2.** Same open work. The user: "wait, the Dropdown is throwing 500s on every
-recompose now".
-→ It makes the open work wrong. `journal work update "Dropdown recompose returns 500 since the
-state-only change; stopping to fix it"`, then `journal work start "fix the Dropdown recompose
-500"`.
-
-**Example 3.** Nothing open. The user: "can you add a --json flag to the export command".
-→ Read the export command until the change is clear, then `journal work start "add a --json
-flag to export"` and build it.
+**"I'll do it after this" is a to-do, every time.** The deferral feature names the sentence back to you if nothing was parked.
 
 ## Tag every message
 
-Open every message with exactly one tag. Talking *about* a tag is not using one.
-
-| tag              | the message…                                                            |
-|------------------|-------------------------------------------------------------------------|
-| `[!discovery]`   | reports the real shape of something you did not know: a cause, a constraint, a measurement |
-| `[!correction]`  | says something you had wrong is now right, including your own earlier message |
-| `[!blocked]`     | says you cannot proceed, and on what                                    |
-| `[!info]`        | reports something happening that is not work progress: an agent started, a build running |
-| `[!reply]`       | answers what was asked, directly. Routine; kept out of the digest        |
-
-When in doubt, `[!reply]`. It is honest for any answer, and it is what makes the rule
-keepable: every message can carry a tag, so the check needs no judgement. Only the last
-message of a turn is judged; connective lines before a tool call are scaffolding. If the
-user interrupts you, nothing in that turn is judged.
-
-**When the user works from the viewer** (Settings, *Work from the viewer*, per environment),
-keep each terminal message to its one tagged line and put the answer where they read it: a
-reply on their message (`journal messages reply`), a report for research, a question for a
-decision. The session start says when it is on. The tag still opens the line.
-
-## Declare work
-
-    journal work start "<the work, in your own words>"
-    journal work update "<what moved>" [--on="<work>"]
-    journal work await "<what you wait on>" [--agent=<id>|--pid=<n>] [--for=<minutes>] [--on="<work>"]
-    journal work park "<why it is set aside>" [--on="<work>"]   it stays open, off the nudging, until the first update
-    journal work end "<the same words>"
-    journal work end "<the same words>" --todo   and close the to-do of that title; without it the row stays open, because ending work is not finishing a row
-    journal work end --force ["<note>"]      close work whose declarer is GONE: a deleted worktree, a crashed session — its subject is unguessable, so the note replaces the match
-
-Declare before the first write, never before the first read: edits, `rm`, `git commit`
-are refused while nothing is open, and reads never are, because reading is what tells you
-what the work is. A good subject is a sentence you will say again. `update` is for where
-it got to, not every step: a decision inside the work, a dead end, a change of approach.
-`work end` asks whether the work taught anything a later reader would get wrong without;
-"nothing" is the usual answer and a fine one.
-
-**`work await` when the work is in flight on something you cannot hurry** — a subagent
-running, a build, a review, a person. The stop stops nudging that piece, because a hold
-that fires while nothing can move is noise, and noise is what teaches a reader to clear a
-hold without reading it.
-
-**Name what you are waiting on.** `--agent=<id>` for a subagent you dispatched, `--pid=<n>`
-for a process you started. A sentence is a claim nobody can check; an identifier is a fact
-the machine can. A pid is watched: when that process exits, the wait is over at the very
-next stop instead of burning its whole timeout. An agent id cannot be tested — nothing
-exposes a subagent's liveness to a hook — so it is recorded and named back to you in the
-hold, which is what tells you WHICH of three dispatches you are still waiting on.
-
-**It always expires** — 20 minutes by default, `--for=` to say otherwise, capped at two
-hours. When it does, the hold returns naming what was awaited and for how long, and the
-only question worth asking is whether it is still coming: `work update` what you know,
-`work await` again to keep waiting, or `work end` it. A wait with no end is how work is
-abandoned quietly — the awaited thing dies, nothing nudges, and the journal reads as busy
-forever. If you are waiting on a loop or a cron to wake you, set `--for=` past its next
-cycle, so the wake-up arrives before the hold does.
-
-**`work park` is for being STUCK, or for doing something else in the meantime.** Those are
-the two things it means, and it means nothing else. It is not a way to wait for an answer
-that the work itself could have asked by producing something: a draft asks a better question
-than a question does, because the user corrects a sentence instead of answering three. Before
-parking, ask whether there is anything you could still be DOING — if there is, do it, and let
-what you make carry the question. Under auto mode a wrong park is worse than idle, because
-the list stops with it.
-
-**The wait ends by itself when the work resumes.** The first write — an edit, a `rm`, a
-command that changes something — cancels it, because nothing that is still blocked edits a
-file. Reading does not: polling a log or checking a build is what waiting LOOKS like. Any
-`work update` or `work end` ends it too, because progress means the waiting is over. Never await something already finished, and never re-await to dodge a hold you owe
-an answer to. A line that opens the work first,
-`journal work start "…" && …`, may write in the same line.
+Open every message with exactly one tag: `[!discovery]` `[!correction]` `[!blocked]` `[!info]` `[!reply]`. When in doubt, `[!reply]`. The tags feature tells you once if the last message had none.
 
 ## Pin, rule, reminder, or nothing
 
-Rules, pins, open work and to-dos are the **only** things handed back after a compaction
-and to every new session. Tagged messages become retrievable, not present.
+Would a later reader be WRONG without it? **a pin.** Will you stop DOING it though you know? **a reminder.** One thing to do later? **a to-do.** Binds every environment? **a rule.** Pins and rules carry their reasoning in the brief. At each mark of the context window (the context feature's marks) writes are held until you decide: `journal pin create "<claim>"`, `journal rule create "<ruling>"`, or `journal nothing "<why>"`.
 
-**A pin is a FACT. A reminder is an INSTRUCTION.** This is the line agents blur most, so
-here it is four ways:
+## Messages, questions, comments
 
-    would a later reader be WRONG without it?          a pin
-    will you stop DOING it, though you already know?   a reminder
-    is it one thing to do, later?                      a to-do
-    does it bind every environment?                    a rule
+The user writes to you from the viewer. A message is processed part by part — `journal message process <n> "<their words>" "<what it became>"` — and closed with `journal message processed <n>`; reply under it with `journal message reply <n> "<text>"`. Ask through the journal, never by halting: `journal question ask "<one line>" --abstract "<context>" --set about=todo:<n>` with options as `--set options=…` JSON; the answer reaches you as an event. A comment the user left is handled and `journal comment done <n> --how "<what was done>"`.
 
-**When the context warning arrives, decide.** At 50%, 70%, 90% and 95% of the window, no
-other tool runs until `pin`, `rule` or `nothing "<why>"` has. It forces a decision,
-not a pin; `nothing` with a reason is the right answer more often than not. It is also the
-moment to park any work you are holding for later, because that lives only in the window.
+## Plans, reports, docs
 
-Everything else about them — when a pin earns its place, the reasoning under a claim, reminders and their `--until`, moving claims, and cleaning out what stopped being true — is in the `journal-memory` skill. Load it before you write one.
+Phases, a roadmap, "first … then …" is a plan: `journal plan create "<name>" --set goal="<what is true when done>"`, `journal plan phase <n> "<title>" --when "<complete when>" [--checkpoint]`, `journal plan todos <n> <p> <rows…>`, `journal plan ready <n>`. Only the user activates it and continues it past a checkpoint, in the viewer; the plan advances by itself as rows close. Research ends in a report you write: `journal report create "<what was asked>" --brief "<answer, evidence, what was fine, where it stands>"`. What stays true is a doc: `journal doc create`, `journal doc section <n> "<part>" "<body>"`, `journal doc attach <n> <path> "<what it is>"`; cite it with a link.
 
-## The focused skills: load the one the moment needs
+## Environments and sessions
 
-This skill decides what a request is and keeps the record honest. The detail for each part is
-its own skill, and each loads by itself when its situation comes up. If one has not, load it
-before you act:
-
-| skill | load it when |
-|---|---|
-| `journal-todos` | you park, start, block or close a to-do; auto mode is on; a commit should close a row |
-| `journal-questions` | you are about to ask the user anything; the question tool is refused; a question was answered; you would propose a change |
-| `journal-messages` | the user left a message or a comment; you are about to notify them, pin a line over the chat or react; the user reacted; you want to see or drive the page they are on; the viewer or the launcher comes up |
-| `journal-memory` | you are about to pin, rule or remind; a context warning asks for a decision; a cleanup report is ready |
-| `journal-docs` | the user asks for something checked or researched; something was ruled and should be written down; you would write a reusable script |
-| `journal-agents` | before every subagent dispatch; a subagent must write; a subagent's journal command is refused |
-| `journal-plans` | the user asks for a plan, a roadmap or phases; you are about to draft one; a plan is active, refuses to start or stalls; a plan should be stopped |
-| `journal-reports` | the user asks you to check, research, compare or review something; a dispatch comes back with findings; a report should be archived or become a doc |
-| `journal-transcripts` | a message arrives declared as a transcript; a long paste reads like one; you are about to file to-dos or a plan out of either |
-
-**One rule from `journal-agents` belongs here, because a dispatch does not wait for a skill to load:
-name the model on every subagent you dispatch** — `haiku` for mechanical work with a known answer,
-`sonnet` for care without invention, `opus` only where the task turns on judgement. It is rule B1,
-shipped to every project and injected at every start.
-
-## The environment is chosen once, and never by you again
-
-**You choose an environment at the START, by asking the user, and you never switch again on
-your own initiative.** Not to tidy up. Not to park work you cannot do. Not because another
-environment already exists and looks like a precedent for making one.
-
-    at the start        `journal environments` lists them → ask the user which → `journal switch "<name>"`
-    ever after          only when the user names one
-
-This is not a style preference, and here is the failure it is written from. An agent met a
-to-do it was forbidden to start while the stop hook refused its stop. It reasoned, fairly,
-that the list should stop offering work it could not do — and then made a new environment
-to park it on. Two things made that feel sanctioned: a stray environment from its own
-earlier session was sitting there looking like an established convention, and `prepare`
-creates AND switches in one command, so the switch was a second effect it never looked for.
-**Reminders are per-environment. The moment it switched, every guardrail it had went
-silent**, and it only noticed by chance.
-
-So: an environment somebody's session left behind is not evidence that making one is
-normal. Housekeeping is not an exception. If the list is offering work you cannot do, the
-answer is on the to-do — `todos block` or `todos ask` — never a new place to put it.
+A session works one environment; `journal environment switch <n>` takes a free one, `journal environment claim <n> "<why>"` a held one (the holder is told), `journal environment prepare "<name>"` makes one. Never switch on your own initiative. A subagent that must write is lent one: `journal environment grant <n>`, and it runs every command with `--env <name> --as agent`.
 
 ## Look before you answer
 
-    journal search <term> [--all]     this environment's whole transcript, every session, 25 hits a page newest first
-                                      (the viewer's Search page also finds the journal's to-dos, pins, rules, docs and messages)
+`journal search <term>`, `journal conversation --back 1` (the stretch the last summary replaced), `journal user` (the user's own words), `journal carry` (everything standing, in full), `journal status`.
 
-Search when any of these is about to leave your mouth: "I think we decided…", "as
-discussed…", "earlier you said…"; the name of a command, flag, option or file the user
-chose or rejected; "the user wants X" where X was said more than a summary ago; anything
-about work that was open when a compaction happened; an answer to "why did we…" or
-"didn't we already…".
+## Features
 
-A compaction keeps roughly 25,000 characters standing in for the whole session, and it
-keeps what was *done* far better than what was *decided*. A half-remembered ruling feels
-like knowledge and is subtly wrong: the wrong flag, the rejected option, the constraint
-backwards. That is worse than an admitted gap, because nobody questions it. `search`
-prints line numbers, which are citations. If it comes back empty, say the record does not
-have it rather than filling the space.
+Every capability is a feature the engine loads, switchable per environment in the viewer's Settings and tuned by its trigger. Each has its own skill, `journal-<feature>`, generated from the feature itself.
 
-## After a compaction, or at a start
+## Reference: every noun and its words
 
-    journal conversation --back=1   the stretch the last summary REPLACED
-    journal user                    the user's own words, in full
-    journal open                    work declared and never closed, with its notes
+### message — What the user left for the agent, or the agent for the user
+A message is read once by the other side and processed part by part; what each part became is written on it.  Scope: environment. Seen by: user, agent.
+    journal message all [--deleted]
+    journal message attach <n> <path> [--what …]
+    journal message comment <n> <text>
+    journal message comments <n>
+    journal message processed <n> [--how …] [--set key=value…]
+    journal message create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal message declare <n> <kind>
+    journal message delete <n> [--why …]
+    journal message edit <n> <text>
+    journal message files <n>
+    journal message find <name>
+    journal message folder <n>
+    journal message force_delete <n>
+    journal message link <n> <ref>
+    journal message linked_to <ref>
+    journal message move <n> <env>
+    journal message process <n> <part> <became>
+    journal message react <n> <face>
+    journal message read <n>
+    journal message reply <n> <text> [--file …]
+    journal message restore <n>
+    journal message search <term>
+    journal message section <n> <title> <body>
+    journal message set <n> <key> <value>
+    journal message show <n>
+    journal message unlink <n> <ref>
+    journal message unread [--actor …]
+    journal message update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-After a compaction, read `conversation --back=1` and `user` before you touch anything;
-they are precisely what the summary dropped. At a fresh start, the block lists the standing
-rules, pins, open work and to-dos, and says which environment this session is on.
+### todo — One thing to do later, with a brief that says why and where to start
+A to-do waits on the list until it is started as work and closed; auto mode works the list in order.  Scope: environment. Seen by: user, agent.
+    journal todo all [--deleted]
+    journal todo attach <n> <path> [--what …]
+    journal todo comment <n> <text>
+    journal todo comments <n>
+    journal todo done <n> [--how …] [--set key=value…]
+    journal todo add <title> [--abstract …] [--brief …] [--set key=value…]
+    journal todo delete <n> [--why …]
+    journal todo files <n>
+    journal todo find <name>
+    journal todo folder <n>
+    journal todo force_delete <n>
+    journal todo link <n> <ref>
+    journal todo linked_to <ref>
+    journal todo move <n> <env>
+    journal todo read <n>
+    journal todo restore <n>
+    journal todo search <term>
+    journal todo section <n> <title> <body>
+    journal todo set <n> <key> <value>
+    journal todo show <n>
+    journal todo unlink <n> <ref>
+    journal todo unread [--actor …]
+    journal todo update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-**A new session is on none.** It is not given one: you choose it, from the first thing the
-user says, because you are the one who has read it. If that message names or plainly implies
-an environment, take it — `journal switch "<name>"` — and say in one line which you took, so
-a wrong guess costs one word to correct. If the work is real and belongs on none of them,
-`journal prepare "<name>"`. If the message asks for nothing to work on — a greeting, a
-question about the record — ask which environment before you answer it. Never fall back to
-the first on the list: an environment nobody chose is how work lands where nobody looks.
-Reads work unbound; every write is refused until one is taken. The user sees a line saying
-so at the start, so the question is expected. `bind_on_start` puts the old behaviour back,
-where a session began on the project's start environment.
+### work — What the agent is doing right now, declared before its first write
+Work is opened by the agent, updated as it moves and ended when done; the agent that opened it has seen it.  Scope: environment. Seen by: user, agent.
+    journal work all [--deleted]
+    journal work attach <n> <path> [--what …]
+    journal work comment <n> <text>
+    journal work comments <n>
+    journal work end <n> [--how …] [--set key=value…]
+    journal work start <title> [--abstract …] [--brief …] [--set key=value…]
+    journal work delete <n> [--why …]
+    journal work files <n>
+    journal work find <name>
+    journal work folder <n>
+    journal work force_delete <n>
+    journal work link <n> <ref>
+    journal work linked_to <ref>
+    journal work move <n> <env>
+    journal work read <n>
+    journal work restore <n>
+    journal work search <term>
+    journal work section <n> <title> <body>
+    journal work set <n> <key> <value>
+    journal work show <n>
+    journal work unlink <n> <ref>
+    journal work unread [--actor …]
+    journal work update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-If the block leads with "ENVIRONMENT … IS TAKEN", another running session holds that
-environment: tell the user, ask which environment this session works on, and `switch` before
-anything else. Work opened by an
-earlier session is listed so you know it exists, not held against you; before continuing
-it, `open` shows where it got to.
+### plan — Ordered phases of to-dos with a goal, approved by the user before it runs
+A plan is drafted by the agent, approved and continued by the user, and worked phase by phase.  Scope: environment. Seen by: user, agent.
+    journal plan abandon <n> [--why …]
+    journal plan activate <n>
+    journal plan all [--deleted]
+    journal plan attach <n> <path> [--what …]
+    journal plan comment <n> <text>
+    journal plan comments <n>
+    journal plan acknowledge <n> [--how …] [--set key=value…]
+    journal plan create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal plan delete <n> [--why …]
+    journal plan files <n>
+    journal plan find <name>
+    journal plan folder <n>
+    journal plan force_delete <n>
+    journal plan from_doc <doc>
+    journal plan link <n> <ref>
+    journal plan linked_to <ref>
+    journal plan move <n> <env>
+    journal plan phase <n> <title> [--when …] [--checkpoint] [--brief …] [--before …]
+    journal plan phases <n>
+    journal plan todos <n> <p> <todos> [--move] [--off]
+    journal plan read <n>
+    journal plan ready <n>
+    journal plan rephrase <n> <p> [--title …] [--when …] [--checkpoint …] [--brief …]
+    journal plan restore <n>
+    journal plan continue <n>
+    journal plan search <term>
+    journal plan section <n> <title> <body>
+    journal plan set <n> <key> <value>
+    journal plan show <n>
+    journal plan unlink <n> <ref>
+    journal plan unread [--actor …]
+    journal plan update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-**When the holder is gone, claim it** — `journal claim "<name>" "<why>"`. One session works
-an environment, so a switch onto a held one is refused; but a holder can be a closed
-terminal or a crashed session, and then the refusal protects nobody and blocks the work. A
-claim unbinds that session and binds you. It is not free and not silent: the reason is
-required, the claim is kept on the record with who took it from whom, and the evicted
-session is told at its next stop what happened and how to take it back. Nothing of the
-environment is deleted. **Ask the user first** unless they have already said to take it —
-the holder may be a session they are using.
+### doc — What stays true about the project, catalogued for every session
+A doc is written once, cited by pins and rules, and read before anything it settles is re-investigated.  Scope: project. Seen by: user, agent.
+    journal doc all [--deleted]
+    journal doc attach <n> <path> [--what …]
+    journal doc comment <n> <text>
+    journal doc comments <n>
+    journal doc final <n> [--how …] [--set key=value…]
+    journal doc create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal doc delete <n> [--why …]
+    journal doc files <n>
+    journal doc find <name>
+    journal doc folder <n>
+    journal doc force_delete <n>
+    journal doc link <n> <ref>
+    journal doc linked_to <ref>
+    journal doc move <n> <env>
+    journal doc read <n>
+    journal doc restore <n>
+    journal doc search <term>
+    journal doc section <n> <title> <body>
+    journal doc set <n> <key> <value>
+    journal doc show <n>
+    journal doc unlink <n> <ref>
+    journal doc unread [--actor …]
+    journal doc update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-`switch`, `claim`, `prepare`, `delegate` and `handoff` each answer under the noun too:
-`journal environments switch "<name>"` is the same command as `journal switch "<name>"`.
-The noun answers to `env`, `envs`, `environment`, `tracks` and `track` as well.
+### report — What was checked and what was found, written for the user, read once
+A report answers something the user asked to have checked; it ages out or becomes a doc.  Scope: environment. Seen by: user, agent.
+    journal report all [--deleted]
+    journal report attach <n> <path> [--what …]
+    journal report comment <n> <text>
+    journal report comments <n>
+    journal report archive <n> [--how …] [--set key=value…]
+    journal report create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal report delete <n> [--why …]
+    journal report doc <n>
+    journal report files <n>
+    journal report find <name>
+    journal report folder <n>
+    journal report force_delete <n>
+    journal report link <n> <ref>
+    journal report linked_to <ref>
+    journal report move <n> <env>
+    journal report read <n>
+    journal report restore <n>
+    journal report search <term>
+    journal report section <n> <title> <body>
+    journal report set <n> <key> <value>
+    journal report show <n>
+    journal report unlink <n> <ref>
+    journal report unread [--actor …]
+    journal report update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-## If a hook holds or denies you
+### pin — A fact a later session would get wrong without
+A pin is handed to every session on its environment; it is struck when it stops being true.  Scope: environment. Seen by: user, agent.
+    journal pin all [--deleted]
+    journal pin attach <n> <path> [--what …]
+    journal pin comment <n> <text>
+    journal pin comments <n>
+    journal pin strike <n> [--how …] [--set key=value…]
+    journal pin create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal pin delete <n> [--why …]
+    journal pin files <n>
+    journal pin find <name>
+    journal pin folder <n>
+    journal pin force_delete <n>
+    journal pin link <n> <ref>
+    journal pin linked_to <ref>
+    journal pin move <n> <env>
+    journal pin promote <n>
+    journal pin read <n>
+    journal pin restore <n>
+    journal pin search <term>
+    journal pin section <n> <title> <body>
+    journal pin set <n> <key> <value>
+    journal pin show <n>
+    journal pin unlink <n> <ref>
+    journal pin unread [--actor …]
+    journal pin update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-Read what it says and do that one thing. A hold is one line, and holds come one per
-stop in a fixed order — claimed, environment, inbox, comments, loop, context, deferral, untagged, questions, suggestions, suggest_hint, work, auto, recall, cleanup — so what
-you are shown is the first thing owed, and the next stop shows the next. When the line ends with
-"details: `.journal/journal.py next`", run that first: it prints the full text of the
-hold, which to-do is next, the questions the user answered, or what is filling the
-context. `journal next` also answers the loop prompt in auto mode: it says the one
-thing to do now.
+### rule — A ruling that binds every environment of the project
+A rule is decided by the user, cited where it applies, and struck only by them.  Scope: project. Seen by: user, agent.
+    journal rule all [--deleted]
+    journal rule attach <n> <path> [--what …]
+    journal rule comment <n> <text>
+    journal rule comments <n>
+    journal rule strike <n> [--how …] [--set key=value…]
+    journal rule create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal rule delete <n> [--why …]
+    journal rule files <n>
+    journal rule find <name>
+    journal rule folder <n>
+    journal rule force_delete <n>
+    journal rule inject <n>
+    journal rule link <n> <ref>
+    journal rule linked_to <ref>
+    journal rule move <n> <env>
+    journal rule read <n>
+    journal rule restore <n>
+    journal rule search <term>
+    journal rule section <n> <title> <body>
+    journal rule set <n> <key> <value>
+    journal rule show <n>
+    journal rule uninject <n>
+    journal rule unlink <n> <ref>
+    journal rule unread [--actor …]
+    journal rule update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-**Under the launcher (`journal claude`, `journal codex`) the same line arrives TYPED,** as
-if the user had sent it, when you are idle: the stop hook holds nothing there, because the
-launcher reads the same queue from outside and types the first thing owed. Read it as a
-hold — the table below applies word for word — and answer it; the next quiet moment
-brings the next.
+### reminder — An instruction said again until it is retired
+A reminder repeats at every start and every so often mid-work, because knowing is not doing.  Scope: environment. Seen by: user, agent.
+    journal reminder all [--deleted]
+    journal reminder attach <n> <path> [--what …]
+    journal reminder comment <n> <text>
+    journal reminder comments <n>
+    journal reminder retire <n> [--how …] [--set key=value…]
+    journal reminder create <title> [--abstract …] [--brief …] [--until …] [--set key=value…]
+    journal reminder delete <n> [--why …]
+    journal reminder files <n>
+    journal reminder find <name>
+    journal reminder folder <n>
+    journal reminder force_delete <n>
+    journal reminder link <n> <ref>
+    journal reminder linked_to <ref>
+    journal reminder move <n> <env>
+    journal reminder read <n>
+    journal reminder restore <n>
+    journal reminder search <term>
+    journal reminder section <n> <title> <body>
+    journal reminder set <n> <key> <value>
+    journal reminder show <n>
+    journal reminder unlink <n> <ref>
+    journal reminder unread [--actor …]
+    journal reminder update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-| it says                                                        | do                                                     |
-|----------------------------------------------------------------|--------------------------------------------------------|
-| *the user left N message(s) for you*                      | `journal messages`; split each into parts with `messages process`, a question for any part you do not understand, then `messages done` |
-| *the user left N new message(s) for you — … nothing is blocked* | finish the step you are on, then process them the same way |
-| *the user commented on to-do N*                                | act on what it asks, then `comments done <n> "<what was done>"` |
-| *the user answered question N*                                 | act on the answer; `journal questions show <n>` reads it in full |
-| *the user decided suggestion N*                                | accepted or adjusted: a to-do was filed, work it like any other; declined: drop it and do not file it again |
-| *your reply proposes a change nobody asked for*                | a hint: `journal suggest "<the change>" --brief` if the user should decide it; otherwise ignore |
-| *A subagent dispatch must name its model*                       | add `model`: haiku, sonnet or opus. A fork, or an agent whose definition sets its model, goes through |
-| *AUTO IS ON, so the question tool is refused*                  | `questions add "<question>" --about=<ref>` and carry on with what does not depend on it |
-| *N untagged message(s)*                                        | tag your next message; it will not hold for those lines again |
-| *work still open* / *auto is on, work still open*              | `work end` it, `update` where it got to, or `work await "<what>"` if it is in flight |
-| *auto is on, but the open work was opened by another session*  | not yours to end: leave it to that session; if that session is gone, `work end --force "<note>"` if it is finished, or ask the user |
-| *Nothing is open, so this edit would not be filed*             | `work start` the work, then edit                            |
-| *context N% full — decide before any other tool runs*          | `pin`, `rule` or `nothing "<why>"`                |
-| *work deferred in words, not parked*                           | `todo "<title>" --brief`, then say so. If nothing was put off: at a stop, say so in one line; before a tool call, run the call again |
-| *journal: work is open — … If this asks for something else*    | decide: same work, park it, or `update` and `work start` |
-| *auto is on, N to-do(s) waiting*                               | `journal next`, then `todo start <n>`                  |
-| *auto is on for `x`, but nothing on the list can be picked up* | nothing to start: each reason is named. Answer or wait; a row reported finished by an agent is yours to close with `todos done <n>` |
-| *N to-do(s) waiting on `x`*                                    | shown to the user: delayed work, not an instruction to start any of it |
-| *auto is on, no loop running*                                  | start one: the `loop` skill with `15m journal next`; `journal loop set` if one already runs. While it stands the next WRITE is refused — auto without a loop is a promise nothing keeps |
-| *a cleanup report is ready — N entr(ies) …*                     | when you reach a pause: `journal cleanup`, then `cleanup read`; strike what you judge dead. Never a hold |
-| *N thing(s) in the record have evidence against them*          | `journal cleanup`, then `cleanup read`, then strike what you judged dead |
-| *the reading pass … was never done / N d ago*                  | `journal cleanup read` — judge every rule and pin against the code you just worked in |
-| *… are in force here, and the block that handed them to you is far behind* | `journal cleanup read` if the reading pass is owed; otherwise `journal rules` and `journal pins` read them back |
-| *environment `x` is taken by another session*                        | ask the user which environment this session works on, then `switch "<name>"`; if the holder is gone and they say so, `claim "<name>" "<why>"` |
-| *environment `x` was claimed by another session*                     | another session took it and said why; you are bound to nothing — `switch "<name>"`, or `claim "<name>" "<why>"` to take it back |
-| *THIS SESSION HAS NO ENVIRONMENT*                              | take one from what the user just asked — `switch "<name>"` — and say which; ask them if it named none |
-| *That pin would be refused*                                    | cut it to the claim, or drop the scratch path          |
-| *`journal <verb>` from a subagent is refused*                  | you are a subagent: report; the main conversation files |
-| *THAT … CALL RETURNED N CHARACTERS*                            | nothing to undo; read narrower next time               |
-| *… is a markdown file written outside the journal*             | a hint: `docs add` or `docs part` if it is a design or a report; otherwise ignore |
-| *… is a script you wrote / has now run twice / scratch script*  | a hint: `tools add` if the job comes back; otherwise ignore |
-| *… has been read N times … not a source file*                  | a hint: `docs attach <doc> <path> "<what it is>"` if it is reference material; otherwise ignore |
+### question — Something the agent asks the user, with choices to pick
+A question waits for the user; its answer reaches the agent as an event.  Scope: environment. Seen by: user, agent.
+    journal question all [--deleted]
+    journal question attach <n> <path> [--what …]
+    journal question comment <n> <text>
+    journal question comments <n>
+    journal question answer <n> [--how …] [--set key=value…]
+    journal question ask <title> [--abstract …] [--brief …] [--set key=value…]
+    journal question delete <n> [--why …]
+    journal question files <n>
+    journal question find <name>
+    journal question folder <n>
+    journal question force_delete <n>
+    journal question link <n> <ref>
+    journal question linked_to <ref>
+    journal question move <n> <env>
+    journal question read <n>
+    journal question restore <n>
+    journal question search <term>
+    journal question section <n> <title> <body>
+    journal question set <n> <key> <value>
+    journal question show <n>
+    journal question unlink <n> <ref>
+    journal question unread [--actor …]
+    journal question update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
 
-Each row's detail lives in a focused skill: messages and comments in `journal-messages`; answered questions, decided suggestions and the refused question tool in `journal-questions`; to-dos, auto and the loop in `journal-todos`; the context decision, pins and cleanup in `journal-memory`; subagent refusals in `journal-agents`; the markdown, script and attachment hints in `journal-docs`; a transcript and what it becomes in `journal-transcripts`.
+### comment — What the user or the agent said about another resource
+A comment is a resource of its own, linked to what it is about.  Scope: environment. Seen by: user, agent.
+    journal comment all [--deleted]
+    journal comment attach <n> <path> [--what …]
+    journal comment comment <n> <text>
+    journal comment comments <n>
+    journal comment done <n> [--how …] [--set key=value…]
+    journal comment create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal comment delete <n> [--why …]
+    journal comment files <n>
+    journal comment find <name>
+    journal comment folder <n>
+    journal comment force_delete <n>
+    journal comment link <n> <ref>
+    journal comment linked_to <ref>
+    journal comment move <n> <env>
+    journal comment read <n>
+    journal comment restore <n>
+    journal comment search <term>
+    journal comment section <n> <title> <body>
+    journal comment set <n> <key> <value>
+    journal comment show <n>
+    journal comment unlink <n> <ref>
+    journal comment unread [--actor …]
+    journal comment update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### agent — A session of Claude or Codex, and what it is doing right now
+The hooks write an agent's status here; the engine reads it to know idle from working.  Scope: environment. Seen by: nobody.
+    journal agent all [--deleted]
+    journal agent attach <n> <path> [--what …]
+    journal agent by_session <session>
+    journal agent comment <n> <text>
+    journal agent comments <n>
+    journal agent complete <n> [--how …] [--set key=value…]
+    journal agent create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal agent delete <n> [--why …]
+    journal agent files <n>
+    journal agent find <name>
+    journal agent folder <n>
+    journal agent force_delete <n>
+    journal agent link <n> <ref>
+    journal agent linked_to <ref>
+    journal agent move <n> <env>
+    journal agent read <n>
+    journal agent restore <n>
+    journal agent search <term>
+    journal agent section <n> <title> <body>
+    journal agent set <n> <key> <value>
+    journal agent show <n>
+    journal agent unlink <n> <ref>
+    journal agent unread [--actor …]
+    journal agent update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### notification — What the agent did, told to the user once
+A notification is written for the user by a feature for every act of the agent, or by the agent to say a long piece of work landed.  Scope: environment. Seen by: nobody.
+    journal notification all [--deleted]
+    journal notification attach <n> <path> [--what …]
+    journal notification comment <n> <text>
+    journal notification comments <n>
+    journal notification complete <n> [--how …] [--set key=value…]
+    journal notification create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal notification delete <n> [--why …]
+    journal notification files <n>
+    journal notification find <name>
+    journal notification folder <n>
+    journal notification force_delete <n>
+    journal notification link <n> <ref>
+    journal notification linked_to <ref>
+    journal notification move <n> <env>
+    journal notification read <n>
+    journal notification restore <n>
+    journal notification search <term>
+    journal notification section <n> <title> <body>
+    journal notification set <n> <key> <value>
+    journal notification show <n>
+    journal notification unlink <n> <ref>
+    journal notification unread [--actor …]
+    journal notification update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### notice — One line kept over the chat while it matters
+A notice stays until the user's X or the agent's close; a tone and a link may ride on it.  Scope: environment. Seen by: user.
+    journal notice all [--deleted]
+    journal notice attach <n> <path> [--what …]
+    journal notice comment <n> <text>
+    journal notice comments <n>
+    journal notice close <n> [--how …] [--set key=value…]
+    journal notice create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal notice delete <n> [--why …]
+    journal notice files <n>
+    journal notice find <name>
+    journal notice folder <n>
+    journal notice force_delete <n>
+    journal notice link <n> <ref>
+    journal notice linked_to <ref>
+    journal notice move <n> <env>
+    journal notice read <n>
+    journal notice restore <n>
+    journal notice search <term>
+    journal notice section <n> <title> <body>
+    journal notice set <n> <key> <value>
+    journal notice show <n>
+    journal notice unlink <n> <ref>
+    journal notice unread [--actor …]
+    journal notice update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### reaction — A face on a message
+A reaction is one face by one actor on one message; the same face again takes it off.  Scope: environment. Seen by: user, agent.
+    journal reaction all [--deleted]
+    journal reaction attach <n> <path> [--what …]
+    journal reaction comment <n> <text>
+    journal reaction comments <n>
+    journal reaction complete <n> [--how …] [--set key=value…]
+    journal reaction create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal reaction delete <n> [--why …]
+    journal reaction files <n>
+    journal reaction find <name>
+    journal reaction folder <n>
+    journal reaction force_delete <n>
+    journal reaction link <n> <ref>
+    journal reaction linked_to <ref>
+    journal reaction move <n> <env>
+    journal reaction read <n>
+    journal reaction restore <n>
+    journal reaction search <term>
+    journal reaction section <n> <title> <body>
+    journal reaction set <n> <key> <value>
+    journal reaction show <n>
+    journal reaction unlink <n> <ref>
+    journal reaction unread [--actor …]
+    journal reaction update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### tool — A script kept for a job that comes back, catalogued so the next agent runs it instead of writing it again
+A tool names its entry (how to run it), its usage and what it does; run executes it from the project root.  Scope: project. Seen by: user, agent.
+    journal tool all [--deleted]
+    journal tool attach <n> <path> [--what …]
+    journal tool comment <n> <text>
+    journal tool comments <n>
+    journal tool complete <n> [--how …] [--set key=value…]
+    journal tool create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal tool delete <n> [--why …]
+    journal tool files <n>
+    journal tool find <name>
+    journal tool folder <n>
+    journal tool force_delete <n>
+    journal tool link <n> <ref>
+    journal tool linked_to <ref>
+    journal tool move <n> <env>
+    journal tool read <n>
+    journal tool restore <n>
+    journal tool run <n> <args>
+    journal tool search <term>
+    journal tool section <n> <title> <body>
+    journal tool set <n> <key> <value>
+    journal tool show <n>
+    journal tool unlink <n> <ref>
+    journal tool unread [--actor …]
+    journal tool update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### style — One rule of the project's coding style, on one subject, written as a skill
+A style rule names its subject and its decision; the style feature writes the skill for it.  Scope: project. Seen by: user, agent.
+    journal style all [--deleted]
+    journal style attach <n> <path> [--what …]
+    journal style comment <n> <text>
+    journal style comments <n>
+    journal style strike <n> [--how …] [--set key=value…]
+    journal style create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal style delete <n> [--why …]
+    journal style files <n>
+    journal style find <name>
+    journal style folder <n>
+    journal style force_delete <n>
+    journal style link <n> <ref>
+    journal style linked_to <ref>
+    journal style move <n> <env>
+    journal style read <n>
+    journal style restore <n>
+    journal style search <term>
+    journal style section <n> <title> <body>
+    journal style set <n> <key> <value>
+    journal style show <n>
+    journal style unlink <n> <ref>
+    journal style unread [--actor …]
+    journal style update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### connection — A service the project can reach, and which variable holds its token
+Never the token itself: the name of the variable that holds it.  Scope: project. Seen by: user, agent.
+    journal connection all [--deleted]
+    journal connection attach <n> <path> [--what …]
+    journal connection comment <n> <text>
+    journal connection comments <n>
+    journal connection complete <n> [--how …] [--set key=value…]
+    journal connection create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal connection delete <n> [--why …]
+    journal connection files <n>
+    journal connection find <name>
+    journal connection folder <n>
+    journal connection force_delete <n>
+    journal connection link <n> <ref>
+    journal connection linked_to <ref>
+    journal connection move <n> <env>
+    journal connection read <n>
+    journal connection restore <n>
+    journal connection search <term>
+    journal connection section <n> <title> <body>
+    journal connection set <n> <key> <value>
+    journal connection show <n>
+    journal connection unlink <n> <ref>
+    journal connection unread [--actor …]
+    journal connection update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### environment — One line of work with its own record: messages, to-dos, pins, plans, settings
+A session works one environment at a time; switch takes one that is free, claim takes a held one with a reason.  Scope: project. Seen by: user, agent.
+    journal environment all [--deleted]
+    journal environment attach <n> <path> [--what …]
+    journal environment claim <n> <why>
+    journal environment comment <n> <text>
+    journal environment comments <n>
+    journal environment remove <n> [--how …] [--set key=value…]
+    journal environment prepare <title> [--abstract …] [--brief …] [--set key=value…]
+    journal environment delete <n> [--why …]
+    journal environment files <n>
+    journal environment find <name>
+    journal environment folder <n>
+    journal environment force_delete <n>
+    journal environment grant <n> [--off]
+    journal environment leave <n>
+    journal environment link <n> <ref>
+    journal environment linked_to <ref>
+    journal environment move <n> <env>
+    journal environment read <n>
+    journal environment restore <n>
+    journal environment search <term>
+    journal environment section <n> <title> <body>
+    journal environment set <n> <key> <value>
+    journal environment show <n>
+    journal environment switch <n>
+    journal environment unlink <n> <ref>
+    journal environment unread [--actor …]
+    journal environment update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
+
+### nudge — A line a feature has the engine type to the agent
+A nudge is written by a feature and spoken to the agent as it is; the user never hears it.  Scope: environment. Seen by: agent.
+    journal nudge all [--deleted]
+    journal nudge attach <n> <path> [--what …]
+    journal nudge comment <n> <text>
+    journal nudge comments <n>
+    journal nudge complete <n> [--how …] [--set key=value…]
+    journal nudge create <title> [--abstract …] [--brief …] [--set key=value…]
+    journal nudge delete <n> [--why …]
+    journal nudge files <n>
+    journal nudge find <name>
+    journal nudge folder <n>
+    journal nudge force_delete <n>
+    journal nudge link <n> <ref>
+    journal nudge linked_to <ref>
+    journal nudge move <n> <env>
+    journal nudge read <n>
+    journal nudge restore <n>
+    journal nudge search <term>
+    journal nudge section <n> <title> <body>
+    journal nudge set <n> <key> <value>
+    journal nudge show <n>
+    journal nudge unlink <n> <ref>
+    journal nudge unread [--actor …]
+    journal nudge update <n> [--title …] [--abstract …] [--brief …] [--outcome …] [--set key=value…]
