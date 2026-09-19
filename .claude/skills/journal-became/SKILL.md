@@ -3,7 +3,7 @@ name: journal-became
 description: A row the agent files while a message is in its hands is linked to that message, without a declaration
 ---
 
-# What a message became
+# Message tracing
 
 A row the agent files while a message is in its hands is linked to that message, without a declaration.
 
