@@ -1,9 +1,8 @@
-/Users/me/projects/agent-journal/.commandments/config.php
 /Users/me/projects/agent-journal/web/src/chat/Compose.vue
 /Users/me/projects/agent-journal/web/src/chat/DumpWindow.vue
 /Users/me/projects/agent-journal/web/src/chat/Turn.vue
 /Users/me/projects/agent-journal/web/src/kit/SidePanel.vue
-/Users/me/projects/agent-journal/web/src/kit/Text.vue
+/Users/me/projects/agent-journal/web/src/kit/TextDisplay.vue
 /Users/me/projects/agent-journal/web/src/layout/ActivityEvents.vue
 /Users/me/projects/agent-journal/web/src/layout/SkillPanel.vue
 /Users/me/projects/agent-journal/web/src/pages/RailWaiting.vue
