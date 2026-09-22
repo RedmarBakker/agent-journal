@@ -1,7 +1,4 @@
-/Users/me/projects/agent-journal/web/src/kit/FoldGroup.vue
-/Users/me/projects/agent-journal/web/src/kit/LineList.vue
-/Users/me/projects/agent-journal/web/src/pages/FeaturePanel.vue
-/Users/me/projects/agent-journal/web/src/pages/PluginSettings.vue
+/Users/me/projects/agent-journal/.commandments/config.php
 -----
 Batch marker for the code-commandments judge reminder (`commandments judge-reminder`, wired as
 Stop + PreToolUse hooks). The lines above the separator are the changed-file set it last
