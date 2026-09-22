@@ -1,7 +1,4 @@
-/Users/me/projects/agent-journal/web/src/kit/LineList.vue
-/Users/me/projects/agent-journal/web/src/kit/TextInput.vue
-/Users/me/projects/agent-journal/web/src/pages/PluginSettings.vue
-/Users/me/projects/agent-journal/web/src/resource/DataFields.vue
+/Users/me/projects/agent-journal/web/src/resource/ResourceActions.vue
 /Users/me/projects/agent-journal/web/src/resource/ResourceBody.vue
 -----
 Batch marker for the code-commandments judge reminder (`commandments judge-reminder`, wired as
