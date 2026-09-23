@@ -1,3 +1,9 @@
+/Users/me/projects/agent-journal/src/features/boards/__init__.py
+/Users/me/projects/agent-journal/src/features/boards/controller.py
+/Users/me/projects/agent-journal/src/features/boards/details.py
+/Users/me/projects/agent-journal/src/features/boards/feature.py
+/Users/me/projects/agent-journal/src/features/boards/resource.py
+/Users/me/projects/agent-journal/src/features/kanban/board.py
 /Users/me/projects/agent-journal/src/features/tickets/__init__.py
 /Users/me/projects/agent-journal/src/features/tickets/controller.py
 /Users/me/projects/agent-journal/src/features/tickets/details.py
