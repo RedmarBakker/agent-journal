@@ -1,6 +1,9 @@
-/Users/me/projects/agent-journal/src/controllers/agents.py
-/Users/me/projects/agent-journal/src/features/parts.py
-/Users/me/projects/agent-journal/src/features/plugins/payload.py
+/Users/me/projects/agent-journal/src/features/plugins/details.py
+/Users/me/projects/agent-journal/src/features/plugins/manifest.py
+/Users/me/projects/agent-journal/src/features/plugins/parts.py
+/Users/me/projects/agent-journal/src/features/plugins/run.py
+/Users/me/projects/agent-journal/src/features/plugins/source.py
+/Users/me/projects/agent-journal/src/features/plugins/test.py
 -----
 Batch marker for the code-commandments judge reminder (`commandments judge-reminder`, wired as
 Stop + PreToolUse hooks). The lines above the separator are the changed-file set it last
