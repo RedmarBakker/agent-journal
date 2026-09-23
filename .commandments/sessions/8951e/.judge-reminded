@@ -10,6 +10,7 @@
 /Users/me/projects/agent-journal/src/features/boards/feature.py
 /Users/me/projects/agent-journal/src/features/boards/resource.py
 /Users/me/projects/agent-journal/src/features/kanban/board.py
+/Users/me/projects/agent-journal/src/features/messages/test.py
 /Users/me/projects/agent-journal/src/features/skill_loading/catalogue.py
 /Users/me/projects/agent-journal/src/features/status_bar/test.py
 /Users/me/projects/agent-journal/src/features/tickets/__init__.py
