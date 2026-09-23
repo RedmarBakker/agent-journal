@@ -4,6 +4,7 @@
 /Users/me/projects/agent-journal/src/commands/queries.py
 /Users/me/projects/agent-journal/src/engine/drivers.py
 /Users/me/projects/agent-journal/src/engine/inputs.py
+/Users/me/projects/agent-journal/src/engine/record.py
 /Users/me/projects/agent-journal/src/engine/runtime.py
 /Users/me/projects/agent-journal/src/engine/seats.py
 /Users/me/projects/agent-journal/src/engine/services.py
@@ -22,6 +23,7 @@
 /Users/me/projects/agent-journal/src/features/close_from_commits/handlers.py
 /Users/me/projects/agent-journal/src/features/command_tags/test.py
 /Users/me/projects/agent-journal/src/features/dev_faults/reports.py
+/Users/me/projects/agent-journal/src/features/dev_faults/test.py
 /Users/me/projects/agent-journal/src/features/hosting/__init__.py
 /Users/me/projects/agent-journal/src/features/hosting/apps.py
 /Users/me/projects/agent-journal/src/features/hosting/commands.py
