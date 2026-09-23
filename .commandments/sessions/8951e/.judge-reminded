@@ -63,6 +63,7 @@
 /Users/me/projects/agent-journal/src/features/work_tracking/details.py
 /Users/me/projects/agent-journal/src/features/work_tracking/handlers.py
 /Users/me/projects/agent-journal/src/features/work_tracking/test.py
+/Users/me/projects/agent-journal/src/migrations/m0026_stopping_description.py
 /Users/me/projects/agent-journal/src/providers/claude.py
 /Users/me/projects/agent-journal/src/resources/types.py
 /Users/me/projects/agent-journal/src/serve.py
