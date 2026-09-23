@@ -50,6 +50,7 @@
 /Users/me/projects/agent-journal/src/features/organization/test.py
 /Users/me/projects/agent-journal/src/features/parts.py
 /Users/me/projects/agent-journal/src/features/permission_prompts/feature.py
+/Users/me/projects/agent-journal/src/features/plugins/commands.py
 /Users/me/projects/agent-journal/src/features/plugins/parts.py
 /Users/me/projects/agent-journal/src/features/pull_requests/test.py
 /Users/me/projects/agent-journal/src/features/runtime_cleanup/test.py
@@ -83,6 +84,7 @@
 /Users/me/projects/agent-journal/src/web/src/App.vue
 /Users/me/projects/agent-journal/src/web/src/board/AgentDrawer.vue
 /Users/me/projects/agent-journal/src/web/src/board/AgentSlots.vue
+/Users/me/projects/agent-journal/src/web/src/board/AskedQuestion.vue
 /Users/me/projects/agent-journal/src/web/src/board/BoardMenu.vue
 /Users/me/projects/agent-journal/src/web/src/board/Card.vue
 /Users/me/projects/agent-journal/src/web/src/board/CardMenu.vue
@@ -90,6 +92,7 @@
 /Users/me/projects/agent-journal/src/web/src/board/Lane.vue
 /Users/me/projects/agent-journal/src/web/src/board/NewWork.vue
 /Users/me/projects/agent-journal/src/web/src/board/NotePrompt.vue
+/Users/me/projects/agent-journal/src/web/src/board/QuestionStrip.vue
 /Users/me/projects/agent-journal/src/web/src/board/StopPrompt.vue
 /Users/me/projects/agent-journal/src/web/src/board/Suggestion.vue
 /Users/me/projects/agent-journal/src/web/src/board/TemplateCard.vue
