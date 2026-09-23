@@ -14,6 +14,7 @@
 /Users/me/projects/agent-journal/src/features/boards/details.py
 /Users/me/projects/agent-journal/src/features/boards/feature.py
 /Users/me/projects/agent-journal/src/features/boards/resource.py
+/Users/me/projects/agent-journal/src/features/command_tags/test.py
 /Users/me/projects/agent-journal/src/features/hosting/__init__.py
 /Users/me/projects/agent-journal/src/features/hosting/apps.py
 /Users/me/projects/agent-journal/src/features/hosting/commands.py
@@ -23,6 +24,8 @@
 /Users/me/projects/agent-journal/src/features/hosting/handlers.py
 /Users/me/projects/agent-journal/src/features/hosting/test.py
 /Users/me/projects/agent-journal/src/features/kanban/board.py
+/Users/me/projects/agent-journal/src/features/messages/details.py
+/Users/me/projects/agent-journal/src/features/messages/handlers.py
 /Users/me/projects/agent-journal/src/features/messages/test.py
 /Users/me/projects/agent-journal/src/features/organization/__init__.py
 /Users/me/projects/agent-journal/src/features/organization/commands.py
@@ -52,6 +55,7 @@
 /Users/me/projects/agent-journal/src/web/src/board/Lane.vue
 /Users/me/projects/agent-journal/src/web/src/kit/Icon.vue
 /Users/me/projects/agent-journal/src/web/src/kit/MenuPanel.vue
+/Users/me/projects/agent-journal/src/web/src/layout/PSection.vue
 /Users/me/projects/agent-journal/src/web/src/layout/Sidebar.vue
 /Users/me/projects/agent-journal/src/web/src/layout/TopBar.vue
 /Users/me/projects/agent-journal/src/web/src/pages/BoardPage.vue
