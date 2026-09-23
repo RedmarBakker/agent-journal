@@ -54,6 +54,7 @@
 /Users/me/projects/agent-journal/src/web/src/layout/Sidebar.vue
 /Users/me/projects/agent-journal/src/web/src/layout/TopBar.vue
 /Users/me/projects/agent-journal/src/web/src/pages/BoardPage.vue
+/Users/me/projects/agent-journal/src/web/src/resource/NewResource.vue
 /Users/me/projects/agent-journal/src/web/src/resource/ResourceBody.vue
 /Users/me/projects/agent-journal/src/web/src/resource/StageMeanings.vue
 /Users/me/projects/agent-journal/tests/test_the_gate.py
