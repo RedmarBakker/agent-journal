@@ -4,16 +4,20 @@
 /Users/me/projects/agent-journal/src/engine/drivers.py
 /Users/me/projects/agent-journal/src/engine/inputs.py
 /Users/me/projects/agent-journal/src/engine/runtime.py
+/Users/me/projects/agent-journal/src/engine/seats.py
 /Users/me/projects/agent-journal/src/engine/services.py
 /Users/me/projects/agent-journal/src/engine/sessions.py
+/Users/me/projects/agent-journal/src/engine/stop.py
 /Users/me/projects/agent-journal/src/engine/terminal.py
 /Users/me/projects/agent-journal/src/engine/version.py
+/Users/me/projects/agent-journal/src/engine/worker.py
 /Users/me/projects/agent-journal/src/engine/worktree.py
 /Users/me/projects/agent-journal/src/features/boards/__init__.py
 /Users/me/projects/agent-journal/src/features/boards/controller.py
 /Users/me/projects/agent-journal/src/features/boards/details.py
 /Users/me/projects/agent-journal/src/features/boards/feature.py
 /Users/me/projects/agent-journal/src/features/boards/resource.py
+/Users/me/projects/agent-journal/src/features/close_from_commits/handlers.py
 /Users/me/projects/agent-journal/src/features/command_tags/test.py
 /Users/me/projects/agent-journal/src/features/hosting/__init__.py
 /Users/me/projects/agent-journal/src/features/hosting/apps.py
@@ -50,6 +54,7 @@
 /Users/me/projects/agent-journal/src/serve.py
 /Users/me/projects/agent-journal/src/supervisor.py
 /Users/me/projects/agent-journal/src/web/src/App.vue
+/Users/me/projects/agent-journal/src/web/src/board/AgentDrawer.vue
 /Users/me/projects/agent-journal/src/web/src/board/AgentSlots.vue
 /Users/me/projects/agent-journal/src/web/src/board/Card.vue
 /Users/me/projects/agent-journal/src/web/src/board/CardMenu.vue
@@ -59,6 +64,7 @@
 /Users/me/projects/agent-journal/src/web/src/board/StopPrompt.vue
 /Users/me/projects/agent-journal/src/web/src/board/Suggestion.vue
 /Users/me/projects/agent-journal/src/web/src/board/TemplateCard.vue
+/Users/me/projects/agent-journal/src/web/src/chat/AgentScreen.vue
 /Users/me/projects/agent-journal/src/web/src/kit/ChatLine.vue
 /Users/me/projects/agent-journal/src/web/src/kit/ChatPanel.vue
 /Users/me/projects/agent-journal/src/web/src/kit/FocusStage.vue
