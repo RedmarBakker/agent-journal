@@ -1,3 +1,4 @@
+/Users/me/projects/agent-journal/.commandments/config.php
 /Users/me/projects/agent-journal/src/commands/http.py
 /Users/me/projects/agent-journal/src/commands/parser.py
 /Users/me/projects/agent-journal/src/commands/queries.py
@@ -40,7 +41,9 @@
 /Users/me/projects/agent-journal/src/features/organization/feature.py
 /Users/me/projects/agent-journal/src/features/organization/files.py
 /Users/me/projects/agent-journal/src/features/organization/test.py
+/Users/me/projects/agent-journal/src/features/parts.py
 /Users/me/projects/agent-journal/src/features/permission_prompts/feature.py
+/Users/me/projects/agent-journal/src/features/plugins/parts.py
 /Users/me/projects/agent-journal/src/features/pull_requests/test.py
 /Users/me/projects/agent-journal/src/features/runtime_cleanup/test.py
 /Users/me/projects/agent-journal/src/features/runtime_cleanup/tidy.py
