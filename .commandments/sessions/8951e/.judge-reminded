@@ -37,6 +37,8 @@
 /Users/me/projects/agent-journal/src/features/hosting/files.py
 /Users/me/projects/agent-journal/src/features/hosting/handlers.py
 /Users/me/projects/agent-journal/src/features/hosting/test.py
+/Users/me/projects/agent-journal/src/features/journal_laws/policy.py
+/Users/me/projects/agent-journal/src/features/journal_laws/test.py
 /Users/me/projects/agent-journal/src/features/kanban/board.py
 /Users/me/projects/agent-journal/src/features/messages/details.py
 /Users/me/projects/agent-journal/src/features/messages/handlers.py
