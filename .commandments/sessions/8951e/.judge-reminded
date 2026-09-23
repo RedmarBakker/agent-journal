@@ -71,6 +71,7 @@
 /Users/me/projects/agent-journal/src/web/src/board/TemplateCard.vue
 /Users/me/projects/agent-journal/src/web/src/chat/AgentScreen.vue
 /Users/me/projects/agent-journal/src/web/src/chat/Thread.vue
+/Users/me/projects/agent-journal/src/web/src/kit/Btn.vue
 /Users/me/projects/agent-journal/src/web/src/kit/ChatLine.vue
 /Users/me/projects/agent-journal/src/web/src/kit/ChatPanel.vue
 /Users/me/projects/agent-journal/src/web/src/kit/FocusStage.vue
@@ -87,6 +88,8 @@
 /Users/me/projects/agent-journal/src/web/src/organization/RoleCard.vue
 /Users/me/projects/agent-journal/src/web/src/pages/BoardPage.vue
 /Users/me/projects/agent-journal/src/web/src/pages/OrganizationPage.vue
+/Users/me/projects/agent-journal/src/web/src/pages/PluginPage.vue
+/Users/me/projects/agent-journal/src/web/src/pages/ServicesPage.vue
 /Users/me/projects/agent-journal/src/web/src/resource/NewResource.vue
 /Users/me/projects/agent-journal/src/web/src/resource/ResourceBody.vue
 /Users/me/projects/agent-journal/src/web/src/resource/StageMeanings.vue
