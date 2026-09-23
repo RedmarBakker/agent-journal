@@ -78,7 +78,9 @@
 /Users/me/projects/agent-journal/src/web/src/layout/PSection.vue
 /Users/me/projects/agent-journal/src/web/src/layout/Sidebar.vue
 /Users/me/projects/agent-journal/src/web/src/layout/TopBar.vue
+/Users/me/projects/agent-journal/src/web/src/organization/RoleCard.vue
 /Users/me/projects/agent-journal/src/web/src/pages/BoardPage.vue
+/Users/me/projects/agent-journal/src/web/src/pages/OrganizationPage.vue
 /Users/me/projects/agent-journal/src/web/src/resource/NewResource.vue
 /Users/me/projects/agent-journal/src/web/src/resource/ResourceBody.vue
 /Users/me/projects/agent-journal/src/web/src/resource/StageMeanings.vue
