@@ -1,1 +1,109 @@
-{}
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "MessageDisplay": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/hook.sh claude /Users/someone/projects/agent-journal"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "sh /Users/someone/projects/agent-journal/src/journal/hooks/status.sh",
+    "padding": 0
+  }
+}
