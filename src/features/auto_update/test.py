@@ -558,14 +558,14 @@ def test_a_launch_repairs_a_half_done_upgrade(tmp_path, monkeypatch):
     started = []
     monkeypatch.setattr(install.subprocess, "Popen", lambda words, **kept: started.append((words, kept)))
     monkeypatch.delenv(install.DETACHED, raising=False)
-    said = upgrade_here({"record": record, "yes": True, "to": None})
+    said = upgrade_here({"record": record, "yes": True, "to": None, "version": None})
     words, kept = started[0]
     assert (words[2:], kept["start_new_session"], kept["env"][install.DETACHED]) == ([str(root), "upgrade", "--yes"], True, "1"), \
         "an upgrade asked for from the command line starts in a session of its own, since the pause it writes tears down whoever asked for it"
     assert "running on its own" in said, "and says so instead of waiting for an install it no longer owns"
     monkeypatch.setenv(install.DETACHED, "1")
     monkeypatch.setattr(install, "upgrade", lambda project, root, yes=False, version=None: ["installed"])
-    assert upgrade_here({"record": record, "yes": True, "to": None}) == "installed" and len(started) == 1, \
+    assert upgrade_here({"record": record, "yes": True, "to": None, "version": None}) == "installed" and len(started) == 1, \
         "the detached run installs where it stands and never starts a third process"
 
 
@@ -1012,3 +1012,43 @@ def test_a_newer_major_is_offered_but_never_installed_by_itself(monkeypatch):
     assert within("3.3.2", "3.3.3", "patches") and within("3.3.2", "3.4.0", "minor versions") and within("3.3.2", "3.9.0", "always")
     assert not within("3.3.2", "4.0.0", "major versions") and not within("3.3.2", "4.0.0", "always"), "a new major line is never installed by itself, whatever the choice"
 
+
+
+def test_the_way_across_to_version_4_asks_first_then_backs_up_stops_and_installs(tmp_path, monkeypatch):
+    from commands import queries
+    from framework.updating import to_four
+    record = fresh()
+    calls = []
+    monkeypatch.setattr(to_four, "keep_copy", lambda root: calls.append("back up") or "")
+    monkeypatch.setattr(queries, "halt", lambda ctx: calls.append("stop") or "the journal is stopped")
+    monkeypatch.setattr(to_four.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(to_four.subprocess, "Popen", lambda words, **how: calls.append((words, how["cwd"])))
+    for wanted in ({"to": "4", "version": None}, {"to": None, "version": "4.0.0"}):
+        asked = queries.upgrade_here({"record": record, "yes": False, **wanted})
+        for step in ("backs up", "stops the journal completely", "installs version 4", "restarts", to_four.INSTALLER, ".journal/version-3"):
+            assert step in asked, f"the question names {step}"
+        assert calls == [], "nothing is done before the answer"
+    queries.upgrade_here({"record": record, "yes": True, "to": "4", "version": None})
+    assert calls == ["back up", "stop", (["sh", "-c", f"curl -fsSL {to_four.INSTALLER} | sh"], str(record.root.parent))], \
+        "yes backs the journal up, stops it, then runs version 4's installer from the project root"
+    assert not to_four.names_four("3.3.5") and not to_four.names_four(None) and to_four.names_four("4.0.0")
+
+
+def test_the_viewer_crosses_to_version_4_by_the_same_path_and_is_told_a_new_line_is_out(monkeypatch):
+    from features.auto_update import routes
+    from framework.updating import check, status
+    from tests.kit import dispatch
+    record = fresh()
+    started = []
+    monkeypatch.setattr(check, "journal_repository", lambda project: False)
+    monkeypatch.setattr(check, "installed", lambda root, yes, version: started.append((yes, version)))
+    monkeypatch.setattr(routes, "release_versions", lambda: ["4.0.0", "3.3.5"])
+    monkeypatch.setattr(routes, "changed_managed", lambda project, root: [project / "CLAUDE.md"])
+    monkeypatch.setattr(status, "upstream", lambda root: "4.0.0")
+    assert dispatch("GET", "/api/upstream", record.root, {}, {}).body["across"] is True, "the viewer is told the newest release is on a new major line"
+    monkeypatch.setattr(status, "upstream", lambda root: "3.9.0")
+    assert dispatch("GET", "/api/upstream", record.root, {}, {}).body["across"] is False
+    assert dispatch("POST", "/api/update", record.root, {}, {"version": "4.0.0"}).body == {"updating": True}
+    assert dispatch("POST", "/api/update", record.root, {}, {"version": "3.3.5"}).code == 409, "an ordinary update still waits on files changed by hand"
+    __import__("time").sleep(0.2)
+    assert started == [(True, "4.0.0")], "the dialog's answer is the user's yes; files changed by hand are kept whole with the old journal"

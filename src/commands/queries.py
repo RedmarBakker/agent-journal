@@ -165,14 +165,18 @@ def demo(ctx) -> str:
     return demo_built(Path(ctx["folder"]), Path(ctx["into"]), ctx["environment"], ctx["name"])
 
 def upgrade_here(ctx) -> str:
+    from framework.updating.to_four import asked, crossed, names_four
     from install import DETACHED, held_by_hand, upgrade, upgrade_on_its_own
     root = ctx["record"].root
+    wanted = ctx["to"] or ctx["version"]
+    if names_four(wanted):
+        return crossed(ctx) if ctx["yes"] else asked()
     if os.environ.get(DETACHED):
-        return "\n".join(upgrade(root.parent, root, yes=ctx["yes"], version=ctx["to"]))
+        return "\n".join(upgrade(root.parent, root, yes=ctx["yes"], version=wanted))
     held = held_by_hand(root.parent, root, ctx["yes"])
     if held:
         return held
-    return upgrade_on_its_own(root, yes=ctx["yes"], version=ctx["to"])
+    return upgrade_on_its_own(root, yes=ctx["yes"], version=wanted)
 
 def halt(ctx) -> str:
     from engine.stop import ask, clear, ended

@@ -4,6 +4,11 @@ Newest first. Each entry is what changed, what it makes possible, and what to do
 `journal upgrade` prints the entries since the version you had; a session started on a
 newer version than the last one it saw is handed the same.
 
+## 3.3.6 — The way across to version 4
+
+- `journal upgrade --to 4` (or `journal upgrade 4.0.0`) is now the one way across to version 4. It asks first and names what it will do: back up the journal, stop it completely, install version 4 by running its install script from the project root, and restart. With `--yes` it does it. The install script keeps this journal whole in `.journal/version-3`. Before, naming 4.0.0 ran this version's own installer.
+- Once version 4 is released, Home shows a dialog that has to be read instead of the update band: it has no close button and the backdrop does not close it. It explains that the journal closes completely, that to-dos become tasks, that plans and everything else come across with nothing lost and the old journal kept whole, and that the board is set aside for now and comes back later, revised. Upgrade and migrate takes the same way across; No closes it until the page loads again. Auto-update stays on version 3.
+
 ## 3.3.5 — A Codex agent's reply arrives during the turn
 
 - What a Codex agent writes is now read after every tool call it makes, so a reply it writes before running commands reaches the chat at once and answers its message. Before, it was read only when the turn ended, and a reply followed by more than ten minutes of work never arrived.

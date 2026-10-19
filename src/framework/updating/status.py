@@ -4,6 +4,7 @@ from engine import runtime
 from engine.package import data
 from engine.upgrades import FETCHING, newer, upstream
 from engine.version import version
+from resources.versions import line_of
 
 CHANGELOG = data("CHANGELOG.md")
 
@@ -21,4 +22,5 @@ def upgrading(root: Path) -> bool:
 
 def upstream_standing(root: Path) -> dict:
     installed, latest = version(), upstream(root)
-    return {"installed": installed, "latest": latest, "newer": newer(latest, installed)}
+    return {"installed": installed, "latest": latest, "newer": newer(latest, installed),
+            "across": bool(latest) and line_of(latest) > line_of(installed)}

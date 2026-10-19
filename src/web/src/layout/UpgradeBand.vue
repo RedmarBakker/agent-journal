@@ -6,6 +6,7 @@ import {computed, onMounted, ref, watch} from "vue";
 import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
 import Notice from "../kit/Notice.vue";
+import UpgradeToFourDialog from "./UpgradeToFourDialog.vue";
 import {store} from "../state/store.js";
 import {useNow} from "../composables/now.js";
 import {hostedOn} from "../composables/settings.js";
@@ -16,11 +17,14 @@ const upstream = ref(null);
 const dismissed = ref(remembered("journal.upgrade.dismissed", ""));
 const lines = ref([]);
 const running = ref(false);
+const putOff = ref(false);
+const across = computed(() => !hostedOn.value && !!upstream.value?.newer && !!upstream.value.across);
 const visible = computed(
     () =>
         !hostedOn.value &&
         upstream.value &&
         upstream.value.newer &&
+        !upstream.value.across &&
         (!upstream.value.installs || upstream.value.changed?.length) &&
         dismissed.value !== upstream.value.latest
 );
@@ -83,6 +87,9 @@ async function retry() {
 </script>
 
 <template>
+    <template v-if="across && !putOff">
+        <UpgradeToFourDialog :version="upstream.latest" @no="putOff = true" />
+    </template>
     <template v-if="store.offline">
         <div class="band offline" role="status">
             <span class="text">

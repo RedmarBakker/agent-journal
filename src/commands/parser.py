@@ -126,6 +126,7 @@ def built(only: str) -> argparse.ArgumentParser:
     add_query(cmds, "attach", "watch a session that runs without a terminal and type into it; Ctrl+] leaves it running",
               lambda ctx: attached(ctx), ("target", {}))
     add_query(cmds, "upgrade", "pull the package, wire the hooks, write the skills, run the migrations", lambda ctx: upgrade_here(ctx), ("--yes", {"action": "store_true"}),
+              ("version", {"nargs": "?", "default": None, "help": "the version to install, as with --to"}),
               ("--to", {"default": None, "help": "install this released version instead of the newest"}))
     add_query(cmds, "stop", "stop this journal: its viewer, its engine and every service a plugin runs", lambda ctx: halt(ctx))
     add_query(cmds, "ended", "a session's agent has exited: put back what was set aside, and stop the journal when no session is left", lambda ctx: ended(ctx))

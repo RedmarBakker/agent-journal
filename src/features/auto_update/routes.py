@@ -12,6 +12,7 @@ from framework.updating.new_feature import mark_seen, shown_announced
 from framework.routing import Reply, Request, handles
 from resources.base import Refused
 from framework.managed import changed_managed, changed_message
+from framework.updating.to_four import names_four
 from install import release_versions
 
 ENTRY = re.compile(r"^## ", re.M)
@@ -57,16 +58,17 @@ def post_update(req: Request) -> Reply:
     from framework.updating.check import installed, journal_repository
     if journal_repository(req.root.parent):
         raise Refused("this is the journal's own repository: it updates from its own code, not from a release")
-    changed = changed_managed(req.root.parent, req.root)
+    chosen = req.body.get("version", "") or upstream_standing(req.root)["latest"]
+    crossing = names_four(chosen)
+    changed = [] if crossing else changed_managed(req.root.parent, req.root)
     if changed and not req.body.get("yes"):
         return Reply(409, {"error": changed_message(req.root.parent, changed),
                            "changed": [path.relative_to(req.root.parent).as_posix() for path in changed]})
     if upgrading(req.root):
         raise Refused("an update is already running")
-    chosen = req.body.get("version", "") or upstream_standing(req.root)["latest"]
     if chosen and chosen not in release_versions():
         raise Refused(f"{chosen} is not a released version")
-    threading.Thread(target=installed, args=(req.root, bool(req.body.get("yes")), chosen), daemon=True).start()
+    threading.Thread(target=installed, args=(req.root, crossing or bool(req.body.get("yes")), chosen), daemon=True).start()
     return Reply(200, {"updating": True})
 
 
