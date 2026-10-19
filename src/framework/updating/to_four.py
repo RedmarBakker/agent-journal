@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -34,5 +35,5 @@ def crossed(ctx) -> str:
     log = Path(tempfile.gettempdir()) / "agent-journal-upgrade-to-4.log"
     with log.open("a") as printing:
         subprocess.Popen(["sh", "-c", f"curl -fsSL {INSTALLER} | sh"], cwd=str(root.parent), stdin=subprocess.DEVNULL,
-                         stdout=printing, stderr=subprocess.STDOUT, start_new_session=True)
+                         stdout=printing, stderr=subprocess.STDOUT, start_new_session=True, env={**os.environ, "AGENT_JOURNAL_YES": "1"})
     return "\n".join(filter(None, [backed_up, stopped, f"version 4's installer is running on its own; it writes to {log}"]))

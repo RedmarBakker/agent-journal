@@ -1022,15 +1022,15 @@ def test_the_way_across_to_version_4_asks_first_then_backs_up_stops_and_installs
     monkeypatch.setattr(to_four, "keep_copy", lambda root: calls.append("back up") or "")
     monkeypatch.setattr(queries, "halt", lambda ctx: calls.append("stop") or "the journal is stopped")
     monkeypatch.setattr(to_four.tempfile, "gettempdir", lambda: str(tmp_path))
-    monkeypatch.setattr(to_four.subprocess, "Popen", lambda words, **how: calls.append((words, how["cwd"])))
+    monkeypatch.setattr(to_four.subprocess, "Popen", lambda words, **how: calls.append((words, how["cwd"], how["env"]["AGENT_JOURNAL_YES"])))
     for wanted in ({"to": "4", "version": None}, {"to": None, "version": "4.0.0"}):
         asked = queries.upgrade_here({"record": record, "yes": False, **wanted})
         for step in ("backs up", "stops the journal completely", "installs version 4", "restarts", to_four.INSTALLER, ".journal/version-3"):
             assert step in asked, f"the question names {step}"
         assert calls == [], "nothing is done before the answer"
     queries.upgrade_here({"record": record, "yes": True, "to": "4", "version": None})
-    assert calls == ["back up", "stop", (["sh", "-c", f"curl -fsSL {to_four.INSTALLER} | sh"], str(record.root.parent))], \
-        "yes backs the journal up, stops it, then runs version 4's installer from the project root"
+    assert calls == ["back up", "stop", (["sh", "-c", f"curl -fsSL {to_four.INSTALLER} | sh"], str(record.root.parent), "1")], \
+        "yes backs the journal up, stops it, then runs version 4's installer from the project root, carrying the yes, since it has no terminal to ask on"
     assert not to_four.names_four("3.3.5") and not to_four.names_four(None) and to_four.names_four("4.0.0")
 
 
