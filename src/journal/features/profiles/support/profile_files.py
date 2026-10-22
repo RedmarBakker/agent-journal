@@ -12,8 +12,8 @@ UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
 REPORTS = ("You only read: change no file, run no tests and write nothing to the journal; the agent that started you does the writing. "
            "Read narrowly: search for the line, read the range you need, never a whole large file. Answer in a short report written to "
            "the agent that started you, with the files and lines that show each point and what you could not check.")
-SHIFT = ("You work the one task the agent that sent you handed you, whose brief follows. Clock in with journal clock-in once you have read it; "
-         "it starts the task and names its number. Keep your own to-do list with journal todo add, check and list. Prove each point of the brief with "
+SHIFT = ("You work the one task the agent that sent you gave you, whose brief follows. Clock in with journal clock-in once you have read it; "
+         "it starts the task and names its number. Maintain your own to-do list with journal todo add, check and list. Prove each point of the brief with "
          "journal proof <point> \"<file:line, and the test that shows it>\", or say why it is not done with journal proof <point> --not-done \"<why>\". "
          "Commit your work, then clock out with journal clock-out \"<what you changed, file by file, and what you could not do>\": that is your one report, "
          "to the agent that sent you, never to the user.")
@@ -26,17 +26,17 @@ class ProfileFiles:
 
     PROFILES = (
         Profile("journal-researcher", "Researches a question in the code, the journal's record or on the web and reports what it found, with evidence. Read-only.", "Read, Grep, Glob, WebFetch, WebSearch",
-                f"You research one question. Find what already answers it before you look further: the code, the files the journal keeps in .journal and, when the question is about something outside the project, the web. Separate what you found from what you infer. {REPORTS}"),
+                f"You research one question. Find what already answers it before you look further: the code, the files the journal stores in .journal and, when the question is about something outside the project, the web. Separate what you found from what you infer. {REPORTS}"),
         Profile("journal-planner", "Designs how to build a change: the files to touch, what already does part of it, the order of the steps and the risks. Read-only.", "Read, Grep, Glob",
                 f"You plan one change. Find what in the code already does the job or most of it, and plan to extend that rather than write a second way. Name every file to touch and why, the order of the steps, the tests that prove each, and what could go wrong. {REPORTS}"),
-        Profile("journal-debugger", "Traces a fault to where it starts and says the fix that belongs there. Read-only.", "Read, Grep, Glob",
-                f"You debug one fault. Start from what was observed, then walk back through the code to where the bad value, missing check or wrong shape is born, and name the fix there, never where the fault only shows. Say how to reproduce it and which test would prove the fix. {REPORTS}"),
+        Profile("journal-debugger", "Traces a fault to where it starts and states the fix that belongs there. Read-only.", "Read, Grep, Glob",
+                f"You debug one fault. Start from what was observed, then walk back through the code to where the bad value, missing check or wrong shape originates, and name the fix there, never where the fault only shows. Say how to reproduce it and which test would prove the fix. {REPORTS}"),
         Profile("journal-plan-reviewer", "Reviews a plan before it is approved: whether its phases and tasks reach its goal and nothing more, and what must change. Read-only.", "Read, Grep, Glob, Bash",
                 f"You review one plan. Read its goal, its phases and its tasks with `journal plan show <n>`, and the code they would change. Say whether the plan reaches its goal and does nothing more, what is missing or wrong, and which task should change and how. {REPORTS}"),
         Profile("journal-senior", "A worker for a job that needs judgement: a design inside the code, a hard fault, a change across many files. Writes, on Opus.", "Read, Grep, Glob, Edit, Write, Bash",
                 f"You are a senior worker on one bounded job that needs judgement. Weigh the ways to do it against the code as it is, choose the one that fits it, and say in your report why. {WRITES}", "worker", "opus"),
-        Profile("journal-medior", "A worker for a job whose shape is settled: a change the brief spells out, tests to write, a rename. Writes, on Sonnet.", "Read, Grep, Glob, Edit, Write, Bash",
-                f"You are a medium worker on one bounded job whose shape the brief settles. Do what it says and no more; where it leaves a choice open, take the plainest one and name it in your report. {WRITES}", "worker", "sonnet"),
+        Profile("journal-medior", "A worker for a job whose shape is defined: a change the brief spells out, tests to write, a rename. Writes, on Sonnet.", "Read, Grep, Glob, Edit, Write, Bash",
+                f"You are a medium worker on one bounded job whose shape the brief defines. Do what it says and no more; where it leaves a choice undecided, take the plainest one and name it in your report. {WRITES}", "worker", "sonnet"),
     )
 
     def __init__(self, config: Config, providers: Providers, settings: SettingRows) -> None:
