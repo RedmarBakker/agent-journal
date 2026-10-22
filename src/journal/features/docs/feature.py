@@ -16,20 +16,20 @@ class DocsFeature(Feature):
     listeners = (DocumentCard, DocRevisionRecord)
     options = (REVISION_WINDOW,)
 
-    skill = Skill("docs", "Keep lasting knowledge of the project in a document; load it when something should still be known next month", """
+    skill = Skill("docs", 'Store lasting knowledge of the project in a document; load it when something should still be known next month', """
 # Documents
 
-A document holds what the project keeps knowing; what was checked now goes in a report, ordered work in a plan.
+A document holds what the project must keep knowing; the result of a check goes in a report, ordered work in a plan.
 Documents are the project's, the same in every environment.
 
 - `journal doc create "<title>" --file <path> --abstract "<one line>"` writes one from a markdown file, its `##` headings
-  as sections. `journal doc update <n> --file <path>` writes its whole text anew, its title kept.
+  as sections. `journal doc update <n> --file <path>` replaces its whole text and keeps its title.
 - `journal doc show <n>` prints its outline, numbered headings with their length; read one section with
   `--section <n or heading>` (`--bullets` for its bullets alone), or find lines with `--grep "<words>"`. Read it whole with
   `--all` only when every section matters to the job; the outline and one section are the default. `journal doc list` names them.
-- Every save that changes a document's text is kept as a revision. Saves within 30 minutes of the last fold into the
-  open revision, each change noted section by section; `journal doc keep <n>` keeps it as it is, and the next edit
+- Every save that changes a document's text is stored as a revision. Saves within 30 minutes of the last merge into the
+  open revision, each change noted section by section; `journal doc keep <n>` closes the open revision as it is, and the next edit
   opens a new one. `journal doc revisions <n>` lists them, number, time, author and change; `journal doc revision <n> <k>`
-  prints one whole. An old revision is read, never restored.
-- `journal doc import <folder>` brings in the documents version 3 kept, each folder's doc.md.
+  prints one in full. An old revision can be read but never restored.
+- `journal doc import <folder>` imports the documents version 3 stored, each folder's doc.md.
 """, keywords=("doc", "docs", "document", "documents"))

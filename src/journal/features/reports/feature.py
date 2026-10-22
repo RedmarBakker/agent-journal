@@ -22,10 +22,10 @@ class ReportsFeature(Feature[ReportsData]):
     options = (UPDATE_INTERVAL,)
     nudges = (UPDATE_SUGGESTION,)
 
-    skill = Skill("reports", 'Put what was checked or researched now in a report linked to what it is about; load it when the user asks for a critique, a review, an update or a write-up', """
+    skill = Skill("reports", 'Put what was just checked or researched in a report linked to what it is about; load it when the user asks for a critique, a review, an update or a write-up', """
 # Reports
 
-A report holds what was checked or researched now; lasting knowledge goes in a doc, ordered work in a plan.
+A report holds what was just checked or researched; lasting knowledge goes in a doc, ordered work in a plan.
 
 - `journal report create "<title>" --file <path> --about plans:1` writes one from a markdown file, its `##`
   headings as sections, linked to the rows it is about; `--body "<text>"` for a short one.

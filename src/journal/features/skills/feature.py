@@ -29,41 +29,41 @@ class Skills(Feature[SkillsData]):
     UNREAD_SKILL_STOP = Nudge(name, "stopped_owing", "you stopped with the {{skills}} skill still to read", "read it first, or `journal stuck \"<why>\"`", repeat_interval=0)
     nudges = (SKILL_READ_REQUEST, UNREAD_SKILL_STOP)
 
-    skill = Skill("journal", "The journal, its commands and when each applies; load it first in every session", """
+    skill = Skill("journal", 'The journal, its commands and when each applies; load it first in every session', """
 # The journal
 
 A line that starts with [journal] is the journal speaking, never the user: act on it as an instruction, and never
 answer it in the chat.
 
-The journal keeps this project's durable state beside the code and tells you what to do at the
+The journal stores this project's lasting state beside the code and tells you what to do at the
 moments you would otherwise get wrong. Every command is `journal <noun> <verb>`; `journal <noun> --help`
 lists the verbs.
 
-- **task**: what you are working on: `journal task start <n>` or `journal task create "<title>" --start`. Log where it stands with `journal task log <n> "<line>"`, finish
+- **task**: what you are working on: `journal task start <n>` or `journal task create "<title>" --start`. Log its status with `journal task log <n> "<line>"`, finish
   with `journal task complete <n> --how "<outcome>"`.
 - **plan**: ordered tasks. `journal plan start <n>` follows it: finishing a task starts the next.
-- **message** and **question**: what you and the user say to each other. Answer unread messages first;
+- **message** and **question**: what you and the user write to each other. Answer unread messages first;
   `journal question ask "<text>" --options "a" "b"` waits for the user.
-- **fact**, **rule**, **reminder**: what must survive the context window. At a context mark, writes wait
-  until you record one or say `journal memory skip "<why>"`.
+- **fact**, **rule**, **reminder**: what must be kept beyond the context window. At a context mark, writes wait
+  until you record one or run `journal memory skip "<why>"`.
 - **sequence**, **skill**: steps to follow, and these files.
 - **worker**: an agent that writes for you, on one task: it clocks in, proves each point of the task's brief and
   clocks out; you check each proof with `journal worker check`, send a short one back, and take the work in with
   `journal worker merge`.
 - **shell**: a long command moves to the background; read any output by its number with `journal output read <n> --tail 20` (or --grep, --summary, --all);
-  `journal reader add` keeps a reader that picks the lines worth seeing.
+  `journal reader add` stores a reader that picks the lines worth seeing.
 - **alias**: `journal alias add <name> "<line>" --reader <reader>` names a command line; `journal <name> [args]` runs it
   with the args at its end and watches a long run through its reader. Plugins ship aliases too; `journal alias list` names them.
-- `journal environment overview` after a compaction or a takeover lists what is in flight, then runs the commands
-  the setting briefing.look_commands names, each under its heading, a line not starting with journal in the project's shell: by default the started plan with its phase in hand,
-  the task list, the unread messages, the workers, the open questions and the task in hand read whole. `journal plan show
-  current` and `journal task show current` show the started plan and the task in hand.
-- `journal await "<what>" --output <n>` or `--until "<script>"` when you wait on something outside your hands, then end
+- `journal environment overview` after a compaction or a takeover lists what is in progress, then runs the commands
+  the setting briefing.look_commands names, each under its heading, a line not starting with journal in the project's shell: by default the started plan with its current phase,
+  the task list, the unread messages, the workers, the open questions and the current task in full. `journal plan show
+  current` and `journal task show current` show the started plan and the current task.
+- `journal await "<what>" --output <n>` or `--until "<script>"` when you wait for something outside your control, then end
   your turn: the wait ends by itself once that is done.
-- `journal search "<words>"` finds every task, plan, message, document, report and agent conversation here that holds
-  all the words: look there before saying you do not know or asking the user again.
+- `journal search "<words>"` finds every task, plan, message, document, report and agent conversation here that contains
+  all the words: search there before saying you do not know or asking the user again.
 - Also: **report**, **doc**, **check**, **plugin**, **secret**, **template**, **notice**; `journal <noun> --help` lists the verbs.
-- `journal stuck "<why>"` when you are truly stuck: the journal stays quiet until your next tool use.
+- `journal stuck "<why>"` when you are stuck: the journal sends nothing until your next tool use.
 
 A line from the journal is an instruction, never a message: act on it, and write nothing about it in the chat.
 """)

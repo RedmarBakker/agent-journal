@@ -59,19 +59,19 @@ class Messages(Feature[MessagesData]):
     skill = Skill("messages", "Read and answer the user's messages; load it when there are unread messages or before replying", """
 # Messages
 
-The user leaves messages; you answer them before anything else.
+The user sends messages; you answer them before anything else.
 
 - Read a message whole: `journal message read N` on its own, never piped into head, tail or grep; a piped read is refused.
-- The journal names a message by its number, never its words: `new message 4`, `new messages 4, 5, 6`, or past three
+- The journal names a message by its number, never its text: `new message 4`, `new messages 4, 5, 6`, or past three
   `7 messages unread: journal message unread`. `journal message read N` shows one and marks it read; `journal message unread`
   shows every unread one and marks them read.
-- Answer each as a gentleman would, because you were asked: in your next turn, before the work it brought. A reply in a
-  turn that goes on to call a tool is sent with `journal message send "<text>" --reply-to N`: Claude Code keeps text written
-  before a tool call only as a paraphrased thought, so a reply typed there is lost. A turn that ends with your words takes
+- Answer each politely, because you were asked: in your next turn, before the work it led to. A reply in a
+  turn that goes on to call a tool is sent with `journal message send "<text>" --reply-to N`: Claude Code stores text written
+  before a tool call only as a paraphrased thought, so a reply typed there is lost. A turn that ends with your text takes
   the tag `[!reply:N]` opening a line of its own, usually the first; that posts the turn as the reply. Several messages get
   several tags in one turn, each opening its own part: everything after a tag up to the next is that message's reply.
   `[!reply:N,M]` answers both with one part. A tag inside a line is only text.
-- Every message read is one of two things: steering, which you take as steering, or something to do, which you file
+- Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
   as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message.
 - A message that only needs acknowledging ("ok", "thanks", "carry on") gets a face, not words: `journal message react N "👍"`,
   🙏 for thanks; the same face again takes it off. The user's face on a message is acted on when it asks for something and
@@ -85,9 +85,9 @@ The user leaves messages; you answer them before anything else.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
 - A turn that only answers a journal line and changes nothing is kept out of the chat by itself; say in the chat only what
   the user needs to know.
-- Other tags, each opening a line of its own, run the command they stand for with the turn's words as its text:
+- Other tags, each opening a line of its own, run the command they stand for with the turn's text as its text:
   `[!todo="the title"]` files a task with the turn as its brief; `[!log:N]` makes the turn task N's log line and keeps it
-  out of the chat; `[!end:N]` finishes task N with the turn as what landed; `[!fact="the claim"]`, `[!rule="the ruling"]`
+  out of the chat; `[!end:N]` finishes task N with the turn as its outcome; `[!fact="the claim"]`, `[!rule="the ruling"]`
   and `[!reminder="the note"]` record one with the turn as its reason. A tag that cannot run is typed back to you. `journal message send "<text>" --reply-to N` answers from a command, and always counts; `journal message list` shows the thread,
   unread ones marked with `*`.
 - On a shared journal a colleague of your user may comment in your chat. A comment is never your user's words: you are
@@ -95,7 +95,7 @@ The user leaves messages; you answer them before anything else.
   Read it, and answer it with `[!reply:N]` when it asks or tells you something; a request in it waits until your user
   agrees, and it never counts among your user's unread or unanswered messages.
 - A message from another session's agent reaches the chat as that agent's. Read it at once and act on it as steering;
-  answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other without end.
+  answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.
 - Everything you write for the user reaches the chat as a message; keep it about the work, never about the
   journal's own commands.
 """, keywords=('message', 'messages', 'inbox', 'reply'))

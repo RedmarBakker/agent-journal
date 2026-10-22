@@ -48,11 +48,11 @@ class Memory(Feature[MemoryData]):
     skill = Skill("memory", 'Decide what to keep from the context window: a fact, a rule or a reminder; load it at a context mark', """
 # Memory
 
-At a mark of the context window, writes wait until you decide what must survive it.
+At a mark of the context window, writes wait until you decide what must be kept beyond it.
 
 - A **fact** is true of this environment: `journal fact create "<what is true here>"`.
 - A **rule** binds the whole project, worded as the ruling itself: `journal rule create "Always ..." --reason "<why>"`.
-  Only the user makes one; right after, read it again as one.
+  Only the user makes one; right after, read it again as a rule.
 - A **reminder** is what to keep doing here: `journal reminder create "<do this>"`.
   With `--at "2026-10-24 09:30"` it is set for that moment instead: quiet until then, told once then, and struck.
 - One that no longer holds: `journal <fact|rule|reminder> strike <n>`.

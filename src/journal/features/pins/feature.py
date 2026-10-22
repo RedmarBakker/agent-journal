@@ -23,15 +23,15 @@ class Pins(Feature[PinsData]):
     LINK_PIN_REQUEST = Nudge(name, "pin_the_link", "{{url}} is not pinned", "pin it if the user will come back to it: `journal notice create \"<what it is>\" --link \"{{url}}\" --label \"<Open ...>\"`", repeat_interval=0)
     nudges = (LINK_PIN_REQUEST,)
 
-    skill = Skill("pinned-links", "Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.", """
+    skill = Skill("pinned-links", 'Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.', """
 # Pinned links
 
 Whenever you point the user at something outside the journal, a design, a hosted page, a document, any link they
-will come back to, pin it above the chat: `journal notice create "<what it is>" --link "<url>" --label "Open the design"`.
-A row of the journal, a document or a plan you want kept in view, is pinned by its ref, `--link docs:55`, and its
+will open again, pin it above the chat: `journal notice create "<what it is>" --link "<url>" --label "Open the design"`.
+A row of the journal, a document or a plan you want to keep in view, is pinned by its ref, `--link docs:55`, and its
 button opens the row in place, as a click on its card does; an outside address opens in a new tab.
-A link in your chat text or in a command's output that no pin carries, a pull request's address among them, is suggested
-as a pin, and the same link again only after a stretch of your tool uses. The user closes a pin when done.
+A link in your chat text or in a command's output that no pin has, a pull request's address among them, is suggested
+as a pin, and the same link again only after a number of your tool uses. The user closes a pin when done.
 
 The same goes for what a subagent makes: when you dispatch one to produce something the user will open, tell it
 to end its report with the link, and pin that the moment it reports, before you say anything else about its work.

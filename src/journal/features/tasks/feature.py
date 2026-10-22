@@ -63,13 +63,13 @@ class Tasks(Feature[TasksData]):
     BLOCKED_TASK_REMINDER = Nudge(name, "blocked_task_asked_about", "blocked, with nothing that opens it by itself: {{tasks}}", "`journal task unblock <n>` once what it waits on has come", repeat_interval=2700, blocks_regardless=True)
     nudges = (BLOCKED_REVIEW, TASK_QUEUE, PAUSE_WAIT_END, TASK_CONTINUATION, STOP_LOG_REQUEST, OPEN_TASK, UNLOGGED_TASK, NEXT_TASK, PAUSED_TASKS, POSTPONED_WORK, COMMIT_CLOSURE, STOP_POLLING, LOG_REQUEST, LOG_EDIT_BLOCK, CURRENT_TASK_REMINDER, PAUSED_TASK_REMINDER, PAUSED_TASK_CLOSURE_REMINDER, WAIT_CHECK, IDLE_CHECK, WAIT_END, WAIT_NEXT_TASK, TASK_REOPENED, BROKEN_WAIT, BLOCKED_TASK_REMINDER, IMPASSE_REFUSAL, TASK_OPENED)
 
-    skill = Skill("tasks", 'Declare, log and finish the work in hand; load it when you start or are asked to', """
+    skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks
 
-A task is one unit of work with a life: open, started, done. Only one is in hand at a time. A quick edit
+A task is one unit of work with a lifecycle: open, started, done. Only one is current at a time. A quick edit
 needs no task; file one for work that is an item of its own, that waits, or that the user should see tracked.
 
-- `journal task create "<title>" --brief "<what and where to start>"` files one; add `--start` to take it at once, and
+- `journal task create "<title>" --brief "<what and where to start>"` files one; add `--start` to start it at once, and
   `--from <message n>` when it comes from one of the user's messages.
 - `journal task edit <n> --title "<title>" --brief "<what and done when>"` writes either or both anew: the title when the
   first one was wrong, the brief when the user corrects a task or a plan's review changes it. Read the brief first with
@@ -86,17 +86,17 @@ needs no task; file one for work that is an item of its own, that waits, or that
   `journal task unblock <n>` opens it again when what it waited on came. `journal task block <n> --on question:12`
   (or `--on task:7`) opens it by itself once that row is answered or closed; `--until "<command>"` runs the command
   every two minutes, such as a check that a pull request is merged, and opens it once the command passes; quote it in
-  single quotes, so your shell keeps a `$(...)` in it for each run instead of filling it in once. Unblocking a task or a
+  single quotes, so your shell keeps a `$(...)` in it to run each time instead of expanding it once. Unblocking a task or a
   plan, by hand or by its wait, releases its waits and retires the check its block made.
-- Waiting on something outside your hands: `journal await "<what you wait for>" --output <n>` for a command running in the
-  background (add `--reader <name>` to watch it live while you wait), or `--until "<script>"`, run every 30 seconds, for anything else. The wait ends by itself once that is done,
-  and you are told what it came to; working again lifts it too. A wait that names neither, or a wait on the user, is
+- Waiting for something outside your control: `journal await "<what you wait for>" --output <n>` for a command running in the
+  background (add `--reader <name>` to watch it as it runs while you wait), or `--until "<script>"`, run every 30 seconds, for anything else. The wait ends by itself once that is done,
+  and you are told the result; working again ends it too. A wait that names neither, or a wait on the user, is
   refused: ask with `journal question ask`, or end your turn.
-- Log as you go, counted in edits: after twenty-five with nothing logged you are asked to, every twenty-five the work in hand is named
-  back so drift is noticed, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
+- Log as you go, counted in edits: after twenty-five with nothing logged you are asked to, every twenty-five the current work is named
+  again so drift is noticed, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
   tasks.name_every and tasks.log_after). A log line starts a new version.
-- A stop with work in hand names it back with when it was last logged, three times a version; then the stop passes.
-- A commit whose message carries `Journal: tasks done <n>` on a line of its own finishes task n.
+- A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
+- A commit whose message includes `Journal: tasks done <n>` on a line of its own finishes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: a stop with tasks open is answered with the next
   one, and only the user stops you. A stop with paused tasks names them, in auto mode or not: paused is still open.
 - Work you put off in words is work lost: file it as a task instead.

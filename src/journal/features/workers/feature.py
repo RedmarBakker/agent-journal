@@ -118,35 +118,35 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   test template that says how it tests, and its text goes into the brief: Scoped tests for most jobs, No tests when you
   run them yourself, and Full suite seldom, since the full suite is yours to run once its work is back; the project's own
   test templates are listed with `journal template list`. A worker is started only on a task: an open one with a
-  brief, which is its job, or the one you hold, which it then takes over. The task is the worker's from then on, never
-  offered to you as next, until its work is merged or released. The profile sets its model and what it is told:
+  brief, which is its job, or the one you own, which it then takes over. The task is the worker's from then on, never
+  offered to you as next, until its work is merged or released. The profile sets its model and its instructions:
   medior, on Sonnet, for a job whose shape is settled; senior, on Opus, only for one that needs judgement. `--model` overrides it.
-  In a project that holds repositories of its own inside it, a worktree holds a worktree of each one the task's brief names
+  In a project that contains repositories of its own, a worktree contains a worktree of each one the task's brief names
   (all of them when it names none), so name the repositories the job touches in the brief; each merges into its own.
   A worktree has no installed libraries of its own, so a worktree dispatch names them: `--libraries node_modules,.venv`
   links the main checkout's folders, `--copies vendor` gives the worker copies of its own (always copy composer's vendor:
-  its autoloader loads classes from where vendor really lives, so through a link the tests would run the main checkout's
+  its autoloader loads classes from where vendor really is, so through a link the tests would run the main checkout's
   code), and `--no-libraries` gives none, for a job that changes the libraries. Each applies in every inner repository too.
-  The project's own commands around the making of a worktree are settings: `journal settings show workers.preparation_commands`,
+  The project's own commands around the creation of a worktree are settings: `journal settings show workers.preparation_commands`,
   `workers.completion_commands` and `workers.worktree_step`, which you may set with `journal settings set`.
 - The work mode is the bottom state of your stack. Builder, the default: you build it yourself and send a worker when a job
-  is better done beside you. Orchestrator: you plan, hand every task you can to a worker and review what comes back;
-  a stop or a long quiet with open tasks tells you to check the plans and dispatch, and a task in hand is one to hand
+  is better done beside you. Orchestrator: you plan, give every task you can to a worker and review what comes back;
+  a stop or a long idle time with open tasks tells you to check the plans and dispatch, and a current task is one to hand
   over, never to do yourself. The orchestrator decides on its own and keeps the work moving; it waits for the user only
   before a step that cannot be undone or reaches outside the project. A task that waits on something blocks that task
-  alone: it blocks it and goes on with every other open task. Solo: you do everything yourself and a worker's dispatch is refused. The user sets it
+  alone: it blocks it and continues with every other open task. Solo: you do everything yourself and a worker's dispatch is refused. The user sets it
   with the plan bar's buttons.
-- A worker works a shift on its task: it clocks in with `journal clock-in`, keeps its own list with `journal todo`,
+- A worker works a shift on its task: it clocks in with `journal clock-in`, maintains its own list with `journal todo`,
   proves each point of the brief with `journal proof <point> "<file:line, and the test>"` or says why not with
-  `--not-done`, commits its work, and clocks out with `journal clock-out "<report>"`, its one report. You are told when
+  `--not-done`, commits its work, and clocks out with `journal clock-out "<report>"`, its one report. You are informed when
   it clocks in, and once when its work is ready to check; your stops name the work still waiting.
 - `journal worker wait <n> [<n>...]` waits until they have clocked out; stopping is fine while you wait.
 - Check each proof: read them with `journal task show <task>`, then `journal worker check <n> <point>`, or
   `journal worker check <n> <point> --short "<what is missing>"`, which sends it back to the same worker on the same task.
-  Once every point is checked, `journal worker merge <n>` takes its branch in and closes the task; nothing else lands a
+  Once every point is checked, `journal worker merge <n>` takes its branch in and closes the task; nothing else adds a
   worker's work, not the end of its run, a hand merge or a commit's tasks-done line.
-- A worker whose run ends without clocking out still holds its task: send it again with `journal worker send <n>`, or
-  let the task go with `journal worker release <n>`. `journal worker list` shows every worker, and the subagents you
+- A worker whose run ends without clocking out still owns its task: send it again with `journal worker send <n>`, or
+  release the task with `journal worker release <n>`. `journal worker list` shows every worker, and the subagents you
   started with their state and task.
 - A worker that runs past 60 minutes is stopped and its report says so (setting workers.timeout_minutes, 0 for no limit).
 - On a shared journal, `journal worker dispatch ... --pool` sends the worker to the team's pool: a teammate's machine
@@ -165,14 +165,14 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - A worker still running takes a word in its live session: `journal worker notify <n> "<text>"`. Only a Claude
   worker has a session inbox; a Codex worker, and one that reported or was stopped, are refused with what to use instead.
 - A dispatch whose brief names files an idle worker touched is refused, naming that worker and its send line; add
-  `--fresh` only when the job truly needs a new worker. Once a profile has as many workers out or idle as the setting
+  `--fresh` only when the job needs a new worker. Once a profile has as many workers out or idle as the setting
   workers.idle_kept (8, 0 for no limit), a dispatch of that profile is refused while one of them is idle. A reviewer
-  always starts fresh.
+  always starts new.
 - `journal worker complete <n>` or `journal worker stop <n>` of an idle worker first asks whether it could be reused;
   repeat it with `--why "<reason>"` to retire it. A worker out silent for 20 minutes is named to you once.
 - A worker lists the other workers of the agent that dispatched it with `journal worker peers` and reaches one with
   notify when it is out or send when it is idle; never itself, a retired one or another agent's workers.
 - A subagent job on files an idle subagent of the same kind read is refused, naming its SendMessage line, so the
-  subagent that knows the files takes it. `journal subagent retire <n>` lets a subagent go: it is no longer offered
+  subagent that knows the files takes it. `journal subagent retire <n>` releases a subagent: it is no longer offered
   and no longer counts among the subagents running at once (workers.most_subagents).
 """, keywords=('worker', 'workers', 'helper', 'dispatch', 'worktree', 'send', 'notify'), required_states=('awaiting',))
