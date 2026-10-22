@@ -7,6 +7,6 @@ from journal.console.commands.settings_command import SettingsCommand
 
 
 class StandardCommands:
-    """The commands the journal ships with beside those its features bring."""
+    """The commands the journal ships with, besides those its features add."""
 
     COMMANDS: tuple[type[Command], ...] = (SetupCommand, EnvironmentCommand, PanicCommand, NudgeCommand, SettingsCommand)

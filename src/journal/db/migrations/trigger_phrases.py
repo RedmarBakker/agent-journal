@@ -5,7 +5,7 @@ from journal.db.migration import Migration
 
 
 class TriggerPhrases(Migration):
-    """A trigger's words are its phrases: the column is renamed in place of the empty phrases column the schema already added."""
+    """A trigger's words are its phrases: the column is renamed in place of the empty phrases column the schema has already added."""
 
     number: ClassVar[int] = 21
 

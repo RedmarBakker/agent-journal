@@ -14,7 +14,7 @@ TABLES = ("charts", "nodes", "counts", "noted_times")
 
 
 class ChartDrop(Migration):
-    """The workflows are gone: the states carry the journal's conduct. Each workflow the user made or edited is written as a document named after it, its nodes and lines in words, before the chart's tables drop; the links, settings and record rows of the chart go with the tables."""
+    """The workflows are removed: the states hold the journal's conduct. Each workflow the user made or edited is written as a document named after it, with its nodes and lines in words, before the chart's tables are dropped; the links, settings and record rows of the chart are removed with the tables."""
 
     number: ClassVar[int] = 19
 

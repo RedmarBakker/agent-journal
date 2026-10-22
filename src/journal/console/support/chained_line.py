@@ -6,7 +6,7 @@ JOURNAL = "journal"
 
 @dataclass(frozen=True)
 class ChainedLine:
-    """A whole command line a command hands the console to run after its own verb, printed under its heading: a journal line the console runs itself, any other in the project's shell."""
+    """A whole command line that a command passes to the console to run after its own verb, printed under its heading: a journal line the console runs itself, any other in the project's shell."""
 
     text: str
 

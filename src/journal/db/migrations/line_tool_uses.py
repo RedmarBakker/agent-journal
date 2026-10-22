@@ -5,7 +5,7 @@ from journal.db.migration import Migration
 
 
 class LineToolUses(Migration):
-    """Every line the journal said before lines carried the agent's tool use, and its moment, gains them: the tool use as zero and the moment as the row's creation, so a read of the last line of a kind never meets a row without them."""
+    """Every line the journal wrote before lines recorded the agent's tool use and its moment gets both: the tool use as zero and the moment as the row's creation time, so a read of the last line of a kind never meets a row without them."""
 
     number: ClassVar[int] = 37
 

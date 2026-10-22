@@ -24,7 +24,7 @@ TABLES = {
 
 
 class ColumnRenames(Migration):
-    """The columns renamed for the plain-name rules take their new names, so a row keeps its values; where the schema already added the new column empty, that empty column gives way and the old one is renamed into it, keeping its indexes."""
+    """The columns renamed for the plain-name rules take their new names, so a row keeps its values; where the schema has already added the new column empty, that empty column is dropped and the old one is renamed into its place, keeping its indexes."""
 
     number: ClassVar[int] = 24
 

@@ -14,7 +14,7 @@ IDLE_SECONDS = 60.0
 
 
 class JobRunner:
-    """The engine's one thread for work on a schedule: from each start, every registered job is ticked once its interval has passed and the thread sleeps until the next is due; a tick that raises is logged and the job ticked again at its next turn, and a tick that runs long is logged and told on the bus."""
+    """The engine's one thread for scheduled work: from each start, every registered job runs once its interval has passed and the thread sleeps until the next is due; a run that raises is logged and the job runs again at its next turn, and a run that takes long is logged and announced on the bus."""
 
     def __init__(self, clock: Clock, bus: Bus) -> None:
         self.clock, self.bus = clock, bus

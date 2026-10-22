@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Transition:
-    """What a state answered an event with: the state as it stands now, a state pushed on top of it, whether it popped itself, the nudges said, the nudges typed, the nudge that holds the event, if any, the moves dropped because an earlier answer already moved, and whether a pop hands the event on to the state beneath."""
+    """What a state answered an event with: the state as it is now, a state pushed on top of it, whether it popped itself, the nudges sent, the nudges typed, the nudge that blocks the event, if any, the moves dropped because an earlier answer already moved, and whether a pop passes the event on to the state beneath."""
 
     target: "BaseState"
     pushed: "BaseState | None" = None

@@ -25,7 +25,7 @@ HELP_FLAGS = ("-h", "--help")
 
 
 class Console:
-    """journal <noun> <verb> ...: finds the command and runs it, wherever the argv came from."""
+    """journal <noun> <verb> ...: finds the command and runs it, wherever the argv comes from."""
 
     def __init__(self, container: Container, environments: Environments, agents: Agents, scope: Scope, row_verbs: RowVerbs, shell: ProjectShell, names: EnvironmentNames) -> None:
         self.names = names

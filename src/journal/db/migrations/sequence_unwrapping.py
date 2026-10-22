@@ -11,7 +11,7 @@ SEQUENCE_FACT = "running_sequence"
 
 
 class SequenceUnwrapping(Migration):
-    """An agent with a running sequence anywhere in its state or resume chain goes back to the state the run interrupted, the runs kept on its row in the order they were started."""
+    """An agent with a running sequence anywhere in its state or resume chain goes back to the state the run interrupted, with the runs stored on its row in the order they were started."""
 
     number: ClassVar[int] = 3
 

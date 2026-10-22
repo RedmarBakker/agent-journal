@@ -9,7 +9,7 @@ from journal.support.rejection import Rejection
 
 
 class SettingsCommand(Command):
-    """journal settings: every setting with its value, one setting whole, and a change to one; the user changes any, an agent only those a feature leaves to it, the rest being the user's to change on the Settings page."""
+    """journal settings: lists every setting with its value, shows one setting in full, and changes one; the user may change any, an agent only those a feature allows it to, the rest being for the user to change on the Settings page."""
 
     noun = "settings"
     default_verb = "list"

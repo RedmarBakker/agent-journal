@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 
 @dataclass(frozen=True)
 class ObligationFacts:
-    """What an agent owed the journal, as the facts on its row that the owed pauses became: not oriented, the mark owed, the skills owed."""
+    """What an agent had to do for the journal, as the facts on its row that replace the old pauses: not oriented, the mark to decide, the skills to read."""
 
     has_overview: bool = True
     threshold_due: int = 0

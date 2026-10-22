@@ -6,7 +6,7 @@ from journal.db.migration import Migration
 
 
 class AgentSkillObligations(Migration):
-    """A skill an agent owed was a link from its row with no other end; it is now a fact on the row, and those links go."""
+    """A skill an agent had to read was a link from its row with no other end; it is now a fact on the row, and those links are removed."""
 
     number: ClassVar[int] = 7
 

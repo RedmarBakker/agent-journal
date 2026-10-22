@@ -5,7 +5,7 @@ from journal.db.migrations.unwrap_outcome import UnwrapOutcome
 
 @dataclass(frozen=True)
 class StoredState:
-    """A state as an agent's row held it before the pauses were unwrapped: its name, its own data, and the state it went back to, nested."""
+    """A state as an agent's row stored it before the pauses were unwrapped: its name, its own data, and the state it went back to, nested."""
 
     name: str
     data: dict

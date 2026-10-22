@@ -5,7 +5,7 @@ from journal.db.migration import Migration
 
 
 class MessageChatIndex(Migration):
-    """Indexes of an environment's messages by the chat they are in and by the agent they came from, so a chat's page and its changes are read from their own rows."""
+    """Indexes of an environment's messages by the chat they are in and by the agent they come from, so a chat's page and its changes are read from their own rows."""
 
     number: ClassVar[int] = 35
 

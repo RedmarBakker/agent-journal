@@ -6,7 +6,7 @@ from journal.db.migration import Migration
 
 
 class LinkWorkerReports(Migration):
-    """Each worker is linked to the message holding the last report it filed, so its report no longer has to be found among the recent messages."""
+    """Each worker is linked to the message with the last report it filed, so its report no longer has to be found among the recent messages."""
 
     number: ClassVar[int] = 5
 

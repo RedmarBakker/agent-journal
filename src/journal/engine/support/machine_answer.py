@@ -7,7 +7,7 @@ from journal.engine.support.stack import Stack
 
 @dataclass(frozen=True)
 class MachineAnswer:
-    """The stack once the lifecycle hooks ran on a push or a pop: as it stands, the nudges the hooks said, and the hold when on_push refused the push."""
+    """The stack after the lifecycle hooks ran on a push or a pop: as it is now, the nudges the hooks produced, and the hold when on_push refused the push."""
 
     stack: Stack
     nudges: tuple[Nudge, ...] = ()

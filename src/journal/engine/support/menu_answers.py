@@ -18,7 +18,7 @@ EXCLUDED_VARIABLES = ("AGENT_JOURNAL_ACTIVE", "JOURNAL_ENV", "JOURNAL_SESSION", 
 
 
 class MenuAnswers:
-    """The answers to menus the word rules cannot settle: remembered from the last time, or worked out by a standalone agent asked off the watcher's thread, outside the project and with no hooks of the journal's, whose pick is kept."""
+    """The answers to menus the word rules cannot decide: taken from the last time, or worked out by a standalone agent run off the watcher's thread, outside the project and with none of the journal's hooks, whose pick is stored."""
 
     def __init__(self, settings: SettingRows, providers: Providers) -> None:
         self.settings, self.providers = settings, providers

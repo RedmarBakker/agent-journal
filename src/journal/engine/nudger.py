@@ -15,7 +15,7 @@ NUDGE = "nudge"
 
 
 class Nudger:
-    """Says a line to an agent, in the agent's environment: drops it when its feature is off or it was nudge lately, writes the entry, tells the bus a line was nudge once the reply has gone, and hands back the words; a refusal's line is said and recorded the same but never dropped for having been said lately, since a hold stands as long as its reason does. The caller picks the road: a hook's answer, or the supervisor."""
+    """Sends a line to an agent, in the agent's environment: drops it when its feature is off or it was sent recently, writes the entry, announces on the bus that a line was sent once the reply has gone, and returns the words; a refusal's line is sent and recorded the same way but is never dropped for having been sent recently, since a hold lasts as long as its reason does. The caller picks the route: a hook's answer, or the supervisor."""
 
     def __init__(self, features: FeatureRegistry, entries: Entries, scope: Scope, bus: Bus, deferred: ListenerQueue, clock: Clock, registry: NudgeRegistry) -> None:
         self.features, self.entries, self.scope, self.bus, self.deferred, self.clock = features, entries, scope, bus, deferred, clock

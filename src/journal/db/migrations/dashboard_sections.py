@@ -5,7 +5,7 @@ from journal.db.migration import Migration
 
 
 class DashboardSections(Migration):
-    """A dashboard line's heading is its section: the column is renamed in place of the empty section column the schema already added."""
+    """A dashboard line's heading is its section: the column is renamed in place of the empty section column the schema has already added."""
 
     number: ClassVar[int] = 22
 

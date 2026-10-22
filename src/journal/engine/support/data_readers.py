@@ -7,7 +7,7 @@ from journal.support.stage_times import StageTimes
 
 
 class DataReaders:
-    """Every feature's data reader by the feature's name; builds the feature data an event carries for the agent asked, each part read when a listener first asks for it."""
+    """Every feature's data reader by the feature's name; builds the feature data an event carries for the agent concerned, each part read when a listener first asks for it."""
 
     def __init__(self, readers: dict[str, DataReader], scope: Scope, stages: StageTimes) -> None:
         self.readers, self.scope, self.stages = readers, scope, stages

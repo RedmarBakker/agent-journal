@@ -9,7 +9,7 @@ IDLE = "idle"
 
 
 class StackSeed(Migration):
-    """Every agent's row gets its stack, seeded from its state and data: a pause's resume chain stands beneath it, unwound into one entry per state, idle at the bottom; the state and data stay the top's."""
+    """Every agent's row gets its stack, built from its state and data: a pause's resume chain sits below it, unwound into one entry per state, with idle at the bottom; the state and data stay those of the top entry."""
 
     number: ClassVar[int] = 18
 

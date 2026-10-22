@@ -9,7 +9,7 @@ from journal.events.agent.tool_starting import ToolStarting
 
 @dataclass(frozen=True)
 class Wait(BaseState):
-    """The parent of every state that waits on something and is popped when it comes: a word from the user pops it, the agent's own tool use pops it, a journal command being none, and awaiting says what it waits for."""
+    """The parent of every state that waits for something and is popped when it arrives: a word from the user pops it, the agent's own tool use pops it, a journal command does not, and awaiting names what it waits for."""
 
     def wait_description(self) -> tuple[str, str]:
         return "", ""

@@ -10,7 +10,7 @@ from journal.support.option import Option
 
 @runtime_checkable
 class FeatureRegistry(Protocol):
-    """What the engine asks of the features without knowing any: the states they bring, the work modes they offer, and whether a line of theirs is switched off."""
+    """What the engine asks of the features without knowing any: the states they add, the work modes they offer, and whether a line of theirs is switched off."""
 
     def states(self) -> list[type[BaseState]]: ...
 

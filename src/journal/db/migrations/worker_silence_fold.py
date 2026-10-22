@@ -5,7 +5,7 @@ from journal.db.migration import Migration
 
 
 class WorkerSilenceFold(Migration):
-    """A worker's quiet span and whether it was told are one value in its silence column, and the column that kept the told flag apart goes."""
+    """A worker's quiet span and whether it has been reminded are one value in its silence column, and the column that stored the reminded flag separately is removed."""
 
     number: ClassVar[int] = 32
 

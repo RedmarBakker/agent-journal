@@ -27,7 +27,7 @@ from journal.repositories.scope import Scope
 
 
 class Docking:
-    """The rows pinned above the chat: each is a keyed system message whose data carries docked and the row's card, the made mark where the row has one, else a card written for it; undocking leaves the message with docked false."""
+    """The rows pinned above the chat: each is a keyed system message whose data records that it is docked and the row's card, the card already made for the row if there is one, else a card written for it; undocking leaves the message in place with docked set to false."""
 
     def __init__(self, tasks: Tasks, plans: Plans, docs: Docs, reports: Reports, facts: Facts, rules: Rules, reminders: Reminders, questions: Questions, sequences: Sequences,
                  templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, row_card: RowProcessCard, scope: Scope) -> None:

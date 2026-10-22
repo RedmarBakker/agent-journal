@@ -5,6 +5,6 @@ from journal.engine.nudge import Nudge
 
 @dataclass(frozen=True)
 class Block:
-    """The nudge that holds an event or refuses a push: the agent hears why and nothing moves."""
+    """The nudge that blocks an event or refuses a push: the agent is told why and nothing moves."""
 
     nudge: Nudge

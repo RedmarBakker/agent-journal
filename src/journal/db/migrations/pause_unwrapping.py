@@ -11,7 +11,7 @@ OBLIGATION_STATES = ("orienting", "at_mark", "loading_skill")
 
 
 class PauseUnwrapping(Migration):
-    """An agent in a pause it owed the journal goes back to the state the pause interrupted, with the matching fact set: not oriented, the mark owed, the skill owed as a link; never dropped to idle."""
+    """An agent in a pause for something it had to do for the journal goes back to the state the pause interrupted, with the matching fact set: not oriented, the mark to decide, the skill to read as a link; never reset to idle."""
 
     number: ClassVar[int] = 1
 

@@ -4,7 +4,7 @@ from journal.db.migration import Migration
 
 
 class FillAgentsEmptyData(Migration):
-    """An agent's state data and the skills it read are always a map, an empty one where an older row held none."""
+    """An agent's state data and the skills it has read are always a map, an empty one where an older row had none."""
 
     number: ClassVar[int] = 17
     statements: ClassVar[tuple[str, ...]] = (

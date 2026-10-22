@@ -6,7 +6,7 @@ from journal.db.migration import Migration
 
 
 class ChatQuestions(Migration):
-    """Each question asked before the chat read only messages gets its message, at the time it was asked, as a new one does."""
+    """Each question asked before the chat read only messages gets its own message, at the time it was asked, as a new question does."""
 
     number: ClassVar[int] = 8
 

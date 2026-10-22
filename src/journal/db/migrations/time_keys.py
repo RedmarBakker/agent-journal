@@ -8,7 +8,7 @@ ENTRY_KEY = "UPDATE entries SET data = json_set(json_remove(data, '$.at'), '$.ti
 
 
 class TimeKeys(Migration):
-    """The name at is time everywhere: the edits table's column, carried over into the time column the schema already added when both are there, the time key in an entry's data, a check's running running, and a dump's question, answers and choices."""
+    """The name at is time everywhere: the edits table's column, copied into the time column the schema has already added when both are there, the time key in an entry's data, a check's running time, and a dump's question, answers and choices."""
 
     number: ClassVar[int] = 20
 
