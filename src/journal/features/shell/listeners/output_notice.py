@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 
 
 class OutputNotice(AgentListener[Ticked]):
-    """The commands that ended in the background are marked told at the tick the shell conduct names them, once the agent is quiet."""
+    """The commands that ended in the background are marked as reported at the tick when the shell conduct names them, once the agent is idle."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs

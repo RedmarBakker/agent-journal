@@ -8,7 +8,7 @@ PAGE_RELEASES = 10
 
 
 class Changelog:
-    """What each release brought, as the package carries it in CHANGELOG.md, read a page of releases at a time with the heading above the first page."""
+    """What each release added, as the package contains it in CHANGELOG.md, read a page of releases at a time with the heading above the first page."""
 
     def __init__(self) -> None:
         self.path = Path(__file__).resolve().parents[3] / "CHANGELOG.md"

@@ -14,7 +14,7 @@ FORBIDDEN_PARTS = (".git", ".journal", "..")
 
 
 class WorkerLibraries:
-    """The library folders a worker's worktree takes from the main checkout, named at its dispatch: each one linked, or copied as a clone that shares the checkout's disk blocks until written, in the project's worktree and in each inner repository's worktree where the checkout holds the folder, and kept out of git there."""
+    """The library folders a worker's worktree takes from the main checkout, named at its dispatch: each one linked, or copied as a clone that shares the checkout's disk blocks until written, in the project's worktree and in each inner repository's worktree where the checkout has the folder, and excluded from git there."""
 
     def __init__(self, config: Config, branch: WorkerBranch) -> None:
         self.config, self.branch = config, branch

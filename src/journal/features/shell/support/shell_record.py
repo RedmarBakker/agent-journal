@@ -28,7 +28,7 @@ PART_START, PART_END, MOVED, ENDED = "running", "ran", "background", "ended"
 
 
 class ShellRecord:
-    """What the runner records as a chain runs: each of the agent's own parts as it starts and ends with its status, time, output tail and the files it changed (the edits feature keeps the changed lines from the tool's end), the move to the background with its card and event, the end of a moved chain, and whether an ended output is kept under its number or forgotten."""
+    """What the runner records as a chain runs: each of the agent's own parts as it starts and ends with its status, time, output tail and the files it changed (the edits feature stores the changed lines from the tool's end), the move to the background with its card and event, the end of a moved chain, and whether an ended output is stored under its number or discarded."""
 
     def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, card: OutputProcessCard, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue) -> None:
         self.entries, self.log, self.outputs, self.views = entries, log, outputs, views

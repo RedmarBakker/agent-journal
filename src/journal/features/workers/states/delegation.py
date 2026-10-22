@@ -10,7 +10,7 @@ from journal.features.workers.states.orchestrating import orchestrate
 
 @dataclass(frozen=True)
 class Delegation(PlansWorking):
-    """Work in hand as the orchestrator, a task or a plan's: told to hand it to a worker and review the report, and at a stop with tasks open told to orchestrate them."""
+    """Current work as the orchestrator, a task or a plan's: told to give it to a worker and review the report, and at a stop with tasks open told to orchestrate them."""
 
     def continue_nudge(self, time: float) -> Nudge:
         from journal.features.workers.feature import Workers

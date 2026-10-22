@@ -4,7 +4,7 @@ PATH = re.compile(r"[\w.-]+(?:/[\w.-]+)+\.\w+|\b[\w-]+\.(?:py|js|ts|vue|md|json|
 
 
 class PathMentions:
-    """The files a job's text names, by which two jobs are told to be about the same work."""
+    """The files a job's text names, by which two jobs are judged to be about the same work."""
 
     @staticmethod
     def build(text: str) -> set[str]:

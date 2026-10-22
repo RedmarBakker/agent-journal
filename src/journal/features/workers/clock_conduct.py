@@ -15,7 +15,7 @@ from journal.models.worker_state import WorkerState
 
 
 class ClockConduct(Conduct):
-    """A worker's own conduct in every state: its writes wait until it clocks in, saying only that; clocking in puts it to work on the task it holds, a stop is held while an output of its own runs and told the end of one that ended, and told the to-do items still open, the user closing its task ends its work and the user rewriting its brief names the points to prove again, and clocking out ends that work, so it may stop."""
+    """A worker's own conduct in every state: its writes wait until it clocks in, with that as the only message; clocking in puts it to work on the task it owns, a stop is blocked while an output of its own runs and the worker is told the end of one that ended, and told the to-do items still open, the user closing its task ends its work and the user rewriting its brief names the points to prove again, and clocking out ends that work, so it may stop."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.workers.feature import Workers

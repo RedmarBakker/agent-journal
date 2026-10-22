@@ -14,7 +14,7 @@ RUN = "sequence_run"
 
 
 class RecordRunChanges(Listener[Updated]):
-    """Every change to an agent's runs is kept as an entry for the agent's panel and shown as a card in the chat."""
+    """Every change to an agent's runs is stored as an entry for the agent's panel and shown as a card in the chat."""
 
     def __init__(self, active: RunTracker, entries: Entries, cards: MomentCards) -> None:
         self.running, self.entries, self.cards = active, entries, cards

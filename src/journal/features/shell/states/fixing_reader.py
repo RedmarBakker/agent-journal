@@ -10,7 +10,7 @@ from journal.support.permission import Permission
 
 @dataclass(frozen=True)
 class FixingReader(BaseState):
-    """A reader was asked three times to read better on its card: every tool but a journal command waits until the reader is written anew, then the state pops and the agent goes back to what it was doing."""
+    """A reader was asked three times to read better on its card: every tool but a journal command waits until the reader is rewritten, then the state pops and the agent returns to what it was doing."""
 
     name = "fixing_reader"
     title = "Fixing a reader"

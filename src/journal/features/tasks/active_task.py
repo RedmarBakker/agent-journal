@@ -15,7 +15,7 @@ from journal.repositories.plans import Plans
 
 
 class ActiveTask:
-    """The work an agent has in hand, taken up and let go of in one place for the task and the work commands alike; a task started is held by the worker that started it, whose hooks never reach the journal, by the agent whose session started it, or by the environment's agent at work when the user started it."""
+    """The work an agent has current, started and stopped in one place for the task and the work commands alike; a task started is assigned to the worker that started it, whose hooks never reach the journal, to the agent whose session started it, or to the environment's working agent when the user started it."""
 
     def __init__(self, tasks: Tasks, sessions: SessionAgents, agents: Agents, scope: Scope, clock: Clock, plans: Plans) -> None:
         self.tasks, self.sessions, self.agents, self.scope, self.clock, self.plans = tasks, sessions, agents, scope, clock, plans

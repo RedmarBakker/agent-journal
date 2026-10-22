@@ -9,7 +9,7 @@ from journal.support.card_kind import CardKind
 
 
 class ImpasseCommand(Command):
-    """journal stuck "<why>": the agent is truly stuck, so the journal says nothing until its next tool use or prompt."""
+    """journal stuck "<why>": the agent is stuck, so the journal says nothing until its next tool use or prompt."""
 
     noun = "stuck"
     callers = {"declare": WORKER_KINDS}

@@ -1,5 +1,5 @@
 class OutdatedSupervisors:
-    """The environments whose supervisor said at the journal's boot that its code on disk changed since it started, each kept until its restart."""
+    """The environments whose supervisor reported at the journal's boot that its code on disk changed since it started, each stored until its restart."""
 
     def __init__(self) -> None:
         self._environments: set[int] = set()

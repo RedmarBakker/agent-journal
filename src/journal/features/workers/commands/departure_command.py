@@ -18,7 +18,7 @@ from journal.support.rejection import Rejection
 
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, taken only once every point of its task's brief has a proof that stands and its worktree holds no uncommitted file."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof and its worktree has no uncommitted file."""
 
     noun = "clock-out"
     default_verb = "record"

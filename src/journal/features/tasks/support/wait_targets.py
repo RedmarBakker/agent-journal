@@ -11,7 +11,7 @@ POLL_INTERVAL_MINUTES = 0.5
 
 
 class WaitTargets:
-    """What an agent's wait ends on, by table:id, the rows it may name, and the one place it is asked whether a write settled a row something waits on."""
+    """What an agent's wait ends on, by table:id, the rows it may name, and the one place that checks whether a write resolved a row something waits on."""
 
     def __init__(self, outputs: CommandOutputs, checks: Checks) -> None:
         self.outputs, self.checks = outputs, checks

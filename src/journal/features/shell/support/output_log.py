@@ -8,7 +8,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class OutputLog:
-    """The runner's outputs as numbered rows, a rolling log: each line it runs is a row, and past the kept number the oldest go with their folders."""
+    """The runner's outputs as numbered rows, a rolling log: each line it runs is a row, and past the stored number the oldest are removed with their folders."""
 
     def __init__(self, outputs: CommandOutputs, settings: SettingRows) -> None:
         self.outputs, self.settings = outputs, settings

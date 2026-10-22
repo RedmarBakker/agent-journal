@@ -12,7 +12,7 @@ SHARES = "shares"
 
 
 class ShareTargets:
-    """What a link opens, a document, a report or a plan, named as docs:12 and kept as a link from the share to its row."""
+    """What a link opens, a document, a report or a plan, named as docs:12 and stored as a link from the share to its row."""
 
     def __init__(self, docs: Docs, reports: Reports, plans: Plans, links: Links) -> None:
         self.plans, self.links = plans, links

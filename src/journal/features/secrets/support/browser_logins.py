@@ -17,7 +17,7 @@ WINDOW_SECONDS = 900
 
 
 class BrowserLogins:
-    """Browser logins kept beside the secrets' values: each captured once in a Playwright window the user logs in to and closes, saved under the secret's name, and merged into the one storage file the agent's browser starts with."""
+    """Browser logins stored beside the secrets' values: each captured once in a Playwright window the user logs in to and closes, saved under the secret's name, and merged into the one storage file the agent's browser starts with."""
 
     def __init__(self, values: SecretValues) -> None:
         self.values = values

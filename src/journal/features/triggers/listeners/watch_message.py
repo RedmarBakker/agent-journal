@@ -8,7 +8,7 @@ from journal.repositories.triggers import Triggers
 
 
 class WatchMessage(Listener[Created]):
-    """The user's words in a message meet the triggers too: each met is recorded as a card and a sequence one names is started; what is said of them is the triggers conduct's, on the message's arrival."""
+    """The user's words in a message match the triggers too: each match is recorded as a card and a sequence one names is started; what is said about them is the triggers conduct's, on the message's arrival."""
 
     def __init__(self, triggers: Triggers, firing: TriggerFire, agents: Agents) -> None:
         self.triggers, self.firing, self.agents = triggers, firing, agents

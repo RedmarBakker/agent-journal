@@ -20,7 +20,7 @@ LONGEST_SECONDS = 120
 
 
 class SecretRun:
-    """A secret given to one program it allows, in the journal's own process: the program found on a search path that leaves out the project, run with a throwaway home and nothing of the agent's shell, given the value on its input or in variables, and its output handed back with every form of the value masked."""
+    """A secret given to one program it allows, in the journal's own process: the program found on a search path that excludes the project, run with a throwaway home and nothing of the agent's shell, given the value on its input or in variables, and its output returned with every form of the value masked."""
 
     def __init__(self, config: Config, values: SecretValues, servers: McpServers) -> None:
         self.config, self.values, self.servers = config, values, servers

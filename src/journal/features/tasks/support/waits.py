@@ -13,7 +13,7 @@ from journal.repositories.tasks import Tasks, WAIT_LINK
 
 
 class Waits:
-    """What a blocked task or plan waits on, as the command line names it: a question or task by --on, a command by --until; each a row the wait links to, and opens it once settled; once it is open, its waits are released and the checks its block made retired."""
+    """What a blocked task or plan waits on, as the command line names it: a question or task by --on, a command by --until; each a row the wait links to, and opens it once resolved; once it is open, its waits are released and the checks its block made retired."""
 
     def __init__(self, tasks: Tasks, questions: Questions, checks: Checks, links: Links) -> None:
         self.tasks, self.questions, self.checks, self.links = tasks, questions, checks, links

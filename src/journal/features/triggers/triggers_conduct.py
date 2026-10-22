@@ -10,7 +10,7 @@ from journal.models.trigger_action import TriggerAction
 
 
 class TriggersConduct(Conduct):
-    """The triggers feature's conduct in every state: the triggers a prompt, a message or a tool call's input meets are said as their action names, a nudge or an instruction, and a tool a trigger denies is held; a sequence a trigger starts is the listener's, with its first step."""
+    """The triggers feature's conduct in every state: the triggers a prompt, a message or a tool call's input matches are reported as their action names, a nudge or an instruction, and a tool a trigger denies is blocked; a sequence a trigger starts is the listener's, with its first step."""
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
         from journal.features.triggers.feature import Triggers

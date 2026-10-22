@@ -18,7 +18,7 @@ CHECK_REMINDER = Timeout.minutes(5)
 
 @dataclass(frozen=True)
 class ExternalWait(Wait):
-    """The agent waits on something outside its hands, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row settling is told and the last pops the wait with what each came to. The wait is lifted when the agent uses any tool outside the journal. Stopping is fine; in auto mode the next task is named once after a minute, and every five quiet minutes the agent is asked to look."""
+    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. Stopping is fine; in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check."""
 
     name = "awaiting"
     title = "Waiting"

@@ -5,7 +5,7 @@ from journal.support.actor import Actor
 
 
 class SilentWorkerRecord(AgentListener[LineDelivered]):
-    """A silent worker named to the agent is marked reported on its row, so its silence is told once; its next send, notify or report starts a new span."""
+    """A silent worker reported to the agent is marked as reported on its row, so its silence is reported once; its next send, notify or report starts a new span."""
 
     def __init__(self, workers: Workers) -> None:
         self.workers = workers

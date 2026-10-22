@@ -8,7 +8,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class CreationStart(Listener[Created]):
-    """A row an agent creates starts the sequence that names that moment, such as Building a plan on plan.created: the run is kept on that agent, about that row; the first step is typed to the agent, and a worker, which cannot be typed to, is told it at its next stop."""
+    """A row an agent creates starts the sequence that names that moment, such as Building a plan on plan.created: the run is stored on that agent, about that row; the first step is typed to the agent, and a worker, which cannot be typed to, is told it at its next stop."""
 
     def __init__(self, sequences: Sequences, active: RunTracker, supervisor: SupervisorLink) -> None:
         self.sequences, self.running, self.supervisor = sequences, active, supervisor

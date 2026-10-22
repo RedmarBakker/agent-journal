@@ -11,7 +11,7 @@ from journal.repositories.secrets import Secrets
 
 
 class SecretFiles(Seed):
-    """At boot, each secret kept as a file under the journal's project/secret folder becomes a row, once: its fields, which are filled, its programs and its login; the values stay in the private folder under the same project id, so they open as they are."""
+    """At boot, each secret stored as a file under the journal's project/secret folder becomes a row, once: its fields, which are filled in, its programs and its login; the values stay in the private folder under the same project id, so they open as they are."""
 
     def __init__(self, config: Config, secrets: Secrets) -> None:
         self.config, self.secrets = config, secrets

@@ -14,7 +14,7 @@ INTERVAL_SECONDS = 3600.0
 
 
 class SecretPurge(AgentListener[Ticked]):
-    """A secret deleted thirty days ago goes for good, its values, its saved login and its row; a value replaced thirty days ago stops being kept for masking."""
+    """A secret deleted thirty days ago is removed permanently, with its values, its saved login and its row; a value replaced thirty days ago is no longer stored for masking."""
 
     def __init__(self, secrets: Secrets, values: SecretValues, logins: BrowserLogins) -> None:
         self.secrets, self.values, self.logins = secrets, values, logins

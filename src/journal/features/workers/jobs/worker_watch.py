@@ -6,7 +6,7 @@ from journal.repositories.scope import Scope
 
 
 class WorkerWatch(Job):
-    """Every two seconds, each worker the journal found still out at boot is looked at: one whose process has ended has its report filed from its files, one past its time limit is stopped, so a restart never loses a worker."""
+    """Every two seconds, each worker the journal found still out at boot is checked: one whose process has ended has its report filed from its files, one past its time limit is stopped, so a restart never loses a worker."""
 
     interval_seconds = 2.0
 

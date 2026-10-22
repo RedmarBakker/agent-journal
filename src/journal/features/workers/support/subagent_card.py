@@ -6,7 +6,7 @@ from journal.models.subagent_state import SubagentState
 
 @dataclass(frozen=True)
 class SubagentCard:
-    """What a subagent's card in the chat carries: who dispatched it, of which type and model, its own session, how it stood at that card and why it failed."""
+    """What a subagent's card in the chat shows: who dispatched it, its type and model, its own session, its status at that card and why it failed."""
 
     session: str
     agent: int

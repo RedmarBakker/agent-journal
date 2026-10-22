@@ -11,7 +11,7 @@ from journal.repositories.agents import Agents
 
 
 class Requirements:
-    """What every moment of requiring shares: which skills an agent still owes, as a fact on its row, and the line that says where each file is."""
+    """What every moment of requiring a skill shares: which skills an agent still has to read, as a fact on its row, and the line that says where each file is."""
 
     def __init__(self, registry: Registry, files: SkillFiles, nudger: Nudger, agents: Agents) -> None:
         self.registry, self.files, self.nudger, self.agents = registry, files, nudger, agents

@@ -9,7 +9,7 @@ from journal.repositories.messages import Messages
 
 
 class ThoughtRecord(AgentListener[ToolStarting]):
-    """Before each tool use, every thought of the agent's turn not yet kept is read from its transcript and kept as a message in the chat, marked a thought."""
+    """Before each tool use, every thought of the agent's turn not yet stored is read from its transcript and stored as a message in the chat, marked as a thought."""
 
     def __init__(self, config: Config, providers: Providers, messages: Messages) -> None:
         self.config, self.providers, self.messages = config, providers, messages

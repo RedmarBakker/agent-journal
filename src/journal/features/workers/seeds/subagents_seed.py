@@ -7,7 +7,7 @@ from journal.support.actor import Actor
 
 
 class SubagentsSeed(Seed):
-    """At boot, while no subagent has a row, the subagents dispatched before the journal kept them are written from the record, each session's paired as it was, those whose end it never saw as ended."""
+    """At boot, while no subagent has a row, the subagents dispatched before the journal stored them are written from the record, each session's pair as it was, those whose end it never saw as ended."""
 
     def __init__(self, entries: Entries, subagents: Subagents) -> None:
         self.entries, self.subagents = entries, subagents

@@ -7,7 +7,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class RecordTrim(Listener[Saved]):
-    """Every entry written trims the record to its newest entries, as many as the setting keeps; the lines said to the agents are kept apart, as many of their own newest, since whether a line is said again is read from them and a flood of row changes must not make the journal forget it said one; the file gives the space back by itself."""
+    """Every entry written trims the record to its newest entries, as many as the setting allows; the lines sent to the agents are trimmed separately, to as many of their own newest, since whether a line was sent again is read from them and a flood of row changes must not make the journal forget it sent one; the file returns the space by itself."""
 
     def __init__(self, entries: Entries, settings: SettingRows) -> None:
         self.entries, self.settings = entries, settings

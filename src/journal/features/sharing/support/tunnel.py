@@ -38,7 +38,7 @@ CURRENT_ADDRESS = "{domain} is this journal's own address. Move the journal to a
 
 
 class Tunnel:
-    """The tunler process that gives the share server its web address: started under the supervisor that hosts the journal while a link is open, every tunler still running for the journal's address ended first, an orphan of an earlier supervisor among them, stopped while none is, and asked whether its address answers."""
+    """The tunler process that gives the share server its web address: started under the supervisor that hosts the journal while a link is open, with every tunler still running for the journal's address ended first, including an orphan of an earlier supervisor, stopped while none is open, and asked whether its address answers."""
 
     def __init__(self, tunler: Tunler, place: SharePlace, settings: SettingRows, link: SupervisorLink, shares: Shares, phones: Phones, codes: PhoneCodes, config: Config) -> None:
         self.tunler, self.place, self.settings, self.link, self.shares, self.config = tunler, place, settings, link, shares, config

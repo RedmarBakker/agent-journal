@@ -19,7 +19,7 @@ LEAST_WAIT_TITLE_WORD_COUNT = 2
 
 
 class WaitCommand(Command):
-    """journal await "<what>": the agent waits for something outside its hands, with or without a task in hand, and names what ends it: a command's output, or a script polled until it passes. It ends by itself once that has, or when the agent works again."""
+    """journal await "<what>": the agent waits for something outside its control, with or without a current task, and names what ends it: a command's output, or a script polled until it passes. It ends by itself once that has happened, or when the agent works again."""
 
     noun = "await"
     callers = {"begin": WORKER_KINDS}

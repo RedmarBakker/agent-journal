@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 
 
 class WatchUpdate(AgentListener[ToolFinished]):
-    """After every tool use the card of the agent's watched output is read again from its files; once the card has shown how its command ended, and the shell conduct has said so, the watch ends."""
+    """After every tool use the card of the agent's watched output is read again from its files; once the card has shown how its command ended, and the shell conduct has reported it, the watch ends."""
 
     def __init__(self, outputs: CommandOutputs, card: OutputProcessCard) -> None:
         self.outputs, self.card = outputs, card

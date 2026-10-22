@@ -5,7 +5,7 @@ RECENT_LOG_LINES = 3
 
 
 class TaskBriefing:
-    """What the agent is told of a task: its brief and its latest log lines when it takes the task up, so it never works from the title alone, and the brief and every log line in order when it reads the task whole."""
+    """What the agent is told about a task: its brief and its latest log lines when it starts the task, so it never works from the title alone, and the brief and every log line in order when it reads the task in full."""
 
     def __init__(self, logs: TaskLogs) -> None:
         self.logs = logs

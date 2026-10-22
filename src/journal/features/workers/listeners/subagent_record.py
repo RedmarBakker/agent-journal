@@ -8,7 +8,7 @@ from journal.support.actor import Actor
 
 
 class SubagentRecord(Listener[Updated]):
-    """Each subagent the agent dispatched is a row, written as each entry that moves it is settled with what the journal answered, so a dispatch the journal refused is never one and the next hook counts the rows as they stand; a retired subagent stays retired until it is sent a message; a row whose dispatch entry was trimmed is moved by the entry alone."""
+    """Each subagent the agent dispatched is a row, written as each entry that moves it is resolved with what the journal answered, so a dispatch the journal refused is never a row and the next hook counts the rows as they are; a retired subagent stays retired until it is sent a message; a row whose dispatch entry was trimmed is moved by the entry alone."""
 
     def __init__(self, entries: SubagentEntries, subagents: Subagents) -> None:
         self.entries, self.subagents = entries, subagents

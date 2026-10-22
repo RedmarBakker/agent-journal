@@ -16,7 +16,7 @@ END_LINES = 10
 
 
 class OutputCommand(Command):
-    """The outputs the runner kept, by number: read one whole or in part, say how one stands, list the newest, or watch a running one."""
+    """The outputs the runner stored, by number: read one in full or in part, show the status of one, list the newest, or watch a running one."""
 
     noun = "output"
     callers = {"read": HELPER_KINDS, "list": WORKER_KINDS, "status": WORKER_KINDS, "watch": WORKER_KINDS}

@@ -31,7 +31,7 @@ CONVERSATION = "conversation"
 
 
 class Search:
-    """Words looked for in every model with words of its own here, newest first, or only in the models named, and in the agents' conversations when asked; the command and the viewer both ask it, so they find the same."""
+    """Searches for words in every model with text of its own here, newest first, or only in the models named, and in the agents' conversations when requested; the command and the viewer both use it, so they find the same results."""
 
     def __init__(self, tasks: Tasks, plans: Plans, messages: Messages, questions: Questions, facts: Facts, rules: Rules, reminders: Reminders, reports: Reports,
                  docs: Docs, task_logs: TaskLogs, phases: Phases, checks: Checks, sequences: Sequences, workers: Workers, templates: Templates, dumps: Dumps,

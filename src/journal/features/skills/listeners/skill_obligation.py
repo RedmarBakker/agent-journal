@@ -10,7 +10,7 @@ from journal.support.actor import Actor
 
 
 class SkillObligation(AgentListener[AgentEvent]):
-    """The skills a start or a prompt calls for, as the skills conduct names them, are noted as owed on the agent's row, beside those already owed, so a write waits until they are read."""
+    """The skills a start or a prompt calls for, as the skills conduct names them, are recorded as required on the agent's row, beside those already required, so a write waits until they are read."""
 
     blocking = True
 

@@ -19,7 +19,7 @@ BROWSER = "playwright"
 
 
 class LoginWindow:
-    """A browser login taken on its own thread: the window opens on the user's computer, the journal goes on, and when the user closes it the login is saved, merged, given to the agent's browser and the agents restarted to use it. A login that saved nothing is said in a message."""
+    """A browser login taken on its own thread: the window opens on the user's computer, the journal continues, and when the user closes it the login is saved, merged, given to the agent's browser and the agents restarted to use it. A login that saved nothing is reported in a message."""
 
     def __init__(self, logins: BrowserLogins, secrets: Secrets, servers: McpServers, installing: McpInstalling, messages: Messages, scope: Scope) -> None:
         self.logins, self.secrets, self.servers, self.installing, self.messages, self.scope = logins, secrets, servers, installing, messages, scope

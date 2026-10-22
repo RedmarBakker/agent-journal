@@ -4,7 +4,7 @@ from journal.support.option import Option
 
 
 class Record(Feature):
-    """The journal's record of what happened: every hook, line said and row changed, kept as a rolling log."""
+    """The journal's record of what happened: every hook, line sent and row changed, stored as a rolling log."""
 
     RECORD_LENGTH = Option("record.kept", "Keep the record's last", "Entries of the journal's record kept, newest first: every hook and row changed, and as many of the lines said to the agent apart; past this the oldest go, while messages, tasks and every other row of the project stay", 10000, unit="entries")
     name = "record"

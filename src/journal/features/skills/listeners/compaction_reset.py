@@ -6,7 +6,7 @@ from journal.repositories.agents import Agents
 
 
 class CompactionReset(AgentListener[Compacting]):
-    """A compacted window has not read the skills it read; they are owed again."""
+    """A compacted window no longer contains the skills it read; they must be read again."""
 
     blocking = True
 

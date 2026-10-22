@@ -11,7 +11,7 @@ SHOWN_LINE_COUNT = 12
 
 
 class WorktreeCommands:
-    """The user's own commands around the making of a worker's worktree, one shell command per line, run in order in the folder given, each told where the worktree is, its branch, the project, the inner repositories and the library folders the dispatch named; the first that fails stops the making with what it printed."""
+    """The user's own commands around the creation of a worker's worktree, one shell command per line, run in order in the folder given, each given where the worktree is, its branch, the project, the inner repositories and the library folders the dispatch named; the first that fails stops the creation with what it printed."""
 
     def __init__(self, config: Config, branch: WorkerBranch) -> None:
         self.config, self.branch = config, branch

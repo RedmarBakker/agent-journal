@@ -9,7 +9,7 @@ COMMANDS_PREFIX = "commands: "
 
 @dataclass(frozen=True)
 class ReaderCommands:
-    """The commands a reader reads the output of, such as pytest or dotnet test: a shell line runs one when the shape of one of its parts, its program and subcommands, names it, never a value passed or text a part carries."""
+    """The commands a reader reads the output of, such as pytest or dotnet test: a shell line runs one when the shape of one of its parts, its program and subcommands, names it, never a value passed or text a part contains."""
 
     programs: tuple[str, ...] = ()
 

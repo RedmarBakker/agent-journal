@@ -6,7 +6,7 @@ REFUSAL = "this shell says it is a worker's but does not carry that worker's tok
 
 
 class WorkerIdentity:
-    """Checks that a command, a shell line or a hook that says it is a worker's carries that worker's token; a shell marked as a worker's that names no worker is refused too, and a worker row from before tokens passes as it did."""
+    """Checks that a command, a shell line or a hook that claims to be a worker's carries that worker's token; a shell marked as a worker's that names no worker is refused too, and a worker row from before tokens passes as it did."""
 
     def __init__(self, workers: Workers) -> None:
         self.workers = workers

@@ -11,7 +11,7 @@ PREFIX_LETTERS = 20
 
 
 class SharePlace:
-    """Where the outside reaches this journal, kept in its home so a restart keeps it: the tunnel's subdomain, the share server's port and what the tunnel was started for."""
+    """Where the outside reaches this journal, stored in its home so a restart keeps it: the tunnel's subdomain, the share server's port and what the tunnel was started for."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

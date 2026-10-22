@@ -29,7 +29,7 @@ BROKEN_TUNLER = "what the server sent is not a working tunler, so nothing was re
 
 
 class Tunler:
-    """The tunler program on this machine, which gives the journal its web address: its status, its version and the domains its account holds, each asked at most once a minute, and its login."""
+    """The tunler program on this machine, which gives the journal its web address: its status, its version and the domains its account has, each requested at most once a minute, and its login."""
 
     def __init__(self) -> None:
         self._status = CachedAnswer(lambda: self.query(), STATUS_CACHE_SECONDS, TunlerStatus(installed=False))

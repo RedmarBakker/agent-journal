@@ -19,7 +19,7 @@ COMMAND_PATTERN = re.compile(r"`([^`<]+)")
 
 
 class RunTracker:
-    """The sequences an agent works through, kept on its row as a stack: one started inside another is the one in hand, and when it ends the other comes back. Every start goes through here."""
+    """The sequences an agent works through, stored on its row as a stack: one started inside another is the current one, and when it ends the other becomes current again. Every start goes through here."""
 
     def __init__(self, sessions: SessionAgents, agents: Agents, requirements: Requirements, workers: Workers, rows: Rows) -> None:
         self.sessions, self.agents, self.requiring, self.workers, self.rows = sessions, agents, requirements, workers, rows

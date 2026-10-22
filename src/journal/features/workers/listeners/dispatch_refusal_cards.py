@@ -5,7 +5,7 @@ from journal.chat.moment_cards import MomentCards
 
 
 class DispatchRefusalCards(AgentListener[LineDelivered]):
-    """A dispatch held in favour of idle workers is one mark in the chat: refused, and how many idle workers could take it, the idle list in its lines."""
+    """A dispatch blocked in favour of idle workers is one mark in the chat: refused, and how many idle workers could take it, with the idle list in its lines."""
 
     def __init__(self, cards: MomentCards) -> None:
         self.cards = cards

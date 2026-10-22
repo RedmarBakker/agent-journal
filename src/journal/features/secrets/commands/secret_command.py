@@ -23,7 +23,7 @@ from journal.support.secret_values import SecretValues
 
 
 class SecretCommand(Command):
-    """The project's secrets, by number: made, asked for, changed, listed, shown and deleted. None takes a value: the user fills a value on the Secrets page."""
+    """The project's secrets, by number: created, requested, changed, listed, shown and deleted. None takes a value: the user fills in a value on the Secrets page."""
 
     noun = "secret"
 

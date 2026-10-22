@@ -6,7 +6,7 @@ LONG_RUNS = ("testing", "building")
 
 
 class WatchSuggestions:
-    """What a command moved to the background is told it may do: watching it live so the user sees it move, through the reader whose commands it runs; a test run or a build no reader reads is told to make a reader first."""
+    """What a command moved to the background is told it may do: watch it as it runs so the user sees it progress, through the reader whose commands it runs; a test run or a build that no reader reads is told to make a reader first."""
 
     def __init__(self, readers: Readers) -> None:
         self.readers = readers

@@ -4,7 +4,7 @@ ACTIVITY_SUFFIX = "ing"
 
 
 class ActivityTitle:
-    """A card's title says what the run is doing, Running tests or Building the application, opening on a word of activity, never a bare name such as Tests."""
+    """A card's title says what the run is doing, Running tests or Building the application, starting with a word of activity, never a bare name such as Tests."""
 
     @staticmethod
     def checked(text: str) -> str:

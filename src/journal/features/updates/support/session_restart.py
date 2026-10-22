@@ -16,7 +16,7 @@ RETIRED_TITLES = ("The journal was updated to 4.5: end the agent's session and s
 
 
 class SessionRestart:
-    """An update that crosses the version whose hooks, states and skills a running session cannot take up is told to the user in every environment as a notice of the restart tone, which the viewer draws as a dialog that cannot be dismissed, until the agent's next session starts, in any environment: its start is heard as SessionStarted, or read from the line the hook writes to runtime/session-version, the event and the version it started on; a notice in an earlier wording is closed the same way."""
+    """An update that crosses the version whose hooks, states and skills a running session cannot take up is reported to the user in every environment as a notice of the restart tone, which the viewer draws as a dialog that cannot be dismissed, until the agent's next session starts, in any environment: its start is received as SessionStarted, or read from the line the hook writes to runtime/session-version, the event and the version it started on; a notice in an earlier wording is closed the same way."""
 
     def __init__(self, notices: Notices, environments: Environments, scope: Scope, config: Config) -> None:
         self.notices, self.environments, self.scope, self.config = notices, environments, scope, config
