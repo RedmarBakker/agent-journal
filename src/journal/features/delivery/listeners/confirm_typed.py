@@ -5,7 +5,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class ConfirmTyped(AgentListener[PromptSubmitted]):
-    """A prompt carrying a typed line's words proves the line arrived, and the next held line goes in."""
+    """A prompt containing a typed line's words proves the line arrived, and the next queued line goes in."""
 
     def __init__(self, keystrokes: TypedLines, supervisor: SupervisorLink) -> None:
         self.typed, self.supervisor = keystrokes, supervisor

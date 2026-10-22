@@ -7,7 +7,7 @@ TEST_RUN_KEY = "tests.running"
 
 
 class TestRunFiles:
-    """The files a running test suite leaves in the journal's runtime folder, one per run named by its process: a run is on while its process lives."""
+    """The files a running test suite writes in the journal's runtime folder, one per run named by its process: a run is in progress while its process is running."""
 
     __test__ = False
 

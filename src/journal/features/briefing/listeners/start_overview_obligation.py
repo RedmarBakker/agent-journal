@@ -5,7 +5,7 @@ from journal.repositories.agents import Agents
 
 
 class StartOverviewObligation(AgentListener[SessionStarted]):
-    """Every start of a session owes a look at what is in flight here before any other write: the fact on the agent's row; the briefing conduct says so."""
+    """Every start of a session requires a read of what is in progress here before any other write: the fact on the agent's row; the briefing conduct enforces it."""
 
     blocking = True
 

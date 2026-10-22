@@ -6,7 +6,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class ConfirmRead(Listener[Updated]):
-    """A message read is a new-message line arrived: the agent acted on it, so the line naming the message is confirmed whatever the prompt hook saw, and the next held line goes in."""
+    """Reading a message after a new-message line arrived means the agent acted on it, so the line naming the message is confirmed whatever the prompt hook saw, and the next queued line goes in."""
 
     def __init__(self, keystrokes: TypedLines, supervisor: SupervisorLink) -> None:
         self.typed, self.supervisor = keystrokes, supervisor

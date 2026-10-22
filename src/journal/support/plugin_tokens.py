@@ -3,7 +3,7 @@ import secrets
 
 
 class PluginTokens:
-    """The token each plugin's programs are given, so what they ask of the journal is stamped as the plugin and never as the user: made once per server run and kept only in its memory."""
+    """The token each plugin's programs are given, so what they ask of the journal is stamped as the plugin and never as the user: created once per server run and stored only in its memory."""
 
     def __init__(self) -> None:
         self._issued: dict[str, str] = {}

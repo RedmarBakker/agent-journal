@@ -11,7 +11,7 @@ JOURNAL_PREFIX = "[journal]"
 
 
 class TypedLines:
-    """The lines typed to the agents and not yet seen back as a prompt: a line is confirmed by the prompt that carries its words, and until then it may have been lost. A line for an agent with one still unconfirmed is held, since a line typed while the agent holds another in its queue lands in its prompt box and its Enter only breaks the line. An environment paused queues every line until it is resumed; one disabled drops every line until it is enabled; clear empties its queue: what the agent missed, the look at its next start tells it."""
+    """The lines typed to the agents and not yet seen again as a prompt: a line is confirmed by the prompt that contains its words, and until then it may have been lost. A line for an agent with one still unconfirmed is queued, since a line typed while the agent has another in its queue lands in its prompt box and its Enter only breaks the line. An environment paused queues every line until it is resumed; one disabled drops every line until it is enabled; clear empties its queue: what the agent missed, the read at its next start tells it."""
 
     def __init__(self) -> None:
         self._waiting: list[TypedLine] = []

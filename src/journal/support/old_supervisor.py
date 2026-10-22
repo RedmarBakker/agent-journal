@@ -8,7 +8,7 @@ OLD = {
 
 
 class OldSupervisor:
-    """A supervisor that takes datagrams, announced by a bare path: a request said as the datagram it takes, nothing read back."""
+    """A supervisor that takes datagrams, announced by a bare path: a request is sent as the datagram it takes, with no reply read."""
 
     @staticmethod
     def screen(home: Path, environment: str) -> str:

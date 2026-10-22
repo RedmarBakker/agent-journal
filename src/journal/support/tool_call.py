@@ -13,7 +13,7 @@ PANIC = "panic"
 
 @dataclass(frozen=True)
 class ToolCall:
-    """The one reading of a tool call, made where the hook is translated and carried on both tool events: the tool and its input as they came, the operation its provider decoded, and what the operation says: the shell line and its parts, whether the call writes and which files it writes or reads, and the skill it loads."""
+    """The one reading of a tool call, made where the hook is translated and included on both tool events: the tool and its input as received, the operation its provider decoded, and what the operation does: the shell line and its parts, whether the call writes and which files it writes or reads, and the skill it loads."""
 
     tool: str
     input: dict

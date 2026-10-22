@@ -3,7 +3,7 @@ from journal.features.faults.support.developer_tally import DeveloperTally
 
 
 class DeveloperWrite(Job):
-    """Every five seconds the developer numbers held in memory are written to their rows, so a request never waits on writing its own."""
+    """Every five seconds the developer numbers stored in memory are written to their rows, so a request never waits to write its own."""
 
     interval_seconds = 5.0
 

@@ -5,7 +5,7 @@ SECRETS_VARIABLE = "AGENT_JOURNAL_SECRETS"
 
 
 class PrivateFolder:
-    """Where a project's private values live, outside the project in the user's home folder: the MCP servers' keys, the phone's push keys and the secrets' values, each folder readable by its user alone and kept out of git."""
+    """Where a project's private values are stored, outside the project in the user's home folder: the MCP servers' keys, the phone's push keys and the secrets' values, each folder readable by its user alone and excluded from git."""
 
     def __init__(self, root: Path) -> None:
         self.root = root

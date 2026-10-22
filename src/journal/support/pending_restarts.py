@@ -1,5 +1,5 @@
 class PendingRestarts:
-    """The agents owed a restart for a changed server set, kept until each one stops its turn: an agent at work is never cut off mid-way."""
+    """The agents that need a restart for a changed server set, stored until each one stops its turn: an agent at work is never cut off midway."""
 
     def __init__(self) -> None:
         self._sessions: dict[str, tuple[int, tuple[str, ...]]] = {}

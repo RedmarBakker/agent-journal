@@ -5,7 +5,7 @@ from journal.engine.support.nudge_log import NudgeLog
 
 
 class SlowJobNotice(Listener[SlowTick]):
-    """A job's tick that ran long is told to the live agent, when the developer setting asks for it."""
+    """A job's run that took long is reported to the running agent, when the developer setting asks for it."""
 
     def __init__(self, settings: SettingRows, nudges: NudgeLog) -> None:
         self.settings, self.nudges = settings, nudges

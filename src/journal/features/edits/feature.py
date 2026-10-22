@@ -4,7 +4,7 @@ from journal.features.feature import Feature
 
 
 class EditsFeature(Feature):
-    """The files the agent changes, kept as rows: the file edits pane reads them, and shows the same after a return."""
+    """The files the agent changes, stored as rows: the file edits pane reads them, and shows the same after a reload."""
 
     name = "edits"
     title = "File edits"

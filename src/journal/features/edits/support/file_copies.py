@@ -10,7 +10,7 @@ GIT_SECONDS = 5
 
 
 class FileCopies:
-    """The last version the journal saw of each file the agent changed, so a change a shell command made can be told line by line: against the version kept, or the committed one when none is."""
+    """The last version the journal saw of each file the agent changed, so a change a shell command made can be compared line by line: against the stored version, or the committed one when there is none."""
 
     def __init__(self, config: Config) -> None:
         self.root = config.root

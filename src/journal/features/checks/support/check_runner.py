@@ -27,7 +27,7 @@ INTERVAL_SECONDS = 1.0
 
 
 class CheckRunner:
-    """Runs one check in the project root, its progress on its row while it runs, and keeps its result and report; the run is a row event the check carries, and what the agent is told of a failure is the checks conduct's."""
+    """Runs one check in the project root, with its progress on its row while it runs, and stores its result and report; the run is a row event the check carries, and what the agent is told about a failure is the checks conduct's."""
 
     def __init__(self, config: Config, checks: Checks, agents: Agents, cards: MomentCards) -> None:
         self.config, self.checks, self.agents, self.cards = config, checks, agents, cards

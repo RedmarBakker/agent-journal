@@ -6,7 +6,7 @@ LINE_TIMEOUT_SECONDS = 30
 
 
 class ProjectShell:
-    """Runs a line of the user's in the project's own folder and hands back what it printed."""
+    """Runs a line of the user's in the project's own folder and returns what it printed."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

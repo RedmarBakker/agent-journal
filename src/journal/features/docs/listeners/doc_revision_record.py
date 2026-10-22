@@ -8,7 +8,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class DocRevisionRecord(Listener[Saved]):
-    """Every save of a document that changes its text is kept as a revision: the first save writes revision 1, a later one within the open window folds into the open revision with its change noted, and one after it opens the next."""
+    """Every save of a document that changes its text is stored as a revision: the first save writes revision 1, a later one within the open window merges into the open revision with its change noted, and one after it opens the next."""
 
     def __init__(self, revisions: DocRevisions, settings: SettingRows, clock: Clock) -> None:
         self.revisions, self.settings, self.clock = revisions, settings, clock

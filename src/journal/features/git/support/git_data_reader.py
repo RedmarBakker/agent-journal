@@ -10,7 +10,7 @@ RECENCY_SECONDS = 15.0
 
 
 class GitDataReader:
-    """Reads the git feature's part of the feature data for an agent: the uncommitted files, asked of git at most once every FRESH_SECONDS, since every event reads the feature data and a status older than that is as good as fresh."""
+    """Reads the git feature's part of the feature data for an agent: the uncommitted files, requested from git at most once every FRESH_SECONDS, since every event reads the feature data and a status older than that is as good as a new one."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

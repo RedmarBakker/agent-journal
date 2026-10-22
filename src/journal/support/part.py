@@ -23,7 +23,7 @@ PREFIXES = {"sudo", "env", "nohup", "time", "nice", "command", "exec"}
 
 @dataclass(frozen=True)
 class Part:
-    """One command of a chain: whether it is the agent's own, recorded, or the shell's own wrapping, run in silence; whether it runs whatever the part before it came to (after a ;) or only after a success (after a &&); and whether a && follows it, so that its failure must not end a shell under set -e. It reads its own tokens as the shell would: quotes removed, a leading comment, env assignments, prefixes and git's own options stepped over."""
+    """One command of a chain: whether it is the agent's own, recorded, or the shell's own wrapping, run silently; whether it runs whatever the part before it returned (after a ;) or only after a success (after a &&); and whether a && follows it, so that its failure must not end a shell under set -e. It reads its own tokens as the shell would: quotes removed, a leading comment, env assignments, prefixes and git's own options skipped."""
 
     text: str
     recorded: bool = True

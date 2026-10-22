@@ -8,7 +8,7 @@ REFUSAL = re.compile(r"^\s*(I (can't|cannot|could not|couldn't|am unable|was una
 
 @dataclass(frozen=True)
 class TaskNotification:
-    """What the agent's program tells it of a background subagent's end, in a prompt it sends in: the subagent's id, whether it completed or failed, the one-line summary and its report, what it said last."""
+    """What the agent's program reports to it about a background subagent's end, in a prompt it sends in: the subagent's id, whether it completed or failed, the one-line summary and its report, its last output."""
 
     task_id: str
     status: str

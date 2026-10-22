@@ -6,7 +6,7 @@ T = TypeVar("T")
 
 
 class CachedAnswer(Generic[T]):
-    """An answer that takes long to ask, such as a program's status or a round trip: kept and given at once, so no request waits on it; one older than its time is asked again on a thread of its own, one ask at a time, and the next reader has it."""
+    """An answer that takes long to get, such as a program's status or a round trip: stored and returned at once, so no request waits on it; one older than its time is requested again on a thread of its own, one request at a time, and the next reader gets the new answer."""
 
     def __init__(self, inquiry: Callable[[], T], retention: float, first: T) -> None:
         self.ask, self.kept_for = inquiry, retention

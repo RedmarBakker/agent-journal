@@ -6,7 +6,7 @@ SHIM_COMMANDS = ("claude", "codex", "serve", "remote")
 
 
 class AliasNames:
-    """Whether a name is free for an alias: the journal's own nouns, the words the shim runs itself and the aliases already kept are taken."""
+    """Whether a name is free for an alias: the journal's own nouns, the words the shim runs itself and the existing aliases are taken."""
 
     def __init__(self, registry: Registry, aliases: Aliases) -> None:
         self.registry, self.aliases = registry, aliases

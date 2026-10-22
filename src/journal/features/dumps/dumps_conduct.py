@@ -6,7 +6,7 @@ from journal.features.dumps.states.sorting_dump import item_count
 
 
 class DumpsConduct(Conduct):
-    """The dumps feature's conduct in every state: a dump the user drops pushes SortingDump over whatever the agent was doing, told how many items wait."""
+    """The dumps feature's conduct in every state: a dump the user drops pushes SortingDump over whatever the agent was doing, and says how many items are waiting."""
 
     def on_dump_arrived(self, event: DumpArrived, settings: Settings) -> Transition:
         from journal.features.dumps.feature import DumpsFeature

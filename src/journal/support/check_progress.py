@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class CheckProgress:
-    """A check's run under way: when it started, the tail of what it printed so far, and how far it says it is."""
+    """A check's run in progress: when it started, the tail of what it printed so far, and how far it says it is."""
 
     time: float
     output: str = ""

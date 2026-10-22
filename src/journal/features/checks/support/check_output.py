@@ -11,7 +11,7 @@ STEPS = re.compile(r"^[.FEsxX]+(?=\s*(?:\[\s*\d+%\])?\s*$)", re.M)
 
 
 class CheckOutput:
-    """What a running check has printed, read for how far it is: a count such as 120/983, test dots against the items collected, or a percent."""
+    """What a running check has printed so far, read for its progress: a count such as 120/983, test dots against the items collected, or a percent."""
 
     @staticmethod
     def summary(output: str) -> str:

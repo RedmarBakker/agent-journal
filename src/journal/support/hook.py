@@ -5,7 +5,7 @@ from journal.support.hook_kind import HookKind
 
 @dataclass(frozen=True)
 class Hook:
-    """What the agent's hook script posts, as the agent sent it, with the id of the launch it came from and the millisecond the script started at when it stamped its request; stored, a tool's response is cut to KEPT characters a text, so a long read or a command's whole output is not kept once more for every call."""
+    """What the agent's hook script posts, as the agent sent it, with the id of the launch it came from and the millisecond the script started at when it stamped its request; when stored, a tool's response is cut to KEPT characters a text, so a long read or a command's whole output is not stored again for every call."""
 
     RESPONSE_CHARACTERS = 4000
 

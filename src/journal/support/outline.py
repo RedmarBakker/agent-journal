@@ -7,7 +7,7 @@ from journal.support.section import Section
 
 @dataclass(frozen=True)
 class Outline:
-    """A markdown text read the way an agent reads a document or a report: its headings first, then one section at a time, and the whole only when asked for with --all."""
+    """A markdown text read the way an agent reads a document or a report: its headings first, then one section at a time, and the whole text only when requested with --all."""
 
     sections: tuple[Section, ...]
     text: str

@@ -6,7 +6,7 @@ COMMAND_COUNT = 50
 
 
 class AnnouncedCommands:
-    """The shell commands a Claude subagent's PreToolUse hooks announced, by environment and by the session the subagent's agent runs in, each as the texts of the call's own parts, until the shim's own post from that session claims it, a part of it running journal with exactly that argv; the agent's own run of the same parts withdraws the announcement, and one still announced is asked for by its parts."""
+    """The shell commands a Claude subagent's PreToolUse hooks announced, by environment and by the session the subagent's agent runs in, each as the texts of the call's own parts, until the shim's own post from that session claims it, a part of it running journal with exactly that argv; the agent's own run of the same parts withdraws the announcement, and one still announced is requested by its parts."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()

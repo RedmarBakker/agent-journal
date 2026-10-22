@@ -7,7 +7,7 @@ FENCE = "---"
 
 
 class Version3Doc:
-    """A document as version 3 kept it: a folder holding doc.md, its row as JSON between two --- lines, then its text."""
+    """A document as version 3 stored it: a folder with doc.md, its row as JSON between two --- lines, then its text."""
 
     @staticmethod
     def read(folder: Path) -> Doc | None:

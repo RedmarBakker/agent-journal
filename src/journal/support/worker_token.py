@@ -8,7 +8,7 @@ TOKEN_BYTES = 32
 
 @dataclass(frozen=True)
 class WorkerToken:
-    """The secret a worker's run carries to prove who it is: made new for each run, only its hash kept on the worker's row."""
+    """The secret a worker's run uses to prove who it is: created new for each run, with only its hash stored on the worker's row."""
 
     text: str
 

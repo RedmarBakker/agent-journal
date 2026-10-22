@@ -8,7 +8,7 @@ from journal.support.part import VENDOR_FOLDERS
 
 
 class FileModificationTracker:
-    """Tracks the modification timestamp of every project file git sees as changed from a script's start, so the files the script changed are the ones that became changed or whose timestamp moved; a project outside git has every file walked."""
+    """Tracks the modification timestamp of every project file git sees as changed at a script's start, so the files the script changed are the ones that became changed or whose timestamp changed; a project outside git has every file walked."""
 
     def __init__(self, config: Config) -> None:
         self.root = str(config.root)

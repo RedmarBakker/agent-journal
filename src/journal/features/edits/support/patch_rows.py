@@ -10,7 +10,7 @@ CONTEXT_LINES = 2
 
 @dataclass(frozen=True)
 class PatchRows:
-    """The changed lines of a tool's edit, numbered: from the provider's structured patch, or from one version of a file to the next as a shell command's change is told, each section of the diff read from its head line, the old and new start, with two unchanged lines kept on each side of a change."""
+    """The changed lines of a tool's edit, numbered: from the provider's structured patch, or from one version of a file to the next when a shell command's change is compared, each section of the diff read from its head line, the old and new start, with two unchanged lines kept on each side of a change."""
 
     rows: tuple[PatchRow, ...]
 

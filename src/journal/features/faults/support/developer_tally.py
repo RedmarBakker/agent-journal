@@ -11,7 +11,7 @@ STAGES_PREFIX = "developer.stages."
 
 
 class DeveloperTally:
-    """The developer numbers of the requests answered since they were last written, held in memory and written together: the sums to add to each series, the slowest time of each, and the timings."""
+    """The developer numbers of the requests answered since they were last written, stored in memory and written together: the sums to add to each series, the slowest time of each, and the timings."""
 
     def __init__(self, statistics: Statistics, timings: Timings, stages: StageTimes, settings: SettingRows) -> None:
         self.statistics, self.timings, self.stages, self.settings = statistics, timings, stages, settings

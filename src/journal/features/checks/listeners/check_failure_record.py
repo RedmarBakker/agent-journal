@@ -5,7 +5,7 @@ from journal.support.actor import Actor
 
 
 class CheckFailureRecord(AgentListener[LineDelivered]):
-    """A failing check told to the agent is marked on its row with the time it was reported, so it is told again only once the set minutes have passed."""
+    """A failing check reported to the agent is marked on its row with the time it was reported, so it is reported again only once the set minutes have passed."""
 
     def __init__(self, checks: Checks) -> None:
         self.checks = checks

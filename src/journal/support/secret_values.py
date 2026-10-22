@@ -17,7 +17,7 @@ HEADER = """# The values of this project's secrets, written by agent-journal.
 
 
 class SecretValues:
-    """The project's secret values, one file in the private folder named by the project's id, readable by its user alone and written whole, so a crash never leaves half a file. A field shown while typing is no secret: its value is kept for the programs that need it and named in the shown file beside, so no mask is made of it."""
+    """The project's secret values, one file in the private folder named by the project's id, readable by its user alone and written whole, so a crash never leaves half a file. A field shown while typing is no secret: its value is stored for the programs that need it and named in the shown file beside it, so no mask is made of it."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
