@@ -12,7 +12,7 @@ MOMENTS = {"session_start": Skills.START_SKILLS, "after_compaction": Skills.COMP
 
 
 class SkillController:
-    """The journal's skills, with whether the agent asked about has read each and whether each is owed at a session start and after a compaction; one opened whole, one the live agent is told to read now, and either moment switched for one."""
+    """The journal's skills, with whether the agent concerned has read each and whether each is required at a session start and after a compaction; one opened whole, one the running agent is told to read now, and either moment switched for one."""
 
     def __init__(self, registry: Registry, agents: Agents, skill_files: SkillFiles, supervisor: SupervisorLink, scope: Scope, settings: SettingRows) -> None:
         self.registry, self.agents, self.skill_files, self.supervisor, self.scope, self.settings = registry, agents, skill_files, supervisor, scope, settings
