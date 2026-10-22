@@ -103,12 +103,12 @@ Every shell command you run goes through the journal's runner.
   `--finished '<pattern>'` and `--failed '<pattern>'` pick other lines once the command finished or failed, such as its summary
   or its failures; a script reader finds which in JOURNAL_OUTPUT_STAGE: running, finished or failed.
 - A reader names the commands whose output it reads, `--commands "pytest"`, and a command moved to the background that
-  runs one is told to watch it with that reader, so one reader serves every later run; a test run or a build that no reader
-  reads is told to make one first, with the line to copy. The journal ships readers for pytest, dotnet test and phpunit
+  runs one is instructed to watch it with that reader, so one reader serves every later run; a test run or a build that no reader
+  reads is instructed to make one first, with the line to copy. The journal ships readers for pytest, dotnet test and phpunit
   or pest in .journal/readers as examples. Waiting on a command, `journal await "<what>" --output N --reader <name>`
   watches it too, so the user sees it progress while you wait.
 - A test run, a build or any other command's output is shown in full up to 400 characters; past that you see only a
-  line naming the output to read by its number, with its lines, its characters and the part of the line it came from. A command that reads (cat, grep, sed, git diff) is shown up to 8,000
+  line naming the output to read by its number, with its lines, its characters and the part of the line it belongs to. A command that reads (cat, grep, sed, git diff) is shown up to 8,000
   characters, past that by its two ends. A line of journal commands is shown in full and stored as no output.
 - A command that only reads or edits the project's own code, a file, a folder or a glob under the project and outside .journal, runs as written, pipes and all,
   in the shell itself: nothing of it is captured, recorded or stored, and `grep -n x src/app.py | tail -5` answers at once. Any other command's trailing `| tail` or `| head` is removed from the line: the command runs in full, the

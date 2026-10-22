@@ -29,7 +29,7 @@ class DumpsFeature(Feature[DumpsData]):
 # Dumps
 
 A dump holds pasted text and dropped files; each is an item. Sort the material by subject: one document per subject,
-named for what it is about, never after the file it came in. One dump is worked at a time; the next waits until it closes.
+named for what it is about, never after the file it was received in. One dump is worked at a time; the next waits until it closes.
 
 1. `journal dump items <n>` lists the status of every item.
 2. Read each item, then `journal dump note <n> <item> "<what it is>"`.

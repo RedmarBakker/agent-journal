@@ -61,7 +61,7 @@ until its last step is done.
   up and tells the user. Take the step up first.
 - One started while another runs is followed first; when it ends, the other is said again. Only the user's own
   words start a sequence by its trigger.
-- A stop with a step open is told the step once; a wait, an open question or a pending duty to the journal keeps it silent.
+- A stop with a step open is shown the step once; a wait, an open question or a pending duty to the journal keeps it silent.
 - `journal sequence create "<title>" --steps "first | second | third"` writes one; `--starts-on plan.created`
   makes a row you create start it on its own.
 """, keywords=('sequence', 'sequences', 'steps'))

@@ -21,7 +21,7 @@ from journal.features.tasks.listeners.task_move_cards import TaskMoveCards
 class Tasks(Feature[TasksData]):
     AUTO = Option("tasks.auto", "Work the list on its own", "At a stop with tasks open, the next one holds the stop until it is taken up; off, the agent stops and waits for you", True, kind="switch", setter=USER)
     FIRST_DELAY = Option("tasks.first_nudge_after", "Ask for a log after", "Edits without a log line before the agent is asked where its task stands", 25, unit="edits")
-    TASK_REMINDER_INTERVAL = Option("tasks.name_every", "Name the task back every", "Edits between reminders of the task in hand, so drift is noticed", 25, unit="edits")
+    TASK_REMINDER_INTERVAL = Option("tasks.name_every", "Name the task back every", "Edits between reminders of the task in hand, so drift is visible", 25, unit="edits")
     LOG_LIMIT = Option("tasks.log_after", "Hold the next write after", "Edits without a log line before the agent's next write waits for one", 50, unit="edits")
     LOG_AGE_LIMIT = Option("tasks.log_old_after_minutes", "Ask for a log at a stop after", "Minutes since the task's last log line before a stop asks for one before carrying on", 10, unit="min")
     BLOCK_BATCH = Option("tasks.block_batch_seconds", "Refuse a third block within", "A third task blocked within this many seconds of two others is refused: blocking a batch is clearing the list, not tasks that cannot move", 300, unit="seconds")
@@ -90,10 +90,10 @@ needs no task; file one for work that is an item of its own, that waits, or that
   plan, by hand or by its wait, releases its waits and retires the check its block made.
 - Waiting for something outside your control: `journal await "<what you wait for>" --output <n>` for a command running in the
   background (add `--reader <name>` to watch it as it runs while you wait), or `--until "<script>"`, run every 30 seconds, for anything else. The wait ends by itself once that is done,
-  and you are told the result; working again ends it too. A wait that names neither, or a wait on the user, is
+  and you are informed of the result; working again ends it too. A wait that names neither, or a wait on the user, is
   refused: ask with `journal question ask`, or end your turn.
 - Log as you go, counted in edits: after twenty-five with nothing logged you are asked to, every twenty-five the current work is named
-  again so drift is noticed, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
+  again so drift is visible, and at fifty the next write waits for the log line (settings tasks.first_nudge_after,
   tasks.name_every and tasks.log_after). A log line starts a new version.
 - A stop with current work names it again with when it was last logged, three times a version; then the stop passes.
 - A commit whose message includes `Journal: tasks done <n>` on a line of its own finishes task n.

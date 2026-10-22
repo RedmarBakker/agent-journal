@@ -120,7 +120,7 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   test templates are listed with `journal template list`. A worker is started only on a task: an open one with a
   brief, which is its job, or the one you own, which it then takes over. The task is the worker's from then on, never
   offered to you as next, until its work is merged or released. The profile sets its model and its instructions:
-  medior, on Sonnet, for a job whose shape is settled; senior, on Opus, only for one that needs judgement. `--model` overrides it.
+  medior, on Sonnet, for a job whose shape is defined; senior, on Opus, only for one that needs judgement. `--model` overrides it.
   In a project that contains repositories of its own, a worktree contains a worktree of each one the task's brief names
   (all of them when it names none), so name the repositories the job touches in the brief; each merges into its own.
   A worktree has no installed libraries of its own, so a worktree dispatch names them: `--libraries node_modules,.venv`
