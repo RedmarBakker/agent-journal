@@ -3,14 +3,14 @@
 ## Design philosophy
 
 Version 4 is the same product as version 3, rebuilt simple. Every rule below exists because
-version 3 broke it and paid for it. Read this before writing, and when a change fights one of
+version 3 broke it and the breakage cost time. Read this before writing, and when a change conflicts with one of
 these, the change is wrong, not the rule.
 
 **One concept, one place.** A thing is defined in one file and nowhere else. A model is its
 file in `models/`; its SQL is its repository; the journal's conduct toward the agent in a state
 is that state's listeners, and the engine keeps only what no state may change. If you are
-about to write the same idea in a second place, you have found the one place it belongs and
-should move it there.
+about to write the same idea in a second place, that is the one place it belongs, so
+move it there.
 
 **One class per file.** Every class, enum and dataclass has a file of its own, named after it
 in snake_case. A module never holds two classes. Navigation is by file name alone.
@@ -52,13 +52,13 @@ parent of every state and every feature's state extends it directly. Only the to
 hears an event; a state beneath catches up in `on_resume(data, settings)`, which may pop it.
 The lifecycle hooks `on_push`, `on_pause`, `on_resume` and `on_pop` answer nudges, and `on_push`
 may refuse the push. Every push and pop is an entry in the trail, shown under the
-figure on the Home page. Counts and times a state keeps are its fields and go with it when it is
+diagram on the Home page. Counts and times a state keeps are its fields and go with it when it is
 popped.
 
-**Features bring their states; the engine knows no feature.** A feature owns its states, its
+**Features add their states; the engine knows no feature.** A feature owns its states, its
 nudges, its options, its recording listeners and its commands. Its conduct toward the agent in
 every state is a mixin extending `Conduct`: `on_` methods named for their event alone,
-`on_tool_starting`, and nothing else, folded into the base state at boot. The engine holds
+`on_tool_starting`, and nothing else, merged into the base state at boot. The engine holds
 the state machine, the base state, `Wait`, `Compacting`, `Ended`, the nudger, the clock and the
 runtime, and imports nothing from `features/`. The state machine is reached by the engine alone
 and by `journal panic`, which pushes, pops or resets the stack from outside and is always allowed;
@@ -73,23 +73,23 @@ travel on the event as its `data`, a `FeatureData` of one frozen part per featur
 built by the state machine for the agent it asks; the options travel as `Settings`, a frozen
 value of what the user set. A state never asks a repository or a clock: every event carries `at`.
 
-**One line has one decider.** Nothing speaks to the agent from outside a state. A line is said
-by the state or the conduct whose listener answered the event; the first hold of an event wins
-and a later one is recorded unanswered. A nudge is one class, `Nudge.create(**values)`, and its
+**One line has one decider.** Nothing speaks to the agent from outside a state. A line is sent
+by the state or the conduct whose listener answered the event; the first block of an event wins
+and a later one is recorded as unanswered. A nudge is one class, `Nudge.create(**values)`, and its
 name says what the line does. Every line and every move has one decider, and the record names it.
 
 **Conduct is a state's; safety is the engine's.** The engine does what the journal cannot work
-without: delivering the user's messages, running commands, holding every tool while the context
-compacts, ending the session. Everything else the journal says to the agent or holds it for, when
+without: delivering the user's messages, running commands, blocking every tool while the context
+compacts, ending the session. Everything else the journal sends to the agent or blocks it for, when
 it reminds, what it says, when it blocks a stop, is a listener on a state or on a feature's
-conduct, and the numbers it reads are the Settings page's. What the agent owes the journal before
-it may write or stop is set as a fact on its row by a feature's recording listener and held by the
-feature's conduct; the events `SkillRead`, `OverviewRead` and `MarkDecided` pay the debt.
+conduct, and the numbers it reads are the Settings page's. What the agent must do for the journal before
+it may write or stop is set as a fact on its row by a feature's recording listener and enforced by the
+feature's conduct; the events `SkillRead`, `OverviewRead` and `MarkDecided` complete it.
 
 **Hooks decide nothing; listeners are deferred unless they say otherwise.** The hook script
 posts and prints. The server records the entry, asks the state machine, which answers with the
-hold or the lines, replies, then runs the recording listeners on one worker thread. A listener
-that must answer before the agent goes on declares `blocking = True`; a deferred one can never
+block or the lines, replies, then runs the recording listeners on one worker thread. A listener
+that must answer before the agent continues declares `blocking = True`; a deferred one can never
 refuse, by construction.
 
 **Dependencies are declared in constructors.** A class names what it needs by type in
@@ -125,7 +125,7 @@ when either changes, so the next session starts from the record and not from rec
 
 `pytest` runs `tests/` in a dozen seconds: one file per phase of the rewrite, a temp database,
 real HTTP on a free port, no mocks and no subprocesses. Tests cover the core only: data,
-CLI, server, hooks, engine. No tests on single models or features until the core stands.
+CLI, server, hooks, engine. No tests on single models or features until the core is finished.
 Run the whole suite after every change; it is cheap.
 
 ## Layout
@@ -141,7 +141,7 @@ knows no journal concept: it runs the processes it is handed and answers its pro
 ## Working here as Claude Code
 
 The briefing above is the canon, shared with every agent. These are the parts of it
-that have a specific name in this harness:
+that are specific to this harness:
 
 - **Load a skill with the Skill tool**, by the exact id in the briefing's bullets —
   e.g. `commandments-backend-absence`. The published skills are linked into
@@ -149,7 +149,7 @@ that have a specific name in this harness:
 
 **The disciplines here are ENFORCED, not just written down.** The agent journal's
 code-commandments plugin judges what you change and raises each sin in the chat; the
-package's own hooks step aside. That is a property of this agent alone — under an
+package's own hooks are not used. That is a property of this agent alone — under an
 agent with no hook protocol the same disciplines are documents you are asked to follow,
 and nothing checks that you did.
 <!-- END: code-commandments skills -->
