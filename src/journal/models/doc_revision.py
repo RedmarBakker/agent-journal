@@ -10,7 +10,7 @@ TOP = "reworded the top"
 
 @dataclass(frozen=True)
 class DocRevision(Model):
-    """One revision of a document, linked to it: its number from 1, the title, line and text it stood at, what changed in it section by section, and when edits stop folding into it rather than open the next."""
+    """One revision of a document, linked to it: its number from 1, the title, line and text it had, what changed in it section by section, and when edits stop merging into it and open the next."""
 
     number: int = 0
     title: str = ""

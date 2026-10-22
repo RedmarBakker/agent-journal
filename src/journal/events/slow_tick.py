@@ -5,7 +5,7 @@ from journal.events.event import Event
 
 @dataclass(frozen=True, kw_only=True)
 class SlowTick(Event):
-    """A job's tick that ran longer than the job runner allows, told once it has ended."""
+    """A job's run that took longer than the job runner allows, announced once it has ended."""
 
     job: str
     seconds: float

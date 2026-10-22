@@ -10,7 +10,7 @@ from journal.repositories.doc_revisions import DocRevisions
 
 
 class DocController(WritingController[Doc]):
-    """The project's documents, the ones a search finds, best first, and each one's revisions, the open one kept on request."""
+    """The project's documents, the ones a search finds, best match first, and each one's revisions, the open one included on request."""
 
     repository: Docs
 

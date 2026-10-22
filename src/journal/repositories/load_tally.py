@@ -7,7 +7,7 @@ TALLY: ContextVar[Counter | None] = ContextVar("loads", default=None)
 
 
 class LoadTally:
-    """The rows the request or hook in hand turns into models, by table, while load counting is on: the measurement begins and ends it, and the repository's one load funnel adds each row; outside a begun tally a load costs one lookup and counts nothing."""
+    """The rows the current request or hook turns into models, by table, while load counting is on: the measurement starts and ends it, and the repository's one load funnel adds each row; outside a started tally a load costs one lookup and counts nothing."""
 
     @staticmethod
     def begin() -> None:

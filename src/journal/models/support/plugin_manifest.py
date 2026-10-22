@@ -13,7 +13,7 @@ PUBLISHED = {"hears": "events", "holds": "blocks"}
 
 @dataclass(frozen=True)
 class PluginManifest:
-    """What a plugin's journal-plugin.json says it is, runs, hears and holds, and the aliases it ships, as read and checked; its hears and holds keys are read into events and blocks."""
+    """What a plugin's journal-plugin.json says it is, runs, listens for and blocks, and the aliases it ships, as read and checked; its listens and blocks keys are read into events and blocks."""
 
     name: str = ""
     version: str = ""

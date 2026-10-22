@@ -2,7 +2,7 @@ from enum import StrEnum
 
 
 class MigrationState(StrEnum):
-    """Where bringing a version 3 journal across stands: offered at first, put off for later by the user, under way, or done."""
+    """The state of migrating a version 3 journal: offered at first, postponed by the user, in progress, or done."""
 
     OFFERED = "offered"
     LATER = "later"

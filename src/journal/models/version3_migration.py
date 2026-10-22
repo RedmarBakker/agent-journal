@@ -7,7 +7,7 @@ from journal.models.model import Model
 
 @dataclass(frozen=True)
 class Version3Migration(Model):
-    """Bringing the version 3 journal kept in .journal/version-3 across into this one, for the whole project."""
+    """Migrating the version 3 journal stored in .journal/version-3 into this one, for the whole project."""
 
     shared: ClassVar[bool] = False
 

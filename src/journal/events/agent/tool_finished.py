@@ -7,7 +7,7 @@ from journal.support.tool_call import ToolCall
 
 @dataclass(frozen=True)
 class ToolFinished(AgentEvent):
-    """A tool ran and returned: the same reading of the call as when it started, with what it printed and its answer as it came, a shell's output in parts or an edit's patch."""
+    """A tool ran and returned: the same reading of the call as when it started, with what it printed and its result as received, a shell's output in parts or an edit's patch."""
 
     is_work = True
 

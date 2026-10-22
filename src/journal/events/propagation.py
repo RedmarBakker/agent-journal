@@ -1,5 +1,5 @@
 class Propagation:
-    """The walk of one event down a state's listeners: a listener that stops it leaves the ones after it unheard, and the next walk starts it again."""
+    """The pass of one event down a state's listeners: a listener that stops it means the ones after it do not receive it, and the next pass starts it again."""
 
     def __init__(self) -> None:
         self.ongoing = True

@@ -16,7 +16,7 @@ USER_TEXT = -2
 
 @dataclass(frozen=True)
 class Dump(Scoped):
-    """A pile the user drops in one place, which the agent sorts by subject and files as rows of their own."""
+    """A pile of material the user drops in one place, which the agent sorts by subject and files as rows of their own."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief", "summary", "outcome")
     title: str = ""

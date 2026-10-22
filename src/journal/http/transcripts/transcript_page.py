@@ -10,7 +10,7 @@ PAGE_TURNS = 300
 
 
 class TranscriptPage:
-    """A transcript's turns as the viewer's log reads them: what a person said and the agent answered in full, every other entry as its heading, its text asked for when it is opened."""
+    """A transcript's turns as the viewer's log reads them: what a person wrote and the agent answered in full, every other entry as its heading, its text requested when it is opened."""
 
     def __init__(self, turns: list[Turn]) -> None:
         self.turns = turns

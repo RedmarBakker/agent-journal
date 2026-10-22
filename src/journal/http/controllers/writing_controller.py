@@ -15,7 +15,7 @@ W = TypeVar("W", Doc, Report)
 
 
 class WritingController(Controller[W]):
-    """What documents and reports share: a list carries each without its body, which is asked for by id, and each names the rows it links to; a section is added at the end of the body."""
+    """What documents and reports share: a list includes each without its body, which is requested by id, and each names the rows it links to; a section is added at the end of the body."""
 
     def listed(self, listing: Listing) -> RowList:
         if listing.ids:

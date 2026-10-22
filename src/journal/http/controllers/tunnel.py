@@ -11,7 +11,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class TunnelController:
-    """The tunnel that carries links to the journal: its status and what keeps it from answering, a restart, tunler's login, version and domains, and the journal's address."""
+    """The tunnel that carries links to the journal: its status and what stops it answering, a restart, tunler's login, version and domains, and the journal's address."""
 
     def __init__(self, tunnel: Tunnel, tunler: Tunler, settings: SettingRows) -> None:
         self.tunnel, self.tunler, self.settings = tunnel, tunler, settings

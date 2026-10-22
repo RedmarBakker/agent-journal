@@ -7,7 +7,7 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class PhoneCode(Scoped):
-    """A code the user shows to pair one phone: its link and its short form kept only as hashes, open for minutes, used once, voided after too many wrong tries."""
+    """A code the user shows to pair one phone: its link and its short form stored only as hashes, valid for minutes, used once, voided after too many wrong tries."""
 
     shared: ClassVar[bool] = False
 

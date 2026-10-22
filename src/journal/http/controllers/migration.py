@@ -9,7 +9,7 @@ from journal.repositories.version3_migrations import Version3Migrations
 
 
 class MigrationController:
-    """What the viewer needs to offer bringing a version 3 journal across: whether one is kept, and where its migration stands."""
+    """What the viewer needs to offer to migrate a version 3 journal: whether one is stored, and the state of its migration."""
 
     def __init__(self, backup: Version3Backup, migrations: Version3Migrations, migrator: Migrator) -> None:
         self.backup, self.migrations, self.migrator = backup, migrations, migrator

@@ -14,7 +14,7 @@ from journal.support.caller import Caller
 
 
 class CommandEvents:
-    """The events a command or the runner raises, dispatched here as a hook's are: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent saying it is stuck; a worker's merge about to happen, which a listener may hold, and its result."""
+    """The events a command or the runner raises, dispatched here as a hook's are: a command moved to the background and a moved command's end, each by its output's number; a wait the agent declares; the agent reporting it is stuck; a worker's merge about to happen, which a listener may block, and its result."""
 
     def __init__(self, bus: Bus, clock: Clock, scope: Scope) -> None:
         self.bus, self.clock, self.scope = bus, clock, scope

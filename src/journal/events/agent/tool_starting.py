@@ -6,7 +6,7 @@ from journal.support.tool_call import ToolCall
 
 @dataclass(frozen=True)
 class ToolStarting(AgentEvent):
-    """The agent is about to run a tool; the one moment a blocking listener can refuse. The call is read once and carried whole, with how many times the agent has run its command's shape, this run included, counted once as the hook is taken in."""
+    """The agent is about to run a tool; the one moment a blocking listener can refuse. The call is read once and passed on whole, with how many times the agent has run its command's shape, this run included, counted once when the hook is received."""
 
     is_work = True
 

@@ -7,7 +7,7 @@ from journal.providers.support.turn import Turn
 
 @dataclass(frozen=True)
 class TranscriptRead:
-    """How far a transcript was read: the bytes and lines taken, and the turns they held."""
+    """How far a transcript was read: the bytes and lines taken, and the turns they contained."""
 
     offset: int = 0
     lines: int = 0

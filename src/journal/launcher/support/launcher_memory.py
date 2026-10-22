@@ -6,7 +6,7 @@ from journal.launcher.support.answers import Answers
 
 
 class LauncherMemory:
-    """The answers given last time, kept in the project so the menu's defaults are what you chose before."""
+    """The answers given last time, stored in the project so the menu's defaults are what you chose before."""
 
     def __init__(self, root: Path) -> None:
         self.path = root / ".journal" / "launch.json"

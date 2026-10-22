@@ -6,7 +6,7 @@ from journal.models.model import Model
 
 @dataclass(frozen=True)
 class McpServer(Model):
-    """An MCP server the project's agents are given: how to start or reach it, the key it needs, and how it stood when last checked."""
+    """An MCP server the project's agents use: how to start or reach it, the key it needs, and its status when last checked."""
 
     shared: ClassVar[bool] = False
 

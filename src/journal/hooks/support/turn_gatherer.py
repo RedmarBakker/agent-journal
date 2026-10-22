@@ -3,7 +3,7 @@ from journal.events.agent.turn_displayed import TurnDisplayed
 
 
 class TurnGatherer:
-    """Claude streams a turn in parts, and their hooks can land out of order; every listener wants the whole. The parts are kept here by session and turn, by index, and the whole goes out once the final part and every part before it are in."""
+    """Claude streams a turn in parts, and their hooks can arrive out of order; every listener wants the whole turn. The parts are stored here by session and turn, by index, and the whole turn is passed on once the final part and every part before it have arrived."""
 
     def __init__(self) -> None:
         self._parts: dict[str, dict[int, str]] = {}

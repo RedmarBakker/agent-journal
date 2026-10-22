@@ -10,7 +10,7 @@ CURRENT_SECONDS = 60.0
 
 @dataclass(frozen=True)
 class Subagent(Scoped):
-    """A subagent an agent dispatched: the dispatch entry it came from, what it was asked, of which type and model, its own session once known, how it stands, and the tool's error when the dispatch failed. Ended is a subagent from before the journal kept these rows whose end it never saw."""
+    """A subagent an agent dispatched: the dispatch entry it came from, what it was asked to do, its type and model, its own session once known, its status, and the tool's error when the dispatch failed. Ended is a subagent from before the journal stored these rows whose end it never saw."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("task", "brief")
     dispatch: str = ""

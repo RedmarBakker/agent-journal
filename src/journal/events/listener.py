@@ -6,7 +6,7 @@ E = TypeVar("E", bound=Event)
 
 
 class Listener(Generic[E]):
-    """Hears one kind of event, named in its class as Listener[TheEvent]. Returns what it has to say, or nothing. Only a listener that hears workers answers a worker's hook."""
+    """Receives one kind of event, named in its class as Listener[TheEvent]. Returns what it has to say, or nothing. Only a listener that receives workers' events answers a worker's hook."""
 
     is_worker_listener: ClassVar[bool] = False
 

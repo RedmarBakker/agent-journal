@@ -6,6 +6,6 @@ from journal.events.rows.row_event import RowEvent
 
 @dataclass(frozen=True, kw_only=True)
 class WorkerReady(RowEvent):
-    """A worker said it is ready and took up its task."""
+    """A worker reported that it is ready and started its task."""
 
     worker: WorkerMention

@@ -5,7 +5,7 @@ from journal.events.rows.row_event import RowEvent
 
 @dataclass(frozen=True, kw_only=True)
 class DumpChoice(RowEvent):
-    """The user chose a next step on a dump, left it to the agent (pick -1) or said what to do in their own words (pick -2)."""
+    """The user chose a next step on a dump, left it to the agent (pick -1) or described what to do in their own words (pick -2)."""
 
     dump_id: int
     choice: int

@@ -9,7 +9,7 @@ M = TypeVar("M", bound=Model)
 
 @dataclass(frozen=True)
 class Updated(ModelEvent):
-    """An existing row was written; `was` is the row as it stood before, so a listener can say what changed."""
+    """An existing row was written; `was` is the row as it was before, so a listener can tell what changed."""
 
     previous: Model | None = None
 

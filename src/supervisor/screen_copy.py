@@ -7,7 +7,7 @@ FLUSH_INTERVAL_SECONDS = 0.5
 
 
 class ScreenCopy:
-    """The newest output of the agent's terminal, written to a file other processes read: the supervisor carries the bytes and knows nothing of what they mean."""
+    """The newest output of the agent's terminal, written to a file other processes read: the supervisor passes on the bytes and knows nothing of what they mean."""
 
     def __init__(self, path: Path) -> None:
         self.path, self._kept, self._written_at, self._changed = path, bytearray(), 0.0, False

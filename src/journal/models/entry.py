@@ -8,7 +8,7 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class Entry(Scoped):
-    """Append only: everything that happened, from hooks and from commands, and who did it; it is the timeline itself, so it is in no timeline, and a tool entry carries the call's one reading beside the raw hook."""
+    """Append only: everything that happened, from hooks and from commands, and who did it; it is the timeline itself, so it is in no timeline, and a tool entry includes the call's one reading beside the raw hook."""
 
     shared: ClassVar[bool] = False
 

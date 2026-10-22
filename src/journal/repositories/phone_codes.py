@@ -5,7 +5,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 
 
 class PhoneCodes(ScopedRepository[PhoneCode]):
-    """The codes shown to pair a phone, looked up across this journal's environments: the phone that types one names none."""
+    """The codes shown to pair a phone, looked up across this journal's environments: the phone that types one names no environment."""
 
     model = PhoneCode
 

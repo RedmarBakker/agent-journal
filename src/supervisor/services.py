@@ -2,7 +2,7 @@ from supervisor.service import Service
 
 
 class Services:
-    """The named processes a supervisor runs beside the agent, each kept running until it is stopped."""
+    """The named processes a supervisor runs beside the agent, each running until it is stopped."""
 
     def __init__(self, *services: Service) -> None:
         self._table = {service.name: service for service in services}

@@ -11,7 +11,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 
 
 class SettingRows(ScopedRepository[Setting]):
-    """Reads a key with the project's value over the environment's; writes to whichever scope is asked. Each scope's values are kept until a setting is written, never kept when a write cleared them while they were read, and passed by on the thread whose write has not committed yet, so it reads what it wrote while other threads read what is committed."""
+    """Reads a key with the project's value over the environment's; writes to the scope requested. Each scope's values are cached until a setting is written, not cached when a write cleared them while they were being read, and bypassed on the thread whose write has not committed yet, so it reads what it wrote while other threads read what is committed."""
 
     model = Setting
 

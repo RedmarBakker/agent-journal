@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 class SourceHash:
-    """A hash of the supervisor's code on disk, taken at its start and again when asked, so it can say an update changed its code since."""
+    """A hash of the supervisor's code on disk, taken at its start and again on request, so it can report whether an update changed its code since."""
 
     @staticmethod
     def current() -> str:

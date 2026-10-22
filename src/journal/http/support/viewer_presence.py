@@ -5,7 +5,7 @@ VIEWER = "x-journal-viewer"
 
 
 class ViewerPresence:
-    """When a viewer tab last asked the journal anything, kept in memory: a launch asks it before opening a new tab."""
+    """When a viewer tab last contacted the journal, stored in memory: a launch checks it before opening a new tab."""
 
     def __init__(self) -> None:
         self.time = 0.0

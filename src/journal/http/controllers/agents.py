@@ -29,7 +29,7 @@ EDITS_SHOWN = 50
 
 
 class AgentController(Controller[Agent]):
-    """The environment's agents with what each is doing; what the user types or picks for the live one goes to its terminal, and the files it changed and the commands it ran are read from here."""
+    """The environment's agents with what each is doing; what the user types or picks for the running one goes to its terminal, and the files it changed and the commands it ran are read from here."""
 
     repository: Agents
 

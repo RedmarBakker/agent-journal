@@ -15,7 +15,7 @@ COMMENTED = ("tasks", "plans", "docs", "reports", "facts", "rules", "reminders",
 
 
 class CommentController(Controller[Message]):
-    """A comment written under a row in the viewer is a message of the user's linked to the row as comments_on, drawn under it; it reaches the agent as any message does."""
+    """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does."""
 
     is_timeline = True
 

@@ -21,7 +21,7 @@ from journal.support.rejection import Rejection
 
 @dataclass(frozen=True)
 class Plan(Scoped):
-    """Ordered work: its phases and tasks are linked to it. Built as draft, made ready by the agent, held in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered over the rows its repository hands it: finished when every task is closed, all left blocked, the tasks in order phase by phase then the loose ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it stands at (a checkpoint phase done, the next phase's work not begun)."""
+    """Ordered work: its phases and tasks are linked to it. Created as draft, marked ready by the agent, in review while reviewers read it, counting those still out, approved by the user, then followed: finishing one task starts the next. A start is refused while it is blocked or unapproved; a done plan given work again is reopened without that check. Its questions about its tasks are answered from the rows its repository gives it: finished when every task is closed, all blocked, the tasks in order phase by phase then the unphased ones, the next open task that can start, the task to resume (its postponed one first), the current phase (the first with open work, else the last) and the checkpoint it is at (a checkpoint phase done, the next phase's work not started)."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief")
 

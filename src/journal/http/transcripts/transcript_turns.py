@@ -9,7 +9,7 @@ TURN_COUNT = 8
 
 
 class TranscriptTurns:
-    """The turns of the transcripts the viewer polls, kept between polls, so a poll parses only the lines written since the last."""
+    """The turns of the transcripts the viewer polls, stored between polls, so a poll parses only the lines written since the last."""
 
     def __init__(self) -> None:
         self.reads: dict[Path, TranscriptRead] = {}

@@ -11,7 +11,7 @@ READ_SECONDS = 15
 
 
 class ShareServer:
-    """The listener the tunnel forwards to, on this machine alone: it answers links and the paired phone, and nothing else of the journal. Its port is kept, so the tunnel finds it again after a restart."""
+    """The listener the tunnel forwards to, on this machine only: it answers links and the paired phone, and nothing else of the journal. Its port is stored, so the tunnel finds it again after a restart."""
 
     def __init__(self, pages: SharePages, phone: PhonePages, place: SharePlace, database: Connection) -> None:
         self.place = place

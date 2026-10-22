@@ -5,7 +5,7 @@ from journal.support.timeout import Timeout
 
 @dataclass(frozen=True)
 class WorkerSilence:
-    """How long a worker out may go without a word before its dispatcher is told, since when it counts, and whether this quiet span was told already."""
+    """How long a running worker may go without a word before its dispatcher is reminded, since when it counts, and whether this quiet span has already been reminded."""
 
     timeout: Timeout
     is_reported: bool = False

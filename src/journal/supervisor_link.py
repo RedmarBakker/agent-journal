@@ -26,7 +26,7 @@ AGENT, JOURNAL, SUPERVISOR = "agent", "journal", "supervisor"
 
 
 class SupervisorLink:
-    """The journal's end of each supervisor's inbox: a request a line of JSON, its answer a line back, or, to a supervisor that takes datagrams, a datagram with nothing read back. A supervisor announces its inbox under the runtime folder by its environment's name while it runs; an environment with none announced hears nothing. Every line typed starts with the mark, so the agent can tell the journal from the user."""
+    """The journal's end of each supervisor's inbox: a request is a line of JSON, its answer a line back, or, to a supervisor that takes datagrams, a datagram with no reply read. A supervisor announces its inbox under the runtime folder by its environment's name while it runs; an environment with none announced receives nothing. Every line typed starts with the marker, so the agent can tell the journal from the user."""
 
     def __init__(self, config: Config, environments: Environments, keystrokes: TypedLines, settings: SettingRows) -> None:
         self.config, self.environments, self.typed, self.settings = config, environments, keystrokes, settings

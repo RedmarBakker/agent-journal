@@ -7,7 +7,7 @@ from journal.support.actor_kind import ActorKind
 
 @dataclass(frozen=True, kw_only=True)
 class RowEvent(Event):
-    """What happened to a row, named for the moment: carried by the model that made the change, dispatched by its repository on save, and answered by every agent of the environment that has not ended, each under its own role's conduct."""
+    """What happened to a row, named for the moment: created by the model that made the change, dispatched by its repository on save, and answered by every agent of the environment that has not ended, each under its own role's conduct."""
 
     environment_id: int = 0
     time: float = 0.0

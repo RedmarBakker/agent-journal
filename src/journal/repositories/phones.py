@@ -6,7 +6,7 @@ from journal.support.missing_row import MissingRow
 
 
 class Phones(ScopedRepository[Phone]):
-    """The phones paired with this journal, looked up across its environments: a phone's request names none until its key is known."""
+    """The phones paired with this journal, looked up across its environments: a phone's request names no environment until its key is known."""
 
     model = Phone
 

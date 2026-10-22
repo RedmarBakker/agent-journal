@@ -8,7 +8,7 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class Proof(Scoped):
-    """What a worker shows for one point of its task's brief, linked to the task; who settled it is its updater."""
+    """What a worker shows for one point of its task's brief, linked to the task; who decided it is its updater."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("text",)
 

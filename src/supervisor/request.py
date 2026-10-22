@@ -6,7 +6,7 @@ from supervisor.band_labels import BandLabels
 
 @dataclass(frozen=True)
 class Request:
-    """One request on the protocol, read from its line of JSON: the verb and what it carries."""
+    """One request on the protocol, read from its line of JSON: the verb and its arguments."""
 
     verb: str
     name: str = ""

@@ -5,7 +5,7 @@ PATCH_REMOVED = re.compile(r"^-(?!--)", re.M)
 
 
 class LineCount:
-    """How many lines a file tool's input adds and removes, read from the text it carries: an edit's new and old text, a file's content, a patch's plus and minus lines."""
+    """How many lines a file tool's input adds and removes, read from the text it contains: an edit's new and old text, a file's content, a patch's plus and minus lines."""
 
     @staticmethod
     def lines(text: object) -> int:

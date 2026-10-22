@@ -6,7 +6,7 @@ from journal.events.agent.agent_event import AgentEvent
 
 @dataclass(frozen=True)
 class WaitRequest(AgentEvent):
-    """The agent said with journal await that it waits for something outside its hands."""
+    """The agent reported with journal await that it is waiting for something outside its control."""
 
     answers_hook: ClassVar[bool] = False
 

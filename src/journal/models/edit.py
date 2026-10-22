@@ -5,7 +5,7 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class Edit(Scoped):
-    """One change an agent made to a file: by a tool with its changed lines, or by a shell command with its counts alone. Kept as rows so the file edits pane shows the same after a return."""
+    """One change an agent made to a file: by a tool with its changed lines, or by a shell command with its counts alone. Stored as rows so the file edits pane shows the same after a reload."""
 
     session: str = ""
     path: str = ""

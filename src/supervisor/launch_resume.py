@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 class LaunchResume:
-    """The launch file's record of which conversation the agent resumes, kept current so a supervisor started again picks it up."""
+    """The launch file's record of which conversation the agent resumes, updated so a supervisor that starts again picks it up."""
 
     @staticmethod
     def record(path: Path, resume: tuple[str, ...]) -> None:

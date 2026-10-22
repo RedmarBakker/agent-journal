@@ -5,7 +5,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class ProgramSettings:
-    """An agent program's settings file: its hooks by event, and everything else in it, kept as it was."""
+    """An agent program's settings file: its hooks by event, and everything else in it, unchanged."""
 
     remainder: dict
     hooks: dict | None = None

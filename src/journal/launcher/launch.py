@@ -33,7 +33,7 @@ RESUMING = ("--resume", "-r")
 
 @dataclass(frozen=True)
 class Launch:
-    """What was asked for on the command line: which agent, in which project, with which arguments; the menu fills in the rest."""
+    """What was requested on the command line: which agent, in which project, with which arguments; the menu fills in the rest."""
 
     agent: str
     root: Path

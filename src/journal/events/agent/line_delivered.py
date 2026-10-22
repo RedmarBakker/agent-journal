@@ -6,7 +6,7 @@ from journal.events.agent.agent_event import AgentEvent
 
 @dataclass(frozen=True)
 class LineDelivered(AgentEvent):
-    """The journal said the agent a line, by the key of the nudge that said it, so a listener may count or note what was said without saying a line of its own, or it would say itself again."""
+    """The journal sent the agent a line, by the key of the nudge that sent it, so a listener may count or record what was sent without sending a line of its own, which would send itself again."""
 
     answers_hook: ClassVar[bool] = False
 

@@ -6,7 +6,7 @@ from journal.events.agent.agent_event import AgentEvent
 
 @dataclass(frozen=True)
 class TurnDisplayed(AgentEvent):
-    """The agent wrote a turn for the user: the text so far, the part that just came, and whether that part was the last. What reaches the chat and what the tags are read from is the whole, on the final one."""
+    """The agent wrote a turn for the user: the text so far, the part that just arrived, and whether that part was the last. What reaches the chat and what the tags are read from is the whole text, on the final part."""
 
     has_lines: ClassVar[bool] = False
     text: str

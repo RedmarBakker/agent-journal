@@ -9,7 +9,7 @@ PROJECT = 0
 
 
 class Scope:
-    """The environment every scoped read and write of this thread of work is in: set where a request, a hook or a command enters, cleared when it leaves."""
+    """The environment every scoped read and write of this thread of work is in: set where a request, a hook or a command enters, cleared when it ends."""
 
     def __init__(self, environments: Environments) -> None:
         self.environments = environments

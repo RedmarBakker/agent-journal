@@ -6,7 +6,7 @@ from journal.providers.support.rate_window import RateWindow
 
 
 class ContextFile:
-    """What a program reports about a session through the journal's status script, not a hook: the script writes one file per session, Claude Code's status line feeds it and Codex has none, and this reads the latest whole one. The plan's limits belong to the account, so a session whose status line has not carried them yet shows the newest any session reported."""
+    """What a program reports about a session through the journal's status script, not a hook: the script writes one file per session, Claude Code's status line feeds it and Codex has none, and this reads the latest complete one. The plan's limits belong to the account, so a session whose status line has not reported them yet shows the newest any session reported."""
 
     def __init__(self, home: Path) -> None:
         self.home = home

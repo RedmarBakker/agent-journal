@@ -6,7 +6,7 @@ from journal.events.agent.agent_event import AgentEvent
 
 @dataclass(frozen=True)
 class ImpasseReport(AgentEvent):
-    """The agent said with journal stuck that it is truly stuck, and why."""
+    """The agent reported with journal stuck that it is stuck, and why."""
 
     answers_hook: ClassVar[bool] = False
 

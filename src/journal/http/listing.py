@@ -11,7 +11,7 @@ M = TypeVar("M", bound=Model)
 
 @dataclass(frozen=True)
 class Listing:
-    """What the viewer asks of a list: the newest `limit` rows and every open one besides, the closed ones alone when asked, older than `before`, newer than `after`, changed since `since`, or only the ids named."""
+    """What the viewer requests of a list: the newest `limit` rows and every open one besides, only the closed ones when requested, older than `before`, newer than `after`, changed since `since`, or only the ids given."""
 
     limit: int = PAGE_ROWS
     closed: bool = False

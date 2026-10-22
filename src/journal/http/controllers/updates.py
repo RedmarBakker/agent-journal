@@ -7,7 +7,7 @@ from journal.support.response import Response
 
 
 class UpdateController:
-    """What the viewer needs to offer the newer release: what is out and the version running, and the update itself."""
+    """What the viewer needs to offer the newer release: what is available and the version running, and the update itself."""
 
     def __init__(self, updating: Updater, changelog: Changelog) -> None:
         self.updating, self.changelog = updating, changelog

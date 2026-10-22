@@ -14,7 +14,7 @@ CURSOR_MARGIN_SECONDS = 1.0
 
 
 class TerminalLines:
-    """The agent's Terminal pane: each part of each shell call it finished, as the call was recorded, with the output the shell record kept of that part when it ran through the journal."""
+    """The agent's Terminal pane: each part of each shell call it finished, as the call was recorded, with the output the shell record stored for that part when it ran through the journal."""
 
     def __init__(self, entries: Entries) -> None:
         self.entries = entries

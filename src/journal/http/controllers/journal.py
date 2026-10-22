@@ -30,7 +30,7 @@ ACTIVITY_ENTRIES = 8
 
 
 class JournalController:
-    """The journal as a whole: what the viewer boots from, who and where it is, how each environment stands, and what the current agent is doing this moment."""
+    """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
                  entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners) -> None:

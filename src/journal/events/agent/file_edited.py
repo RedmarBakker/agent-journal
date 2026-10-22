@@ -6,7 +6,7 @@ from journal.models.edit import Edit
 
 @dataclass(frozen=True)
 class FileEdited(AgentEvent):
-    """One file the agent changed, as the journal recorded the edit: the path, the kind of change (create, edit or delete), the counts, the span and the changed lines with their numbers; asked at the tool's end of the plugins that hold it, inside their window, and told after the reply to the rest."""
+    """One file the agent changed, as the journal recorded the edit: the path, the kind of change (create, edit or delete), the counts, the span and the changed lines with their numbers; offered at the tool's end to the plugins that block it, inside their window, and announced after the reply to the rest."""
 
     path: str = ""
     kind: str = "edit"

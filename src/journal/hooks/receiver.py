@@ -34,7 +34,7 @@ UNBOUND_SESSION = "unbound_session"
 
 
 class Receiver:
-    """Translates a hook into its agent event, records it as an entry, runs the blocking listeners now and folds their decisions into the answer, and hands the rest to the deferred worker after the reply. A hook that does not carry its environment's launch id is recorded and reported, and reaches no listener; a proven worker's hook is recorded and answered by the listeners that hear workers, the state machine alone, under the worker's own conduct, so none of the main agent's conduct holds a worker and no recording listener posts it as the main agent's."""
+    """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id is recorded and reported, and reaches no listener; a verified worker's hook is recorded and answered by the listeners that receive workers' events, the state machine alone, under the worker's own conduct, so none of the main agent's conduct blocks a worker and no recording listener posts it as the main agent's."""
 
     def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, cards: MomentCards, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes) -> None:
         self.names, self.stages = names, stages

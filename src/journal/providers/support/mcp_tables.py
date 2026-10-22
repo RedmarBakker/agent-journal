@@ -8,7 +8,7 @@ HEADER = re.compile(r"^\s*\[\s*mcp_servers\.([^\].]+)")
 
 
 class McpTables:
-    """The MCP servers in a Codex config.toml: the journal's own tables, each under its mark, written anew from the project's servers, and every other line of the file kept as it was."""
+    """The MCP servers in a Codex config.toml: the journal's own tables, each under its marker, rewritten from the project's servers, and every other line of the file unchanged."""
 
     @classmethod
     def merged(cls, text: str, servers: list[McpServer]) -> str:

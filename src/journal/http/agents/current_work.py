@@ -19,7 +19,7 @@ class AgentWork:
 
 
 class CurrentWork:
-    """Reads an agent's stack down through its waits to the task it holds: the viewer's status line names the task, or "Waiting for …" while a wait stands on it, from the topmost wait that names what it waits for."""
+    """Reads an agent's stack down through its waits to its current task: the viewer's status line names the task, or "Waiting for …" while a wait is on top of it, from the topmost wait that names what it waits for."""
 
     def __init__(self, states: StatesCatalogue, tasks: Tasks) -> None:
         self.states, self.tasks = states, tasks
