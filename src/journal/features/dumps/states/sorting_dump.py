@@ -18,7 +18,7 @@ AGENT_HANDOVER = -1
 
 @dataclass(frozen=True)
 class SortingDump(BaseState):
-    """The agent files the dump the user dropped: the stop is blocked until every item is filed or failed, except while it waits for the user's answer; what arrives on the dump, the user's answer and the user's choice of a next step are typed to it; it pops when the dump is filed, when the agent is told to sum it up, or when it moves on to the next dump waiting."""
+    """The agent files the dump the user dropped: the stop is blocked until every item is filed or failed, except while it waits for the user's answer; what arrives on the dump, the user's answer and the user's choice of a next step are typed to it; it pops when the dump is filed, when the agent is instructed to sum it up, or when it moves on to the next dump waiting."""
 
     name = "sorting_dump"
     title = "Sorting a dump"

@@ -6,7 +6,7 @@ from journal.support.tool_call import ToolCall
 
 @dataclass(frozen=True)
 class ToolFailed(AgentEvent):
-    """A tool that started ended in an error and gave no result: the same reading of the call as when it started, with the error as the tool reported it."""
+    """A tool that started ended in an error and returned no result: the same reading of the call as when it started, with the error as the tool reported it."""
 
     is_work = True
 

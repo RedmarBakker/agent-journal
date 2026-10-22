@@ -10,7 +10,7 @@ from journal.support.actor import Actor
 
 
 class WorkerChat:
-    """A worker's own chat: what it is told, and each block of text it writes, read from its transcript from where the last read stopped, as messages of its session in a worker's chat."""
+    """A worker's own chat: what it is informed, and each block of text it writes, read from its transcript from where the last read stopped, as messages of its session in a worker's chat."""
 
     def __init__(self, messages: Messages, workers: Workers, providers: Providers, branch: WorkerBranch) -> None:
         self.messages, self.workers, self.providers, self.branch = messages, workers, providers, branch

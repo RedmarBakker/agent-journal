@@ -11,7 +11,7 @@ from journal.support.rejection import Rejection
 
 
 class PluginReleases:
-    """The installed plugins updated to the journal's version: each one installed from a source moves to its newest release whose manifest's journal field, the lowest journal version it runs on, the running journal satisfies, and the chat is told what moved."""
+    """The installed plugins updated to the journal's version: each one installed from a source moves to its newest release whose manifest's journal field, the lowest journal version it runs on, the running journal satisfies, and the chat is given what moved."""
 
     def __init__(self, plugins: Plugins, installing: PluginInstalling, source: ReleaseSource, cards: MomentCards, environments: Environments) -> None:
         self.plugins, self.installing, self.source, self.cards, self.environments = plugins, installing, source, cards, environments

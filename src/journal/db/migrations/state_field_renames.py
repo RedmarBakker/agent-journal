@@ -16,7 +16,7 @@ FAMILY = {"orchestrating": "idle", "soloing": "idle", "orchestrating_plan": "fol
 
 
 class StateFieldRenames(Migration):
-    """The fields of the states and the sequence runs stored on an agent's row take the names the plain-name rules gave them, so a waiting or paused agent and a running sequence keep their counts, times and targets."""
+    """The fields of the states and the sequence runs stored on an agent's row take the names the plain-name rules set for them, so a waiting or paused agent and a running sequence keep their counts, times and targets."""
 
     number: ClassVar[int] = 25
 

@@ -3,7 +3,7 @@ import time as timing
 
 
 class RecentCounts:
-    """How often something came from a key in the last period of time, so a visitor cannot repeat it without limit; a subclass sets how many and how long."""
+    """How often something was sent from a key in the last period of time, so a visitor cannot repeat it without limit; a subclass sets how many and how long."""
 
     MAXIMUM_COUNT = 0
     WINDOW_SECONDS = 0

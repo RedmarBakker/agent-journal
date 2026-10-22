@@ -11,7 +11,7 @@ from journal.events.agent.tool_starting import ToolStarting
 
 @dataclass(frozen=True)
 class Ended(BaseState):
-    """The session is over: nothing is allowed and nothing is said until it shows it is running again, by starting, taking a prompt or using a tool; then it is popped."""
+    """The session is over: nothing is allowed and nothing is sent until it shows it is running again, by starting, taking a prompt or using a tool; then it is popped."""
 
     name = "ended"
     title = "Ended"

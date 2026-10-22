@@ -9,7 +9,7 @@ from journal.models.support.ref import Ref
 
 
 class TriggerFire:
-    """What matched triggers record, wherever the words appeared: a card for each, and a sequence started at its first step, whose line is returned; what is said about the rest is the triggers conduct's."""
+    """What matched triggers record, wherever the words appeared: a card for each, and a sequence started at its first step, whose line is returned; what is reported about the rest is the triggers conduct's."""
 
     def __init__(self, cards: MomentCards, runs: RunTracker, sequences: Sequences) -> None:
         self.cards, self.runs, self.sequences = cards, runs, sequences

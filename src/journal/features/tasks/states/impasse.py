@@ -9,7 +9,7 @@ from journal.events.rows.task_reopened import TaskReopened
 
 @dataclass(frozen=True)
 class Impasse(Wait):
-    """The agent reported it is stuck. Nothing is said until it works again or the user writes: its own next tool use, a word from the user, a task opened again or a new open task pops it."""
+    """The agent reported it is stuck. Nothing is sent until it works again or the user writes: its own next tool use, a word from the user, a task opened again or a new open task pops it."""
 
     name = "stuck"
     title = "Stuck"

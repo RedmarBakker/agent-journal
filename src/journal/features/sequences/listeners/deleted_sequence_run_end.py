@@ -4,7 +4,7 @@ from journal.models.sequence import Sequence
 
 
 class DeletedSequenceRunEnd(RunTermination):
-    """A deleted sequence ends its runs, and each agent is told, so no step waits on a sequence that is gone."""
+    """A deleted sequence ends its runs, and each agent is informed, so no step waits on a sequence that is gone."""
 
     def handle(self, event: Deleted) -> None:
         sequence = event.model

@@ -31,7 +31,7 @@ OWNER_CHECK_SECONDS = 3.0
 
 
 class Supervisor:
-    """One loop: stdin to the agent, the agent to stdout under the band, the inbox's requests answered, the services kept running; a fault in a turn is written to the faults log and never ends it. It exits ENDED when its agent is done, which ends the launcher's loop, and RESTART, or any other code, to be started again."""
+    """One loop: stdin to the agent, the agent to stdout under the band, the inbox's requests answered, the services running; a fault in a turn is written to the faults log and never ends it. It exits ENDED when its agent is done, which ends the launcher's loop, and RESTART, or any other code, to be started again."""
 
     def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull), owner: int = 0) -> None:
         self.terminal, self.inbox, self.services, self.stdin, self.stdout, self.faults, self.launch = terminal, inbox, services, stdin, stdout, faults, launch

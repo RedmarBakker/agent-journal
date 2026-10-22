@@ -8,7 +8,7 @@ JOURNAL_ROOT={root} exec sh {shim} "$@"
 
 
 class ProjectCommand:
-    """The project's own journal command at .journal/bin/journal, written by setup and by every launch, so it is there whichever came first."""
+    """The project's own journal command at .journal/bin/journal, written by setup and by every launch, so it is there whichever ran first."""
 
     def __init__(self, root: Path, shim: Path) -> None:
         self.root, self.shim = root, shim

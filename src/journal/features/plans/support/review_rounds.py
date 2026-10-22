@@ -14,7 +14,7 @@ from journal.support.caller import Caller
 
 
 class ReviewRounds:
-    """A plan's review rounds: one opens when the plan goes into review and closes when it is marked ready, naming the subagents dispatched about the plan meanwhile, what the round changed and the reports filed about the plan while it ran."""
+    """A plan's review rounds: one opens when the plan goes into review and closes when it is marked ready, naming the subagents dispatched about the plan in the meantime, what the round changed and the reports filed about the plan while it ran."""
 
     def __init__(self, reviews: PlanReviews, links: Links, reports: Reports, subagents: SubagentEntries, plans: Plans) -> None:
         self.reviews, self.links, self.reports, self.subagents, self.plans = reviews, links, reports, subagents, plans

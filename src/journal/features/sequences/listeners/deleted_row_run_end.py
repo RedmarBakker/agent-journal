@@ -4,7 +4,7 @@ from journal.models.scoped import Scoped
 
 
 class DeletedRowRunEnd(RunTermination):
-    """A deleted row a run is about ends those runs, and each agent is told, so no last step waits on a row that is gone."""
+    """A deleted row a run is about ends those runs, and each agent is informed, so no last step waits on a row that is gone."""
 
     def handle(self, event: Deleted) -> None:
         row = event.model

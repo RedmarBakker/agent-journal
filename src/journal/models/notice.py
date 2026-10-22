@@ -7,7 +7,7 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class Notice(Scoped):
-    """A pin above the chat: a link the agent gave the user, with what it is and the text on its button, shown until the user closes it."""
+    """A pin above the chat: a link the agent showed the user, with what it is and the text on its button, shown until the user closes it."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title",)
     title: str = ""

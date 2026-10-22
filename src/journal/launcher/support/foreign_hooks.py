@@ -7,7 +7,7 @@ from journal.providers.provider import Provider
 
 
 class ForeignHooks:
-    """The hooks in the agent's settings that are not the journal's: set aside for a run so they cannot conflict with the journal's, and restored when the run ends. A copy of each file is stored in .journal/runtime/set-aside, and only the hooks key is restored, so edits made to the rest of the file meanwhile stay."""
+    """The hooks in the agent's settings that are not the journal's: set aside for a run so they cannot conflict with the journal's, and restored when the run ends. A copy of each file is stored in .journal/runtime/set-aside, and only the hooks key is restored, so edits made to the rest of the file in the meantime stay."""
 
     def __init__(self, root: Path, provider: Provider) -> None:
         self.root, self.provider = root, provider

@@ -13,7 +13,7 @@ R = TypeVar("R", Fact, Rule, Reminder)
 
 
 class MemoryContext:
-    """Which facts, rules and reminders are in the agent's context window: one is added when the journal gives it to the agent, by the start block, the overview or a read; every one is added at a session start, since the start block gives them all, and a row created meanwhile starts out of it."""
+    """Which facts, rules and reminders are in the agent's context window: one is added when the journal gives it to the agent, by the start block, the overview or a read; every one is added at a session start, since the start block gives them all, and a row created in the meantime starts out of it."""
 
     def __init__(self, facts: Facts, rules: Rules, reminders: Reminders) -> None:
         self.facts, self.rules, self.reminders = facts, rules, reminders

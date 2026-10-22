@@ -8,7 +8,7 @@ from journal.models.support.plugin_manifest import PluginManifest
 
 @dataclass(frozen=True)
 class Plugin(Model):
-    """A plugin installed in the project: where it came from, whether it is on, its manifest as read at install, its settings, and how it last failed."""
+    """A plugin installed in the project: where it was loaded from, whether it is on, its manifest as read at install, its settings, and how it last failed."""
 
     shared: ClassVar[bool] = False
 

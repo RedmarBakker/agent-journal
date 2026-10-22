@@ -9,7 +9,7 @@ from journal.repositories.plans import Plans
 
 
 class PlanBlockade(Listener[Updated]):
-    """A started plan whose every remaining task is blocked blocks itself, since none of its work can continue, and opens again the moment one of them opens; a single blocked task never blocks its plan. The agent is told either way."""
+    """A started plan whose every remaining task is blocked blocks itself, since none of its work can continue, and opens again the moment one of them opens; a single blocked task never blocks its plan. The agent is informed either way."""
 
     def __init__(self, plans: Plans) -> None:
         self.plans = plans

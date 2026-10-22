@@ -29,7 +29,7 @@ TRAILER = re.compile(r"^Journal: (?:tasks|todos) done ((?:\d+(?:[ ,]+(?:and +)?)
 
 
 class CommitDetection(AgentListener[ToolFinished]):
-    """A shell command that committed is followed by a read of the head: the commit becomes a card in the chat, once, a Journal: tasks done line in its message finishes those tasks, and the bus is told a commit was made with what it closed; what the agent is told about it is the git conduct's, returned with the command's own answer. A commit whose own hook never arrived, lost to an install or a restart in the same line, is found at the next tool use because the head's log has changed, the first read after the journal starts counting as changed, and its tasks close when one of the session's last tool starts contained the commit."""
+    """A shell command that committed is followed by a read of the head: the commit becomes a card in the chat, once, a Journal: tasks done line in its message finishes those tasks, and the bus is informed a commit was made with what it closed; what the agent is informed about it is the git conduct's, returned with the command's own answer. A commit whose own hook never arrived, lost to an install or a restart in the same line, is found at the next tool use because the head's log has changed, the first read after the journal starts counting as changed, and its tasks close when one of the session's last tool starts contained the commit."""
 
     blocking = True
 

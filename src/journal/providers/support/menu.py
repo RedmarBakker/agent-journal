@@ -23,7 +23,7 @@ UPWARD, DOWN, ENTER, ESCAPE = "\x1b[A", "\x1b[B", "\r", "\x1b"
 
 @dataclass(frozen=True)
 class Menu:
-    """A menu in an agent's terminal, recognised by its shape: option lines numbered in sequence from one, at the end of the screen, followed by the selection footer, or with the cursor on one of them though more is drawn below."""
+    """A menu in an agent's terminal, recognised by its shape: option lines numbered in sequence from one, at the end of the screen, followed by the selection footer, or with the cursor on one of them though more is shown below."""
 
     question: str
     options: tuple[Option, ...]

@@ -6,7 +6,7 @@ from journal.events.rows.secret_allowed import SecretAllowed
 
 
 class SecretsConduct(Conduct):
-    """The secrets feature's conduct in every state: no tool of the agent's touches the secrets folder or the MCP keys, by any spelling that resolves there, and the agent is told what a secret may now be sent to when the user allows it."""
+    """The secrets feature's conduct in every state: no tool of the agent's touches the secrets folder or the MCP keys, by any spelling that resolves there, and the agent is given what a secret may now be sent to when the user allows it."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.secrets.feature import Secrets

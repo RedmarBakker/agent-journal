@@ -17,7 +17,7 @@ RETIRED_LABELS = ("Tests", "Running the tests")
 
 
 class DefaultReaders(Seed):
-    """The readers the journal ships, for pytest, dotnet test and phpunit or pest, written into the project's readers at boot when a reader of that name is not there yet, or is still one shipped earlier, with an older label or a missing part, as working examples a test run is told about."""
+    """The readers the journal ships, for pytest, dotnet test and phpunit or pest, written into the project's readers at boot when a reader of that name is not there yet, or is still one shipped earlier, with an older label or a missing part, as working examples a test run is informed about."""
 
     def __init__(self, config: Config, readers: Readers) -> None:
         self.config, self.readers = config, readers

@@ -7,7 +7,7 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class Phone(Scoped):
-    """A phone paired with the journal through the tunnel: the name its browser gave, its key's hash, and how long it stays paired."""
+    """A phone paired with the journal through the tunnel: the name its browser reported, its key's hash, and how long it stays paired."""
 
     shared: ClassVar[bool] = False
 

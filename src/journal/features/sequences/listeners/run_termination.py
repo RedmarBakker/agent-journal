@@ -5,7 +5,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class RunTermination(Listener[Deleted]):
-    """What a listener that ends runs at a deletion shares: the runs it names are ended, and each agent is told."""
+    """What a listener that ends runs at a deletion shares: the runs it names are ended, and each agent is informed."""
 
     def __init__(self, active: RunTracker, supervisor: SupervisorLink) -> None:
         self.running, self.supervisor = active, supervisor

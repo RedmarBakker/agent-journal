@@ -10,7 +10,7 @@ E = TypeVar("E", bound=AgentEvent)
 
 
 class TriggerWatch(AgentListener[E]):
-    """What watching a prompt and watching a tool call share: the triggers the text matches are recorded as cards, and a sequence one starts, on the user's own words, is started, with its first step told at the agent's next stop."""
+    """What watching a prompt and watching a tool call share: the triggers the text matches are recorded as cards, and a sequence one starts, on the user's own words, is started, with its first step informed at the agent's next stop."""
 
     blocking = True
 

@@ -7,7 +7,7 @@ from journal.models.support.ref import Ref
 
 @dataclass(frozen=True)
 class RowCard:
-    """What any card in the chat or above it reads of a row, and nothing else: its ref, its heading, its summary and how its dock card is drawn."""
+    """What any card in the chat or above it reads of a row, and nothing else: its ref, its heading, its summary and how its dock card is shown."""
 
     row: str
     heading: str

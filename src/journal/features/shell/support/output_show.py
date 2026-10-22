@@ -6,7 +6,7 @@ from journal.features.shell.support.output_files import OutputFiles
 
 
 class OutputShow:
-    """What the agent sees of a part's output in the foreground, as the cap sets: whole for a line of journal commands or an output under the cap; a cut part's cut applied and shown, the whole stored and named by the same one line; half the characters from each end for a read past the cap, with a line naming the lines shown and the lines cut; and for any other output past the cap one line naming the output to read by its number, with its lines, its characters and the part it came from, and a shorter line for each later part the output also contains. The lines naming a stored output are notes for the agent's next hook, never part of what the command printed."""
+    """What the agent sees of a part's output in the foreground, as the cap sets: whole for a line of journal commands or an output under the cap; a cut part's cut applied and shown, the whole stored and named by the same one line; half the characters from each end for a read past the cap, with a line naming the lines shown and the lines cut; and for any other output past the cap one line naming the output to read by its number, with its lines, its characters and the part it was loaded from, and a shorter line for each later part the output also contains. The lines naming a stored output are notes for the agent's next hook, never part of what the command printed."""
 
     def __init__(self, folder: OutputFiles, cap: Cap) -> None:
         self.folder, self.cap = folder, cap
