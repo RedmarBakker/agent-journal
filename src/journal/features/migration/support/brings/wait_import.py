@@ -16,7 +16,7 @@ from journal.repositories.tasks import WAIT_LINK, Tasks
 
 
 class WaitImport(EnvironmentKind):
-    """A to-do that came after others waits on them here, once all have come across; a wait version 3 let close a loop is dropped and named, and the task keeps the rest."""
+    """A to-do that came after others waits on them here, once all have been migrated; a wait that version 3 allowed to form a loop is dropped and reported, and the task keeps the rest."""
 
     kind = "todo"
     title = "waits"

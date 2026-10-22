@@ -6,7 +6,7 @@ from journal.support.subagent_dispatch import SubagentDispatch
 
 
 class ProfilesConduct(Conduct):
-    """The profiles feature's conduct in every state: a worker profile writes, so naming it as a subagent is held and the worker dispatch said."""
+    """The profiles feature's conduct in every state: a worker profile writes, so naming it as a subagent is blocked and the worker dispatch is named instead."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.profiles.feature import Profiles

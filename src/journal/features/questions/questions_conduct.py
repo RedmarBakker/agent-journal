@@ -7,7 +7,7 @@ from journal.support.user_question import UserQuestion
 
 
 class QuestionsConduct(Conduct):
-    """The questions feature's conduct in every state: a question asked through the journal pushes Waiting on whatever the agent was doing, and one asked through the provider's own tool never reaches the viewer, so it is held and asked through the journal instead."""
+    """The questions feature's conduct in every state: a question asked through the journal pushes Waiting on whatever the agent was doing, and one asked through the provider's own tool never reaches the viewer, so it is blocked and asked through the journal instead."""
 
     def on_question_posed(self, event: QuestionPosed, settings: Settings) -> Transition:
         from journal.features.questions.states.waiting import Waiting

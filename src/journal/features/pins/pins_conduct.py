@@ -13,7 +13,7 @@ LOCAL_ADDRESS_PATTERN = re.compile(r"^https?://(?:localhost|127\.0\.0\.1)[:/]")
 
 
 class PinsConduct(Conduct):
-    """The pins feature's conduct in every state: a link in the agent's words or in a command's output that no pin carries is suggested as a pin, once, and again only after so many tool uses."""
+    """The pins feature's conduct in every state: a link in the agent's text or in a command's output that no pin has is suggested as a pin, once, and again only after so many tool uses."""
 
     def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
         from journal.features.pins.feature import Pins

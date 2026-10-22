@@ -8,7 +8,7 @@ from journal.support.rejection import Rejection
 
 
 class AgentPause:
-    """The user's pause of an agent, written on its row: the pause pushes PausedByUser, whose hold stops the agent's next tool call, and the resume pops it and tells the agent to carry on. The row comes back as the state machine left it."""
+    """The user's pause of an agent, written on its row: the pause pushes PausedByUser, whose block stops the agent's next tool call, and the resume pops it and tells the agent to continue. The row ends up as the state machine left it."""
 
     def __init__(self, agents: Agents) -> None:
         self.agents = agents

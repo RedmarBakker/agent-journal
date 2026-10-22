@@ -12,7 +12,7 @@ HEALTH_VALIDITY_SECONDS = 3600.0
 
 
 class Health:
-    """How each server stands, as Claude Code's own check reports it: every server the program has, the journal's and the ones set up elsewhere alike."""
+    """The status of each server, as Claude Code's own check reports it: every server the program has, the journal's and the ones set up elsewhere alike."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

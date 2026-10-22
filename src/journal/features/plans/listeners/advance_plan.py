@@ -13,7 +13,7 @@ from journal.repositories.tasks import WORKERS, Tasks
 
 
 class AdvancePlan(Listener[Updated]):
-    """A plan is done when its last task closes, whoever closes it. For each started plan the closed task is in, by its plan link, the next open task is started by writing its row, held by the agent that held the closed one, or by the main agent when a worker held it or none did; at a checkpoint out of auto mode, with no task that can start, or with that agent already on a task, nothing is written, and the state says what it makes of it."""
+    """A plan is done when its last task closes, whoever closes it. For each started plan the closed task is in, by its plan link, the next open task is started by writing its row, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; at a checkpoint out of auto mode, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
 
     def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, settings: SettingRows) -> None:
         self.plans, self.tasks, self.agents, self.settings = plans, tasks, agents, settings

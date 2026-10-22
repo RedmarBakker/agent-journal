@@ -23,7 +23,7 @@ PATHS = ("program", "settings", "skills")
 
 
 class ManifestReader:
-    """A plugin's manifest read from its folder and checked: every key known, its name free, its protocol spoken, what it holds heard and holdable, every path it names inside its folder, and its skills' names free; anything else is refused by name."""
+    """A plugin's manifest read from its folder and checked: every key known, its name free, its protocol supported, what it listens for and blocks valid and blockable, every path it names inside its folder, and its skills' names free; anything else is refused by name."""
 
     def __init__(self, registry: Registry, plugins: Plugins, folders: PluginFolders) -> None:
         self.registry, self.plugins, self.folders = registry, plugins, folders

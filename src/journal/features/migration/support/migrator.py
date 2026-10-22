@@ -33,7 +33,7 @@ from journal.repositories.scope import Scope
 
 
 class Migrator:
-    """Brings the kept version 3 journal across, kind by kind, and says what came in a report; nothing that fails stops it: a row or a kind that cannot come across is named in the report with its error, and the run goes on."""
+    """Migrates the stored version 3 journal, kind by kind, and reports what was migrated; nothing that fails stops it: a row or a kind that cannot be migrated is reported with its error, and the run continues."""
 
     def __init__(self, backup: Version3Backup, migrations: Version3Migrations, reports: Reports, scope: Scope, environments: EnvironmentImport, messages: MessageImport, todos: TodoImport, waits: WaitImport, work: WorkImport, plans: PlanImport, questions: QuestionImport, facts: FactImport, rules: RuleImport, reminders: ReminderImport, docs: DocImport, old_reports: ReportImport, checks: CheckImport, triggers: TriggerImport, sequences: SequenceImport, templates: TemplateImport, settings: SettingImport, agents: AgentImport, helpers: HelperImport, secrets: SecretImport, comments: CommentImport, reactions: ReactionImport) -> None:
         self.backup, self.migrations, self.reports, self.scope = backup, migrations, reports, scope

@@ -12,7 +12,7 @@ MESSAGE_READS = re.compile(r"journal\s+message\s+(read|unread|recent)\b")
 
 @dataclass(frozen=True)
 class UserPause(Wait):
-    """The user paused the agent from the viewer: every tool call but a read of the user's messages is held until the user resumes it, by the resume button, which pops it with the carry-on line, or by writing to it; a stop goes through, so a message left meanwhile never deadlocks the agent between the hold and the stop."""
+    """The user paused the agent from the viewer: every tool call but a read of the user's messages is blocked until the user resumes it, by the resume button, which pops it with the continue line, or by writing to it; a stop goes through, so a message sent meanwhile never deadlocks the agent between the block and the stop."""
 
     name = "paused"
     title = "Paused by you"

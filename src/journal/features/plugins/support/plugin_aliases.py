@@ -12,7 +12,7 @@ READERS = ".journal-plugin/readers"
 
 
 class PluginAliases:
-    """A plugin's aliases kept as the project's with the plugin named on each, a name already taken passed over, and the readers in its folder's .journal-plugin/readers copied into the project's readers stamped with the plugin's name, a reader of the project's own left as it is; both taken away with the plugin."""
+    """A plugin's aliases stored as the project's with the plugin named on each, a name already taken skipped, and the readers in its folder's .journal-plugin/readers copied into the project's readers stamped with the plugin's name, a reader of the project's own left unchanged; both removed with the plugin."""
 
     def __init__(self, config: Config, aliases: Aliases, names: AliasNames, folders: PluginFolders) -> None:
         self.config, self.aliases, self.names, self.folders = config, aliases, names, folders

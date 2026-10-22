@@ -5,7 +5,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class PendingRestart(AgentListener[Stop]):
-    """An agent owed a restart gets it the moment it stops its turn, on its own conversation."""
+    """An agent that needs a restart gets it the moment it stops its turn, on its own conversation."""
 
     def __init__(self, pending: PendingRestarts, supervisor: SupervisorLink) -> None:
         self.pending, self.supervisor = pending, supervisor

@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ImportTally:
-    """What one kind brought across: how many rows, and each row left behind with why."""
+    """What one kind migrated: how many rows, and each row not migrated with the reason."""
 
     kind: str
     count: int = 0

@@ -7,7 +7,7 @@ from journal.repositories.version3_migrations import Version3Migrations
 
 
 class Version3Backup:
-    """The version 3 journal the installer kept whole in .journal/version-3, and whether it is still to be brought across."""
+    """The version 3 journal the installer stored whole in .journal/version-3, and whether it is still to be migrated."""
 
     def __init__(self, config: Config, migrations: Version3Migrations) -> None:
         self.config, self.migrations = config, migrations

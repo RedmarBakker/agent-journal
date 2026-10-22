@@ -10,7 +10,7 @@ from journal.repositories.migrated_rows import MigratedRows
 
 
 class ProjectKind:
-    """A version 3 kind kept for the whole project, brought across row by row: a row already brought is passed over, and one left behind is named with why."""
+    """A version 3 kind stored for the whole project, migrated row by row: a row already migrated is skipped, and one not migrated is reported with the reason."""
 
     kind: ClassVar[str]
     title: ClassVar[str]

@@ -9,7 +9,7 @@ from journal.repositories.tasks import Tasks
 
 
 class ClearPlanWaits(Listener[Updated]):
-    """A question answered, a task closed or a check waited until passing opens the plans blocked on it by a link, once nothing else holds them, and the live agent is told."""
+    """A question answered, a task closed or a check that passed after being waited on opens the plans blocked on it by a link, once nothing else blocks them, and the running agent is told."""
 
     def __init__(self, plans: Plans, tasks: Tasks) -> None:
         self.plans, self.tasks = plans, tasks

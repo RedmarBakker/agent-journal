@@ -4,7 +4,7 @@ from journal.repositories.plugins import Plugins
 
 
 class PluginServicesSeed(Seed):
-    """At boot, the services of every plugin that is on are started where a supervisor runs; one already running is left as it is."""
+    """At boot, the services of every plugin that is on are started where a supervisor runs; one already running is not changed."""
 
     def __init__(self, plugins: Plugins, services: PluginServices) -> None:
         self.plugins, self.services = plugins, services

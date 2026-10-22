@@ -9,7 +9,7 @@ from journal.repositories.setting_rows import SettingRows
 
 
 class TranscriptScan(Listener[ClockTicked]):
-    """At every tick the words each live agent wrote, and the messages other sessions sent it, that no hook has brought, once they are past the seconds the hooks have, reach the chat as a turn; the hooks' own reading of the transcript is moved on past them, so nothing is read twice."""
+    """At every tick the text each running agent wrote, and the messages other sessions sent it, that no hook has delivered, once they are older than the seconds the hooks need, reach the chat as a turn; the hooks' own reading of the transcript is advanced past them, so nothing is read twice."""
 
     def __init__(self, agents: Agents, turns: TranscriptTurns, events: AgentEventPost, scope: Scope, settings: SettingRows) -> None:
         self.agents, self.turns, self.events, self.scope, self.settings = agents, turns, events, scope, settings

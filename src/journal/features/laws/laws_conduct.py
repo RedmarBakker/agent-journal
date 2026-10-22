@@ -9,7 +9,7 @@ LARGE_LINES = 400
 
 
 class LawsConduct(Conduct):
-    """The laws feature's conduct in every state: a subagent dispatch names its model, one of the project's profiles and a concrete job or is held, and a tool result of many lines is named, since every line stays in the context for good."""
+    """The laws feature's conduct in every state: a subagent dispatch must name its model, one of the project's profiles and a concrete job or it is blocked, and a tool result of many lines is flagged, since every line stays in the context permanently."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.laws.feature import Laws

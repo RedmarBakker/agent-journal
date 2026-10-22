@@ -2,7 +2,7 @@ import re
 
 
 class WordOverlap:
-    """How much of one text another already says: the share of its words of four letters or more that the other holds too."""
+    """How much of one text another already contains: the share of its words of four letters or more that the other also contains."""
 
     WORD = re.compile(r"[a-z0-9']{4,}")
     FEWEST = 8

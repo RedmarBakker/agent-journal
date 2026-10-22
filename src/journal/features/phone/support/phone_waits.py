@@ -6,7 +6,7 @@ from journal.repositories.scope import Scope
 
 
 class PhoneWaits:
-    """What waits for the user in the phone's environment, by reference: the questions the agent asked and nobody answered, and the plans ready for the user's approval."""
+    """What is waiting for the user in the phone's environment, by reference: the questions the agent asked and nobody answered, and the plans ready for the user's approval."""
 
     def __init__(self, questions: Questions, plans: Plans, scope: Scope) -> None:
         self.questions, self.plans, self.scope = questions, plans, scope

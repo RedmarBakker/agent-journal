@@ -22,7 +22,7 @@ WRITES = ("You write: change what the job needs and nothing beyond it. Find what
 
 
 class ProfileFiles:
-    """Writes the journal's own profiles, each named journal-*, and every profile saved, for every provider that has a folder here, Claude always; at every write the journal's are removed first and written fresh."""
+    """Writes the journal's own profiles, each named journal-*, and every saved profile, for every provider that has a folder here, Claude always; at every write the journal's are removed first and written again."""
 
     PROFILES = (
         Profile("journal-researcher", "Researches a question in the code, the journal's record or on the web and reports what it found, with evidence. Read-only.", "Read, Grep, Glob, WebFetch, WebSearch",

@@ -5,7 +5,7 @@ from journal.support.decision import Decision
 
 
 class PluginRefusalExemption:
-    """What no plugin may refuse: a journal command and the read of a skill's file are how a debt is paid, so they go through with the plugin's words still reaching the agent. The engine's own guards on the shell and on reads are not exempt."""
+    """What no plugin may refuse: a journal command and the read of a skill's file are how a pending duty is done, so they go through with the plugin's text still reaching the agent. The engine's own guards on the shell and on reads are not exempt."""
 
     def __init__(self, files: SkillFiles) -> None:
         self.files = files

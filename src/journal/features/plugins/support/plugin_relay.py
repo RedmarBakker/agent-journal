@@ -29,7 +29,7 @@ CUT = "plugin_cut"
 
 
 class PluginRelay:
-    """Which plugins hear an event, and one plugin asked about it: the line built where the event happened, and a fault recorded, never raised."""
+    """Which plugins receive an event, and one plugin asked about it: the line built where the event happened, and a fault recorded, never raised."""
 
     def __init__(self, plugins: Plugins, runner: PluginRunner, protocol: Protocol, faults: PluginFaults, environments: Environments, agents: Agents, entries: Entries, answers: PluginAnswers, steps: PluginSteps, deferred: ListenerQueue, hashes: PluginHashes, linked: LinkedManifests, text: PluginText, scope: Scope) -> None:
         self.plugins, self.runner, self.protocol, self.faults, self.answers, self.steps = plugins, runner, protocol, faults, answers, steps

@@ -5,7 +5,7 @@ from journal.repositories.agents import Agents
 
 
 class ContextThresholdCheck(AgentListener[AgentEvent]):
-    """When the context crosses a mark the agent has not taken yet, the mark is taken and owed on its row; the memory conduct tells the agent to decide."""
+    """When the context crosses a mark the agent has not handled yet, the mark is recorded as handled and as pending a decision on its row; the memory conduct tells the agent to decide."""
 
     blocking = True
 

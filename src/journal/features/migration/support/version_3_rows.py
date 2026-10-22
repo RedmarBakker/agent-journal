@@ -4,7 +4,7 @@ from pathlib import Path
 from journal.features.migration.support.version_3_row import Version3Row
 
 class Version3Rows:
-    """The rows of a version 3 journal kept in .journal/version-3: each kind's loose files and the closed ones packed into daily zips."""
+    """The rows of a version 3 journal stored in .journal/version-3: each kind's loose files and the closed ones packed into daily zips."""
 
     def __init__(self, folder: Path) -> None:
         self.folder = folder

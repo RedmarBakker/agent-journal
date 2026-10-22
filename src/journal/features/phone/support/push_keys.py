@@ -15,7 +15,7 @@ KEY_LIFETIME_SECONDS = 12 * 3600
 
 @dataclass(frozen=True)
 class PushKeys:
-    """The journal's own VAPID key pair, made once and kept in a file only its owner reads: it signs the token each push carries, so the push service knows the pushes come from the same journal the phone subscribed to."""
+    """The journal's own VAPID key pair, created once and stored in a file only its owner can read: it signs the token each push carries, so the push service knows the pushes come from the same journal the phone subscribed to."""
 
     secret: int
 

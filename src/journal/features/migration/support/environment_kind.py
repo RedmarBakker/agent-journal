@@ -13,7 +13,7 @@ from journal.repositories.migrated_rows import MigratedRows
 
 
 class EnvironmentKind:
-    """A version 3 kind kept per environment, brought across row by row for each environment that came: a row already brought is passed over, and one left behind is named with why."""
+    """A version 3 kind stored per environment, migrated row by row for each environment found: a row already migrated is skipped, and one not migrated is reported with the reason."""
 
     kind: ClassVar[str]
     title: ClassVar[str]

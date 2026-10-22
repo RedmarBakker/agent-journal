@@ -11,7 +11,7 @@ from journal.features.tasks.states.working import Working
 
 @dataclass(frozen=True)
 class PlansWorking(Working):
-    """On one task with plans on: a stop is held while an approved plan waits to start, and the task in hand joining the plan started here, or a plan starting with it, turns the work into the plan's; every other moment is Working's."""
+    """On one task with plans on: a stop is blocked while an approved plan waits to start, and the current task joining the plan started here, or a plan starting with it, turns the work into the plan's; every other moment is Working's."""
 
     def is_plan_work(self) -> bool:
         return False

@@ -10,7 +10,7 @@ from journal.support.agent_message import AgentMessage
 
 
 class OutgoingMessageRecord(AgentListener[ToolFinished]):
-    """A message the agent sent another agent with Claude Code's own tool reaches the chat, named as sent to that agent, by its project's name when its address is a socket, or as failed with the tool's reason when the send did not arrive; one that only asks to be told when the other is idle says nothing and is left out."""
+    """A message the agent sent to another agent with Claude Code's own tool reaches the chat, named as sent to that agent, by its project's name when its address is a socket, or as failed with the tool's reason when the send did not arrive; one that only asks to be notified when the other is idle shows nothing and is left out."""
 
     def __init__(self, messages: Messages, names: PeerName) -> None:
         self.messages, self.names = messages, names

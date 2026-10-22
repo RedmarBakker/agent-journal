@@ -5,7 +5,7 @@ from journal.features.plugins.support.preview_row import PreviewRow
 
 @dataclass(frozen=True)
 class PluginPreview:
-    """What a plugin is and everything it would run, hear and hold, before it is installed or upgraded; an upgrade's also says what changes."""
+    """What a plugin is and everything it would run, listen for and block, before it is installed or upgraded; an upgrade's preview also says what changes."""
 
     name: str
     title: str

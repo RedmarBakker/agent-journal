@@ -5,7 +5,7 @@ from journal.events.event import Event
 
 @dataclass(frozen=True, kw_only=True)
 class PluginUpdated(Event):
-    """The user changed a plugin's settings: told to that plugin alone, so it can apply them."""
+    """The user changed a plugin's settings: sent to that plugin alone, so it can apply them."""
 
     settings: dict = field(default_factory=dict)
 

@@ -13,7 +13,7 @@ from journal.features.tasks.states.ready import Ready
 
 @dataclass(frozen=True)
 class PlansReady(Ready):
-    """Idle with plans on: a task of the plan this agent holds started here, the plan's start with a task this agent holds and a session that finds one started push the plan's state, and a stop is held while an approved plan waits to start; every other moment is Idle's."""
+    """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and a stop is blocked while an approved plan waits to start; every other moment is Idle's."""
 
     def mode_lines(self) -> tuple[Nudge, ...]:
         from journal.features.plans.feature import Plans

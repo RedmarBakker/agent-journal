@@ -10,7 +10,7 @@ from journal.events.feature_data import FeatureData
 
 @dataclass(frozen=True)
 class Waiting(Wait):
-    """The agent asked the user something. Idle is fine; the answer pops it and names the question to read, a prompt from the user is the answer in other words, and beneath another state it pops on resume once its question is answered. Pushed by the questions conduct on QuestionAsked."""
+    """The agent asked the user a question. Idle is fine; the answer pops it and names the question to read, a prompt from the user is the answer in other words, and beneath another state it pops on resume once its question is answered. Pushed by the questions conduct on QuestionAsked."""
 
     name = "waiting"
     title = "Waiting on a question"

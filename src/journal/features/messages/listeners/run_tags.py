@@ -17,7 +17,7 @@ RUNS = {
 
 
 class RunTags(AgentListener[TurnDisplayed]):
-    """A tag opening a line of the turn runs the command it stands for, with the turn's words as its text: [!todo="the title"] files a task with the turn as its brief, [!log:N] makes the turn the log line, [!end:N] what landed, [!fact="the claim"] the fact's reason. A refusal is typed back; the reply tag belongs to the recorder."""
+    """A tag opening a line of the turn runs the command it stands for, with the turn's text as its text: [!todo="the title"] files a task with the turn as its brief, [!log:N] makes the turn the log line, [!end:N] the outcome, [!fact="the claim"] the fact's reason. A refusal is typed back; the reply tag belongs to the recorder."""
 
     def __init__(self, console: Console, environments: Environments, supervisor: SupervisorLink) -> None:
         self.console, self.environments, self.supervisor = console, environments, supervisor

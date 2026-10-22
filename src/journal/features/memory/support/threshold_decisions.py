@@ -7,7 +7,7 @@ from journal.support.caller import Caller
 
 
 class ThresholdDecisions:
-    """The agent's decision at a context threshold, kept when it records a fact, a rule or a reminder or says nothing needs recording, which lifts the threshold's hold."""
+    """The agent's decision at a context threshold, stored when it records a fact, a rule or a reminder or says nothing needs recording, which lifts the threshold's block."""
 
     def __init__(self, sessions: SessionAgents, scope: Scope, agents: Agents) -> None:
         self.sessions, self.scope, self.agents = sessions, scope, agents

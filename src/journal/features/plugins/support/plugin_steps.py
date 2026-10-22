@@ -6,7 +6,7 @@ _steps: ContextVar[int] = ContextVar("plugin_steps", default=0)
 
 
 class PluginSteps:
-    """How many plugin commands led to the work in hand: a plugin's command runs a step deeper, and a row written past one step is heard by no plugin, so two plugins never answer each other forever."""
+    """How many plugin commands led to the current work: a plugin's command runs one step deeper, and a row written past one step is received by no plugin, so two plugins never answer each other forever."""
 
     NESTED_STEPS = 1
 

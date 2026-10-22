@@ -5,7 +5,7 @@ from journal.events.agent.tool_starting import ToolStarting
 
 
 class PluginsConduct(Conduct):
-    """The plugins feature's conduct in every state: the agent never changes an installed plugin's files, so an edit or a shell line that writes into the plugins folder is held. Running a plugin's program is not writing to it; a linked folder is the agent's to work in."""
+    """The plugins feature's conduct in every state: the agent never changes an installed plugin's files, so an edit or a shell line that writes into the plugins folder is blocked. Running a plugin's program is not writing to it; a linked folder is the agent's to work in."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.plugins.feature import PluginsFeature

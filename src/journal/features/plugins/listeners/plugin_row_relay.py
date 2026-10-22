@@ -11,7 +11,7 @@ from journal.repositories.scope import Scope
 
 
 class PluginRowRelay(Listener[ModelEvent]):
-    """The plugins that hear a row's change hear it after the write commits and after the reply, so none holds the database, hears a row rolled back or stops the save."""
+    """The plugins that receive a row's change receive it after the write commits and after the reply, so none blocks the database, receives a rolled-back row or stops the save."""
 
     def __init__(self, relay: PluginRelay, deferred: ListenerQueue, commits: CommitQueue, scope: Scope) -> None:
         self.relay, self.deferred, self.commits, self.scope = relay, deferred, commits, scope

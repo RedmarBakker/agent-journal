@@ -10,7 +10,7 @@ from journal.support.listener_queue import ListenerQueue
 
 
 class PluginMergeRelay(Listener[WorkerMergeEvent]):
-    """The plugins that hear a worker's merge: one that holds worker_merging is asked before the branch is merged, inside its window, and its refusal holds the merge with its reason; every other one hears it, and worker_merge_landed, after the reply."""
+    """The plugins that receive a worker's merge: one that listens for worker_merging is asked before the branch is merged, inside its window, and its refusal blocks the merge with its reason; every other one receives it, and worker_merge_landed, after the reply."""
 
     def __init__(self, relay: PluginRelay, deferred: ListenerQueue, settings: SettingRows) -> None:
         self.relay, self.deferred, self.settings = relay, deferred, settings

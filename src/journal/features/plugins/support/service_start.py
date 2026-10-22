@@ -9,7 +9,7 @@ from journal.support.supervisor_reply import SupervisorReply
 
 
 class ServiceStart:
-    """At boot, the journal asks the supervisor that hosts it to start every service the features declare; one already running is left as it is, so a restart starts nothing twice and an upgrade's new service starts with the journal it came in."""
+    """At boot, the journal asks the supervisor that hosts it to start every service the features declare; one already running is not changed, so a restart starts nothing twice and an upgrade's new service starts with the journal it came in."""
 
     def __init__(self, registry: Registry, link: SupervisorLink, config: Config) -> None:
         self.registry, self.link, self.config = registry, link, config

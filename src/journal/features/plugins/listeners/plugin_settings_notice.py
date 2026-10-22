@@ -10,7 +10,7 @@ from journal.repositories.scope import Scope
 
 
 class PluginSettingsNotice(Listener[Updated]):
-    """A plugin's settings changed by someone other than itself: the plugin hears plugin.updated with its settings, after the write commits."""
+    """A plugin's settings changed by someone other than itself: the plugin receives plugin.updated with its settings, after the write commits."""
 
     def __init__(self, relay: PluginRelay, deferred: ListenerQueue, commits: CommitQueue, scope: Scope) -> None:
         self.relay, self.deferred, self.commits, self.scope = relay, deferred, commits, scope

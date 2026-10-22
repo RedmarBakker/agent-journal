@@ -23,7 +23,7 @@ REFUSABLE = ("tool_starting", "command_starting", "file_edited", "idle")
 
 
 class PluginAgentRelay(AgentListener[AgentEvent]):
-    """The plugins that hear an agent event: those that hold it are asked now, in the order they were installed, each inside the window its manifest declares under the ceiling the user set; the rest hear it after the reply, and so does every one once the event is held. It stays a listener on purpose: it is the one funnel through which a plugin's words and holds reach the agent, and what it says is each plugin's, never the journal's conduct."""
+    """The plugins that receive an agent event: those that can block it are asked at once, in the order they were installed, each inside the window its manifest declares under the ceiling the user set; the rest receive it after the reply, and so does every one once the event is blocked. It stays a listener on purpose: it is the one funnel through which a plugin's text and blocks reach the agent, and what it says is each plugin's, never the journal's conduct."""
 
     blocking = True
     free_request = True

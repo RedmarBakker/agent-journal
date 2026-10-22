@@ -6,7 +6,7 @@ from journal.features.sharing.support.tunnel import Tunnel
 
 
 class TunnelSettlement(Listener[ClockTicked]):
-    """As the clock ticks, the tunnel is settled again when what keeps it open has changed, so it closes once a pairing code or a phone's days run out."""
+    """As the clock ticks, the tunnel is reconciled again when what keeps it open has changed, so it closes once a pairing code or a phone's days run out."""
 
     def __init__(self, tunnel: Tunnel) -> None:
         self.tunnel = tunnel

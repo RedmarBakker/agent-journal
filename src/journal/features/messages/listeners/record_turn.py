@@ -29,7 +29,7 @@ REPEAT_OVERLAP_RATIO = 0.6
 
 
 class RecordTurn(AgentListener[TurnDisplayed]):
-    """Every whole turn the agent writes for the user becomes a message in the chat, its tags taken out. A [!reply:N] tag opening a line makes it the answer to message N (N,M answers both) and marks them read; a tag elsewhere is text, and the agent is told so. A [!log:N] turn belongs to the task's log alone. A turn that is only a face is not posted: the agent is told to react. A turn that only answered a journal line and changed nothing is kept as an acknowledgement, out of the chat."""
+    """Every whole turn the agent writes for the user becomes a message in the chat, with its tags removed. A [!reply:N] tag opening a line makes it the answer to message N (N,M answers both) and marks them read; a tag elsewhere is text, and the agent is told so. A [!log:N] turn belongs to the task's log alone. A turn that is only a reaction is not posted: the agent is told to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat."""
 
     def __init__(self, messages: Messages, entries: Entries, providers: Providers, registry: Registry, supervisor: SupervisorLink, links: Links, agents: Agents) -> None:
         self.messages, self.entries, self.providers, self.registry, self.supervisor, self.links, self.agents = messages, entries, providers, registry, supervisor, links, agents

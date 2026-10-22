@@ -11,7 +11,7 @@ MEMORY_CHAT_KINDS = {"fact": CardKind.FACTS, "rule": CardKind.RULES, "reminder":
 
 
 class MemoryHintCard(AgentListener[LineDelivered]):
-    """A fact, rule or reminder the memory conduct whispered back is shown in the chat as a mark, once per line said."""
+    """A fact, rule or reminder the memory conduct sent back to the agent is shown in the chat as a mark, once per line sent."""
 
     def __init__(self, facts: Facts, rules: Rules, reminders: Reminders, cards: MomentCards) -> None:
         self.cards = cards

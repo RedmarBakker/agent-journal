@@ -12,7 +12,7 @@ MISSING_STATUSES = (404, 410)
 
 
 class PhoneNotice(Listener[ClockTicked]):
-    """As the clock ticks, once for the whole journal, the paired phone that subscribed is pushed when something new waits for the user, once for each, as version 3 told it."""
+    """As the clock ticks, once for the whole journal, the paired phone that subscribed is pushed when something new is waiting for the user, once for each item, as version 3 did."""
 
     def __init__(self, phones: Phones, waits: PhoneWaits, notifications: WebPush) -> None:
         self.phones, self.waits, self.notifications = phones, waits, notifications
