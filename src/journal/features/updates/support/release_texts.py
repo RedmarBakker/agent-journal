@@ -8,7 +8,7 @@ MESSAGES = {
 
 
 class ReleaseTexts:
-    """The messages releases carry for the agent, one place for all of them, and those an update crossed: every release after the version the journal ran before, up to the one it runs now, as rows not yet kept."""
+    """The messages releases carry for the agent, one place for all of them, and those an update crossed: every release after the version the journal ran before, up to the one it runs now, as rows not yet stored."""
 
     @staticmethod
     def crossed(previous: str, current: str) -> tuple[ReleaseMessage, ...]:
