@@ -1392,6 +1392,7 @@ const style = computed(() => {
         :data-hopping="hopping"
         :data-trip="tripStage"
         :data-clip="shownClip?.name"
+        :data-beats="beats.map((beat) => beat.clip).join(' ')"
     >
         <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" ref="bodyArea" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
