@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-LkcrXEOp.js
-import{A as Le,p as Ke,h as Jc,g as ad,a as cd,V as ld}from"./main-gScP6dBO.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as Le,p as Ke,h as Jc,g as od,a as ad,V as cd}from"./main-xvCVinHn.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> db0bee635 (The figure is drawn inside the chat alone, cut off at its walls and its top as it climbs out to parachute; every jump goes at most 2.5 of the figure's heights, and a climb is as many hops as its height needs, each onto the corner of a bubble on the way, a place out of reach being no place to go; the salto where it stands is gone, the backflip on a high jump up stays):src/web/dist/assets/figure-B_YyWiQ2.js
+import{A as Le,p as Ke,h as Jc,g as od,a as ad,V as cd}from"./main-7nZ6qzeq.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
