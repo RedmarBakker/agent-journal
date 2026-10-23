@@ -1,6 +1,6 @@
 from journal.db.index import Index
 from journal.db.partial_index import PartialIndex
-from journal.repositories.entries import DISPATCHES
+from journal.repositories.entries import DISPATCHES, ENTRIES
 
 INDEXES = (
     Index("agents_by_session", "agents", "session"),
@@ -9,6 +9,7 @@ INDEXES = (
     Index("entries_by_actor", "entries", "actor, id"),
     Index("entries_by_environment", "entries", "environment_id, id"),
     Index("entries_by_kind_id", "entries", "environment_id, kind, id"),
+    Index("entries_by_session_kind", "entries", f"environment_id, kind, {ENTRIES.expression('data->session')}, id"),
     PartialIndex("entries_dispatches", "entries", "environment_id, id", condition=DISPATCHES.clause()),
     Index("environments_key", "environments", "key", unique=True),
     Index("links_by_kind", "links", "kind, source"),

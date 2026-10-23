@@ -48,7 +48,8 @@ class ShellDataReader:
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
         from journal.features.shell.feature import Shell
-        return tuple(line for nudge in (Shell.READER_HINT, Shell.READER_SUGGESTION, Shell.ALIAS_SUGGESTION, Shell.NEW_READER_SUGGESTION, Shell.READER_FIX, Shell.READER_DETAIL, Shell.SILENT_CARD, Shell.SUMMARY_REQUEST) for line in self.entries.recent_lines(agent.session, nudge.key, 0))
+        tips = (Shell.READER_HINT, Shell.READER_SUGGESTION, Shell.ALIAS_SUGGESTION, Shell.NEW_READER_SUGGESTION, Shell.READER_FIX, Shell.READER_DETAIL, Shell.SILENT_CARD, Shell.SUMMARY_REQUEST)
+        return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def reader_requests(self, agent: Agent) -> tuple[str, ...]:
         from journal.features.shell.feature import Shell

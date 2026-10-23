@@ -30,7 +30,10 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
         return [output for output in (self.find(number) for number in numbers) if not output.ended]
 
     def active_outputs(self, environment_id: int, excluded_folder: str) -> list[CommandOutput]:
-        query = self.query().filter(environment_id=environment_id, ended=False).filter_unequal("folder", excluded_folder).order("id")
+        return [output for output in self.running(environment_id) if output.folder != excluded_folder]
+
+    def running(self, environment_id: int) -> list[CommandOutput]:
+        query = self.query().filter(environment_id=environment_id, ended=False).order("id")
         return [o for o in self.selected_globally(query) if self.is_running(Path(o.folder))]
 
     def running_among(self, ids: list[int]) -> list[CommandOutput]:

@@ -96,6 +96,9 @@ class Entries(ScopedRepository[Entry]):
     def recent_lines(self, session: str, key: str, entry_id: int) -> list[str]:
         return [e.data["line"] for e in self.selected(self.lines(session).filter_json("data->key", key).filter_greater("id", entry_id).order("id"))]
 
+    def keyed_lines(self, session: str, keys: tuple[str, ...]) -> list[str]:
+        return [e.data["line"] for e in self.selected(self.lines(session).filter_listed("data->key", keys).order("id"))]
+
     def use_lines(self, session: str, key: str, tool_use: int) -> list[str]:
         return [e.data["line"] for e in self.selected(self.lines(session).filter_json("data->key", key).filter_greater("data->tool_use", tool_use).order("id"))]
 

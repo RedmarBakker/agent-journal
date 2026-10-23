@@ -59,21 +59,21 @@ class Query:
         return self._listed(column, "NOT IN", values)
 
     def filter_null(self, column: str) -> "Query":
-        return self._with(Condition(f"{self._expression(column)} IS NULL"))
+        return self._with(Condition(f"{self.expression(column)} IS NULL"))
 
     def filter_present(self, column: str) -> "Query":
-        return self._with(Condition(f"{self._expression(column)} IS NOT NULL"))
+        return self._with(Condition(f"{self.expression(column)} IS NOT NULL"))
 
     def filter_prefix(self, column: str, prefix: str) -> "Query":
         return self.filter_greater_equal(column, prefix).filter_less(column, prefix + PREFIX_END)
 
     def filter_missing_prefix(self, column: str, prefix: str) -> "Query":
-        expression = self._expression(column)
+        expression = self.expression(column)
         return self._with(Condition(f"({expression} IS NULL OR {expression} < ? OR {expression} >= ?)", (prefix, prefix + PREFIX_END)))
 
     def filter_containing(self, column: str, text: str) -> "Query":
         escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        return self._with(Condition(f"{self._expression(column)} LIKE ? ESCAPE '\\'", (f"%{escaped}%",)))
+        return self._with(Condition(f"{self.expression(column)} LIKE ? ESCAPE '\\'", (f"%{escaped}%",)))
 
     def filter_alternatives(self, *alternatives: "Query") -> "Query":
         terms = [alternative._joined() for alternative in alternatives]
@@ -91,10 +91,10 @@ class Query:
         return replace(self, conditions=tuple(condition.inlined() for condition in self.conditions))
 
     def order(self, column: str) -> "Query":
-        return replace(self, orders=(*self.orders, self._expression(column)))
+        return replace(self, orders=(*self.orders, self.expression(column)))
 
     def order_descending(self, column: str) -> "Query":
-        return replace(self, orders=(*self.orders, f"{self._expression(column)} DESC"))
+        return replace(self, orders=(*self.orders, f"{self.expression(column)} DESC"))
 
     def limit(self, rows: int) -> "Query":
         return replace(self, row_limit=rows)
@@ -112,10 +112,10 @@ class Query:
         return self._read("count(*) AS value")
 
     def maximum(self, column: str, empty_value) -> tuple[str, tuple]:
-        return self._read(f"COALESCE(MAX({self._expression(column)}), {Condition.literal(empty_value)}) AS value")
+        return self._read(f"COALESCE(MAX({self.expression(column)}), {Condition.literal(empty_value)}) AS value")
 
     def repeated(self, column: str, minimum: int) -> tuple[str, tuple]:
-        text, params = self._read(f"{self._expression(column)} AS value")
+        text, params = self._read(f"{self.expression(column)} AS value")
         return f"SELECT value FROM ({text}) WHERE value != '' GROUP BY value HAVING COUNT(*) >= ?", (*params, minimum)
 
     def insert(self, **values) -> tuple[str, tuple]:
@@ -153,11 +153,11 @@ class Query:
         return Condition(" AND ".join(condition.text for condition in self.conditions), tuple(param for condition in self.conditions for param in condition.params))
 
     def _compared(self, column: str, operator: str, value) -> "Query":
-        return self._with(Condition(f"{self._expression(column)} {operator} ?", (self._value(column, value),)))
+        return self._with(Condition(f"{self.expression(column)} {operator} ?", (self._value(column, value),)))
 
     def _listed(self, column: str, operator: str, values) -> "Query":
         values = tuple(self._value(column, value) for value in values)
-        return self._with(Condition(f"{self._expression(column)} {operator} ({', '.join('?' for _ in values)})", values))
+        return self._with(Condition(f"{self.expression(column)} {operator} ({', '.join('?' for _ in values)})", values))
 
     def _with(self, condition: Condition) -> "Query":
         return replace(self, conditions=(*self.conditions, condition))
@@ -168,7 +168,7 @@ class Query:
     def _value(self, column: str, value):
         return value if JSON_ARROW in column else self._column(column).sql(value)
 
-    def _expression(self, column: str) -> str:
+    def expression(self, column: str) -> str:
         name, *keys = column.split(JSON_ARROW)
         if not all(JSON_KEY.match(key) for key in keys):
             raise UnknownColumn(self.table, column)

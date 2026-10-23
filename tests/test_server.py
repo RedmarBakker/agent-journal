@@ -1331,6 +1331,7 @@ def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(
     first = free_pair()
     single = App(Config(tmp_path / "one", port=first, span=3))
     reserve = InstanceGuard(Config(tmp_path / "one", port=first, span=3))
+    reserve.parent = -1
     assert reserve.other_address() == "", "no port file, no other journal"
     single.server().start()
     try:
@@ -1340,12 +1341,16 @@ def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(
         stopped = []
         newer = InstanceGuard(Config(tmp_path / "one", port=first, span=3))
         newer.stop = stopped.append
+        newer.parent = -1
         original, guard.VERSION = guard.VERSION, "99.0.0"
         try:
             assert newer.other_address() == f"http://127.0.0.1:{first}" and stopped == [os.getpid()], "a journal of this project running other code than is installed is stopped, and the launch waits for its port"
         finally:
             guard.VERSION = original
-        assert reserve.other_address() and len(stopped) == 1, "one of the installed version is never stopped"
+        assert reserve.other_address() and len(stopped) == 1, "one of the installed version started by another supervisor is never stopped"
+        sibling = InstanceGuard(Config(tmp_path / "one", port=first, span=3))
+        sibling.stop = stopped.append
+        assert sibling.other_address() == f"http://127.0.0.1:{first}" and len(stopped) == 2, "one started by the same supervisor is a stray left by a restart: it is stopped, and the launch takes its port"
         App(Config(tmp_path / "one", port=first, span=3)).server()
         with socket.socket() as probe:
             assert probe.connect_ex(("127.0.0.1", first + 1)) != 0, "a journal built to stand by holds no port until it starts"

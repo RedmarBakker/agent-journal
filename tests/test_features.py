@@ -1034,6 +1034,13 @@ def test_a_supervisor_found_outdated_at_boot_is_restarted_once_at_the_end_of_its
     app.container.get(SupervisorCheck).run()
     assert [a["verb"] for a in asked] == ["hello"], "the boot asks each supervisor once"
     asked.clear()
+    from journal.repositories.command_outputs import CommandOutputs
+    running = ["a test run"]
+    monkeypatch.setattr(CommandOutputs, "running", lambda self, environment_id: running)
+    hook(app, "Stop")
+    app.runtime().deferred.drain()
+    assert asked == [], "while a command of the environment runs, the restart waits, so the command is never cut off"
+    running.clear()
     hook(app, "Stop")
     app.runtime().deferred.drain()
     assert asked == [{"verb": "restart", "name": "supervisor", "resume": ["--resume", "s1"]}], "at the turn's end the kept answer restarts it, the agent resumed on its conversation, and no hello is sent"
