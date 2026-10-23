@@ -6,7 +6,7 @@ from collections import Counter
 from journal.features.faults.support.thread_sample import ThreadSample
 
 SAMPLE_HZ = 100
-WAITING_FUNCTIONS = frozenset({"wait", "sleep", "select", "poll", "accept", "recv", "recv_into", "readinto", "readline", "_wait_for_tstate_lock", "get", "wait_for", "acquire", "join", "read1", "serve_forever", "_handle_request_noblock"})
+WAITING_FUNCTIONS = frozenset({"wait", "sleep", "select", "poll", "accept", "recv", "recv_into", "readinto", "read", "readline", "_wait_for_tstate_lock", "get", "wait_for", "acquire", "join", "read1", "serve_forever", "_handle_request_noblock"})
 
 
 class ThreadSampler:

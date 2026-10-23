@@ -1043,11 +1043,15 @@ def test_a_supervisor_found_outdated_at_boot_is_restarted_once_at_the_end_of_its
     assert asked == [], "it is restarted once; the journal it restarts asks again at its own boot"
 
 
-def test_a_due_check_runs_on_the_clock(app: App):
+def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: App):
     from journal.engine.clock import Clock
     from journal.repositories.checks import Checks
     app.console().run(["check", "create", "due", "--command", "true", "--every", "1"], USER)
+    began = timing.monotonic()
     app.container.get(Clock).tick(app.container.get(Clock).time())
+    assert timing.monotonic() - began < 0.5, "the clock's tick only starts the check, on a thread of its own"
+    while app.container.get(Checks).find(1).last_passed is None and timing.monotonic() - began < 5:
+        timing.sleep(0.05)
     assert app.container.get(Checks).find(1).last_passed is True
 
 

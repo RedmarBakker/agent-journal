@@ -9,7 +9,7 @@ from journal.sync.hosting import Hosting
 
 
 class RunDueChecks(Listener[ClockTicked]):
-    """Every tick, the checks whose interval has passed run; a hosted journal runs none, having no checkout to run them in."""
+    """Every tick, the checks whose interval has passed start, each on a thread of its own, so a slow check never holds the clock and the other jobs; one still running is not started again; a hosted journal runs none, having no checkout to run them in."""
 
     def __init__(self, checks: Checks, runner: CheckRunner, hosting: Hosting) -> None:
         self.checks, self.runner, self.hosting = checks, runner, hosting
@@ -18,4 +18,4 @@ class RunDueChecks(Listener[ClockTicked]):
         if self.hosting.is_hosted():
             return
         for check in self.checks.due(datetime.now(timezone.utc)):
-            self.runner.run(check, Actor.system())
+            self.runner.start(check, Actor.system())
