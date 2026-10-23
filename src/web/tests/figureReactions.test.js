@@ -3,6 +3,7 @@ import {expect, test} from "vitest";
 
 const {
     AMBIENT,
+    EAGER,
     EVERY_VOICE_FACES,
     FLIP_ODDS,
     FLIP_OVER,
@@ -13,6 +14,7 @@ const {
     WORKED_SECONDS,
     ambientFor,
     answerTo,
+    eagerFor,
     eyesAt,
     eyesShown,
     flips,
@@ -159,6 +161,13 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             {beat: "work_done"},
             {beat: "long_walk"},
             {beat: "building"},
+            // a slow run's docked bar ending while the figure is eager for it, passed or failed
+            ...["good", "bad"].map((ended) => {
+                const bar = {};
+                const slow = eagerFor({bar, share: 0.5, ended: "", began: 0}, null, () => 0, EAGER.after).eager;
+                const eager = eagerFor({bar, share: EAGER.from, ended: "", began: 0}, slow, () => 0, 30).eager;
+                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, 31).moment;
+            }),
         ].map((fire) => fire.beat)
     );
     for (const each of REACTIONS) expect(made.has(each.moment), each.moment).toBe(true);
