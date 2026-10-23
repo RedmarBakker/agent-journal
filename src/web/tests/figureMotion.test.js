@@ -1,5 +1,4 @@
 import {describe, expect, it} from "vitest";
-import {FALLS} from "../src/domain/falls.js";
 import {KEPT_WITHIN, SNAP_WAIT_FRAMES, aimedAt, catching, chaseRoom, eased, fallFrame, floorAt, floorBelow, legAt, underWalker} from "../src/domain/figureMotion.js";
 
 const floor = (id, top, left = 0, right = 1000, kind = id === "home" ? "compose" : id) => ({id, kind, left, right, top, vy: 0});
@@ -7,7 +6,7 @@ const FRAME = 1 / 60;
 
 function fallTo(body, floors) {
     let state = {...body, speed: 0, landed: null};
-    for (let frame = 0; frame < 600 && !state.landed; frame++) state = fallFrame(state, floors, FRAME, FALLS.butler, 112);
+    for (let frame = 0; frame < 600 && !state.landed; frame++) state = fallFrame(state, floors, FRAME);
     return state;
 }
 
@@ -92,7 +91,7 @@ describe("a hop and the floor it is headed for", () => {
         const midway = legAt(jump, from, 200);
         expect(midway.y).toBeLessThan(500);
         let state = {x: midway.x, y: midway.y, speed: 0, landed: null};
-        for (let frame = 0; frame < 600 && !state.landed; frame++) state = fallFrame(state, [floor("home", 500)], FRAME, FALLS.butler, 112);
+        for (let frame = 0; frame < 600 && !state.landed; frame++) state = fallFrame(state, [floor("home", 500)], FRAME);
         expect([state.x, state.y, state.landed.id]).toEqual([400, 500, "home"]);
     });
 });
@@ -115,7 +114,7 @@ describe("the floor a walker keeps to", () => {
 
 describe("motion kept still", () => {
     it("puts a falling figure on the floor under it at once, and a hop at its end, while a walk still walks", () => {
-        expect(fallFrame({x: 400, y: 300, speed: 0}, [floor("home", 500)], FRAME, FALLS.butler, 112, true)).toMatchObject({y: 500, landed: {id: "home"}});
+        expect(fallFrame({x: 400, y: 300, speed: 0}, [floor("home", 500)], FRAME, true)).toMatchObject({y: 500, landed: {id: "home"}});
         const hop = {x: 0, y: 0, ms: 400, lead: 100, easing: "linear", hopping: true};
         expect(legAt(hop, {x: 0, y: 100}, 0, true)).toEqual({x: 0, y: 0});
         expect(legAt({...hop, hopping: false, lead: 0}, {x: 0, y: 100}, 200, true)).toEqual({x: 0, y: 50});
@@ -135,7 +134,7 @@ describe("the squire's chase", () => {
 });
 
 it("snaps onto a floor only at the top of a jump, within 5 pixels, and only if it is still there after a short wait", () => {
-    const step = (body, floors) => fallFrame(body, floors, FRAME, FALLS.butler, 112);
+    const step = (body, floors) => fallFrame(body, floors, FRAME);
     const shelf = floor("bubble", 491);
     let state = {x: 400, y: 495, speed: 0};
     state = step(state, [shelf, floor("home", 900)]);

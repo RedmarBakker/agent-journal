@@ -71,14 +71,14 @@ export function legAt(leg, from, elapsed, still = false) {
 // One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last: it lands on that
 // floor the moment it touches, with the floor it landed on, and falls to the window's foot when nothing else is under it; with motion
 // kept `still`, it is on that floor at once
-export function fallFrame(body, floors, seconds, fall, size, still = false) {
+export function fallFrame(body, floors, seconds, still = false) {
     const peak = peakFrame(body, floors);
     if (peak) return peak;
     const floor = floorBelow(floors, body.x, body.y, 0);
     if (!floor) return {...body, landed: null};
     if (floor.top < body.y) return {x: body.x, y: floor.top, speed: 0, landed: floor};
     if (still) return {x: body.x, y: floor.top, speed: 0, landed: floor};
-    const step = fallStep({y: body.y, speed: body.speed}, floor.top, seconds, fall, size, body.most);
+    const step = fallStep({y: body.y, speed: body.speed}, floor.top, seconds, body.most);
     return {x: body.x, y: step.y, speed: step.speed, landed: step.landed ? floor : null};
 }
 
@@ -138,8 +138,8 @@ export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "s
 
 // One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
 // fell in, where it goes on to and whether it landed on its feet
-export function airborneFrame(airborne, floors, now, fall, size, still = false) {
-    const fell = fallFrame(airborne, catching(floors, airborne.catches), (now - airborne.at) / 1000, fall, size, still);
+export function airborneFrame(airborne, floors, now, still = false) {
+    const fell = fallFrame(airborne, catching(floors, airborne.catches), (now - airborne.at) / 1000, still);
     if (!fell.landed) return {airborne: {...airborne, ...fell, at: now}, landed: null};
     const spot = {x: fell.x, y: fell.landed.top, posture: airborne.posture, view: null, on: fell.landed.element ?? null};
     return {airborne: null, landed: {spot, to: airborne.to, standing: airborne.posture === "stand"}};

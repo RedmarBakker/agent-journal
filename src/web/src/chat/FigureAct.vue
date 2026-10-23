@@ -20,7 +20,6 @@ const props = defineProps({
 // its top above the feet; and the drawings' sizes and colours, in pixels
 const STANDS = {stamp: {across: 0.25, top: 0.32}, pin_note: {across: 0.31, top: 0.56}, file_card: {across: 0.24, top: 0.3}};
 const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", cork: "#c99a5b", note: "#f5d547", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8"};
-const CONFETTI = ["#6366f1", "#e8b84a", "#ef476f", "#06d6a0", "#118ab2"];
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
@@ -77,28 +76,6 @@ const unrolled = computed(() => partOf(props.u, act.value.unrolls) * (1 - partOf
 // the drawer slid out, 0 to 1, and the card dropped into it
 const drawer = computed(() => partOf(props.u, act.value.opens) * (1 - partOf(props.u, act.value.shuts)));
 const filed = computed(() => partOf(props.u, act.value.filed));
-
-// confetti bursting from `from` over `burst`: each piece out along its own way, falling as it goes
-// Confetti bursting from `from` over `burst`: `count` pieces fanned `spread` radians about the way `aim` points, each out its own share of
-// `reach`, falling as it goes; every fifth a long streamer
-function confettiFrom(from, burst, reach, count, aim = -Math.PI / 2, spread = 2.4) {
-    const k = partOf(props.u, burst);
-    if (k <= 0 || k >= 1) return [];
-    return Array.from({length: count}, (_, index) => {
-        const scatter = (index * 0.618034) % 1;
-        const way = aim + (scatter - 0.5) * spread;
-        const far = reach * Math.sqrt(k) * (0.35 + 0.65 * ((index * 0.381966) % 1));
-        const streamer = index % 5 === 0;
-        return {x: from.x + Math.cos(way) * far, y: from.y + Math.sin(way) * far + 50 * k * k, spin: 720 * k + index * 40, colour: CONFETTI[index % CONFETTI.length], fade: 1 - k ** 3, width: streamer ? 1.4 : 3 + 2 * scatter, height: streamer ? 7 : 2 + scatter};
-    });
-}
-const cheered = computed(() => (props.name === "cheer" ? confettiFrom({x: head.value.x, y: head.value.y - 30}, act.value.burst, 44, 18) : []));
-
-// the cannon held up and out in the free hand, its mouth where the confetti comes out of
-const cannon = computed(() => {
-    const tip = {x: hand.value.x + out.value * 9, y: hand.value.y - 14};
-    return {tip, confetti: confettiFrom(tip, act.value.burst, 95, 90, -Math.PI / 2 + out.value * 0.5, 1.5)};
-});
 
 // the party horn at the mouth: unrolled with each blow, coiled up between them
 const horn = computed(() => {
@@ -263,17 +240,6 @@ const flap = computed(() => {
                     <rect :x="stand.x - 10 - 1.5 * drawer" :y="stand.top + 2" :width="20 + 3 * drawer" height="10" rx="1" :fill="COLOURS.wood" />
                     <rect :x="stand.x - 10" :y="stand.top + 14" width="20" height="10" rx="1" :fill="COLOURS.wood" />
                     <path :d="`M${stand.x - 3} ${stand.top + 7}h6M${stand.x - 3} ${stand.top + 19}h6`" stroke-width="1.4" />
-                </g>
-            </template>
-
-            <template v-for="(piece, index) in [...cheered, ...(name === 'confetti_cannon' ? cannon.confetti : [])]" :key="index">
-                <rect :x="piece.x - piece.width / 2" :y="piece.y - piece.height / 2" :width="piece.width" :height="piece.height" :fill="piece.colour" stroke="none" :opacity="piece.fade" :transform="`rotate(${piece.spin} ${piece.x} ${piece.y})`" />
-            </template>
-
-            <template v-if="name === 'confetti_cannon' && u > act.aim[0] && u < act.lower[1]">
-                <g :transform="`translate(${hand.x} ${hand.y}) rotate(${-out * 28})`">
-                    <path d="M-3 2 -4.5 -16H4.5L3 2Z" fill="#6366f1" />
-                    <rect x="-5" y="-17" width="10" height="2.6" :fill="COLOURS.gold" />
                 </g>
             </template>
 

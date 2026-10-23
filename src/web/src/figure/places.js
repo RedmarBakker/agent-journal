@@ -1,3 +1,4 @@
+import {GRAVITY} from "../domain/falls.js";
 import {flips} from "./reactions.js";
 import {PARCEL} from "./parcels.js";
 
@@ -65,7 +66,6 @@ const WALK_SPEED = 90;
 const JUMP_CROUCH_MS = 280;
 const JUMP_AIR_MS = 420;
 const JUMP_AIR_PER_PIXEL = 0.25;
-const GRAVITY = 2400;
 const FLIP_CROUCH_MS = 290;
 const FLIP_AIR_MS = 600;
 const JUMP_EASING = "cubic-bezier(0.2, 0.7, 0.4, 1)";

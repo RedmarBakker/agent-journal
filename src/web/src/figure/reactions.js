@@ -16,8 +16,8 @@ export const VOICE_FACES = {
 // The clip every voice plays when the agent puts one of these faces on a message, beside its own
 export const EVERY_VOICE_FACES = {"🙏": "thanks"};
 
-// the ways the figure celebrates, by weight: a jump for joy with its hands up, a confetti cannon fired, a party horn blown
-const CELEBRATIONS = [{clip: "joy", weight: 2}, {clip: "confetti_cannon", weight: 1}, {clip: "party_horn", weight: 1}];
+// the ways the figure celebrates, by weight: a jump for joy with its hands up, a party horn blown
+const CELEBRATIONS = [{clip: "joy", weight: 2}, {clip: "party_horn", weight: 1}];
 
 // The clips a held clip is played as, one picked by its weight each time the figure takes it up, so one stretch of the same work looks
 // unlike the last: searching with the magnifying glass, binoculars, a flashlight in a dark corner, or under a lifted corner of the floor;
@@ -57,7 +57,7 @@ export const REACTIONS = [
     {moment: "worker_sent", among: [{clip: "whistle_runner", weight: 3}, {clip: "wave", weight: 1}], odds: 0.5, cooldown: 90},
     {moment: "reported", among: [{clip: "scroll", weight: 3}, {clip: "nod", weight: 1}], odds: 0.5, cooldown: 90},
     {moment: "fact_filed", among: [{clip: "file_card", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 120},
-    {moment: "check_passed", among: [{clip: "cheer", weight: 3}, ...CELEBRATIONS], odds: 0.25, cooldown: 120, toward: "card", onto: true},
+    {moment: "check_passed", among: CELEBRATIONS, odds: 0.25, cooldown: 120, toward: "card", onto: true},
     // standing still, it looks about now and then: to one side, the other, or up, so standing still is never the same loop
     {moment: "standing", among: [{clip: "look_left", weight: 2}, {clip: "look_right", weight: 2}, {clip: "look_up", weight: 1}], odds: 0.15, cooldown: 7},
     // landing from a launch it very rarely trips and falls to its knees

@@ -537,7 +537,7 @@ function fallFrom(spot, to) {
 }
 
 function fallOn() {
-    const {airborne, landed} = airborneFrame(body.airborne, latestFloors().floors, performance.now(), fall.value, SIZE, keptStill());
+    const {airborne, landed} = airborneFrame(body.airborne, latestFloors().floors, performance.now(), keptStill());
     body.at = placed(airborne ?? landed.spot, (airborne ?? landed.spot).posture);
     body.airborne = airborne;
     if (!landed) return;
@@ -1121,7 +1121,7 @@ const style = computed(() => ({
 }
 
 .voice-figure-actor.dropping {
-    animation: figure-land calc(var(--fall-ms) * 0.9) ease-out both;
+    animation: figure-land calc(var(--fall-ms) * 0.5) ease-out both;
 }
 
 .voice-figure-actor.launched {

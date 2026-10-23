@@ -11,8 +11,8 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
-const ACTED = ["post_dove", "stamp", "pin_note", "ask_sign", "whistle_runner", "scroll", "file_card", "cheer"];
-const NEW = ["look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "confetti_cannon", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
+const ACTED = ["post_dove", "stamp", "pin_note", "ask_sign", "whistle_runner", "scroll", "file_card"];
+const NEW = ["look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
     for (const name of [...ACTED, ...NEW]) {
@@ -42,7 +42,7 @@ const JOURNAL = {
     worker_sent: ["whistle_runner"],
     reported: ["scroll"],
     fact_filed: ["file_card"],
-    check_passed: ["cheer"],
+    check_passed: ["joy", "party_horn"],
 };
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
@@ -188,12 +188,12 @@ test("it floats back down on a parachute, never faster than the parachute lets i
     expect(chute).toMatchObject({posture: "stand", chute: true, most, catches: false});
     let body = {y: chute.y, speed: 0};
     for (let frame = 0; frame < 200 && body.y < 700; frame++) {
-        const stepped = fallStep(body, 700, 1 / 60, {ms: 400}, 112, chute.most);
+        const stepped = fallStep(body, 700, 1 / 60, chute.most);
         expect(stepped.speed).toBeLessThanOrEqual(most);
         body = stepped;
     }
     // falling free it would be far quicker
-    expect(fallStep({y: 0, speed: most}, 700, 1 / 60, {ms: 400}, 112).speed).toBeGreaterThan(most);
+    expect(fallStep({y: 0, speed: most}, 700, 1 / 60).speed).toBeGreaterThan(most);
     expect(clipFor({mode: "airborne", place: {posture: "stand"}, chute: true}, () => true).clip).toBe("chute");
     expect(clipFor({mode: "airborne", place: {posture: "stand"}, chute: false}, () => true).clip).toBe("fall");
 });
@@ -240,7 +240,7 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     expect(eagerFor(at(1, "good"), eager, () => 0, 125)).toEqual({eager: {bar, on: false}, moment: {beat: "bar_done"}});
     expect(eagerFor(at(1, "bad"), eager, () => 0, 125).moment).toEqual({beat: "bar_failed"});
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
-    expect(REACTIONS.find((each) => each.moment === "bar_done").among.map((each) => each.clip)).toEqual(["joy", "confetti_cannon", "party_horn"]);
+    expect(REACTIONS.find((each) => each.moment === "bar_done").among.map((each) => each.clip)).toEqual(["joy", "party_horn"]);
     // only the bar going ends it with nothing to mark
     expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {bar, on: false}, moment: null});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
@@ -360,4 +360,13 @@ test("very rarely, landing from a launch, the figure trips onto its knees, shake
             for (const name of RIG.order.filter((bone) => bone !== "root")) expect(pose.head(name, all.get(name)).z, `${voice} ${frame} ${name}`).toBeGreaterThan(-0.12);
         }
     }
+});
+
+test("falls are snappy: the tumble drops to its knees in a quarter of a second with a quick bounce, and a landing is over in a third of one", () => {
+    const seconds = ([from, to]) => ((to - from) * TUMBLE.frames) / TUMBLE.fps;
+    expect(seconds(TUMBLE.down)).toBeLessThanOrEqual(0.3);
+    expect(seconds(TUMBLE.bounce)).toBeLessThanOrEqual(0.3);
+    expect(TUMBLE.bounce[0]).toBe(TUMBLE.down[1]);
+    const land = clipNamed("land");
+    expect(land.frames / land.fps).toBeLessThanOrEqual(0.35);
 });

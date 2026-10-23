@@ -1575,7 +1575,7 @@ function fall(pose, stance, t) {
 
 // the landing after either: the knees take the weight, the body folds forward and the arms spread for balance, then it stands
 function land(pose, stance, t) {
-    const u = onceTime(t, 10);
+    const u = onceTime(t, LANDING.frames);
     const dip = rise(u, 0, 0.2) * (1 - rise(u, 0.2, 1));
     breathe(pose, 0);
     trunk(pose, {lean: 16 * dip, nod: 8 * dip});
@@ -1954,7 +1954,7 @@ export const ACTED = {
     high: [1.0, -0.25, 2.92], stampHigh: [1.1, -0.42, 2.7], stampDown: [1.18, -0.46, 1.72],
     board: [1.24, -0.36, 2.6], tap: 0.08, sign: [0.5, -0.25, 3.0], signWaggle: 0.1, scroll: [0.3, -0.84, 2.28],
     drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.1, -0.55, 1.88], torchSweep: 0.16,
-    corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34, cannon: [1.2, -0.3, 2.45],
+    corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34,
 }
 
 // the free hand's place between the wrist places `from` and `to`, `k` of the way
@@ -2039,17 +2039,6 @@ function file_card(pose, stance, t) {
     breathe(pose, 0);
     trunk(pose, {lean: 10 * out, nod: 14 * out});
     actHand(pose, stance, out, [x, y, z - ACTED.drop * partOf(u, act.filed)]);
-}
-
-// aims a confetti cannon up and out in the free hand, fires it, kicked back by it, and lowers it
-function confetti_cannon(pose, stance, t) {
-    const act = ACTS.confetti_cannon;
-    const u = onceTime(t, act.frames);
-    const kick = swell(u, ...act.kick);
-    breathe(pose, 0);
-    trunk(pose, {lean: -8 * kick, nod: -12 * partOf(u, act.aim)});
-    actHand(pose, stance, partOf(u, act.aim) * (1 - partOf(u, act.lower)), [ACTED.cannon[0], ACTED.cannon[1], ACTED.cannon[2] + 0.12 * kick], {x: -50});
-    eyesAs(pose, "amused", partOf(u, [act.fire, act.fire + 0.1]));
 }
 
 // blows a party horn held at its mouth, its head turned to the free hand's side, leaning back into the blow
@@ -2167,9 +2156,12 @@ const glanceAt = (way, up) => (pose, stance, t) => {
     armsAtRest(pose, stance);
 };
 
-// Landing wrong from a launch: it trips, falls onto its knees, shakes its head, gets up and gives a little hop, arms up, as if nothing
+// how quick a landing is: a real fall's stop, the knees giving and springing back in under a third of a second
+export const LANDING = {frames: 6, fps: 20};
+
+// Landing wrong from a launch: it trips, falls onto its knees at a fall's speed with a little bounce, shakes its head, gets up and gives a little hop, arms up, as if nothing
 // happened; the hips drop `drop` to kneel, the shins laid back along the floor
-export const TUMBLE = {frames: 48, fps: 12, trip: [0, 0.3], down: [0.08, 0.26], shake: [0.32, 0.6], shakes: 3, up: [0.62, 0.84], hop: [0.82, 0.98], drop: 0.74};
+export const TUMBLE = {frames: 48, fps: 12, trip: [0, 0.14], down: [0.05, 0.11], bounce: [0.11, 0.18], shake: [0.3, 0.58], shakes: 3, up: [0.62, 0.8], hop: [0.8, 0.96], drop: 0.74};
 
 function tumble(pose, stance, t) {
     const u = onceTime(t, TUMBLE.frames);
@@ -2177,7 +2169,7 @@ function tumble(pose, stance, t) {
     const flail = swell(u, ...TUMBLE.trip);
     const shake = waveOf(span(u, ...TUMBLE.shake), TUMBLE.shakes) * swell(u, ...TUMBLE.shake);
     const hop = swell(u, ...TUMBLE.hop);
-    pose.lift("root", {z: -TUMBLE.drop * kneel + 0.16 * hop});
+    pose.lift("root", {z: -TUMBLE.drop * kneel + 0.1 * swell(u, ...TUMBLE.bounce) + 0.16 * hop});
     if (pose.posture === "stand") for (const side of Object.keys(SIDES)) pose.turn(`shin_${side}`, {x: 90 * kneel});
     trunk(pose, {lean: 12 * kneel + 10 * flail * (1 - kneel), nod: 12 * kneel, turn: 26 * shake});
     flung(pose, stance, 0, 100 * flail * (1 - kneel) + 60 * hop, 8 * flail);
@@ -2337,7 +2329,7 @@ export const CLIPS = [
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
-    {name: "land", frames: 10, fps: 20, loops: false, postures: MOVE, pose: land},
+    {name: "land", frames: LANDING.frames, fps: LANDING.fps, loops: false, postures: MOVE, pose: land},
     {name: "type", frames: 24, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: type},
     {name: "joy", frames: 20, fps: 14, loops: false, postures: GESTURE, pose: joy},
     {name: "dismay", frames: 28, fps: 10, loops: false, postures: GESTURE, pose: dismay},
@@ -2368,8 +2360,6 @@ export const CLIPS = [
     {name: "whistle_runner", frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: MOVE, pose: whistle},
     {name: "scroll", frames: ACTS.scroll.frames, fps: ACTS.scroll.fps, loops: false, postures: GESTURE, pose: scroll},
     {name: "file_card", frames: ACTS.file_card.frames, fps: ACTS.file_card.fps, loops: false, postures: MOVE, pose: file_card},
-    {name: "cheer", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, pose: thumbs_up},
-    {name: "confetti_cannon", frames: ACTS.confetti_cannon.frames, fps: ACTS.confetti_cannon.fps, loops: false, postures: GESTURE, pose: confetti_cannon},
     {name: "party_horn", frames: ACTS.party_horn.frames, fps: ACTS.party_horn.fps, loops: false, postures: GESTURE, pose: party_horn},
     {name: "pack_box", frames: ACTS.pack_box.intro + ACTS.pack_box.hold + ACTS.pack_box.outro, intro: ACTS.pack_box.intro, outro: ACTS.pack_box.outro, leaves: ACTS.pack_box.hold, fps: ACTS.pack_box.fps, loops: true, postures: MOVE, pose: pack_box},
     {name: "press", frames: ACTS.press.intro + ACTS.press.hold + ACTS.press.outro, intro: ACTS.press.intro, outro: ACTS.press.outro, leaves: ACTS.press.hold, fps: ACTS.press.fps, loops: true, postures: GESTURE, pose: press},
@@ -2400,8 +2390,10 @@ const SKINNED = /* glsl */ `
     uniform float eyeMiddle;
     varying vec3 worldNormal;
     varying vec3 worldPosition;
+    varying vec3 localPosition;
 
     void main() {
+        localPosition = position;
         #include <beginnormal_vertex>
         #ifdef HULL
             objectNormal = hullNormal;
@@ -2436,8 +2428,10 @@ const FLAT = /* glsl */ `
     }
 `;
 
-// The visor, shaded as any flat part, and lit as a screen `lit` of the way in `glow`: a grid of square pixels `pitch` apart across its face,
-// the lines between them `gap` of a pixel wide and darker, as a big screen is seen up close
+// The visor, shaded as any flat part, and lit as a screen as an old CRT powers up (figure/visor.js): a band about its middle reaching
+// `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`, the rest
+// of it dark. The lit band is a grid of square pixels `pitch` apart, the lines between them `gap` of a pixel wide and darker, as a big
+// screen is seen up close.
 export const SCREEN = {pitch: 0.1, gap: 0.24, dark: 0.3};
 const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec3 colour;
@@ -2446,11 +2440,17 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform float litFrom;
     uniform vec3 glow;
     uniform float lit;
+    uniform float across;
+    uniform float open;
+    uniform float flash;
+    uniform vec2 middle;
+    uniform vec2 extent;
     uniform float pitch;
     uniform float gap;
     uniform float dark;
     varying vec3 worldNormal;
     varying vec3 worldPosition;
+    varying vec3 localPosition;
 
     void main() {
         vec3 normal = normalize(worldNormal);
@@ -2458,18 +2458,28 @@ const SCREEN_FRAGMENT = /* glsl */ `
             normal = -normal;
         }
         vec3 shaded = colour * mix(shade, vec3(1.0), step(litFrom, dot(normal, light)));
+        vec2 from = abs(localPosition.xy - middle) / extent;
+        float band = step(from.x, across) * step(from.y, open);
         vec2 cell = fract(worldPosition.xy / pitch);
         float pixel = step(gap, cell.x) * step(gap, cell.y);
-        gl_FragColor = vec4(mix(shaded, glow * mix(dark, 1.0, pixel), lit), 1.0);
+        vec3 screen = mix(glow * mix(dark, 1.0, pixel), vec3(1.0), flash);
+        gl_FragColor = vec4(mix(shaded * (1.0 - step(0.001, lit + flash) * 0.6), screen, band * max(lit, flash)), 1.0);
         #include <colorspace_fragment>
     }
 `;
 
-// the visor's material: a flat part's, which lights as a screen
+// the visor's material: a flat part's, which lights as a screen, its band measured from the visor's own middle out to its edges
 function screenMaterial(mesh) {
     const material = flatMaterial(mesh);
     material.fragmentShader = SCREEN_FRAGMENT;
-    Object.assign(material.uniforms, {glow: {value: new THREE.Vector3()}, lit: {value: 0}, pitch: {value: SCREEN.pitch}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark}});
+    const bounds = new THREE.Box3().setFromBufferAttribute(mesh.geometry.attributes.position);
+    const middle = bounds.getCenter(new THREE.Vector3());
+    const extent = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+    Object.assign(material.uniforms, {
+        glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0},
+        middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
+        pitch: {value: SCREEN.pitch}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
+    });
     return material;
 }
 
@@ -2595,6 +2605,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     scene.traverse((node) => node.isSkinnedMesh && meshes.push(node));
     const eyes = {materials: [], shapes: [], hearts: [], stars: []};
     const screens = [];
+    const visorHulls = [];
     for (const mesh of meshes) {
         mesh.visible = shows(mesh) && !LEFT_OUT.has(mesh.userData.item) && mesh.userData.item !== TABLET && mesh.userData.item !== CLOTH;
         addHullNormals(mesh.geometry);
@@ -2606,6 +2617,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
         hull.frustumCulled = mesh.frustumCulled = false;
         mesh.material = mesh.name === VISOR_MESH ? screenMaterial(mesh) : flatMaterial(mesh);
         if (mesh.name === VISOR_MESH) screens.push(mesh.material);
+        if (mesh.name === VISOR_MESH) visorHulls.push(hull);
         mesh.parent.add(hull);
         hull.position.copy(mesh.position);
         hull.quaternion.copy(mesh.quaternion);
@@ -2639,7 +2651,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const hulls = (shown) => shown.flatMap((mesh) => [mesh, mesh.userData.hull]);
     const inHand = carried.filter((mesh) => IN_HAND.has(mesh.userData.item));
     const stowable = hulls(carried.filter((mesh) => mesh.userData.item));
-    return {scene, rig: rigOf(scene), stance, eyes, screens, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand)};
+    return {scene, rig: rigOf(scene), stance, eyes, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand)};
 }
 
 // A laptop drawn in the flat colours of the chat's own: its hinge at the origin, its keyboard toward the body (-z), its lid opened a little
@@ -3149,13 +3161,18 @@ function place(figure, pose, facing, blend) {
         figure.laptop.matrix.copy(lapOf(world));
         figure.laptop.matrixWorldNeedsUpdate = true;
     }
-    const lit = pose.screen?.amount ?? 0;
+    const crt = pose.screen ?? DARK_SCREEN;
     for (const material of figure.screens) {
-        material.uniforms.lit.value = lit;
-        if (lit) material.uniforms.glow.value.set(...pose.screen.colour);
+        material.uniforms.lit.value = crt.glow;
+        material.uniforms.across.value = crt.across;
+        material.uniforms.open.value = crt.open;
+        material.uniforms.flash.value = crt.flash;
+        if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
     }
-    // the eyes are gone from a lit visor, a display with nothing on it
-    const eyed = lit < EYES_GONE;
+    // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
+    for (const hull of figure.visorHulls) hull.visible = !pose.screen;
+    // the eyes go out before a lit visor comes on, a display with nothing on it
+    const eyed = crt.eyes > EYES_GONE;
     for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars;
     for (const heart of figure.eyes.hearts) {
         heart.visible = eyed && pose.hearts > 0;
@@ -3191,7 +3208,9 @@ function lookAs(pose, {mood, seconds, lasts}, facing) {
 
 // the visor mesh every voice wears, the black screen its eyes are drawn on, and how lit it is before the eyes are gone from it
 const VISOR_MESH = "face_screen";
-const EYES_GONE = 0.3;
+const EYES_GONE = 0.05;
+// the visor as it is unlit: its eyes shown and its band dark
+const DARK_SCREEN = {eyes: 1, across: 0, open: 0, flash: 0, glow: 0};
 
 // One renderer for every picture on a page: it poses the figure, draws it and copies the result onto a canvas
 export class Stage {
@@ -3238,6 +3257,8 @@ export class Stage {
         if (!clip.legs) LEGS[posture]?.over(pose);
         const turned = facing + (at ? lookToward(pose, at, facing) : 0);
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
+        // the eyes go out as a lit visor comes on, closing to a line
+        if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
         if (eyes) lookAs(pose, eyes, turned);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;

@@ -28,10 +28,10 @@ const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, sayingsAfter, testResults
 const {CLIPS, EYES} = await import("../src/figure/figure.js");
 const {FACES} = await import("../src/domain/faces.js");
 
-test("a test run that passed turns the figure to its card and celebrates, a jump for joy, a confetti cannon or a party horn, and one that failed gives it a startled hop", () => {
+test("a test run that passed turns the figure to its card and celebrates, a jump for joy or a party horn, and one that failed gives it a startled hop", () => {
     const passed = REACTIONS.find((each) => each.moment === "tests_passed");
     expect(passed.toward).toBe("card");
-    expect(passed.among.map((each) => each.clip)).toEqual(["joy", "confetti_cannon", "party_horn"]);
+    expect(passed.among.map((each) => each.clip)).toEqual(["joy", "party_horn"]);
     expect(REACTIONS.find((each) => each.moment === "tests_failed")).toMatchObject({clip: "startled", toward: "card"});
 });
 

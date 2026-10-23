@@ -1,5 +1,4 @@
 import {describe, expect, it} from "vitest";
-import {FALLS} from "../src/domain/falls.js";
 import {airborneFrame, fallingFrom, legEnded, slideAt} from "../src/domain/figureMotion.js";
 
 const floor = (id, top, kind = id === "home" ? "compose" : "bubble") => ({id, kind, left: 0, right: 1000, top, vy: 0});
@@ -12,7 +11,7 @@ function fallen(airborne, floors) {
     const heights = [];
     for (let frame = 0; frame < 300 && !step.landed; frame++) {
         now += FRAME_MS;
-        step = airborneFrame(step.airborne, floors, now, FALLS.butler, 112);
+        step = airborneFrame(step.airborne, floors, now);
         heights.push(step.airborne?.y ?? step.landed.spot.y);
     }
     return {...step, heights};
