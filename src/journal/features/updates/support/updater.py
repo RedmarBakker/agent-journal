@@ -21,24 +21,25 @@ from journal.repositories.setting_rows import SettingRows
 from journal.version import VERSION
 from journal.sync.sync_client import SyncClient
 from journal.sync.team_account import TeamAccount
+from journal.sync.team_refusal import TeamRefusal
+from journal.sync.team_server_link import TeamServerLink
 
 PLUGIN = "code-commandments"
-CHECK_INTERVAL_SECONDS = 3600
 FIRST_CHECK_DELAY_SECONDS = 60
 
 
 class Updater:
-    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub at most hourly on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version, which it never upgrades the team to itself."""
+    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting) -> None:
-        self.account, self.client, self.hosting = account, client, hosting
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting, link: TeamServerLink) -> None:
+        self.account, self.client, self.hosting, self.link = account, client, hosting, link
         self.settings, self.source, self.installer = settings, source, installer
         self.card, self.supervisor, self.config, self.queue = card, supervisor, config, queue
         self.releases: list[Release] = []
         self.head = ""
         self.problem = ""
         self.team_version_seen = ""
-        self._checked_at = timing.time() - CHECK_INTERVAL_SECONDS + FIRST_CHECK_DELAY_SECONDS
+        self._next_check_at = timing.time() + FIRST_CHECK_DELAY_SECONDS
         self._working = threading.Lock()
 
     def running(self) -> Release:
@@ -65,7 +66,7 @@ class Updater:
         return f"{self.branch()} at {self.installed_commit()[:7] or 'an unrecorded commit'}" if self.branch() else VERSION
 
     def newer(self) -> list[Release]:
-        return [release for release in self.releases if release.upgrades(self.running()) and self.account.allows(release)]
+        return [release for release in self.releases if release.upgrades(self.running()) and (self.leads_team() or self.account.allows(release))]
 
     def is_published(self) -> bool:
         if self.branch():
@@ -87,6 +88,14 @@ class Updater:
     def is_hosted(self) -> bool:
         return self.hosting.is_hosted()
 
+    def leads_team(self) -> bool:
+        from journal.features.updates.feature import Updates
+        return self.is_hosted() and bool(self.settings.option(Updates.AUTO)) and not self.branch()
+
+    def check_interval_seconds(self) -> int:
+        from journal.features.updates.feature import Updates
+        return self.settings.integer(Updates.CHECK_INTERVAL) * 60
+
     def latest(self) -> str:
         if self.branch():
             return self.head[:7]
@@ -103,8 +112,8 @@ class Updater:
         if self.is_hosted() and self.account.team_version() not in (VERSION, self.team_version_seen):
             self.team_version_seen = self.account.team_version()
             self.separate(self.checked)
-        elif time - self._checked_at >= CHECK_INTERVAL_SECONDS:
-            self._checked_at = time
+        elif time >= self._next_check_at:
+            self._next_check_at = time + self.check_interval_seconds()
             self.separate(self.checked)
 
     def line(self) -> str:
@@ -143,6 +152,7 @@ class Updater:
             self._working.release()
 
     def checked(self) -> None:
+        self.lead(VERSION)
         self.read()
         if not self.automatic():
             return
@@ -176,8 +186,19 @@ class Updater:
             self.card.clear()
             return
         self.problem = ""
+        self.lead(target.label)
         self.card.step("Restarting the journal")
         self.restart()
+
+    def lead(self, version: str) -> None:
+        if not self.leads_team() or not self.account.is_joined():
+            return
+        if not any(Release(version).is_newer(pinned) for pinned in Release.lookup([self.account.team_version()])):
+            return
+        try:
+            self.link.pin_version(version)
+        except (OSError, TeamRefusal) as refused:
+            self.problem = f"The team could not be pinned to {version}: {refused}"
 
     def restart(self) -> None:
         host = self.supervisor.hosting()

@@ -19,3 +19,6 @@ class Account:
 
     def is_relay(self) -> bool:
         return self.role == RELAY
+
+    def may_pin_version(self) -> bool:
+        return self.is_admin() or self.is_relay()

@@ -11,7 +11,7 @@ from sync_server.team_summary import TeamSummary
 
 
 class AdminHandler:
-    """What only an admin does: invite a person by email, list the devices, revoke one, remove a person with every device of theirs, pin the team to a journal version, and say whether a journal must run exactly it."""
+    """What only an admin does: invite a person by email, list the devices, revoke one, remove a person with every device of theirs, pin the team to a journal version, which the team's own hosted journal may do too, and say whether a journal must run exactly it."""
 
     def __init__(self, devices: Devices, accounts: Accounts, invitations: Invitations, clock: ServerClock, details: TeamDetails) -> None:
         self.devices, self.accounts, self.invitations, self.clock, self.details = devices, accounts, invitations, clock, details
@@ -30,7 +30,7 @@ class AdminHandler:
         return self.devices.revoke(device_id, self.clock.time())
 
     def pin(self, token: str, version: str) -> TeamSummary:
-        self.devices.admin(token)
+        self.devices.version_pinner(token)
         self.details.record_version(version)
         return self.details.answer()
 

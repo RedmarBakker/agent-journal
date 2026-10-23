@@ -5546,6 +5546,19 @@ def test_a_newer_release_is_installed_on_its_own_only_when_the_setting_is_on(app
     assert installer.ran == ["v4.99.0"] and enabled.problem == ""
 
 
+def test_the_updater_asks_for_a_new_release_as_often_as_the_setting_says(app: App):
+    source = Source("v4.0.0")
+    updating = updating_with(app, source, Installer(), auto=False)
+    app.container.get(SettingRows).set("updates.check_minutes", 5, Actor.system())
+    first = timing.time() + 60
+    for time, asked in ((first, 1), (first + 299, 1), (first + 300, 2)):
+        updating.tick(time)
+        ending = timing.time() + 5
+        while (len(source.tags_asked) < asked or updating._working.locked()) and timing.time() < ending:
+            timing.sleep(0.01)
+        assert len(source.tags_asked) == asked, f"at {time - first:.0f} seconds the releases were asked {len(source.tags_asked)} times, not {asked}"
+
+
 def test_nothing_is_installed_on_its_own_when_no_release_is_newer(app: App):
     installer = Installer()
     updating_with(app, Source("v4.0.0", "v5.0.0"), installer, auto=True).checked()
@@ -10104,7 +10117,7 @@ def test_a_hosted_journal_starts_no_agent_by_any_door(app: App):
     assert all(row["refusal"] == "" for row in json.loads(app.console().run(["environment", "json"], USER).text)), "an ordinary journal refuses none of its own"
 
 
-def test_a_hosted_journal_installs_exactly_the_teams_pinned_version_and_never_upgrades_the_team(app: App, monkeypatch):
+def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_installs_each_release_and_pins_the_team_to_it(app: App, monkeypatch):
     from journal.features.team.feature import TeamFeature
     from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
@@ -10113,11 +10126,13 @@ def test_a_hosted_journal_installs_exactly_the_teams_pinned_version_and_never_up
     from journal.repositories.setting_rows import SettingRows
     from journal.sync.sync_client import SyncClient
     from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.sync.team_server_link import TeamServerLink
     from journal.version import VERSION
 
     major, minor, _ = (int(n) for n in VERSION.split("."))
     pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
-    installed = []
+    installed, pins = [], []
+    monkeypatch.setattr(TeamServerLink, "pin_version", lambda self, version: pins.append(version))
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
     monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: installed.append(ref))
     monkeypatch.setattr(SyncClient, "prepare_upgrade", lambda self: installed.append("the team's upgrade lease"))
@@ -10125,8 +10140,18 @@ def test_a_hosted_journal_installs_exactly_the_teams_pinned_version_and_never_up
     try:
         app.container.get(IdBlocks).add("settings", 800000, 800100)
         (app.config.home / "hosted").touch()
-        app.container.get(Updater).checked()
-        assert installed == [f"v{pinned}"], "a hosted journal installs the team's pinned version on its own, no newer one, and never takes the team's upgrade lease"
+        updater = app.container.get(Updater)
+        app.container.get(SettingRows).set("updates.auto", False, Actor.system())
+        updater.checked()
+        assert installed == [f"v{pinned}"] and pins == [], "with the auto-update off a hosted journal installs the team's pinned version on its own, no newer one, and never takes the team's upgrade lease"
+        app.container.get(SettingRows).set("updates.auto", True, Actor.system())
+        updater.card.clear()
+        updater.checked()
+        assert installed[-1] == f"v{beyond}" and pins == [beyond], "with it on a hosted journal installs the newest release and pins the team to it"
+        app.container.get(TeamAccount).record_pull(0, f"{major}.{minor + 3}.0")
+        updater.card.clear()
+        updater.checked()
+        assert pins == [beyond], "and never pins the team back to an older version than it is pinned to"
     finally:
         (app.config.home / "hosted").unlink(missing_ok=True)
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)

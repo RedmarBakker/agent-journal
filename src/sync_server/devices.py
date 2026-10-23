@@ -76,3 +76,9 @@ class Devices:
         if not person.is_admin():
             raise Refusal(f"{person.name} is no admin of the team: only an admin invites, removes people or revokes devices")
         return person
+
+    def version_pinner(self, token: str) -> Account:
+        person = self.person(token)
+        if not person.may_pin_version():
+            raise Refusal(f"{person.name} is no admin of the team: only an admin, or the team server's own hosted journal, pins the team to a version")
+        return person

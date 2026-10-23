@@ -4,7 +4,7 @@ from journal.features.updates.support.updater import Updater
 
 
 class ReleaseCheck(Listener[ClockTicked]):
-    """Every tick, asks whether the hour since the last look at the releases has passed."""
+    """Every tick, asks whether the time set between two looks at the releases has passed."""
 
     def __init__(self, updating: Updater) -> None:
         self.updating = updating

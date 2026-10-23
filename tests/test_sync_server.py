@@ -421,4 +421,7 @@ def test_only_the_hosted_journals_relay_account_sends_writes_in_another_persons_
     with pytest.raises(Refusal, match="a person sends only their own writes"):
         team.pushes.answer(bob, as_ada, 2.0)
     assert team.pushes.answer(hosted, as_ada, 2.0).sequences == (1,), "the hosted journal sends the write of whoever signed in to it"
+    with pytest.raises(Refusal, match="Bob is no admin"):
+        team.admins.pin(bob, "4.99.0")
+    assert team.admins.pin(hosted, "4.99.0").version == "4.99.0", "the hosted journal pins the team to the release it installed"
     team.store.close()

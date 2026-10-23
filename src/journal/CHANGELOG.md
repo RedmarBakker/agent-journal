@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.29.0
+
+- The journal checks for a new release as often as you set it to, on the Settings page beside the auto-update switch, every 60 minutes by default.
+- A team's hosted journal installs each new release on its own and moves the team to it, checking every minute; every member's status bar then asks to install it.
+
 ## 4.28.1
 
 - A hosted journal's sign-in page loads its scripts and styles before anyone signs in, so its browser console is clean.
