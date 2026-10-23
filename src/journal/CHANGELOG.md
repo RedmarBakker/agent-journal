@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.31.5
+
+- The chat orders messages by when they were written, so a teammate's or the hosted page's message lands at the bottom instead of far up the history, and the hosted page no longer shows its own message as waiting.
+- A join keeps the Team chat a journal already holds instead of making a second one, and a journal holding two keeps the first, owned by no one.
+
 ## 4.31.4
 
 - A check's runs stay on the machine that ran them and a team's hosted journal runs no checks, so two journals no longer overwrite each other's check results every minute and the chat is no longer flooded with marks about it; a change that carries nothing but its stamps is no longer sent.

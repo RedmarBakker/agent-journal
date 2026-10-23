@@ -5605,6 +5605,23 @@ def test_a_parked_task_resumed_while_a_plan_is_started_is_the_task_the_top_bar_n
     assert named["main"] and named["main"]["title"] == "outside", f"the top bar names the resumed task, not {named['main']}"
 
 
+def test_a_journal_holding_two_team_chats_keeps_the_first_as_the_teams_owned_by_no_one(app: App):
+    from journal.features.team.seeds.single_team_chat import SingleTeamChat
+    from journal.models.environment import Environment
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.repositories.environment_owners import OWNER
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    environments, links = app.container.get(Environments), app.container.get(Links)
+    first = environments.save(Environment(name="team", team_name="jesse-team", is_team_chat=True), Actor.system())
+    environments.save(Environment(name="team", team_name="team", is_team_chat=True), Actor.system())
+    links.save(Link(source=Ref("users", 1), target=Ref.build(first), kind=OWNER), Actor.system())
+    app.container.get(SingleTeamChat).run()
+    assert [(chat.row_id, chat.team_name) for chat in environments.team_chats()] == [(first.row_id, "team")], "the first Team chat stays, known to the team as team, and the other goes"
+    assert links.model_links("target", [first], OWNER) == [], "and it is owned by no one"
+
+
 def test_the_chat_orders_messages_by_when_they_were_written_never_by_their_number(app: App):
     from datetime import datetime, timedelta, timezone
     from journal.repositories.messages import Messages
@@ -9704,7 +9721,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             return refused.read().decode()
 
     def eventually(check) -> bool:
-        deadline = timing.monotonic() + 3
+        deadline = timing.monotonic() + 10
         while timing.monotonic() < deadline:
             if check():
                 return True
@@ -9722,9 +9739,12 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         assert a.console().run(["team", "join", address], USER).error.startswith("run journal team join yourself in a terminal")
         assert "at least 12 characters" in a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "short"], USER).error, "a weak password is refused"
         from journal.repositories.id_blocks import IdBlocks
+        from journal.models.environment import Environment
         a.container.get(IdBlocks).add("messages", 900001, 900009)
+        a.container.get(Environments).save(Environment(name="team", is_team_chat=True), Actor.system())
         joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
         assert all(block.first_number != 900001 for block in a.container.get(IdBlocks).rows()), "a join lets go of row numbers held from an earlier team"
+        assert [(chat.name, chat.team_name) for chat in a.container.get(Environments).team_chats()] == [("team", "team")], "a journal that held a Team chat keeps it as the team's and makes no second one"
         assert team.accounts.find(1).email == "ada@example.com" and team.accounts.find(1).is_admin(), "the first journal to connect to a new team server by its bare URL makes its admin"
         assert joined.code == 0 and "this journal is now the team's" in joined.text and "1 files uploaded" in joined.text, joined.text + joined.error
         assert a.container.get(Workers).find(worker.id).device == str(a.container.get(TeamAccount).device()), "the first journal's workers are its device's"

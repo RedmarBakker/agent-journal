@@ -49,7 +49,7 @@ TABLES = {folder: table for table, folder in FOLDERS.items()}
 
 
 class TeamJoin:
-    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, a team that holds a journal refused to a journal with tasks or messages of its own unless it asks to replace them, the code and password traded for this machine's token, and any row numbers held from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and a new environment named team, owned by no one, which is the Team chat; a team with one replaces this journal's shared rows with its copy, this journal kept as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync client starts once it is done."""
+    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, a team that holds a journal refused to a journal with tasks or messages of its own unless it asks to replace them, the code and password traded for this machine's token, and any row numbers held from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and the Team chat, an environment named team owned by no one, kept when the journal holds one and made when it holds none; a team with one replaces this journal's shared rows with its copy, this journal kept as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync client starts once it is done."""
 
     def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, client: SyncClient, backups: JournalBackup, config: Config, environments: Environments, agents: Agents, entries: Entries, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks) -> None:
         self.account, self.link, self.tables, self.outgoing, self.identity, self.client = account, link, tables, outgoing, identity, client
@@ -81,7 +81,7 @@ class TeamJoin:
         if not summary.has_rows:
             self.claim_environments(prefix, login.account_id)
             self.name_user(login.account_id, login.name)
-            self.environments.save(Environment(name=TEAM_CHAT, team_name=TEAM_CHAT, is_team_chat=True), Actor.system())
+            self.team_chat_ready()
         self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION})
         outcome = self.downloaded(login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
         self.client.start()
@@ -175,8 +175,16 @@ class TeamJoin:
         fields = Schema.stored_values(user, None)
         self.outgoing.queued(OutgoingChange(row_table=User.table(), row=account_id, action=CREATED, fields=fields, changed_at={field: 0.0 for field in fields}, writer=Actor.user(account_id).stamp), Actor.user(account_id))
 
+    def team_chat_ready(self) -> None:
+        chats = self.environments.team_chats()
+        if not chats:
+            self.environments.save(Environment(name=TEAM_CHAT, team_name=TEAM_CHAT, is_team_chat=True), Actor.system())
+            return
+        for chat in chats:
+            self.environments.save(chat.with_(team_name=TEAM_CHAT), Actor.system())
+
     def claim_environments(self, prefix: str, account_id: int) -> None:
-        for environment in self.environments.rows():
+        for environment in self.environments.working():
             if not self.owners.owner_number(environment.row_id):
                 self.links.save(Link(source=Ref(User.table(), account_id), target=Ref.build(environment), kind=OWNER), Actor.system())
             if environment.team_name is None:

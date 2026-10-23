@@ -5,6 +5,7 @@ from journal.features.team.support.team_data_reader import TeamDataReader
 from journal.features.team.team_conduct import TeamConduct
 from journal.features.team.commands.team_command import TeamCommand
 from journal.features.team.jobs.team_chat_files import TeamChatFiles
+from journal.features.team.seeds.single_team_chat import SingleTeamChat
 from journal.features.team.listeners.colleague_write_guard import ColleagueWriteGuard
 from journal.features.team.listeners.environment_owner_record import EnvironmentOwnerRecord
 
@@ -16,6 +17,7 @@ class TeamFeature(Feature[TeamData]):
     commands = (TeamCommand,)
     listeners = (EnvironmentOwnerRecord, ColleagueWriteGuard)
     jobs = (TeamChatFiles,)
+    seeds = (SingleTeamChat,)
     data = (TeamDataReader,)
     conduct = (TeamConduct,)
 

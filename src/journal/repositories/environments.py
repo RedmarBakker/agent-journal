@@ -15,6 +15,9 @@ class Environments(Repository[Environment]):
     def working(self) -> list[Environment]:
         return self.selected(self.query().filter(is_team_chat=False).order("id"))
 
+    def team_chats(self) -> list[Environment]:
+        return self.selected(self.query().filter(is_team_chat=True).order("id"))
+
     def namesakes(self, name: str, key: str) -> list[Environment]:
         return self.selected(self.query().filter(name=name).filter_unequal("key", key).order("id"))
 
