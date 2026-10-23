@@ -12,7 +12,7 @@ OVERVIEW_COMMAND = "journal environment overview"
 
 @dataclass(frozen=True)
 class ReadingOverview(BaseState):
-    """After a compaction the agent reads the overview before anything else: every tool use and every journal command is refused, but a read of a skill it owes and journal environment overview itself; it pops once the overview has run."""
+    """After a compaction the agent reads the overview before anything else: every tool use and every journal command is refused, but a read of a skill it has to read and journal environment overview itself; it pops once the overview has run."""
 
     name = "reading_overview"
     title = "Reading the overview"

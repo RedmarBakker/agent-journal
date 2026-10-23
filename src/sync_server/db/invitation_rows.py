@@ -4,7 +4,7 @@ from sync_server.db.store import Store
 
 
 class InvitationRows:
-    """The SQL of the invitations table: each code kept only as a hash, with the email it is for, when it expires and when it was used."""
+    """The SQL of the invitations table: each code stored only as a hash, with the email it is for, when it expires and when it was used."""
 
     def __init__(self, store: Store) -> None:
         self.store = store

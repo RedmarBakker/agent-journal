@@ -21,7 +21,7 @@ OFFLINE_LINE = "{device}, the machine running it, has not reached the team serve
 
 
 class PoolWorkerWrites(HostWriter):
-    """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, its run's end, a stop by the member whose machine runs it, each refused for a worker already closed here, whose machine is told to drop it, so a machine back from offline never adds to a worker sent again, and a pool request nobody took up or whose machine went quiet, which end the worker."""
+    """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, its run's end, a stop by the member whose machine runs it, each refused for a worker already closed here, whose machine is instructed to drop it, so a machine back from offline never adds to a worker sent again, and a pool request nobody took up or whose machine went quiet, which end the worker."""
 
     def __init__(self, workers: Workers, reports: WorkerReports, runner: WorkerRunner, environments: Environments, scope: Scope, moves: PoolWorkerMoves) -> None:
         self.workers, self.reports, self.runner, self.environments, self.scope, self.moves = workers, reports, runner, environments, scope, moves

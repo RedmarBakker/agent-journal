@@ -15,7 +15,7 @@ LONG_PARAGRAPH_CHARACTERS, SENTENCES = 400, 3
 
 
 class EtiquetteConduct(Conduct):
-    """The etiquette feature's conduct in every state: a turn for the user read once for shop talk, the third person, em dashes and run-on paragraphs, the reminder what a journal line is every so many lines said, and the reminder that code is written in plain words every so many edits of code files."""
+    """The etiquette feature's conduct in every state: a turn for the user read once for shop talk, the third person, em dashes and run-on paragraphs, the reminder what a journal line is every so many lines sent, and the reminder that code is written in plain words every so many edits of code files."""
 
     def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
         from journal.features.etiquette.feature import Etiquette

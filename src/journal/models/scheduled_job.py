@@ -8,7 +8,7 @@ RECURRING_LIFETIME_SECONDS = 7 * 24 * 3600
 
 @dataclass(frozen=True)
 class ScheduledJob(Scoped):
-    """A prompt an agent scheduled for itself in its own program, as a Claude Code cron job: the session it lives in, the job's id, its cron schedule, the prompt, whether it repeats, and whether it has ended, cancelled or with its session. A repeating job lapses seven days after it was made. Kept on this machine."""
+    """A prompt an agent scheduled for itself in its own program, as a Claude Code cron job: the session it lives in, the job's id, its cron schedule, the prompt, whether it repeats, and whether it has ended, cancelled or with its session. A repeating job lapses seven days after it was made. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False

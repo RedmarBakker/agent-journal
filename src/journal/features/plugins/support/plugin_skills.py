@@ -13,7 +13,7 @@ STAMP = "plugin: "
 
 
 class PluginSkills:
-    """A plugin's skills published into the agents' skill folders beside the journal's, each stamped with the plugin's name and kept out of git by a .gitignore of its own; published afresh at every start, so none is stale or missing; taken away when the plugin is switched off or removed."""
+    """A plugin's skills published into the agents' skill folders beside the journal's, each stamped with the plugin's name and stored out of git by a .gitignore of its own; published afresh at every start, so none is stale or missing; taken away when the plugin is switched off or removed."""
 
     def __init__(self, config: Config, folders: PluginFolders, plugins: Plugins) -> None:
         self.config, self.folders, self.plugins = config, folders, plugins

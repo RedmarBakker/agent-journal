@@ -7,7 +7,7 @@ from journal.repositories.reactions import REACTS, Reactions
 
 
 class ReactionController(Controller[Reaction]):
-    """The emoji on messages, each with the message it sits on; an emoji the agent put on counts as unseen."""
+    """The emoji on messages, each with the message it sits on; an emoji the agent put on counts as unread."""
 
     repository: Reactions
 

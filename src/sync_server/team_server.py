@@ -46,7 +46,7 @@ FILES = "files"
 
 
 class TeamServer:
-    """The team server put together over one database in its data folder, and its threaded HTTP server, so a pull held open never stops another request."""
+    """The team server put together over one database in its data folder, and its threaded HTTP server, so a pull stored open never stops another request."""
 
     def __init__(self, data: Path) -> None:
         self.store = Store(data / DATABASE)

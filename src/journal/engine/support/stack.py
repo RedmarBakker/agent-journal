@@ -6,7 +6,7 @@ from journal.engine.support.typist import Typist
 
 @dataclass(frozen=True)
 class Stack:
-    """The agent's states, bottom to top, as the row keeps them; the bottom state is never popped. Replacing an earlier stack whose top was another state, the top leaving is told it exits and the new top that it enters, with the typist they may switch off or on: only the state on top decides whether lines are typed."""
+    """The agent's states, bottom to top, as the row keeps them; the bottom state is never popped. Replacing an earlier stack whose top was another state, the top leaving is informed it exits and the new top that it enters, with the typist they may switch off or on: only the state on top decides whether lines are typed."""
 
     states: tuple[BaseState, ...]
 

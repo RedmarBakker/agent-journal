@@ -16,7 +16,7 @@ ACTIONS = {Created: "created", Updated: "updated", Deleted: "deleted", SyncedCre
 
 
 class RecordChanges(Listener[ModelEvent]):
-    """Every row made, changed or removed is an entry in the timeline, which is what the viewer's live updates read, but for a model kept out of it; a link's entry names the tables of the two rows it joins, whose views it changes too."""
+    """Every row made, changed or removed is an entry in the timeline, which is what the viewer's live updates read, but for a model stored out of it; a link's entry names the tables of the two rows it joins, whose views it changes too."""
 
     def __init__(self, entries: Entries) -> None:
         self.entries = entries

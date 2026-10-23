@@ -47,7 +47,7 @@ MIGRATIONS = (
 
 
 class ServerSchema:
-    """The team server's tables, built by numbered migrations of its own, the version kept in the database so an upgraded image migrates it once."""
+    """The team server's tables, built by numbered migrations of its own, the version stored in the database so an upgraded image migrates it once."""
 
     def __init__(self, store) -> None:
         self.store = store

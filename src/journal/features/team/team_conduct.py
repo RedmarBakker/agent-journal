@@ -5,7 +5,7 @@ from journal.events.agent.session_started import SessionStarted
 
 
 class TeamConduct(Conduct):
-    """The team feature's conduct in every state: at a session start, while the team is pinned to a newer journal version, the agent is told once that this journal must be upgraded and its changes wait until then."""
+    """The team feature's conduct in every state: at a session start, while the team is pinned to a newer journal version, the agent is informed once that this journal must be upgraded and its changes wait until then."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         feature = team_feature()

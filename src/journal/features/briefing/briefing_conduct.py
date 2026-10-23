@@ -11,7 +11,7 @@ COMPACT = "compact"
 
 
 class BriefingConduct(Conduct):
-    """The briefing feature's conduct in every state: the start block at every session start, ready, quiet, the laws, a takeover, the rules, facts and reminders and what waits, then the look owed before the first write, and after a compaction the push of ReadingOverview, which lets nothing but the overview and the skills owed through until it has run; a write and a stop held until the agent has looked at what is in flight."""
+    """The briefing feature's conduct in every state: the start block at every session start, ready, quiet, the laws, a takeover, the rules, facts and reminders and what waits, then the overview required before the first write, and after a compaction the push of ReadingOverview, which lets nothing but the overview and the pending skills through until it has run; a write and a stop blocked until the agent has looked at what is in flight."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         feature = briefing_feature()

@@ -6,7 +6,7 @@ STORED_READS_COUNT = 4000
 
 
 class RowCache:
-    """The rows of recent reads, kept by the SQL that read them and the tables it reads, so a read that comes again before any of those tables is written is answered from memory. Each table has a version that every write moves; a read stores its rows only when none of its tables moved while it ran, so a read racing a write never keeps what the write replaced. The oldest reads go first past STORED_READS_COUNT."""
+    """The rows of recent reads, stored by the SQL that read them and the tables it reads, so a read that comes again before any of those tables is written is answered from memory. Each table has a version that every write moves; a read stores its rows only when none of its tables moved while it ran, so a read racing a write never keeps what the write replaced. The oldest reads go first past STORED_READS_COUNT."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()

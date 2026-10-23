@@ -6,7 +6,7 @@ HASH_ROUNDS = 200_000
 
 
 class Password:
-    """A password kept only as a salted PBKDF2 hash, and checked against what someone sends; the team server and the journal's share links both use it."""
+    """A password stored only as a salted PBKDF2 hash, and checked against what someone sends; the team server and the journal's share links both use it."""
 
     @staticmethod
     def hashed(password: str) -> str:

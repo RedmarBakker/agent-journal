@@ -4,7 +4,7 @@ from sqlite3 import Row
 
 @dataclass(frozen=True)
 class PoolCapacity:
-    """The worker slots a machine gives the team's pool as its last pull named them: its device, the slots, how many are free, the journal version it runs and when it said so."""
+    """The worker slots a machine gives the team's pool as its last pull named them: its device, the slots, how many are free, the journal version it runs and when it sent so."""
 
     device_id: int
     slots: int

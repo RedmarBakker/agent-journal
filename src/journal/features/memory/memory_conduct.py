@@ -16,7 +16,7 @@ COMPACT = "compact"
 
 
 class MemoryConduct(Conduct):
-    """The memory feature's conduct in every state: at a context mark not taken yet the agent is told to decide what to keep, a write and a stop are held until it has, a fact, rule or reminder whose keyword comes up in what it writes or runs is typed back to it, a rule the agent made is questioned once, a reminder set for a moment is told once its moment has come, at the first event after it or at the next session start, and one with a trigger is told when its trigger fires while its condition holds."""
+    """The memory feature's conduct in every state: at a context mark not taken yet the agent is instructed to decide what to keep, a write and a stop are blocked until it has, a fact, rule or reminder whose keyword comes up in what it writes or runs is typed back to it, a rule the agent made is questioned once, a reminder set for a moment is informed once its moment has come, at the first event after it or at the next session start, and one with a trigger is informed when its trigger fires while its condition holds."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         from journal.features.memory.feature import Memory

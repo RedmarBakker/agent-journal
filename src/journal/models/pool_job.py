@@ -8,7 +8,7 @@ from journal.models.pool_job_state import PoolJobState
 
 @dataclass(frozen=True)
 class PoolJob(Model):
-    """A worker the team's pool offered this machine: the team server's request number, the environment that asked and the person who asked, the worker's number there and the profile it works by, where it stands, why it was turned down, and when its run started and ended. Kept on this machine."""
+    """A worker the team's pool offered this machine: the team server's request number, the environment that asked and the person who asked, the worker's number there and the profile it works by, where it stands, why it was turned down, and when its run started and ended. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False

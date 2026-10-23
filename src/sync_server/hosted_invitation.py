@@ -15,7 +15,7 @@ POLL_SECONDS = 2
 
 
 class HostedInvitation:
-    """The invitation the team server's own hosted journal joins with: issued once the team holds a journal, so the hosted journal downloads it and never uploads one of its own, for the relay account the hosted journal accepts it as, made here with a password kept only in the data folder, which may send the writes of whoever signs in to the hosted journal."""
+    """The invitation the team server's own hosted journal joins with: issued once the team holds a journal, so the hosted journal downloads it and never uploads one of its own, for the relay account the hosted journal accepts it as, made here with a password stored only in the data folder, which may send the writes of whoever signs in to the hosted journal."""
 
     def __init__(self, data: Path) -> None:
         self.data = data

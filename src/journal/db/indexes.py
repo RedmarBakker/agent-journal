@@ -3,7 +3,7 @@ from journal.db.index import Index
 
 
 class Indexes:
-    """Every index the journal's reads rely on, made at each boot on a fresh database and an upgraded one alike: one missing is made, and one whose definition changed is made again."""
+    """Every index the journal's reads rely on, made at each boot on a new database and an upgraded one alike: one missing is made, and one whose definition changed is made again."""
 
     def __init__(self, connection: Connection, declared: tuple[Index, ...]) -> None:
         self.connection, self.declared = connection, declared

@@ -14,7 +14,7 @@ POLL_REPEAT_COMMANDS = 3
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again told, a paused task named when a task closes, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again informed, a paused task named when a task closes, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
         from journal.features.tasks.states.external_wait import ExternalWait

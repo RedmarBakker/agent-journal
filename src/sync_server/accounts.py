@@ -6,7 +6,7 @@ from sync_server.refusal import Refusal
 
 
 class Accounts:
-    """The team's people, each with a password kept only as a hash."""
+    """The team's people, each with a password stored only as a hash."""
 
     def __init__(self, rows: AccountRows) -> None:
         self.rows = rows

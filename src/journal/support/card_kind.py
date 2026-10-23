@@ -2,7 +2,7 @@ from enum import StrEnum
 
 
 class CardKind(StrEnum):
-    """What a mark in the chat is, by the switch in Show in chat that hides it: every card names one. A kind whose marks come in a burst, as the edits a colleague's kept over yours do, folds the marks of one burst into one."""
+    """What a mark in the chat is, by the switch in Show in chat that hides it: every card names one. A kind whose marks come in a burst, as the edits a colleague's stored over yours do, folds the marks of one burst into one."""
 
     SKILLS = "skills"
     SUBAGENTS = "subagents"

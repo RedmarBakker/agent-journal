@@ -7,7 +7,7 @@ from journal.support.stage_times import StageTimes
 
 
 class FeatureParts(Mapping[str, object]):
-    """The feature data parts of one agent, each read by its feature's reader in the agent's environment the first time a listener asks for it, the time it took kept as a stage."""
+    """The feature data parts of one agent, each read by its feature's reader in the agent's environment the first time a listener asks for it, the time it took stored as a stage."""
 
     def __init__(self, readers: dict[str, DataReader], agent: Agent, scope: Scope, stages: StageTimes) -> None:
         self.readers, self.agent, self.scope, self.stages = readers, agent, scope, stages

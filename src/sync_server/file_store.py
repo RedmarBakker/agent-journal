@@ -7,7 +7,7 @@ LIMIT_BYTES = 50 * 1024 * 1024
 
 
 class FileStore:
-    """The files attached to the team's rows, kept in the data folder under the row's table, number and the file's name, which are the same on every machine."""
+    """The files attached to the team's rows, stored in the data folder under the row's table, number and the file's name, which are the same on every machine."""
 
     def __init__(self, folder: Path) -> None:
         self.folder = folder

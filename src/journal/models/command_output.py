@@ -11,7 +11,7 @@ FAILED = "failed"
 
 @dataclass(frozen=True)
 class CommandOutput(Scoped):
-    """A shell line the runner ran, numbered by its row: the agent's own command, the folder holding each part's output, and, once it was moved to the background, how it ended, whether the journal's restart cut it off, and whether its agent watches it through a reader, whether its agent has read it since it ended, and what its reader picked from it at its end; an end a standing wait names is told by the wait's own end. Lines about it name only its number."""
+    """A shell line the runner ran, numbered by its row: the agent's own command, the folder holding each part's output, and, once it was moved to the background, how it ended, whether the journal's restart cut it off, and whether its agent watches it through a reader, whether its agent has read it since it ended, and what its reader picked from it at its end; an end a standing wait names is informed by the wait's own end. Lines about it name only its number."""
 
     shared: ClassVar[bool] = False
 

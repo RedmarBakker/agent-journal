@@ -8,7 +8,7 @@ from journal.repositories.command_outputs import CommandOutputs
 
 
 class OutputController:
-    """What one kept output holds, for the viewer's dialog: its command, how it ended and what it printed."""
+    """What one stored output holds, for the viewer's dialog: its command, how it ended and what it printed."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs

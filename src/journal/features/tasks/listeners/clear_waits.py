@@ -7,7 +7,7 @@ from journal.repositories.tasks import Tasks
 
 
 class ClearWaits(Listener[Updated]):
-    """A question answered, a task closed or a check waited until passing unblocks the blocked tasks that wait on it by a link, once nothing else holds them, and says so of the paused ones; the live agent is told."""
+    """A question answered, a task closed or a check waited until passing unblocks the blocked tasks that wait on it by a link, once nothing else holds them, and says so of the paused ones; the live agent is informed."""
 
     def __init__(self, tasks: Tasks) -> None:
         self.tasks = tasks

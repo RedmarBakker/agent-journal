@@ -13,7 +13,7 @@ from journal.events.rows.task_started import TaskStarted
 
 
 class PlansConduct(Conduct):
-    """The plans feature's conduct in every state: the user's approval told, a plan blocked or open again told, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template told when it starts and after each of its tasks closes, and a plan whose reviewers are all back told to be written into and readied, the agent's writes held once the set tool uses pass without it."""
+    """The plans feature's conduct in every state: the user's approval informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied, the agent's writes blocked once the set tool uses pass without it."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         from journal.features.plans.feature import Plans

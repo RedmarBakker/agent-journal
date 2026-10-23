@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass, fields, replace
 
 @dataclass(frozen=True)
 class SequenceRun:
-    """A sequence an agent is working through: the steps as they were when it started, the step in hand, the row it is about, when it started, when the step was taken up, when the step was last said, why it is paused when it is, and the states its row must reach before it may end."""
+    """A sequence an agent is working through: the steps as they were when it started, the step in hand, the row it is about, when it started, when the step was taken up, when the step was last sent, why it is paused when it is, and the states its row must reach before it may end."""
 
     sequence_id: int
     title: str

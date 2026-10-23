@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SequencesData:
-    """The sequences feature's reading for an agent: the run in hand, its step and whether it is paused or taken up, the writes since it was, when the step was last said, whether a line may be typed to the agent, and what else keeps the step quiet: an open question or a debt to the journal."""
+    """The sequences feature's reading for an agent: the run in hand, its step and whether it is paused or taken up, the writes since it was, when the step was last sent, whether a line may be typed to the agent, and what else keeps the step quiet: an open question or a debt to the journal."""
 
     sequence_id: int
     step: int

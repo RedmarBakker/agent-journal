@@ -5,7 +5,7 @@ from sync_server.stored_row import StoredRow
 
 
 class RowSettlement:
-    """How one pushed change meets the row as the server holds it: a creation and a deletion are kept whole, an update to a deleted row is dropped, and an update keeps each field whose edit is not older than the one the server holds."""
+    """How one pushed change meets the row as the server holds it: a creation and a deletion are stored whole, an update to a deleted row is dropped, and an update keeps each field whose edit is not older than the one the server holds."""
 
     @staticmethod
     def outcome(change: LoggedChange, current: StoredRow | None, is_deleted: bool) -> Settlement:

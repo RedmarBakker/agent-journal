@@ -8,7 +8,7 @@ from sync_server.settlement import Settlement
 
 
 class PushResults:
-    """What the server answered for each pushed change, so a push sent again after a lost answer is answered the same and kept once."""
+    """What the server answered for each pushed change, so a push sent again after a lost answer is answered the same and stored once."""
 
     def __init__(self, rows: PushResultRows) -> None:
         self.rows = rows

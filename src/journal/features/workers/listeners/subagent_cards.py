@@ -19,7 +19,7 @@ from journal.support.subagent_dispatch import SubagentDispatch
 
 
 class SubagentCards(AgentListener[AgentEvent]):
-    """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the last thing it said or the tool's error."""
+    """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the last thing it sent or the tool's error."""
 
     def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, agents: Agents) -> None:
         self.subagents, self.card, self.cards, self.agents = subagents, card, cards, agents

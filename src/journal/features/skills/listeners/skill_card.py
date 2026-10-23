@@ -10,7 +10,7 @@ from journal.engine.clock import Clock
 
 
 class SkillCard(AgentListener[ToolFinished]):
-    """A read of our skill files, by the read tool, a shell line or the skill tool, is remembered on the agent with each file's hash, added to what it holds under the write lock, so two reads sent together are both kept; every skill loaded, ours or another's, shows a card in the chat."""
+    """A read of our skill files, by the read tool, a shell line or the skill tool, is remembered on the agent with each file's hash, added to what it holds under the write lock, so two reads sent together are both stored; every skill loaded, ours or another's, shows a card in the chat."""
 
     blocking = True
 

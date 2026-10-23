@@ -13,7 +13,7 @@ DETAIL_CHARACTERS = 120
 
 
 class RejectedEdits:
-    """The edits the team server rejected, put right on this machine: a field takes the value that stands, unless this machine has edited it again since, and a row deleted meanwhile is deleted here too; a card in the chat of the row's environment says whose edit was kept."""
+    """The edits the team server rejected, put right on this machine: a field takes the value that stands, unless this machine has edited it again since, and a row deleted in the meantime is deleted here too; a card in the chat of the row's environment says whose edit was stored."""
 
     def __init__(self, tables: SharedTables, outgoing: OutgoingChanges, links: Links, cards: MomentCards) -> None:
         self.tables, self.outgoing, self.links, self.cards = tables, outgoing, links, cards

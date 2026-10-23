@@ -14,7 +14,7 @@ FOLDERS = {"messages": "message", "dumps": "dump"}
 
 
 class Attachments:
-    """The files attached to messages and dumps, kept under .journal/files/<folder>/<id>/, named as they came. On a shared journal a file stored here waits to be sent to the team server, and one this machine lacks is fetched from it."""
+    """The files attached to messages and dumps, stored under .journal/files/<folder>/<id>/, named as they arrived. On a shared journal a file stored here waits to be sent to the team server, and one this machine lacks is fetched from it."""
 
     def __init__(self, config: Config, uploads: PendingUploads, account: TeamAccount, link: TeamServerLink) -> None:
         self.home, self.uploads, self.account, self.link = config.files, uploads, account, link

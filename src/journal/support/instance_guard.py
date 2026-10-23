@@ -14,7 +14,7 @@ LOCK_FILE = "journal.lock"
 
 
 class InstanceGuard:
-    """Whether another journal of this project answers already on the port its file names: a launch by another supervisor then stands by instead of serving beside it, since two servers would split the hooks and the typed lines between them, and the one that stopped would take the port file with it. One started by this journal's own supervisor, or left with no supervisor, is a stray and is stopped, and so is one running other code than is installed, left over from before an update, so this journal takes the port its project keeps. A journal claims the project with a lock on a file before it starts, held for as long as it runs, so two launched at the same moment never both boot and write the same files."""
+    """Whether another journal of this project answers already on the port its file names: a launch by another supervisor then stands by instead of serving beside it, since two servers would split the hooks and the typed lines between them, and the one that stopped would take the port file with it. One started by this journal's own supervisor, or left with no supervisor, is a stray and is stopped, and so is one running other code than is installed, left over from before an update, so this journal takes the port its project keeps. A journal claims the project with a lock on a file before it starts, stored for as long as it runs, so two launched at the same moment never both boot and write the same files."""
 
     def __init__(self, config: Config) -> None:
         self.config = config

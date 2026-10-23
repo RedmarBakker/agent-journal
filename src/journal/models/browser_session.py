@@ -6,7 +6,7 @@ from journal.models.model import Model
 
 @dataclass(frozen=True)
 class BrowserSession(Model):
-    """A person signed in to a hosted journal from a browser: their account number and name, and the key their session cookie carries, kept only as a hash. Kept on this machine."""
+    """A person signed in to a hosted journal from a browser: their account number and name, and the key their session cookie carries, stored only as a hash. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False

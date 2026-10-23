@@ -14,7 +14,7 @@ SILENCE_SECONDS = 60.0
 
 
 class SequencesConduct(Conduct):
-    """The sequences feature's conduct in every state: a write waits while the step in hand is not taken up or has stood too long since it was, a stop with a step open is held with the step unless it was said since the agent last used a tool, a session that starts with a run is told its step or that the run is paused, a step unheard for the set minutes is typed again to a quiet agent, and the tool use that ends a wait is told the step again; nothing while the run is paused, a question to the user is open or the agent owes the journal."""
+    """The sequences feature's conduct in every state: a write waits while the step in hand is not taken up or has stood too long since it was, a stop with a step open is blocked with the step unless it was sent since the agent last used a tool, a session that starts with a run is informed its step or that the run is paused, a step unheard for the set minutes is typed again to a quiet agent, and the tool use that ends a wait is informed the step again; nothing while the run is paused, a question to the user is open or the agent still has a duty to the journal."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.sequences.feature import Sequences

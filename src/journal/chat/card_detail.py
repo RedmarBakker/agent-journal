@@ -2,7 +2,7 @@ DETAIL_CHARACTERS = 80
 
 
 class CardDetail:
-    """A chat card's second line, cut short to fit the card, with every line kept beside it when there are several."""
+    """A chat card's second line, cut short to fit the card, with every line stored beside it when there are several."""
 
     @classmethod
     def parts(cls, detail: str) -> dict:

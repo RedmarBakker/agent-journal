@@ -6,7 +6,7 @@ from journal.models.model import Model
 
 @dataclass(frozen=True)
 class IdBlock(Model):
-    """A range of row numbers the team server handed this machine for one table, and the next of them a new row takes. Kept on this machine."""
+    """A range of row numbers the team server handed this machine for one table, and the next of them a new row takes. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False

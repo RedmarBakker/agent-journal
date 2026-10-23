@@ -15,7 +15,7 @@ RUN: ContextVar[list | None] = ContextVar("creations", default=None)
 
 
 class Creations(Listener[Created]):
-    """Every row made while a command runs, by the command or by what its events caused, so the agent is told the name and number of each it may address next; the record's own rows, a link, a queued change, a log line, are left out."""
+    """Every row made while a command runs, by the command or by what its events caused, so the agent is informed the name and number of each it may address next; the record's own rows, a link, a queued change, a log line, are left out."""
 
     def handle(self, event: Created) -> None:
         produced = RUN.get()

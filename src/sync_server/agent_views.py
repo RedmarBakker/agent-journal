@@ -9,7 +9,7 @@ VIEW_LIFETIME_SECONDS = 60
 
 
 class AgentViews:
-    """The latest agent bar rows each host sent for its environments, held in memory and never stored: any device of the team reads them by environment key, and a view its host stopped sending for VIEW_LIFETIME_SECONDS is no longer handed out, so a host that went offline shows no agent."""
+    """The latest agent bar rows each host sent for its environments, stored in memory and never stored: any device of the team reads them by environment key, and a view its host stopped sending for VIEW_LIFETIME_SECONDS is no longer handed out, so a host that went offline shows no agent."""
 
     def __init__(self, devices: Devices) -> None:
         self.devices = devices

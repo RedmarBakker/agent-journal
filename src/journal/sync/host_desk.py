@@ -14,7 +14,7 @@ from sync_server.host_request import HostRequest
 
 
 class HostDesk:
-    """Makes the writes the team server holds for the environments this journal hosts, each as the person who asked, so its events are dispatched and handled here, and tells the server it is made; a feature registers the kinds it makes, and a kind no feature makes waits on the server for a journal that knows it; a worker offered from the pool is kept as a pool job, whose arrival the workers feature hears and takes up off the sync thread; one at a time, so a request that a push and a pull both bring is made once, the message's idempotency key finding it made."""
+    """Makes the writes the team server holds for the environments this journal hosts, each as the person who asked, so its events are dispatched and handled here, and tells the server it is made; a feature registers the kinds it makes, and a kind no feature makes waits on the server for a journal that knows it; a worker offered from the pool is stored as a pool job, whose arrival the workers feature hears and takes up off the sync thread; one at a time, so a request that a push and a pull both bring is made once, the message's idempotency key finding it made."""
 
     MESSAGE = "message"
     POOL_WORKER = "pool_worker"

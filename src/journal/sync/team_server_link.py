@@ -37,7 +37,7 @@ ROOT_CERTIFICATE = "/root.crt"
 
 
 class TeamServerLink:
-    """The one way the journal reaches its team server, each request with the device's token: a push of queued changes, answered with a pull, a pull past a sequence, each naming the environments this journal hosts so the writes asked of it come back with it, a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join kept. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
+    """The one way the journal reaches its team server, each request with the device's token: a push of queued changes, answered with a pull, a pull past a sequence, each naming the environments this journal hosts so the writes asked of it come back with it, a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join stored. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
 
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema

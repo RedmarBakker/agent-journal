@@ -10,7 +10,7 @@ DELETED = "deleted"
 
 @dataclass(frozen=True)
 class OutgoingChange(Model):
-    """One write of a shared row waiting to be sent to the team server: the row's table and number, whether it was created, updated or deleted, the columns as stored with when each was changed, and who wrote it. Kept on this machine."""
+    """One write of a shared row waiting to be sent to the team server: the row's table and number, whether it was created, updated or deleted, the columns as stored with when each was changed, and who wrote it. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False

@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 
 
 class CutOffOutputs(Seed):
-    """At boot, every command not ended was cut off with the server that ran it, in the foreground or moved to the background, since its chain ran inside that server: it is recorded as ended so, and its agent is told once, as any other end."""
+    """At boot, every command not ended was cut off with the server that ran it, in the foreground or moved to the background, since its chain ran inside that server: it is recorded as ended so, and its agent is informed once, as any other end."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs

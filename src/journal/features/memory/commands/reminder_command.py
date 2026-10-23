@@ -11,7 +11,7 @@ from journal.support.rejection import Rejection
 
 
 class ReminderCommand(MemoryCommand):
-    """Reminders: what to keep doing here, and with --at one set for a moment, told once then and struck."""
+    """Reminders: what to keep doing here, and with --at one set for a moment, informed once then and struck."""
 
     noun = "reminder"
 

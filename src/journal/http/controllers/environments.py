@@ -16,7 +16,7 @@ from journal.features.team.support.start_rule import StartRule
 
 
 class EnvironmentController(Controller[Environment]):
-    """The project's environments; one is made here, its chat filled from a conversation an agent program kept for the project when one is named, an agent is started in one from here, stopped, or the environment removed with everything in it; the project's kept conversations are listed for the form."""
+    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, or the environment removed with everything in it; the project's stored conversations are listed for the form."""
 
     repository: Environments
 

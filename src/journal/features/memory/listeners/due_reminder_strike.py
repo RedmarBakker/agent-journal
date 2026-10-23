@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 
 
 class DueReminderStrike(AgentListener[LineDelivered]):
-    """A reminder set for a moment is struck once the agent has been told it is due, so it is told once."""
+    """A reminder set for a moment is struck once the agent has been informed it is due, so it is informed once."""
 
     def __init__(self, reminders: Reminders, scope: Scope) -> None:
         self.reminders, self.scope = reminders, scope

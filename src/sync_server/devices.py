@@ -13,7 +13,7 @@ LOCKOUT_SECONDS = 15 * 60
 
 
 class Devices:
-    """The machines that may reach the team server: a login trades an email and a password for a device token, kept only as a hash; too many failed logins from one address shut it out for a while. The address is the one the proxy in front forwards, since every request reaches the server from the proxy."""
+    """The machines that may reach the team server: a login trades an email and a password for a device token, stored only as a hash; too many failed logins from one address shut it out for a while. The address is the one the proxy in front forwards, since every request reaches the server from the proxy."""
 
     def __init__(self, rows: DeviceRows, failures: FailedLoginRows, accounts: Accounts) -> None:
         self.rows, self.failures, self.accounts = rows, failures, accounts

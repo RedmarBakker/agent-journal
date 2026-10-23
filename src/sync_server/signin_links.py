@@ -11,7 +11,7 @@ VALID_SECONDS = 120
 
 
 class SigninLinks:
-    """One-time links a member's own journal asks for, with its device token, to open the team's hosted journal signed in as that member: each works once, within two minutes, and only the hosted journal's relay account may take one up. They are kept in memory, so a server that restarts forgets the ones not taken up yet."""
+    """One-time links a member's own journal asks for, with its device token, to open the team's hosted journal signed in as that member: each works once, within two minutes, and only the hosted journal's relay account may take one up. They are stored in memory, so a server that restarts forgets the ones not taken up yet."""
 
     def __init__(self, devices: Devices, accounts: Accounts) -> None:
         self.devices, self.accounts = devices, accounts

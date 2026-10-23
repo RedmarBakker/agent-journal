@@ -22,7 +22,7 @@ COMPACT = "compact"
 
 @dataclass(frozen=True)
 class Working(BaseState):
-    """On one task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is told to carry on, with the log line first once the same span has passed; a session resumed with it is told where it stands; a quiet quarter hour is told it is still open. Pushed by journal task start, popped by done and pause."""
+    """On one task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is instructed to carry on, with the log line first once the same span has passed; a session resumed with it is informed where it stands; a quiet quarter hour is informed it is still open. Pushed by journal task start, popped by done and pause."""
 
     name = "working"
     title = "Working"

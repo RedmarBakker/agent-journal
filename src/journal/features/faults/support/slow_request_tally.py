@@ -13,7 +13,7 @@ SHOWN_ROUTES = 3
 
 @dataclass(frozen=True)
 class SlowRequestTally:
-    """The slow requests one chat mark holds: each route's count and worst time, how many gathered since the agent was last told and the slowest of them, when the last came and when the agent was last told."""
+    """The slow requests one chat mark holds: each route's count and worst time, how many gathered since the agent was last informed and the slowest of them, when the last arrived and when the agent was last informed."""
 
     routes: Mapping[str, RouteTime] = field(default_factory=lambda: MappingProxyType({}))
     gathered: int = 0

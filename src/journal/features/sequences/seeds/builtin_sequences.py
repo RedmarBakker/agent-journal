@@ -11,7 +11,7 @@ from journal.sync.team_account import TeamAccount
 
 
 class BuiltinSequences(Seed):
-    """The shipped sequences, written by title and kept up to date while only the journal has changed them, and the trigger whose words start the update sequence; in a team only by the machine that holds the team's upgrade, so no two machines write the same one."""
+    """The shipped sequences, written by title and updated while only the journal has changed them, and the trigger whose words start the update sequence; in a team only by the machine that holds the team's upgrade, so no two machines write the same one."""
 
     def __init__(self, sequences: Sequences, triggers: Triggers, account: TeamAccount) -> None:
         self.sequences, self.triggers, self.account = sequences, triggers, account

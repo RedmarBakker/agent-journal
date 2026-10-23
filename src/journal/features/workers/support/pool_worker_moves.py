@@ -22,7 +22,7 @@ CLEANUP = "worker_cleanup"
 
 
 class PoolWorkerMoves:
-    """On a machine running a pool worker for another journal: whether a worker's moves belong to another journal, the host of its environment, the request that asks that journal to make one, so its events fire where its dispatcher waits, on the dispatching journal the request that asks the machine running it to make a send-back or a word, the clearing of a pool worker that is done with, its branches on origin deleted and its machine told to drop its worktree, and the end of its pool job here, which frees the slot and tells the team server the request is done."""
+    """On a machine running a pool worker for another journal: whether a worker's moves belong to another journal, the host of its environment, the request that asks that journal to make one, so its events fire where its dispatcher waits, on the dispatching journal the request that asks the machine running it to make a send-back or a word, the clearing of a pool worker that is done with, its branches on origin deleted and its machine instructed to drop its worktree, and the end of its pool job here, which frees the slot and tells the team server the request is done."""
 
     def __init__(self, hosts: Hosts, environments: Environments, jobs: PoolJobs, link: TeamServerLink, account: TeamAccount, branch: WorkerBranch) -> None:
         self.hosts, self.environments, self.jobs, self.link, self.account, self.branch = hosts, environments, jobs, link, account, branch

@@ -19,7 +19,7 @@ FAILED = "failed"
 
 
 class WorkerProcessCard(ProcessCard):
-    """The process card of a worker's dispatch, active while the worker starts and turned red with why when the dispatch failed; each standing the worker reaches is told in words its card and its later cards share."""
+    """The process card of a worker's dispatch, active while the worker starts and turned red with why when the dispatch failed; each standing the worker reaches is informed in words its card and its later cards share."""
 
     name = "worker"
 

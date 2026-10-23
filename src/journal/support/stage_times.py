@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 
 class StageTimes:
-    """The time each stage of the journal's work took, held in memory until the Developer numbers take them: reading a feature's facts, each listener of a hook, recording its entry."""
+    """The time each stage of the journal's work took, stored in memory until the Developer numbers take them: reading a feature's facts, each listener of a hook, recording its entry."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()

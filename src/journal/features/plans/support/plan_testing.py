@@ -13,7 +13,7 @@ PLAN_TARGET = "plan"
 
 
 class PlanTesting:
-    """The testing template a plan follows, kept as a link from the plan to the template: chosen by its title, none clearing it, and read back."""
+    """The testing template a plan follows, stored as a link from the plan to the template: chosen by its title, none clearing it, and read back."""
 
     def __init__(self, links: Links, templates: Templates) -> None:
         self.links, self.templates = links, templates

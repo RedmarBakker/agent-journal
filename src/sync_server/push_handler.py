@@ -19,7 +19,7 @@ USER_PREFIX = "user:"
 
 
 class PushHandler:
-    """Takes one device's queued changes in order: each is stamped with the person whose device sent it, never with what the request says, its times put on the server's clock by the device's offset, and its fields settled against the row as the server holds it. A change that names another person as its writer refuses the whole push before anything is kept, unless the device is the hosted journal or the host that made a write that person asked of it; a change the device sent before, known by its local number, is answered as it was the first time and kept once."""
+    """Takes one device's queued changes in order: each is stamped with the person whose device sent it, never with what the request says, its times put on the server's clock by the device's offset, and its fields settled against the row as the server holds it. A change that names another person as its writer refuses the whole push before anything is stored, unless the device is the hosted journal or the host that made a write that person asked of it; a change the device sent before, known by its local number, is answered as it was the first time and stored once."""
 
     def __init__(self, store: Store, log: ChangeLog, devices: Devices, results: PushResults, requests: HostRequests) -> None:
         self.store, self.log, self.devices, self.results, self.requests = store, log, devices, results, requests

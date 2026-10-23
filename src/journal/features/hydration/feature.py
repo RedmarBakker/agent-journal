@@ -7,7 +7,7 @@ from journal.features.hydration.support.hydration_data_reader import HydrationDa
 
 
 class Hydration(Feature[HydrationData]):
-    """A new environment's chat filled from a conversation an agent program kept for this project, carried on by the environment's first launch."""
+    """A new environment's chat filled from a conversation an agent program stored for this project, carried on by the environment's first launch."""
 
     name = "hydration"
     title = "Hydration"

@@ -6,7 +6,7 @@ HTTPS = "https"
 
 
 class SessionCookie:
-    """The cookie that carries a browser's session on a hosted journal: its key read from a request's Cookie header, and the Set-Cookie value written HttpOnly and SameSite=Lax, Secure when the request came over HTTPS."""
+    """The cookie that carries a browser's session on a hosted journal: its key read from a request's Cookie header, and the Set-Cookie value written HttpOnly and SameSite=Lax, Secure when the request arrived over HTTPS."""
 
     @staticmethod
     def key(cookie: str) -> str:

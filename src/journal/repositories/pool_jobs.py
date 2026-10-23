@@ -8,7 +8,7 @@ from sync_server.host_request import HostRequest
 
 
 class PoolJobs(Repository[PoolJob]):
-    """The workers the team's pool offered this machine, one row a request, kept so a request brought by several pulls is taken up once."""
+    """The workers the team's pool offered this machine, one row a request, stored so a request brought by several pulls is taken up once."""
 
     model = PoolJob
 
