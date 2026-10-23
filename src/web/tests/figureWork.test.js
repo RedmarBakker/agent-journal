@@ -155,3 +155,48 @@ test("the figure sets out to build a box only where there is room behind the box
         expect(buildSpot(figure, {x, y: 600}, {x: behindIt}).x, `${x}`).toBeCloseTo(behindIt, 5);
     }
 });
+
+test("now and then, about one box in four, the figure stops hammering to inspect the box with a magnifying glass, and the box is still built within its time", async () => {
+    const {HAMMER, INSPECT, hammering, inspecting} = await import("../src/figure/parcels.js");
+    const {INSPECTING} = await import("../src/figure/figure.js");
+    // a seeded random, so the share is the same every run
+    let seed = 2743;
+    const random = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    const boxes = Array.from({length: 2000}, () => hammering(1000, random));
+    const inspected = boxes.filter((box) => box.inspect);
+    expect(inspected.length / boxes.length).toBeGreaterThan(0.2);
+    expect(inspected.length / boxes.length).toBeLessThan(0.3);
+    for (const box of boxes) {
+        // built within its hammering time, eight to twenty seconds, whether or not it is inspected
+        expect(box.until - box.began).toBeLessThanOrEqual(HAMMER.most);
+        if (!box.inspect) {
+            expect(box.until - box.began).toBeGreaterThanOrEqual(HAMMER.least);
+            continue;
+        }
+        // the inspection inside the hammering, its end at or before the box is built
+        expect(box.inspect.from).toBeGreaterThan(0);
+        expect(box.began + box.inspect.to).toBeLessThanOrEqual(box.until);
+        expect(box.inspect.to - box.inspect.from).toBeCloseTo(INSPECT.ms, 6);
+        // while it lasts the hammering stops: the figure inspects, and hammers before and after it
+        const middle = box.began + (box.inspect.from + box.inspect.to) / 2;
+        expect(inspecting(box, middle)).toBe(true);
+        expect(inspecting(box, box.began + box.inspect.from - 1)).toBe(false);
+        expect(inspecting(box, box.began + box.inspect.to)).toBe(false);
+    }
+    // now and then it decides the box is done there: built at the inspection's end
+    const doneThere = inspected.filter((box) => box.until === box.began + box.inspect.to);
+    expect(doneThere.length).toBeGreaterThan(0);
+    expect(doneThere.length).toBeLessThan(inspected.length);
+    // the clip of the inspection plays as long as it lasts, side-on to the box as the hammering is, the glass in its free hand
+    const clip = CLIPS.find((each) => each.name === "inspect");
+    expect((clip.frames / clip.fps) * 1000).toBeCloseTo(INSPECT.ms, -2);
+    expect(INSPECTING.frames).toBe(clip.frames);
+    for (const voice of Object.keys(stances)) {
+        const pose = new Posing(REAL, "stand", 0);
+        clip.pose(pose, stanceOf(voice), 0.5);
+        const facing = new THREE.Vector3(0, -1, 0).transformDirection(pose.moves(0).get("hips"));
+        expect(Math.sign(facing.x), voice).toBe(Math.sign(blowsLandAt(stanceOf(voice))));
+        expect(pose.props.get("magnifying_glass")?.bone, voice).toMatch(/^hand_/);
+        expect(pose.props.has("work_hammer"), voice).toBe(false);
+    }
+});

@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, buildAim, buildRunAt, isPileLeft, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, buildAim, buildRunAt, isPileLeft, craneAt, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -222,7 +222,8 @@ const figureSize = () => ({size: SIZE, below: below.value});
 function doing() {
     const pushing = parcels.value.find((each) => each.state === "built");
     if (pushing) return facesToPush(pushing) ? "push" : "idle";
-    if (parcels.value.some((each) => each.state === "building")) return "work";
+    const building = parcels.value.find((each) => each.state === "building");
+    if (building) return inspecting(building, performance.now()) ? "inspect" : "work";
     if (making) return body.place.stays ? "work" : "idle";
     if (builds(held.value.state)) return "idle";
     return heldClip();
@@ -916,7 +917,7 @@ function keepParcels(shown) {
     const hammers = shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip;
     if (hammers && !list.some((each) => each.state !== "piled")) {
         const along = Math.min(Math.max(feetX() + beside - edge.left, PARCEL.inside), edge.width - PARCEL.inside);
-        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", until: performance.now() + hammerMs(Math.random), blows: 0, lit: "amber", run: units?.card || runningCard()}];
+        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", ...hammering(performance.now(), Math.random), blows: 0, lit: "amber", run: units?.card || runningCard()}];
     }
     const building = parcels.value.find((each) => each.state === "building");
     if (building && hammers) countBlows(building, shown);

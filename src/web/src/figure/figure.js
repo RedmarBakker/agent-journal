@@ -1510,6 +1510,27 @@ function work(pose, stance, t) {
     if (pose.posture === "stand") pose.revolve(SIDES[side] * WORK.turn);
 }
 
+// Inspecting the box it hammers (parcels.js INSPECT): side-on to it as it hammers, it takes the magnifying glass out over `out`, bends
+// `bend` and leans `lean` degrees in over the box, the glass held out over the box's top at `held` (across, forward, up from the feet,
+// before it turns side-on) and tipped down `tip` degrees, sweeping it a little, and puts it away over `away`
+export const INSPECTING = {frames: 22, fps: 12, out: [0, 0.18], away: [0.82, 1], bend: 0.28, lean: 30, nod: 24, held: [0.55, -1.2, 1.7], sweep: 0.12, tip: 45};
+
+function inspect(pose, stance, t) {
+    const side = freeSide(stance);
+    const ready = partOf(t, INSPECTING.out) * (1 - partOf(t, INSPECTING.away));
+    const sweep = INSPECTING.sweep * waveOf(span(t, INSPECTING.out[1], INSPECTING.away[0]));
+    crouch(pose, INSPECTING.bend * ready);
+    breathe(pose, 0);
+    trunk(pose, {lean: INSPECTING.lean * ready, nod: INSPECTING.nod * ready});
+    armsAtRest(pose, stance, [side]);
+    const [x, y, z] = INSPECTING.held;
+    handTo(pose, side, ready, pose.withinReach(side, pose.carried(new THREE.Vector3(SIDES[side] * (x + sweep), y, z)), 0.97), new THREE.Vector3(...ACTING.elbow));
+    pose.putAway(...IN_HAND);
+    if (ready > 0.3) pose.holdUpright("magnifying_glass", side, [0, 0, 0], {x: INSPECTING.tip * ready});
+    eyesAs(pose, "reading", ready);
+    if (pose.posture === "stand") pose.revolve(SIDES[side] * WORK.turn);
+}
+
 // The figure stands still watching something in the sky, as the page says in `pose.sky`, its head turned to it by the look the page gives
 // (lookToward): the free hand shading its eyes by `shade`, 0 to 1, as when what it watches is far off, the hand at the side of the visor
 // and pointing out over it like a cap's peak; and stepped back by `back`, 0 to 1, with a small hop as it steps, leaning back to look up
@@ -2672,6 +2693,7 @@ export const CLIPS = [
     {name: "stumble", frames: ACTING.stumbleFrames, fps: ACTING.fps, loops: false, postures: ["walk"], pose: stumble},
     {name: "glance", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: glance},
     {name: "work", frames: WORK.blows * WORK.blowFrames, fps: WORK.fps, loops: true, postures: ["stand", "sit"], pose: work},
+    {name: "inspect", frames: INSPECTING.frames, fps: INSPECTING.fps, loops: true, postures: ["stand"], pose: inspect},
     {name: "point", frames: 12, fps: 8, loops: true, postures: GESTURE, pose: point},
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
     {name: "push", frames: SHOVE.intro + SHOVE.stride, intro: SHOVE.intro, fps: SHOVE.fps, loops: true, legs: true, ownLook: true, postures: ["walk", "stand"], pose: push},
