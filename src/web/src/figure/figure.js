@@ -179,6 +179,15 @@ export class Posing {
         this.limbTo(side, ["upper_arm", "forearm", "hand"], target, bend);
     }
 
+    // `target` brought in toward the shoulder on `side` until the arm reaches it, `share` of its full length at most
+    withinReach(side, target, share) {
+        const [shoulder, elbow, hand] = ["upper_arm", "forearm", "hand"].map((role) => this.rig.heads.get(`${role}_${side}`));
+        const length = (elbow.distanceTo(shoulder) + hand.distanceTo(elbow)) * share;
+        const from = this.head(`upper_arm_${side}`, this.standing(`upper_arm_${side}`));
+        const way = target.clone().sub(from);
+        return way.length() <= length ? target : from.clone().add(way.setLength(length));
+    }
+
     // the same for a leg: the foot's head put at `target`, the knee pointing the way `bend` says
     step(side, target, bend) {
         this.limbTo(side, ["thigh", "shin", "foot"], target, bend);
@@ -2200,12 +2209,24 @@ function hop_up(pose, stance, t) {
 
 // where the hands swat at the tickling pointer, in front of the face, across, forward (toward the viewer is less) and up in the
 // figure's units; how many swats a play of it has, and how much it giggles, shaking
-const SWAT = {at: [0.3, -0.8, 2.45], swats: 4, giggle: 4};
+// where the swatting hands go, across, forward and up in the figure's units, with no pointer to aim at; how far across and how low and high
+// a swat aimed at the pointer reaches; how many swats a play holds and how far it giggles
+const SWAT = {at: [0.3, -0.8, 2.45], across: 1.5, low: 1.1, high: 3.4, swats: 4, giggle: 4};
 
-// tickled by the mouse pointer it swats at it with one hand and then the other, giggling, its eyes squeezed shut laughing, a kawaii > <
+// where a swat aims: at the pointer, `pose.at` in shares of the picture (lookToward), brought within the arms' reach, or straight ahead
+function swatTarget(pose) {
+    if (!pose.at) return null;
+    const across = Math.min(Math.max((pose.at.x - 0.5) * FRAMED_HEIGHT, -SWAT.across), SWAT.across);
+    const up = Math.min(Math.max(FRAMED_MIDDLE + (0.5 - pose.at.y) * FRAMED_HEIGHT, SWAT.low), SWAT.high);
+    return new THREE.Vector3(across, SWAT.at[1], up);
+}
+
+// tickled by the mouse pointer it swats at it, giggling, its eyes squeezed shut laughing, a kawaii > <: with the pointer in sight each swat
+// goes at the pointer, with the hand on its side, else with one hand and then the other at the air before it
 function tickle_swat(pose, stance, t) {
     const swat = t * SWAT.swats;
-    const which = Math.floor(swat) % 2 ? "l" : "r";
+    const aimed = swatTarget(pose);
+    const which = aimed ? (aimed.x * SIDES.l > 0 ? "l" : "r") : Math.floor(swat) % 2 ? "l" : "r";
     const out = Math.sin(Math.PI * (swat % 1));
     breathe(pose, t);
     trunk(pose, {tilt: SWAT.giggle * Math.sin(2 * Math.PI * swat * 2), nod: -3});
@@ -2213,7 +2234,8 @@ function tickle_swat(pose, stance, t) {
     armsAtRest(pose, stance, Object.keys(SIDES));
     for (const side of Object.keys(SIDES)) {
         const [x, y, z] = SWAT.at;
-        handTo(pose, side, side === which ? out : 0.25, new THREE.Vector3(SIDES[side] * x, y, z), new THREE.Vector3(1, -0.4, -0.3));
+        const target = side === which && aimed ? pose.withinReach(side, aimed, 0.95) : new THREE.Vector3(SIDES[side] * x, y, z);
+        handTo(pose, side, side === which ? out : 0.25, target, new THREE.Vector3(1, -0.4, -0.3));
     }
     pose.squeezeEyes(1);
 }
@@ -3462,6 +3484,7 @@ export class Stage {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         pose.screen = screen;
+        pose.at = at;
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         if (!clip.legs) LEGS[posture]?.over(pose);

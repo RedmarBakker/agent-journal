@@ -428,3 +428,38 @@ test("while the visor glows the figure turns toward the viewer, partly and never
         }
     }
 });
+
+test("tickled, each swat goes at the pointer: the hand on the pointer's side reaches toward it, left or right, high or low", () => {
+    const handAt = (at, side) => {
+        const pose = new Posing(RIG, "stand", 0);
+        pose.at = at;
+        clipNamed("tickle_swat").pose(pose, stanceOf("butler"), 0.125);
+        const moves = pose.moves(0);
+        return pose.head(`hand_${side}`, moves.get(`hand_${side}`));
+    };
+    const hands = (at) => ["l", "r"].map((side) => handAt(at, side));
+    const [leftHigh, rightHigh, leftLow, rightLow] = [{x: 0.1, y: 0.2}, {x: 0.9, y: 0.2}, {x: 0.1, y: 0.7}, {x: 0.9, y: 0.7}].map((at) => hands({...at, amount: 1}));
+    const reaching = (pair) => (Math.abs(pair[0].x) > Math.abs(pair[1].x) ? pair[0] : pair[1]);
+    // the reaching hand is on the pointer's side, and higher for a pointer above than below
+    expect(Math.sign(reaching(leftHigh).x)).not.toBe(Math.sign(reaching(rightHigh).x));
+    expect(reaching(leftHigh).z).toBeGreaterThan(reaching(leftLow).z);
+    expect(reaching(rightHigh).z).toBeGreaterThan(reaching(rightLow).z);
+});
+
+test("the swat goes on for as long as the pointer keeps tickling, past one play of it, and ends soon after the pointer stops", async () => {
+    const {UNTICKLED, movedTo, tickling, TICKLE} = await import("../src/figure/tickle.js");
+    const swat = clipNamed("tickle_swat");
+    const playMs = (swat.frames / swat.fps) * 1000;
+    let pointer = UNTICKLED;
+    const held = [];
+    let last = 0;
+    for (let at = 0; at <= playMs * 3; at += 120) {
+        pointer = movedTo(pointer, 400 + (Math.floor(at / 120) % 2 ? 30 : 0), at);
+        if (at >= TICKLE.within) held.push(tickling(pointer, at));
+        last = at;
+    }
+    // at every moment past the first play, so whenever a swat ends, the tickle still holds and the swat starts again
+    expect(held.length).toBeGreaterThan(10);
+    expect(held.every(Boolean)).toBe(true);
+    expect(tickling(pointer, last + TICKLE.lingers + 1)).toBe(false);
+});
