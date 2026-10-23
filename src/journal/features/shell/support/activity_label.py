@@ -1,6 +1,8 @@
 import re
 
-from journal.support.command_shape import RUNNERS, TOKEN_PATTERN, CommandShape
+from journal.support.command_shape import RUNNERS, SETUP_COMMANDS, TOKEN_PATTERN, CommandShape
+
+CHAIN_SEPARATOR = re.compile(r"&&|\|\||;|\|")
 
 VERBS: dict[str, str | dict] = {"git": {"commit": "committing", "push": "pushing", "pull": "pulling", "add": "staging", "checkout": "switching branch", "merge": "merging", "rebase": "rebasing", "status": "checking git", "diff": "reading a diff", "log": "reading history"},
          "pytest": "testing", "phpunit": "testing", "pest": "testing", "php": {"artisan": {"test": "testing", "": "running artisan"}}, "npm": {"test": "testing", "run": {"build": "building", "test": "testing", "": "running a script"}, "install": "installing", "ci": "installing"}, "vitest": "testing", "vite": {"build": "building", "": "running vite"},
@@ -17,7 +19,7 @@ class ActivityLabel:
 
     @classmethod
     def build(cls, part: str) -> str:
-        tokens = TOKEN_PATTERN.findall(CommandShape.inner(part).split("<<", 1)[0])
+        tokens = TOKEN_PATTERN.findall(CommandShape.inner(cls.working_part(part)).split("<<", 1)[0])
         arguments = [w for index, w in enumerate(tokens) if not w.startswith("-") and "=" not in w and (index == 0 or tokens[index - 1] not in VALUED_FLAGS)]
         arguments = arguments[1:] if arguments and arguments[0] in RUNNERS and len(arguments) > 1 else arguments
         if not arguments:
@@ -31,3 +33,9 @@ class ActivityLabel:
         if isinstance(verb, dict):
             verb = verb.get("", fallback)
         return verb or fallback
+
+    @staticmethod
+    def working_part(part: str) -> str:
+        unwrapped = part.strip().removeprefix("(").removesuffix(")")
+        commands = [command.strip() for command in CHAIN_SEPARATOR.split(unwrapped) if command.strip()]
+        return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else part)

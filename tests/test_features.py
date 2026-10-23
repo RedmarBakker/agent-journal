@@ -11811,3 +11811,26 @@ def test_a_kept_sessions_first_prompt_is_its_users_own_words_past_the_injected_l
     ]
     path.write_text("".join(json.dumps(row) + "\n" for row in rows))
     assert Claude().past_session(path).first_prompt.startswith("Fix the login page"), "the journal's lines, a notice and injected instructions are not the user's prompt"
+
+
+def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_once(app: App):
+    import threading
+    from journal.chat.process_cards import ProcessCards
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.repositories.messages import Messages
+    from journal.support.card_kind import CardKind
+    assert ActivityLabel.build("(cd src/web && npx vitest run 2>&1 | grep -E x | head -5)") == "testing", "a subshell is read through to the command doing the work"
+    assert ActivityLabel.build("cd src") == "moving"
+    cards, scope = app.container.get(ProcessCards), app.container.get(Scope)
+
+    def show():
+        with scope.environment(MAIN):
+            cards.show("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True)
+
+    shows = [threading.Thread(target=show) for _ in range(8)]
+    for each in shows:
+        each.start()
+    for each in shows:
+        each.join()
+    with scope.environment(MAIN):
+        assert len(app.container.get(Messages).keyed("watch:77", Actor.system())) == 1, "shows of one output at once leave one mark"

@@ -1,3 +1,5 @@
+import threading
+
 from journal.chat.card_detail import CardDetail
 from journal.chat.card_category import CardCategory
 from journal.models.author import Author
@@ -15,18 +17,20 @@ DOCK_TIME_KEY = "dock_at"
 
 
 class ProcessCards:
-    """Writes every process card: one message per process, found again by its key and updated in place, its data naming the process card class that refreshes it and whether its process still runs."""
+    """Writes every process card: one message per process, found again by its key and updated in place, written under one lock so two shows at once never make two, its data naming the process card class that refreshes it and whether its process still runs."""
 
     def __init__(self, messages: Messages, agents: Agents) -> None:
         self.messages, self.agents = messages, agents
+        self.writing = threading.Lock()
 
     def show(self, process: str, environment_id: int, key: str, label: str, data: dict, actor: Actor, shows: CardKind, active: bool, detail: str = "", session: str | None = None) -> Message:
         data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": PROCESS, "process": process, "active": active}
-        older = self.messages.keyed(key, actor)
-        if older:
-            return self.messages.save(older[0].with_(text=label, session=session or older[0].session, data=self.docked_data(older[0], data)), actor)
-        roles = self.agents.session_roles(session) if session else []
-        return self.messages.save(Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=label, data=data), actor)
+        with self.writing:
+            older = self.messages.keyed(key, actor)
+            if older:
+                return self.messages.save(older[0].with_(text=label, session=session or older[0].session, data=self.docked_data(older[0], data)), actor)
+            roles = self.agents.session_roles(session) if session else []
+            return self.messages.save(Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=label, data=data), actor)
 
     def show_recent(self, process: str, environment_id: int, key: str, label: str, data: dict, actor: Actor, shows: CardKind, active: bool, detail: str = "", session: str | None = None) -> Message:
         older = self.messages.keyed(key, actor)
