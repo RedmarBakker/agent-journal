@@ -4,8 +4,6 @@ import {pollNow, startPoll} from "../composables/poll.js";
 
 const KEY = "journal.outbox.v4";
 const DELIVERY = "journal.outbox.delivery";
-const RETRY_MS = 5000;
-const OUTBOX = "outbox";
 const chains = {};
 let active = null;
 let polling = false;
@@ -133,12 +131,12 @@ export function onOutboxChange(fn) {
 export function startOutbox(env) {
     active = {env, origin: here()};
     if (polling) {
-        pollNow(OUTBOX);
+        pollNow("outbox.retry");
         return;
     }
     polling = true;
-    window.addEventListener("online", () => pollNow(OUTBOX));
-    startPoll(OUTBOX, retry, RETRY_MS);
+    window.addEventListener("online", () => pollNow("outbox.retry"));
+    startPoll("outbox.retry", {params: () => ({retry})});
 }
 
 export async function sendMessage(env, body, files = [], id = token()) {

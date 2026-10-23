@@ -1,16 +1,15 @@
 <script setup>
 import {ref} from "vue";
 import {api} from "../api/client.js";
-import {pollKey, usePoll} from "../composables/poll.js";
+import {usePoll} from "../composables/poll.js";
 import {actorName} from "../domain/people.js";
 import {clock} from "../format/time.js";
 import {seconds} from "../domain/row.js";
 import {store} from "../state/store.js";
 import Compose from "./Compose.vue";
 
-const EVERY_MS = 3000;
 const rows = ref([]);
-const refresh = usePoll(pollKey(), () => api.sideThread(), EVERY_MS, (got) => Array.isArray(got) && (rows.value = got));
+const refresh = usePoll("side.thread", {take: (got) => Array.isArray(got) && (rows.value = got)});
 
 async function post(text) {
     await api.postSideThread(text);

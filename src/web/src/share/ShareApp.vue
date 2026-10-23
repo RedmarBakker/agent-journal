@@ -1,6 +1,5 @@
 <script setup>
 import SwitchCase from "../kit/SwitchCase.vue";
-import {sharedData} from "../api/shared.js";
 import {computed, reactive, ref, watch} from "vue";
 import {refParts} from "../domain/records.js";
 import {bodyOf, createdAt, sectionsOf, titleOf} from "../domain/row.js";
@@ -34,7 +33,6 @@ const reading = (r) => {
     return [`${Math.max(1, Math.round(words / WORDS_PER_MINUTE))} min read`, ...(sections ? [counted(sections, "section")] : [])];
 };
 const FACTS = {plans: (r) => [counted((r.phases || []).length, "phase"), counted((r.task_ids || []).length, "task")]};
-const REFRESH_MS = 20000;
 const data = ref(null);
 const failed = ref(false);
 const reconnecting = ref(false);
@@ -48,17 +46,14 @@ function take(got) {
     reconnecting.value = false;
 }
 
-function ask() {
-    return sharedData().catch((e) => {
-        if ([401, 404, 410].includes(e.status)) {
-            failed.value = true;
-            reconnecting.value = false;
-        } else reconnecting.value = true;
-        throw e;
-    });
+function lost(e) {
+    if ([401, 404, 410].includes(e.status)) {
+        failed.value = true;
+        reconnecting.value = false;
+    } else reconnecting.value = true;
 }
 
-usePoll("shared", ask, REFRESH_MS, take, () => !failed.value);
+usePoll("share.page", {take, failed: lost, active: () => !failed.value});
 
 const rowOf = (ref) => {
     const {table, id} = refParts(ref || ":");

@@ -23,7 +23,7 @@ import {INSPECTOR_FEED, INSPECTOR_PRESETS, matches, thumbnail} from "../domain/p
 import {levelOf} from "../domain/verbosity.js";
 import {agentOf} from "../domain/agents.js";
 import {useInspectorActions} from "../composables/inspectorActions.js";
-import {pollKey, usePoll} from "../composables/poll.js";
+import {usePoll} from "../composables/poll.js";
 import {holding, rows} from "../sync/rows.js";
 import {go, route} from "../route.js";
 
@@ -36,7 +36,6 @@ const props = defineProps({
     run: {type: Function, default: async () => {}},
 });
 const emit = defineEmits(["back", "close", "open-subagent"]);
-const EVERY = 5000;
 const CHAT_TABLES = ["messages", "comments", "questions", "reactions", "notices"];
 const VIEWS = {
     chat: {title: "Chat", icon: "chat"},
@@ -63,15 +62,14 @@ const refreshers = [];
 
 const found = ref(null);
 const looked = ref(false);
-usePoll(
-    pollKey(),
-    () => (!props.agent && elsewhere ? there.list("agents", {limit: 20}) : Promise.resolve(null)),
-    EVERY,
-    (got) => {
+usePoll("inspector.agents", {
+    params: () => ({client: there}),
+    take: (got) => {
         looked.value = true;
-        if (got) found.value = agentOf(got.rows, "", true);
-    }
-);
+        found.value = agentOf(got.rows, "", true);
+    },
+    active: () => !props.agent && Boolean(elsewhere),
+});
 const agent = computed(() => props.agent || found.value);
 const sequence = computed(() => agent.value?.sequence);
 const sequenceHistory = computed(() => agent.value?.sequence_history || []);
@@ -80,16 +78,7 @@ const sequenceHistory = computed(() => agent.value?.sequence_history || []);
 const rowViews = () => shown("chat", "tasks");
 refreshers.push([
     rowViews,
-    usePoll(
-        pollKey(),
-        async () => {
-            if (!scope) return null;
-            return scope.recentAll(CHAT_TABLES, 50);
-        },
-        EVERY,
-        () => {},
-        rowViews
-    ),
+    scope ? usePoll("inspector.rows", {params: () => ({scope, tables: CHAT_TABLES}), active: rowViews}) : () => {},
 ]);
 
 const log = ref(null);

@@ -1,13 +1,12 @@
 <script setup>
 import {ref} from "vue";
 import {api} from "../api/client.js";
-import {pollKey, usePoll} from "../composables/poll.js";
+import {usePoll} from "../composables/poll.js";
 import Btn from "../kit/Btn.vue";
 
-const EVERY_MS = 10000;
 const line = ref("");
 const failed = ref("");
-const refresh = usePoll(pollKey(), () => api.teamChat(), EVERY_MS, (got) => got && (line.value = got.line || ""));
+const refresh = usePoll("team.chat", {take: (got) => got && (line.value = got.line || "")});
 
 async function claim() {
     failed.value = "";

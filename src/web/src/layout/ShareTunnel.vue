@@ -1,6 +1,5 @@
 <script setup>
 import {computed, ref, watch} from "vue";
-import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
 import CopyButton from "../kit/CopyButton.vue";
 import Icon from "../kit/Icon.vue";
@@ -22,19 +21,13 @@ import {
 import {TUNNEL_SERVICE, tunnelState} from "../domain/tunnelState.js";
 import TunnelProblem from "../pages/TunnelProblem.vue";
 
-const SERVICES_EVERY = 5000;
 const drop = ref(false);
 const wrap = ref(null);
 const services = ref([]);
 const stopping = ref(0);
 const error = ref("");
 useOutside(wrap, () => (drop.value = false));
-usePoll(
-    "share-services",
-    () => api.services(),
-    SERVICES_EVERY,
-    (got) => (services.value = got || [])
-);
+usePoll("shares.services", {take: (got) => (services.value = got || [])});
 watch(drop, (open) => open && checkTunnel());
 
 const tunnel = computed(() => services.value.find((s) => s.id === TUNNEL_SERVICE));

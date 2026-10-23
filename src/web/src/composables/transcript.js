@@ -1,10 +1,9 @@
 import {computed, ref, unref, watch} from "vue";
 import {useFollowing} from "./following.js";
 import {api} from "../api/client.js";
-import {pollKey, usePoll} from "./poll.js";
+import {demand, usePoll} from "./poll.js";
 import {PAGE} from "../sync/rows.js";
 
-const EVERY = 3000;
 const KEPT = 1000;
 
 // The newest turns a live transcript holds, so a tab left open on a long session does not grow without end; paging earlier
@@ -31,7 +30,6 @@ export function useTranscript(agent, session, scroller, client = api, active = (
     const error = ref("");
     const loading = ref(true);
     const paging = ref(false);
-    let fetching = false;
 
     const key = () => `${client.env()}:${agent()}:${unref(session) || ""}`;
     const earliest = computed(() => (turns.value.length ? turns.value[0].line : 0));
@@ -69,30 +67,25 @@ export function useTranscript(agent, session, scroller, client = api, active = (
         folded.value = next;
     }
 
-    async function fetchTurns() {
-        if (fetching || !agent()) return;
-        fetching = true;
-        try {
-            const since = turns.value.length ? turns.value[turns.value.length - 1].line : 0;
-            const asked = key();
-            const got = await client.transcript(agent(), unref(session), {since, last: PAGE});
-            if (asked !== key()) return;
-            error.value = "";
-            total.value = got.total;
-            first.value = got.first;
-            if (!got.turns.length) return;
-            foldTools(got.turns);
-            turns.value = newestTurns([...turns.value, ...got.turns]);
-            bodies.value = heldOnly(bodies.value, turns.value);
-            unread.value = heldOnly(unread.value, turns.value);
-            folded.value = new Set(turns.value.filter((turn) => folded.value.has(turn.line)).map((turn) => turn.line));
-            requestAnimationFrame(() => following.arrived(got.turns.length));
-        } catch (reason) {
-            error.value = reason.message;
-        } finally {
-            fetching = false;
-            loading.value = false;
-        }
+    const params = () => ({client, agent: agent(), session: unref(session), since: turns.value.length ? turns.value[turns.value.length - 1].line : 0});
+
+    function took(got) {
+        loading.value = false;
+        error.value = "";
+        total.value = got.total;
+        first.value = got.first;
+        if (!got.turns.length) return;
+        foldTools(got.turns);
+        turns.value = newestTurns([...turns.value, ...got.turns]);
+        bodies.value = heldOnly(bodies.value, turns.value);
+        unread.value = heldOnly(unread.value, turns.value);
+        folded.value = new Set(turns.value.filter((turn) => folded.value.has(turn.line)).map((turn) => turn.line));
+        requestAnimationFrame(() => following.arrived(got.turns.length));
+    }
+
+    function failed(reason) {
+        loading.value = false;
+        error.value = reason.message;
     }
 
     async function earlier() {
@@ -100,7 +93,7 @@ export function useTranscript(agent, session, scroller, client = api, active = (
         paging.value = true;
         try {
             const asked = key();
-            const got = await client.transcript(agent(), unref(session), {before: earliest.value, last: PAGE});
+            const got = await demand("agent.transcript.older", {...params(), before: earliest.value});
             if (asked !== key()) return false;
             error.value = "";
             foldTools(got.turns);
@@ -113,7 +106,7 @@ export function useTranscript(agent, session, scroller, client = api, active = (
         }
     }
 
-    const retry = () => (turns.value.length && !atStart.value ? earlier() : fetchTurns());
+    const retry = () => (turns.value.length && !atStart.value ? earlier() : refresh());
 
     watch([() => unref(session), agent], () => {
         turns.value = [];
@@ -123,10 +116,9 @@ export function useTranscript(agent, session, scroller, client = api, active = (
         first.value = 0;
         loading.value = true;
         error.value = "";
-        fetchTurns();
     });
 
-    const refresh = usePoll(pollKey(), fetchTurns, EVERY, undefined, active);
+    const refresh = usePoll("agent.transcript", {params, take: took, failed, active: () => Boolean(agent()) && active()});
 
     return {
         turns,

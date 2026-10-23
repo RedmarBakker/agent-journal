@@ -55,7 +55,8 @@
         "DispatchOutsideFunnelsDetector",
         "LifecycleHandlerNotFirstDetector",
         "SqlOutsideDatabaseLayerDetector",
-        "RequestOutsideTransportDetector"
+        "RequestOutsideTransportDetector",
+        "PollerKeyNotWrittenDetector"
     ],
     "parallel": 2,
     "configure": {

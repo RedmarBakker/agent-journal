@@ -13,6 +13,7 @@ globalThis.ResizeObserver ??= class {
 test("the terminal pane shows the commands the agent ran, asked for by the agent's number", async () => {
     const asked = [];
     const client = {
+        env: () => "main",
         terminal: (id, after) => {
             asked.push([id, after]);
             return Promise.resolve([{agent_id: id, time: 1, tool: "Bash", command: "pytest -q", output: "12 passed", seconds: 2, status: 0, stepped: false, level: "everything"}]);

@@ -1,9 +1,7 @@
 import {nextTick, ref} from "vue";
 import {api} from "../api/client.js";
-import {PAGE} from "../sync/paging.js";
-import {pollKey, usePoll} from "./poll.js";
+import {usePoll} from "./poll.js";
 
-const EVERY = 2000;
 const SMALL_ROWS = 6;
 const SMALL_CHARS = 44;
 
@@ -45,42 +43,20 @@ export function useFileFeed(agent, follow, client = api) {
     const cards = ref([]);
     const ready = ref(false);
     const latest = ref("");
-    const older = ref(false);
-    const loading = ref(false);
     let cursor = 0;
-    let oldest = null;
 
-    usePoll(
-        pollKey(),
-        () => client.edits(agent, cursor, ready.value ? undefined : PAGE),
-        EVERY,
-        (got) => {
+    usePoll("agent.edits", {
+        params: () => ({client, agent, cursor}),
+        take: (got) => {
             cursor = got.cursor;
             const live = ready.value;
             ready.value = true;
-            if (!live) older.value = !!got.older;
-            if (oldest === null && got.edits.length) oldest = got.edits[0].time;
             if (!got.edits.length) return;
             cards.value = got.edits.reduce(land, cards.value);
             latest.value = live ? got.edits[got.edits.length - 1].id : "";
             nextTick(() => (live ? follow.landed(got.edits.length) : follow.snap()));
-        }
-    );
+        },
+    });
 
-    async function loadOlder() {
-        if (loading.value || !older.value || oldest === null) return false;
-        loading.value = true;
-        try {
-            const got = await client.olderEdits(agent, oldest, PAGE);
-            older.value = !!got.older;
-            if (!got.edits.length) return false;
-            oldest = got.edits[0].time;
-            cards.value = [...got.edits.reduce(land, []), ...cards.value];
-            return true;
-        } finally {
-            loading.value = false;
-        }
-    }
-
-    return {cards, ready, latest, older, loading, loadOlder};
+    return {cards, ready, latest};
 }

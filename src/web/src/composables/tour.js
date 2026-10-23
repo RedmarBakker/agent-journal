@@ -2,7 +2,7 @@ import {saveViewerSetting, settingsLoaded, viewerSetting} from "./settings.js";
 import {onUnmounted, ref, watch} from "vue";
 import {boxAround} from "../platform/boxes.js";
 import {useFollowedBox} from "./followedBox.js";
-import {pollKey, startPoll} from "./poll.js";
+import {startPoll} from "./poll.js";
 
 const KEY = "tour_seen";
 const START_AFTER = 800;
@@ -37,16 +37,14 @@ export function useTour(steps, menu) {
 
     function attempt() {
         const since = Date.now();
-        stopWaiting = startPoll(
-            pollKey(),
-            async () => Date.now() - since >= START_AFTER && !covered(),
-            START_AFTER,
-            (clear) => {
+        stopWaiting = startPoll("tour.start", {
+            params: () => ({clear: async () => Date.now() - since >= START_AFTER && !covered()}),
+            take: (clear) => {
                 if (!clear) return;
                 stopWaiting();
                 start();
-            }
-        );
+            },
+        });
     }
 
     function start() {

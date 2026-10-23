@@ -81,7 +81,7 @@ test("the Team chat's bar names who holds it and offers a Claim", () => {
     const bar = readFileSync(resolve(__dirname, "../src/chat/AgentBar.vue"), "utf8");
     expect(bar).toMatch(/<template v-if="teamChat">\s*<TeamChatBar \/>/);
     const team = readFileSync(resolve(__dirname, "../src/chat/TeamChatBar.vue"), "utf8");
-    expect(team).toMatch(/api\.teamChat\(\)/);
+    expect(team).toMatch(/usePoll\("team.chat"/);
     expect(team).toMatch(/<Btn class="team-chat-claim" @click="claim">Claim<\/Btn>/);
 });
 

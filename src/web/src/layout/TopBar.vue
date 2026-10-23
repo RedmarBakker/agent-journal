@@ -9,7 +9,7 @@ import Icon from "../kit/Icon.vue";
 import RailWaiting from "../rail/RailWaiting.vue";
 import ShareTunnel from "./ShareTunnel.vue";
 import PhoneDialog from "./PhoneDialog.vue";
-import {connectedPhones, loadPhones} from "../composables/phones.js";
+import {connectedPhones} from "../composables/phones.js";
 import {usePoll} from "../composables/poll.js";
 import {href, route} from "../route.js";
 import {waitingCount} from "../domain/records.js";
@@ -29,9 +29,8 @@ const phoneOpen = ref(false);
 const sync = useSyncStatus();
 // the team button's dot: green in step with the team, blue while changes go out or it connects, red when it cannot sync
 const SYNC_TONES = {in_step: "good", waiting: "busy", connecting: "busy", not_connected: "bad", version: "bad"};
-const PHONES_EVERY = 30000;
 // a paired phone keeps the tunnel open even with sharing off, so its button stays while one is connected
-usePoll("phones", () => (onPhone ? null : loadPhones()), PHONES_EVERY);
+usePoll("phones.index", {active: () => !onPhone});
 </script>
 
 <template>

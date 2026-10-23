@@ -5,21 +5,18 @@ import {usePoll} from "../composables/poll.js";
 import {peek} from "../route.js";
 import PlanTimeline from "./PlanTimeline.vue";
 
-const REFRESH_MS = 15000;
 const props = defineProps({plan: {type: Object, required: true}});
 const items = ref([]);
 const loaded = ref(false);
 const scope = useScope();
 
-usePoll(
-    `timeline:${scope.env}:${props.plan.id}`,
-    () => scope.api.planTimeline(props.plan.id),
-    REFRESH_MS,
-    (got) => {
+usePoll("plan.timeline", {
+    params: () => ({scope, plan: props.plan.id}),
+    take: (got) => {
         items.value = got;
         loaded.value = true;
-    }
-);
+    },
+});
 </script>
 
 <template>

@@ -1,5 +1,6 @@
 import {onMounted, onUnmounted, watch} from "vue";
 import {transport} from "../api/transport.js";
+import {POLLERS} from "../sync/pollers.js";
 import {covered, STATUS_POLL} from "../state/updating.js";
 
 const BACKOFF_CAP_MS = 60000;
@@ -8,139 +9,189 @@ const SLOW_FACTOR = 4;
 const WAKE_SPREAD_MS = 300;
 const POKE_GAP_MS = 1000;
 const UNSEEN_FACTOR = 10;
-
-const polls = new Map();
-let instance = 0;
-
-export const pollKey = () => ++instance;
-
 const FALLBACK_EVERY_MS = 5000;
 
-function interval(user) {
-    if (typeof user.every !== "function") return user.every;
+// the runs of the declared pollers, one per poller, or one per agent or row for a poller declared with `by`
+const runs = new Map();
+
+function entryOf(key) {
+    if (!(key in POLLERS)) throw new Error(`no poller ${key} is declared in sync/pollers.js`);
+    return POLLERS[key];
+}
+
+const placeOf = (key, params) => (entryOf(key).by ? `${key}:${entryOf(key).by(params)}` : key);
+
+function interval(run) {
+    const every = entryOf(run.key).every;
+    if (typeof every !== "function") return every;
     try {
-        return user.every();
+        return every();
     } catch (e) {
         return FALLBACK_EVERY_MS;
     }
 }
-const fastest = (held) => Math.min(...[...held.users.values()].map(interval));
 const jittered = (ms) => ms / 2 + (Math.random() * ms) / 2;
-const newest = (held) => [...held.users.values()].pop();
-const kept = (held) => polls.get(held.key) === held;
+const newest = (run) => [...run.users.values()].pop();
+const kept = (run) => runs.get(run.place) === run;
 const staggered = () => Math.random() * WAKE_SPREAD_MS;
 
 export const unseen = () => document.hidden || !document.hasFocus();
 
-function pause(held) {
-    const every = fastest(held) * (unseen() ? UNSEEN_FACTOR : 1);
-    if (held.failures) return jittered(Math.min(held.key === STATUS_POLL ? STATUS_CAP_MS : BACKOFF_CAP_MS, every * 2 ** held.failures));
-    return Math.max(every, SLOW_FACTOR * held.took);
+function pause(run) {
+    const every = interval(run) * (unseen() ? UNSEEN_FACTOR : 1);
+    if (run.failures) return jittered(Math.min(run.key === STATUS_POLL ? STATUS_CAP_MS : BACKOFF_CAP_MS, every * 2 ** run.failures));
+    return Math.max(every, SLOW_FACTOR * run.took);
 }
 
-function later(held, ms) {
-    clearTimeout(held.timer);
-    if (!kept(held)) return;
-    held.timer = setTimeout(() => round(held), ms);
+function later(run, ms) {
+    clearTimeout(run.timer);
+    if (!kept(run) || run.paused) return;
+    run.timer = setTimeout(() => round(run), ms);
 }
 
-function round(held) {
-    if (!kept(held)) return Promise.resolve();
-    if (held.running) {
-        held.again = true;
-        return held.running;
+function round(run) {
+    if (!kept(run)) return Promise.resolve();
+    if (run.running) {
+        run.again = true;
+        return run.running;
     }
-    held.running = rounds(held).finally(() => (held.running = null));
-    return held.running;
+    run.running = rounds(run).finally(() => (run.running = null));
+    return run.running;
 }
 
-async function answer(held) {
+const asked = (run) => !run.paused && (entryOf(run.key).active?.() ?? true) && newest(run).active() && (!covered() || run.key === STATUS_POLL);
+
+async function answer(run) {
     const started = performance.now();
-    held.started = started;
+    run.started = started;
     try {
-        const got = await transport.attemptOnce(newest(held).ask);
-        held.took = performance.now() - started;
-        held.failures = 0;
+        const got = await transport.attemptOnce(() => entryOf(run.key).read(newest(run).params()));
+        run.took = performance.now() - started;
+        run.failures = 0;
         return got;
     } catch (error) {
-        held.failures += 1;
+        run.failures += 1;
         throw error;
     }
 }
 
-async function rounds(held) {
+function handed(run, got) {
+    run.last = {got};
+    entryOf(run.key).take?.(got);
+    run.users.forEach((user) => user.take(got));
+}
+
+async function rounds(run) {
     do {
-        held.again = false;
-        clearTimeout(held.timer);
+        run.again = false;
+        clearTimeout(run.timer);
         try {
-            if (!newest(held).active() || (covered() && held.key !== STATUS_POLL)) continue;
-            const got = await answer(held);
-            held.last = {got};
-            held.users.forEach((user) => user.take(got));
-        } catch (e) {}
-    } while (held.again && kept(held));
-    later(held, pause(held));
+            if (asked(run)) handed(run, await answer(run));
+        } catch (error) {
+            run.users.forEach((user) => user.failed(error));
+        }
+    } while (run.again && kept(run) && !run.paused);
+    later(run, pause(run));
 }
 
-export const pollNow = (key) => (polls.has(key) ? round(polls.get(key)) : Promise.resolve());
+const matching = (key, params) => (entryOf(key).by && params ? [runs.get(placeOf(key, params))].filter(Boolean) : [...runs.values()].filter((run) => run.key === key));
 
-export function poke(key) {
-    const held = polls.get(key);
-    if (!held || held.running) return;
-    later(held, Math.max(0, POKE_GAP_MS - (performance.now() - held.started)));
+// Stops a poller's runs, or the one run its params name, and settles once none of them has a request in flight.
+export async function pausePoller(key, params) {
+    const paused = matching(key, params);
+    paused.forEach((run) => {
+        run.paused += 1;
+        clearTimeout(run.timer);
+    });
+    await Promise.all(paused.map((run) => run.running).filter(Boolean)).catch(() => {});
+    return paused;
 }
 
-export function wakePolls() {
-    polls.forEach((held) => {
-        if (!held.failures) return;
-        held.failures = 0;
-        later(held, staggered());
+export function resumePoller(paused) {
+    paused.forEach((run) => {
+        run.paused = Math.max(0, run.paused - 1);
+        if (!run.paused) later(run, 0);
     });
 }
 
-const seen = () => polls.forEach((held) => later(held, unseen() ? pause(held) : staggered()));
+// An on-demand poller's one read, made while the poller it pauses is quiet, so the two never pull at the same time.
+export async function demand(key, params = {}) {
+    const entry = entryOf(key);
+    const paused = entry.pauses ? await pausePoller(entry.pauses, params) : [];
+    try {
+        return await transport.attemptOnce(() => entry.read(params));
+    } finally {
+        resumePoller(paused);
+    }
+}
+
+export const pollNow = (key, params) => Promise.all(matching(key, params).map(round));
+
+export function poke(key) {
+    matching(key).forEach((run) => {
+        if (run.running) return;
+        later(run, Math.max(0, POKE_GAP_MS - (performance.now() - run.started)));
+    });
+}
+
+export function wakePolls() {
+    runs.forEach((run) => {
+        if (!run.failures) return;
+        run.failures = 0;
+        later(run, staggered());
+    });
+}
+
+const seen = () => runs.forEach((run) => later(run, unseen() ? pause(run) : staggered()));
 
 document.addEventListener("visibilitychange", seen);
 window.addEventListener("focus", seen);
 window.addEventListener("blur", seen);
 
-function leave(key, token) {
-    const held = polls.get(key);
-    if (!held) return;
-    held.users.delete(token);
-    if (held.users.size) return;
-    clearTimeout(held.timer);
-    polls.delete(key);
+function leave(place, token) {
+    const run = runs.get(place);
+    if (!run) return;
+    run.users.delete(token);
+    if (run.users.size) return;
+    clearTimeout(run.timer);
+    runs.delete(place);
 }
 
-export function startPoll(key, ask, every, take = () => {}, active = () => true) {
-    const token = Symbol(String(key));
-    const held = polls.get(key);
-    if (held) {
-        held.users.set(token, {ask, every, take, active});
-        // A page that joins a poll another page runs shows its last answer now, not after the next round.
-        if (held.last) take(held.last.got);
+// Takes part in a declared poller: `params` hands it what to read, `take` gets each answer, `failed` each failure, and
+// `active` says whether this user wants it asked now.
+export function startPoll(key, {params = () => ({}), take = () => {}, failed = () => {}, active = () => true} = {}) {
+    const place = placeOf(key, params());
+    const token = Symbol(place);
+    const user = {params, take, failed, active};
+    const run = runs.get(place);
+    if (run) {
+        run.users.set(token, user);
+        // a user that joins a poller another one runs is handed its last answer now, not after the next round
+        if (run.last) take(run.last.got);
     } else {
-        const fresh = {
-            key,
-            users: new Map([[token, {ask, every, take, active}]]),
-            timer: 0,
-            failures: 0,
-            took: 0,
-            started: -Infinity,
-            last: null,
-        };
-        polls.set(key, fresh);
+        const fresh = {key, place, users: new Map([[token, user]]), timer: 0, failures: 0, took: 0, started: -Infinity, last: null, paused: 0};
+        runs.set(place, fresh);
         round(fresh);
     }
-    return () => leave(key, token);
+    return () => leave(place, token);
 }
 
-export function usePoll(key, ask, every, take = () => {}, active = () => true) {
+// startPoll for a component's life; a user whose params come to name another run moves to it
+export function usePoll(key, options = {}) {
+    const params = options.params || (() => ({}));
     let stop = () => {};
-    onMounted(() => (stop = startPoll(key, ask, every, take, active)));
+    onMounted(() => {
+        stop = startPoll(key, options);
+        watch(
+            () => placeOf(key, params()),
+            () => {
+                stop();
+                stop = startPoll(key, options);
+            }
+        );
+    });
     onUnmounted(() => stop());
-    // a poll that had nothing to ask for asks the moment it has, not a whole interval later
-    watch(active, (now) => now && pollNow(key));
-    return () => pollNow(key);
+    // a poller that had nothing to ask for asks the moment it has, not a whole interval later
+    if (options.active) watch(options.active, (now) => now && pollNow(key, params()));
+    return () => pollNow(key, params());
 }

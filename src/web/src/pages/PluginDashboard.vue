@@ -1,6 +1,5 @@
 <script setup>
 import {ref} from "vue";
-import {api} from "../api/client.js";
 import Dashboard from "../kit/Dashboard.vue";
 import SidePanel from "../kit/SidePanel.vue";
 import {usePoll} from "../composables/poll.js";
@@ -14,14 +13,8 @@ const props = defineProps({
     settled: {type: Object, default: null},
 });
 const emit = defineEmits(["close"]);
-const REFRESH_EVERY = 10000;
 const document = ref(null);
-usePoll(
-    `dashboard-${props.plugin.id}-${props.board.name}`,
-    () => api.pluginDashboard(props.plugin.id),
-    REFRESH_EVERY,
-    (got) => (document.value = got)
-);
+usePoll("plugin.dashboard", {params: () => ({plugin: props.plugin.id, board: props.board.name}), take: (got) => (document.value = got)});
 const opened = (file) => showFile(file.path, file.line || 0);
 </script>
 

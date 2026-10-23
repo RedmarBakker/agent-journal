@@ -1,5 +1,5 @@
 <script setup>
-import {computed, nextTick, ref} from "vue";
+import {computed, ref} from "vue";
 import {showFile} from "../route.js";
 import {useScope} from "../composables/scope.js";
 import FeedBar from "./FeedBar.vue";
@@ -27,13 +27,12 @@ const DEFAULTS = {
     size: 0,
 };
 const BIG = 40;
-const TOP = 80;
 const SIZES = {"-1": ["10.5px", "17px"], 0: ["11.5px", "19px"], 1: ["13px", "21px"]};
 
 const scroller = ref(null);
 const follow = useFollow(scroller);
 const {following, unseen, jump, scrolled, wheeled} = follow;
-const {cards, ready, latest, older, loadOlder} = useFileFeed(props.agent, follow, scope.api);
+const {cards, ready, latest} = useFileFeed(props.agent, follow, scope.api);
 const now = useNow();
 const view = computed(() => ({...DEFAULTS, ...(props.defaults || {}), ...(props.options || {})}));
 const flushed = computed(() => props.flush || view.value.flush);
@@ -67,18 +66,8 @@ async function whole(c) {
     }
 }
 
-async function reachedTop() {
-    const box = scroller.value;
-    if (!box || box.scrollTop > TOP || !older.value) return;
-    const from = box.scrollHeight;
-    if (!(await loadOlder())) return;
-    await nextTick();
-    box.scrollTop += box.scrollHeight - from;
-}
-
 function onScroll(e) {
     scrolled(e);
-    reachedTop();
 }
 </script>
 

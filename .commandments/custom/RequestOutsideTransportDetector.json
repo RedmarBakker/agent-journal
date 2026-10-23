@@ -20,7 +20,7 @@
     "sin": {
         "name": "request-outside-transport",
         "description": "Viewer code reaches the server itself, by fetch, an EventSource, an XMLHttpRequest or a beacon, around the one funnel every request goes through, so its request is never joined with one in flight, never counted, never retried and never told the journal is updating.",
-        "rule": "Every request the viewer makes goes through the transport (src/web/src/api/transport.js), reached through a read or a write the API client declares; a file the build carries is fetched through transport.file.",
+        "rule": "Every request the viewer makes goes through the transport (src/web/src/api/transport.js), reached through a read or a write the API client declares; a file the build carries, and the phone app's and the share page's own addresses, go through transport.raw.",
         "skill": "viewer-request-funnel"
     }
 }

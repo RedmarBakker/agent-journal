@@ -1,31 +1,30 @@
 import {computed, ref} from "vue";
-import {api} from "../api/client.js";
-import {pollKey, usePoll} from "./poll.js";
+import {usePoll} from "./poll.js";
 
-const EVERY = 5000;
-
-function useWorkerPoll(key, query, active = () => true) {
+// the rows a workers poller hands over, and whether it has answered yet
+function workerRows() {
     const rows = ref([]);
     const loaded = ref(false);
-    const refresh = usePoll(
-        key,
-        () => api.list("workers", query()).then((got) => got.rows || []),
-        EVERY,
-        (got) => {
-            rows.value = got;
-            loaded.value = true;
-        },
-        active
-    );
-    return {rows, loaded, refresh};
+    const take = (got) => {
+        rows.value = got;
+        loaded.value = true;
+    };
+    return {rows, loaded, take};
 }
 
-export const useWorkers = () => useWorkerPoll("workers", () => ({}));
+export function useWorkers() {
+    const {rows, loaded, take} = workerRows();
+    return {rows, loaded, refresh: usePoll("workers.index", {take})};
+}
 
-export const useEveryWorker = (open) => useWorkerPoll("workers:every", () => ({limit: 200}), () => open.value);
+export function useEveryWorker(open) {
+    const {rows, loaded, take} = workerRows();
+    return {rows, loaded, refresh: usePoll("workers.every", {take, active: () => open.value})};
+}
 
 // The workers that hold any of these tasks.
 export function useWorkersHolding(tasks) {
     const ids = computed(() => [...new Set(tasks.value.map((t) => t.worker_id).filter(Boolean))]);
-    return useWorkerPoll(`workers:holding:${pollKey()}`, () => ({ids: ids.value}), () => ids.value.length > 0);
+    const {rows, loaded, take} = workerRows();
+    return {rows, loaded, refresh: usePoll("workers.holding", {params: () => ({ids: ids.value}), take, active: () => ids.value.length > 0})};
 }

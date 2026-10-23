@@ -7,7 +7,7 @@ export const STEPS = ["Installing the new version", "Restarting the journal", "L
 const SECOND_STEP_AT = 8;
 const THIRD_STEP_AT = 25;
 
-export const STATUS_POLL = "summary";
+export const STATUS_POLL = "status.summary";
 
 export const updating = reactive({
     version: "",

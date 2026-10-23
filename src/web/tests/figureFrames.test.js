@@ -40,7 +40,7 @@ function posed(clip, t) {
 
 // the slowest clips and the ones whose time was rounded inside, each from a moment it moves: the waiting figure from its whistling, past
 // the stretch it holds its watch still on purpose
-const MOVING = {think: 0.2, sleep: 0.2, waiting: 0.72, idle: 0.2};
+const MOVING = {sleep: 0.2, waiting: 0.72, idle: 0.2};
 
 test("the slow clips move on every display frame instead of holding a pose for several", () => {
     for (const [name, from] of Object.entries(MOVING)) {

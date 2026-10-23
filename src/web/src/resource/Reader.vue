@@ -4,7 +4,7 @@ import {computed, provide, ref, watch, watchEffect} from "vue";
 import SidePanel from "../kit/SidePanel.vue";
 import SwitchCase from "../kit/SwitchCase.vue";
 import {go, route, unpeek} from "../route.js";
-import {PAGE, holding, isWhole, rows, whole} from "../sync/rows.js";
+import {holding, isWhole, rows, whole} from "../sync/rows.js";
 import ResourceBody from "./ResourceBody.vue";
 import DocumentPage from "./DocumentPage.vue";
 import PlanPage from "./PlanPage.vue";
@@ -28,18 +28,13 @@ const props = defineProps({
     leaving: Boolean,
 });
 const emit = defineEmits(["gone"]);
-const ELSEWHERE_EVERY = 5000;
 const scope = props.env && props.env !== route.value.env ? scopeIn(props.env) : null;
 if (scope) provide("scope", scope);
 const rowsHere = scope ? scope.rows : rows;
 const stored = computed(() => (props.table ? rowsHere(props.table).find((r) => r.id === props.id) : null) || null);
 const resource = useKept(stored, () => `${props.table}:${props.id}`);
 
-async function readElsewhere() {
-    await scope.holding(props.table, [props.id]);
-    await scope.recent("comments", PAGE);
-}
-if (scope) usePoll(`elsewhere:${props.env}:${props.table}:${props.id}`, readElsewhere, ELSEWHERE_EVERY);
+if (scope) usePoll("reader.elsewhere", {params: () => ({scope, table: props.table, id: props.id})});
 watchEffect(() => {
     if (!scope && props.table && props.id && !resource.value) holding(props.table, [props.id]);
 });

@@ -27,7 +27,6 @@ const CAN = [
     "Send the agent instructions",
 ];
 
-const ASK_EVERY = 1500;
 const OPEN_WAIT = 10000;
 const NOT_OPENED = "The secure connection did not open.";
 const days = ref("7");
@@ -56,14 +55,10 @@ watch([made, reachable], ([code, up], _, onCleanup) => {
     onCleanup(() => clearTimeout(timer));
 });
 
-usePoll(
-    "phone-tunnel",
-    () => (made.value && !reachable.value ? api.tunnelAnswering() : null),
-    ASK_EVERY,
-    (got) => got && (reachable.value = Boolean(got.reachable))
-);
-usePoll("phone-tunnel-problems", () => (made.value && !reachable.value ? checkTunnel() : null), ASK_EVERY * 2);
-usePoll("phone-paired", () => (made.value ? loadPhones() : null), ASK_EVERY);
+const unreached = () => Boolean(made.value) && !reachable.value;
+usePoll("phone.tunnel", {take: (got) => got && (reachable.value = Boolean(got.reachable)), active: unreached});
+usePoll("phone.tunnel.problems", {active: unreached});
+usePoll("phones.pairing", {active: () => Boolean(made.value)});
 
 async function fresh() {
     busy.value = true;

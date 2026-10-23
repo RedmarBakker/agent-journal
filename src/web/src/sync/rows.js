@@ -186,19 +186,42 @@ async function caughtUp(table) {
     return store.rows[table];
 }
 
+// a table whose older page is being read: its refresh waits, so the two never pull at the same time
+const pausedTables = new Set();
+
+// Stops a table's refresh and settles once no read of it is in flight.
+async function pausedRefresh(table) {
+    pausedTables.add(table);
+    while (fetching.has(table)) await draining;
+}
+
+function resumedRefresh(table) {
+    pausedTables.delete(table);
+    if (owed.has(table)) drain();
+}
+
 export async function earlier(...tables) {
     const growing = tables.filter((table) => store.paging.more[table]);
-    await Promise.all(
-        growing.map(async (table) => {
-            const got = await api.list(table, {limit: pageOf(table), before: beforeKey(store.rows[table] || [])});
-            const held = store.rows[table] || [];
-            const known = new Set(held.map((r) => r.id));
-            store.rows[table] = [...got.rows.filter((r) => !known.has(r.id)), ...held].sort(orderOf(table));
-            store.paging.size[table] = store.rows[table].length;
-            store.paging.more[table] = !got.is_last_page;
-        })
-    );
+    await Promise.all(growing.map(olderPage));
     return growing.length > 0;
+}
+
+async function olderPage(table) {
+    await pausedRefresh(table);
+    try {
+        await readOlderPage(table);
+    } finally {
+        resumedRefresh(table);
+    }
+}
+
+async function readOlderPage(table) {
+    const got = await api.list(table, {limit: pageOf(table), before: beforeKey(store.rows[table] || [])});
+    const held = store.rows[table] || [];
+    const known = new Set(held.map((r) => r.id));
+    store.rows[table] = [...got.rows.filter((r) => !known.has(r.id)), ...held].sort(orderOf(table));
+    store.paging.size[table] = store.rows[table].length;
+    store.paging.more[table] = !got.is_last_page;
 }
 
 const closedMore = (table) => `${table}:closed`;
@@ -278,12 +301,15 @@ async function drain() {
     if (draining) return draining;
     draining = (async () => {
         await new Promise((settle) => setTimeout(settle, 30));
-        while (owed.size || owedWhole) {
+        while ([...owed].some((table) => !pausedTables.has(table)) || owedWhole) {
             const whole = owedWhole;
             const tables = [...(whole ? Object.keys(store.rows) : owed)]
                 .filter((table) => TABLES[table] && (watchedTables.has(table) || table in store.rows))
-                .filter((table) => whole || !watchedTables.has(table) || changed.has(table) || !loaded.has(table));
+                .filter((table) => whole || !watchedTables.has(table) || changed.has(table) || !loaded.has(table))
+                .filter((table) => !pausedTables.has(table));
+            const waiting = [...owed].filter((table) => pausedTables.has(table));
             owed.clear();
+            waiting.forEach((table) => owed.add(table));
             owedWhole = false;
             try {
                 await fetched(tables, whole);

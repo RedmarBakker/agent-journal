@@ -49,7 +49,7 @@ function take(got) {
     loaded.value = true;
 }
 const reload = async () => take(await api.mcp());
-usePoll("mcp", () => api.mcp(), 30000, take);
+usePoll("mcp.servers", {take});
 let waiting = 0;
 watch(restartPending, (sessions) => {
     clearInterval(waiting);
