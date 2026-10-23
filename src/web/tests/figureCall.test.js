@@ -51,6 +51,8 @@ test("a worker's dispatch, its next job, its start again, a message sent it and 
     const memory = new Map();
     reactionTo("messaged", memory, 1000, () => 0);
     expect(reactionTo("messaged", memory, 1010, () => 0)).toBe(null);
+    expect(reactionTo("messaged", memory, 1060, () => 0), "a minute later the telephone stays away").toBe(null);
+    expect(reactionTo("messaged", memory, 1100, () => 0).clip, "past ninety seconds it rings again").toBe("phone_call");
 });
 
 test("the call goes in order: the telephone appears, the handset comes up to the ear, the dial turns and springs back, it talks, the handset goes down, the telephone goes", () => {
