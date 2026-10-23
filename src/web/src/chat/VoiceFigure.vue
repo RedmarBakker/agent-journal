@@ -746,9 +746,9 @@ function look() {
     now.value = Date.now() / 1000;
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
     spell.value = spellFor(doings.value.state, spell.value, now.value, Math.random, memory.tally);
-    const going = stillGoing(beats.value, doings.value.state, beatOnScreen());
-    beats.value = going.beats;
-    cutting ||= going.cut;
+    const ongoing = stillGoing(beats.value, doings.value.state, beatOnScreen());
+    beats.value = ongoing.beats;
+    cutting ||= ongoing.cut;
     const happened = [
         ...beatsAfter(lead.value, seenAt),
         ...cardsAfter(lead.value, knownCards),
