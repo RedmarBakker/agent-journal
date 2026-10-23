@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-DvvaVZaW.js
-import{A as _e,p as yd,a as Md,b as Ge,h as fl,s as Sd,g as Ed,c as bd,P as Hi,L as wd,d as Td,V as Ad}from"./main-DwaSXZrC.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as _e,p as yd,a as Md,b as Ge,h as fl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-BJ6HsXBp.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 1b4b2ea31 (The avatar turns to face the box before it leans in and pushes it, the box drawn in front of it with both hands flat on its side; the claw crane comes down around a box and shuts its prongs on the box's sides as it lifts it; and the pile's corner of the composer is the pile's, the avatar resting, sitting, strolling and lounging on the free part beside it):src/web/dist/assets/figure-D_HTwQsN.js
+import{A as _e,p as yd,a as Md,b as Ge,h as fl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-C66P4ImL.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
