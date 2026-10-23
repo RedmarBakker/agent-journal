@@ -31,6 +31,8 @@ from journal.repositories.templates import Templates
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.hooks.command_events import CommandEvents
 from journal.features.workers.support.worker_libraries import WorkerLibraries
+from journal.features.workers.support.pool_dispatch import PoolDispatch
+from journal.sync.team_account import TeamAccount
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
@@ -48,11 +50,12 @@ class WorkerCommand(Command):
     noun = "worker"
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount) -> None:
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
+        self.pool, self.account = pool, account
 
     def arguments(self, verbs) -> None:
         dispatch = self.verb(verbs, "dispatch", "send a worker to write one bounded job")
@@ -67,6 +70,7 @@ class WorkerCommand(Command):
         dispatch.add_argument("--libraries", default="", help="library folders the worktree links to the main checkout's, comma separated, such as node_modules,.venv")
         dispatch.add_argument("--copies", default="", help="library folders the worktree gets copies of its own of, comma separated, such as vendor for composer, whose autoloader would load the main checkout's classes through a link")
         dispatch.add_argument("--no-libraries", action="store_true", help="a worktree with no library folders, for a job that changes the libraries themselves")
+        dispatch.add_argument("--pool", action="store_true", help="to the team's pool: a teammate's machine with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first; with --worktree, a profile the team allows its pool, and no --model")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task").add_argument("n", type=int)
@@ -112,6 +116,8 @@ class WorkerCommand(Command):
         maximum = self.settings.integer(Feature.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
             raise Rejection(Feature.WORKER_OVERFLOW.create(out=len(output)).rendered())
+        if args.pool and self.pool_refusal(args):
+            raise Rejection(self.pool_refusal(args))
         task = self.assignment(args.task, caller)
         provider = args.provider or self.provider_default(caller)
         moment = datetime.now(timezone.utc).timestamp()
@@ -121,6 +127,11 @@ class WorkerCommand(Command):
         testing = self.testing_template(args.tests)
         worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=args.model or self.model(args.profile, provider), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session)
         worker = self.workers.save(worker.contacted(moment), caller.actor)
+        if args.pool:
+            return self.pooled(worker, task, args, caller, moment)
+        return self.launched(worker, task, caller, moment)
+
+    def launched(self, worker: Worker, task: Task, caller: Caller, moment: float) -> int:
         try:
             repositories = self.runner.workplace(worker)
         except WorktreeFailure as failed:
@@ -131,6 +142,28 @@ class WorkerCommand(Command):
         self.workers.save(self.workers.find(worker.row_id).with_(repositories=repositories, branch=self.branch.name(worker) if worker.worktree else "").dispatched(moment), caller.actor)
         print(f"worker {worker.id} {worker.name} dispatched on {worker.provider} {worker.model}; it reports in the chat when it ends")
         return 0
+
+    def pooled(self, worker: Worker, task: Task, args: Namespace, caller: Caller, moment: float) -> int:
+        try:
+            request = self.pool.send(worker, task)
+        except Rejection:
+            self.workers.delete(worker, caller.actor)
+            raise
+        self.tasks.handover(task, Ref.build(worker), caller.actor)
+        self.workers.save(self.workers.find(worker.row_id).with_(pool_request=request, branch=self.branch.name(worker)).dispatched(moment), caller.actor)
+        print(f"worker {worker.id} {worker.name} sent to the team's pool as request {request}; a teammate's machine with a free slot takes it up, and it reports in the chat when it ends")
+        return 0
+
+    def pool_refusal(self, args: Namespace) -> str:
+        from journal.features.workers.feature import Workers as Feature
+        allowed = self.settings.texts(Feature.POOL_PROFILES)
+        refusals = (
+            (not self.account.is_joined(), "the pool is the team's: this journal has joined no team, so dispatch without --pool"),
+            (not args.worktree, "a pool worker works in a worktree cut from your environment's head: add --worktree with its library folders"),
+            (bool(args.model), "a pool worker runs the model its profile names on the machine that takes it: leave --model out"),
+            (args.profile not in allowed, f"the team's pool runs only the profiles {', '.join(allowed) or 'none'}: name one with --profile, or dispatch without --pool"),
+        )
+        return next((line for refused, line in refusals if refused), "")
 
     def library_names(self, args: Namespace) -> tuple[tuple[str, ...], tuple[str, ...]]:
         links = tuple(name.strip().rstrip("/") for name in args.libraries.split(",") if name.strip())

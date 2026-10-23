@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import json
 import ssl
 import urllib.error
@@ -18,6 +19,7 @@ from sync_server.login_request import LoginRequest
 from sync_server.people_answer import PeopleAnswer
 from sync_server.pull_answer import PullAnswer
 from sync_server.pull_query import PullQuery
+from sync_server.pool_ask_request import PoolAskRequest
 from sync_server.sync_answer import SyncAnswer
 from sync_server.password_answer import PasswordAnswer
 from sync_server.signin_answer import SigninAnswer
@@ -48,6 +50,10 @@ class TeamServerLink:
 
     def ask_host(self, environment_key: str, kind: str, body: dict, account_id: int) -> None:
         self.posted("/host-requests", {"environment_key": environment_key, "kind": kind, "body": body, "account_id": account_id})
+
+    def ask_pool(self, request: PoolAskRequest) -> int:
+        answer = json.loads(self.posted("/pool-requests", asdict(request)))
+        return int(answer["requests"][0]["id"])
 
     def finish_host_request(self, id: int) -> None:
         self.posted("/host-requests/done", {"id": id})

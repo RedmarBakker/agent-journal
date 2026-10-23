@@ -10883,3 +10883,53 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
         tasks = app.container.get(Tasks)
         tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
     assert 4 not in [task.id for task in app.container.get(Plans).offers()], "a task a worker holds is never offered"
+
+
+def test_a_pool_dispatch_pushes_the_base_to_origin_and_asks_the_team_servers_pool(app: App, tmp_path):
+    import subprocess
+
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.version import VERSION
+    from sync_server.account import ADMIN, MEMBER
+    from sync_server.pool_slots import PoolSlots
+    from sync_server.pull_query import PullQuery
+    from sync_server.team_server import TeamServer
+
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "--bare", str(tmp_path / "origin.git"), cwd=tmp_path)
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
+    dispatch = lambda *extra: console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", *extra], AGENT)
+    try:
+        assert "joined no team" in dispatch("--profile", "journal-medior", "--worktree", "--no-libraries").error, "the pool is the team's"
+        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages"):
+            app.container.get(IdBlocks).add(table, 800000, 800100)
+        app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": ada, "device": 1, "account_id": 1})
+        assert "add --worktree" in dispatch("--profile", "journal-medior").error, "a pool worker works in a worktree"
+        assert "leave --model out" in dispatch("--profile", "journal-medior", "--worktree", "--no-libraries", "--model", "opus").error, "a pool worker runs its profile's model, never one the dispatcher names"
+        assert "runs only the profiles journal-medior" in dispatch("--profile", "journal-senior", "--worktree", "--no-libraries").error, "a profile the team keeps out of its pool is refused"
+        sent = dispatch("--profile", "journal-medior", "--worktree", "--no-libraries")
+        assert sent.code == 0, sent.error
+        assert "refs/heads/journal/pool/" in git("ls-remote", "origin").stdout, "the environment's head is pushed to origin as the base the worktree is cut from"
+        offered = team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION))
+        assert [(request.kind, request.body["worker"], request.body["task"], request.body["profile"]) for request in offered] == [("pool_worker", "Lady Lovelace", 1, "journal-medior")], "the pool is asked with the worker's name, task and profile, offered to a teammate's machine with a free slot"
+        worker = app.container.get(Workers).all()[0]
+        assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).state == "delegated", "the worker keeps the request's number and holds its task, though nothing runs here"
+    finally:
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)

@@ -26,7 +26,7 @@ SILENCE = Timeout.minutes(20)
 
 @dataclass(frozen=True)
 class Worker(Scoped):
-    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; retired once stopped or acted on. It keeps each move it made with its time, and the branch it commits on."""
+    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; retired once stopped or acted on. It keeps each move it made with its time, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     name: str = ""
@@ -56,6 +56,7 @@ class Worker(Scoped):
     silence: WorkerSilence = WorkerSilence(SILENCE)
     moves: WorkerMoves = WorkerMoves()
     branch: str = ""
+    pool_request: int = 0
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session
