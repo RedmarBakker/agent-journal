@@ -10,6 +10,7 @@ from journal.support.card_kind import CardKind
 PROCESS = "process"
 DOCKED = "docked"
 AUTO_DOCKED = "auto_docked"
+DOCK_TIME_KEY = "dock_at"
 
 
 class ProcessCards:
@@ -38,4 +39,4 @@ class ProcessCards:
 
     @staticmethod
     def docked_data(older: Message, data: dict) -> dict:
-        return {**{key: older.data[key] for key in (DOCKED, AUTO_DOCKED) if key in older.data}, **data}
+        return {**{key: older.data[key] for key in (DOCKED, AUTO_DOCKED, DOCK_TIME_KEY) if key in older.data}, **data}

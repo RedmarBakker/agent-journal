@@ -8310,8 +8310,15 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
         hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
         app.runtime().deferred.drain()
 
+    quick = run("quick")
+    assert 4 <= card(quick).data["dock_at"] - timing.time() <= 5, "a live card docks itself once its run has gone on five seconds"
+    end(quick)
+    assert card(quick).data["undock_at"] == card(quick).data["dock_at"], "a run that ended sooner never docks"
     auto = run("auto")
     assert card(auto).data["docked"] is True, "a live card docks itself"
+    with app.container.get(Scope).environment(MAIN):
+        message = card(auto)
+        app.container.get(Messages).save(message.with_(data={**message.data, "dock_at": timing.time() - 1}), Actor.system())
     end(auto)
     ended = card(auto).data
     assert ended["docked"] is True and ended["auto_docked"] is True and 4 <= ended["undock_at"] - timing.time() <= 5, "and stays five seconds after its run ends, then comes down"

@@ -6,9 +6,10 @@ export function dockedDump(dumps) {
     return newest && newest.completed_at && !newest.dismissed ? newest : null;
 }
 
-// Whether a message sits docked above the chat at a moment, in seconds: a card that docked itself leaves once the time it
-// lingers after its run's end has passed.
-export const isDocked = (m, now) => m.data?.docked === true && !(m.data.undock_at && now >= m.data.undock_at);
+// Whether a message sits docked above the chat at a moment, in seconds: a card that docks itself comes once its run has gone on
+// the while it waits for, and leaves once the time it lingers after its run's end has passed.
+export const isDocked = (m, now) =>
+    m.data?.docked === true && !(m.data.dock_at && now < m.data.dock_at) && !(m.data.undock_at && now >= m.data.undock_at);
 
 // Every row docked above the chat, in the order each docked: a system message whose data carries docked and the row's card. The
 // newest sits at the bottom, nearest the composer, pushing the earlier ones up, and none changes place as it updates.

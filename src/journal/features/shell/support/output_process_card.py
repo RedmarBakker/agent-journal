@@ -3,7 +3,7 @@ from pathlib import Path
 
 from journal.chat.docking import Docking
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_cards import AUTO_DOCKED, DOCKED, ProcessCards
+from journal.chat.process_cards import DOCK_TIME_KEY, AUTO_DOCKED, DOCKED, ProcessCards
 from journal.chat.card_detail import CardDetail
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.card_progress import CardProgress
@@ -22,11 +22,12 @@ from journal.support.command_text import CommandText
 
 HEADLINE_CHARACTERS = 60
 ENDED_DOCK_SECONDS = 5
-UNDOCK_AT = "undock_at"
+DOCK_DELAY_SECONDS = 5
+UNDOCK_TIME_KEY = "undock_at"
 
 
 class OutputProcessCard(ProcessCard):
-    """The process card of a watched output: its title, its reader's lines and its progress, active until the command ends."""
+    """The process card of a watched output: its title, its reader's lines and its progress, active until the command ends; docked above the chat once it has run five seconds, so a quick command never docks."""
 
     name = "output"
 
@@ -52,10 +53,15 @@ class OutputProcessCard(ProcessCard):
         from journal.features.shell.feature import Shell
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())
         if not cards:
-            return {DOCKED: True, AUTO_DOCKED: True} if not output.ended and self.settings.option(Shell.OUTPUT_DOCK) else {}
+            return {DOCKED: True, AUTO_DOCKED: True, DOCK_TIME_KEY: time.time() + DOCK_DELAY_SECONDS} if not output.ended and self.settings.option(Shell.OUTPUT_DOCK) else {}
         if not output.ended or not cards[0].data.get(AUTO_DOCKED):
             return {}
-        return {UNDOCK_AT: cards[0].data.get(UNDOCK_AT) or time.time() + ENDED_DOCK_SECONDS}
+        return {UNDOCK_TIME_KEY: cards[0].data.get(UNDOCK_TIME_KEY) or self.undock_time(cards[0].data.get(DOCK_TIME_KEY, 0))}
+
+    @staticmethod
+    def undock_time(dock_time: float) -> float:
+        current_time = time.time()
+        return dock_time if current_time < dock_time else current_time + ENDED_DOCK_SECONDS
 
     @staticmethod
     def tone(output: CommandOutput) -> str:
