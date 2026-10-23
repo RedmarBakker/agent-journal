@@ -123,8 +123,8 @@ function wantedClip(scene, canDraw) {
     if (beat && !(beat.onto && trip)) return {clip: beat.clip, facing: beat.facing, once: true};
     // standing at the tab of what waits on the user it points up at it; anywhere else it waits turned toward the compose box
     if (place.view && state === "asking") return {clip: "point", facing: 0};
-    // pushing a box it built goes on while the agent waits as well
-    if (["asking", "waiting"].includes(state) && doing !== "push") return {clip: "waiting", facing: scene.composeFacing ?? 0};
+    // building a box and pushing it go on while the agent waits as well
+    if (["asking", "waiting"].includes(state) && !["work", "push"].includes(doing)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : doingFacing};
 }
 

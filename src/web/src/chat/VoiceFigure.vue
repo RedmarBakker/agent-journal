@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -215,7 +215,8 @@ function doing() {
     const pushing = parcels.value.find((each) => each.state === "built");
     if (pushing) return facesToPush(pushing) ? "push" : "idle";
     if (parcels.value.some((each) => each.state === "building")) return "work";
-    if (builds(held.value.state)) return making && body.place.stays ? heldClip() : "idle";
+    if (making) return body.place.stays ? "work" : "idle";
+    if (builds(held.value.state)) return "idle";
     return heldClip();
 }
 
@@ -828,15 +829,20 @@ function workOf() {
     return making ? {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2} : null;
 }
 
-// whether the figure builds a server unit in the run going on, as the pile grants one (parcels.js unitGranted), until it is piled
+// the boxes of the run the figure builds for (parcels.js unitsAfter), and whether it builds one now, until it is piled
+let units = null;
 let making = false;
 
-// at a look: a run going on with no unit in hand is granted one now and then; with no run, a unit not yet begun is given up
+// at a look: with no box in hand the figure builds the next while the run going on is granted boxes, and gives up one not yet begun once
+// it ends
 function grantUnit() {
     const inHand = parcels.value.some((each) => each.state !== "piled");
-    if (builds(held.value.state) && !making && !inHand) making = unitGranted(memory.reacted, now.value, Math.random);
-    if (!builds(held.value.state) && !inHand) making = false;
+    units = unitsAfter(units, buildRunAt(lead.value?.data?.cards || [], shellRun(), now.value), memory.reacted, now.value, Math.random);
+    if (!inHand) making = Boolean(units?.granted);
 }
+
+// the shell command going on that reads as a test run or a build, with the process card it runs under, as a run the figure builds for
+const shellRun = () => (builds(held.value.state) ? {card: runningCard(), since: held.value.since} : null);
 
 // The box the figure builds is done: it goes straight round behind it to push it, at once, its idle looks about that wait dropped but the
 // one on screen
@@ -856,7 +862,7 @@ function keepParcels(shown) {
     const hammers = shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip;
     if (hammers && !list.some((each) => each.state !== "piled")) {
         const along = Math.min(Math.max(feetX() + beside - edge.left, PARCEL.inside), edge.width - PARCEL.inside);
-        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", until: performance.now() + hammerMs(Math.random), blows: 0, lit: "amber", run: runningCard()}];
+        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", until: performance.now() + hammerMs(Math.random), blows: 0, lit: "amber", run: units?.card || runningCard()}];
     }
     const building = parcels.value.find((each) => each.state === "building");
     if (building && hammers) countBlows(building, shown);

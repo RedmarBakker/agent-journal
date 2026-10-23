@@ -3,11 +3,11 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, SHOVE, leanOf, lookToward} from "../src/figure/figure.js";
-import {BLINK, CLAW, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {BLINK, BUILD, CLAW, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, testRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
 import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
-import {PILE as ANIMATIONS} from "../src/figure/pile.js";
+import {PILE as ANIMATIONS, UNIT} from "../src/figure/pile.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -352,4 +352,39 @@ test("a box built, the figure goes straight round behind it and pushes, in one m
     expect(pushStand(parcel, pile, stand)).toBe(pile - PUSH.reach);
     // hammering on the box's near side already, it pushes from where it stands
     expect(pushStand(parcel, pile, parcel - 29)).toBe(pile - PUSH.reach);
+});
+
+test("a running chat mark titled with the word test builds boxes one after another from 5 seconds in, and the wait for the next is counted from its end", () => {
+    const mark = (key, label, time, active = true) => ({key, label, time, active, process: true, watch: null});
+    // a look every second from `from` to `to` with the marks `cardsAt(now)` gives, a box taking ten seconds from its start to the pile; the
+    // seconds each box was begun at
+    const run = (memory, cardsAt, from, to, units = null) => {
+        const begun = [];
+        for (let now = from; now <= to; now++) {
+            units = unitsAfter(units, buildRunAt(cardsAt(now), null, now), memory, now, () => 0);
+            if (units?.granted && (!begun.length || now - begun.at(-1) >= 10)) begun.push(now);
+        }
+        return {begun, units};
+    };
+    // a run of a few seconds builds nothing and starts no wait
+    const short = new Map();
+    expect(run(short, (now) => [mark("a", "Running tests: pytest", 0, now < 4)], 0, 30).begun).toEqual([]);
+    expect(short.has("unit")).toBe(false);
+    // one titled with the word test, in any case, whatever the tool, builds from 5 seconds in, one box after another while it goes
+    for (const label of ["Running tests: journal suite", "npm test", "go test ./...", "TEST run"]) {
+        const {begun} = run(new Map(), (now) => [mark("a", label, 0, now < 60)], 0, 120);
+        expect(begun[0], label).toBe(BUILD.after);
+        expect(begun.length, label).toBeGreaterThanOrEqual(5);
+        expect(Math.max(...begun), label).toBeLessThan(60);
+    }
+    // one without the word, or one that has ended, builds nothing
+    expect(testRuns([mark("a", "npm run build", 0), mark("b", "Running tests", 0, false), {...mark("c", "go test", 0), process: false}])).toEqual([]);
+    expect(testRuns([{...mark("d", "watch tests", 0), process: false, watch: {figure: "", ending: ""}}]).map((card) => card.key)).toEqual(["d"]);
+    expect(run(new Map(), () => [mark("a", "Running lint: ruff", 0)], 0, 60).begun).toEqual([]);
+    // the wait between boxes starts once the run has ended: a run begun just after waits until three minutes past the first one's end
+    const memory = new Map();
+    const first = run(memory, (now) => [mark("a", "npm test", 0, now < 60)], 0, 61);
+    expect(memory.get("unit")).toBe(60);
+    const second = run(memory, (now) => [mark("b", "npm test", 62)], 62, 300, first.units);
+    expect(second.begun[0]).toBe(60 + UNIT.every);
 });

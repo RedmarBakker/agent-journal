@@ -82,6 +82,31 @@ export function pileSlot(index) {
 // `memory` holding when the last was granted, at `now` in seconds
 export const unitGranted = (memory, now, random) => draw({moment: "unit", memory, now}, random) !== null;
 
+// how long a run goes on before the figure builds for it, in seconds, so a run of a few seconds builds nothing and starts no wait
+export const BUILD = {after: 5};
+
+// the running chat marks among `cards` that are test runs, whatever the language or tool: a process or watch card still active whose title
+// holds the word test, in any case
+export const testRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && /test/i.test(card.label ?? ""));
+
+// The run the figure builds for at `now`, in seconds, its card and when it began: the oldest running test mark among `cards`, else `shell`,
+// a shell command read as a test run or a build; null with none, or while it has gone on less than BUILD.after
+export function buildRunAt(cards, shell, now) {
+    const mark = testRuns(cards).sort((one, other) => Number(one.time) - Number(other.time))[0];
+    const run = mark ? {card: mark.key, since: Number(mark.time)} : shell;
+    return run && now - run.since >= BUILD.after ? run : null;
+}
+
+// The boxes of the run `run` (buildRunAt), as `units` had them: a run asks the pile for boxes (unitGranted) until it is granted them, and
+// keeps them for as long as it goes, so it builds one box after another; once a granted run ends, the wait for the next (pile.js UNIT) is
+// counted from then, `memory` holding when
+export function unitsAfter(units, run, memory, now, random) {
+    const same = Boolean(units && run && units.card === run.card);
+    if (units?.granted && !same) memory.set("unit", now);
+    if (!run) return null;
+    return same && units.granted ? units : {card: run.card, granted: unitGranted(memory, now, random)};
+}
+
 // how long the figure hammers each parcel, a random number of milliseconds between the two
 export const HAMMER = {least: 3000, most: 8000};
 export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAMMER.least);

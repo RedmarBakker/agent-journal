@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-6bWtL7r6.js
 import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-pPtfcLK6.js";import"./tokens-D2Th-Z3L.js";import"./tip-CgWBk4Q1.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-wHVzTofC.js";import"./tokens-D2Th-Z3L.js";import"./tip-lw2PxB3z.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 00687dbe8 (The avatar builds boxes while a running chat mark has the word test in its title, starting once the run has gone 5 seconds and building one after another for as long as it runs; the 3-minute wait for the next run's boxes counts from the run's end):src/web/dist/assets/figure-B_2BhQ1V.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
