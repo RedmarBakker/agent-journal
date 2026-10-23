@@ -7,6 +7,14 @@ export function frameIn(clip, index, closing = null) {
     return index < intro ? index : intro + ((index - intro) % (clip.frames - intro - outro));
 }
 
+// The frame of a clip `index` frames in when `stretch` ({from, to, extra}) holds a part of it longer: as it is up to frame `to`, then its
+// frames `from` to `to` over again for `extra` frames more, then the rest of it from `to` on
+export function stretchedFrame(index, stretch) {
+    if (!stretch || index < stretch.to) return index;
+    const {from, to, extra} = stretch;
+    return index < to + extra ? from + ((index - to) % (to - from)) : index - extra;
+}
+
 // Close at a resting page, not halfway through a turn.
 export function closeAt(clip, index) {
     const intro = clip.intro || 0;

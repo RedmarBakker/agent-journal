@@ -416,6 +416,17 @@ export function progressEdge(element) {
 // whether the figure says whom it calls at `u` of its call (acts.js phone_call): from the talk's start until the handset is down
 export const callSays = (u) => u >= ACTS.phone_call.talk[0] && u < ACTS.phone_call.hang[1];
 
+// The call's talk held longer so its bubble is up for `seconds` at least (timeline.js stretchedFrame): the talk played round again as
+// many more times as that takes, none when the call is long enough as it is; the talk's frames are where the act's own time is in it,
+// its last frame at 1 (figure.js onceTime)
+export function callStretch(seconds) {
+    const act = ACTS.phone_call;
+    const [from, to] = act.talk.map((u) => u * (act.frames - 1));
+    const said = ((act.hang[1] - act.talk[0]) * act.frames) / act.fps;
+    const rounds = Math.max(Math.ceil(((seconds - said) * act.fps) / (to - from)), 0);
+    return {from, to, extra: rounds * (to - from)};
+}
+
 // The speech bubble the figure says something in beside its head at `head`, a page point, `width` by `height` pixels: up and out to one side
 // of the head, the side where it hides the fewest words, as `hides(box)` counts them, toward the side with more `room` when both hide as
 // many; its box on the page and the side, 1 to the right

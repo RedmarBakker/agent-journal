@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-D8DZtBO2.js
 import{A as ce,p as Te,a as ep,b as tp,h as Il,s as np,g as ip,P as Qi,L as sp,c as rp,V as op}from"./main-CTD2k6HH.js";import{e as Lc}from"./tokens-DQuY9per.js";import"./tip-CqTMCEIB.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{A as ce,p as Te,a as ep,b as tp,h as Il,s as np,g as ip,P as Qi,L as sp,c as rp,V as op}from"./main-ClYlKmx2.js";import{e as Lc}from"./tokens-DQuY9per.js";import"./tip-NOdCxxA5.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> e5930cd95 (The phone call's bubble says its text a phrase at a time, three or four words or up to a sentence's end, each fading in and out, in a pen-like comic hand (Kalam) with every letter a little off the line, askew and sized; the call's talk plays round again until the last phrase has been read):src/web/dist/assets/figure-Z2u4NhJU.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT

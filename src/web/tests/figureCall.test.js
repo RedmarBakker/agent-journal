@@ -7,6 +7,7 @@ import {ACTS} from "../src/figure/acts.js";
 import {PILE, choicesFor} from "../src/figure/pile.js";
 import {reactionTo} from "../src/figure/reactions.js";
 import {beatsAfter, withSystemCards} from "../src/domain/figureState.js";
+import {callStretch} from "../src/figure/places.js";
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
 const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [name, new THREE.Vector3(...at)]));
@@ -308,5 +309,21 @@ test("drawn after the reference picture: a large cream dial plate fills most of 
         const extent = size(bulb);
         expect(extent.x, end).toBeGreaterThan(handle * 1.8);
         expect(Math.abs(extent.x - extent.z), end).toBeLessThan(0.01);
+    }
+});
+
+test("the talk held longer plays round without a jump: the figure stands at the talk's end as it stood at its start, so the talk starts again where it ended", () => {
+    const call = CLIPS.find((clip) => clip.name === "phone_call");
+    const {from, to} = callStretch(30);
+    for (const voice of Object.keys(stances)) {
+        const [start, end] = [from, to].map((frame) => {
+            const pose = new Posing(RIG, "stand", 0);
+            call.pose(pose, stanceOf(voice), frame / call.frames);
+            return pose.moves(0);
+        });
+        for (const bone of ["head", "hand_l", "hand_r", "spine"].filter((name) => start.has(name))) {
+            const [a, b] = [start, end].map((moves) => moves.get(bone).elements);
+            expect(Math.max(...a.map((value, index) => Math.abs(value - b[index]))), `${voice} ${bone}`).toBeLessThan(1e-6);
+        }
     }
 });

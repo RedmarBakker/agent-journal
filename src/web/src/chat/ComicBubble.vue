@@ -1,24 +1,38 @@
 <script setup>
 import {computed} from "vue";
-import {COMIC_BUBBLE, boilAt, bubbleOutline, bubbleSize} from "../figure/comicBubble.js";
+import {COMIC_BUBBLE, boilAt, bubbleOutline, bubbleSize, letterOf, phraseAt} from "../figure/comicBubble.js";
 
-// The phone call's speech bubble drawn as a comic strip's (figure/comicBubble.js): `rows` of its text in an inked outline at page `left` and
-// `top`, its tail to `tip` in the bubble's own pixels, the outline boiling as the figure's `frame` goes on.
+// The phone call's speech bubble drawn as a comic strip's (figure/comicBubble.js): the phrase of `phrases` it says `seconds` after it began
+// saying them, lettered by hand, in an inked outline at page `left` and `top`, its tail to `tip` in the bubble's own pixels, the outline
+// boiling as the figure's `frame` goes on.
 const props = defineProps({
-    rows: {type: Array, required: true},
+    phrases: {type: Array, required: true},
+    seconds: {type: Number, required: true},
     left: {type: Number, required: true},
     top: {type: Number, required: true},
     tip: {type: Object, required: true},
     frame: {type: Number, required: true},
 });
 
-const size = computed(() => bubbleSize(props.rows));
+const size = computed(() => bubbleSize(props.phrases));
+const said = computed(() => phraseAt(props.phrases, props.seconds));
+// each row of the phrase said, each of its letters set a little off the line as a hand writes it
+const rows = computed(() =>
+    said.value.phrase.rows.map((row, index) => ({
+        strong: row.strong,
+        letters: [...row.text].map((letter, at) => {
+            const {lift, tilt, grow} = letterOf(said.value.index, index, at);
+            return {letter, style: {transform: `translateY(${lift}px) rotate(${tilt}deg) scale(${grow})`}};
+        }),
+    }))
+);
 const outline = computed(() => bubbleOutline(size.value.width, size.value.height, props.tip, boilAt(props.frame)));
 const style = computed(() => ({
     left: `${props.left}px`,
     top: `${props.top}px`,
     width: `${size.value.width}px`,
     height: `${size.value.height}px`,
+    fontFamily: COMIC_BUBBLE.hand,
     fontSize: `${COMIC_BUBBLE.size}px`,
     lineHeight: `${COMIC_BUBBLE.line}px`,
     padding: `${COMIC_BUBBLE.pad}px`,
@@ -37,9 +51,15 @@ const style = computed(() => ({
                 <path :d="outline.tail" />
             </g>
         </svg>
-        <template v-for="(row, index) in rows" :key="index">
-            <span class="comic-bubble-row" :class="{'comic-bubble-strong': row.strong}">{{ row.text }}</span>
-        </template>
+        <span class="comic-bubble-words" :style="{opacity: said.shows}">
+            <template v-for="(row, index) in rows" :key="`${said.index}-${index}`">
+                <span class="comic-bubble-row" :class="{'comic-bubble-strong': row.strong}">
+                    <template v-for="(letter, at) in row.letters" :key="at">
+                        <span class="comic-bubble-letter" :style="letter.style">{{ letter.letter }}</span>
+                    </template>
+                </span>
+            </template>
+        </span>
     </div>
 </template>
 
@@ -51,8 +71,7 @@ const style = computed(() => ({
     flex-direction: column;
     box-sizing: border-box;
     color: var(--text);
-    font-family: inherit;
-    white-space: nowrap;
+    white-space: pre;
     pointer-events: none;
 }
 
@@ -73,11 +92,20 @@ const style = computed(() => ({
     fill: var(--tip-bg);
 }
 
-.comic-bubble-row {
+.comic-bubble-words {
     position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.comic-bubble-letter {
+    display: inline-block;
 }
 
 .comic-bubble-strong {
-    font-weight: 600;
+    font-weight: 700;
 }
 </style>

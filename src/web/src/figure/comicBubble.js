@@ -1,22 +1,41 @@
-// The phone call's speech bubble (chat/ComicBubble.vue), drawn as a comic strip's. Its text is wrapped at `columns` characters a row over at
-// most `rows` rows and cut there, set `size` pixels high on rows `line` apart, `glyph` pixels a character, `pad` inside the outline. The
-// outline is inked `ink` pixels thick round a box with corners `round` across, with a tail `tail` wide at its base to `gap` short of the
-// handset. Its lines boil: the outline is one of `drawings` drawings, the next every `every` of the figure's frames, each of its `points`
-// up to `wobble` pixels off its true place.
-export const COMIC_BUBBLE = {columns: 28, rows: 5, size: 11, line: 15, glyph: 6.3, pad: 10, ink: 1.6, round: 16, tail: 14, gap: 4, drawings: 3, every: 2, points: 48, wobble: 1.1};
+// The phone call's speech bubble (chat/ComicBubble.vue), drawn as a comic strip's. It says the call's text a phrase at a time: up to
+// `words` words, or fewer where a sentence ends, the first line a phrase of its own; each phrase up for `base` seconds and `each` a
+// character, fading in and out over `fade`. A phrase is wrapped at `columns` characters a row, lettered by hand in `hand`, `size` pixels
+// high on rows `line` apart, `glyph` pixels a character, each letter up to `lift` pixels off the line, `tilt` degrees askew and `grow`
+// larger or smaller, `pad` inside the outline. The outline is inked `ink` pixels thick round a box with corners `round` across, with a
+// tail `tail` wide at its base to `gap` short of the handset. Its lines boil: the outline is one of `drawings` drawings, the next every
+// `every` of the figure's frames, each of its `points` up to `wobble` pixels off its true place.
+export const COMIC_BUBBLE = {
+    words: 4, base: 0.8, each: 0.05, fade: 0.2,
+    columns: 18, hand: '"Kalam", "Comic Sans MS", cursive', size: 14, line: 17, glyph: 7, lift: 0.9, tilt: 3, grow: 0.07, pad: 10,
+    ink: 1.6, round: 16, tail: 14, gap: 4, drawings: 3, every: 2, points: 48, wobble: 1.1,
+};
 
-// the call's lines wrapped into the bubble's rows, the first line's rows strong, the last row cut short with an ellipsis when there are more
-export function bubbleRows(lines) {
-    const all = lines.flatMap((line, index) => wrapped(line).map((text) => ({text, strong: index === 0})));
-    if (all.length <= COMIC_BUBBLE.rows) return all;
-    const last = all[COMIC_BUBBLE.rows - 1];
-    return [...all.slice(0, COMIC_BUBBLE.rows - 1), {...last, text: `${last.text.slice(0, COMIC_BUBBLE.columns - 1).trimEnd()}…`}];
+// The call's lines as the phrases the bubble says one after another, each {rows, seconds}: its rows of text, strong on the first line, and
+// how long it is up
+export function phrasesOf(lines) {
+    return lines.flatMap((line, index) => groupsOf(line.split(" ").filter(Boolean)).map((words) => {
+        const text = words.join(" ");
+        return {rows: wrapped(text).map((row) => ({text: row, strong: index === 0})), seconds: COMIC_BUBBLE.base + COMIC_BUBBLE.each * text.length};
+    }));
 }
 
-function wrapped(line) {
+// `words` in groups of up to `words`, a group ending early after a word that ends a sentence, and never a last group of one word alone
+function groupsOf(words) {
+    const groups = [];
+    for (const word of words) {
+        const open = groups.at(-1);
+        if (open && open.length < COMIC_BUBBLE.words && !/[.:;!?]$/.test(open.at(-1))) open.push(word);
+        else groups.push([word]);
+    }
+    if (groups.length > 1 && groups.at(-1).length === 1 && !/[.:;!?]$/.test(groups.at(-2).at(-1))) groups.at(-2).push(...groups.pop());
+    return groups;
+}
+
+function wrapped(text) {
     const rows = [];
     let row = "";
-    for (const word of line.split(" ")) {
+    for (const word of text.split(" ")) {
         const longer = row ? `${row} ${word}` : word;
         if (longer.length <= COMIC_BUBBLE.columns) {
             row = longer;
@@ -32,10 +51,35 @@ function wrapped(line) {
     return row ? [...rows, row] : rows;
 }
 
-// the bubble's box in pixels round `rows`
-export function bubbleSize(rows) {
+// how long the bubble takes to say all of `phrases`, in seconds
+export const phrasesSeconds = (phrases) => phrases.reduce((sum, phrase) => sum + phrase.seconds, 0);
+
+// the phrase the bubble says `seconds` after it began saying `phrases`, and how far it shows, 0 to 1 as it fades in and out; the last
+// stays up once said, until the bubble goes
+export function phraseAt(phrases, seconds) {
+    let begun = 0;
+    for (const [index, phrase] of phrases.entries()) {
+        const into = seconds - begun;
+        begun += phrase.seconds;
+        if (into >= phrase.seconds && index < phrases.length - 1) continue;
+        const shows = Math.min(into / COMIC_BUBBLE.fade, index < phrases.length - 1 ? (phrase.seconds - into) / COMIC_BUBBLE.fade : 1, 1);
+        return {phrase, index, shows: Math.max(shows, 0)};
+    }
+    return null;
+}
+
+// how letter `at` of row `row` of phrase `phrase` sits, written by hand: `lift` pixels down off the line, `tilt` degrees askew, `grow`
+// times its size, the same each time it is drawn
+export function letterOf(phrase, row, at) {
+    const seed = phrase * 5 + row;
+    return {lift: COMIC_BUBBLE.lift * wobbleOf(seed + 7, at), tilt: COMIC_BUBBLE.tilt * wobbleOf(seed + 11, at), grow: 1 + COMIC_BUBBLE.grow * wobbleOf(seed + 13, at)};
+}
+
+// the bubble's box in pixels, the same for every one of `phrases`, round the widest and the tallest of them
+export function bubbleSize(phrases) {
     const {glyph, line, pad} = COMIC_BUBBLE;
-    return {width: Math.max(...rows.map((row) => row.text.length)) * glyph + 2 * pad, height: rows.length * line + 2 * pad};
+    const rows = phrases.flatMap((phrase) => phrase.rows);
+    return {width: Math.max(...rows.map((row) => row.text.length)) * glyph + 2 * pad, height: Math.max(...phrases.map((phrase) => phrase.rows.length)) * line + 2 * pad};
 }
 
 // which drawing of the boiling outline is shown at the figure's frame `frame`
