@@ -170,3 +170,7 @@ export function headTurned(previous, target, center, largest) {
     const reach = Math.hypot(target.x - center.x, target.y - center.y);
     return {...target, x: center.x + reach * Math.cos(angle), y: center.y + reach * Math.sin(angle)};
 }
+
+// Whether the figure answers a moment with `eager` as it stands (eagerFor): while it is eager for a run's end nothing takes it off,
+// neither an act, a look nor a tickle; only the end itself, which eagerFor answers once the eagerness is over
+export const isListening = (eager) => !eager?.on;

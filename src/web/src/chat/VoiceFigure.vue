@@ -47,7 +47,7 @@ import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, queuedFirst, spellFor, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, isListening, pastimeFor, queuedFirst, spellFor, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -1116,6 +1116,7 @@ function pointerMoved(event) {
 const FIRST = new Set(["long_walk", "tickled", "bar_failed"]);
 
 function react(moment) {
+    if (!isListening(eager)) return;
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
     if (answer?.beat) beats.value = FIRST.has(moment.beat) ? queuedFirst(beats.value, answer.beat, playing.shown?.clip.name ?? "") : [...beats.value, answer.beat];
     // a celebration on its chat mark: off to stand on it, when it has a stand free, else played where the figure is

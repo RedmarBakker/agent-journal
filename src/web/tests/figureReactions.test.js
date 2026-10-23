@@ -265,3 +265,13 @@ test("the head follows the pointer no faster than a set speed, and reaches it in
     for (let step = 0; step < 60; step++) look = headTurned(look, target, center, LOOK_TURN_SPEED * frame);
     expect(Math.hypot(look.x - target.x, look.y - target.y)).toBeLessThan(1);
 });
+
+test("while the figure is eager for a run's end no moment takes it off, and the end is heard once the eagerness is over", async () => {
+    const {isListening, eagerFor} = await import("../src/figure/reactions.js");
+    const eager = {run: 100, on: true};
+    expect(isListening(eager), "no tickle, act, look or reaction is heard while eager").toBe(false);
+    const ended = eagerFor({bar: {}, share: 1, ended: "good", began: 100}, eager, () => 0, 200);
+    expect(ended.moment).toEqual({beat: "bar_done"});
+    expect(isListening(ended.eager), "the end comes with the eagerness over").toBe(true);
+    expect(isListening(null)).toBe(true);
+});
