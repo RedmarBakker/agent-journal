@@ -196,14 +196,19 @@ export function writtenFacesAfter(agent, messages, seenAt) {
         .sort((a, b) => a.time - b.time);
 }
 
-// A test run is a watched output whose reader's figure says Tests, so its result is its watch card's ending seen between two looks: the
-// beats for each such card that has ended since `known` (card key to the ending it had) was last filled in, which this fills in
+// A test run is a chat mark whose title holds the word test, in any case
+const isTestRun = (card) => /test/i.test(card.label ?? "");
+
+// A test run's ending: its watch card's, or a process card's tone once it is no longer active
+const endingOf = (card) => card.watch?.ending || (card.process && !card.active && {good: "finished", bad: "failed"}[card.tone]) || "";
+
+// The beats for each test run that has ended since `known` (card key to the ending it had) was last filled in, which this fills in
 export function testResultsAfter(agent, known) {
-    const ended = (agent?.data?.cards || []).filter((card) => card.watch?.figure?.startsWith("Tests") && card.watch.ending);
-    const fresh = ended.filter((card) => known.get(card.key) !== card.watch.ending);
-    fresh.forEach((card) => known.set(card.key, card.watch.ending));
+    const ended = (agent?.data?.cards || []).filter((card) => isTestRun(card) && endingOf(card));
+    const fresh = ended.filter((card) => known.get(card.key) !== endingOf(card));
+    fresh.forEach((card) => known.set(card.key, endingOf(card)));
     return fresh.map((card) => ({
-        beat: card.watch.ending === "finished" ? "tests_passed" : "tests_failed",
+        beat: endingOf(card) === "finished" ? "tests_passed" : "tests_failed",
         time: Number(card.time),
         card: card.key,
     }));

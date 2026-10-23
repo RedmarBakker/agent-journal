@@ -7,15 +7,21 @@ from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.features.skills.support.skill_files import HOMES
 from journal.models.plugin import Plugin
 from journal.models.support.plugin_manifest import PluginManifest
+from journal.repositories.plugins import Plugins
 
 STAMP = "plugin: "
 
 
 class PluginSkills:
-    """A plugin's skills published into the agents' skill folders beside the journal's, each stamped with the plugin's name and kept out of git by a .gitignore of its own; taken away when the plugin is switched off or removed."""
+    """A plugin's skills published into the agents' skill folders beside the journal's, each stamped with the plugin's name and kept out of git by a .gitignore of its own; published afresh at every start, so none is stale or missing; taken away when the plugin is switched off or removed."""
 
-    def __init__(self, config: Config, folders: PluginFolders) -> None:
-        self.config, self.folders = config, folders
+    def __init__(self, config: Config, folders: PluginFolders, plugins: Plugins) -> None:
+        self.config, self.folders, self.plugins = config, folders, plugins
+
+    def refresh_all(self) -> None:
+        for plugin in self.plugins.enabled():
+            self.withdraw(plugin)
+            self.publish(plugin)
 
     def publish(self, plugin: Plugin) -> None:
         folder = self.folders.folder(plugin)

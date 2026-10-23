@@ -5,6 +5,7 @@ from pathlib import Path
 from journal.config import Config
 from journal.features.registry import Registry
 from journal.support.skill import Skill
+from journal.support.tool_call import ToolCall
 
 HOMES = (".claude/skills", ".agents/skills")
 SKILL_FILE = "SKILL.md"
@@ -59,6 +60,13 @@ class SkillFiles:
 
     def folder_skill(self, folder: str) -> Skill | None:
         return next((skill for skill in self.registry.skills() if skill.folder == folder), None)
+
+    def loaded_skills(self, call: ToolCall) -> list[Skill]:
+        skills = [self.skill_read(path) for path in call.read_paths] + [self.folder_skill(call.skill_loaded)]
+        return [skill for skill in skills if skill is not None]
+
+    def other_skill_names(self, call: ToolCall) -> list[str]:
+        return [name for name in call.skill_folders(HOMES, SKILL_FILE) if self.folder_skill(name) is None]
 
     def skill_read(self, path: str) -> Skill | None:
         read = self.config.root / path

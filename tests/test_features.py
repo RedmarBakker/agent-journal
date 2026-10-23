@@ -1259,6 +1259,35 @@ def test_the_skill_tool_loads_a_skill_too(skilled):
     assert "journal skill" not in hook(app, "SessionStart")[1].get("hookSpecificOutput", {}).get("additionalContext", "")
 
 
+def test_every_skill_loaded_shows_in_the_chat(skilled):
+    from journal.repositories.messages import Messages
+    app = skilled
+    hook(app, "SessionStart")
+    hook(app, "PostToolUse", tool_name="Skill", tool_input={"skill": "commandments-plain-code-words"}, tool_response="")
+    hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / ".agents/skills/commandments-python-flow/SKILL.md")}, tool_response="")
+    shown = " ".join(f"{message.text} {json.dumps(message.data)}" for message in app.container.get(Messages).scoped())
+    assert "commandments-plain-code-words" in shown and "commandments-python-flow" in shown, "a skill not the journal's, loaded by the tool or read as its file, shows in the chat"
+
+
+def test_a_plugins_skills_are_published_afresh_at_a_start(skilled):
+    from journal.features.plugins.support.plugin_folders import PluginFolders
+    from journal.features.plugins.support.plugin_skills import PluginSkills
+    from journal.models.plugin import Plugin
+    from journal.models.support.plugin_manifest import PluginManifest
+    from journal.repositories.plugins import Plugins
+    app = skilled
+    plugin = app.container.get(Plugins).save(Plugin(name="checker", manifest=PluginManifest(name="checker", skills="skills")), Actor.system())
+    shipped = app.container.get(PluginFolders).folder(plugin) / "skills/checker-naming"
+    shipped.mkdir(parents=True)
+    (shipped / "SKILL.md").write_text("---\nname: checker-naming\n---\n\nName things plainly.\n")
+    stale = app.config.root / ".claude/skills/checker-gone"
+    stale.mkdir(parents=True)
+    (stale / "SKILL.md").write_text("---\nplugin: checker\nname: checker-gone\n---\n\nold\n")
+    app.container.get(PluginSkills).refresh_all()
+    assert not stale.exists(), "a plugin's skill it no longer ships is gone"
+    assert "Name things plainly." in (app.config.root / ".claude/skills/checker-naming/SKILL.md").read_text(), "and the skills it ships are written again"
+
+
 def test_a_shell_line_printing_skill_files_loads_each_of_them(skilled):
     app = skilled
     hook(app, "SessionStart")

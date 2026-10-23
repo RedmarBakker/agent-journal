@@ -102,7 +102,9 @@ class Runtime:
         self.boot()
         from journal.features.skills.support.skill_files import SkillFiles
         from journal.features.profiles.support.profile_files import ProfileFiles
+        from journal.features.plugins.support.plugin_skills import PluginSkills
         self.container.get(SkillFiles).write_all()
+        self.container.get(PluginSkills).refresh_all()
         self.container.get(ProfileFiles).write_all()
         self.deferred.start()
         self.register_jobs()

@@ -10,7 +10,7 @@ from journal.engine.clock import Clock
 
 
 class SkillCard(AgentListener[ToolFinished]):
-    """A read of our skill files, by the read tool, a shell line or the skill tool, is remembered on the agent with each file's hash, added to what it holds under the write lock, so two reads sent together are both kept."""
+    """A read of our skill files, by the read tool, a shell line or the skill tool, is remembered on the agent with each file's hash, added to what it holds under the write lock, so two reads sent together are both kept; every skill loaded, ours or another's, shows a card in the chat."""
 
     blocking = True
 
@@ -18,9 +18,10 @@ class SkillCard(AgentListener[ToolFinished]):
         self.agents, self.files, self.cards, self.clock = agents, files, cards, clock
 
     def handle(self, event: ToolFinished) -> None:
-        read = [self.files.skill_read(path) for path in event.call.read_paths] + [self.files.folder_skill(event.call.skill_loaded) if event.call.skill_loaded else None]
-        for skill in [s for s in read if s is not None]:
+        for skill in self.files.loaded_skills(event.call):
             self.loaded(event, skill)
+        for name in self.files.other_skill_names(event.call):
+            self.cards.show(event.environment_id, event.session, f"Skill {name} loaded", "book", "good", name, kind="skill", shows=CardKind.SKILLS)
 
     def loaded(self, event: ToolFinished, skill: Skill) -> None:
         digest = self.files.digest(skill)
