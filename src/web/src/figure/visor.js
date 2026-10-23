@@ -1,11 +1,12 @@
 // The figure's visor lit as a screen when a process card ends, red for one that ends bad and green for one that ends good, coming on as an
 // old CRT television powers up and never while the figure sleeps. Over `seconds`: the eyes go out over `eyesOut`; a bright line comes on
 // across the middle, widening out from its centre over `line`; the line opens out top and bottom to fill the visor over `open`, its white
-// flash fading into the colour by the end of `flash`; the glow holds, fades over `fade`, and the eyes come back over `eyesBack`. Every
-// number of it is here, in seconds.
+// flash fading into the colour by the end of `flash`; the glow holds, fades over `fade`, and the eyes come back over `eyesBack`. Its red
+// and green are its own, a glowing screen's, brighter to the core by `core` and with a soft halo about the visor as strong as `halo`, and the
+// server units' lights shine in the same two. Every number of it is here, in seconds.
 export const VISOR = {
     seconds: 2.4, eyesOut: 0.14, line: [0.14, 0.3], open: [0.3, 0.52], flash: [0.3, 0.7], fade: 0.35, eyesBack: 0.15, thin: 0.05,
-    colours: {bad: [1, 0.16, 0.14], good: [0.18, 1, 0.38]},
+    colours: {bad: [1, 0.06, 0.1], good: [0.08, 1, 0.32]}, core: 0.45, halo: 0.75,
 };
 
 const span = (k, from, to) => Math.min(Math.max((k - from) / (to - from), 0), 1);

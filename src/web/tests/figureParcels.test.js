@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
-import {HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, flightMs, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, digitsOf, flightMs, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
@@ -16,7 +16,7 @@ test("finished parcels pile up at the floor's right end, stacked three high, eac
     const slots = Array.from({length: 7}, (_, index) => pileSlot(index));
     expect(slots[0].left).toBe(-(PARCEL.inside + PARCEL.width / 2));
     expect(slots.slice(0, PILE.high).map((slot) => slot.left)).toEqual(Array(PILE.high).fill(slots[0].left));
-    expect(slots.slice(0, PILE.high).map((slot) => slot.up)).toEqual([0, 17, 34]);
+    expect(slots.slice(0, PILE.high).map((slot) => slot.up)).toEqual([0, 11, 22]);
     expect(slots[PILE.high]).toEqual({left: slots[0].left - PARCEL.width - PILE.gap, up: 0});
     const boxes = slots.map((slot) => `${slot.left}/${slot.up}`);
     expect(new Set(boxes).size).toBe(slots.length);
@@ -186,3 +186,34 @@ test("the head never turns further than HEAD_TURN from the way the body faces; a
         }
     }
 });
+
+test("the parcels are flat 1U server units of the boxes' square footprint, stacked three high a unit's height apart", () => {
+    expect(PARCEL.width).toBe(24);
+    expect(PARCEL.height).toBeLessThan(PARCEL.width / 1.5);
+    expect(pileSlot(1).up - pileSlot(0).up).toBe(PARCEL.height - 2);
+});
+
+test("a unit's lights blink amber from the moment a run starts, all turn green or red with the visor when it ends, and stay so until the next", () => {
+    expect(lightsAfter("good", true, "")).toBe("amber");
+    expect(lightsAfter("amber", false, "")).toBe("amber");
+    expect(lightsAfter("amber", false, "good")).toBe("good");
+    expect(lightsAfter("amber", true, "bad")).toBe("bad");
+    // the state lingers on the run a moment after it ends, which is no new run
+    expect(lightsAfter("good", false, "")).toBe("good");
+});
+
+test("each blow lets a few 0 and 1 digits out of the dust, starting about the unit and drifting in to it", () => {
+    let seed = 0.13;
+    const random = () => (seed = (seed * 9301 + 0.49297) % 1);
+    for (let blow = 0; blow < 40; blow++) {
+        const digits = digitsOf(random);
+        expect(digits.length).toBeGreaterThanOrEqual(DIGITS.least);
+        expect(digits.length).toBeLessThanOrEqual(DIGITS.most);
+        for (const digit of digits) {
+            expect(["0", "1"]).toContain(digit.text);
+            expect(Math.hypot(digit.x, digit.y)).toBeGreaterThan(PARCEL.height / 2);
+            expect(digit.y).toBeLessThan(0);
+        }
+    }
+});
+

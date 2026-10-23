@@ -2,6 +2,7 @@
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
 import {ACTS, heldPhases, hornOpen, partOf} from "./acts.js";
+import {VISOR} from "./visor.js";
 import {blendMoves} from "./blend.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
@@ -1159,7 +1160,7 @@ function read(pose, stance, t) {
 
 // The butler draws his cloth from his pocket, polishes his visor in small circles, and tucks it away again
 const POCKET = [0.55, -0.35, 1.35];
-const VISOR = [0.65, -0.92, 2.04];
+const POLISHED = [0.65, -0.92, 2.04];
 const POLISH_ELBOW = [0.7, 0.2, -1.0];
 const POLISH_RUB = 0.06;
 function polish(pose, stance, t) {
@@ -1173,7 +1174,7 @@ function polish(pose, stance, t) {
     for (const side of sides) {
         const sign = SIDES[side];
         const circle = 2 * Math.PI * 4 * t;
-        const at = POCKET.map((p, axis) => p + (VISOR[axis] - p) * up);
+        const at = POCKET.map((p, axis) => p + (POLISHED[axis] - p) * up);
         const target = new THREE.Vector3(sign * (at[0] + POLISH_RUB * rub * Math.cos(circle)), at[1], at[2] + POLISH_RUB * rub * Math.sin(circle));
         handTo(pose, side, out, pose.carried(target), new THREE.Vector3(sign * POLISH_ELBOW[0], POLISH_ELBOW[1], POLISH_ELBOW[2]));
         pose.face(`hand_${side}`, {z: -sign * 90 * out});
@@ -2431,6 +2432,7 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform float across;
     uniform float open;
     uniform float flash;
+    uniform float core;
     uniform vec2 middle;
     uniform vec2 extent;
     uniform float pitch;
@@ -2450,7 +2452,9 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float band = step(from.x, across) * step(from.y, open);
         vec2 cell = fract(worldPosition.xy / pitch);
         float pixel = step(gap, cell.x) * step(gap, cell.y);
-        vec3 screen = mix(glow * mix(dark, 1.0, pixel), vec3(1.0), flash);
+        float centre = max(1.0 - length(from), 0.0);
+        vec3 lit = glow * mix(dark, 1.0, pixel);
+        vec3 screen = mix(lit + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
         gl_FragColor = vec4(mix(shaded * (1.0 - step(0.001, lit + flash) * 0.6), screen, band * max(lit, flash)), 1.0);
         #include <colorspace_fragment>
     }
@@ -2464,7 +2468,7 @@ function screenMaterial(mesh) {
     const middle = bounds.getCenter(new THREE.Vector3());
     const extent = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5);
     Object.assign(material.uniforms, {
-        glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0},
+        glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
         pitch: {value: SCREEN.pitch}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
     });

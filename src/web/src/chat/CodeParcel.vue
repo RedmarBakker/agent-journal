@@ -1,9 +1,13 @@
 <script setup>
 import {computed, ref, watch} from "vue";
+import {PARCEL, digitsOf} from "../figure/parcels.js";
+import {VISOR} from "../figure/visor.js";
 
-// A parcel of code the figure built, standing on the page with its base's middle at `x`, `y`, in pixels, `up` pixels higher on the pile
-// it sits on, `scale` times its size and as opaque as `opacity`; it pops in as it appears, and hops up when it is pushed onto the pile.
-// Each time `blows` goes up, a blow has landed on it: a cartoon cloud of dust puffs around it, and now and then a few bits fly out.
+// A parcel the figure built, drawn as a flat near-black 1U server unit, standing on the page with its base's middle at `x`, `y`, in pixels,
+// `up` pixels higher on the pile it sits on, `scale` times its size and as opaque as `opacity`; it pops in as it appears, and hops up when
+// it is pushed onto the pile. Its status lights are `lights` (parcels.js lightsAfter): amber and blinking while the run goes, or green or
+// red, the visor's own, once it has ended. Each time `blows` goes up, a blow has landed on it: a cartoon cloud of dust puffs around it,
+// and a few 0 and 1 digits come out of it and drift in to the unit.
 const props = defineProps({
     x: {type: Number, required: true},
     y: {type: Number, required: true},
@@ -11,43 +15,35 @@ const props = defineProps({
     scale: {type: Number, default: 1},
     opacity: {type: Number, default: 1},
     blows: {type: Number, default: 0},
+    lights: {type: String, default: "amber"},
 });
 
-// The dust of a blow: puffs of cloud around the parcel, each its place from the parcel's base's middle and its size, in pixels; the share
-// of blows that throw bits out, how many at most, what they are, how far they fly and how fast they spin
-const DUST = {
-    clouds: [
-        {x: -17, y: -5, size: 15},
-        {x: -7, y: -2, size: 13},
-        {x: 6, y: -3, size: 14},
-        {x: 17, y: -6, size: 13},
-        {x: -11, y: -15, size: 12},
-        {x: 12, y: -17, size: 11},
-        {x: 0, y: -22, size: 12},
-    ],
-    throws: 0.45,
-    most: 3,
-    bits: ["{", "}", ";", "</>", "=", "a", "x", "λ", "nail"],
-    reach: [14, 30],
-    spin: 540,
-};
+// The dust of a blow: puffs of cloud around the unit, each its place from the unit's base's middle and its size, in pixels
+const CLOUDS = [
+    {x: -17, y: -4, size: 14},
+    {x: -7, y: -2, size: 12},
+    {x: 6, y: -3, size: 13},
+    {x: 17, y: -5, size: 12},
+    {x: -11, y: -12, size: 11},
+    {x: 12, y: -13, size: 10},
+    {x: 0, y: -17, size: 11},
+];
 
-// the puffs in the air, each {id, bits}, every bit {id, text, dx, dy, spin}
+// the status lights along the front's left, each its middle across, and the vent slits along its right, each its left
+const LIGHTS = [3.6, 5.8, 8, 10.2];
+const VENTS = [12.4, 13.8, 15.2, 16.6];
+// the lights' colours: amber while the run goes, and the visor's green and red once it has ended
+const rgb = (colour) => `rgb(${colour.map((part) => Math.round(part * 255)).join(" ")})`;
+const LIT = {amber: "#ffb020", good: rgb(VISOR.colours.good), bad: rgb(VISOR.colours.bad)};
+
+// the puffs in the air, each {id, digits}, every digit {id, text, x, y}
 const puffs = ref([]);
 let puffed = 0;
 const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function bitOf(id) {
-    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
-    const reach = DUST.reach[0] + Math.random() * (DUST.reach[1] - DUST.reach[0]);
-    const text = DUST.bits[Math.floor(Math.random() * DUST.bits.length)];
-    return {id, text, dx: Math.cos(angle) * reach, dy: Math.sin(angle) * reach, spin: (Math.random() - 0.5) * DUST.spin};
-}
-
 function puff() {
     const id = ++puffed;
-    const thrown = Math.random() < DUST.throws ? 1 + Math.floor(Math.random() * DUST.most) : 0;
-    puffs.value = [...puffs.value, {id, bits: Array.from({length: thrown}, (_, index) => bitOf(`${id}-${index}`))}];
+    puffs.value = [...puffs.value, {id, digits: digitsOf(Math.random).map((digit, index) => ({...digit, id: `${id}-${index}`}))}];
 }
 
 // a puff is gone once its first cloud has faded, as they all fade together
@@ -64,55 +60,38 @@ const cloudStyle = (cloud) => ({
     width: `${cloud.size}px`,
     height: `${cloud.size}px`,
 });
-const bitStyle = (bit) => ({"--dx": `${bit.dx}px`, "--dy": `${bit.dy}px`, "--spin": `${bit.spin}deg`});
-
-// the lines of code on the parcel's front, each its row from the top and its indent and length in the drawing's units
-const LINES = [
-    {row: 0, indent: 0, length: 9},
-    {row: 1, indent: 3, length: 8},
-    {row: 2, indent: 3, length: 6},
-    {row: 3, indent: 0, length: 5},
-];
+const digitStyle = (digit) => ({"--from-x": `${digit.x}px`, "--from-y": `${digit.y}px`, "--to-y": `${-PARCEL.height / 2}px`});
 
 const style = computed(() => ({left: `${props.x}px`, top: `${props.y}px`}));
 const placed = computed(() => ({transform: `translateY(${-props.up}px)`}));
 const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: props.opacity}));
+const lit = computed(() => ({"--light": LIT[props.lights]}));
 </script>
 
 <template>
     <div class="code-parcel" :style="style" aria-hidden="true">
         <div class="code-parcel-placed" :style="placed">
             <div class="code-parcel-sized" :style="sized">
-                <svg class="code-parcel-box" viewBox="0 0 24 19" width="24" height="19">
+                <svg :class="['code-parcel-box', `lights-${lights}`]" :style="lit" :viewBox="`0 0 ${PARCEL.width} ${PARCEL.height}`" :width="PARCEL.width" :height="PARCEL.height">
                     <path class="code-parcel-top" d="M1 5 5 1h18l-4 4Z" />
-                    <path class="code-parcel-side" d="M19 5l4-4v13l-4 4Z" />
-                    <rect class="code-parcel-front" x="1" y="5" width="18" height="13" />
-                    <path class="code-parcel-tape" d="M8 5 12 1h3l-4 4Z" />
-                    <template v-for="line in LINES" :key="line.row">
-                        <rect
-                            :class="line.row % 2 ? 'code-parcel-accent' : 'code-parcel-ink'"
-                            :x="4 + line.indent"
-                            :y="7.5 + line.row * 2.4"
-                            :width="line.length"
-                            height="1.2"
-                            rx="0.6"
-                        />
+                    <path class="code-parcel-side" d="M19 5l4-4v7l-4 4Z" />
+                    <rect class="code-parcel-front" x="1" y="5" width="18" height="7" />
+                    <template v-for="(at, index) in LIGHTS" :key="at">
+                        <circle class="code-parcel-light" :cx="at" cy="8.5" r="0.85" :style="{animationDelay: `${index * -230}ms`}" />
+                    </template>
+                    <template v-for="at in VENTS" :key="at">
+                        <rect class="code-parcel-vent" :x="at" y="6.8" width="0.6" height="3.4" />
                     </template>
                 </svg>
             </div>
         </div>
         <template v-for="each in puffs" :key="each.id">
             <div class="code-parcel-dust" @animationend.once="settled(each.id)">
-                <template v-for="cloud in DUST.clouds" :key="`${cloud.x}/${cloud.y}`">
+                <template v-for="cloud in CLOUDS" :key="`${cloud.x}/${cloud.y}`">
                     <span class="code-parcel-cloud" :style="cloudStyle(cloud)" />
                 </template>
-                <template v-for="bit in each.bits" :key="bit.id">
-                    <span class="code-parcel-bit" :style="bitStyle(bit)">
-                        <template v-if="bit.text === 'nail'">
-                            <svg viewBox="0 0 4 10" width="4" height="10"><path d="M0 0h4v1.5H2.6L2 10 1.4 1.5H0Z" /></svg>
-                        </template>
-                        <template v-else>{{ bit.text }}</template>
-                    </span>
+                <template v-for="digit in each.digits" :key="digit.id">
+                    <span class="code-parcel-digit" :style="digitStyle(digit)">{{ digit.text }}</span>
                 </template>
             </div>
         </template>
@@ -134,7 +113,7 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
     left: -12px;
     bottom: 0;
     width: 24px;
-    height: 19px;
+    height: 13px;
     transform-origin: 50% 100%;
     transition: transform 240ms cubic-bezier(0.3, 1.6, 0.5, 1);
 }
@@ -152,35 +131,49 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
     animation: code-parcel-pop 520ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
 }
 
+/* edged a little lighter than the unit, so a near-black unit keeps its shape on a dark page */
 .code-parcel-box path,
 .code-parcel-box rect.code-parcel-front {
-    stroke: #272936;
+    stroke: #4a4e5c;
     stroke-width: 0.8;
     stroke-linejoin: round;
 }
 
+/* a near-black unit, its top a shade lighter and its side darker */
 .code-parcel-front {
-    fill: #c99a5f;
+    fill: #1c1e25;
 }
 
 .code-parcel-top {
-    fill: #dcb27a;
+    fill: #2c2f39;
 }
 
 .code-parcel-side {
-    fill: #a87a45;
+    fill: #121318;
 }
 
-.code-parcel-tape {
-    fill: #e3c58e;
+.code-parcel-vent {
+    fill: #050608;
 }
 
-.code-parcel-ink {
-    fill: #272936;
+/* the status lights glow in their colour; amber blinks while the run goes, each light out of step with the next */
+.code-parcel-light {
+    fill: var(--light);
+    filter: drop-shadow(0 0 0.8px var(--light));
 }
 
-.code-parcel-accent {
-    fill: #6366f1;
+.lights-amber .code-parcel-light {
+    animation: code-parcel-blink 920ms steps(1, end) infinite;
+}
+
+@keyframes code-parcel-blink {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.25;
+    }
 }
 
 @keyframes code-parcel-pop {
@@ -237,36 +230,30 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
     }
 }
 
-.code-parcel-bit {
+/* the digits come out of the dust where they start and drift in to the unit's front, shrinking into it */
+.code-parcel-digit {
     position: absolute;
-    left: -3px;
-    top: -12px;
-    font: 700 9px/1 var(--mono, monospace);
-    color: #272936;
-    text-shadow: 0 0 2px #f3eedf;
-    animation: code-parcel-fly 560ms cubic-bezier(0.2, 0.6, 0.4, 1) both;
+    left: -2.5px;
+    top: -4px;
+    font: 800 8px/1 var(--mono, monospace);
+    color: #8eeaff;
+    text-shadow: 0 0 2px #1c1e25;
+    animation: code-parcel-drift 620ms cubic-bezier(0.4, 0, 0.7, 1) both;
 }
 
-.code-parcel-bit svg {
-    display: block;
-    fill: #a9adb8;
-    stroke: #272936;
-    stroke-width: 0.5;
-}
-
-@keyframes code-parcel-fly {
+@keyframes code-parcel-drift {
     0% {
-        opacity: 1;
-        transform: translate(0, 0) rotate(0);
+        opacity: 0;
+        transform: translate(var(--from-x), var(--from-y)) scale(1);
     }
 
-    70% {
+    25% {
         opacity: 1;
     }
 
     100% {
-        opacity: 0;
-        transform: translate(var(--dx), calc(var(--dy) + 8px)) rotate(var(--spin));
+        opacity: 0.2;
+        transform: translate(0, var(--to-y)) scale(0.4);
     }
 }
 
@@ -277,6 +264,10 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
 
     .code-parcel-placed {
         transition: none;
+    }
+
+    .lights-amber .code-parcel-light {
+        animation: none;
     }
 }
 </style>

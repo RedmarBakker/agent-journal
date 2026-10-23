@@ -2,8 +2,28 @@
 // beside the figure (chat/CodeParcel.vue, chat/FlyingSaucer.vue). Every number that decides where they go and when is here, in pixels and
 // milliseconds on the page.
 
-// a parcel's drawing, and how far inside either end of the floor one stands at least
-export const PARCEL = {width: 24, height: 19, inside: 14};
+// A parcel's drawing, a flat 1U server unit, as wide and as deep as the boxes it once was, `height` pixels high with its top; and how far
+// inside either end of the floor one stands at least
+export const PARCEL = {width: 24, height: 13, inside: 14};
+
+// The status lights on a unit's front after a look: amber, blinking, from the moment a run `started`, and all green or red with the visor
+// once a run has `ended` good or bad, kept so until the next run starts; `lit` is how they were
+export const lightsAfter = (lit, started, ended) => ended || (started ? "amber" : lit);
+
+// The 0 and 1 digits a blow's dust lets out, which drift in toward the unit as if bits were built into it: how many at least and at most,
+// and how far from the unit's middle they start, in pixels, all above the floor
+export const DIGITS = {least: 2, most: 4, from: [16, 28]};
+
+// the digits of one blow at the roll `random()` gives, each its text and where it starts against the unit's base's middle; each drifts
+// to the unit's front
+export function digitsOf(random) {
+    const count = DIGITS.least + Math.floor(random() * (DIGITS.most - DIGITS.least + 1));
+    return Array.from({length: Math.min(count, DIGITS.most)}, () => {
+        const way = -Math.PI / 2 + (random() - 0.5) * 2.4;
+        const far = DIGITS.from[0] + random() * (DIGITS.from[1] - DIGITS.from[0]);
+        return {text: random() < 0.5 ? "0" : "1", x: Math.cos(way) * far, y: Math.min(Math.sin(way) * far, -4)};
+    });
+}
 
 // The pile at the right end of the floor: parcels stacked `high` to a column, the columns going leftward from the end
 export const PILE = {high: 3, gap: 1};

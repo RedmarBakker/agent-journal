@@ -94,3 +94,12 @@ test("the visor comes on as an old CRT powers up: the eyes go out first, a brigh
         last = now;
     }
 });
+
+test("the visor's red and green are its own, a glowing screen's: vivid and pure, with a brighter core and a soft halo", () => {
+    const [r, g, b] = VISOR.colours.bad;
+    const [r2, g2, b2] = VISOR.colours.good;
+    expect([r >= 0.95, g <= 0.12, b <= 0.15]).toEqual([true, true, true]);
+    expect([g2 >= 0.95, r2 <= 0.12, b2 <= 0.4]).toEqual([true, true, true]);
+    expect(VISOR.core).toBeGreaterThan(0.2);
+    expect(VISOR.halo).toBeGreaterThan(0.3);
+});

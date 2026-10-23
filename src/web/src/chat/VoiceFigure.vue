@@ -41,13 +41,13 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
+import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, eagerFor, eyesAt, lookOf, pastimeFor, typingIn, typingSpell, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
-import {visorAt, visorFor} from "../figure/visor.js";
+import {VISOR, visorAt, visorFor} from "../figure/visor.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -129,6 +129,11 @@ const testStates = new Map();
 // whether each process card was running when last looked at, and the glow a card's end lit on the visor (figure/visor.js), or null
 const processStates = new Map();
 let visor = null;
+// the soft glow about the lit visor this frame, its colour and strength, or null
+const halo = ref(null);
+// the status lights of the server units the figure built (parcels.js lightsAfter), and whether the agent ran a build or a test at the last look
+const lights = ref("amber");
+let running = false;
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 let playing = {name: "", started: 0, shown: null, index: 0, closing: null};
@@ -308,6 +313,8 @@ function step() {
     if (!body.trip?.started && !body.airborne && !flight) rest();
     flyUfo();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
+    const lit = visorAt(visor, performance.now() / 1000, asleep());
+    halo.value = lit && {colour: lit.colour, strength: VISOR.halo * lit.glow * lit.open};
     looking = look.looking;
     const pace = shown.pace ?? 1;
     const stride = drawn === "walk" ? strideNow(pace) : null;
@@ -320,7 +327,7 @@ function step() {
         sky: shown.clip.name === watching ? sky : null,
         at: lookingAt(shown),
         open: blinked(),
-        screen: visorAt(visor, performance.now() / 1000, asleep()),
+        screen: lit,
     });
     headAt.value = player.headAt();
     handAt.value = player.handAt();
@@ -638,6 +645,9 @@ function look() {
     ];
     const ends = processEndsAfter(lead.value, processStates);
     visor = visorFor(asleep() ? [] : ends, visor, performance.now() / 1000);
+    const runs = builds(held.value.state);
+    lights.value = lightsAfter(lights.value, runs && !running, ends.length ? ends.at(-1).tone : "");
+    running = runs;
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
     if (committed(happened)) sendUfo();
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
@@ -978,6 +988,14 @@ const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.a
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
 const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
 
+// the soft glow about the lit visor, centred on the eyes it lights over (figure/visor.js VISOR.halo)
+const haloStyle = computed(() => ({
+    left: `${headAt.value.x * 100}%`,
+    top: `${headAt.value.y * 100}%`,
+    opacity: halo.value.strength,
+    "--halo": `rgb(${halo.value.colour.map((part) => Math.round(part * 255)).join(" ")})`,
+}));
+
 const chasing = computed(() => shownClip.value?.name === "squire_chase");
 // during an entrance or exit what is below the edge the figure stands on is hidden, as the box it climbs over or drops past would hide it
 const passing = computed(() => ["enter", "exit"].includes(shownClip.value?.name));
@@ -1025,6 +1043,9 @@ const style = computed(() => ({
         <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
             <canvas ref="canvas" class="voice-figure-canvas" :style="passing || hidesBelowFloor(acting?.name) ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
+            <template v-if="halo">
+                <span class="voice-figure-halo" :style="haloStyle" />
+            </template>
             <template v-if="mark">
                 <span class="voice-figure-marks" :style="markStyle">
                     <template v-for="index in MARK_COUNT" :key="index">
@@ -1044,7 +1065,7 @@ const style = computed(() => ({
         </div>
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
-        <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" />
+        <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :lights="lights" />
     </template>
     <template v-if="saucer">
         <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
@@ -1112,6 +1133,19 @@ const style = computed(() => ({
     width: 100%;
     height: 100%;
     filter: drop-shadow(0 0 1px color-mix(in srgb, var(--text) 45%, transparent));
+}
+
+/* a soft glow of the visor's colour about it, light added over the figure and the page */
+.voice-figure-halo {
+    position: absolute;
+    width: 46px;
+    height: 30px;
+    margin: -15px 0 0 -23px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--halo), transparent);
+    filter: blur(3px);
+    mix-blend-mode: screen;
+    pointer-events: none;
 }
 
 .voice-figure-actor {
