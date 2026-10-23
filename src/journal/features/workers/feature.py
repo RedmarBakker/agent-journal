@@ -89,7 +89,7 @@ class Workers(Feature[WorkersData]):
     WORKER_REPORTED = Nudge(name, "worker_reported", "worker {{n}}, {{name}}, reported in the chat", repeat_interval=0)
     ORCHESTRATE = Nudge(name, "orchestrate", "{{count}} tasks are open across the plans: {{tasks}}", "dispatch a worker on each you can, journal worker dispatch \"<Name>\" --task <n>; block a task that waits and go on with the rest", repeat_interval=0)
     TASK_DELEGATION = Nudge(name, "delegate_the_task", "{{name}} is in hand and you orchestrate; {{logged}}", "hand it to a worker with journal worker dispatch \"<Name>\" --task <n>, and review its report", repeat_interval=0)
-    BLOCKED_CHECK = Nudge(name, "check_blocked_tasks", "tasks {{tasks}} are parked or blocked", "resume a parked one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided", repeat_interval=300)
+    BLOCKED_CHECK = Nudge(name, "check_blocked_tasks", "tasks {{tasks}} are paused or blocked", "resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided", repeat_interval=300)
     CREW_REMINDER = Nudge(name, "dispatch_while_busy", "{{count}} tasks are open and no worker has them: {{tasks}}", "dispatch workers on them, or send each to the worker that knows its files", repeat_interval=120)
     PLACE_FREE = Nudge(name, "worker_place_free", "worker {{n}}, {{name}}, is done; open: {{tasks}}", "send it its next job with journal worker send {{n}}, or dispatch another worker", repeat_interval=0)
     ORCHESTRATOR_MODE = Nudge(name, "now_orchestrating", "you now work as the orchestrator", "hand every task you can to a worker with journal worker dispatch, review and merge what comes back, and run the full suite yourself; decide without waiting for the user except before a step that cannot be undone or reaches outside the project", repeat_interval=0)
@@ -160,7 +160,7 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   reported, or was stopped, its next job in its last session, with its memory of the last job, in the same worktree.
   Never dispatch a fresh worker for work one already out has done part of.
 - Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.
-  Each is delegated to that worker at once, so it is never offered to you, nor blocked or parked; when its work is merged
+  Each is delegated to that worker at once, so it is never offered to you, nor blocked or paused; when its work is merged
   you are told the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
 - A worker still running takes a word in its live session: `journal worker notify <n> "<text>"`. Only a Claude
   worker has a session inbox; a Codex worker, and one that reported or was stopped, are refused with what to use instead.

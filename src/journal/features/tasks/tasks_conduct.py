@@ -14,7 +14,7 @@ POLL_REPEAT_COMMANDS = 3
 
 
 class TasksConduct(Conduct):
-    """The tasks feature's conduct in every state: a polled command named, a task open again told, a parked task named when a task closes, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
+    """The tasks feature's conduct in every state: a polled command named, a task open again told, a paused task named when a task closes, a wait the agent declares pushed as Expecting and a stuck agent pushed as Stuck."""
 
     def on_wait_request(self, event: WaitRequest, settings: Settings) -> Transition:
         from journal.features.tasks.states.external_wait import ExternalWait
@@ -33,14 +33,14 @@ class TasksConduct(Conduct):
 
     def on_task_wait_ended(self, event: TaskWaitEnded, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
-        return self.none(Tasks.SUSPENSION_WAIT_END.create(n=event.task_id, reason=event.reason))
+        return self.none(Tasks.PAUSE_WAIT_END.create(n=event.task_id, reason=event.reason))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
         tasks = event.data.part(Tasks)
-        if event.outcome != "done" or tasks.current_task or not tasks.suspended or event.data.part(TaskSuccession):
+        if event.outcome != "done" or tasks.current_task or not tasks.paused or event.data.part(TaskSuccession):
             return self.none()
-        return self.none(Tasks.SUSPENDED_TASK_CLOSURE_REMINDER.create(n=tasks.suspended[0], why=tasks.first_suspension_reason))
+        return self.none(Tasks.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
 
 
 def polling_check(state: BaseState, event: ToolStarting) -> Transition:
@@ -55,7 +55,7 @@ def polling_check(state: BaseState, event: ToolStarting) -> Transition:
 def impasse_check(state: BaseState, event: ToolStarting) -> Transition:
     from journal.features.tasks.feature import Tasks
     tasks = event.data.part(Tasks)
-    work_count = len(tasks.open_ids) + len(tasks.started_ids) + len(tasks.suspended)
+    work_count = len(tasks.open_ids) + len(tasks.started_ids) + len(tasks.paused)
     if not work_count or not any(part.text.split()[:2] == ["journal", "stuck"] for part in event.call.parts):
         return state.none()
     return state.refuse(Tasks.IMPASSE_REFUSAL.create(count=work_count))

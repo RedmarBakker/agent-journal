@@ -10,7 +10,7 @@ const DONE_LINES = {
     unblock: (id) => `Task ${id} is open again.`,
     delete: (id) => `Task ${id} deleted.`,
 };
-const ASKED = ["finish", "suspend", "block", "edit"];
+const ASKED = ["finish", "pause", "block", "edit"];
 
 export function select(id) {
     taskBoard.selected = id;
@@ -56,7 +56,7 @@ export function useTaskActs(client = api) {
     }
 
     const finish = (task, how) => settle(task, "finish", {how}, `Task ${task.id} is done.`);
-    const suspend = (task, why) => settle(task, "suspend", {why}, `Task ${task.id} is paused.`);
+    const pause = (task, why) => settle(task, "pause", {why}, `Task ${task.id} is paused.`);
     const block = (task, wait) => settle(task, "block", wait, `Task ${task.id} is blocked.`);
 
     async function edit(task, fields) {
@@ -82,5 +82,5 @@ export function useTaskActs(client = api) {
         }
     }
 
-    return {toast, asking, run, finish, suspend, block, edit, file};
+    return {toast, asking, run, finish, pause, block, edit, file};
 }

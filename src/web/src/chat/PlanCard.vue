@@ -21,7 +21,7 @@ const lifted = ref(false);
 const error = ref("");
 const status = computed(() => statusOf(props.plan));
 const critiquing = ref(false);
-const parked = computed(() => status.value === "parked");
+const paused = computed(() => status.value === "paused");
 const reviewing = computed(() => status.value === "reviewing");
 const reviewers = computed(() => (reviewing.value ? reviewersLine(props.plan.reviewers || 0) : ""));
 const building = computed(() => status.value === "draft");
@@ -35,7 +35,7 @@ async function start() {
     error.value = "";
     lifted.value = true;
     try {
-        await flyToBar(dock.value.card, () => (parked.value ? startPlan : approvePlan)(props.plan));
+        await flyToBar(dock.value.card, () => (paused.value ? startPlan : approvePlan)(props.plan));
     } catch (e) {
         lifted.value = false;
         error.value = e.message;
@@ -55,7 +55,7 @@ async function start() {
                 <span class="plan-card-reviewers">{{ reviewers }}</span>
             </template>
             <span class="plan-card-size" data-fades>
-                {{ parked ? stoppedOf(plan, rows("tasks")) : sizeOf(plan) }}
+                {{ paused ? stoppedOf(plan, rows("tasks")) : sizeOf(plan) }}
             </span>
             <span class="plan-card-acts chat-dock-acts" data-fades>
                 <template v-if="othersLine(others)">
@@ -82,12 +82,12 @@ async function start() {
                         @click="start"
                     >
                         <Icon name="start" />
-                        {{ parked ? "Resume" : "Approve" }}
+                        {{ paused ? "Resume" : "Approve" }}
                     </Btn>
                 </template>
             </span>
         </template>
-        <template v-if="!parked && (phases.length || building)">
+        <template v-if="!paused && (phases.length || building)">
             <ol class="plan-card-phases" data-fades>
                 <template v-for="ph in phases.slice(0, PREVIEW_PHASES)" :key="ph.n">
                     <li class="plan-card-phase">

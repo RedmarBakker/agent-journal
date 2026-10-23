@@ -206,7 +206,7 @@ def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeyp
     assert "task 1 started" in output and "brief: read src/parse.py first" in output, "the brief comes with the start"
     for line in ("one", "two", "three", "four"):
         console.run(["task", "log", "1", line], AGENT)
-    console.run(["task", "suspend", "1", "later"], AGENT)
+    console.run(["task", "pause", "1", "later"], AGENT)
     resumed = console.run(["task", "resume", "1"], AGENT).text
     assert "logged: two" in resumed and "logged: four" in resumed and "logged: one" not in resumed, "the latest three log lines"
     console.run(["task", "complete", "1"], AGENT)
@@ -292,7 +292,7 @@ def test_a_plan_task_done_leaves_naming_what_is_next_to_the_plan(app: App):
     app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=False), Actor.system())
     console = app.console()
     console.run(["task", "create", "side work", "--start"], AGENT)
-    console.run(["task", "suspend", "1", "the plan first"], AGENT)
+    console.run(["task", "pause", "1", "the plan first"], AGENT)
     console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
     console.run(["plan", "phase", "1", "notes", "--when", "written", "--checkpoint"], USER)
     console.run(["plan", "add", "1", "write the notes"], USER)
@@ -303,7 +303,7 @@ def test_a_plan_task_done_leaves_naming_what_is_next_to_the_plan(app: App):
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
     output = console.run(["task", "complete", "2"], AGENT).text
-    assert "side work" not in output and "parked" not in output, "a plan's task leaves the next to the plan"
+    assert "side work" not in output and "paused" not in output, "a plan's task leaves the next to the plan"
 
 
 def test_a_task_blocked_until_a_command_passes_opens_by_itself_and_a_broken_one_is_named(app: App, monkeypatch):
@@ -548,8 +548,8 @@ def test_a_sequence_is_stepped_through_and_goes_back_where_it_began(app: App):
     app.container.get(SettingRows).set("sequences.stale_after", 2, Actor.user(1))
     edit(), edit()
     assert "2 writes since sequence" in json.dumps(edit()), "a step taken up and not moved on holds again after the set writes"
-    assert "parked at step 3" in console.run(["sequence", "suspend", "--why", "the user wants the docs first"], AGENT).text
-    assert "a write waits" not in json.dumps(edit()) and "step 3" not in json.dumps(hook(app, "Stop")[1]), "a parked run holds nothing"
+    assert "paused at step 3" in console.run(["sequence", "pause", "--why", "the user wants the docs first"], AGENT).text
+    assert "a write waits" not in json.dumps(edit()) and "step 3" not in json.dumps(hook(app, "Stop")[1]), "a paused run holds nothing"
     console.run(["sequence", "follow"], AGENT)
     assert "ran its last step" in console.run(["sequence", "next"], AGENT).text
     assert app.container.get(SessionAgents).top("s1").task_id == 1
@@ -934,12 +934,12 @@ def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):
     assert app.container.get(Registry).is_enabled(Faults) is False, "the journal's own developer tools are off until a project switches them on"
 
 
-def test_a_task_started_parked_blocked_and_finished_leaves_a_mark_in_the_chat_for_each(app: App):
+def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_for_each(app: App):
     console = app.console()
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the parser", "--start"], AGENT)
-    console.run(["task", "suspend", "1", "the footer first"], AGENT)
+    console.run(["task", "pause", "1", "the footer first"], AGENT)
     console.run(["task", "create", "the footer"], AGENT)
     console.run(["task", "block", "2", "waits on the client's logo"], AGENT)
     console.run(["task", "resume", "1"], AGENT)
@@ -950,13 +950,13 @@ def test_a_task_started_parked_blocked_and_finished_leaves_a_mark_in_the_chat_fo
         from journal.repositories.messages import Messages
         marks = [(m.text, m.data.get("detail", "")) for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
     texts = [text for text, _ in marks]
-    assert "Started task 1: the parser" in texts and "Parked task 1: the parser" in texts and "Blocked task 2: the footer" in texts and "Finished task 1: the parser" in texts, texts
-    assert ("Blocked task 2: the footer", "waits on the client's logo") in marks, "a parked or blocked mark says why"
-    assert texts.count("Started task 1: the parser") == 1 and "Resumed task 1: the parser" in texts, "a parked task taken up again is resumed, not started"
+    assert "Started task 1: the parser" in texts and "Paused task 1: the parser" in texts and "Blocked task 2: the footer" in texts and "Finished task 1: the parser" in texts, texts
+    assert ("Blocked task 2: the footer", "waits on the client's logo") in marks, "a paused or blocked mark says why"
+    assert texts.count("Started task 1: the parser") == 1 and "Resumed task 1: the parser" in texts, "a paused task taken up again is resumed, not started"
     assert "Unblocked task 2: the footer" in texts, "and a blocked task opened again has a mark too"
 
 
-def test_a_started_task_is_parked_never_blocked_and_parked_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):
+def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
     console = app.console()
@@ -964,23 +964,23 @@ def test_a_started_task_is_parked_never_blocked_and_parked_work_comes_first_and_
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the parser", "--start"], AGENT)
     refused = console.run(["task", "block", "1", "waits on the grammar"], AGENT)
-    assert refused.code != 0 and "has started, so it is parked rather than blocked: journal task suspend 1" in refused.error, refused.error
+    assert refused.code != 0 and "has started, so it is paused rather than blocked: journal task pause 1" in refused.error, refused.error
     console.run(["task", "create", "the grammar"], AGENT)
     assert console.run(["task", "block", "2", "waits on the linguist"], AGENT).code == 0, "a task that never began is blocked as before"
     console.run(["task", "unblock", "2"], AGENT)
-    parked = console.run(["task", "suspend", "1", "the grammar first", "--on", "task:2"], AGENT)
-    assert parked.code == 0 and "waiting on: task 2" in parked.text, parked.text
+    paused = console.run(["task", "pause", "1", "the grammar first", "--on", "task:2"], AGENT)
+    assert paused.code == 0 and "waiting on: task 2" in paused.text, paused.text
     console.run(["task", "start", "2"], AGENT)
     done = console.run(["task", "complete", "2", "--how", "the grammar is written"], AGENT)
     app.runtime().deferred.drain()
-    assert "task 1 is parked, and parked work comes first" in done.text, done.text
+    assert "task 1 is paused, and paused work comes first" in done.text, done.text
     from journal.models.task_state import TaskState
     from journal.repositories.entries import Entries
     from journal.repositories.tasks import Tasks
     with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Tasks).find(1).state == TaskState.SUSPENDED, "a parked task whose wait ended stays parked until it is resumed"
+        assert app.container.get(Tasks).find(1).state == TaskState.PAUSED, "a paused task whose wait ended stays paused until it is resumed"
         lines = [entry.data["key"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["session"] == "s1"]
-    assert "tasks.parked_wait_ended" in lines, "and the agent is told what it waited on came"
+    assert "tasks.paused_wait_ended" in lines, "and the agent is told what it waited on came"
 
 
 def test_a_task_the_user_opens_is_told_at_once_to_an_idle_agent_and_frees_a_stuck_one(app: App, monkeypatch):
@@ -1850,8 +1850,8 @@ def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: 
     assert app.container.get(Tasks).find(4).state == "started" and (app.container.get(SessionAgents).top("s1").plan_id, app.container.get(SessionAgents).top("s1").task_id) == (2, 4), "in auto mode a checkpoint never stops the plan"
     app.runtime().deferred.drain()
     assert "plan 2: task 4, q second is next" in closed and not any("q second is next" in line for line in keystrokes), "the closing command prints the next task; the state types nothing for a start the agent caused"
-    console.run(["plan", "suspend", "2"], AGENT)
-    assert app.container.get(SessionAgents).top("s1").name == "idle", "a parked plan is over for the agent following it"
+    console.run(["plan", "pause", "2"], AGENT)
+    assert app.container.get(SessionAgents).top("s1").name == "idle", "a paused plan is over for the agent following it"
 
 def test_a_line_typed_in_the_terminal_reaches_the_chat_and_a_face_answers_any_message(app: App, monkeypatch):
     from journal.repositories.messages import Messages
@@ -1994,7 +1994,7 @@ def test_the_look_runs_the_commands_the_setting_names_each_under_its_heading_in_
     assert shown.rstrip().endswith("== echo a line of the project ==\na line of the project"), "a line that is no journal command runs in the project's shell"
     assert "opened NOTES.md" in shown and "no plan is started" in shown, "the task in hand read whole, and the started plan said to be missing"
     assert shown.index("task in hand: 1 write the notes") < shown.index("== journal task show current =="), "the summary comes first"
-    console.run(["task", "suspend", "1", "for a moment"], AGENT)
+    console.run(["task", "pause", "1", "for a moment"], AGENT)
     assert console.run(["task", "show", "current"], AGENT).text == "no task is in hand\n", "with none in hand, task show current says so"
     console.run(["task", "create", "an old one"], AGENT)
     console.run(["task", "complete", "2"], AGENT)
@@ -2569,15 +2569,15 @@ def test_a_turns_parts_landing_out_of_order_are_put_back_before_the_turn_is_read
     assert reply.reply_target == 1 and reply.text == "It is."
 
 
-def test_a_stop_with_a_parked_task_names_it_in_auto_mode_or_not(app: App):
+def test_a_stop_with_a_paused_task_names_it_in_auto_mode_or_not(app: App):
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=False), Actor.system())
     console.run(["task", "create", "the footer", "--start"], AGENT)
-    console.run(["task", "suspend", "1", "the header first"], AGENT)
+    console.run(["task", "pause", "1", "the header first"], AGENT)
     status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "parked tasks: task 1 (the footer), parked because: the header first" in body["reason"]
+    assert body.get("decision") == "block" and "paused tasks: task 1 (the footer), paused because: the header first" in body["reason"]
     assert hook(app, "Stop", stop_hook_active=True)[1].get("decision") == "block", "told at every stop, until the task is resumed or done"
     console.run(["task", "resume", "1"], AGENT)
     console.run(["task", "complete", "1", "--how", "shipped"], AGENT)
@@ -2769,7 +2769,7 @@ def test_each_agent_has_one_task_in_progress_at_a_time(app: App):
     app.console().run(["task", "create", "second"], AGENT)
     refused = app.console().run(["task", "start", "2"], AGENT)
     assert refused.code == 1 and "task 1 is in hand" in refused.error, "an agent cannot start a second while it holds one"
-    app.console().run(["task", "suspend", "1", "later"], AGENT)
+    app.console().run(["task", "pause", "1", "later"], AGENT)
     assert app.console().run(["task", "start", "2"], AGENT).code == 0
 
 
@@ -3500,11 +3500,11 @@ def test_the_step_is_said_again_at_a_start_when_a_wait_ends_and_at_a_pace(app: A
     app.container.get(SettingRows).set("sequences.say_every", 0, Actor.user(1))
     tick()
     assert "step 1: bump" in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a step unheard for the set minutes is said again, carried by the agent's next tool use while it is at work"
-    console.run(["sequence", "suspend", "--why", "docs first"], AGENT)
+    console.run(["sequence", "pause", "--why", "docs first"], AGENT)
     transmitted.clear()
     tick()
-    assert transmitted == [], "a parked run is not said at a pace"
-    assert "is parked at step 1" in json.dumps(hook(app, "SessionStart", source="resume")[1]), "and at a start"
+    assert transmitted == [], "a paused run is not said at a pace"
+    assert "is paused at step 1" in json.dumps(hook(app, "SessionStart", source="resume")[1]), "and at a start"
     console.run(["sequence", "follow"], AGENT)
     app.runtime().deferred.drain()
     transmitted.clear()
@@ -4828,11 +4828,11 @@ def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: Ap
     command = dict(tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})
     hook(app, "PostToolUse", **command)
     assert app.container.get(Tasks).find(1).state == "started", "the head was not made by this command"
-    for line in (["task", "suspend", "1", "first"], ["task", "start", "2"], ["task", "suspend", "2", "later"], ["task", "resume", "1"]):
+    for line in (["task", "pause", "1", "first"], ["task", "start", "2"], ["task", "pause", "2", "later"], ["task", "resume", "1"]):
         app.console().run(line, AGENT)
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "New\n\nJournal: tasks done 1 and 2 now"], cwd=root, check=True)
     hook(app, "PostToolUse", **command)
-    assert app.container.get(Tasks).find(1).state == "done" and app.container.get(Tasks).find(2).state == "parked"
+    assert app.container.get(Tasks).find(1).state == "done" and app.container.get(Tasks).find(2).state == "paused"
 
 
 def test_a_task_a_worker_holds_is_never_closed_by_a_hand_merge_or_a_trailer(app: App, monkeypatch):
@@ -5018,7 +5018,7 @@ def test_each_agent_holds_its_own_task_and_a_workers_task_never_moves_the_main_a
         assert tasks.holder_task(Ref(Worker.table(), 1)) is None, "and it leaves the worker that held it"
 
 
-def test_one_task_is_started_whatever_starts_it_and_a_parked_plan_parks_its_task(app: App, monkeypatch):
+def test_one_task_is_started_whatever_starts_it_and_a_paused_plan_pauses_its_task(app: App, monkeypatch):
     from journal.models.task_state import TaskState
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -5039,22 +5039,22 @@ def test_one_task_is_started_whatever_starts_it_and_a_parked_plan_parks_its_task
     refused = console.run(["plan", "start", "1"], AGENT)
     assert refused.code == 1 and "task 3 is in hand" in refused.error, "a plan's start obeys the one task in hand"
     assert app.container.get(Plans).find(1).state == "approved", "a refused start leaves the plan as it was"
-    assert console.run(["task", "suspend", "2", "x"], AGENT).code == 1, "a task never started is not parked"
-    console.run(["task", "suspend", "3", "the plan first"], AGENT)
+    assert console.run(["task", "pause", "2", "x"], AGENT).code == 1, "a task never started is not paused"
+    console.run(["task", "pause", "3", "the plan first"], AGENT)
     console.run(["plan", "start", "1"], AGENT)
-    console.run(["plan", "suspend", "1"], AGENT)
+    console.run(["plan", "pause", "1"], AGENT)
     tasks = app.container.get(Tasks)
-    assert tasks.find(1).state == "parked" and tasks.with_state(TaskState.STARTED) == [], "a parked plan parks its task in hand"
+    assert tasks.find(1).state == "paused" and tasks.with_state(TaskState.STARTED) == [], "a paused plan pauses its task in hand"
     finished = console.run(["task", "resume", "1"], AGENT)
     assert finished.code == 0
     console.run(["task", "complete", "1", "--how", "h"], AGENT)
     app.runtime().deferred.drain()
-    assert any("task 3 is parked" in line for line in keystrokes), "with nothing in hand, a close names a parked task"
+    assert any("task 3 is paused" in line for line in keystrokes), "with nothing in hand, a close names a paused task"
     console.run(["task", "resume", "3"], AGENT)
     console.run(["task", "complete", "3", "--how", "h"], AGENT)
     console.run(["task", "start", "2"], AGENT)
     console.run(["task", "complete", "2", "--how", "h"], AGENT)
-    assert app.container.get(Plans).find(1).state == "done", "a parked plan whose last task closes is done"
+    assert app.container.get(Plans).find(1).state == "done", "a paused plan whose last task closes is done"
 
 
 def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_not(app: App):
@@ -5069,11 +5069,11 @@ def test_a_plan_started_with_every_task_closed_is_done_and_one_with_no_task_is_n
     console.run(["plan", "approve", "2"], USER)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
-    console.run(["plan", "suspend", "1"], AGENT)
+    console.run(["plan", "pause", "1"], AGENT)
     console.run(["task", "start", "1"], AGENT)
     console.run(["task", "complete", "1", "--how", "h"], AGENT)
     plans = app.container.get(Plans)
-    assert plans.find(1).state == "done", "a parked plan whose last task closes is done"
+    assert plans.find(1).state == "done", "a paused plan whose last task closes is done"
     console.run(["plan", "start", "2"], AGENT)
     assert plans.find(2).state == "started", "a plan with no task yet is not finished"
 
@@ -5225,7 +5225,7 @@ def test_version_3_todos_become_tasks_in_their_states_with_their_work_logs(app: 
         migrator.run(migrator.begin(Actor.user(1)), Actor.user(1))
         tasks = {t.title: t for t in app.container.get(Tasks).rows()}
         assert tasks["done one"].state == "done" and tasks["done one"].outcome == "it shipped" and tasks["done one"].brief == "the brief"
-        assert tasks["in progress"].state == "parked" and tasks["waiting"].state == "blocked" and tasks["waiting"].block_reason == "the vendor's answer"
+        assert tasks["in progress"].state == "paused" and tasks["waiting"].state == "blocked" and tasks["waiting"].block_reason == "the vendor's answer"
         assert tasks["still open"].state == "open" and "struck" not in tasks, "a struck to-do stays behind"
         assert [log.line for log in app.container.get(TaskLogs).rows() if log.task_id == tasks["done one"].id] == ["built it", "tested it"]
 
@@ -5359,7 +5359,7 @@ def test_a_version_3_row_that_cannot_come_across_is_reported_and_the_migration_g
     assert "message 1 in main: could not be brought:" in body, "the row is named with its error"
 
 
-def test_resuming_a_plans_parked_task_follows_the_plan_again_so_finishing_it_starts_the_next(app: App):
+def test_resuming_a_plans_paused_task_follows_the_plan_again_so_finishing_it_starts_the_next(app: App):
     from journal.repositories.tasks import Tasks
     console = app.console()
     console.run(["plan", "create", "p", "--brief", "b"], USER)
@@ -5371,7 +5371,7 @@ def test_resuming_a_plans_parked_task_follows_the_plan_again_so_finishing_it_sta
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     console.run(["plan", "start", "1"], AGENT)
-    console.run(["task", "suspend", "1", "something first"], AGENT)
+    console.run(["task", "pause", "1", "something first"], AGENT)
     console.run(["task", "resume", "1"], AGENT)
     assert app.container.get(SessionAgents).top("s1").name == "following_plan", "a resumed plan task is followed again"
     console.run(["task", "complete", "1", "--how", "h"], AGENT)
@@ -5402,7 +5402,7 @@ def test_a_plan_moves_on_whoever_closes_its_task_and_an_approved_plan_with_every
     assert app.container.get(Plans).find(2).state == "done", "an approved plan whose last task closes is done without a start"
 
 
-def test_a_plan_parks_and_restarts_on_its_parked_task_only_once_approved_holds_its_checkpoint_and_reopens(app: App):
+def test_a_plan_pauses_and_restarts_on_its_paused_task_only_once_approved_holds_its_checkpoint_and_reopens(app: App):
     from journal.models.task_state import TaskState
     from journal.repositories.plans import Plans
     from journal.repositories.tasks import Tasks
@@ -5414,13 +5414,13 @@ def test_a_plan_parks_and_restarts_on_its_parked_task_only_once_approved_holds_i
     console.run(["plan", "phase", "1", "second", "--when", "w"], USER)
     console.run(["plan", "todos", "1", "1", "1", "2"], USER)
     console.run(["plan", "todos", "1", "2", "3"], USER)
-    assert console.run(["plan", "suspend", "1"], USER).code == 1, "a plan not yet approved is not parked, so it cannot be started by a restart"
+    assert console.run(["plan", "pause", "1"], USER).code == 1, "a plan not yet approved is not paused, so it cannot be started by a restart"
     console.run(["plan", "approve", "1"], USER)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     console.run(["plan", "start", "1"], AGENT)
-    console.run(["plan", "suspend", "1"], AGENT)
-    assert "task 1," in console.run(["plan", "start", "1"], AGENT).text, "a restart resumes the parked task"
+    console.run(["plan", "pause", "1"], AGENT)
+    assert "task 1," in console.run(["plan", "start", "1"], AGENT).text, "a restart resumes the paused task"
     console.run(["task", "complete", "1", "--how", "h"], AGENT)
     console.run(["task", "complete", "2", "--how", "h"], AGENT)
     plans = app.container.get(Plans)
@@ -5643,7 +5643,7 @@ def test_a_task_a_worker_holds_is_left_to_it_by_the_plan_and_shown_as_held(app: 
     assert [task.title for task in plans.free()] == ["loose and free"], "a task a worker is out on is never the next free task for anyone else"
 
 
-def test_a_parked_task_resumed_while_a_plan_is_started_is_the_task_the_top_bar_names(app: App):
+def test_a_paused_task_resumed_while_a_plan_is_started_is_the_task_the_top_bar_names(app: App):
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -5651,10 +5651,10 @@ def test_a_parked_task_resumed_while_a_plan_is_started_is_the_task_the_top_bar_n
     console.run(["plan", "add", "1", "first", "--brief", "the first is done"], USER)
     console.run(["plan", "add", "1", "second", "--brief", "the second is done"], USER)
     console.run(["task", "create", "outside", "--brief", "the outside one is done", "--start"], AGENT)
-    console.run(["task", "suspend", "3", "the plan first"], AGENT)
+    console.run(["task", "pause", "3", "the plan first"], AGENT)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    console.run(["task", "suspend", "1", "the outside one first"], AGENT)
+    console.run(["task", "pause", "1", "the outside one first"], AGENT)
     assert console.run(["task", "resume", "3"], AGENT).code == 0
     with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/summary", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
         named = {row["environment"]["name"]: row["task"] for row in json.loads(reply.read())["environments"]}
@@ -6447,7 +6447,7 @@ def test_the_record_is_a_rolling_log_of_its_newest_entries_and_the_projects_rows
     assert [m.text for m in app.container.get(Messages).all()][-1] == "keep me", "a message is the project's own and stays"
 
 
-def test_a_task_closed_by_a_commit_names_a_parked_task_at_once(app: App, monkeypatch):
+def test_a_task_closed_by_a_commit_names_a_paused_task_at_once(app: App, monkeypatch):
     import subprocess
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -6459,13 +6459,13 @@ def test_a_task_closed_by_a_commit_names_a_parked_task_at_once(app: App, monkeyp
     console = app.console()
     console.run(["environment", "overview"], AGENT)
     console.run(["task", "create", "the parser", "--start"], AGENT)
-    console.run(["task", "suspend", "1", "the footer comes first"], AGENT)
+    console.run(["task", "pause", "1", "the footer comes first"], AGENT)
     console.run(["task", "create", "footer", "--start"], AGENT)
     reply = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})[1]
     notified = reply["hookSpecificOutput"]["additionalContext"]
     app.runtime().deferred.drain()
     carried = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
-    assert "closed task 2" in notified and "task 1 is parked" in carried and "the footer comes first" in carried, f"the close names the parked task at once, on the next tool use, not a quarter of an hour later: {notified} {carried}"
+    assert "closed task 2" in notified and "task 1 is paused" in carried and "the footer comes first" in carried, f"the close names the paused task at once, on the next tool use, not a quarter of an hour later: {notified} {carried}"
 
 
 def test_the_database_gives_deleted_rows_space_back_by_itself(app: App):
@@ -6701,7 +6701,7 @@ def test_an_unblocked_task_waits_on_nothing_and_the_check_its_block_made_is_reti
         assert all(check.is_retired for check in app.container.get(Checks).rows() if check.wait_target), "the check its block made runs no more"
 
 
-def test_a_plan_with_a_parked_or_a_blocked_task_is_not_done_when_the_rest_close(app: App):
+def test_a_plan_with_a_paused_or_a_blocked_task_is_not_done_when_the_rest_close(app: App):
     from journal.models.plan_state import PlanState
     from journal.repositories.plans import Plans
     console = app.console()
@@ -6709,18 +6709,18 @@ def test_a_plan_with_a_parked_or_a_blocked_task_is_not_done_when_the_rest_close(
     console.run(["environment", "overview"], AGENT)
     console.run(["plan", "create", "three", "--brief", "three tasks"], USER)
     console.run(["plan", "phase", "1", "one", "--when", "all done"], USER)
-    for title in ("parked one", "blocked one", "last one"):
+    for title in ("paused one", "blocked one", "last one"):
         console.run(["plan", "add", "1", title, "--brief", "done when done"], USER)
     console.run(["plan", "todos", "1", "1", "1", "2", "3"], USER)
     console.run(["plan", "ready", "1"], USER)
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
-    console.run(["task", "suspend", "1", "later"], AGENT)
+    console.run(["task", "pause", "1", "later"], AGENT)
     console.run(["task", "block", "2", "the user"], AGENT)
     console.run(["task", "start", "3"], AGENT)
     console.run(["task", "complete", "3", "--how", "done"], AGENT)
     app.runtime().deferred.drain()
-    assert app.container.get(Plans).find(1).state != PlanState.FINISHED, "a parked task and a blocked one are still open work"
+    assert app.container.get(Plans).find(1).state != PlanState.FINISHED, "a paused task and a blocked one are still open work"
     from journal.features.plans.seeds.closed_plans import ClosedPlans
     app.container.get(ClosedPlans).run()
     assert app.container.get(Plans).find(1).state != PlanState.FINISHED, "nor does the boot take the plan for done"
@@ -11618,7 +11618,7 @@ def test_a_moment_with_a_bad_condition_is_refused_with_its_reason(app: App):
     console = app.console()
     assert "no table is named 'chores'" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "chores", "is": 0}'], USER).error
     assert "colour" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"colour": "red"}, "is": 0}'], USER).error
-    assert "tasks state is never suspended" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"state": ["open", "suspended"]}, "is": 0}'], USER).error
+    assert "tasks state is never sleeping" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"state": ["open", "sleeping"]}, "is": 0}'], USER).error
     assert "a condition is" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks"}'], USER).error
     assert "--when is not JSON" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", "{tasks"], USER).error
     assert "--when and --once go with --on" in console.run(["reminder", "create", "x", "--once"], USER).error

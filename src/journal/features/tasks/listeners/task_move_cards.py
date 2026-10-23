@@ -18,20 +18,20 @@ MOVES = {
     "resumed": ("Resumed", "", ""),
     "unblocked": ("Unblocked", "", ""),
     "done": ("Finished", "good", "outcome"),
-    "parked": ("Parked", "helper", "suspension_reason"),
+    "paused": ("Paused", "helper", "pause_reason"),
     "blocked": ("Blocked", "warn", "block_reason"),
 }
 
 
 class TaskMoveCards(Listener[RowEvent]):
-    """A task started, resumed, finished, parked, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task and why it moved."""
+    """A task started, resumed, finished, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task and why it moved."""
 
     def __init__(self, cards: MomentCards, tasks: Tasks, scope: Scope) -> None:
         self.cards, self.tasks, self.scope = cards, tasks, scope
 
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, TaskStarted):
-            self.show_move(event, "resumed" if event.prior_state == TaskState.SUSPENDED else "started", "")
+            self.show_move(event, "resumed" if event.prior_state == TaskState.PAUSED else "started", "")
         if isinstance(event, TaskClosed) and event.outcome in MOVES:
             self.show_move(event, event.outcome, "")
         if isinstance(event, TaskReopened):

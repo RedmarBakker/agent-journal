@@ -17,27 +17,27 @@ from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.support.tasks_data import TasksData
 from journal.engine.nudge import Nudge
 
-SUSPENDED_REMINDER_DELAY_SECONDS = 60.0
+PAUSED_REMINDER_DELAY_SECONDS = 60.0
 BLOCKED_REMINDER_DELAY_SECONDS = 45 * 60.0
 IDLE_CHECK_DELAY_SECONDS = 30 * 60.0
 
 
 @dataclass(frozen=True)
 class Ready(BaseState):
-    """Nothing in hand: the bottom of the stack, never popped. A stop here is held by what is still open: a parked task, a blocked task whose check cannot run, and in auto mode any open task. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
+    """Nothing in hand: the bottom of the stack, never popped. A stop here is held by what is still open: a paused task, a blocked task whose check cannot run, and in auto mode any open task. A task this agent holds, once started, pushes Working; one another agent holds does not. The quiet is measured from the agent's last doing. A feature above tasks extends it under the same name, and work modes are states that extend it in turn."""
 
     name = "idle"
     title = "Idle"
     allows = frozenset({Permission.RUN_COMMANDS})
     silenced_at: float = 0.0
-    suspension_reported: bool = False
+    pause_reported: bool = False
     stop_round: int = 0
 
     def has_silence(self, seconds: float, time: float) -> bool:
         return Timeout.seconds(seconds).started(self.silenced_at).is_elapsed(time)
 
     def active(self, time: float) -> Self:
-        return replace(self, silenced_at=time, suspension_reported=False)
+        return replace(self, silenced_at=time, pause_reported=False)
 
     def working_state(self, **fields) -> BaseState:
         from journal.features.tasks.states.working import Working
@@ -65,17 +65,17 @@ class Ready(BaseState):
         stop_nudges = self.stop_lines(event.data, settings)
         if self.stop_round < len(stop_nudges):
             return Transition.merged(self, [self.swap(replace(self, stop_round=self.stop_round + 1)), self.refuse(stop_nudges[self.stop_round])])
-        if stop_nudges and (settings.value(Tasks.AUTO) or tasks.suspended):
+        if stop_nudges and (settings.value(Tasks.AUTO) or tasks.paused):
             return self.refuse(Tasks.TASK_QUEUE.create(tasks=task_summary(tasks)))
         return self.none()
 
     def stop_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         from journal.features.tasks.feature import Tasks
         tasks = data.part(Tasks)
-        suspension_lines = (Tasks.SUSPENDED_TASKS.create(tasks=tasks.suspension_summary),) if tasks.suspended else ()
+        pause_lines = (Tasks.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
         wait_lines = (Tasks.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
         block_lines = (Tasks.BLOCKED_REVIEW.create(tasks=", ".join(map(str, tasks.blocked))),) if tasks.blocked and settings.value(Tasks.AUTO) else ()
-        return (*suspension_lines, *wait_lines, *block_lines, *self.open_lines(data, settings))
+        return (*pause_lines, *wait_lines, *block_lines, *self.open_lines(data, settings))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         from journal.features.tasks.feature import Tasks
@@ -95,8 +95,8 @@ class Ready(BaseState):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
         tasks = event.data.part(Tasks)
-        if tasks.suspended and self.has_silence(SUSPENDED_REMINDER_DELAY_SECONDS, event.time) and not self.suspension_reported:
-            return self.swap(replace(self, suspension_reported=True), Tasks.SUSPENDED_TASK_REMINDER.create(n=tasks.suspended[0], why=tasks.first_suspension_reason))
+        if tasks.paused and self.has_silence(PAUSED_REMINDER_DELAY_SECONDS, event.time) and not self.pause_reported:
+            return self.swap(replace(self, pause_reported=True), Tasks.PAUSED_TASK_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
         if tasks.blocked_without_wait and self.has_silence(BLOCKED_REMINDER_DELAY_SECONDS, event.time):
             return self.none(Tasks.BLOCKED_TASK_REMINDER.create(tasks=tasks.blocked_without_wait_summary))
         if settings.value(Tasks.AUTO) and self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
@@ -105,4 +105,4 @@ class Ready(BaseState):
 
 
 def task_summary(tasks: TasksData) -> str:
-    return "; ".join(part for part in (f"parked {tasks.suspension_summary}" if tasks.suspended else "", f"open {', '.join(map(str, tasks.open_ids))}" if tasks.open_ids else "", f"blocked {', '.join(map(str, tasks.blocked))}" if tasks.blocked else "") if part)
+    return "; ".join(part for part in (f"paused {tasks.pause_summary}" if tasks.paused else "", f"open {', '.join(map(str, tasks.open_ids))}" if tasks.open_ids else "", f"blocked {', '.join(map(str, tasks.blocked))}" if tasks.blocked else "") if part)

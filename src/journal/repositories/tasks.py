@@ -78,7 +78,7 @@ class Tasks(ScopedRepository[Task]):
         return [(task, check) for check in self.checks.broken_waits() for task in self.waiting_refs(check)]
 
     def waiting_refs(self, model) -> list[Task]:
-        return [task for ref in self.links.sources(model, WAIT_LINK) if ref.type == Task.table() and (task := self.find(ref.id)).state in (TaskState.BLOCKED, TaskState.SUSPENDED)]
+        return [task for ref in self.links.sources(model, WAIT_LINK) if ref.type == Task.table() and (task := self.find(ref.id)).state in (TaskState.BLOCKED, TaskState.PAUSED)]
 
     def reason(self, row: Task | Plan) -> str:
         matched = [f"{ref.type[:-1]} {ref.id}" for ref in self.links.targets(row, WAIT_LINK)]
@@ -102,8 +102,8 @@ class Tasks(ScopedRepository[Task]):
     def blocked_tasks(self) -> list[Task]:
         return self.actionable(TaskState.BLOCKED)
 
-    def suspended_tasks(self) -> list[Task]:
-        return self.free_tasks(TaskState.SUSPENDED, (PlanState.SUSPENDED.value,))
+    def paused_tasks(self) -> list[Task]:
+        return self.free_tasks(TaskState.PAUSED, (PlanState.PAUSED.value,))
 
     def actionable(self, state: TaskState) -> list[Task]:
         return self.free_tasks(state, UNAPPROVED_PLAN_STATES)
@@ -146,7 +146,7 @@ class Tasks(ScopedRepository[Task]):
             return
         counterpart = self.holder_task(holder)
         if counterpart is not None and counterpart.id != started.id:
-            raise Rejection(f"task {counterpart.id} is in hand: finish it, or park it with `journal task suspend {counterpart.id} \"<why>\"`, before task {started.id} is started")
+            raise Rejection(f"task {counterpart.id} is in hand: finish it, or pause it with `journal task pause {counterpart.id} \"<why>\"`, before task {started.id} is started")
         self.handover(started, holder, actor)
 
     def handover(self, task: Task, holder: Ref, actor: Actor) -> None:

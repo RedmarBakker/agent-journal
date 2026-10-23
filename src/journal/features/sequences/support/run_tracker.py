@@ -101,10 +101,10 @@ class RunTracker:
         return {agent.environment_id for agent in self.agents.main_agents() for run in self.runs(agent) if run.sequence_id == sequence_id}
 
     def follow(self, session: str, environment_id: int) -> SequenceRun:
-        return self.changed(session, environment_id, lambda run: run.adopted(self.timestamp()).announced(self.timestamp()).suspended(""))
+        return self.changed(session, environment_id, lambda run: run.adopted(self.timestamp()).announced(self.timestamp()).paused(""))
 
-    def suspend(self, session: str, environment_id: int, reason: str) -> SequenceRun:
-        return self.changed(session, environment_id, lambda run: run.suspended(reason))
+    def pause(self, session: str, environment_id: int, reason: str) -> SequenceRun:
+        return self.changed(session, environment_id, lambda run: run.paused(reason))
 
     def announce(self, session: str, environment_id: int) -> SequenceRun:
         return self.changed(session, environment_id, lambda run: run.announced(self.timestamp()))
@@ -138,7 +138,7 @@ class RunTracker:
     @classmethod
     def reminder(cls, run: SequenceRun) -> Nudge:
         from journal.features.sequences.feature import Sequences
-        return Sequences.SEQUENCE_SUSPENDED.create(n=run.sequence_id, step=run.step + 1, why=run.suspension_reason) if run.suspension_reason else cls.step(run)
+        return Sequences.SEQUENCE_PAUSED.create(n=run.sequence_id, step=run.step + 1, why=run.pause_reason) if run.pause_reason else cls.step(run)
 
     @staticmethod
     def step(run: SequenceRun) -> Nudge:

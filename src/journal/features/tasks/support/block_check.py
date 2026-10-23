@@ -5,7 +5,7 @@ from journal.repositories.tasks import Tasks
 from journal.support.rejection import Rejection
 
 WAIT_REFUSAL = "task {n} is work going on here, {state}, so a task waiting on it is not blocked: hand it to the worker with journal worker queue <n> {task}, or leave it open until task {n} is done"
-BATCH_REFUSAL = "{count} tasks were blocked in the last {minutes} minutes: blocked is for a task that cannot move for something outside your hands; queue it to a worker with journal worker queue, park a started task with journal task suspend, or leave it open"
+BATCH_REFUSAL = "{count} tasks were blocked in the last {minutes} minutes: blocked is for a task that cannot move for something outside your hands; queue it to a worker with journal worker queue, pause a started task with journal task pause, or leave it open"
 
 
 class BlockCheck:

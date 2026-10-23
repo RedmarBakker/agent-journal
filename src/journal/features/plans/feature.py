@@ -40,7 +40,7 @@ class Plans(Feature[PlansData]):
     BUILDER_MODE = Nudge(name, "now_building", "you now work as the builder", repeat_interval=0)
     NEXT_PLAN_TASK = Nudge(name, "next_task_of_the_plan", "plan {{n}}: task {{task}}, {{title}} is next. {{briefing}}", repeat_interval=0)
     PLAN_FINISHED = Nudge(name, "plan_done", "plan {{n}} is done: its last task closed", repeat_interval=0)
-    PLAN_STALLED = Nudge(name, "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} parked, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat_interval=0)
+    PLAN_STALLED = Nudge(name, "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat_interval=0)
     PLAN_POSTPONED = Nudge(name, "the_user_postponed_the_plan", "the user postponed plan {{n}}")
     PLAN_ABANDONED = Nudge(name, "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
     PLAN_APPROVED = Nudge(name, "the_user_approved_the_plan", "the user approved plan {{n}}", "`journal plan start {{n}}` begins its first task", repeat_interval=0)
@@ -73,7 +73,7 @@ by you, approved by them, and then followed: finishing one task starts the next 
   and `journal plan ready <n>` waits until every subagent is back. Put what they find straight into the plan as tasks
   under its phases, then ready it again with `--changed "<what the round changed, in one line>"`: each round is kept on the
   plan, with its reviewers, the reports filed about the plan while it ran, and that line.
-- `journal plan show <n>` lists its phases and tasks; `journal plan list` every plan; `journal plan suspend <n>` puts it aside.
+- `journal plan show <n>` lists its phases and tasks; `journal plan list` every plan; `journal plan pause <n>` puts it aside.
 - A blocked task never blocks its plan: go on with the tasks that can be done. When every task left is blocked, the plan
   blocks itself and opens again when one opens. When one thing stops all of the plan's work, block the plan on it:
   `journal plan block <n> "<why>"`, with `--on question:N`, `--on task:N` or `--until "<command>"` as for a task, so it

@@ -31,9 +31,9 @@ class RecordRunChanges(Listener[Updated]):
                 self.stored(agent, run, "started", CardKind.SEQUENCES)
             elif run.step != prior_row.step:
                 self.stored(agent, run, f"moved on to step {run.step + 1}", CardKind.SEQUENCE_STEPS)
-            elif run.suspension_reason and not prior_row.suspension_reason:
-                self.stored(agent, run, f"parked at step {run.step + 1}: {run.suspension_reason}", CardKind.SEQUENCE_STEPS)
-            elif prior_row.suspension_reason and not run.suspension_reason:
+            elif run.pause_reason and not prior_row.pause_reason:
+                self.stored(agent, run, f"paused at step {run.step + 1}: {run.pause_reason}", CardKind.SEQUENCE_STEPS)
+            elif prior_row.pause_reason and not run.pause_reason:
                 self.stored(agent, run, f"followed again at step {run.step + 1}", CardKind.SEQUENCE_STEPS)
         for n, run in previous.items():
             if n not in following:

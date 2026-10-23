@@ -69,7 +69,7 @@ async function run(act) {
             </span>
             <span :class="['status', status]">
                 {{ PLAN_STATES[status] || status }}
-                <template v-if="['started', 'waiting', 'parked', 'blocked'].includes(status)">· phase {{ current }} of {{ (resource.phases || []).length }}</template>
+                <template v-if="['started', 'waiting', 'paused', 'blocked'].includes(status)">· phase {{ current }} of {{ (resource.phases || []).length }}</template>
             </span>
             <template v-if="reviewers">
                 <span class="reviewers">{{ reviewers }}</span>
@@ -168,8 +168,8 @@ async function run(act) {
     color: var(--created);
 }
 
-.status.parked {
-    color: var(--parked);
+.status.paused {
+    color: var(--paused);
 }
 
 .status.building {

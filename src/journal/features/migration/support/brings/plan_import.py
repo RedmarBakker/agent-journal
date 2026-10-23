@@ -16,7 +16,7 @@ from journal.repositories.phases import Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
 
 STATES = {"building": PlanState.DRAFT, "draft": PlanState.DRAFT, "ready": PlanState.READY, "reviewing": PlanState.READY, "approved": PlanState.APPROVED,
-          "active": PlanState.STARTED, "waiting": PlanState.STARTED, "parked": PlanState.SUSPENDED, "done": PlanState.FINISHED, "abandoned": PlanState.CANCELLED}
+          "active": PlanState.STARTED, "waiting": PlanState.STARTED, "parked": PlanState.PAUSED, "done": PlanState.FINISHED, "abandoned": PlanState.CANCELLED}
 
 
 class PlanImport(EnvironmentKind):

@@ -14,7 +14,7 @@ READS = frozenset((
 WRITES = frozenset((
     "/journal/mode",
     "/journal/tasks", "/journal/tasks/{id}", "/journal/tasks/{id}/start", "/journal/tasks/{id}/finish", "/journal/tasks/{id}/reopen", "/journal/tasks/{id}/log",
-    "/journal/plans/{id}/approve", "/journal/plans/{id}/start", "/journal/plans/{id}/park",
+    "/journal/plans/{id}/approve", "/journal/plans/{id}/start", "/journal/plans/{id}/pause",
     "/journal/questions/{id}/answer",
     "/journal/messages", "/journal/messages/read", "/journal/messages/{id}/read", "/journal/messages/{id}/reply", "/journal/messages/{id}/react", "/journal/messages/{id}/press", "/journal/messages/{id}/undock",
     "/journal/comments", "/journal/comments/{id}",

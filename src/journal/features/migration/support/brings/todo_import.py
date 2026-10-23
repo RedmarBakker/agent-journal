@@ -14,7 +14,7 @@ MIGRATED_PROGRESS_NOTE = "it was in progress in version 3 when the journal was b
 
 
 class TodoImport(EnvironmentKind):
-    """A to-do becomes a task: done with its outcome, blocked with its reason, open, or parked when it was in progress, since one task alone is ever in hand; a struck one stays behind."""
+    """A to-do becomes a task: done with its outcome, blocked with its reason, open, or paused when it was in progress, since one task alone is ever in hand; a struck one stays behind."""
 
     kind = "todo"
     title = "tasks"
@@ -36,5 +36,5 @@ class TodoImport(EnvironmentKind):
         if row.data.get("blocked"):
             return task.with_(state=TaskState.BLOCKED, block_reason=row.data["blocked"])
         if row.data.get("status") == "started":
-            return task.with_(state=TaskState.SUSPENDED, suspension_reason=MIGRATED_PROGRESS_NOTE)
+            return task.with_(state=TaskState.PAUSED, pause_reason=MIGRATED_PROGRESS_NOTE)
         return task

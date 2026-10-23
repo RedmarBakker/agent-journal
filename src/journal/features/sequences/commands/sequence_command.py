@@ -25,9 +25,9 @@ class SequenceCommand(Command):
         creation.add_argument("title")
         creation.add_argument("--steps", required=True, help="steps separated by |")
         self.verb(verbs, "run", "start a sequence at its first step").add_argument("n", type=int)
-        self.verb(verbs, "follow", "take the step in hand up, and resume a parked run")
+        self.verb(verbs, "follow", "take the step in hand up, and resume a paused run")
         self.verb(verbs, "next", "the step in hand is done; the next one, or the end")
-        self.verb(verbs, "suspend", "set the run aside, its holds quiet until it is followed again").add_argument("--why", required=True)
+        self.verb(verbs, "pause", "set the run aside, its holds quiet until it is followed again").add_argument("--why", required=True)
         abandon = self.verb(verbs, "abandon", "give the run up, its remaining steps undone; the user is told")
         abandon.add_argument("--why", required=True)
         abandon.add_argument("--sure", action="store_true", help="go through, once the steps it skips are read")
@@ -58,10 +58,10 @@ class SequenceCommand(Command):
         print(self.running.next(caller.agent_session, self.scope.id))
         return 0
 
-    def suspend(self, args: Namespace, caller: Caller) -> int:
+    def pause(self, args: Namespace, caller: Caller) -> int:
         self.current_run(caller)
-        run = self.running.suspend(caller.agent_session, self.scope.id, args.why)
-        print(f"sequence {run.sequence_id} parked at step {run.step + 1}: {args.why}. `journal sequence follow` resumes it")
+        run = self.running.pause(caller.agent_session, self.scope.id, args.why)
+        print(f"sequence {run.sequence_id} paused at step {run.step + 1}: {args.why}. `journal sequence follow` resumes it")
         return 0
 
     def abandon(self, args: Namespace, caller: Caller) -> int:

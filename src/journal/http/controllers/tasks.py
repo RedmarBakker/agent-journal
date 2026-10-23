@@ -65,9 +65,9 @@ class TaskController(Controller[Task]):
         task = self.repository.find(request.number("id"))
         return Response.json(self.shown(self.repository.save(task.with_(state=TaskState.OPEN, finished_at=None, outcome=""), request.actor)))
 
-    def suspend(self, request: Request) -> Response:
+    def pause(self, request: Request) -> Response:
         task = self.repository.find(request.number("id"))
-        return Response.json(self.shown(self.repository.save(task.suspended(request.body.get("why", ""), self.time()), request.actor)))
+        return Response.json(self.shown(self.repository.save(task.paused(request.body.get("why", ""), self.time()), request.actor)))
 
     def block(self, request: Request) -> Response:
         reason, enabled, deadline = request.body.get("why", ""), request.body.get("on", []), request.body.get("until", "")

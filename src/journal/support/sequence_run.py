@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass, fields, replace
 
 @dataclass(frozen=True)
 class SequenceRun:
-    """A sequence an agent is working through: the steps as they were when it started, the step in hand, the row it is about, when it started, when the step was taken up, when the step was last said, why it is parked when it is, and the states its row must reach before it may end."""
+    """A sequence an agent is working through: the steps as they were when it started, the step in hand, the row it is about, when it started, when the step was taken up, when the step was last said, why it is paused when it is, and the states its row must reach before it may end."""
 
     sequence_id: int
     title: str
@@ -13,7 +13,7 @@ class SequenceRun:
     started_at: str = ""
     adopted_at: str = ""
     announced_at: str = ""
-    suspension_reason: str = ""
+    pause_reason: str = ""
     end_condition: tuple[str, ...] = ()
 
     @classmethod
@@ -33,7 +33,7 @@ class SequenceRun:
         return self.step >= len(self.steps) - 1
 
     def advanced(self) -> "SequenceRun":
-        return replace(self, step=self.step + 1, adopted_at="", announced_at="", suspension_reason="")
+        return replace(self, step=self.step + 1, adopted_at="", announced_at="", pause_reason="")
 
     def adopted(self, time: str) -> "SequenceRun":
         return replace(self, adopted_at=time)
@@ -41,8 +41,8 @@ class SequenceRun:
     def announced(self, time: str) -> "SequenceRun":
         return replace(self, announced_at=time)
 
-    def suspended(self, reason: str) -> "SequenceRun":
-        return replace(self, suspension_reason=reason)
+    def paused(self, reason: str) -> "SequenceRun":
+        return replace(self, pause_reason=reason)
 
     @property
     def skipped(self) -> tuple[str, ...]:
@@ -50,6 +50,6 @@ class SequenceRun:
 
     @property
     def blocks(self) -> str:
-        if self.suspension_reason:
-            return f"Parked: {self.suspension_reason}"
+        if self.pause_reason:
+            return f"Paused: {self.pause_reason}"
         return "Taken up" if self.adopted_at else "Not taken up yet: the agent's writes wait until it takes this step up"

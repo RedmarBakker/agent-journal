@@ -50,7 +50,7 @@ answers `none`, `swap`, `push`, `pop`, `forward` or `refuse`, and nothing else m
 `if state ==`, no `if event.kind ==`: dispatch is by class and by type. One `BaseState` is the
 parent of every state and every feature's state extends it directly. Only the top of the stack
 hears an event; a state beneath catches up in `on_resume(data, settings)`, which may pop it.
-The lifecycle hooks `on_push`, `on_suspend`, `on_resume` and `on_pop` answer nudges, and `on_push`
+The lifecycle hooks `on_push`, `on_pause`, `on_resume` and `on_pop` answer nudges, and `on_push`
 may refuse the push. Every push and pop is an entry in the trail, shown under the
 figure on the Home page. Counts and times a state keeps are its fields and go with it when it is
 popped.

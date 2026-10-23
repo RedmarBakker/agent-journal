@@ -31,7 +31,7 @@ export const VISIBILITY_GROUPS = [
             {key: "checks", label: "Checks passing and failing", icon: "check"},
             {key: "questions", label: "Questions asked and answered", icon: "questions"},
             {key: "filed", label: "Filed from your messages", icon: "inbox"},
-            {key: "task_moves", label: "Tasks started, finished, suspended and blocked", icon: "todos"},
+            {key: "task_moves", label: "Tasks started, finished, paused and blocked", icon: "todos"},
             {key: "conflicts", label: "Your edits a colleague's newer edit replaced", icon: "warn"},
         ],
     },

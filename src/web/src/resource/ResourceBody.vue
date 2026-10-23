@@ -96,7 +96,7 @@ async function follow() {
         <template v-if="!editing && !readOnly">
             <ResourceControls :resource="resource" @edit="edit" @close="emit('close')" />
         </template>
-        <template v-if="!isClosed(resource) && (resource.block_reason || resource.suspension_reason)">
+        <template v-if="!isClosed(resource) && (resource.block_reason || resource.pause_reason)">
             <ResourceWaits :resource="resource" />
         </template>
         <template v-if="table === 'checks'">

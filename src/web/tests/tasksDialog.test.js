@@ -197,12 +197,12 @@ describe("the tasks dialog's rules", () => {
             "Unblock",
             "Unblock",
         ]);
-        expect(nextAct(task(5, "e", {state: "parked"})).label).toBe("Resume");
+        expect(nextAct(task(5, "e", {state: "paused"})).label).toBe("Resume");
     });
 
     test("a started task can be paused, blocked or finished, and says why it cannot go back to open", () => {
         const choices = statusChoices(task(1, "a", {state: "started"}));
-        expect(choices.filter((c) => c.act).map((c) => c.status)).toEqual(["parked", "blocked", "done"]);
+        expect(choices.filter((c) => c.act).map((c) => c.status)).toEqual(["paused", "blocked", "done"]);
         expect(choices.find((c) => c.status === "open").note).toBe("Only a blocked or done task goes back to open");
         expect(choices.find((c) => c.current).status).toBe("started");
     });

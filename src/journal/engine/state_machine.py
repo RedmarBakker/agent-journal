@@ -140,11 +140,11 @@ class StateMachine:
         return MachineAnswer(following)
 
     def pushed_down(self, previous: Stack, following: Stack, settings: Settings) -> MachineAnswer:
-        suspended = previous.top().on_suspend(settings)
+        paused = previous.top().on_pause(settings)
         pushed = following.top().on_push(settings)
         if isinstance(pushed, Block):
             return MachineAnswer(previous, refusal=pushed, refused=following.top().name)
-        return MachineAnswer(following, (*suspended, *pushed))
+        return MachineAnswer(following, (*paused, *pushed))
 
     def forwarded(self, previous: Stack, following: Stack, settings: Settings, data: FeatureData) -> MachineAnswer:
         popped = previous.top().on_pop(settings)

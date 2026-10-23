@@ -39,7 +39,7 @@ class Tasks(Feature[TasksData]):
     STOP_LOG_REQUEST = Nudge(name, "log_first_at_stop", "{{name}}, {{logged}}: log where it stands first", "{{log_command}} \"<where it stands>\"", repeat_interval=0)
     OPEN_TASK = Nudge(name, "task_still_open", "{{name}} is still open: log where it stands or finish it", repeat_interval=900)
     UNLOGGED_TASK = Nudge(name, "task_open_with_nothing_logged", "task {{n}} is open with nothing logged")
-    IMPASSE_REFUSAL = Nudge(name, "not_stuck_with_work_left", "{{count}} tasks are open, in progress or parked, so you are not stuck", "go on with them, or wait on what you started with journal await", repeat_interval=0)
+    IMPASSE_REFUSAL = Nudge(name, "not_stuck_with_work_left", "{{count}} tasks are open, in progress or paused, so you are not stuck", "go on with them, or wait on what you started with journal await", repeat_interval=0)
     NEXT_TASK = Nudge(name, "next_task_holds_the_stop", "tasks are open, and auto mode is on: task {{n}} next: {{title}}", "carry on with it", repeat_interval=0)
     POSTPONED_WORK = Nudge(name, "deferred_work_is_a_task", "work deferred in words, not filed: `journal task create` it")
     COMMIT_CLOSURE = Nudge(name, "closed_by_commit", "commit {{sha}} closed {{tasks}}")
@@ -48,20 +48,20 @@ class Tasks(Feature[TasksData]):
     LOG_EDIT_BLOCK = Nudge(name, "write_held_until_logged", "{{edits}} edits since you logged {{name}}", "{{log}} \"<what was decided or done>\" before any other write", repeat_interval=0)
     CURRENT_TASK_REMINDER = Nudge(name, "task_in_hand_repeated", "{{name}} in hand, {{edits}} edits", repeat_interval=0)
     BLOCKED_REVIEW = Nudge(name, "check_the_blocked_tasks", "tasks {{tasks}} are blocked", "unblock one whose wait has passed or that you can decide, and report what you decided; when every task left is truly blocked, journal stuck \"<why>\"", repeat_interval=0)
-    TASK_QUEUE = Nudge(name, "work_left_holds_the_stop", "tasks are left: {{tasks}}", "take one or resume a parked one; journal stuck \"<why>\" when every task left is truly blocked", repeat_interval=0)
-    SUSPENDED_TASKS = Nudge(name, "parked_tasks_still_open", "parked tasks: {{tasks}}", "resume one that can go on with `journal task resume <n>`", repeat_interval=0)
-    SUSPENDED_TASK_REMINDER = Nudge(name, "parked_task_asked_about", "task {{n}} is parked: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat_interval=900)
-    SUSPENDED_TASK_CLOSURE_REMINDER = Nudge(name, "parked_task_named_at_close", "task {{n}} is parked: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat_interval=0)
+    TASK_QUEUE = Nudge(name, "work_left_holds_the_stop", "tasks are left: {{tasks}}", "take one or resume a paused one; journal stuck \"<why>\" when every task left is truly blocked", repeat_interval=0)
+    PAUSED_TASKS = Nudge(name, "paused_tasks_still_open", "paused tasks: {{tasks}}", "resume one that can go on with `journal task resume <n>`", repeat_interval=0)
+    PAUSED_TASK_REMINDER = Nudge(name, "paused_task_asked_about", "task {{n}} is paused: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat_interval=900)
+    PAUSED_TASK_CLOSURE_REMINDER = Nudge(name, "paused_task_named_at_close", "task {{n}} is paused: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat_interval=0)
     WAIT_CHECK = Nudge(name, "check_the_wait", "you have waited {{minutes}} min on {{what}}: check it", "still going: `journal await` again; done or failed: log it and go on", repeat_interval=300, blocks_regardless=True)
     IDLE_CHECK = Nudge(name, "check_in_after_quiet", "nothing has happened for half an hour", "carry on, take the next task, or say so in one line", repeat_interval=1800)
     WAIT_END = Nudge(name, "wait_over", "the wait for {{what}} is over: {{outcome}}", repeat_interval=0)
     WAIT_NEXT_TASK = Nudge(name, "next_task_while_waiting", "while you wait for {{what}}, task {{n}}, {{title}} is next", "work on it meanwhile, or end your turn if you need what you wait for", repeat_interval=0)
     TASK_OPENED = Nudge(name, "task_opened", "task {{n}} is open: {{title}}", "`journal task start {{n}}` takes it up", repeat_interval=0)
-    SUSPENSION_WAIT_END = Nudge(name, "parked_wait_ended", "what parked task {{n}} waited on came: {{reason}}", "`journal task resume {{n}}`", repeat_interval=0)
+    PAUSE_WAIT_END = Nudge(name, "paused_wait_ended", "what paused task {{n}} waited on came: {{reason}}", "`journal task resume {{n}}`", repeat_interval=0)
     TASK_REOPENED = Nudge(name, "task_reopened", "task {{n}} is open again: {{reason}}", "`journal task start {{n}}` takes it up", repeat_interval=0)
     BROKEN_WAIT = Nudge(name, "fix_the_broken_wait", "{{waits}}", "fix it with `journal task block <n> --until \"<command>\"`, or `journal task unblock <n>`", repeat_interval=0)
     BLOCKED_TASK_REMINDER = Nudge(name, "blocked_task_asked_about", "blocked, with nothing that opens it by itself: {{tasks}}", "`journal task unblock <n>` once what it waits on has come", repeat_interval=2700, blocks_regardless=True)
-    nudges = (BLOCKED_REVIEW, TASK_QUEUE, SUSPENSION_WAIT_END, TASK_CONTINUATION, STOP_LOG_REQUEST, OPEN_TASK, UNLOGGED_TASK, NEXT_TASK, SUSPENDED_TASKS, POSTPONED_WORK, COMMIT_CLOSURE, STOP_POLLING, LOG_REQUEST, LOG_EDIT_BLOCK, CURRENT_TASK_REMINDER, SUSPENDED_TASK_REMINDER, SUSPENDED_TASK_CLOSURE_REMINDER, WAIT_CHECK, IDLE_CHECK, WAIT_END, WAIT_NEXT_TASK, TASK_REOPENED, BROKEN_WAIT, BLOCKED_TASK_REMINDER, IMPASSE_REFUSAL, TASK_OPENED)
+    nudges = (BLOCKED_REVIEW, TASK_QUEUE, PAUSE_WAIT_END, TASK_CONTINUATION, STOP_LOG_REQUEST, OPEN_TASK, UNLOGGED_TASK, NEXT_TASK, PAUSED_TASKS, POSTPONED_WORK, COMMIT_CLOSURE, STOP_POLLING, LOG_REQUEST, LOG_EDIT_BLOCK, CURRENT_TASK_REMINDER, PAUSED_TASK_REMINDER, PAUSED_TASK_CLOSURE_REMINDER, WAIT_CHECK, IDLE_CHECK, WAIT_END, WAIT_NEXT_TASK, TASK_REOPENED, BROKEN_WAIT, BLOCKED_TASK_REMINDER, IMPASSE_REFUSAL, TASK_OPENED)
 
     skill = Skill("tasks", 'Declare, log and finish the work in hand; load it when you start or are asked to', """
 # Tasks
@@ -79,8 +79,8 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - `journal task log <n> "<where it stands>"` after each step that matters; before a compaction, always. Only the task in
   hand takes a log line: a task not running is changed with `journal task edit`.
 - `journal task complete <n> --how "<outcome>"` finishes it. The output names the next open task.
-- One task in hand at a time: a second start is refused until the first is done or parked. `journal task suspend <n> "<why>"`
-  sets a started task aside for something else first; `journal task resume <n>` picks it up. Park for choice, never for being stuck.
+- One task in hand at a time: a second start is refused until the first is done or paused. `journal task pause <n> "<why>"`
+  sets a started task aside for something else first; `journal task resume <n>` picks it up. Pause for choice, never for being stuck.
 - A task that waits on something outside your hands, a decision, an answer, a dependency, is blocked:
   `journal task block <n> "<what it waits on>"`. Blocked is neither offered nor nudged, only listed with its reason;
   `journal task unblock <n>` opens it again when what it waited on came. `journal task block <n> --on question:12`
@@ -98,7 +98,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - A stop with work in hand names it back with when it was last logged, three times a version; then the stop passes.
 - A commit whose message carries `Journal: tasks done <n>` on a line of its own finishes task n.
 - Auto mode (the setting tasks.auto, on by default) means you work the list: a stop with tasks open is answered with the next
-  one, and only the user stops you. A stop with parked tasks names them, in auto mode or not: parked is still open.
+  one, and only the user stops you. A stop with paused tasks names them, in auto mode or not: paused is still open.
 - Work you put off in words is work lost: file it as a task instead.
 - Stopping with a task in hand is told to carry on. Truly stuck: `journal stuck "<why>"`.
 """, keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'))

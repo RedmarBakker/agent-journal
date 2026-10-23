@@ -48,7 +48,7 @@ def orchestrate(tasks: TasksData) -> Nudge:
 
 def blocked_check(tasks: TasksData) -> tuple[Nudge, ...]:
     from journal.features.workers.feature import Workers
-    queue = (*tasks.suspended, *tasks.blocked)
+    queue = (*tasks.paused, *tasks.blocked)
     return (Workers.BLOCKED_CHECK.create(count=len(queue), tasks=numbers(queue)),) if queue else ()
 
 

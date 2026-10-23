@@ -120,7 +120,7 @@ def writes_over_the_log(app, replay: Replay, provider: str) -> None:
 
 
 def the_clock_ticks(app, replay: Replay, provider: str) -> None:
-    """The steps: an idle agent in auto mode hears the clock at a minute, at half an hour and at half an hour again; then with a task parked, at a minute, twice; then awaiting something outside, at five minutes, twice, until its own tool use lifts the wait."""
+    """The steps: an idle agent in auto mode hears the clock at a minute, at half an hour and at half an hour again; then with a task paused, at a minute, twice; then awaiting something outside, at five minutes, twice, until its own tool use lifts the wait."""
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -131,10 +131,10 @@ def the_clock_ticks(app, replay: Replay, provider: str) -> None:
         tick(silent)
         replay.step(f"quiet for {name}")
     console.run(["task", "create", "the footer", "--start"], AGENT)
-    console.run(["task", "suspend", "1", "the header first"], AGENT)
+    console.run(["task", "pause", "1", "the header first"], AGENT)
     hook_as(app, provider, "Stop")
-    replay.step("a task parked")
-    for name in ("a minute with a task parked", "a minute more"):
+    replay.step("a task paused")
+    for name in ("a minute with a task paused", "a minute more"):
         tick(60.0)
         replay.step(name)
     console.run(["task", "resume", "1"], AGENT)
@@ -151,7 +151,7 @@ def test_clock_ticks_matches_its_record(journal, monkeypatch):
     replay, rows = played(f"the_clock_ticks_{provider}", app, monkeypatch, the_clock_ticks, provider, nudges=True)
     name_index = {s["name"]: s for s in replay.record()}
     assert name_index["quiet for a minute"]["typed"] == [] and "nothing has happened for half an hour" in str(name_index["quiet for half an hour"]["typed"]) and name_index["quiet for half an hour again"]["typed"] == [], "the listener checks in at half an hour, once inside the window"
-    assert "task 1 is parked" in str(name_index["a minute with a task parked"]["typed"]) and name_index["a minute more"]["typed"] == [], "and asks after the parked task, once inside the window"
+    assert "task 1 is paused" in str(name_index["a minute with a task paused"]["typed"]) and name_index["a minute more"]["typed"] == [], "and asks after the paused task, once inside the window"
     assert rows == [], "the agent would have seen the same, and the record says the same"
 
 
@@ -515,7 +515,7 @@ def at_mark_rules(app, replay: Replay, provider: str) -> None:
 
 
 def plan_rules(app, replay: Replay, provider: str) -> None:
-    """The steps: a plan of two phases, the first a checkpoint, approved and started; its first task done, a stop with auto off then on, the next phase started, a second session starting under the plan, the plan parked, then a second plan started and cancelled."""
+    """The steps: a plan of two phases, the first a checkpoint, approved and started; its first task done, a stop with auto off then on, the next phase started, a second session starting under the plan, the plan paused, then a second plan started and cancelled."""
     hook_as(app, provider, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
@@ -540,9 +540,9 @@ def plan_rules(app, replay: Replay, provider: str) -> None:
     console.run(["plan", "start", "1"], AGENT)
     replay.step("the next phase started")
     replay.step("a second session starts under the plan", hook_as(app, provider, "SessionStart", session="s2")[1])
-    console.run(["plan", "suspend", "1"], AGENT)
+    console.run(["plan", "pause", "1"], AGENT)
     app.runtime().deferred.drain()
-    replay.step("the plan is parked")
+    replay.step("the plan is paused")
     console.run(["plan", "create", "q", "--brief", "b"], USER)
     console.run(["plan", "add", "2", "third"], USER)
     console.run(["plan", "ready", "2"], USER)

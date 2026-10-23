@@ -63,7 +63,7 @@ table of every state and every line and who says it.
                      │  working on a task ──► "task N is in hand: carry on"  (409) │
                      │  idle, auto on, tasks open ──► "tasks are open: task N next:│
                      │        <title>; sure you want to stop?"              (409)  │
-                     │  idle, parked tasks ──► "parked tasks, still open: …" (409, │
+                     │  idle, paused tasks ──► "paused tasks, still open: …" (409, │
                      │        once; the second stop passes)                        │
                      │  paused and the journal awaits the agent (a skill, the      │
                      │        environment read, a context-mark decision) ──► "you  │
@@ -87,7 +87,7 @@ table of every state and every line and who says it.
    a background chain ends  ──► "the command in the background ended. last lines: …"
    a question is answered   ──► "question N answered: …"  (the Waiting state goes back)
    a rule or fact's keyword ──► "fact N: …"  (whispered once per row per agent)
-   the clock, every minute  ──► a parked task named after a quiet minute · an awaited run
+   the clock, every minute  ──► a paused task named after a quiet minute · an awaited run
                                  checked every 5 min · a session silent for an hour is ended
 ```
 
@@ -100,7 +100,7 @@ the user; the agent acts on it and says nothing about it in the chat.
 ```
    PreCompact ──► the skills read are forgotten; nothing is said
    SessionStart(compact) ──► the start block again, the look owed again: writes wait for
-                            `journal environment overview`, which names the task in hand, open and parked
+                            `journal environment overview`, which names the task in hand, open and paused
                             tasks, unread and unanswered messages, questions, workers, background runs,
                             rules, facts and reminders
    a session that ended and starts again ──► idle, then the same start
@@ -114,6 +114,6 @@ the user; the agent acts on it and says nothing about it in the chat.
               │                                          ▲
               │ something else must happen now           │ resume
               ▼                                          │
-            park, with why ──────────────────────────────┘
+            pause, with why ──────────────────────────────┘
    a stop with the task in hand: "carry on"   ·   truly stuck: journal stuck "<why>", and the stop passes
 ```

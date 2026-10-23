@@ -146,7 +146,7 @@ class Routes:
         get = self.container.get
         tasks, plans, questions = get(TaskController), get(PlanController), get(QuestionController)
         self.resource(router, "tasks", tasks)
-        self.acts(router, "tasks", tasks, "start", "finish", "reopen", "suspend", "block", "unblock", "delete", "log")
+        self.acts(router, "tasks", tasks, "start", "finish", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)
         self.resource(router, "plans", plans)
         router.get(f"{API}/plans/{{id}}/tasks", plans.plan_tasks)
@@ -154,7 +154,7 @@ class Routes:
         router.post(f"{API}/plans/{{id}}/tasks", plans.add_task)
         router.post(f"{API}/plans/{{id}}/testing", plans.testing)
         router.get(f"{API}/plan-testing", plans.testing_templates)
-        self.acts(router, "plans", plans, "review", "approve", "start", "suspend", "finish", "abandon")
+        self.acts(router, "plans", plans, "review", "approve", "start", "pause", "finish", "abandon")
         self.listed(router, "questions", questions)
         router.post(f"{API}/questions", questions.store)
         self.acts(router, "questions", questions, "answer")

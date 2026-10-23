@@ -247,6 +247,17 @@ def test_the_trigger_phrases_migration_renames_the_words_column(connection):
     assert "phrases" in {row["name"] for row in connection.all("PRAGMA table_info(triggers)")}, "a record from before, with words alone, has the column renamed"
 
 
+def test_the_paused_tasks_migration_turns_a_parked_task_and_plan_into_paused_ones(connection):
+    """Migration 42: a task or plan stored as parked is paused, and the task's suspension_reason column is its pause_reason."""
+    from journal.db.migrations.paused_tasks import PausedTasks
+    connection.execute("ALTER TABLE tasks RENAME COLUMN pause_reason TO suspension_reason")
+    connection.execute("INSERT INTO tasks (environment_id, title, state, suspension_reason, created_at, creator) VALUES (1, 'the parser', 'parked', 'waits on the lexer', '2026-10-23', 'system')")
+    connection.execute("INSERT INTO plans (environment_id, title, state, created_at, creator) VALUES (1, 'release', 'parked', '2026-10-23', 'system')")
+    PausedTasks().apply(connection)
+    task = connection.one("SELECT state, pause_reason FROM tasks")
+    assert (task["state"], task["pause_reason"]) == ("paused", "waits on the lexer") and connection.one("SELECT state FROM plans")["state"] == "paused"
+
+
 def test_no_dataclass_field_shadows_a_property_or_method_of_its_class_or_a_parent():
     """A frozen dataclass whose field is named like a property or a method on it, its own or inherited, cannot be built: the generated __init__ sets the field and the property has no setter. Every dataclass under the package is checked, so a rename can never leave such a pair behind."""
     import dataclasses
@@ -287,7 +298,7 @@ def test_the_chart_drop_keeps_only_workflows_a_user_or_an_agent_wrote_as_documen
         db.execute("CREATE TABLE nodes (id INTEGER PRIMARY KEY, kind TEXT, key TEXT, text TEXT)")
         db.execute("CREATE TABLE counts (id INTEGER PRIMARY KEY)")
         db.execute("CREATE TABLE noted_times (id INTEGER PRIMARY KEY)")
-        rows = [("Hold the stop while a task is parked", 5, 1, "system"), ("Remind to commit after twenty writes", 2, 1, "user:1"), ("Ask about an open question after ten quiet minutes", 0, 0, "agent:s1")]
+        rows = [("Hold the stop while a task is paused", 5, 1, "system"), ("Remind to commit after twenty writes", 2, 1, "user:1"), ("Ask about an open question after ten quiet minutes", 0, 0, "agent:s1")]
         for title, revision, shipped, editor in rows:
             db.execute("INSERT INTO charts (created_at, created_by, updated_at, updated_by, title, revision, shipped, event, state, places, drawing, drawn_version, locked) VALUES ('t', 'system', 't', ?, ?, ?, ?, 'idle', 'idle', '', '', 30, 0)", (editor, title, revision, shipped))
     ChartDrop().apply(connection)
@@ -387,7 +398,7 @@ def test_a_line_said_before_lines_carried_the_tool_use_gains_it_and_its_moment(t
     assert data["tool_use"] == 0 and data["time"] > 0, data
 
 
-def test_the_tasks_repository_answers_which_tasks_are_open_blocked_parked_and_unclosed(connection, bus, scope):
+def test_the_tasks_repository_answers_which_tasks_are_open_blocked_paused_and_unclosed(connection, bus, scope):
     from journal.models.plan import Plan
     from journal.models.plan_state import PlanState
     from journal.repositories.scoped_repository import ScopedRepository
@@ -401,13 +412,13 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_parked_and_un
         free = tasks.save(Task(environment_id=1, title="free"), actor=USER)
         drafted = tasks.save(Task(environment_id=1, title="in a draft plan"), actor=USER)
         blocked = tasks.save(Task(environment_id=1, title="blocked", state=TaskState.BLOCKED), actor=USER)
-        parked = tasks.save(Task(environment_id=1, title="parked", state=TaskState.SUSPENDED), actor=USER)
+        paused = tasks.save(Task(environment_id=1, title="paused", state=TaskState.PAUSED), actor=USER)
         done = tasks.save(Task(environment_id=1, title="done", state=TaskState.FINISHED), actor=USER)
         draft = PlanRows(connection, bus, scope).save(Plan(environment_id=1, title="p", state=PlanState.DRAFT), USER)
         links.save(Link(source=Ref.build(drafted), target=Ref.build(draft), kind=PLAN_LINK), actor=USER)
         assert [task.id for task in tasks.open_tasks()] == [free.id], "a task of an unapproved plan is no open work"
         assert [task.id for task in tasks.blocked_tasks()] == [blocked.id]
-        assert [task.id for task in tasks.suspended_tasks()] == [parked.id]
+        assert [task.id for task in tasks.paused_tasks()] == [paused.id]
         assert done.id not in [task.id for task in tasks.unclosed_tasks()] and free.id in [task.id for task in tasks.unclosed_tasks()]
         assert tasks.unfinished_ids([free.id, done.id]) == [free.id]
 

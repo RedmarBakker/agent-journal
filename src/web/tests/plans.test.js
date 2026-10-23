@@ -4,7 +4,7 @@ const api = {act: vi.fn(), list: vi.fn(), env: () => "main"};
 vi.mock("../src/api/client.js", () => ({api, onWrite: vi.fn()}));
 vi.mock("../src/chat/outbox.js", () => ({onOutboxChange: vi.fn()}));
 
-const {approvePlan, parkPlan, startPlan} = await import("../src/actions/plans.js");
+const {approvePlan, pausePlan, startPlan} = await import("../src/actions/plans.js");
 const {rows} = await import("../src/sync/rows.js");
 const {store} = await import("../src/state/store.js");
 
@@ -27,10 +27,10 @@ test("approving a plan shows it approved at once and asks the server by the act'
     expect(api.act).toHaveBeenCalledWith("plans", 3, "approve");
 });
 
-test("starting a plan parks the started ones before the server answers", async () => {
+test("starting a plan pauses the started ones before the server answers", async () => {
     const [, , ready] = rows("plans");
     const sending = startPlan(ready);
-    expect(states()).toEqual(["parked", "parked", "started"]);
+    expect(states()).toEqual(["paused", "paused", "started"]);
     await sending;
     expect(api.act).toHaveBeenCalledWith("plans", 3, "start");
 });
@@ -43,15 +43,15 @@ test("a refused approval is passed on and the rows are read again, so the card d
     await vi.waitFor(() => expect(states()).toEqual(["started", "approved"]));
 });
 
-test("parking a plan marks it parked", async () => {
+test("pausing a plan marks it paused", async () => {
     const [first] = rows("plans");
-    await parkPlan(first);
-    expect(first.state).toBe("parked");
+    await pausePlan(first);
+    expect(first.state).toBe("paused");
 });
 
 test("each running plan gets a bar, the one you work first and delegated ones after it, three at most", async () => {
     const {barPlans, foldedPlans, othersLine} = await import("../src/domain/plans.js");
-    const plans = [plan(1, "started", {delegated: true}), plan(2, "started"), plan(3, "started", {delegated: true}), plan(4, "started", {delegated: true}), plan(5, "parked")];
+    const plans = [plan(1, "started", {delegated: true}), plan(2, "started"), plan(3, "started", {delegated: true}), plan(4, "started", {delegated: true}), plan(5, "paused")];
     expect(barPlans(plans).map((p) => p.id)).toEqual([2, 1, 3]);
     expect(foldedPlans(plans).map((p) => p.id)).toEqual([4, 5]);
     expect(othersLine(foldedPlans(plans))).toBe("+1 more active plan · 1 paused");

@@ -71,7 +71,7 @@ class Plan(Scoped):
         return self.moved(PlanState.STARTED).with_event(PlanStarted(environment_id=self.environment_id, time=time, plan_id=self.row_id, task_id=0))
 
     def postponed(self, time: float, user_origin: bool) -> "Plan":
-        return self.moved(PlanState.SUSPENDED).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
+        return self.moved(PlanState.PAUSED).with_event(PlanPostponed(environment_id=self.environment_id, time=time, plan_id=self.row_id, user_origin=user_origin))
 
     def blocked(self, reason: str, time: float) -> "Plan":
         return self.moved(PlanState.BLOCKED).with_(block_reason=reason).with_event(PlanBlocked(environment_id=self.environment_id, time=time, plan_id=self.row_id, reason=reason))
@@ -109,7 +109,7 @@ class Plan(Scoped):
         return next((task for task in ordered if task.state == TaskState.OPEN and task.id not in cannot_start), None)
 
     def resumable_task(self, ordered: list[Task], cannot_start: set[int]) -> Task | None:
-        return next((task for task in ordered if task.state == TaskState.SUSPENDED), None) or self.next_open_task(ordered, cannot_start)
+        return next((task for task in ordered if task.state == TaskState.PAUSED), None) or self.next_open_task(ordered, cannot_start)
 
     def current_phase(self, phases: list[PhaseTasks]) -> int:
         return next((phase.number for phase in phases if phase.has_open_work()), len(phases) or 1)

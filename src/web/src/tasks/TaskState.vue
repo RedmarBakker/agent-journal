@@ -20,10 +20,10 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
         </button>
         <span class="since">since {{ ago(updatedAt(task)) || "just now" }}</span>
     </div>
-    <template v-if="status === 'parked'">
+    <template v-if="status === 'paused'">
         <section :class="['reason', status]">
-            <span class="label">Parking reason</span>
-            <p class="text">{{ task.suspension_reason }}</p>
+            <span class="label">Pausing reason</span>
+            <p class="text">{{ task.pause_reason }}</p>
             <p class="note">The journal stops reminding the agent about it until it is resumed.</p>
         </section>
     </template>
@@ -65,7 +65,7 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
     --tone: var(--tone-warn);
 }
 
-.state-line.parked {
+.state-line.paused {
     --tone: var(--tone-helper);
 }
 
@@ -111,7 +111,7 @@ const reasonOnly = computed(() => waitOf(props.task)?.kind === "reason");
     border-left: 2px solid var(--tone-warn);
 }
 
-.reason.parked {
+.reason.paused {
     border-left-color: var(--tone-helper);
 }
 

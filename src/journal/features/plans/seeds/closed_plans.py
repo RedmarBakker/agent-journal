@@ -7,7 +7,7 @@ from journal.repositories.scope import Scope
 
 
 class ClosedPlans(EnvironmentSeed):
-    """At boot, a started plan whose every task is closed is done: its tasks are the truth of it, whoever closed them; a parked or a blocked task is still open."""
+    """At boot, a started plan whose every task is closed is done: its tasks are the truth of it, whoever closed them; a paused or a blocked task is still open."""
 
     def __init__(self, plans: Plans, environments: Environments, scope: Scope) -> None:
         super().__init__(environments, scope)

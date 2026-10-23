@@ -276,7 +276,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 - The overview's commands are written in full, `journal task list`, and any other command may stand there: a line that is not a journal command runs in the project's folder, its output under its heading. Lines saved in the short form are written in full once.
 - The avatar no longer falls off the docked bars when a row arrives in the chat: the bars and the line under them stay put together.
-- A parked task's chat mark is teal, as parked is in the task inspector.
+- A paused task's chat mark is teal, as paused is in the task inspector.
 
 ## 4.8.5
 
@@ -296,7 +296,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## 4.8.1
 
-- The task inspector shows the task's state in a line under its title. A blocked task says beneath it what it waits on and why, a parked one why it is parked, and the moves sit docked at the bottom.
+- The task inspector shows the task's state in a line under its title. A blocked task says beneath it what it waits on and why, a paused one why it is paused, and the moves sit docked at the bottom.
 
 ## 4.8.0
 
@@ -336,10 +336,10 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## 4.5.42
 
-- A task that has started can only be parked, never blocked; parking takes `--on` and `--until` as a block does, and the agent is told when what a parked task waits on comes.
-- Parked work comes first. A closed task names a parked one before any open one, and the checks of blocked tasks name parked ones too.
+- A task that has started can only be paused, never blocked; pausing takes `--on` and `--until` as a block does, and the agent is told when what a paused task waits on comes.
+- Paused work comes first. A closed task names a paused one before any open one, and the checks of blocked tasks name paused ones too.
 - A stop is a round, for any agent:
-  1. Parked tasks are named.
+  1. Paused tasks are named.
   2. Then the blocked ones, to check that each is still truly blocked.
   3. Then, in auto mode, the open ones.
 
@@ -363,7 +363,7 @@ What each release of agent-journal version 4 brought, newest first.
   - A merge checks and rebases every repository before any is merged, and a refusal names any repository already merged.
   - A dispatch that cannot make a worktree removes what it made.
   - Clock-out reads git status as porcelain, so the user's git settings cannot confuse it, and counts files written into a repository folder the worker has no worktree of.
-- A task unblocked and a parked task resumed each leave a chat mark, as started, parked, blocked and finished ones do.
+- A task unblocked and a paused task resumed each leave a chat mark, as started, paused, blocked and finished ones do.
 
 ## 4.5.39
 
@@ -409,7 +409,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## 4.5.30
 
-- A task started, finished, parked or blocked leaves a small mark in the chat, as a filed one does, naming the task and, for parked and blocked, why. Show in chat has a switch for them.
+- A task started, finished, paused or blocked leaves a small mark in the chat, as a filed one does, naming the task and, for paused and blocked, why. Show in chat has a switch for them.
 
 ## 4.5.29
 
@@ -421,7 +421,7 @@ What each release of agent-journal version 4 brought, newest first.
 
 ## 4.5.27
 
-- An agent may say it is stuck only when every task left is blocked: journal stuck is refused while a task is open, in progress or parked.
+- An agent may say it is stuck only when every task left is blocked: journal stuck is refused while a task is open, in progress or paused.
 - A stuck agent is freed the moment a task is opened again or the user opens a new one, and is told of it at once.
 - A task the user opens is typed at once to an idle agent, not left for its next idle check.
 
@@ -677,7 +677,7 @@ The workflows are gone with this release: the Workflows page, the `journal chart
 - Messages between agents' sessions reach the chat both ways: one the agent sends with Claude Code's own messaging, and one another session sends it, mid-turn or as a prompt, each in a full-width bubble saying who sent it or to whom. A message from another session is written by an external agent, never by the user.
 - A line typed to the agent is never longer than one line holds, a failing check tells the agent only the end of its output, and a piece of a typed line that reaches the agent is the journal's, never taken for the user's words.
 - Each thought in the chat carries an Agent thought header.
-- A parked task is named when a task closes, by a workflow on the canvas.
+- A paused task is named when a task closes, by a workflow on the canvas.
 - `journal output read --tail` and the viewer's transcript read only as far as they need, so a long output or transcript no longer costs a whole read each time.
 - The version 3 notice says plainly that it copies your version 3 data into version 4.
 
@@ -710,7 +710,7 @@ The workflows are gone with this release: the Workflows page, the `journal chart
 - The plugins' own pages are back in the sidebar, under Project.
 - The journal's record is a rolling log of its newest 10,000 entries (the setting record.kept), trimmed as each is written; messages and every other row of the project stay. The database runs with auto-vacuum, switched on once at the first start, so a trimmed record gives its space back.
 - Commands that end in the background are named together in one line once the agent is quiet, instead of a line each mid-turn.
-- A task closed by a commit names a parked task at once.
+- A task closed by a commit names a paused task at once.
 - Reads that ask a server outside the journal, the tunnel's cause and answer, are no longer judged against the request budget.
 - Closing words of fewer than eight words are never taken for a repeated reply.
 - The README says what the journal is and how to install it.
@@ -721,7 +721,7 @@ The workflows are gone with this release: the Workflows page, the `journal chart
 - Every shipped workflow is drawn from these parts, typed the agent what it did before: the quiet clocks note their time on the move that starts the wait and on the agent's own events, and the cadences count their own tool uses, writes and lines. No check keeps a clock or works out a count out of sight any more.
 - The ask about a task blocked on something outside speaks after 45 minutes of quiet; at an hour it never spoke, since an hour of quiet ends the session first.
 - While the agent waits, the next task is named once for the wait, not after every turn.
-- A workflow holds a trigger for each event it needs, with its own place in each event's run order, and is listed under each of them, marked with the others. New triggers: Await, Command moved to the background, Background command ended, Commit made and Journal line said. New checks: a task just taken in hand, parked or blocked, the agent's reply, a message typed in the terminal, an open question, a plan followed, a tool held already, and how many commands run in the background.
+- A workflow holds a trigger for each event it needs, with its own place in each event's run order, and is listed under each of them, marked with the others. New triggers: Await, Command moved to the background, Background command ended, Commit made and Journal line said. New checks: a task just taken in hand, paused or blocked, the agent's reply, a message typed in the terminal, an open question, a plan followed, a tool held already, and how many commands run in the background.
 - The workflows page shows each environment's values, picked in its bar, with when each was set and by which step; the run order changes in a mode of its own, with a ghost where the workflow will land; a run names the event that started it.
 - The upgrade, for your own workflows: one that names Has the agent been quiet for N?, Is the log older than N? or Has a command run in the background longer than N?, or a count the journal used to read from its record (edits, uses, owed, namings, lines), is turned off at the upgrade, its title saying which, for you to draw again from counts and times; a shipped workflow you edited is treated the same. A clock running in a session goes on across the upgrade; a cadence starts its count afresh.
 - Suggestions: a while after the journal starts (15 minutes) and then hourly (both settings under Suggestions), the journal looks for something worth suggesting and shows each as a card in the chat, answered once and never suggested again. The first: Code Commandments installed in the project as a package, with hooks of its own, is suggested as the journal's plugin at its latest release; accepting opens the Plugins page with its install ready to check.

@@ -9,7 +9,7 @@ from journal.support.actor import Actor
 
 
 class ReleaseWaits(Listener[RowEvent]):
-    """A task open again, a parked task whose wait ended or one taken up again waits on nothing: its wait links go and the checks its block or its parking made are retired."""
+    """A task open again, a paused task whose wait ended or one taken up again waits on nothing: its wait links go and the checks its block or its pausing made are retired."""
 
     def __init__(self, tasks: Tasks, waits: Waits) -> None:
         self.tasks, self.waits = tasks, waits

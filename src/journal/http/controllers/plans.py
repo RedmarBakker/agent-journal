@@ -19,7 +19,7 @@ from journal.repositories.tasks import Tasks
 
 
 class PlanController(Controller[Plan]):
-    """Plans in outline, and the user's moves on one: approve, start, park, finish and abandon."""
+    """Plans in outline, and the user's moves on one: approve, start, pause, finish and abandon."""
 
     repository: Plans
 
@@ -57,7 +57,7 @@ class PlanController(Controller[Plan]):
     def start(self, request: Request) -> Response:
         return Response.json(self.shown(self.repository.start(self.repository.find(request.number("id")), self.taking.holder(Caller.user(request.environment)), request.actor)))
 
-    def suspend(self, request: Request) -> Response:
+    def pause(self, request: Request) -> Response:
         return Response.json(self.shown(self.repository.postpone(self.repository.find(request.number("id")), request.actor)))
 
     def finish(self, request: Request) -> Response:

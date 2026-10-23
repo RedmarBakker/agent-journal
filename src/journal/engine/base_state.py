@@ -90,7 +90,7 @@ class BaseState:
     def on_push(self, settings: Settings) -> tuple[Nudge, ...] | Block:
         return ()
 
-    def on_suspend(self, settings: Settings) -> tuple[Nudge, ...]:
+    def on_pause(self, settings: Settings) -> tuple[Nudge, ...]:
         return ()
 
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:

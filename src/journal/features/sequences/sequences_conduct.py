@@ -14,12 +14,12 @@ SILENCE_SECONDS = 60.0
 
 
 class SequencesConduct(Conduct):
-    """The sequences feature's conduct in every state: a write waits while the step in hand is not taken up or has stood too long since it was, a stop with a step open is held with the step unless it was said since the agent last used a tool, a session that starts with a run is told its step or that the run is parked, a step unheard for the set minutes is typed again to a quiet agent, and the tool use that ends a wait is told the step again; nothing while the run is parked, a question to the user is open or the agent owes the journal."""
+    """The sequences feature's conduct in every state: a write waits while the step in hand is not taken up or has stood too long since it was, a stop with a step open is held with the step unless it was said since the agent last used a tool, a session that starts with a run is told its step or that the run is paused, a step unheard for the set minutes is typed again to a quiet agent, and the tool use that ends a wait is told the step again; nothing while the run is paused, a question to the user is open or the agent owes the journal."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.sequences.feature import Sequences
         runs = event.data.part(Sequences)
-        if event.subagent or not runs.has_run() or runs.suspension_reason or is_step_command(runs, event.call.parts):
+        if event.subagent or not runs.has_run() or runs.pause_reason or is_step_command(runs, event.call.parts):
             return self.none()
         if self.is_waiting() and runs.is_typable and not runs.question_open:
             return self.none().typing(step_line(runs))
@@ -34,7 +34,7 @@ class SequencesConduct(Conduct):
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         from journal.features.sequences.feature import Sequences
         runs = event.data.part(Sequences)
-        if not runs.has_run() or runs.suspension_reason or runs.question_open or runs.obligations_due or runs.step_repeated or self.is_waiting():
+        if not runs.has_run() or runs.pause_reason or runs.question_open or runs.obligations_due or runs.step_repeated or self.is_waiting():
             return self.none()
         return self.refuse(Sequences.PENDING_STEP.create(n=runs.sequence_id, step=runs.step, text=runs.step_text))
 
@@ -44,7 +44,7 @@ class SequencesConduct(Conduct):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         runs = event.data.part(sequences_feature())
-        if not runs.has_run() or runs.suspension_reason or runs.question_open or not runs.is_typable or not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds):
+        if not runs.has_run() or runs.pause_reason or runs.question_open or not runs.is_typable or not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds):
             return self.none()
         if not Timeout.minutes(settings.decimal(sequences_feature().STEP_REPEAT_INTERVAL)).is_elapsed(runs.step_silence_seconds):
             return self.none()
@@ -61,8 +61,8 @@ def step_line(runs: SequencesData) -> Nudge:
 
 
 def reminder_line(runs: SequencesData) -> Nudge:
-    if runs.suspension_reason:
-        return sequences_feature().SEQUENCE_SUSPENDED.create(n=runs.sequence_id, step=runs.step, why=runs.suspension_reason)
+    if runs.pause_reason:
+        return sequences_feature().SEQUENCE_PAUSED.create(n=runs.sequence_id, step=runs.step, why=runs.pause_reason)
     return step_line(runs)
 
 

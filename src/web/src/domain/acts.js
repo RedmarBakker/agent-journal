@@ -4,7 +4,7 @@ import {isClosed} from "./row.js";
 // or is a removal. Which acts a row offers follows from its table and its state.
 const act = (name, label, more = {}) => ({name, label, asks: false, danger: false, ...more});
 const DELETE = act("delete", "Delete", {danger: true});
-const UNSTARTED = ["open", "parked", "blocked"];
+const UNSTARTED = ["open", "paused", "blocked"];
 const UNAPPROVED = ["draft", "ready", "reviewing"];
 const RUNNING = ["started", "blocked"];
 
@@ -16,8 +16,8 @@ const ACTS = {
     ],
     plans: (r) => [
         ...(UNAPPROVED.includes(r.state) ? [act("approve", "Approve")] : []),
-        ...(["approved", "parked"].includes(r.state) ? [act("start", "Start")] : []),
-        ...(RUNNING.includes(r.state) ? [act("suspend", "Park"), act("finish", "Finish")] : []),
+        ...(["approved", "paused"].includes(r.state) ? [act("start", "Start")] : []),
+        ...(RUNNING.includes(r.state) ? [act("pause", "Pause"), act("finish", "Finish")] : []),
         ...(isClosed(r) ? [] : [act("abandon", "Abandon", {danger: true})]),
     ],
     notices: (r) => (isClosed(r) ? [] : [act("close", "Close")]),

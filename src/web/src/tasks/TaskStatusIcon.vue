@@ -36,7 +36,7 @@ defineProps({status: {type: String, required: true}, size: {type: Number, defaul
                         <rect x="7.3" y="4.8" width="1.4" height="3.6" rx="0.7" class="fill" />
                         <circle cx="8" cy="10.5" r="0.9" class="fill" />
                     </template>
-                    <template #parked>
+                    <template #paused>
                         <circle cx="8" cy="8" r="5.6" class="stroke" />
                         <rect x="6" y="5.6" width="1.3" height="4.8" rx="0.6" class="fill" />
                         <rect x="8.7" y="5.6" width="1.3" height="4.8" rx="0.6" class="fill" />
@@ -82,8 +82,8 @@ defineProps({status: {type: String, required: true}, size: {type: Number, defaul
     --tone: var(--blocking);
 }
 
-.ring.parked {
-    --tone: var(--parked);
+.ring.paused {
+    --tone: var(--paused);
 }
 
 .ring.delegated {

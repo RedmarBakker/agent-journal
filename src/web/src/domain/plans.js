@@ -8,7 +8,7 @@ export const NOT_STARTED = {
     draft: "being written",
     ready: "waiting for your approval",
     approved: "approved, not started yet",
-    parked: "parked",
+    paused: "paused",
 };
 export const PLANNED = ["draft", "ready", "reviewing"];
 export const PLAN_RUNNING = ["started", "waiting", "blocked", "approved"];
@@ -19,7 +19,7 @@ export const PLAN_STATES = {
     approved: "Starting",
     started: "Being worked on",
     waiting: "Needs you",
-    parked: "Paused",
+    paused: "Paused",
     blocked: "Blocked",
     done: "Closed",
 };
@@ -47,7 +47,7 @@ export function reviewRounds(plan) {
 export function leadingPlan(plans) {
     const open = openPlans(plans);
     const first = (...statuses) => open.find((p) => statuses.includes(statusOf(p)));
-    return first("started", "waiting") || first("approved") || first(...PLANNED) || first("parked") || null;
+    return first("started", "waiting") || first("approved") || first(...PLANNED) || first("paused") || null;
 }
 
 export function cardPlan(plans) {
@@ -74,13 +74,13 @@ export function foldedPlans(plans) {
 }
 
 export function othersLine(others) {
-    const parked = others.filter((p) => statusOf(p) === "parked").length;
+    const paused = others.filter((p) => statusOf(p) === "paused").length;
     const active = others.filter(isRunning).length;
-    const planned = others.length - parked - active;
+    const planned = others.length - paused - active;
     const words = [
         active && `+${active} more active ${active === 1 ? "plan" : "plans"}`,
         planned && `+${planned} more planned`,
-        parked && `${active || planned ? "" : "+"}${parked} paused`,
+        paused && `${active || planned ? "" : "+"}${paused} paused`,
     ];
     return words.filter(Boolean).join(" · ");
 }

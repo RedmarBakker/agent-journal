@@ -5,7 +5,7 @@ class TaskState(StrEnum):
     OPEN = "open"
     STARTED = "started"
     DELEGATED = "delegated"
-    SUSPENDED = "parked"
+    PAUSED = "paused"
     BLOCKED = "blocked"
     FINISHED = "done"
     CANCELLED = "cancelled"

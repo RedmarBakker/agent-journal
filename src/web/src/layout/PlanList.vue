@@ -5,7 +5,7 @@ import Btn from "../kit/Btn.vue";
 import Chip from "../kit/Chip.vue";
 import Icon from "../kit/Icon.vue";
 import MenuPanel from "../kit/MenuPanel.vue";
-import {approvePlan, parkPlan, startPlan} from "../actions/plans.js";
+import {approvePlan, pausePlan, startPlan} from "../actions/plans.js";
 import {useOutside} from "../composables/outside.js";
 import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
@@ -47,17 +47,17 @@ async function run(action, p) {
                                 <Chip class="plan-list-chip" :tone="statusOf(p) === 'ready' ? 'accent' : ''">
                                     {{ PLAN_STATES[statusOf(p)] }}
                                 </Chip>
-                                <span>{{ statusOf(p) === "parked" ? stoppedOf(p, rows("tasks")) : sizeOf(p) }}</span>
+                                <span>{{ statusOf(p) === "paused" ? stoppedOf(p, rows("tasks")) : sizeOf(p) }}</span>
                             </span>
                         </div>
                         <span class="plan-list-acts">
                             <template v-if="statusOf(p) === 'approved'">
-                                <Btn small @click="run(parkPlan, p)">Pause</Btn>
+                                <Btn small @click="run(pausePlan, p)">Pause</Btn>
                             </template>
                             <template v-if="statusOf(p) === 'ready'">
                                 <Btn small @click="run(approvePlan, p)">Start</Btn>
                             </template>
-                            <template v-if="statusOf(p) === 'parked'">
+                            <template v-if="statusOf(p) === 'paused'">
                                 <Btn small @click="run(startPlan, p)">Resume</Btn>
                             </template>
                         </span>

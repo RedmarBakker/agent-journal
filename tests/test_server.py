@@ -84,8 +84,8 @@ def test_the_viewer_pauses_blocks_and_unblocks_a_task_and_its_row_names_what_it_
     for title in ("first", "second", "third"):
         call(server, "POST", "/journal/tasks", {"title": title})
     call(server, "POST", "/journal/tasks/1/start")
-    parked = call(server, "POST", "/journal/tasks/1/suspend", {"why": "the second comes first"})[1]
-    assert parked["state"] == "parked" and parked["suspension_reason"] == "the second comes first"
+    paused = call(server, "POST", "/journal/tasks/1/pause", {"why": "the second comes first"})[1]
+    assert paused["state"] == "paused" and paused["pause_reason"] == "the second comes first"
     assert call(server, "POST", "/journal/tasks/2/block", {})[0] == 409, "a block names what it waits on"
     blocked = call(server, "POST", "/journal/tasks/2/block", {"on": ["task:3"]})[1]
     assert blocked["state"] == "blocked" and blocked["waits"] == ["tasks:3"]
@@ -527,7 +527,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
         app.runtime().stop()
 
 
-def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_park_postpones_it_with_the_plan(tmp_path: Path):
+def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_postpones_it_with_the_plan(tmp_path: Path):
     from journal.engine.state_machine import StateMachine
     app = App(Config(tmp_path, port=0))
     app.runtime().start()
@@ -545,8 +545,8 @@ def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_park_postp
         started = call(server, "POST", "/journal/plans/1/start", {})[1]
         assert started["state"] == "started" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "started", "the viewer's start takes the first task in hand, as the command does"
         assert app.container.get(SessionAgents).top("s1").name == "following_plan"
-        parked = call(server, "POST", "/journal/plans/1/suspend", {})[1]
-        assert parked["state"] == "parked" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "parked", "the plan's task in hand is postponed with it"
+        paused = call(server, "POST", "/journal/plans/1/pause", {})[1]
+        assert paused["state"] == "paused" and call(server, "GET", "/journal/tasks/1")[1]["state"] == "paused", "the plan's task in hand is postponed with it"
         assert app.container.get(SessionAgents).top("s1").name == "idle", "the agent following the plan is popped by the plan's own event"
     finally:
         app.runtime().stop()
@@ -637,8 +637,8 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
         assert doc["body"].endswith("## Risks\n\nNone\n") and "## Goals" in doc["body"]
         assert call(server, "POST", f"/journal/docs/{doc['id']}", {"title": "Design v2"})[1]["title"] == "Design v2"
         app.console().run(["task", "create", "later", "--start"], Caller.agent("main", "s1", "claude"))
-        app.console().run(["task", "suspend", "2", "waiting"], Caller.agent("main", "s1", "claude"))
-        assert call(server, "GET", "/journal/tasks/2")[1]["state"] == "parked"
+        app.console().run(["task", "pause", "2", "waiting"], Caller.agent("main", "s1", "claude"))
+        assert call(server, "GET", "/journal/tasks/2")[1]["state"] == "paused"
     finally:
         app.runtime().stop()
 

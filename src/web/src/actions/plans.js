@@ -6,13 +6,13 @@ const becomes = (state) => (plan) => (plan.state = state);
 
 export const approvePlan = (plan) => patched(plan, becomes("approved"), () => act(plan, "approve"));
 
-export const parkPlan = (plan) => patched(plan, becomes("parked"), () => act(plan, "suspend"));
+export const pausePlan = (plan) => patched(plan, becomes("paused"), () => act(plan, "pause"));
 
 export function startPlan(plan) {
     const takeOver = (row) => {
         rows("plans")
             .filter((p) => p !== row && p.state === "started")
-            .forEach(becomes("parked"));
+            .forEach(becomes("paused"));
         becomes("started")(row);
     };
     return patched(plan, takeOver, () => act(plan, "start"));

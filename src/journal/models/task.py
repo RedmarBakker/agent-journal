@@ -32,7 +32,7 @@ class Task(Scoped):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     outcome: str = ""
-    suspension_reason: str = ""
+    pause_reason: str = ""
     block_reason: str = ""
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
@@ -54,7 +54,7 @@ class Task(Scoped):
         return self.state == TaskState.OPEN and bool(self.brief.strip())
 
     def waiting_reason(self) -> str:
-        return self.block_reason or self.suspension_reason
+        return self.block_reason or self.pause_reason
 
     def points(self) -> tuple[str, ...]:
         bullets = tuple(match[1].strip() for match in BULLET.finditer(self.brief))
@@ -78,19 +78,19 @@ class Task(Scoped):
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
-        return self.with_(state=TaskState.STARTED, started_at=time, suspension_reason="", block_reason="").with_event(event)
+        return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="").with_event(event)
 
     def delegated(self, time: datetime) -> "Task":
         event = TaskDelegated(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title)
-        return self.with_(state=TaskState.DELEGATED, started_at=self.started_at or time, suspension_reason="", block_reason="").with_event(event)
+        return self.with_(state=TaskState.DELEGATED, started_at=self.started_at or time, pause_reason="", block_reason="").with_event(event)
 
     def released(self, time: float) -> "Task":
         return self.unblocked("its worker let it go", time)
 
-    def suspended(self, reason: str, time: datetime) -> "Task":
+    def paused(self, reason: str, time: datetime) -> "Task":
         if self.state != TaskState.STARTED:
-            raise Rejection(f"task {self.id} is {self.state}: only a started task is parked")
-        return self.closed(self.with_(state=TaskState.SUSPENDED, suspension_reason=reason), time, "parked")
+            raise Rejection(f"task {self.id} is {self.state}: only a started task is paused")
+        return self.closed(self.with_(state=TaskState.PAUSED, pause_reason=reason), time, "paused")
 
     def cancelled(self, time: datetime, outcome: str) -> "Task":
         return self.closed(self.with_(state=TaskState.CANCELLED, finished_at=self.finished_at or time, outcome=outcome), time, "cancelled")
@@ -100,11 +100,11 @@ class Task(Scoped):
 
     def blocked(self, reason: str, time: datetime) -> "Task":
         if self.started_at is not None:
-            raise Rejection(f"task {self.id} has started, so it is parked rather than blocked: journal task suspend {self.id} \"<why>\", with --on or --until when it waits on something")
+            raise Rejection(f"task {self.id} has started, so it is paused rather than blocked: journal task pause {self.id} \"<why>\", with --on or --until when it waits on something")
         return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, "blocked")
 
     def wait_ended(self, reason: str, time: float) -> "Task":
-        if self.state == TaskState.SUSPENDED:
+        if self.state == TaskState.PAUSED:
             return self.with_event(TaskWaitEnded(environment_id=self.environment_id, time=time, task_id=self.row_id, reason=reason))
         return self.unblocked(reason, time)
 

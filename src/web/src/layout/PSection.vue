@@ -4,14 +4,14 @@ import {computed, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import MenuItem from "../kit/MenuItem.vue";
 import MenuPanel from "../kit/MenuPanel.vue";
-import {parkPlan} from "../actions/plans.js";
+import {pausePlan} from "../actions/plans.js";
 import {useOutside} from "../composables/outside.js";
 import {useLanding} from "../composables/planFlight.js";
 import {usePlanRows} from "../composables/planRows.js";
 import {peek} from "../route.js";
 import {rows} from "../sync/rows.js";
 
-const PARKABLE = ["approved", "started", "waiting"];
+const PAUSABLE = ["approved", "started", "waiting"];
 const props = defineProps({p: Object, error: String});
 const emit = defineEmits(["runBar", "failed"]);
 const bar = ref(null);
@@ -37,10 +37,10 @@ function open() {
     peek("plans", props.p.id);
 }
 
-async function park() {
+async function pause() {
     opened.value = "";
     try {
-        await parkPlan(props.p);
+        await pausePlan(props.p);
     } catch (e) {
         emit("failed", e.message);
     }
@@ -120,8 +120,8 @@ async function park() {
         <template v-if="opened === 'menu'">
             <MenuPanel ref="menu" :anchor="menuButton" @click.stop @close="opened = ''">
                 <MenuItem @click="open">Open plan</MenuItem>
-                <template v-if="PARKABLE.includes(status)">
-                    <MenuItem class="planbar-park" @click="park">
+                <template v-if="PAUSABLE.includes(status)">
+                    <MenuItem class="planbar-pause" @click="pause">
                         <span>Pause</span>
                         <small>Pause the plan and its open tasks</small>
                     </MenuItem>
@@ -357,13 +357,13 @@ async function park() {
     color: var(--text);
 }
 
-.planbar-park {
+.planbar-pause {
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
 }
 
-.planbar-park small {
+.planbar-pause small {
     color: var(--text-4);
     font-size: 11px;
 }

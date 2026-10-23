@@ -48,24 +48,24 @@
       ]
     },
     {
-      "name": "a task parked",
+      "name": "a task paused",
       "answer": null,
       "typed": [],
       "nudges": [
-        "tasks.parked_tasks_still_open"
+        "tasks.paused_tasks_still_open"
       ],
       "stack": [
         "idle"
       ]
     },
     {
-      "name": "a minute with a task parked",
+      "name": "a minute with a task paused",
       "answer": null,
       "typed": [
-        "[journal] task 1 is parked: the header first. `journal task resume 1` if it can go on now"
+        "[journal] task 1 is paused: the header first. `journal task resume 1` if it can go on now"
       ],
       "nudges": [
-        "tasks.parked_task_asked_about"
+        "tasks.paused_task_asked_about"
       ],
       "stack": [
         "idle"

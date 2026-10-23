@@ -90,7 +90,7 @@ class EnvironmentCommand(Command):
             f"task in hand: {current.id} {current.title}" if current else "no task in hand",
             self.matching_rows("started by other agents", [f"{t.id} {t.title}" for t in peer_tasks]),
             self.matching_rows("open tasks", [f"{t.id} {t.title}" for t in self.tasks.open_tasks()]),
-            self.matching_rows("parked tasks", [f"{t.id} {t.title} ({t.suspension_reason})" for t in self.tasks.with_state(TaskState.SUSPENDED)]),
+            self.matching_rows("paused tasks", [f"{t.id} {t.title} ({t.pause_reason})" for t in self.tasks.with_state(TaskState.PAUSED)]),
             self.matching_rows("blocked tasks", [f"{t.id} {t.title} (waiting on: {self.tasks.reason(t)})" for t in self.tasks.blocked_tasks()]),
             self.matching_rows("unread messages", [str(m.id) for m in self.messages.unread()]),
             self.matching_rows("messages read and unanswered", [str(m.id) for m in self.messages.unanswered()]),

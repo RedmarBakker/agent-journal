@@ -40,7 +40,7 @@ ASSIGNMENT_REFUSALS = {
     TaskState.CANCELLED: "task {n} is {state}: a worker is started only on an open task or one you hold",
     TaskState.BLOCKED: "task {n} is {state}: unblock it before a worker takes it",
     TaskState.STARTED: "task {n} is started in another's hands: a worker is started only on an open task or one you hold",
-    TaskState.SUSPENDED: "task {n} is {state} in another's hands: a worker is started only on an open task or one you hold",
+    TaskState.PAUSED: "task {n} is {state} in another's hands: a worker is started only on an open task or one you hold",
     TaskState.DELEGATED: "task {n} is delegated to a worker already: send that worker the next job, or release it first",
 }
 

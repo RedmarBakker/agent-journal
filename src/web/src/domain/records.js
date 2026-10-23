@@ -6,7 +6,7 @@ import {createdAt, isClosed, madeBy, refOf} from "./row.js";
 export const GROUPS = {
     started: "In progress",
     delegated: "With a worker",
-    parked: "Paused",
+    paused: "Paused",
     blocked: "Blocked",
     planned: "Planned",
     asked: "Needs you",
@@ -52,14 +52,14 @@ export function planned(task) {
     return !!plan && UNSTARTED.includes(plan.state);
 }
 
-export const parked = (task) => task.state === "parked";
+export const paused = (task) => task.state === "paused";
 
 // the open question that names the task, which asks the user about it
 export const questionAbout = (task) => rows("questions").find((q) => !isClosed(q) && (q.text || "").includes(`task ${task.id}`)) || null;
 
 export function groupOf(task) {
     if (task.state === "blocked") return "blocked";
-    if (parked(task)) return "parked";
+    if (paused(task)) return "paused";
     if (planned(task)) return "planned";
     if (task.state === "started") return "started";
     if (task.state === "delegated") return "delegated";
@@ -67,7 +67,7 @@ export function groupOf(task) {
 }
 
 export const state = (task) =>
-    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : parked(task) ? "parked" : planned(task) ? "planned" : task.state === "started" ? "started" : task.state === "delegated" ? "delegated" : "open";
+    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : paused(task) ? "paused" : planned(task) ? "planned" : task.state === "started" ? "started" : task.state === "delegated" ? "delegated" : "open";
 
 export function happened(r) {
     const kind = meta(r.table);

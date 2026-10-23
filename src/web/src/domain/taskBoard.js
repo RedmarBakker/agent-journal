@@ -4,7 +4,7 @@ import {isClosed} from "./row.js";
 import {counted} from "../format/number.js";
 
 export const STATUS_WORDS = {...GROUPS, done: "Done"};
-export const STATUS_ORDER = ["blocked", "asked", "started", "delegated", "parked", "open", "planned", "done"];
+export const STATUS_ORDER = ["blocked", "asked", "started", "delegated", "paused", "open", "planned", "done"];
 const WAIT_KINDS = {tasks: "task", questions: "question", checks: "command"};
 
 export const statusOf = (task) => (isClosed(task) ? "done" : groupOf(task));
@@ -37,7 +37,7 @@ const NEXT = {
     done: () => act("reopen", "Reopen"),
     started: () => act("finish", "Finish"),
     delegated: () => null,
-    parked: () => act("start", "Resume"),
+    paused: () => act("start", "Resume"),
     asked: (t) => act("answer", `Answer question ${questionAbout(t).id}`),
     blocked: (t) => {
         const wait = waitOf(t);
@@ -52,7 +52,7 @@ const NEXT = {
 export const nextAct = (task) => NEXT[statusOf(task)](task);
 
 const OTHERS = {
-    started: () => [act("suspend", "Pause"), act("block", "Block")],
+    started: () => [act("pause", "Pause"), act("block", "Block")],
     open: () => [act("block", "Block")],
     planned: () => [act("block", "Block")],
     asked: () => [act("start", "Start")],
@@ -152,8 +152,8 @@ const choice = (status, label, act, note) => ({status, label, act, note});
 const CHOICES = [
     (s) =>
         choice("open", "Open", s === "blocked" ? "unblock" : s === "done" ? "reopen" : "", "Only a blocked or done task goes back to open"),
-    (s) => choice("started", "In progress", ["open", "planned", "asked", "parked"].includes(s) ? "start" : "", "Unblock it first"),
-    (s) => choice("parked", "Paused...", s === "started" ? "suspend" : "", "Only a task in progress can be paused"),
+    (s) => choice("started", "In progress", ["open", "planned", "asked", "paused"].includes(s) ? "start" : "", "Unblock it first"),
+    (s) => choice("paused", "Paused...", s === "started" ? "pause" : "", "Only a task in progress can be paused"),
     (s) => choice("blocked", "Blocked...", ["done", "blocked"].includes(s) ? "" : "block", "It is blocked already"),
     (s) => choice("done", "Done...", s === "done" ? "" : "finish", "It is done already"),
 ];

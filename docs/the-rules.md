@@ -21,9 +21,9 @@ The journal's conduct toward the agent is the states on its stack and the conduc
 | following_plan | Following a plan | FollowingPlan | Working | journal/features/plans/states/following_plan.py | stop, session_started, tool_starting, task_started, task_closed, plan_done, plan_postponed, plan_abandoned | Working with a plan in hand, for the plan's whole life. A finished task starts the next: the plans feature writes it and the state keeps the top as that task. At a checkpoint the state has no task in hand: the stop waits for the user, or in auto mode is refused and the agent told to go on. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here. |
 | waiting | Waiting on a question | Waiting | Wait | journal/features/questions/states/waiting.py | question_answered | The agent asked the user something. Idle is fine; the answer pops it and names the question to read, a prompt from the user is the answer in other words, and beneath another state it pops on resume once its question is answered. Pushed by the questions conduct on QuestionPosed. |
 | awaiting | Waiting | Awaiting | Wait | journal/features/tasks/states/awaiting.py | tool_starting, ticked, row_settled, worker_dispatched_workers, worker_back_workers, worker_stopped_workers | The agent waits on something outside its hands, named in words and by the rows that end it, table:id each: workers, outputs, checks, tasks or questions. Each row settling is told and the last pops the wait with what each came to. A wait on workers stands through the agent's own tool use, since it works on meanwhile and is widened by each dispatch; any other wait is lifted when the agent works again. Stopping is fine; in auto mode the next task is named once after a minute, and every five quiet minutes the agent is asked to look. |
-| idle | Idle | Idle | AgentState | journal/features/tasks/states/idle.py | session_started, task_started, plan_started, prompt_submitted, tool_starting, stop, ticked | Nothing in hand: the floor of the stack, never popped. A stop here is held by what is still open: a parked task, a blocked task whose check cannot run, an approved plan not started, and in auto mode any open task. The quiet is measured from the agent's last doing. |
+| idle | Idle | Idle | AgentState | journal/features/tasks/states/idle.py | session_started, task_started, plan_started, prompt_submitted, tool_starting, stop, ticked | Nothing in hand: the floor of the stack, never popped. A stop here is held by what is still open: a paused task, a blocked task whose check cannot run, an approved plan not started, and in auto mode any open task. The quiet is measured from the agent's last doing. |
 | stuck | Stuck | Stuck | Wait | journal/features/tasks/states/stuck.py |  | The agent said it is truly stuck. Nothing is said until it works again or the user speaks: its own next tool use or a word from the user pops it. |
-| working | Working | Working | AgentState | journal/features/tasks/states/working.py | tool_starting, stop, session_started, prompt_submitted, ticked, task_logged, task_closed, task_started, plan_started | On one task. Writes are counted since the last log line: after the first N the log is asked for, every M the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is told to carry on, with the log line first when it is old, and is held while an approved plan is not started; a session resumed with it is told where it stands; a quiet quarter hour is told it is still open. Pushed by journal task start, popped by done and park. |
+| working | Working | Working | AgentState | journal/features/tasks/states/working.py | tool_starting, stop, session_started, prompt_submitted, ticked, task_logged, task_closed, task_started, plan_started | On one task. Writes are counted since the last log line: after the first N the log is asked for, every M the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is told to carry on, with the log line first when it is old, and is held while an approved plan is not started; a session resumed with it is told where it stands; a quiet quarter hour is told it is still open. Pushed by journal task start, popped by done and pause. |
 
 ## Every line, by feature
 
@@ -82,7 +82,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | pins | pins.pin_the_link | {{url}} is not pinned; if the user will come back to it, pin it | PinsDataReader.read, PinsConduct.on_tool_finished_pins |
 | plans | plans.next_task_of_the_plan | plan {{n}}: task {{task}}, {{title}} is next. {{briefing}} | PlansConduct.on_task_started_plans |
 | plans | plans.plan_done | plan {{n}} is done: its last task closed | FollowingPlan.on_plan_finished |
-| plans | plans.plan_waits_on_its_tasks | plan {{n}}: no task can start now; {{left}} parked, blocked or waiting | PlansConduct.on_plan_started_plans, PlansConduct.on_task_closed_plans |
+| plans | plans.plan_waits_on_its_tasks | plan {{n}}: no task can start now; {{left}} paused, blocked or waiting | PlansConduct.on_plan_started_plans, PlansConduct.on_task_closed_plans |
 | plans | plans.the_user_postponed_the_plan | the user postponed plan {{n}} | FollowingPlan.on_plan_postponed |
 | plans | plans.the_user_abandoned_the_plan | the user abandoned plan {{n}} | FollowingPlan.on_plan_abandoned |
 | plans | plans.the_user_approved_the_plan | the user approved plan {{n}} | PlansConduct.on_plan_approved_plans |
@@ -102,7 +102,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | sequences | sequences.following_the_step | following sequence {{n}}, step {{step}}: {{text}} | SequenceCommand.follow |
 | sequences | sequences.write_held_for_the_step | a write waits for sequence {{n}}, step {{step}}: {{text}} | SequencesConduct.on_tool_starting_sequences |
 | sequences | sequences.step_stale_move_it_on | {{writes}} writes since sequence {{n}}, step {{step}} was taken up: {{text}} | SequencesConduct.on_tool_starting_sequences |
-| sequences | sequences.sequence_parked | sequence {{n}} is parked at step {{step}}: {{why}} | RunTracker.reminder, SequencesConduct.on_ticked_sequences |
+| sequences | sequences.sequence_paused | sequence {{n}} is paused at step {{step}}: {{why}} | RunTracker.reminder, SequencesConduct.on_ticked_sequences |
 | sequences | sequences.sequence_ended | sequence {{n}} ran its last step | RunTracker.next, RunTracker.skip |
 | sequences | sequences.sequence_abandoned | sequence {{n}} abandoned | RunTracker.abandon |
 | sequences | sequences.sequence_cannot_finish | sequence {{n}} ended: {{why}} | RunTracker.finish_matching |
@@ -128,9 +128,9 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | tasks | tasks.log_where_it_stands | {{edits}} edits since you logged {{name}}: say where it stands | Working.on_tool_starting |
 | tasks | tasks.write_held_until_logged | {{edits}} edits since you logged {{name}} | Working.on_tool_starting |
 | tasks | tasks.task_in_hand_repeated | {{name}} in hand, {{edits}} edits | Working.on_tool_starting |
-| tasks | tasks.parked_tasks_still_open | parked tasks, still open: {{tasks}} | Stop.on_stop |
-| tasks | tasks.parked_task_asked_about | task {{n}} is still parked: can you continue it now? | Stop.on_ticked |
-| tasks | tasks.parked_task_named_at_close | task {{n}} is still parked: can you continue it now? | TasksConduct.on_task_closed_tasks |
+| tasks | tasks.paused_tasks_still_open | paused tasks, still open: {{tasks}} | Stop.on_stop |
+| tasks | tasks.paused_task_asked_about | task {{n}} is still paused: can you continue it now? | Stop.on_ticked |
+| tasks | tasks.paused_task_named_at_close | task {{n}} is still paused: can you continue it now? | TasksConduct.on_task_closed_tasks |
 | tasks | tasks.check_the_wait | check {{what}} now: you have waited {{minutes}} min | ExternalWait.on_ticked |
 | tasks | tasks.check_in_after_quiet | nothing has happened for half an hour: is there anything left for you to do? | Stop.on_ticked |
 | tasks | tasks.wait_over | the wait for {{what}} is over: {{outcome}} | ExternalWait.resolution |

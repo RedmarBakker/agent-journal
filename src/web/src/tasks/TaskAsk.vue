@@ -34,11 +34,11 @@ const FORMS = {
         ready: () => true,
         send: () => props.acts.finish(task, fields.how.trim()),
     }),
-    suspend: () => ({
+    pause: () => ({
         title: `Pause task ${task.id}`,
         button: `Pause task ${task.id}`,
         ready: () => Boolean(fields.why.trim()),
-        send: () => props.acts.suspend(task, fields.why.trim()),
+        send: () => props.acts.pause(task, fields.why.trim()),
     }),
     block: () => ({
         title: `Block task ${task.id}`,
@@ -80,7 +80,7 @@ const sendOnEnter = (e) => e.target.tagName !== "TEXTAREA" && (e.preventDefault(
                         @input="fields.how = $event.target.value"
                     />
                 </template>
-                <template #suspend>
+                <template #pause>
                     <p class="label">Why pause it?</p>
                     <TextInput
                         :value="fields.why"

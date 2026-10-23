@@ -56,7 +56,7 @@ class Plans(ScopedRepository[Plan]):
         return {plan.state for plan in self.containing(task)}
 
     def containing(self, task: Task) -> list[Plan]:
-        return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.APPROVED, PlanState.STARTED, PlanState.SUSPENDED, PlanState.BLOCKED)]
+        return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state in (PlanState.APPROVED, PlanState.STARTED, PlanState.PAUSED, PlanState.BLOCKED)]
 
     def waiting_plans(self, model) -> list[Plan]:
         return [plan for ref in self.links.sources(model, WAIT_LINK) if ref.type == Plan.table() and (plan := self.find(ref.id)).is_blocked()]
@@ -183,5 +183,5 @@ class Plans(ScopedRepository[Plan]):
     def postpone(self, plan: Plan, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)
         for task in [t for t in self.plan_tasks(plan) if t.state == TaskState.STARTED]:
-            self.tasks.save(task.suspended(f"plan {plan.id} was parked", time), actor)
+            self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
         return self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)
