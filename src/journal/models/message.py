@@ -25,6 +25,8 @@ class Message(Scoped):
     TEAMMATE = "teammate"
     RECIPIENT_KEY = "sent_to"
     ASKS_KEY = "asks"
+    HYDRATION = "hydration"
+    TOOL_SUMMARY = "tool_summary"
 
     author: Author = Author.USER
     session: str | None = None
@@ -50,6 +52,13 @@ class Message(Scoped):
     @classmethod
     def send_failed(cls, receiver: str, text: str, session: str, address: str, reason: str) -> "Message":
         return cls(author=Author.SYSTEM, text=text, session=session, data={"kind": cls.PEER, cls.RECIPIENT_KEY: receiver, "address": address or receiver, "failure": reason})
+
+    @classmethod
+    def hydration(cls, provider: str, session: str, text: str) -> "Message":
+        return cls(author=Author.SYSTEM, text=text, data={"kind": cls.HYDRATION, "provider": provider, "session": session, "reading_request": False})
+
+    def with_reading_request(self) -> "Message":
+        return self.with_merged("data", {"reading_request": True})
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":

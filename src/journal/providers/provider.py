@@ -28,6 +28,7 @@ from journal.support.hook_kind import HookKind
 from journal.support.response import Response
 from journal.events.agent.peer_message import PeerMessage
 from journal.providers.support.turn import Turn
+from journal.providers.support.past_session import PastSession
 from journal.providers.support.file_writes import FileWrites
 from journal.providers.support.capability import Capability
 from journal.providers.support.worker_outcome import WorkerOutcome
@@ -38,6 +39,9 @@ CONTEXT_HOOKS = (HookKind.SESSION_START, HookKind.USER_PROMPT, HookKind.PRE_TOOL
 
 
 TAIL_BYTES = 400_000
+HEAD_BYTES = 200_000
+COUNT_BYTES = 1_000_000
+PROMPT_CHARACTERS = 200
 HOOK_SCRIPT = Path(__file__).resolve().parents[1] / "hooks" / "hook.sh"
 PATH_KEYS = ("file_path", "path", "notebook_path")
 
@@ -47,6 +51,7 @@ class Provider(ABC):
     """One agent program, Claude Code or Codex: everything the journal knows about it, and nowhere else."""
 
     name: ClassVar[str]
+    title: ClassVar[str]
     program: ClassVar[str]
     home: ClassVar[str]
     settings_file: ClassVar[str]
@@ -77,6 +82,26 @@ class Provider(ABC):
 
     @abstractmethod
     def latest_session(self, project: Path, start: float) -> str: ...
+
+    @abstractmethod
+    def session_files(self, project: Path) -> list[Path]: ...
+
+    @abstractmethod
+    def session_name(self, path: Path) -> str: ...
+
+    def past_sessions(self, project: Path) -> list[PastSession]:
+        return sorted((self.past_session(path) for path in self.session_files(project)), key=lambda listed: listed.updated_at, reverse=True)
+
+    def past_session(self, path: Path) -> PastSession:
+        with path.open("rb") as file:
+            head = file.read(HEAD_BYTES).decode(errors="replace")
+        prompts = [turn.text for turn in self.turn_rows(self.rows(head[: head.rfind("\n") + 1], 0)) if turn.kind == "human" and turn.text.strip()]
+        return PastSession(self.name, self.session_name(path), path.stat().st_mtime, prompts[0].strip()[:PROMPT_CHARACTERS] if prompts else "", self.line_count(path))
+
+    @staticmethod
+    def line_count(path: Path) -> int:
+        with path.open("rb") as file:
+            return sum(block.count(b"\n") for block in iter(lambda: file.read(COUNT_BYTES), b""))
 
     @abstractmethod
     def subagent_transcript(self, project: Path, parent: str, agent_id: str) -> Path | None: ...

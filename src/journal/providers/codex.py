@@ -39,6 +39,7 @@ class Codex(Provider):
     """OpenAI's Codex: the journal reads no thoughts, no messages between sessions and no subagent transcripts from its rollouts, so it offers none of them."""
 
     name = "codex"
+    title = "Codex"
     program = "codex"
     prompt_flags = ("--dangerously-bypass-approvals-and-sandbox",)
     home = ".codex"
@@ -116,13 +117,19 @@ class Codex(Provider):
         rollouts = [path for day in self.day_count(start) for path in (self.sessions / day).glob("rollout-*.jsonl") if path.stat().st_mtime >= start]
         for path in sorted(rollouts, key=lambda path: path.stat().st_mtime, reverse=True):
             if self.rollout_folder(path) == str(project.resolve()):
-                return path.stem[-36:]
+                return self.session_name(path)
         return ""
 
     @staticmethod
     def day_count(start: float) -> list[str]:
         first, last = date.fromtimestamp(start) - timedelta(days=1), date.today() + timedelta(days=1)
         return [(first + timedelta(days=n)).strftime("%Y/%m/%d") for n in range((last - first).days + 1)]
+
+    def session_files(self, project: Path) -> list[Path]:
+        return [path for path in self.sessions.glob("**/rollout-*.jsonl") if self.rollout_folder(path) == str(project.resolve())] if self.sessions.is_dir() else []
+
+    def session_name(self, path: Path) -> str:
+        return path.stem[-36:]
 
     @staticmethod
     def rollout_folder(path: Path) -> str:
