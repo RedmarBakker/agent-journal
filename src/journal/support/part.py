@@ -137,13 +137,17 @@ class Part:
         return bool(program) and program[0] in FILTERS and "-f" not in command.split()
 
     def pipe_positions(self) -> list[int]:
-        positions, quote = [], ""
+        positions, quote, depth = [], "", 0
         for i, c in enumerate(self.text):
             if quote:
                 quote = "" if c == quote else quote
-            elif c in "'\"":
+            elif c in "'\"`":
                 quote = c
-            elif c == "|" and self.text[i + 1:i + 2] != "|" and self.text[i - 1:i] != "|":
+            elif c in "({":
+                depth += 1
+            elif c in ")}":
+                depth = max(depth - 1, 0)
+            elif c == "|" and not depth and self.text[i + 1:i + 2] != "|" and self.text[i - 1:i] != "|":
                 positions.append(i)
         return positions
 

@@ -4878,7 +4878,7 @@ def test_an_output_is_read_by_its_number_whole_by_its_ends_or_in_part_and_listed
 def test_a_trailing_tail_or_head_is_taken_off_the_line_and_kept_as_the_cut_to_apply(app: App):
     hook(app, "SessionStart")
     console = app.console()
-    for name, line in (("cut", "python3 -m pytest -q 2>&1 | tail -4"), ("head", "git log --oneline | head -3"), ("quoted", 'echo "a | tail -1"')):
+    for name, line in (("cut", "python3 -m pytest -q 2>&1 | tail -4"), ("head", "git log --oneline | head -3"), ("quoted", 'echo "a | tail -1"'), ("subshell", "(cd src/web && npx vitest run x 2>&1 | grep y | head -5)")):
         folder = app.config.root / name
         folder.mkdir()
         ShellVerbs(app).split(line, str(folder))
@@ -4886,6 +4886,7 @@ def test_a_trailing_tail_or_head_is_taken_off_the_line_and_kept_as_the_cut_to_ap
     assert (app.config.root / "cut" / "0.cut").read_text() == "tail -4", "the cut is kept beside the part, for the runner to apply to the kept output"
     assert (app.config.root / "head" / "0.part").read_text() == "git log --oneline" and (app.config.root / "head" / "0.cut").read_text() == "head -3", "a head is a cut like a tail"
     assert not (app.config.root / "quoted" / "0.cut").exists(), "a pipe inside quotes is text"
+    assert (app.config.root / "subshell" / "0.part").read_text() == "(cd src/web && npx vitest run x 2>&1 | grep y | head -5)" and not (app.config.root / "subshell" / "0.cut").exists(), "a pipe inside a subshell is the subshell's own, so the subshell runs whole and its redirect stays inside it"
     assert ShellVerbs(app).forget("cut", 120) == "kept", "a cut line's whole output is kept whatever its size"
 
 
