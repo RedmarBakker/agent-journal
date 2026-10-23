@@ -176,8 +176,8 @@ watch(
 
 watch(
     () => dumpHere.value || pane.value === "terminal",
-    (away) => {
-        if (!away) nextTick(() => requestAnimationFrame(() => toBottom()));
+    (aside) => {
+        if (!aside && !away.value) nextTick(() => requestAnimationFrame(() => toBottom()));
     }
 );
 
@@ -270,7 +270,7 @@ function holdBottom() {
     const s = scroller.value;
     const dock = s?.querySelector(".chat-docks");
     if (!dock) return;
-    const pin = new ResizeObserver(() => planOpen.value && (s.scrollTop = s.scrollHeight));
+    const pin = new ResizeObserver(() => planOpen.value && !away.value && (s.scrollTop = s.scrollHeight));
     pin.observe(dock);
     setTimeout(() => pin.disconnect(), PLAN_MOVE);
 }
@@ -491,7 +491,7 @@ const {colleague, me} = useColleague();
                                 </Transition>
                             </div>
                             <template v-if="busy && !waitingNow">
-                                <div class="thread-turn busy" :aria-label="`The agent is ${line.doing || 'thinking'}`">
+                                <div :class="['thread-turn', 'busy', {faded: away}]" :aria-label="`The agent is ${line.doing || 'thinking'}`">
                                     <div class="thread-meta">
                                         <Dot kind="started" solid :size="6" />
                                         <template v-if="line.thinking">
@@ -505,7 +505,7 @@ const {colleague, me} = useColleague();
                                 </div>
                             </template>
                             <template v-else>
-                                <div class="thread-turn busy" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
+                                <div :class="['thread-turn', 'busy', {faded: away}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
                                     <div class="thread-meta">
                                         <Dot kind="queued" solid :size="6" />
                                         <template v-if="waitingNow">
@@ -587,6 +587,7 @@ const {colleague, me} = useColleague();
     gap: 3px;
     align-self: stretch;
     width: 100%;
+    transition: opacity 0.25s ease;
 }
 
 .thread-turn.busy .thread-bubble {
@@ -659,6 +660,11 @@ const {colleague, me} = useColleague();
     flex: 1;
     flex-direction: column;
     min-height: 0;
+}
+
+/* the line of what the agent is doing fades while the reader has scrolled up, and comes back at the foot */
+.thread-turn.busy.faded {
+    opacity: 0;
 }
 
 .thread-scroll {

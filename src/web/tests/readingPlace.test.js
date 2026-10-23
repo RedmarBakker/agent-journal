@@ -51,4 +51,16 @@ describe("the reading place", () => {
         place.hold();
         expect(box.scrollTop).toBe(150);
     });
+
+    it("holds by the next row in view when the row being read is taken away or folded into another", () => {
+        const {box, turns} = pane([100, 100, 100, 100]);
+        box.scrollTop = 150;
+        const place = useReadingPlace(ref(box));
+        place.mark();
+        turns[1].remove();
+        turns[1].height = 0;
+        turns[0].height = 180;
+        place.hold();
+        expect(turns[2].getBoundingClientRect().top).toBe(50);
+    });
 });

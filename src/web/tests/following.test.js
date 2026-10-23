@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {expect, test, vi} from "vitest";
 
-const {useFollowing} = await import("../src/composables/following.js");
+const {SETTLE_AFTER_MS, SETTLE_SHARE, useFollowing} = await import("../src/composables/following.js");
 
 const pane = (at = 0, height = 1000, visible = 400) => ({scrollTop: at, scrollHeight: height, clientHeight: visible});
 const atFoot = () => pane(600);
@@ -67,22 +67,32 @@ test("a pane told the reader scrolled up stops following without measuring", () 
     expect([away.value, box.scrollTop]).toEqual([true, 600]);
 });
 
-test("a chat resting a little above its foot settles there after ten seconds, and one further up stays", () => {
+test("a chat resting within a quarter of its height above its foot settles there once unscrolled for five seconds, and one further up never moves", () => {
     vi.useFakeTimers();
     try {
-        const near = pane(550);
+        const near = pane(1000 - 400 - 400 * SETTLE_SHARE);
         const settling = useFollowing(near);
         settling.scrolled();
         expect(settling.away.value).toBe(true);
-        vi.advanceTimersByTime(9000);
-        expect(near.scrollTop).toBe(550);
+        vi.advanceTimersByTime(SETTLE_AFTER_MS - 1000);
+        expect(near.scrollTop).toBe(1000 - 400 - 400 * SETTLE_SHARE);
         vi.advanceTimersByTime(1000);
         expect([near.scrollTop, settling.away.value]).toEqual([near.scrollHeight, false]);
-        const far = pane(300);
+        // further up than a quarter of the view, reading: it stays, whatever arrives and however long it waits
+        const far = pane(1000 - 400 - 400 * SETTLE_SHARE - 20);
         const reading = useFollowing(far);
         reading.scrolled();
-        vi.advanceTimersByTime(20000);
-        expect([far.scrollTop, reading.away.value]).toEqual([300, true]);
+        reading.arrived(3);
+        vi.advanceTimersByTime(60000);
+        expect([far.scrollTop, reading.away.value, reading.missed.value]).toEqual([1000 - 400 - 400 * SETTLE_SHARE - 20, true, 3]);
+        // scrolling again starts the five seconds again
+        const rescrolled = pane(1000 - 400 - 10);
+        const moving = useFollowing(rescrolled);
+        moving.scrolled();
+        vi.advanceTimersByTime(4000);
+        moving.scrolled();
+        vi.advanceTimersByTime(4000);
+        expect(rescrolled.scrollTop).toBe(1000 - 400 - 10);
     } finally {
         vi.useRealTimers();
     }

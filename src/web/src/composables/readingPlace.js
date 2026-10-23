@@ -1,34 +1,41 @@
 import {unref} from "vue";
 
-// Keeps the turn a reader scrolled up to in place when turns above it change height; Safari has no scroll anchoring of its own.
+// how many of the rows in view are marked, so one removed or folded into another still leaves a row to hold the view by
+const MARKS = 4;
+
+// Keeps the rows a reader scrolled up to in place when rows above or around them change height, appear, fold or go: the first marked row
+// still on the page is put back where it was in the view, and the marks are taken again from there; Safari has no scroll anchoring of
+// its own.
 export function useReadingPlace(scroller) {
-    let place = null;
+    let places = [];
 
     function inView(box) {
         const top = box.getBoundingClientRect().top;
-        for (const el of box.querySelectorAll("[data-ref]")) {
-            const rect = el.getBoundingClientRect();
-            if (rect.bottom > top) return {ref: el.dataset.ref, below: rect.top - top};
-        }
-        return null;
+        return [...box.querySelectorAll("[data-ref]")]
+            .map((el) => ({el, rect: el.getBoundingClientRect()}))
+            .filter(({rect}) => rect.bottom > top)
+            .slice(0, MARKS)
+            .map(({el, rect}) => ({ref: el.dataset.ref, below: rect.top - top}));
     }
 
     function mark() {
         const box = unref(scroller);
-        place = box ? inView(box) : null;
+        places = box ? inView(box) : [];
     }
 
     function forget() {
-        place = null;
+        places = [];
     }
 
     function hold() {
         const box = unref(scroller);
-        if (!box || !place) return;
-        const el = [...box.querySelectorAll("[data-ref]")].find((turn) => turn.dataset.ref === place.ref);
-        if (!el) return;
-        const drift = el.getBoundingClientRect().top - box.getBoundingClientRect().top - place.below;
+        if (!box || !places.length) return;
+        const rows = new Map([...box.querySelectorAll("[data-ref]")].map((el) => [el.dataset.ref, el]));
+        const place = places.find((each) => rows.has(each.ref));
+        if (!place) return;
+        const drift = rows.get(place.ref).getBoundingClientRect().top - box.getBoundingClientRect().top - place.below;
         if (Math.abs(drift) >= 1) box.scrollTop += drift;
+        mark();
     }
 
     return {mark, forget, hold};

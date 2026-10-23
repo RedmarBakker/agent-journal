@@ -6,10 +6,10 @@ export const AT_BOTTOM = 24;
 
 const NEWEST_AFTER = 1000;
 const NEWEST_AFTER_BOTTOM = 2000;
-// a pane resting this short of its foot, a share of its height, for this long settles there and follows again: a scroll
-// that missed the foot by a little; further up, the reader is reading and it stays
+// a pane resting short of its foot by no more than this share of its height, unscrolled for this long, settles there and
+// follows again: a reader who meant to go back down and stopped short; any further up, the reader is reading and nothing moves it
 export const SETTLE_SHARE = 0.25;
-export const SETTLE_AFTER_MS = 10000;
+export const SETTLE_AFTER_MS = 5000;
 
 /**
  * Whether a scrolling pane is following what arrives, which is the one rule the chat and the agent inspector share.
@@ -71,10 +71,7 @@ export function useFollowing(scroller, at = AT_BOTTOM) {
         offerNewest(true);
     }
 
-    const isNearBottom = () => {
-        const s = box();
-        return Boolean(s) && gap() < s.clientHeight * SETTLE_SHARE;
-    };
+    const isNearBottom = () => Boolean(box()) && gap() <= box().clientHeight * SETTLE_SHARE;
 
     /** A pane resting a little short of its foot settles there once it has rested long enough. */
     function settleSoon() {
