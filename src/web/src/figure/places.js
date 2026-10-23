@@ -450,10 +450,10 @@ export function composeEdge() {
 // Where the figure stands to build or to push what it built: on its feet on the compose box's top edge, whatever is docked over it, and
 // kept there as bars dock and go (`stays`, floors.js footingOn); at `x` on the page when given, beside the parcel it builds or behind one
 // it pushes, else at a free place along the edge whose parcel, `beside` pixels from its feet, stands clear of the pile from `before` on
-// and with room behind it, on its left, for the figure to stand and push it
-export function buildSpot(figure, near, {x = null, beside = 0, before = Infinity} = {}) {
+// and with room behind it, on its left, for the figure to stand and push it, the one nearest `aim` across the page when given
+export function buildSpot(figure, near, {x = null, beside = 0, before = Infinity, aim = null} = {}) {
     const {element, edge} = composeEdge();
-    const spot = x === null ? freeBuildSpot(edge, figure, near, beside, before) : insideWorld({x, y: edge.top, posture: "stand"}, figure);
+    const spot = x === null ? freeBuildSpot(edge, figure, aim === null ? near : {x: aim, y: edge.top}, beside, before) : insideWorld({x, y: edge.top, posture: "stand"}, figure);
     return spot && {...spot, view: null, on: element, stays: true};
 }
 

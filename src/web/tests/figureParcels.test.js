@@ -154,11 +154,11 @@ test("pushing a parcel the figure leans into it, its back angled well forward, b
     }
 });
 
-test("each parcel is hammered a random three to eight seconds, and every blow that lands on it is counted, once", () => {
-    expect([HAMMER.least, HAMMER.most]).toEqual([3000, 8000]);
-    expect(hammerMs(() => 0)).toBe(3000);
-    expect(hammerMs(() => 0.5)).toBe(5500);
-    expect(hammerMs(() => 0.999999)).toBeCloseTo(8000, 0);
+test("each parcel is hammered a random eight to twenty seconds, and every blow that lands on it is counted, once", () => {
+    expect([HAMMER.least, HAMMER.most]).toEqual([8000, 20000]);
+    expect(hammerMs(() => 0)).toBe(8000);
+    expect(hammerMs(() => 0.5)).toBe(14000);
+    expect(hammerMs(() => 0.999999)).toBeCloseTo(20000, 0);
     // a blow of 8 frames lands at 0.3 of its way: none before the first lands, then one a blow
     const landed = [0, 2, 2.4, 3, 10, 10.4, 11, 26.4].map((frames) => blowsLanded(frames, 8, 0.3));
     expect(landed).toEqual([0, 0, 1, 1, 1, 2, 2, 4]);
@@ -413,5 +413,26 @@ test("pushing, the head goes with the body's lean, nodded a little further down 
                 if (leanOf(frame / clip.frames) > 0.5) expect(face.z, label).toBeLessThanOrEqual(chest.z + 1e-6);
             }
         }
+    }
+});
+
+test("each box takes eight to twenty seconds of hammering, the pause before the next varies with now and then a wait of two seconds or more, and each is begun at a new spot", async () => {
+    const {HAMMER, hammerMs, boxGapSeconds, buildAim, BUILD_SPREAD} = await import("../src/figure/parcels.js");
+    let seed = 7;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const hammers = Array.from({length: 40}, () => hammerMs(random));
+    expect(Math.min(...hammers)).toBeGreaterThanOrEqual(8000);
+    expect(Math.max(...hammers)).toBeLessThanOrEqual(20000);
+    expect([HAMMER.least, HAMMER.most]).toEqual([8000, 20000]);
+    const gaps = Array.from({length: 40}, () => boxGapSeconds(random));
+    expect(new Set(gaps.map((gap) => gap.toFixed(2))).size).toBeGreaterThan(20);
+    expect(gaps.some((gap) => gap >= 2)).toBe(true);
+    let last = null;
+    for (let box = 0; box < 30; box++) {
+        const aim = buildAim(100, 900, last, random);
+        expect(aim).toBeGreaterThanOrEqual(100);
+        expect(aim).toBeLessThanOrEqual(900);
+        if (last !== null) expect(Math.abs(aim - last)).toBeGreaterThanOrEqual(BUILD_SPREAD);
+        last = aim;
     }
 });

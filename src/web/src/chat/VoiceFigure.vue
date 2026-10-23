@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, buildAim, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -858,19 +858,31 @@ function workOf() {
     if (pushing) return {x: pushStand(parcelX(pushing), slotX(piled()), body.place.x)};
     const building = parcels.value.find((each) => each.state === "building");
     if (building) return {x: parcelX(building) - beside};
-    return making ? {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2} : null;
+    return making ? {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2, aim} : null;
 }
 
-// the boxes of the run the figure builds for (parcels.js unitsAfter), and whether it builds one now, until it is piled
+// the boxes of the run the figure builds for (parcels.js unitsAfter), and whether it builds one now, until it is piled; where along the
+// floor it aims to begin the next (parcels.js buildAim), and the time before which it rests after the last was piled
 let units = null;
 let making = false;
+let aim = null;
+let restUntil = 0;
 
 // at a look: with no box in hand the figure builds the next while the run going on is granted boxes, and gives up one not yet begun once
 // it ends
 function grantUnit() {
     const inHand = parcels.value.some((each) => each.state !== "piled");
     units = unitsAfter(units, buildRunAt(lead.value?.data?.cards || [], shellRun(), now.value), memory.reacted, now.value, Math.random);
-    if (!inHand) making = Boolean(units?.granted);
+    if (inHand) return;
+    const starting = Boolean(units?.granted) && now.value >= restUntil;
+    if (starting && !making) aim = nextAim();
+    making = starting;
+}
+
+// a new place along the floor to begin the next box, clear of the last
+function nextAim() {
+    const {edge} = composeEdge();
+    return buildAim(edge.left, slotX(piled() + PILE.high) - PARCEL.width, aim, Math.random);
 }
 
 // the shell command going on that reads as a test run or a build, with the process card it runs under, as a run the figure builds for
@@ -906,6 +918,7 @@ function keepParcels(shown) {
         if (Math.abs(parcelX(pushing) - to) < PUSH.room) {
             Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
             making = false;
+            restUntil = now.value + boxGapSeconds(Math.random);
         }
     }
     if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows, lit: each.lit, state: each.state}));

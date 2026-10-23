@@ -123,7 +123,7 @@ export function workLook(parcels, making, xOf, floor, way) {
 }
 
 // how long the figure hammers each parcel, a random number of milliseconds between the two
-export const HAMMER = {least: 3000, most: 8000};
+export const HAMMER = {least: 8000, most: 20000};
 export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAMMER.least);
 
 // how many blows have landed `frames` frames into a hammering whose blows are `blowFrames` frames long and land `lands` of the way through
@@ -268,3 +268,16 @@ const windingIn = (stop, k) => -(stop.high + CRANE.clear) + (CRANE.wound + stop.
 // The stacks the crane takes from `parcels` (each {id, x, up}): the stops of stopsOf, each with `high`, its stack's height in pixels
 export const stacksOf = (parcels) =>
     stopsOf(parcels).map((stop) => ({...stop, high: Math.max(...parcels.filter((each) => stop.ids.includes(each.id)).map((each) => each.up)) + PARCEL.height}));
+
+// The pause after a box is piled before the next is begun, in seconds: mostly short, now and then a longer wait of a couple of seconds
+export const BOX_GAP = {short: [0.4, 1.6], long: [2, 4], longShare: 0.25};
+export const boxGapSeconds = (random) => between(random() < BOX_GAP.longShare ? BOX_GAP.long : BOX_GAP.short, random);
+
+// Where along the floor, from `left` to `right` in page pixels, the figure aims to begin the next box: anywhere at random, but never
+// within `spread` of where it began the last, `last`, null for the first
+export const BUILD_SPREAD = 2 * PARCEL.width;
+export function buildAim(left, right, last, random) {
+    const width = Math.max(right - left, 1);
+    const aim = left + random() * width;
+    return last === null || Math.abs(aim - last) >= BUILD_SPREAD ? aim : left + ((aim - left + width / 2) % width);
+}
