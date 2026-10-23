@@ -1,6 +1,6 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
 import {holds, readFloors} from "./floors.js";
-import {boxAt, buildSpot, clearOf, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, standRise, spotOf} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
@@ -13,11 +13,12 @@ export const HANGS = "hang";
 export const HANG_SHARE = 0.4;
 
 // Where the figure goes when nothing calls it elsewhere, and how long it stays, in seconds between the two: each time a stay is over it
-// draws the next by its odds. Mostly it strolls along the compose box's edge and sits a while on a corner of it, now and then perches on a
-// message bubble or crosses to stand on one of the page's tabs, and whatever the agent is doing it does from there. A hang is short, as
-// hanging is work.
+// draws the next by its odds. Mostly it strolls along the compose box's edge and stands a while on a corner of it, now and then sits on
+// the corner itself with its legs hanging past the end (places.js seatAt), perches on a message bubble or crosses to stand on one of the
+// page's tabs, and whatever the agent is doing it does from there. A hang is short, as hanging is work.
 export const ROAMS = [
     {where: "rest", odds: 0.3, stay: [15, 40]},
+    {where: "seat", odds: 0.15, stay: [15, 40]},
     {where: "edge", odds: 0.4, stay: [8, 20]},
     {where: "bubble", odds: 0.15, stay: [15, 40]},
     {where: "tab", odds: 0.15, stay: [10, 25]},
@@ -115,6 +116,7 @@ export function stayingAt(stay, figure, near) {
         return spot ? {...spot, view: null} : null;
     }
     if (stay.where === "edge") return spotOf(null, figure, stay.along);
+    if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
     return restOf(figure, near);
 }
 
@@ -123,12 +125,12 @@ export function stayingAt(stay, figure, near) {
 // resting at home while its agent cannot act; to the tab of what waits on the user when something does and that tab has a spot inside
 // the figure's world; otherwise where its stay is, drawing the next stay when this one is over or its place is gone. `near` is where it
 // is, `counts` the views' badge counts and `state` what the agent does. The spot is kept clear of the box the figure stepped aside from
-// while that box is `cleared` (keptClear), except where it builds.
-export function targetFor({state, counts, stay, now, near, figure, hands, work = {}, cleared = {until: 0}, random = Math.random}) {
+// while that box is `cleared` (keptClear), except where it builds; resting by the parcel `pile`, it stands beside it (places.js besidePile).
+export function targetFor({state, counts, stay, now, near, figure, hands, work = {}, pile = null, cleared = {until: 0}, random = Math.random}) {
     const building = (work.x != null || builds(state)) && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random});
-    return {...target, spot: keptClear(target.spot, {state, now, near, figure, cleared})};
+    return {...target, spot: besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure)};
 }
 
 // whether the figure builds in `state`: its clip there is the hammering
@@ -142,6 +144,9 @@ export function keptClear(spot, {state, now, near, figure, cleared}) {
 
 function targetOf({state, counts, stay, now, near, figure, hands, random}) {
     if (RESTS.has(state)) return {spot: restOf(figure, near), stay};
+    // at its laptop, while its agent edits, it sits on a corner where there is one
+    const seat = clipOf(state) === "type" && seatOf(figure, near);
+    if (seat) return {spot: seat, stay};
     const pressing = pointedView(counts, openTabs());
     const pointing = pressing && spotOf(pressing, figure, near);
     if (pointing) return {spot: pointing, stay};

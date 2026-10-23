@@ -129,11 +129,15 @@ export function worldBox() {
 const EDGE = 0.5;
 
 // Whether a figure on a spot is inside its world: its picture within the world's left, right and top, and the line it rests on at or
-// above the world's foot, as a seated figure's legs hang past any edge it sits on; a hanging figure is inside it whole
+// above the world's foot, as a seated figure's legs hang past any edge it sits on; a hanging figure is inside it whole. A seated figure
+// needs only its body inside, as it sits on the very corner of a box with its legs hanging past the end, the empty sides of its picture
+// over the world's edge
 export function inWorld(spot, figure, world = worldBox()) {
     const box = boxAt(spot, figure);
+    const width = box.right - box.left;
+    const [left, right] = spot.posture === "sit" ? [box.left + BODY.left * width, box.left + BODY.right * width] : [box.left, box.right];
     const foot = spot.posture === "hang" ? box.bottom : spot.y;
-    return box.left >= world.left - EDGE && box.right <= world.right + EDGE && box.top >= world.top - EDGE && foot <= world.bottom + EDGE;
+    return left >= world.left - EDGE && right <= world.right + EDGE && box.top >= world.top - EDGE && foot <= world.bottom + EDGE;
 }
 
 // Where across a figure's picture it looks for words and controls under its body, as shares of the picture's width and height: the
@@ -210,8 +214,8 @@ const ON_TAB = [0.5, 0.25, 0.75];
 const tabSpots = (tab) => alongTop(tab.getBoundingClientRect(), ON_TAB);
 
 // Where a figure rests at the end of an edge: standing on the corner of a box, its feet on the top, turned along the edge and a third of
-// the way back toward the viewer, a little inboard of the corner so it stands on the surface. It never sits there: sitting hangs its
-// legs over the face of the box, so it looks as if it sinks into it to the knees.
+// the way back toward the viewer, a little inboard of the corner so it stands on the surface. Sitting there it sits on the corner itself
+// (seatAt), as a seat inboard hangs the legs over the face of the box, so it looks as if it sinks into it to the knees.
 const CORNER_SIDES = {
     right: {along: 1, inboard: -1, face: 60},
     left: {along: 0, inboard: 1, face: 300},
@@ -224,6 +228,41 @@ export function cornerAt(box, side, {size}, reach = CORNER_INBOARD) {
     const {along, inboard, face} = CORNER_SIDES[side];
     return {x: box.left + box.width * along + inboard * reach * size, y: box.top, face, posture: "stand"};
 }
+
+// Where a figure sits now and then at the end of an edge: its hips right on the corner of the box and turned out along the edge, so its
+// legs hang past the end of the box, never over its face, where it would seem to sink into the box to the knees
+const SEAT_SIDES = {
+    right: {along: 1, face: 70},
+    left: {along: 0, face: 290},
+};
+
+export function seatAt(box, side) {
+    const {along, face} = SEAT_SIDES[side];
+    return {x: box.left + box.width * along, y: box.top, face, posture: "sit"};
+}
+
+// Where the figure sits at home: on a corner of the edge it stands on whose seat is inside its world and hides nothing, the one nearest
+// `near`; null when neither corner holds a seat
+export function seatOf(figure, near) {
+    const {element, edge} = groundEdge();
+    const seats = Object.keys(SEAT_SIDES)
+        .map((side) => seatAt(edge, side))
+        .filter((seat) => element && inWorld(seat, figure) && !hiddenAt(seat, figure));
+    const away = (seat) => (near ? Math.abs(seat.x - near.x) : 0);
+    const seat = seats.sort((a, b) => away(a) - away(b))[0];
+    return seat ? {...seat, view: null, on: element} : null;
+}
+
+// A spot on its feet on the floor the parcel pile stands on (`pile`, its left and right ends and the top of its floor, in pixels), moved
+// beside the pile so the figure never stands in front of the parcels; a seat on the edge, or a spot on another floor, as it is
+export function besidePile(spot, pile, {size}) {
+    const half = ((BODY.right - BODY.left) / 2) * size;
+    const onIt = pile && spot.posture === "stand" && Math.abs(spot.y - pile.top) < 1 && spot.x + half > pile.left && spot.x - half < pile.right;
+    return onIt ? {...spot, x: pile.left - half - PILE_GAP} : spot;
+}
+
+// how far beside the pile a figure stands, in pixels, past its body, enough to keep its hands off the parcels
+const PILE_GAP = 7;
 
 // the pixels of a figure standing on an edge above it
 export const standRise = ({size, below}) => (1 - below) * size;

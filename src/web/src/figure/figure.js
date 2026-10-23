@@ -66,7 +66,6 @@ const LEVEL_ITEMS = new Set(["colleague_mug"]);
 const BUSY_ITEMS = new Set([...LEVEL_ITEMS, "squire_shield", "coach_clipboard"]);
 // what a figure carries in its hands, put away while it holds a prop so it never holds two things
 const IN_HAND = new Set([...BUSY_ITEMS, "squire_quill"]);
-const BLINK_OPENNESS = [1.0, 0.5, 0.06, 0.5];
 const MIN_EYE_HEIGHT = 0.06;
 const HINGES = {forearm: new THREE.Vector3(0, 0, -1), shin: new THREE.Vector3(1, 0, 0)};
 
@@ -350,23 +349,12 @@ function armsAtRest(pose, stance, apart = [], swing = {}, level = stance.level) 
     }
 }
 
-function blinkAt(t, start, frames) {
-    const index = t >= start ? Math.floor((t - start) * frames) : -1;
-    return index >= 0 && index < BLINK_OPENNESS.length ? BLINK_OPENNESS[index] : 1.0;
-}
-
 const freeSide = (stance) => (stance.busy.has("r") ? "l" : "r");
 
 function idle(pose, stance, t) {
     breathe(pose, t);
     armsAtRest(pose, stance);
     pose.swing(waveOf(t));
-    pose.shutEyes(blinkAt(t, 0.62, 24));
-}
-
-function blink(pose, stance, t) {
-    armsAtRest(pose, stance);
-    pose.shutEyes(blinkAt(t, 0.15, 6));
 }
 
 function nod(pose, stance, t) {
@@ -1953,7 +1941,6 @@ const ON_A_LAP = ["sit"];
 
 export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
-    {name: "blink", frames: 6, fps: 12, loops: false, postures: GESTURE, pose: blink},
     {name: "nod", frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
     {name: "shake", frames: 12, fps: 12, loops: false, postures: GESTURE, pose: shake},
     {name: "wave", frames: 12, fps: 12, loops: true, postures: GESTURE, pose: wave},
@@ -2770,14 +2757,16 @@ export class Stage {
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `at` is where
-    // in its picture it looks (lookToward), and during a change `blend` eases from the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null} = {}) {
+    // in its picture it looks (lookToward), `open` how open a blink leaves the eyes (blink.js), and during a change `blend` eases from
+    // the moves drawn before it. It returns the moves it drew.
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         if (!clip.legs) LEGS[posture]?.over(pose);
         if (at) lookToward(pose, at, facing);
+        if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
         if (eyes) lookAs(pose, eyes, facing);
         const moves = place(figure, pose, facing, blend);
         const size = canvas.width * SUPERSAMPLE;

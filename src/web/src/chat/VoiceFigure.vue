@@ -36,6 +36,7 @@ import {
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
 import {builds, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
@@ -72,6 +73,19 @@ const SIZE = 112;
 const UFO_OFF = {right: 40, left: 60, above: -30};
 // how long the figure takes to step back once the UFO starts lifting, in milliseconds
 const STEP_BACK_MS = 400;
+
+// The figure blinks every so often, a random few seconds apart, drawn at the screen's own frame rate (figure/blink.js), whatever rate the
+// clip on screen runs at: `next` is when the next blink begins on the page's clock
+const blinking = {next: 0};
+
+// how open the eyes are this frame, 1 between blinks
+function blinked() {
+    const now = performance.now();
+    if (!blinking.next) blinking.next = now + nextBlinkMs(Math.random);
+    const open = blinkOpenness(now - blinking.next);
+    if (now >= blinking.next + BLINK.close + BLINK.open) blinking.next = now + nextBlinkMs(Math.random);
+    return open;
+}
 // how often the figure looks again at what the agent does and where things are, in milliseconds
 const LOOK_EVERY = 1000;
 const COMPOSE_TURN = 30;
@@ -223,8 +237,11 @@ function step() {
     }
     if (playing.closing !== null && wanted.clip.name === playing.shown.clip.name && frameOf(playing.shown) < playing.closing)
         playing.closing = null;
-    // a clip that cuts in, as watching the UFO, takes over at once from whatever plays
-    const finished = playedOut() || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name);
+    // a clip that cuts in, as watching the UFO, takes over at once from whatever plays, and so does a trip out of something's way, the
+    // beat it breaks off dropped
+    const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted));
+    if (breaking && playing.shown.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed) beats.value = beats.value.slice(1);
+    const finished = playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name);
     const continuing = keyOf(wanted) === playing.name && playing.closing === null;
     const shown = continuing || finished ? wanted : playing.shown;
     const key = keyOf(shown);
@@ -264,7 +281,8 @@ function step() {
         eyes: look.eyes,
         stride,
         sky: shown.clip.name === "watch" ? sky : null,
-        at: lookingAt(),
+        at: lookingAt(shown),
+        open: blinked(),
     });
     headAt.value = player.headAt();
     keepParcels(shown);
@@ -308,9 +326,10 @@ function slideOn() {
 
 // the trip to a spot, from where the figure is in the posture it travels in to that spot in the one it travels in there (places.js); the
 // clip on screen is drawn in that posture first, so the figure gets to its feet or takes its grip where it is before the first leg
-async function moveTo(spot, {straight = false, pace = 1} = {}) {
+// a trip that is `pressing`, as one out of the way of a new message, sets off at once, breaking off whatever clip plays
+async function moveTo(spot, {straight = false, pace = 1, pressing = false} = {}) {
     if (!tripTo(body.place, spot, figureSize(), {straight, pace})) return restOn(spot);
-    body.trip = {to: spot, straight, pace, footing: footingOn(spot)};
+    body.trip = {to: spot, straight, pace, pressing, footing: footingOn(spot)};
     // read back, since the ref hands out its reactive copy, never the object it was given
     const trip = body.trip;
     step();
@@ -571,11 +590,12 @@ function look() {
         hands,
         cleared,
         work: workOf(),
+        pile: pileOf(),
     });
     stay = target.stay;
     // while the UFO is here the figure stands watching it, and goes nowhere
     if (!body.trip && !body.arriving && !body.airborne && !ufo.value) {
-        moveTo(target.spot, {pace: hurried ? SPRINT : 1});
+        moveTo(target.spot, {pace: hurried ? SPRINT : 1, pressing: hurried});
         hurried = false;
     }
     if (!document.hidden) lookTimer = setTimeout(look, LOOK_EVERY);
@@ -624,6 +644,12 @@ const slotX = (index) => {
     return edge.left + edge.width + pileSlot(index).left;
 };
 
+// the parcel pile's left and right ends and the top of the floor it stands on, on the page, or null while there is none
+function pileOf() {
+    const piles = parcels.value.filter((each) => each.state === "piled").map(parcelX);
+    return piles.length ? {left: Math.min(...piles) - PARCEL.width / 2, right: Math.max(...piles) + PARCEL.width / 2, top: composeEdge().edge.top} : null;
+}
+
 // Where the figure goes to work on the parcels (perches.js targetFor): round behind a parcel it built and on along to the pile with it,
 // beside the parcel it builds, or for a new one, a place whose parcel stands clear of the pile
 function workOf() {
@@ -665,12 +691,14 @@ function countBlows(building, shown) {
     counted.landed = landed;
 }
 
-// the work is committed: the UFO comes for every parcel that is built, on the pile or not
+// the work is committed: the UFO comes for every parcel, on the pile or not, and the one the figure is hammering counts as finished, so
+// the UFO never stays away because the figure is busy
 const committed = (happened) => happened.some((fire) => fire.beat === "committed");
 
 function sendUfo() {
-    const taken = parcels.value.filter((each) => each.state !== "building");
+    const taken = parcels.value;
     if (ufo.value || !taken.length) return;
+    for (const each of taken) if (each.state === "building") each.state = "built";
     if (keptStill()) {
         parcels.value = parcels.value.filter((each) => !taken.includes(each));
         return;
@@ -723,11 +751,13 @@ function stepForward() {
     sky = back ? {shade: 0, back, at: now} : null;
 }
 
-// What the figure looks at on the page: the UFO while it flies, else, standing on the bars docked over the compose box, the leading edge
-// of a progress bar on them while it runs, so its head follows the edge as it moves; null when there is nothing to look at
-function lookedAt() {
+// What the figure looks at on the page: the UFO while it flies, else the leading edge of a progress bar running on the bars docked over
+// the compose box, so its head follows the edge as it moves: looking down at it standing on the bars, and up at it from the compose box's
+// top under them, hammering there too, but not while it pushes a parcel bent over; null when there is nothing to look at
+function lookedAt(shown) {
     const docks = groundEdge();
-    return saucer.value ?? (docks.docked && body.footing?.home && !body.trip ? progressEdge(docks.element) : null);
+    const near = body.footing?.home || (body.place.stays && shown.clip.name !== "push");
+    return saucer.value ?? (docks.docked && near && !body.trip ? progressEdge(docks.element) : null);
 }
 
 // The look eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once
@@ -736,9 +766,9 @@ const LOOK_EASE_MS = 500;
 const gaze = {point: null, amount: 0, at: 0};
 
 // where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
-function lookingAt() {
+function lookingAt(shown) {
     const now = performance.now();
-    const point = lookedAt();
+    const point = lookedAt(shown);
     const step = (now - (gaze.at || now)) / LOOK_EASE_MS;
     gaze.at = now;
     gaze.amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
