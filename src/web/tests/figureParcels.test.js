@@ -277,10 +277,10 @@ test("the claw crane rolls in along the window's top, lowers its claw onto the s
     expect(lowered.x).toBe(600);
     expect(top + lowered.chain).toBeCloseTo(floor - stops[0].high, 6);
     expect(lowered.open).toBe(1);
-    expect(visit(CRANE.enter + CRANE.lower + CRANE.grab).open).toBe(0);
+    expect(visit(CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab).open).toBe(0);
     // it lifts the stack, ever higher, until the stack is out past the window's top
     let previous = 0;
-    for (let ms = CRANE.enter + CRANE.lower + CRANE.grab + 50; ms < CRANE.enter + CRANE.lower + CRANE.grab + CRANE.lift; ms += 50) {
+    for (let ms = CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + 50; ms < CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift; ms += 50) {
         const now = visit(ms);
         expect(now.lifted).toBeGreaterThanOrEqual(previous);
         expect(now.x).toBe(600);
@@ -320,10 +320,10 @@ test("the crane's claw comes down around the box, its hub on the stack's top, an
     const stops = [{x: 600, high: 2 * (PARCEL.height - PARCEL.top) + PARCEL.top, ids: [1, 2]}];
     const floor = 700;
     const top = 100;
-    const shut = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.grab, floor, top, 300, 900);
+    const shut = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab, floor, top, 300, 900);
     expect(shut.open).toBe(0);
     expect(top + shut.chain).toBeCloseTo(floor - stops[0].high, 5);
-    const lifting = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.grab + CRANE.lift / 2, floor, top, 300, 900);
+    const lifting = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift / 2, floor, top, 300, 900);
     expect(lifting.open).toBe(0);
     expect(lifting.lifted).toBeCloseTo(shut.chain - lifting.chain, 5);
     expect(CLAW.reach).toBeLessThan(PARCEL.height);
@@ -456,4 +456,25 @@ test("a build command is timed from its own start, so one that ends within five 
     expect(held.since, "the build's own start, not the chain's first hook").toBe(1060);
     expect(buildRunAt([], {card: "", since: held.since}, 1063)).toBe(null);
     expect(buildRunAt([], {card: "", since: held.since}, 1066)).not.toBe(null);
+});
+
+test("the claw slows to a stop just over the stack with no overshoot, hovers, grips only then, and lifts after a tug", async () => {
+    const {craneAt, CRANE} = await import("../src/figure/parcels.js");
+    const stops = [{x: 300, high: 20, ids: [1]}];
+    const floor = 600;
+    const top = 0;
+    const reach = floor - top - stops[0].high;
+    const at = (ms) => craneAt(stops, CRANE.enter + ms, floor, top, 0, 900);
+    const lowering = Array.from({length: 23}, (_, step) => at((CRANE.lower * step) / 22).chain);
+    expect(Math.max(...lowering)).toBeLessThanOrEqual(reach + 1e-9);
+    const lastSteps = lowering.slice(-3);
+    expect(lastSteps[2] - lastSteps[1], "slowing as it nears the stop").toBeLessThan(lastSteps[1] - lastSteps[0] + 1e-9);
+    const hovering = [at(CRANE.lower + 10), at(CRANE.lower + CRANE.hover - 10)];
+    expect(hovering.map((frame) => frame.chain)).toEqual([reach, reach]);
+    expect(hovering.map((frame) => frame.open), "the prongs stay open while it hovers").toEqual([1, 1]);
+    const gripped = at(CRANE.lower + CRANE.hover + CRANE.grab);
+    expect(gripped.open).toBe(0);
+    const tugged = at(CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift * CRANE.tugShare * 0.9);
+    expect(tugged.chain).toBeCloseTo(reach - CRANE.tug);
+    expect(at(CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift * 0.8).chain).toBeLessThan(tugged.chain);
 });

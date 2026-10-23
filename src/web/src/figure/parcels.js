@@ -209,11 +209,22 @@ export function ufoAt(stops, ms, floor, from, away) {
 }
 
 // The claw crane, as an arcade's claw machine: it rolls in along the chat window's top edge, stops over each stack, lowers its claw on a
-// chain, closes it on the stack and lifts it up out of the window, then rolls out at the far side. How long each part takes, in
-// milliseconds; how short the chain is when it is wound up, in pixels; and how far past the window's top a stack is lifted
-export const CRANE = {enter: 1700, move: 900, lower: 1000, grab: 400, lift: 1400, leave: 1500, wound: 10, clear: 30};
+// chain, slowing to a stop just over the stack, hovers there a moment, closes it on the stack and lifts it up out of the window, the cable
+// first tugging it `tug` pixels up and holding as it takes the weight over `tugShare` of the lift, then rolls out at the far side. How long
+// each part takes, in milliseconds; how short the chain is when it is wound up, in pixels; and how far past the window's top a stack is lifted
+export const CRANE = {enter: 1700, move: 900, lower: 1100, hover: 400, grab: 400, lift: 1600, leave: 1500, wound: 10, clear: 30, tug: 4, tugShare: 0.2};
 
-const CRANE_STOP_MS = CRANE.lower + CRANE.grab + CRANE.lift;
+const CRANE_STOP_MS = CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift;
+
+// a move `k` of the way that slows to a stop at its end, never past it
+const easeOut = (k) => 1 - (1 - k) ** 3;
+
+// the chain's length `k` of the way through the lift from `reach` to `out`: a quick tug up and a hold as the cable takes the weight, then
+// the rest of the way up
+function liftedChain(reach, out, k) {
+    if (k < CRANE.tugShare) return reach - CRANE.tug * clamp(k / (CRANE.tugShare / 3));
+    return reach - CRANE.tug + (out - reach + CRANE.tug) * ease((k - CRANE.tugShare) / (1 - CRANE.tugShare));
+}
 
 // how long a crane's visit to `stops` stops lasts
 export const craneMs = (stops) => CRANE.enter + (stops - 1) * CRANE.move + stops * CRANE_STOP_MS + CRANE.leave;
@@ -249,11 +260,11 @@ export function craneAt(stops, ms, floor, top, from, away) {
         }
         if (at < CRANE_STOP_MS) {
             const reach = reachOf(stop, floor, top);
-            const lowered = ease(clamp(at / CRANE.lower));
-            const shut = clamp((at - CRANE.lower) / CRANE.grab);
-            const lift = ease(clamp((at - CRANE.lower - CRANE.grab) / CRANE.lift));
+            const lowered = easeOut(clamp(at / CRANE.lower));
+            const shut = clamp((at - CRANE.lower - CRANE.hover) / CRANE.grab);
+            const lift = clamp((at - CRANE.lower - CRANE.hover - CRANE.grab) / CRANE.lift);
             const out = -(stop.high + CRANE.clear);
-            const chain = lift > 0 ? reach + (out - reach) * lift : CRANE.wound + (reach - CRANE.wound) * lowered;
+            const chain = lift > 0 ? liftedChain(reach, out, lift) : CRANE.wound + (reach - CRANE.wound) * lowered;
             return {...still, x: stop.x, chain, open: 1 - shut, stop: index, lifted: reach - chain > 0 && lift > 0 ? reach - chain : 0, taken: index};
         }
         at -= CRANE_STOP_MS;
