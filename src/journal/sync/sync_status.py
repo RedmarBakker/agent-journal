@@ -5,7 +5,7 @@ from journal.version import VERSION
 
 
 class SyncStatus:
-    """How this journal's sync with its team server stands, in one line for the viewer's status bar: nothing in no team, the version to install when the team is pinned to a newer one, the fault while it cannot reach the server, that it is connecting before it first has, else how many changes wait to be sent; and which of those it is, for the Team page's dot."""
+    """How this journal's sync with its team server stands, in one line for the viewer's status bar: nothing in no team, the version to install when the team is pinned to a newer one, the fault while it cannot reach the server, that it is connecting before it first has, else how many changes wait to be sent; and which of those it is, for the Team page's dot and the top bar's Team button, nothing in no team."""
 
     def __init__(self, account: TeamAccount, outgoing: OutgoingChanges) -> None:
         self.account, self.outgoing = account, outgoing
@@ -26,6 +26,8 @@ class SyncStatus:
         return f"Not syncing: your team runs {team_version} and this journal {VERSION}; your changes wait here until you update it"
 
     def state(self) -> str:
+        if not self.account.is_joined():
+            return ""
         if self.upgrade_line():
             return "version"
         if self.fault:

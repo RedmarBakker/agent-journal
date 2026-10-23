@@ -120,3 +120,11 @@ test("the viewer keeps a chat's messages in the order they were written, whichev
     expect(rows).toMatch(/const ORDERS = \{messages: byWriting\}/);
     expect(rows).not.toMatch(/\.sort\(byId\)/);
 });
+
+test("a joined journal shows a Team button with a dot for how its sync stands, and no sync line by the pause button", () => {
+    const top = readFileSync(resolve(__dirname, "../src/layout/TopBar.vue"), "utf8");
+    expect(top).toMatch(/<a class="icon-btn team-btn" :href="href\.settings\('team'\)"/);
+    expect(top).toMatch(/const SYNC_TONES = \{in_step: "good", waiting: "busy", connecting: "busy", not_connected: "bad", version: "bad"\}/);
+    const bar = readFileSync(resolve(__dirname, "../src/layout/StatusBar.vue"), "utf8");
+    expect(bar).not.toMatch(/statusbar-sync/);
+});

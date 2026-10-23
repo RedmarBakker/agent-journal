@@ -10,4 +10,4 @@ class SyncController:
         self.status = status
 
     def show(self, request: Request) -> Response:
-        return Response.json({"line": self.status.line()})
+        return Response.json({"line": self.status.line(), "state": self.status.state()})

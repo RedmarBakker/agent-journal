@@ -63,6 +63,7 @@ export const href = {
     page: (page = "", n = 0, q = "") => `#/${page}${n ? `/${n}` : ""}${q ? `?q=${encodeURIComponent(q)}` : ""}`,
     file: (path, line = 0, sub = "") => `#/file?q=${encodeURIComponent(path)}${line ? `&line=${line}` : ""}${sub ? `&sub=${sub}` : ""}`,
     reportUpdates: () => "#/reports?sub=updates",
+    settings: (tab) => `#/settings?sub=${tab}`,
     opened: (page, ref) => `${href.page(page)}?open=${ref}`,
 };
 
