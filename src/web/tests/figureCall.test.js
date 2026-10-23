@@ -119,3 +119,47 @@ test("the telephone is solid: every part has depth, is shaded light and dark as 
     expect(base.x / 5.4).toBeGreaterThan(0.3);
     expect(TELEPHONE.handset.length / 5.4).toBeGreaterThan(0.25);
 });
+
+test("the set has the classic desk shape: wider at the floor, its front face sloping back with the dial in it, round over the top, and the handset across the prongs with its pieces past the sides", () => {
+    const [set, handset, cord] = ["telephone", "telephone_handset", "telephone_cord"].map((name) => Object.assign(new THREE.Group(), {name}));
+    telephoneOf(set, handset, cord);
+    set.userData.shape({size: 1, dial: 0});
+    set.updateMatrixWorld(true);
+    const named = (name) => set.getObjectByName(`telephone_${name}`);
+    const body = named("base").geometry.attributes.position;
+    const points = Array.from({length: body.count}, (_, index) => new THREE.Vector3().fromBufferAttribute(body, index));
+    const {base} = TELEPHONE;
+    // wider at the floor than at the top
+    const across = (low, high) => Math.max(...points.filter((point) => point.y >= low && point.y <= high).map((point) => Math.abs(point.x)));
+    expect(across(-0.01, 0.05)).toBeGreaterThan(across(base.height - 0.05, base.height + 0.2) + 0.15);
+    // the front face slopes back: its foot well forward of its brow
+    const forward = (low, high) => Math.max(...points.filter((point) => point.y >= low && point.y <= high).map((point) => point.z));
+    expect(forward(-0.01, 0.05)).toBeGreaterThan(forward(base.brow[1] - 0.02, base.brow[1] + 0.02) + 0.3);
+    // round over the top: between the brow and the top's flat, heights between the two
+    expect(points.some((point) => point.y > base.brow[1] + 0.03 && point.y < base.height - 0.02 && point.z > base.brow[0] - 0.2)).toBe(true);
+    // the dial set in that face, facing out of it, forward and up
+    const dial = named("dial_face");
+    const middle = dial.getWorldPosition(new THREE.Vector3());
+    const facing = new THREE.Vector3(0, 1, 0).applyQuaternion(dial.getWorldQuaternion(new THREE.Quaternion()));
+    expect(middle.z).toBeGreaterThan(base.brow[0]);
+    expect(middle.y).toBeLessThan(base.brow[1]);
+    expect(facing.z).toBeGreaterThan(0.4);
+    expect(facing.y).toBeGreaterThan(0.4);
+    // two prongs on top; the handset rests above them, longer than the top is wide, so its ear and mouth pieces hang past its sides
+    for (const sign of [1, -1]) expect(named(`prong_${sign}`).position.y).toBeGreaterThan(base.height - 0.05);
+    expect(TELEPHONE.handset.length / 2).toBeGreaterThan(across(base.height - 0.05, base.height + 0.2) + TELEPHONE.handset.cup[1] / 2);
+    expect(handset.getObjectByName("telephone_handset_ear_piece")).toBeTruthy();
+    expect(handset.getObjectByName("telephone_handset_mouth_piece")).toBeTruthy();
+});
+
+test("the handset rests on its cradle a moment before it is taken up and again after it is put down, the set standing whole", () => {
+    for (const u of [act.appears[1] + 0.01, act.reach[0] - 0.01, act.hang[1] + 0.02, act.goes[0] - 0.01]) {
+        const {pose} = posed(u);
+        const resting = pose.props.get("telephone_handset");
+        expect(resting.bone, `${u}`).toBe("root");
+        expect(pose.props.get("telephone").size, `${u}`).toBe(1);
+        // on the cradle: where the set's own cradle holds it, the set and the handset lowered alike by any bend
+        const set = pose.props.get("telephone").at;
+        expect(resting.at.z - set.z, `${u}`).toBeCloseTo(TELEPHONE.base.height + TELEPHONE.cradle.height + TELEPHONE.handset.rest, 1);
+    }
+});

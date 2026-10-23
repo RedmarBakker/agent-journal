@@ -152,6 +152,10 @@ let drawn = "stand";
 // whether the legs on screen walk, as the page marks it for whoever measures the figure, beside the name of the clip on screen
 const walking = ref(false);
 
+// whether the figure hops on the leg it is on, and how far along a trip it is, as the page marks them for whoever measures the figure
+const hopping = computed(() => Boolean(body.trip?.moves && body.trip.hopping));
+const tripStage = computed(() => (body.trip ? (body.trip.started ? "walking" : "waiting to set off") : body.arriving ? "arriving" : ""));
+
 // the agent's row with the system's cards that are its own, which the figure's beats are read from
 const lead = computed(() => withSystemCards(agent.value, rows("messages")));
 // what the agent does, and what the figure plays of it: the work of the spell an edit, a read or a search set it (reactions.js spellSpell)
@@ -1252,8 +1256,8 @@ const style = computed(() => {
         :style="style"
         aria-hidden="true"
         :data-walking="walking"
-        :data-hopping="Boolean(body.trip?.moves && body.trip.hopping)"
-        :data-trip="body.trip ? (body.trip.started ? 'walking' : 'waiting to set off') : body.arriving ? 'arriving' : ''"
+        :data-hopping="hopping"
+        :data-trip="tripStage"
         :data-clip="shownClip?.name"
     >
         <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" ref="bodyArea" />
@@ -1281,18 +1285,19 @@ const style = computed(() => {
         </div>
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
-        <CodeParcel
-            v-if="blocks"
-            :x="drawing.x"
-            :y="drawing.y"
-            :up="drawing.up"
-            :scale="drawing.scale"
-            :opacity="drawing.opacity"
-            :blows="drawing.blows ?? 0"
-            :block="blocks[drawing.lit]"
-            :ahead="drawing.state === 'built'"
-            :piled="drawing.state === 'piled'"
-        />
+        <template v-if="blocks">
+            <CodeParcel
+                :x="drawing.x"
+                :y="drawing.y"
+                :up="drawing.up"
+                :scale="drawing.scale"
+                :opacity="drawing.opacity"
+                :blows="drawing.blows ?? 0"
+                :block="blocks[drawing.lit]"
+                :ahead="drawing.state === 'built'"
+                :piled="drawing.state === 'piled'"
+            />
+        </template>
     </template>
     <template v-if="crane">
         <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />
