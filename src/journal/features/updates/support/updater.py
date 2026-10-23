@@ -213,6 +213,8 @@ class Updater:
             os.kill(os.getpid(), signal.SIGTERM)
             return
         host = self.supervisor.hosting()
-        outputs = self.queue.restart(host, "") if host is not None else []
+        outputs = self.queue.update_restart(host) if host is not None else []
         if outputs:
             self.card.step(f"Restarting once outputs {', '.join(str(output.id) for output in outputs)} end")
+        elif host is not None and self.queue.is_waiting(host):
+            self.card.step("Restarting once the pool workers running here end")

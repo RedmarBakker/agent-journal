@@ -10658,6 +10658,17 @@ def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and
     assert queue.restart(MAIN, str(folder)) == [] and len(sent) == 2, "the command asking for the restart is never waited on"
     (folder / "done").write_text("1")
     assert queue.restart(MAIN, "") == [] and len(sent) == 3, "with nothing running the restart goes at once"
+    from journal.models.pool_job import PoolJob
+    from journal.repositories.pool_jobs import PoolJobs
+    jobs = app.container.get(PoolJobs)
+    job = jobs.save(PoolJob(request_id=7, environment_key="k", account_id=1, worker_id=1, profile="journal-medior").started(), Actor.system())
+    assert queue.restart(MAIN, "") == [] and len(sent) == 4, "a pool worker running here never holds a restart asked by hand"
+    assert queue.update_restart(MAIN) == [] and len(sent) == 4 and queue.is_waiting(MAIN), "an update's restart waits while a pool worker taken up here runs"
+    wait.tick(0.0)
+    assert len(sent) == 4, "and keeps waiting while it runs"
+    jobs.save(job.finished(), Actor.system())
+    wait.tick(0.0)
+    assert len(sent) == 5 and not queue.is_waiting(MAIN), "it goes once the pool worker has finished"
 
 
 def test_the_writing_sequences_open_in_plain_words_and_every_fiftieth_code_edit_brings_the_plain_words_reminder(app: App):
