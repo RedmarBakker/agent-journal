@@ -473,9 +473,9 @@ test("the swat goes on for as long as the pointer keeps tickling, past one play 
     let pointer = UNTICKLED;
     const held = [];
     let last = 0;
-    for (let at = 0; at <= playMs * 3; at += 120) {
+    for (let at = 0; at <= TICKLE.prolonged + playMs * 3; at += 120) {
         pointer = movedTo(pointer, 400 + (Math.floor(at / 120) % 2 ? 30 : 0), at);
-        if (at >= TICKLE.within) held.push(tickling(pointer, at));
+        if (at >= TICKLE.within + TICKLE.prolonged) held.push(tickling(pointer, at));
         last = at;
     }
     // at every moment past the first play, so whenever a swat ends, the tickle still holds and the swat starts again

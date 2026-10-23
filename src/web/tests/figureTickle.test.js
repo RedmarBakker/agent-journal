@@ -16,9 +16,9 @@ const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).ma
 const moved = (xs, ms = 40, start = 1000) => xs.reduce((pointer, x, index) => movedTo(pointer, x, start + index * ms), UNTICKLED);
 
 test("the mouse pointer moved back and forth over the figure tickles it, a single pass does not, and it ends as the pointer leaves or stops", () => {
-    // back and forth across it three times in quick succession: tickled
+    // back and forth across it, kept up past TICKLE.prolonged: tickled
     const xs = [400, 420, 440, 460, 440, 420, 400, 420, 440, 460, 440, 420];
-    const tickled = moved(xs);
+    const tickled = moved([...xs, ...xs, ...xs, ...xs, ...xs]);
     expect(tickling(tickled, tickled.at)).toBe(true);
     // one pass over it, however long: not tickled
     const pass = moved([380, 400, 420, 440, 460, 480, 500, 520, 540]);
@@ -52,4 +52,22 @@ test("a tickle starts the swat every time, from the pile with no cooldown, the h
         // each hand comes up at the pointer in its turn
         for (const side of ["l", "r"]) expect(Math.max(...raised.map((each) => each[side])), `${voice} ${side}`).toBeGreaterThan(2.2);
     }
+});
+
+test("tickling sets the figure off only after about two seconds of it", async () => {
+    const {movedTo, tickling, UNTICKLED, TICKLE} = await import("../src/figure/tickle.js");
+    const wiggle = (milliseconds) => {
+        let pointer = UNTICKLED;
+        let x = 100;
+        for (let at = 0; at <= milliseconds; at += 100) {
+            x = x === 100 ? 140 : 100;
+            pointer = movedTo(pointer, x, at);
+        }
+        return {pointer, at: milliseconds};
+    };
+    const brief = wiggle(1000);
+    expect(tickling(brief.pointer, brief.at)).toBe(false);
+    const long = wiggle(2500);
+    expect(tickling(long.pointer, long.at)).toBe(true);
+    expect(TICKLE.prolonged).toBe(2000);
 });
