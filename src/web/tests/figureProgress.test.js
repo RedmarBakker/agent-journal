@@ -42,3 +42,23 @@ test("looking at a bar's edge below its feet, the head turns down and follows th
         }
     }
 });
+
+test("a look eases in and out from the head as its clip has it, so the head never snaps when what it watches goes", () => {
+    const idle = CLIPS.find((clip) => clip.name === "idle");
+    const head = (amount) => {
+        const pose = new Posing(RIG, "stand", 0);
+        idle.pose(pose, stanceOf("butler"), 0);
+        if (amount !== null) lookToward(pose, {x: 1.6, y: -0.6, amount}, 0);
+        return new THREE.Vector3(0, -1, 0).transformDirection(pose.moves(0).get("head"));
+    };
+    const own = head(null);
+    expect(head(0).angleTo(own)).toBeLessThan(1e-6);
+    const full = head(1).angleTo(own);
+    expect(full).toBeGreaterThan(0.3);
+    const steps = [0.25, 0.5, 0.75].map((amount) => head(amount).angleTo(own));
+    for (const [index, angle] of steps.entries()) {
+        expect(angle).toBeGreaterThan(index ? steps[index - 1] : 0);
+        expect(angle).toBeLessThan(full);
+    }
+    expect(steps[1]).toBeCloseTo(full / 2, 1);
+});

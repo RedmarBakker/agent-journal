@@ -1430,10 +1430,23 @@ export const SKY = {step: 0.6, hop: 0.12, lean: 8, shadeWrist: [1.18, -0.5, 2.72
 const LOOK_DEPTH = -1.2;
 
 // The head turned to look at `at`, a point in the figure's picture as shares of its width from the left and its height from the top, as
-// the UFO it watches or the leading edge of a progress bar under its feet, the figure turned `facing` degrees
+// the UFO it watches or the leading edge of a progress bar under its feet, the figure turned `facing` degrees; `at.amount` of the way from
+// the head as its clip has it, 0 to 1, as the look eases in and out
 export function lookToward(pose, at, facing = 0) {
     const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
+    const own = pose.matrix("head").clone();
     eyesToward(pose, point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing)));
+    if (at.amount < 1) pose.final.set("head", between(own, pose.matrix("head"), at.amount));
+}
+
+// a bone's move `k` of the way from `from` to `to`, turned and placed part way, as a head easing into or out of a look
+function between(from, to, k) {
+    const [a, b] = [from, to].map((move) => {
+        const parts = {at: new THREE.Vector3(), turn: new THREE.Quaternion(), size: new THREE.Vector3()};
+        move.decompose(parts.at, parts.turn, parts.size);
+        return parts;
+    });
+    return new THREE.Matrix4().compose(a.at.lerp(b.at, k), a.turn.slerp(b.turn, k), a.size.lerp(b.size, k));
 }
 
 function watch(pose, stance, t) {

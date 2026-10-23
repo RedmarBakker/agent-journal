@@ -675,9 +675,10 @@ function sendUfo() {
 
 // Each frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at rising up the beam
 // to its middle, shrinking, those of the stops it has made gone, and what the figure watches: the UFO, with a hand shading its eyes while
-// it is still coming in, and stepped back once it first lifts
+// it is still coming in, and stepped back once it first lifts; once it is gone the figure steps forward again over as long as it took to
+// step back
 function flyUfo() {
-    if (!ufo.value) return void (sky = null);
+    if (!ufo.value) return stepForward();
     const {edge} = composeEdge();
     const ms = performance.now() - ufo.value.began;
     const at = ufoAt(ufo.value.stops, ms, edge.top, ufo.value.from, ufo.value.away);
@@ -700,15 +701,39 @@ function flyUfo() {
     parcels.value = parcels.value.filter((each) => !ufo.value.stops.some((stop) => stop.ids.includes(each.id)));
     ufo.value = null;
     saucer.value = null;
-    sky = null;
+    sky = {shade: 0, back: sky.back, at: performance.now()};
 }
 
-// Where in its picture the figure looks this frame: at the UFO while it flies, else, standing on the bars docked over the compose box,
-// at the leading edge of a progress bar on them while it runs, so its head follows the edge as it moves; null to look as its clip does
-function lookingAt() {
+function stepForward() {
+    if (!sky) return;
+    const now = performance.now();
+    const back = Math.max(sky.back - (now - sky.at) / STEP_BACK_MS, 0);
+    sky = back ? {shade: 0, back, at: now} : null;
+}
+
+// What the figure looks at on the page: the UFO while it flies, else, standing on the bars docked over the compose box, the leading edge
+// of a progress bar on them while it runs, so its head follows the edge as it moves; null when there is nothing to look at
+function lookedAt() {
     const docks = groundEdge();
-    const point = saucer.value ?? (docks.docked && body.footing?.home && !body.trip ? progressEdge(docks.element) : null);
-    return point && {x: (point.x - body.at.x) / SIZE, y: (point.y - body.at.y) / SIZE};
+    return saucer.value ?? (docks.docked && body.footing?.home && !body.trip ? progressEdge(docks.element) : null);
+}
+
+// The look eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once
+// there is not, as the UFO goes or the bar ends, so the head never snaps; `amount` is how far into it the figure is, 0 to 1
+const LOOK_EASE_MS = 500;
+const gaze = {point: null, amount: 0, at: 0};
+
+// where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
+function lookingAt() {
+    const now = performance.now();
+    const point = lookedAt();
+    const step = (now - (gaze.at || now)) / LOOK_EASE_MS;
+    gaze.at = now;
+    gaze.amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
+    if (point) gaze.point = point;
+    if (!gaze.amount || !gaze.point) return null;
+    const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
+    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased};
 }
 
 const onType = (event) => {
