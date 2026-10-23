@@ -21,7 +21,12 @@ class PinsDataReader:
         return LazyFacts("pins", {
             "pinned": lambda: tuple(n.link.rstrip("/") for n in self.notices.open_scoped()),
             "recent_suggestions": lambda: self.recent_suggestions(agent),
+            "newest_pin_at": lambda: self.newest_pin_moment(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
+
+    def newest_pin_moment(self) -> float | None:
+        newest = self.notices.newest_scoped()
+        return newest.creation_time.timestamp() if newest is not None else None
 
     def recent_suggestions(self, agent: Agent) -> tuple[str, ...]:
         from journal.features.pins.feature import Pins

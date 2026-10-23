@@ -21,7 +21,8 @@ class Pins(Feature[PinsData]):
     conduct = (PinsConduct,)
 
     LINK_PIN_REQUEST = Nudge(name, "pin_the_link", "{{url}} is not pinned", "pin it if the user will come back to it: `journal notice create \"<what it is>\" --link \"{{url}}\" --label \"<Open ...>\"`", repeat_interval=0)
-    nudges = (LINK_PIN_REQUEST,)
+    UNPINNED_CLAIM = Nudge(name, "pin_claimed_unmade", "you told the user a link is pinned, but no pin was made in the last minute", "pin it now with `journal notice create \"<what it is>\" --link \"<url>\" --label \"<Open ...>\"`, or tell the user where to find it instead", repeat_interval=0)
+    nudges = (LINK_PIN_REQUEST, UNPINNED_CLAIM)
 
     skill = Skill("pinned-links", 'Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.', """
 # Pinned links

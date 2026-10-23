@@ -19,3 +19,7 @@ class Notices(ScopedRepository[Notice]):
 
     def open_titled(self, titles: tuple[str, ...], time: datetime) -> list[Notice]:
         return self.selected(self.query().filter_null("closed_at").filter_listed("title", list(titles)).filter_less_equal("created_at", time))
+
+    def newest_scoped(self) -> Notice | None:
+        rows = self.selected(self.query().order_descending("id").limit(1))
+        return rows[0] if rows else None

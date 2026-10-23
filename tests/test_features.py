@@ -534,6 +534,22 @@ def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(
     assert (guesses(tests_mark), guesses(build_mark), guesses(upload_mark)) == ((True, False, False), (False, True, False), (False, False, True)), "each mark carries what its title says it is, guessed once"
 
 
+def test_telling_the_user_a_link_is_pinned_with_no_pin_made_is_pointed_out(app: App, monkeypatch):
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+
+    def told():
+        keystrokes.clear()
+        replied = json.dumps(hook(app, "MessageDisplay", message="The design is pinned above the chat, Sir Jesse.")[1])
+        app.runtime().deferred.drain()
+        return replied + " ".join(keystrokes)
+    assert "no pin was made in the last minute" in told(), "a pin claimed with none made is pointed out"
+    app.console().run(["notice", "create", "The design", "--link", "https://example.com/design", "--label", "Open the design"], AGENT)
+    assert "no pin was made" not in told(), "just after a pin is made, the claim stands"
+
+
 def test_a_check_edited_runs_its_new_command(app: App):
     from journal.features.checks.support.check_runner import CheckRunner
     from journal.repositories.checks import Checks
