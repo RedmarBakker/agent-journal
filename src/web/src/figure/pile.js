@@ -88,9 +88,10 @@ export const PILE = [
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
     ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [...celebrations(), look("bright", 3), nothing(9)]),
-    // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes
-    ...at("bar_done", {}, celebrations()),
-    ...at("bar_failed", {}, [clip("fume", 1)]),
+    // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes;
+    // either holds, playing to its end whatever comes, as the eagerness before it does (figure.js eager)
+    ...at("bar_done", {holds: true}, celebrations()),
+    ...at("bar_failed", {holds: true}, [clip("fume", 1)]),
     // standing still or thinking, it glances aside now and then, at uneven times, so standing still is never the same loop
     ...at("standing", {cooldown: 12}, [clip("look_left", 2), clip("look_right", 2), clip("look_up", 1), nothing(40)]),
     // the eyes now and then: focused while it works, half-lidded and calm while it stands idle, never a fixed face
@@ -247,8 +248,10 @@ export const lineOf = (entry) =>
 // whether the clip `name` may be cut off by the next moment once it has played `seconds`: only an act of CUT that has played its least
 export const cutsAfter = (name, seconds) => Boolean(CUT[name]) && seconds >= CUT[name];
 
-// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: a loop as soon as it has played its
-// least (timeline.js playedLeast), an act once it has played its least (cutsAfter), and anything at once for a `trip` that drops
-// everything, as for the end of a long run (reactions.js EAGER)
+// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: never one that holds, declared on its
+// clip (figure.js CLIPS holds) or on its beat (the pile's holds); a loop as soon as it has played its least (timeline.js playedLeast),
+// an act once it has played its least (cutsAfter), and anything at once for a `trip` that drops everything, as for the end of a long run
+// (reactions.js EAGER)
 export const givesWay = (shown, seconds, trip = null) =>
-    Boolean(trip?.urgent) || !shown || (shown.once ? cutsAfter(shown.clip.name, seconds) : playedLeast(shown.clip, seconds));
+    !(shown?.holds || shown?.clip.holds) &&
+    (Boolean(trip?.urgent) || !shown || (shown.once ? cutsAfter(shown.clip.name, seconds) : playedLeast(shown.clip, seconds)));

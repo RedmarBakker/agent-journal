@@ -50,7 +50,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleRows, bubbleSize} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, isListening, pastimeFor, queuedFirst, spellFor, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -154,6 +154,8 @@ const blocks = ref(null);
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 let playing = {name: "", started: 0, shown: null, index: 0, closing: null};
+// whether the beat on screen is broken off at the next step, as one shown during a state that is over, or one a first beat interrupts
+let cutting = false;
 // the clip on screen, so the page can draw what the rig has no bones for, such as the bug the squire chases
 const shownClip = ref(null);
 const shownFacing = ref(0);
@@ -265,7 +267,7 @@ const LEANING = {idle: "ledge_sit"};
 function current() {
     if (!body.trip?.moves || body.trip.hopping) beats.value = beats.value.filter((beat) => beat.clip !== "stumble");
     const first = beats.value[0];
-    const beat = first && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto};
+    const beat = first && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto, holds: first.holds};
     const scene = {
         mode: modeOf(body),
         leaving: body.leaving,
@@ -334,7 +336,8 @@ function step() {
     // beat it breaks off dropped
     const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted)) && mayCut(playing.shown, body.trip);
     if (breaking && playing.shown.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed) beats.value = beats.value.slice(1);
-    const finished = playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
+    const finished = cutting || playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
+    cutting = false;
     const continuing = keyOf(wanted) === playing.name && playing.closing === null;
     const shown = continuing || finished ? wanted : playing.shown;
     const key = keyOf(shown);
@@ -359,7 +362,7 @@ function step() {
         }
         if (shown.arrival) body.arriving = false;
         else if (shown.landed) body.landing = false;
-        else beats.value = beats.value.slice(1);
+        else beats.value = playedFrom(beats.value, shown.clip.name);
         playing = {name: "", started: 0, shown: null, index: 0, closing: null};
         return step();
     }
@@ -743,6 +746,9 @@ function look() {
     now.value = Date.now() / 1000;
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
     spell.value = spellFor(doings.value.state, spell.value, now.value, Math.random, memory.tally);
+    const going = stillGoing(beats.value, doings.value.state, beatOnScreen());
+    beats.value = going.beats;
+    cutting ||= going.cut;
     const happened = [
         ...beatsAfter(lead.value, seenAt),
         ...cardsAfter(lead.value, knownCards),
@@ -1122,13 +1128,20 @@ function pointerMoved(event) {
     if (tickling(pointer, performance.now()) && !beats.value.some((beat) => beat.clip === "tickle_swat")) react({beat: "tickled", time: now.value});
 }
 
+// the clip of the beat on screen, or "" while no beat plays: an arrival, a departure or a landing is no beat
+const beatOnScreen = () => (playing.shown?.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed ? playing.shown.clip.name : "");
+
 // the moments answered before any beat already waiting: a stumble on a long walk, and a tickle, which the figure swats at at once
 const FIRST = new Set(["long_walk", "tickled", "bar_failed"]);
 
 function react(moment) {
     if (!isListening(eager)) return;
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
-    if (answer?.beat) beats.value = FIRST.has(moment.beat) ? queuedFirst(beats.value, answer.beat, playing.shown?.clip.name ?? "") : [...beats.value, answer.beat];
+    if (answer?.beat && queues(beats.value, answer.beat)) {
+        const queued = FIRST.has(moment.beat) ? queuedFirst(beats.value, answer.beat, beatOnScreen()) : {beats: [...beats.value, answer.beat], cut: false};
+        beats.value = queued.beats;
+        cutting ||= queued.cut;
+    }
     // a celebration on its chat mark: off to stand on it, when it has a stand free, else played where the figure is
     if (answer?.beat?.onto && markSpot(answer.beat.card, figureSize())) {
         stay = {where: "mark", card: answer.beat.card, until: now.value + MARK_STAY};

@@ -2795,7 +2795,8 @@ export const TYPING_SECONDS = 5;
 // the next of each pair: the Z of sleep, the notes of a whistled tune. A clip that `cuts` in takes over at once from whatever plays, as the
 // figure stops what it does to watch the UFO or swats at a tickle. A clip with its `ownLook` keeps it, the head never turned away to watch
 // the bar under it or the UFO, nor turned toward the viewer for a look in the eyes, as the figure faces the user dancing or laughing, or
-// pushes a parcel with its head going with its lean. A clip that names `least` plays at least that many seconds before anything else may
+// pushes a parcel with its head going with its lean. A clip that `holds` plays on whatever comes, never cut off, as the eagerness for a
+// run's end does. A clip that names `least` plays at least that many seconds before anything else may
 // take over, the beats waiting behind it, as typing does; one that is `aside` is drawn seated turned aside from the viewer, never square
 // to it, as at the laptop.
 
@@ -2876,7 +2877,7 @@ export const CLIPS = [
     {name: "pack_box", frames: ACTS.pack_box.intro + ACTS.pack_box.hold + ACTS.pack_box.outro, intro: ACTS.pack_box.intro, outro: ACTS.pack_box.outro, leaves: ACTS.pack_box.hold, fps: ACTS.pack_box.fps, loops: true, postures: MOVE, pose: pack_box},
     {name: "press", frames: ACTS.press.intro + ACTS.press.hold + ACTS.press.outro, intro: ACTS.press.intro, outro: ACTS.press.outro, leaves: ACTS.press.hold, fps: ACTS.press.fps, loops: true, postures: GESTURE, pose: press},
     {name: "vacuum", frames: ACTS.vacuum.intro + ACTS.vacuum.hold + ACTS.vacuum.outro, intro: ACTS.vacuum.intro, outro: ACTS.vacuum.outro, leaves: ACTS.vacuum.hold, fps: ACTS.vacuum.fps, loops: true, postures: MOVE, pose: vacuum},
-    {name: "eager", frames: EAGERNESS.intro + EAGERNESS.hold + EAGERNESS.outro, intro: EAGERNESS.intro, outro: EAGERNESS.outro, leaves: EAGERNESS.hold, fps: EAGERNESS.fps, loops: true, postures: MOVE, pose: eager},
+    {name: "eager", frames: EAGERNESS.intro + EAGERNESS.hold + EAGERNESS.outro, intro: EAGERNESS.intro, outro: EAGERNESS.outro, leaves: EAGERNESS.hold, fps: EAGERNESS.fps, loops: true, holds: true, postures: MOVE, pose: eager},
     {name: "fume", frames: ACTS.fume.frames, fps: ACTS.fume.fps, loops: false, cuts: true, postures: MOVE, pose: fume},
     {name: "look_left", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(-1, 0)},
     {name: "look_right", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(1, 0)},

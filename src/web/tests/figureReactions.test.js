@@ -249,9 +249,9 @@ test("a beat cut in front of the one playing drops it, so the cut one never play
     const joy = {clip: "joy"};
     const nod = {clip: "nod"};
     const swat = {clip: "tickle_swat"};
-    expect(queuedFirst([joy, nod], swat, "joy")).toEqual([swat, nod]);
-    expect(queuedFirst([joy, nod], swat, "idle")).toEqual([swat, joy, nod]);
-    expect(queuedFirst([], swat, "joy")).toEqual([swat]);
+    expect(queuedFirst([joy, nod], swat, "joy")).toEqual({beats: [swat, nod], cut: true});
+    expect(queuedFirst([joy, nod], swat, "")).toEqual({beats: [swat, joy, nod], cut: false});
+    expect(queuedFirst([], swat, "joy")).toEqual({beats: [swat], cut: false});
 });
 
 test("the head follows the pointer no faster than a set speed, and reaches it in the end", async () => {

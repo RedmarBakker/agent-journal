@@ -122,7 +122,7 @@ function wantedClip(scene, canDraw) {
     if (scene.eager) return {clip: "eager", facing: 0};
     if (scene.watching) return {clip: scene.watching, facing: 0};
     // a beat to play on its chat mark waits while the figure is on its way there
-    if (beat && !(beat.onto && trip)) return {clip: beat.clip, facing: beat.facing, once: true};
+    if (beat && !(beat.onto && trip)) return {clip: beat.clip, facing: beat.facing, once: true, ...(beat.holds && {holds: true})};
     // standing at the tab of what waits on the user it points up at it; anywhere else it waits turned toward the compose box
     if (place.view && state === "asking") return {clip: "point", facing: 0};
     // building a box and pushing it go on while the agent waits as well

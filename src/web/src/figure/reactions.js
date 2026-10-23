@@ -100,7 +100,7 @@ export const FLIP_OVER = 1;
 export function reactionTo(moment, memory, now, random, voice = "", has = () => true, tally = null) {
     const drawn = draw({moment, voice, has, memory, now, tally}, random);
     if (!drawn) return null;
-    return {[drawn.kind === "look" ? "look" : "clip"]: drawn.name, toward: drawn.toward ?? "", onto: Boolean(drawn.onto)};
+    return {[drawn.kind === "look" ? "look" : "clip"]: drawn.name, toward: drawn.toward ?? "", onto: Boolean(drawn.onto), holds: Boolean(drawn.holds)};
 }
 
 // The act drawn for `held` seconds of `state`, as its entry, or null: the idle acts while the figure has nothing to do, and the
@@ -123,7 +123,7 @@ const WHILE = {work: ["building", "working"], type: ["working"], read: ["working
 export function workMoments(state, typed, began, now) {
     const held = HELD[state];
     const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(WHILE[held] ?? []).map((beat) => ({beat, time: now}))];
-    if (state === "thinking") moments.push({beat: "pondering", time: now});
+    if (state === "thinking") moments.push({beat: "pondering", time: now, during: "thinking"});
     if (WORKING.has(state)) return {moments, began: began || now};
     if (began && now - began >= WORKED_SECONDS) moments.push({beat: "work_done", time: now});
     return {moments, began: 0};
@@ -156,11 +156,11 @@ export function answerTo(moment, voice, memory, now, random, has) {
     }
     if (COMPOSED[moment.beat]) {
         const composed = COMPOSED[moment.beat](memory.reacted, now, random);
-        return composed && has(composed) ? {beat: {clip: composed, card: ""}} : null;
+        return composed && has(composed) ? {beat: {clip: composed, card: "", ...(moment.during && {during: moment.during})}} : null;
     }
     const reaction = reactionTo(moment.beat, memory.reacted, now, random, voice, has, memory.tally);
     if (reaction?.look) return {look: reaction.look};
-    if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(moment.card ? {mark: moment.card} : {}), ...(reaction.onto && moment.card ? {onto: true} : {})}};
+    if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(moment.card ? {mark: moment.card} : {}), ...(reaction.onto && moment.card ? {onto: true} : {}), ...(reaction.holds && {holds: true})}};
     return null;
 }
 
@@ -174,9 +174,28 @@ export function pastimeFor(scene, waited, memory, now, random, has, tally = null
     return drawn && {clip: drawn.name, card: "", flies: Boolean(drawn.flies)};
 }
 
-// The beat queue with `beat` put before every other: the beat at its head, when it is the clip playing now, `playingClip`, is broken off
-// and dropped, so it never plays again from its start once `beat` has played
-export const queuedFirst = (beats, beat, playingClip) => [beat, ...(beats[0]?.clip === playingClip ? beats.slice(1) : beats)];
+// The beat queue once `beat` comes first, as a stumble, a tickle or a fume does: put before every beat waiting, and the beat on screen, at
+// the queue's head while it plays as the clip `playing`, broken off and dropped, never queued again; unless that one holds (pile.js
+// holds), when `beat` waits behind it. `cut` says whether the beat on screen is broken off.
+export function queuedFirst(beats, beat, playing) {
+    const head = beats[0];
+    const onScreen = Boolean(playing) && head?.clip === playing;
+    if (onScreen && head.holds) return {beats: [head, beat, ...beats.slice(1)], cut: false};
+    return {beats: [beat, ...(onScreen ? beats.slice(1) : beats)], cut: onScreen};
+}
+
+// the beat queue once the clip `name` has played to its end: its beat gone from the head, when it is the one there
+export const playedFrom = (beats, name) => (beats[0]?.clip === name ? beats.slice(1) : beats);
+
+// The beat queue as the agent stands in `state`: a beat shown during a state (`during`, as the thinking act is) gone once that state is
+// over, whether it waits or plays; `cut` says whether the beat on screen, playing as the clip `playing`, is one of them, ended at once
+export function stillGoing(beats, state, playing) {
+    const kept = beats.filter((beat) => !beat.during || beat.during === state);
+    return {beats: kept, cut: Boolean(playing) && beats[0]?.clip === playing && kept[0] !== beats[0]};
+}
+
+// whether `beat` is queued at all: a beat shown during a state never while another for that state already waits or plays
+export const queues = (beats, beat) => !beat.during || !beats.some((each) => each.during === beat.during);
 
 // How fast the figure's head can swing its look, in radians a second: a pointer moved faster is followed at this pace
 export const LOOK_TURN_SPEED = 2 * Math.PI;
