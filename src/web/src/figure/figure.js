@@ -2860,7 +2860,7 @@ export const CLIPS = [
     {name: "stretch", frames: 24, fps: 8, loops: false, postures: GESTURE, pose: stretch},
     {name: "squire_chase", frames: 24, fps: 12, loops: false, postures: MOVE, pose: squire_chase},
     {name: "pointed", frames: 20, fps: 10, loops: false, postures: MOVE, pose: pointed},
-    {name: "hat_tip", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: hat_tip},
+    {name: "hat_tip", frames: REACTING.frames, fps: REACTING.fps, loops: false, holds: true, postures: GESTURE, voices: ["butler"], pose: hat_tip},
     {name: "monocle", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: monocle},
     {name: "toast", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: toast},
     {name: "shaka", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: shaka},

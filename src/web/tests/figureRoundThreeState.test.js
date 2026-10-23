@@ -55,8 +55,8 @@ test("a long walk can stumble, but a hop and a stationary figure never do", () =
 
 test("only a newly seen card produces an arrival glance", () => {
     const known = new Set(), row = {data: {cards: [{key: "card:1", time: 10}]}};
-    expect(cardsAfter(row, known)).toEqual([{beat: "card_arrived", card: "card:1", time: 10}]);
+    expect(cardsAfter(row, known, 0)).toEqual([{beat: "card_arrived", card: "card:1", time: 10}]);
     row.data.cards[0].time = 20;
-    expect(cardsAfter(row, known)).toEqual([]);
+    expect(cardsAfter(row, known, 0)).toEqual([]);
     for (const voice of VOICES) expect(answerTo({beat: "card_arrived", card: "card:1"}, voice, memory(), 10, () => 0, has(voice)).beat).toEqual({clip: "glance", card: "card:1", mark: "card:1"});
 });

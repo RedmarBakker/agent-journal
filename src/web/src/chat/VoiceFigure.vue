@@ -158,6 +158,8 @@ const halo = ref(null);
 const blocks = ref(null);
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
+// when the figure began to watch: a run that began before it is never taken for one that has just ended
+const watchedSince = seenAt;
 let playing = {name: "", started: 0, shown: null, index: 0, closing: null};
 // whether the beat on screen is broken off at the next step, as one shown during a state that is over, or one a first beat interrupts
 let cutting = false;
@@ -761,8 +763,8 @@ function look() {
     cutting ||= ongoing.cut;
     const happened = [
         ...beatsAfter(lead.value, seenAt),
-        ...cardsAfter(lead.value, knownCards),
-        ...testResultsAfter(lead.value, testStates),
+        ...cardsAfter(lead.value, knownCards, watchedSince),
+        ...testResultsAfter(lead.value, testStates, watchedSince),
         ...facesAfter(rows("reactions"), seenAt),
         ...sayingsAfter(lead.value, rows("messages"), seenAt),
         ...writtenFacesAfter(lead.value, rows("messages"), seenAt),

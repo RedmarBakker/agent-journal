@@ -99,13 +99,17 @@ test("a watched test run that ends is seen once, as a pass or a failure, and a r
     const card = (key, ending) => ({key, time: 9, label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 100%", ending}});
     const known = new Map();
     const agent = (...cards) => ({data: {cards}});
-    expect(testResultsAfter(agent(card("messages:1", "")), known)).toEqual([]);
-    expect(testResultsAfter(agent(card("messages:1", "finished")), known)).toEqual([{beat: "tests_passed", time: 9, card: "messages:1"}]);
-    expect(testResultsAfter(agent(card("messages:1", "finished")), known)).toEqual([]);
-    expect(testResultsAfter(agent(card("messages:2", "failed with code 1")), known)).toEqual([
+    expect(testResultsAfter(agent(card("messages:1", "")), known, 0)).toEqual([]);
+    expect(testResultsAfter(agent(card("messages:1", "finished")), known, 0)).toEqual([{beat: "tests_passed", time: 9, card: "messages:1"}]);
+    expect(testResultsAfter(agent(card("messages:1", "finished")), known, 0)).toEqual([]);
+    expect(testResultsAfter(agent(card("messages:2", "failed with code 1")), known, 0)).toEqual([
         {beat: "tests_failed", time: 9, card: "messages:2"},
     ]);
-    expect(testResultsAfter(agent({key: "messages:3", time: 9, watch: {figure: "", ending: "finished"}}), known)).toEqual([]);
+    expect(testResultsAfter(agent({key: "messages:3", time: 9, watch: {figure: "", ending: "finished"}}), known, 0)).toEqual([]);
+    // an old run's mark that comes back into the chat already ended, from before the figure began to watch, celebrates nothing,
+    // however often it comes and goes
+    const later = new Map();
+    for (let look = 0; look < 5; look++) expect(testResultsAfter(agent(...(look % 2 ? [] : [card("messages:7", "finished")])), later, 100)).toEqual([]);
 });
 
 test("the user typing now and then makes its eyes read, and finishing a long stretch of work now and then makes it stretch", () => {
@@ -153,8 +157,8 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
     const made = new Set(
         [
             ...beatsAfter(agent, 1),
-            ...cardsAfter(agent, new Set()),
-            ...testResultsAfter(agent, new Map()),
+            ...cardsAfter(agent, new Set(), 0),
+            ...testResultsAfter(agent, new Map(), 0),
             ...facesAfter(faces, 1),
             ...sayingsAfter({session: "s"}, [said("report")], 1),
             // the figure's own page sees these two: a key pressed in the compose box, and the agent settling after WORKED_SECONDS of work

@@ -218,11 +218,14 @@ const testBeat = (card, ended) => {
     return fixed ? "tests_fixed" : "tests_passed";
 };
 
-// The beats for each test run that has ended since `known` (card key to the ending it had) was last filled in, which this fills in
-export function testResultsAfter(agent, known) {
-    const ended = (agent?.data?.cards || []).filter((card) => isTestRun(card) && endingOf(card));
-    const fresh = ended.filter((card) => known.get(card.key) !== endingOf(card));
-    fresh.forEach((card) => known.set(card.key, endingOf(card)));
+// The beats for each test run that has ended since `known` (card key to the ending it had, empty while it ran) was last filled in,
+// which this fills in: one seen running, or one that began after `since` (seconds, when the figure began to watch) and ended between
+// two looks. An old run's mark that comes back into the chat, already ended, is no ending.
+export function testResultsAfter(agent, known, since) {
+    const runs = (agent?.data?.cards || []).filter(isTestRun);
+    const ended = runs.filter((card) => endingOf(card));
+    const fresh = ended.filter((card) => known.get(card.key) === "" || (!known.has(card.key) && Number(card.time) > since));
+    runs.forEach((card) => known.set(card.key, endingOf(card)));
     return fresh.map((card) => ({beat: testBeat(card, ended), time: Number(card.time), card: card.key}));
 }
 
@@ -263,10 +266,10 @@ export const withSystemCards = (agent, messages) =>
         },
     };
 
-export function cardsAfter(agent, known) {
+export function cardsAfter(agent, known, since) {
     const cards = (agent?.data?.cards || []).filter((card) => card.key && !known.has(card.key));
     cards.forEach((card) => known.add(card.key));
-    return cards.map((card) => ({beat: "card_arrived", time: Number(card.time), card: card.key}));
+    return cards.filter((card) => Number(card.time) > since).map((card) => ({beat: "card_arrived", time: Number(card.time), card: card.key}));
 }
 
 // The beats for what reached the agent's row after `seenAt` (seconds), oldest first: its cards, and the user's own message

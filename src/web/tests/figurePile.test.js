@@ -315,3 +315,10 @@ test("one worker sent its job is one phone call: the marks the send writes in th
     expect(call(150)).toBe("");
     expect(call(100 + 2 * 90)).toBe("phone_call");
 });
+
+test("the butler's hat tip is never cut off by what comes next", async () => {
+    const {givesWay} = await import("../src/figure/pile.js");
+    const tip = CLIPS.find((clip) => clip.name === "hat_tip");
+    expect(tip.holds).toBe(true);
+    expect(givesWay({clip: tip, once: true}, 0.1, {urgent: false})).toBe(false);
+});
