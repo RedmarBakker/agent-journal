@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, HEAD_TURN, Posing, SHOVE, leanOf, lookToward} from "../src/figure/figure.js";
+import {CLIPS, HEAD_TURN, Posing, SHOVE, blowsLandAt, leanOf, lookToward} from "../src/figure/figure.js";
 import {BLINK, BUILD, CLAW, CLAW_CLEARANCE, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, testRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
 import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
@@ -121,7 +121,7 @@ test("while the UFO is here the figure stops whatever it does to watch it: its h
     }
 });
 
-test("pushing a parcel the figure leans into it, its back angled well forward, both hands out against the parcel's near side about half way up, its feet stepping behind its hips, on the floor", () => {
+test("pushing a box is a normal push: leaning in 20 to 30 degrees, both hands flat on the box's near side part way up it, the head behind the box and never over its top, the feet stepping behind the hips, on the floor", () => {
     const push = CLIPS.find((clip) => clip.name === "push");
     // the parcel's near side, from the figure's feet, in the figure's units: PUSH.reach pixels ahead of the feet less half a parcel, up to
     // its height, at the chat's 112-pixel figure, whose picture is 5.4 units high
@@ -136,20 +136,28 @@ test("pushing a parcel the figure leans into it, its back angled well forward, b
                 const moves = pose.moves(0);
                 const at = (name) => pose.head(name, moves.get(name));
                 const label = `${voice} ${posture} ${step}`;
+                // the body leaning in from the hips to the neck 20 to 30 degrees from upright, forward, which is less y
+                const back = at("neck").sub(at("hips"));
+                const lean = THREE.MathUtils.radToDeg(Math.atan2(-back.y, back.z));
+                expect(lean, label).toBeGreaterThanOrEqual(20);
+                expect(lean, label).toBeLessThanOrEqual(30);
                 for (const side of ["l", "r"]) {
                     const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
-                    expect(grip.z, label).toBeLessThan(top * 0.8);
-                    expect(grip.z, label).toBeGreaterThan(top * 0.25);
-                    // flat on the parcel's near side, as the parcel is drawn ahead of the figure, over its hands' backs
+                    // on the box's side, part way up it, never on its top or down at the floor
+                    expect(grip.z, label).toBeLessThan(top * 0.85);
+                    expect(grip.z, label).toBeGreaterThan(top * 0.4);
+                    // flat on its near side, as the parcel is drawn ahead of the figure, over its hands' backs
                     expect(Math.abs(-grip.y - near), label).toBeLessThan(0.12);
                 }
-                // the back bent well forward, and no foot under the floor
-                const back = at("neck").sub(at("hips")).normalize();
-                expect(back.z, label).toBeLessThan(Math.cos(THREE.MathUtils.degToRad(45)));
+                // the head behind the box: its face, the front of the visor, no further forward than the box's near side and a little, and
+                // all of the head well above the box's top, so it never hangs over it
+                const eyes = RIG.eyes.reduce((sum, eye) => sum.add(eye.clone().applyMatrix4(moves.get("head"))), new THREE.Vector3()).multiplyScalar(1 / RIG.eyes.length);
+                expect(-eyes.y, label).toBeLessThan(near + 0.15);
+                expect(at("neck").z, label).toBeGreaterThan(top + 0.3);
+                // the feet on the floor and behind the hips, as one leaning into a push
                 for (const side of ["l", "r"]) expect(at(`foot_${side}`).z, label).toBeGreaterThan(-0.05);
-                // the feet behind the hips, as one leaning into a push: forward is less y
                 const feet = (at("foot_l").y + at("foot_r").y) / 2;
-                expect(feet - at("hips").y, label).toBeGreaterThan(0.1);
+                expect(feet - at("hips").y, label).toBeGreaterThan(0.05);
             }
         }
     }
@@ -341,14 +349,16 @@ test("a box built, the figure goes straight round behind it and pushes, in one m
     const figure = {size: 112, below: 0.05};
     const parcel = 400;
     const pile = 600;
-    const feet = parcel + 29;
+    // where it hammers from, the box's middle as far from its feet as its blows land, at the chat's 112-pixel figure
+    const hammers = Math.abs(blowsLandAt(stanceOf("butler"))) * figure.size;
+    const feet = parcel + hammers;
     const stand = pushStand(parcel, pile, feet);
     expect(behind(parcel, stand)).toBe(true);
     const legs = tripTo({x: feet, y: 700, posture: "stand"}, {x: stand, y: 700, posture: "stand"}, figure).legs;
     expect(legs.filter((leg) => leg.hopping && leg.ms > 0)).toEqual([]);
     expect(pushStand(parcel, pile, stand)).toBe(pile - PUSH.reach);
     // hammering on the box's near side already, it pushes from where it stands
-    expect(pushStand(parcel, pile, parcel - 29)).toBe(pile - PUSH.reach);
+    expect(pushStand(parcel, pile, parcel - hammers)).toBe(pile - PUSH.reach);
 });
 
 test("a running chat mark titled with the word test builds boxes one after another from 5 seconds in, and the wait for the next is counted from its end", () => {
@@ -387,7 +397,7 @@ test("a running chat mark titled with the word test builds boxes one after anoth
     expect(second.begun[0]).toBe(60 + UNIT.every);
 });
 
-test("pushing, the head goes with the body's lean, nodded a little further down the way it goes, never straightened up, turned or tilted by itself, and no look turns it", () => {
+test("pushing, the head looks ahead past the box, raised against the lean: never nodded down over the box, turned or tilted by itself, and no look turns it", () => {
     const clip = CLIPS.find((each) => each.name === "push");
     // it keeps its own look: the page's looks and the turn toward the viewer leave its head alone
     expect(clip.ownLook).toBe(true);
@@ -400,14 +410,12 @@ test("pushing, the head goes with the body's lean, nodded a little further down 
                 clip.pose(pose, stanceOf(voice), frame / clip.frames);
                 const moves = pose.moves(0);
                 const way = (name, axis) => new THREE.Vector3(...axis).transformDirection(moves.get(name)).normalize();
-                // the head's up within a few degrees of the chest's, as the lean carries it
-                expect(degrees(way("head", [0, 0, 1]), way("chest", [0, 0, 1])), label).toBeLessThan(8);
                 // its face no further round or over than the chest's: the same way across, the same roll
                 const [face, chest] = [way("head", [0, -1, 0]), way("chest", [0, -1, 0])];
                 expect(Math.abs(face.x - chest.x), label).toBeLessThan(0.05);
                 expect(Math.abs(way("head", [1, 0, 0]).z - way("chest", [1, 0, 0]).z), label).toBeLessThan(0.05);
-                // and leaning in, its face at or a little below the chest's, never tipped back up
-                if (leanOf(frame / clip.frames) > 0.5) expect(face.z, label).toBeLessThanOrEqual(chest.z + 1e-6);
+                // and leaning in, it looks ahead, about level, never down over the box nor up at the sky
+                if (leanOf(frame / clip.frames) > 0.5) expect(Math.abs(face.z), label).toBeLessThan(0.2);
             }
         }
     }

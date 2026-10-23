@@ -158,7 +158,7 @@ export const pushWaits = (parcels) => parcels.some((each) => each.state === "bui
 export const answeredWith = (moments, parcels) => (pushWaits(parcels) ? moments.filter((moment) => !IDLE_MOMENTS.has(moment.beat)) : moments);
 
 // how far in front of its feet a pushing figure's hands meet the parcel's middle, and the room it leaves behind a parcel before pushing
-export const PUSH = {reach: 24, room: 6};
+export const PUSH = {reach: 40, room: 6};
 
 // whether a figure with its feet at `feet` stands behind a parcel at `parcel`, on its left, so walking right pushes it
 export const behind = (parcel, feet) => feet <= parcel - PUSH.reach + 2;

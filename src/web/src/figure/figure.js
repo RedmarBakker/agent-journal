@@ -1739,14 +1739,14 @@ function watch(pose, stance, t) {
     }
 }
 
-// Pushes a parcel along in front of it, which stands far lower than its hands: the knees bent to lower the hips by `drop` and the back
-// leaning into the parcel it pushes: the body angled forward, the back `lean` degrees from upright, the knees
-// giving by `drop`, the feet stepping `behind` the hips, and both hands out against the parcel's near side at `hands` from where its feet
-// stand, about half way up it, its head going with the lean, nodded `nod` degrees further down the way it goes and never turned by a look
-// (the clip's `ownLook`). It turns to face the parcel before it leans in: the clip's first `turn` frames it stands upright while it turns, as long as the change of
+// Pushes a parcel along in front of it as one pushes a heavy box: the back bent `lean` degrees forward from the hips, so the body leans
+// in about a quarter of the way to flat, the knees giving by `drop` with a little strain, the feet stepping `behind` the hips, both arms
+// out with the hands flat on the parcel's near side at `hands` from where its feet stand, a little over half way up it (it stands nearly
+// as high as the figure's hips), and the head behind the hands, raised `nod` degrees against the lean so it looks ahead past the parcel
+// and never down over its top, never turned by a look (the clip's `ownLook`). It turns to face the parcel before it leans in: the clip's first `turn` frames it stands upright while it turns, as long as the change of
 // facing eases at its pace (places.js CHANGE_SECONDS), and over the rest of its `intro` it leans in; then it pushes, a stride a `stride`
 // frames
-export const SHOVE = {lean: 60, nod: 4, drop: 0.3, behind: 0.25, hands: [0.4, -0.25, 0.8], turn: 4, intro: 9, stride: 6, fps: 12};
+export const SHOVE = {lean: 34, nod: -42, drop: 0.25, behind: 0.2, hands: [0.42, -1.3, 0.6], turn: 4, intro: 9, stride: 6, fps: 12};
 
 // how far into the lean the push is at `t` of its frames, 0 upright while it turns and 1 leaning in
 export function leanOf(t) {
