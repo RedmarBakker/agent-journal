@@ -134,7 +134,6 @@ const BEATS = [
     {beat: "refused", matches: (card) => card.tone === "danger"},
     {beat: "answered", matches: (card) => card.icon === "question"},
     {beat: "task_finished", matches: (card) => card.icon === "todos" && card.tone === "good"},
-    {beat: "task_filed", matches: (card) => card.icon === "inbox" || (card.icon === "todos" && card.label.startsWith("Started task"))},
     {beat: "question_asked", matches: (card) => card.kind === "question"},
     {beat: "worker_sent", matches: (card) => card.icon === "agents" && card.label.includes(": dispatched")},
     {beat: "messaged", matches: (card) => (card.icon === "agents" && /: (sent|told) /.test(card.label)) || card.sentTo},

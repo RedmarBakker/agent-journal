@@ -1948,11 +1948,11 @@ function castle(pose, stance, t) {
 
 // The journal moments and the searches the figure acts out (acts.js ACTS), what it holds and what grows beside it drawn by the page at its
 // free hand and its feet (chat/FigureAct.vue). The wrist places, against the body at rest with the free hand's side outward: held up high,
-// the stamp lifted and brought down on the sheet, at the board, the sign held up, the scroll held before it, at
+// the stamp lifted and brought down on the sheet, the sign held up, the scroll held before it, at
 // the drawer, at the binoculars before the eyes, the flashlight held out, and down at the corner of the floor while it crouches `crouch`
 export const ACTED = {
     high: [1.0, -0.25, 2.92], stampHigh: [1.1, -0.42, 2.7], stampDown: [1.18, -0.46, 1.72],
-    board: [1.24, -0.36, 2.6], tap: 0.08, sign: [0.5, -0.25, 3.0], signWaggle: 0.1, scroll: [0.3, -0.84, 2.28],
+    sign: [0.5, -0.25, 3.0], signWaggle: 0.1, scroll: [0.3, -0.84, 2.28],
     drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.1, -0.55, 1.88], torchSweep: 0.16,
     corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34,
 }
@@ -1993,17 +1993,6 @@ function stamp(pose, stance, t) {
     trunk(pose, {lean: 4 + 8 * down, nod: 10 * held});
     actHand(pose, stance, held, between3(ACTED.stampHigh, ACTED.stampDown, down), {x: -20 * down});
     eyesAs(pose, "amused", partOf(u, [act.stamped, act.up[1]]) * (1 - partOf(u, act.sinks)));
-}
-
-// reaches up to the board grown beside it, pins a note on it and taps it twice
-function pin_note(pose, stance, t) {
-    const act = ACTS.pin_note;
-    const u = onceTime(t, act.frames);
-    const tap = Math.max(waveOf(span(u, ...act.tap), 2), 0);
-    const [x, y, z] = ACTED.board;
-    breathe(pose, 0);
-    trunk(pose, {nod: -6 * partOf(u, act.reach) * (1 - partOf(u, act.back))});
-    actHand(pose, stance, partOf(u, act.reach) * (1 - partOf(u, act.back)), [x, y - ACTED.tap * tap, z]);
 }
 
 // raises a sign with a question mark on a stick high over its head and waggles it
@@ -2355,7 +2344,6 @@ export const CLIPS = [
     {name: "castle", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: castle},
     {name: "post_dove", frames: ACTS.post_dove.frames, fps: ACTS.post_dove.fps, loops: false, postures: GESTURE, pose: post_dove},
     {name: "stamp", frames: ACTS.stamp.frames, fps: ACTS.stamp.fps, loops: false, postures: MOVE, pose: stamp},
-    {name: "pin_note", frames: ACTS.pin_note.frames, fps: ACTS.pin_note.fps, loops: false, postures: MOVE, pose: pin_note},
     {name: "ask_sign", frames: ACTS.ask_sign.frames, fps: ACTS.ask_sign.fps, loops: false, postures: GESTURE, pose: ask_sign},
     {name: "whistle_runner", frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: MOVE, pose: whistle},
     {name: "scroll", frames: ACTS.scroll.frames, fps: ACTS.scroll.fps, loops: false, postures: GESTURE, pose: scroll},

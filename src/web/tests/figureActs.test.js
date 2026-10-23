@@ -11,7 +11,7 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
-const ACTED = ["post_dove", "stamp", "pin_note", "ask_sign", "whistle_runner", "scroll", "file_card"];
+const ACTED = ["post_dove", "stamp", "ask_sign", "whistle_runner", "scroll", "file_card"];
 const NEW = ["look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
@@ -37,7 +37,6 @@ const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/
 const JOURNAL = {
     messaged: ["post_dove"],
     task_finished: ["stamp"],
-    task_filed: ["pin_note"],
     question_asked: ["ask_sign"],
     worker_sent: ["whistle_runner"],
     reported: ["scroll"],
@@ -52,14 +51,15 @@ test("each thing the agent does in the journal is its own moment, read from the 
     const agent = {session: "s", data: {}};
     const messages = [
         message(1, "system", "Finished task 12: the stamp", {icon: "todos", tone: "good"}),
-        message(2, "system", "Started task 13: the board", {icon: "todos", tone: ""}),
+        // a new task is no longer acted out (task 2647)
+        message(2, "system", "Started task 13: the parser", {icon: "todos", tone: ""}),
         message(3, "system", "Filed task 14 from your message", {icon: "inbox"}),
         message(4, "system", "Which one?", {kind: "question", process: "question"}, "s"),
         message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: dispatched on claude opus", {icon: "agents", tone: ""}),
         message(6, "system", "Fact 15 recorded", {icon: "check", tone: "good"}),
         message(7, "system", "Reminder 16 recorded", {icon: "check", tone: "good"}),
         message(8, "system", "Check Check for sins passed", {icon: "check", tone: "good"}),
-        message(9, "system", "Resumed task 13: the board", {icon: "todos", tone: ""}),
+        message(9, "system", "Resumed task 13: the parser", {icon: "todos", tone: ""}),
         message(10, "system", "Worker 57, Mr. Muybridge, motion photographer: released", {icon: "agents", tone: ""}),
         message(11, "system", "Finished task 99 in another session", {icon: "todos", tone: "good"}, "other"),
         message(12, "agent", "Done: the figure stamps now.", {}, "s"),
@@ -78,8 +78,6 @@ test("each thing the agent does in the journal is its own moment, read from the 
     const beats = [...beatsAfter(lead, 0), ...sayingsAfter(lead, messages, 0)].map((fire) => [fire.beat, fire.card]);
     expect(beats).toEqual([
         ["task_finished", "messages:1"],
-        ["task_filed", "messages:2"],
-        ["task_filed", "messages:3"],
         ["question_asked", "messages:4"],
         ["worker_sent", "messages:5"],
         ["fact_filed", "messages:6"],

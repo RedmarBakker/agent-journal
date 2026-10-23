@@ -6,8 +6,6 @@ export const ACTS = {
     post_dove: {frames: 48, fps: 12, raise: [0, 0.18], comes: [0.2, 0.5], taken: 0.5, goes: [0.5, 0.95], lower: [0.58, 0.8]},
     // a finished task: a sheet on a stand grows beside it, it lifts a big stamp, brings it down on the sheet, which is stamped green
     stamp: {frames: 42, fps: 12, grows: [0, 0.15], lift: [0.12, 0.36], down: [0.36, 0.46], stamped: 0.45, up: [0.52, 0.7], sinks: [0.86, 1]},
-    // a new task: a small board on a post grows beside it and it pins a note to it, then taps it
-    pin_note: {frames: 42, fps: 12, grows: [0, 0.15], reach: [0.15, 0.4], pinned: 0.42, tap: [0.5, 0.64], back: [0.64, 0.8], sinks: [0.86, 1]},
     // a question asked: it raises a sign with a question mark on a stick over its head and waggles it
     ask_sign: {frames: 42, fps: 12, raise: [0, 0.22], waggle: [0.22, 0.78], waggles: 3, lower: [0.78, 1]},
     // a worker sent out: it blows a whistle and a small runner sets off from beside it and runs off the screen

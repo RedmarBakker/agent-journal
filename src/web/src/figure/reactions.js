@@ -52,7 +52,6 @@ export const REACTIONS = [
     // what the agent has just done in the journal, acted out now and then, never every time
     {moment: "messaged", clip: "post_dove", odds: 0.35, cooldown: 120},
     {moment: "task_finished", among: [{clip: "stamp", weight: 4}, ...CELEBRATIONS], odds: 0.5, cooldown: 90, toward: "card", onto: true},
-    {moment: "task_filed", among: [{clip: "pin_note", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 90},
     {moment: "question_asked", among: [{clip: "ask_sign", weight: 3}, {clip: "think", weight: 1}], odds: 0.6, cooldown: 60},
     {moment: "worker_sent", among: [{clip: "whistle_runner", weight: 3}, {clip: "wave", weight: 1}], odds: 0.5, cooldown: 90},
     {moment: "reported", among: [{clip: "scroll", weight: 3}, {clip: "nod", weight: 1}], odds: 0.5, cooldown: 90},

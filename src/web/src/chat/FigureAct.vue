@@ -18,8 +18,8 @@ const props = defineProps({
 
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
-const STANDS = {stamp: {across: 0.25, top: 0.32}, pin_note: {across: 0.31, top: 0.56}, file_card: {across: 0.24, top: 0.3}};
-const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", cork: "#c99a5b", note: "#f5d547", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8"};
+const STANDS = {stamp: {across: 0.25, top: 0.32}, file_card: {across: 0.24, top: 0.3}};
+const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8"};
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
@@ -51,9 +51,6 @@ const dove = computed(() => {
 
 // the stamp's mark on the sheet, popping in as it lands
 const stamped = computed(() => (props.u >= act.value.stamped ? Math.min((props.u - act.value.stamped) / 0.05, 1) : 0));
-
-// the note pinned to the board where the hand left it
-const pinned = computed(() => props.u >= act.value.pinned);
 
 // the sign over its head on a stick, tipping as it waggles
 const waggle = computed(() => {
@@ -184,22 +181,6 @@ const flap = computed(() => {
                     <rect x="-1.5" y="-1" width="3" height="5" :fill="COLOURS.wood" />
                     <rect x="-7" y="4" width="14" height="4" rx="1" :fill="COLOURS.wood" />
                     <rect x="-7" y="8" width="14" height="2" :fill="COLOURS.green" />
-                </g>
-            </template>
-
-            <template v-if="name === 'pin_note' && stand">
-                <g :transform="growing">
-                    <rect :x="stand.x - 2" :y="stand.top + 20" width="4" :height="floor - stand.top - 20" :fill="COLOURS.wood" />
-                    <rect :x="stand.x - 15" :y="stand.top" width="30" height="22" rx="1.5" :fill="COLOURS.cork" stroke-width="2.4" />
-                    <g v-if="pinned">
-                        <rect :x="stand.x - 5" :y="stand.top + 5" width="11" height="11" :fill="COLOURS.note" stroke-width="0.7" transform-origin="center" />
-                        <path :d="`M${stand.x - 3} ${stand.top + 10}h7M${stand.x - 3} ${stand.top + 12.5}h5`" stroke-width="0.6" />
-                        <circle :cx="stand.x + 0.5" :cy="stand.top + 6" r="1.6" :fill="COLOURS.red" stroke-width="0.6" />
-                    </g>
-                </g>
-                <g v-if="!pinned && u > act.reach[0]" :transform="`translate(${hand.x} ${hand.y - 4})`">
-                    <rect x="-5.5" y="-5.5" width="11" height="11" :fill="COLOURS.note" stroke-width="0.7" />
-                    <path d="M-3.5 -0.5h7M-3.5 2h5" stroke-width="0.6" />
                 </g>
             </template>
 
