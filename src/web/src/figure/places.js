@@ -57,6 +57,17 @@ export const gripIn = (side, facing, below) => ({
     y: 1 - below - HANG_DROP,
 });
 
+// the postures the figure sits in, on a floor or over a ledge's edge, in none of which it ever turns (turnStep)
+export const SEATED = new Set(["sit", "lounge", "composed"]);
+
+// The next posture and facing, each {posture, facing}, the figure is drawn in on its way from `from` to `to`: it never turns sitting, so
+// from a seat it first stands up facing as it sat, then turns standing, and only sits again once it faces the way it sits; any other
+// change is made at once
+export function turnStep(from, to) {
+    if (from.facing === to.facing || (!SEATED.has(from.posture) && !SEATED.has(to.posture))) return to;
+    return {posture: "stand", facing: SEATED.has(from.posture) ? from.facing : to.facing};
+}
+
 // how long the figure takes to change from one clip, posture or facing to the next, easing out of the pose before it, in seconds
 export const CHANGE_SECONDS = 0.25;
 

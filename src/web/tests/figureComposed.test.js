@@ -4,7 +4,8 @@ import * as THREE from "three";
 import {expect, test} from "vitest";
 import {boxed} from "./support/figurePage.js";
 
-const {CLIPS, COMPOSED, LEGS, Posing, turnsToViewer} = await import("../src/figure/figure.js");
+const {CLIPS, COMPOSED, LEGS, LOUNGE, Posing, turnsToViewer} = await import("../src/figure/figure.js");
+const {SEATED, turnStep} = await import("../src/figure/places.js");
 const {choicesFor} = await import("../src/figure/pile.js");
 const {COMPOSED_ALONG, composedSpot} = await import("../src/figure/perches.js");
 const {GROUNDED, clipFor} = await import("../src/domain/figureState.js");
@@ -94,4 +95,60 @@ test("lounging, its legs straight out, the figure is only ever side-on: every lo
     expect(turnsToViewer("lounge")).toBe(false);
     expect(turnsToViewer("composed")).toBe(true);
     expect(turnsToViewer("stand")).toBe(true);
+});
+
+test("lounging, both hands lie flat on the floor beside the hips or a little behind them, level and never below the floor line, for every voice and clip", () => {
+    const lounging = CLIPS.filter((clip) => clip.postures.includes("lounge"));
+    expect(lounging.length).toBeGreaterThan(3);
+    const posed = (clip, voice, t) => {
+        const pose = new Posing(RIG, "lounge", 0);
+        LEGS.lounge.under(pose);
+        clip.pose(pose, stanceOf(voice), t);
+        LEGS.lounge.over(pose);
+        const moves = pose.moves(0);
+        return {at: (name) => pose.head(name, moves.get(name)), tip: (name) => RIG.heads.get(name).clone().add(RIG.along.get(name)).applyMatrix4(moves.get(name))};
+    };
+    const seated = posed(CLIPS.find((clip) => clip.name === "idle"), "butler", 0).at("hips").z;
+    for (const voice of Object.keys(stances)) {
+        for (const clip of lounging) {
+            for (const t of [0, 0.5]) {
+                const {at, tip} = posed(clip, voice, t);
+                const hips = at("hips");
+                // the floor line, carried up with the whole body by a clip that lifts it, as a startle does
+                const floor = LOUNGE.floor + hips.z - seated;
+                for (const [side, sign] of [["l", 1], ["r", -1]]) {
+                    const label = `${voice} ${clip.name} ${t} ${side}`;
+                    const [wrist, fingers] = [at(`hand_${side}`), tip(`hand_${side}`)];
+                    // the wrist and the fingers both at the floor line, the hand level on it, never through it
+                    for (const point of [wrist, fingers]) expect(point.z - floor, label).toBeGreaterThan(-0.05);
+                    for (const point of [wrist, fingers]) expect(point.z - floor, label).toBeLessThan(0.15);
+                    expect(Math.abs(fingers.z - wrist.z), `${label} level`).toBeLessThan(0.05);
+                    // beside the hips or a little behind them, on its own side
+                    expect(sign * (wrist.x - hips.x), label).toBeGreaterThan(0.45);
+                    expect(wrist.y - hips.y, label).toBeGreaterThan(-0.1);
+                    expect(wrist.y - hips.y, label).toBeLessThan(0.7);
+                }
+            }
+        }
+    }
+});
+
+test("a seated figure never turns where it sits: every change of facing from a seat or to one stands it up first, turns it standing, then sits it", () => {
+    const postures = ["stand", "walk", "sit", "lounge", "composed"];
+    const facings = [0, 90, 270];
+    for (const from of postures.flatMap((posture) => facings.map((facing) => ({posture, facing})))) {
+        for (const to of postures.flatMap((posture) => facings.map((facing) => ({posture, facing})))) {
+            const label = `${from.posture}@${from.facing} to ${to.posture}@${to.facing}`;
+            const steps = [from];
+            while (steps.length < 6 && (steps.at(-1).posture !== to.posture || steps.at(-1).facing !== to.facing)) steps.push(turnStep(steps.at(-1), to));
+            expect(steps.at(-1), label).toEqual(to);
+            // no step turns the figure while it sits, before or after
+            for (const [index, pose] of steps.entries()) {
+                if (!index || pose.facing === steps[index - 1].facing) continue;
+                expect(SEATED.has(pose.posture) || SEATED.has(steps[index - 1].posture), label).toBe(false);
+            }
+            // from a seat with a turn to make, it first stands up facing as it sat
+            if (SEATED.has(from.posture) && from.facing !== to.facing) expect(steps[1], label).toEqual({posture: "stand", facing: from.facing});
+        }
+    }
 });

@@ -70,7 +70,9 @@ import {
     progressOf,
     hiddenAt,
     spotOf,
+    SEATED,
     tripTo,
+    turnStep,
 } from "../figure/places.js";
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
@@ -345,10 +347,14 @@ function step() {
         playing = {name: "", started: 0, shown: null, index: 0, closing: null};
         return step();
     }
+    const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
+    // seated, it faces as its seat does, whatever the clip still on screen faced
+    poseToward({posture, facing: SEATED.has(posture) ? body.place.face : shown.facing});
     // the leg waiting for the clip it sets off with goes in the frame that clip goes on screen, so the walk is never drawn on the spot
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
-    drawn = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
-    if (!body.trip?.started && !body.airborne && !flight) rest();
+    drawn = posed.posture;
+    // until a trip sets off the picture keeps to the figure's place in the posture it is drawn in, so it gets to its feet where it is
+    if (!body.trip?.departed && !body.airborne && !flight) rest();
     carry();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
     // dancing the disco its visor flashes through the colours, else it lights as a run's end says
@@ -361,7 +367,7 @@ function step() {
     shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
     const seconds = performance.now() / 1000;
     headTilt = tiltAfter(headTilt, seconds, Math.random);
-    player.show(shown.clip, shownFrame.value, shown.facing, {
+    player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, posed.facing, {
         posture: drawn,
         eyes: look.eyes,
         stride,
@@ -376,6 +382,17 @@ function step() {
     keepParcels(shown);
     keepBall(shown);
     frameTimer = requestAnimationFrame(step);
+}
+
+// The posture and facing the figure is drawn in, on its way to those of the clip on screen, `target`, through standing whenever it turns
+// at a seat (places.js turnStep); while such a turn is `turning` it stands idle, each step waiting until the body has eased into the last
+let posed = {posture: "stand", facing: 0, turning: false};
+
+function poseToward(target) {
+    if (posed.turning && player.blending()) return;
+    const next = turnStep(posed, target);
+    const there = (pose) => pose.posture === target.posture && pose.facing === target.facing;
+    posed = {...next, turning: !there(next) || (posed.turning && !there(posed))};
 }
 
 // the picture's left and top for a figure on a spot in `posture`
@@ -481,6 +498,8 @@ function depart() {
         body.slide = {from: {...body.at}, to: from, began: performance.now()};
         return void slideWaits.push(() => body.trip === rising && depart());
     }
+    // risen from a seat, it turns the way it goes before it sets off
+    if (posed.turning) return;
     body.trip = {...body.trip, moves: true, departed: true, legs};
     body.footing = null;
     const feet = feetOf(from);

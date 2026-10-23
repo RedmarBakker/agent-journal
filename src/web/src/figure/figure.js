@@ -533,7 +533,7 @@ function seat(pose) {
 // Lounging on a floor's top (places.js POSTURES lounge): sat on it with the legs straight out toward the viewer, the feet up, leaning
 // back on both hands set flat on the floor a little behind the hips; the floor line is LOUNGE.floor above the standing feet in the
 // figure's units, where the hips' seat meets it
-const LOUNGE = {lean: -24, feet: 18, hands: [0.62, 0.5], floor: 1.4};
+export const LOUNGE = {lean: -24, feet: 18, hands: [0.62, 0.5], floor: 1.4};
 
 function loungedLegs(pose) {
     for (const side of Object.keys(SIDES)) {
@@ -544,6 +544,7 @@ function loungedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
         const flat = new THREE.Vector3(sign * LOUNGE.hands[0], LOUNGE.hands[1], LOUNGE.floor);
         handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(0.6, 1, 0));
+        pose.face(`hand_${side}`, {x: -80});
     }
 }
 
@@ -2516,7 +2517,7 @@ export const CLIPS = [
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "tickle_swat", frames: 24, fps: 16, loops: false, cuts: true, ownLook: true, postures: GESTURE, pose: tickle_swat},
     {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, ownLook: true, postures: MOVE, pose: disco},
-    {name: "bug_shot", frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: GESTURE, pose: bug_shot},
+    {name: "bug_shot", frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: MOVE, pose: bug_shot},
     {name: "pogo", frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
