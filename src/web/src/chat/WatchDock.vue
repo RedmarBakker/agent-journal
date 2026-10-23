@@ -2,7 +2,6 @@
 import {computed, ref, watch} from "vue";
 import ChatDock from "../kit/ChatDock.vue";
 import CloseButton from "../kit/CloseButton.vue";
-import Icon from "../kit/Icon.vue";
 import Dot from "../kit/Dot.vue";
 import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
@@ -44,7 +43,9 @@ watch(
 <template>
     <ChatDock label="Watched output" :folded="folded" kind="watch-dock">
         <template #head>
-            <Icon name="terminal" class="watch-dock-icon" />
+            <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
+                <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
+            </span>
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="opened ? 'Fold the output' : 'Show the whole output'" @click="toggle">{{ message.text }}</button>
             <template v-if="card.ending">
                 <span class="watch-dock-ending">{{ card.ending }}</span>
@@ -54,14 +55,9 @@ watch(
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
-        <div class="watch-dock-run">
-            <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
-                <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
-            </span>
-            <template v-if="card.line">
-                <code class="watch-dock-command">{{ card.line }}</code>
-            </template>
-        </div>
+        <template v-if="card.line">
+            <code class="watch-dock-command">{{ card.line }}</code>
+        </template>
         <template v-if="opened && colleague">
             <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
         </template>
@@ -84,14 +80,6 @@ watch(
 </template>
 
 <style scoped>
-.watch-dock-run {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    padding: 0 15px 4px;
-}
-
 .watch-dock-state {
     display: flex;
     flex: none;
@@ -108,7 +96,7 @@ watch(
 
 .watch-dock-command {
     display: block;
-    min-width: 0;
+    padding: 0 15px 4px 41px;
     overflow: hidden;
     color: var(--text-3);
     font-size: 9.5px;
@@ -129,11 +117,6 @@ watch(
     line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-}
-
-.watch-dock-icon {
-    flex: none;
-    color: var(--text-3);
 }
 
 .watch-dock-label {

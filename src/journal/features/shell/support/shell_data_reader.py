@@ -3,13 +3,14 @@ from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.readers import Readers
-from journal.features.shell.support.shell_data import ShellData
+from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
 from journal.models.agent import Agent
 from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
+from journal.repositories.scope import Scope
 from journal.support.worktree import Worktree
 from journal.support.moment import Moment
 
@@ -17,32 +18,36 @@ HISTORY_READS = 26
 
 
 class ShellDataReader:
-    """Reads the shell feature's part of the feature data for an agent."""
+    """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments) -> None:
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope) -> None:
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
+        self.scope = scope
 
-    def read(self, agent: Agent) -> ShellData:
-        from journal.features.shell.feature import Shell
-        background = self.outputs.background(agent.session)
+    def read(self, agent: Agent) -> LazyFacts:
+        return LazyFacts({
+            "background": lambda: tuple(o.row_id for o in self.outputs.background(agent.session)),
+            "backgrounded_at": lambda: min((o.creation_time.timestamp() for o in self.outputs.background(agent.session)), default=0.0),
+            "unannounced": lambda: tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unannounced(agent.session)),
+            "unread": lambda: tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unread(agent.session)),
+            "reader_requests": lambda: self.reader_requests(agent),
+            "tool_uses": lambda: agent.tool_uses,
+            "last_ending_line": lambda: self.last_ending_line(agent),
+            "output_reads": lambda: self.output_reads(agent),
+            "readers": lambda: tuple(self.readers.all()),
+            "tipped": lambda: self.tipped(agent),
+            "watch": lambda: self.watch(agent),
+            "aliases": lambda: tuple(self.aliases.rows()),
+            "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
+        }, lambda: self.scope.environment(agent.environment_id))
+
+    def output_reads(self, agent: Agent) -> tuple[str, ...]:
         commands = [command for e in self.entries.output_tool_starts(agent.session) if (command := e.recorded_call().command)]
-        reads = [OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS]
-        tipped = [line for nudge in (Shell.READER_HINT, Shell.READER_SUGGESTION, Shell.ALIAS_SUGGESTION, Shell.NEW_READER_SUGGESTION, Shell.READER_FIX, Shell.READER_DETAIL, Shell.SILENT_CARD) for line in self.entries.recent_lines(agent.session, nudge.key, 0)]
-        return ShellData(
-            background=tuple(o.row_id for o in background),
-            backgrounded_at=min((o.creation_time.timestamp() for o in background), default=0.0),
-            unannounced=tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unannounced(agent.session)),
-            unread=tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unread(agent.session)),
-            reader_requests=self.reader_requests(agent),
-            tool_uses=agent.tool_uses,
-            last_ending_line=self.last_ending_line(agent),
-            output_reads=tuple(reads),
-            readers=tuple(self.readers.all()),
-            tipped=tuple(tipped),
-            watch=self.watch(agent),
-            aliases=tuple(self.aliases.rows()),
-            home=str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
-        )
+        return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
+
+    def tipped(self, agent: Agent) -> tuple[str, ...]:
+        from journal.features.shell.feature import Shell
+        return tuple(line for nudge in (Shell.READER_HINT, Shell.READER_SUGGESTION, Shell.ALIAS_SUGGESTION, Shell.NEW_READER_SUGGESTION, Shell.READER_FIX, Shell.READER_DETAIL, Shell.SILENT_CARD, Shell.SUMMARY_REQUEST) for line in self.entries.recent_lines(agent.session, nudge.key, 0))
 
     def reader_requests(self, agent: Agent) -> tuple[str, ...]:
         from journal.features.shell.feature import Shell

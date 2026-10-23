@@ -14,6 +14,7 @@ from journal.config import Config
 from journal.features.aliases.support.alias_lines import AliasLines
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.watch_suggestions import WatchSuggestions
+from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
 from journal.models.alias import Alias
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.cap import Cap
@@ -40,6 +41,7 @@ class ShellRunner:
     def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, card: OutputProcessCard, readers: Readers, supervisor: SupervisorLink, entries: Entries) -> None:
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
         self.aliases, self.outputs, self.card, self.readers, self.supervisor, self.entries = aliases, outputs, card, readers, supervisor, entries
+        self.wrappers_told: set[str] = set()
 
     def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
         request = replace(posted, line=self.aliases.expanded(posted.line))
@@ -117,10 +119,28 @@ class ShellRunner:
 
     def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | ScriptReader | None, caller: Caller) -> list[str]:
         if alias is not None:
-            return self.watched(number, alias, caller)
+            return [*self.watched(number, alias, caller), *self.alias_wrapper_lines(alias)]
+        wrapper = self.line_wrapper_lines(part)
         if reader is not None:
-            return self.reader_watched(number, part, reader, caller)
-        return self.suggestions.lines(number, part)
+            return [*self.reader_watched(number, part, reader, caller), *wrapper]
+        return [*self.suggestions.lines(number, part), *wrapper]
+
+    def alias_wrapper_lines(self, alias: Alias) -> list[str]:
+        from journal.features.shell.feature import Shell
+        unwrapped = TimeLimitWrapper.unwrapped(alias.line)
+        if unwrapped == alias.line or alias.name in self.wrappers_told:
+            return []
+        self.wrappers_told.add(alias.name)
+        return [Shell.ALIAS_TIME_LIMIT.create(name=alias.name, line=unwrapped).rendered()]
+
+    def line_wrapper_lines(self, part: str) -> list[str]:
+        from journal.features.shell.feature import Shell
+        unwrapped = TimeLimitWrapper.unwrapped(part)
+        shape = CommandShape.build(unwrapped)
+        if unwrapped == part or shape in self.wrappers_told:
+            return []
+        self.wrappers_told.add(shape)
+        return [Shell.LINE_TIME_LIMIT.create(command=shape).rendered()]
 
     def reader_watched(self, number: int, part: str, reader: Reader | ScriptReader, caller: Caller) -> list[str]:
         from journal.features.shell.feature import Shell

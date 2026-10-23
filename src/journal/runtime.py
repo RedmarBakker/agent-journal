@@ -117,7 +117,7 @@ class Runtime:
         counterpart = self.standby.other_address()
         if counterpart:
             print(f"a journal of this project answers at {counterpart}: waiting until it is gone", flush=True)
-        while counterpart and os.getppid() == parent:
+        while (counterpart or not self.standby.claimed()) and os.getppid() == parent:
             time.sleep(INSTANCE_CHECK_SECONDS)
             counterpart = self.standby.other_address()
         if os.getppid() != parent:

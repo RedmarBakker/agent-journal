@@ -10813,3 +10813,19 @@ def test_the_developer_profile_names_the_function_a_busy_thread_spends_its_time_
         worker.join()
     assert sample.sample_count > 5 and any("spinning_for_the_profile" in place for place in sample.stack_functions), "a thread that works is seen in the function it works in"
     assert not any(place.startswith("MainThread: ") and "sampled" in place for place in sample.busy_functions), "the sampler never counts itself"
+
+
+def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alias_or_its_line(app: App):
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
+    from journal.models.alias import Alias
+
+    assert TimeLimitWrapper.unwrapped("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest -q"
+    assert TimeLimitWrapper.unwrapped("timeout 600 npm test") == "npm test" and TimeLimitWrapper.unwrapped("gtimeout --signal=KILL 10m make") == "make"
+    runner = app.container.get(ShellRunner)
+    suite = Alias(name="suite", line="perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q")
+    told = runner.alias_wrapper_lines(suite)
+    assert len(told) == 1 and "alias suite" in told[0] and "python3 -m pytest -q" in told[0], "an alias that wraps itself is told to drop the wrapper, with its line without it"
+    assert runner.alias_wrapper_lines(suite) == [], "once"
+    assert len(runner.line_wrapper_lines("timeout 600 npm test")) == 1 and runner.line_wrapper_lines("timeout 300 npm test") == [], "a plain line likewise, once for its command"
+    assert runner.line_wrapper_lines("python3 -m pytest -q") == [] and runner.alias_wrapper_lines(Alias(name="plain", line="make")) == [], "a run without a wrapper is told nothing"
