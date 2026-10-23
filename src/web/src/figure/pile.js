@@ -157,7 +157,7 @@ export const PILE = [
     ...at("carrier", {}, [pick("ufo", 3), pick("crane", 1)]),
     ...at("crane_from", {}, [pick("left", 1), pick("right", 1)]),
     // a perch on a bubble: a hang from its corner by a free hand, or a stand on its corner
-    ...at("perch", {}, [pick("hang", 2, {hands: true}), pick("stand", 3)]),
+    ...at("perch", {}, [pick("hang", 1, {hands: true}), pick("stand", 5)]),
     // a falling figure caught by a bubble it falls past, but never soon after another fall, or dropping straight home
     ...at("fall", {}, [pick("caught", 1, {settled: true}), pick("home", 1)]),
     // a digit a blow's dust lets out
@@ -165,10 +165,10 @@ export const PILE = [
     // where the figure goes when nothing calls it, and how long it stays, in seconds between the two: rests on a corner of the edge, sits on
     // the corner itself with its legs over the end, strolls the edge, perches on a bubble or stands on a tab
     ...at("roam", {}, [
-        pick("rest", 35, {}, {stay: [15, 40]}),
+        pick("rest", 35, {}, {stay: [25, 60]}),
         pick("seat", 15, {}, {stay: [15, 40]}),
         pick("edge", 25, {}, {stay: [8, 20]}),
-        pick("bubble", 15, {}, {stay: [15, 40], shenanigan: true}),
+        pick("bubble", 15, {}, {stay: [30, 80], shenanigan: true}),
         pick("tab", 10, {}, {stay: [10, 25]}),
         // with nothing to do, it sits on the edge of the floor it stands on, facing the viewer, its legs over the edge
         pick("ledge", 14, {free: true}, {stay: [20, 45]}),

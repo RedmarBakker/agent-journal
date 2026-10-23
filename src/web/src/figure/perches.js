@@ -2,7 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, homeCloses, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf, worldBox} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw} from "./pile.js";
 
@@ -35,9 +35,6 @@ const sideOf = (rect, scroller) => (rect.left - scroller.left > scroller.right -
 // whether a figure perched on this bubble's top corner stays inside the thread's view `scroller`
 const inView = (rect, scroller, figure) => rect.top - standRise(figure) >= scroller.top && rect.top <= scroller.bottom - 8;
 
-// a figure standing on a bubble's corner has its feet this share of its height inside the corner, over the bubble's padding rather than
-// its words
-const PERCH_INBOARD = 0.05;
 
 // the corner each hand takes facing the viewer; the body hangs outside the bubble so it never covers its words
 const HAND_CORNER = {l: "left", r: "right"};
@@ -71,12 +68,12 @@ export function perchSpot(perch, floors, figure) {
     const floor = floors.floors.find((each) => each.id === perch.floor);
     if (!floor || !inView(floor, floors.view, figure)) return null;
     const spot = spotOn(perch, floor, figure);
-    return holds(spot, figure, floors.floors) && !hiddenAt(spot, figure) ? spot : null;
+    return holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) ? spot : null;
 }
 
 function spotOn(perch, floor, figure) {
     if (perch.kind === STANDS)
-        return {...cornerAt({...floor, width: floor.right - floor.left}, perch.side, figure, PERCH_INBOARD), on: floor.element};
+        return {...cornerAt({...floor, width: floor.right - floor.left}, perch.side, figure), on: floor.element};
     const out = (perch.side === "left" ? -1 : 1) * HANG_OUT * figure.size;
     const x = (perch.side === "left" ? floor.left : floor.right) + out;
     return {x, y: floor.top, face: perch.face, posture: "hang", grip: perch.grip, on: floor.element};

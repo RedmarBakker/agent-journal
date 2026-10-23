@@ -2,6 +2,7 @@
 import {afterEach, expect, test} from "vitest";
 
 const {
+    FEET_INBOARD,
     POSTURES,
     STEADY,
     SPRINT,
@@ -69,9 +70,9 @@ test("a figure sitting on the right corner of a box turns right, and on the left
     expect(left.face).toBe(300);
 });
 
-test("a figure's hips sit a little inboard of the corner it sits on, so its weight rests on the surface and only its legs reach past the edge", () => {
+test("a figure standing at a corner has both feet on the surface, its middle half its body and a margin inside the end, never a foot over it", () => {
     page({left: 300, top: 600, width: 400, height: 120});
-    const inboard = 0.14 * FIGURE.size;
+    const inboard = FEET_INBOARD * FIGURE.size;
     expect(restOf(FIGURE, {x: 700, y: 600}).x).toBeCloseTo(700 - inboard, 5);
     expect(restOf(FIGURE, {x: 300, y: 600}).x).toBeCloseTo(300 + inboard, 5);
 });

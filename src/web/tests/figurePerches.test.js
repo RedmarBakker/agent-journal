@@ -12,7 +12,7 @@ const {legAt} = await import("../src/domain/figureMotion.js");
 const ROAMS = PILE.filter((entry) => entry.when.moment === "roam");
 const [HANG, STAND] = PILE.filter((entry) => entry.when.moment === "perch");
 const HANG_SHARE = HANG.weight / (HANG.weight + STAND.weight);
-const {SEAT_INBOARD, boxAt, overlaps, tripTo} = await import("../src/figure/places.js");
+const {FEET_INBOARD, SEAT_INBOARD, boxAt, overlaps, tripTo} = await import("../src/figure/places.js");
 const {write} = await import("./figurePage.js");
 
 // a page with nothing on it a perch could hide, until a test writes words onto it, and no chat, so the figure's world is the window
@@ -106,7 +106,8 @@ test("mostly the figure rests on a corner of the compose box or strolls along it
     // now and then it sits on a corner, less often than it stands there
     expect(odds.seat).toBeGreaterThan(0);
     expect(odds.seat).toBeLessThan(odds.rest);
-    expect(Math.max(...ROAMS.map((each) => each.stay[1]))).toBeLessThanOrEqual(50);
+    // it rests a while and rides a bubble up, but no stay keeps it still for long
+    expect(Math.max(...ROAMS.map((each) => each.stay[1]))).toBeLessThanOrEqual(80);
 });
 
 test("a figure standing on a corner or hanging stands where its bubble's corner is, and is let go when the bubble leaves the thread's view or the page", () => {
@@ -115,8 +116,8 @@ test("a figure standing on a corner or hanging stands where its bubble's corner 
     const hanging = {...sitting, kind: HANGS, grip: "r", face: 0};
     expect(perchSpot(sitting, floorsOf(one), FIGURE).face).toBe(60);
     expect(perchSpot(sitting, floorsOf(one), FIGURE).on).toBe(one.element);
-    // its hips sit over the bubble's padding, inside the corner by less than the padding, so its legs hang clear of the words
-    expect(500 - perchSpot(sitting, floorsOf(one), FIGURE).x).toBeLessThan(7);
+    // standing on the corner it keeps both feet on the bubble, its middle half its body and a margin inside the end
+    expect(500 - perchSpot(sitting, floorsOf(one), FIGURE).x).toBeCloseTo(FEET_INBOARD * FIGURE.size, 5);
     expect(perchSpot(hanging, floorsOf(one), FIGURE)).toMatchObject({face: 0});
     expect(perchSpot(hanging, floorsOf(one), FIGURE).x).toBeGreaterThan(500);
     expect(perchSpot(hanging, floorsOf(one), FIGURE)).toMatchObject({y: 300, posture: "hang", grip: "r"});
@@ -419,4 +420,13 @@ test("the disco dance plays only standing on a bubble with another above it to h
     expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: 15 * 60 - 1}).some((each) => each.name === "disco")).toBe(false);
     expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: SHOWPIECES.disco}).some((each) => each.name === "disco")).toBe(true);
     expect(SHOWPIECES.disco).toBe(15 * 60);
+});
+
+test("on a bubble the figure keeps 20 pixels inside the chat's sides, so a side never cuts its frame; a corner against a side is no perch", async () => {
+    const {WALL_ROOM} = await import("../src/figure/places.js");
+    const against = at(300, 900, 1270);
+    const roomy = at(300, 900, 1180);
+    const corner = (bubble) => perchSpot({floor: bubble.id, kind: STANDS, side: "right", grip: ""}, floorsOf(bubble), FIGURE);
+    expect(corner(against)).toBe(null);
+    expect(boxAt(corner(roomy), FIGURE).right).toBeLessThanOrEqual(1280 - WALL_ROOM);
 });

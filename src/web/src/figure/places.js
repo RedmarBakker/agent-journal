@@ -136,6 +136,15 @@ export function worldBox() {
 // how far past its world's edge a figure may be drawn, in pixels, for the rounding of a spot kept just inside it
 const EDGE = 0.5;
 
+// how far inside the chat's left and right sides a figure on a bubble keeps its picture, in pixels, so the sides never cut its frame
+export const WALL_ROOM = 20;
+
+// whether a figure on a spot keeps WALL_ROOM inside its world's left and right sides
+export function offWalls(spot, figure, world = worldBox()) {
+    const box = boxAt(spot, figure);
+    return box.left >= world.left + WALL_ROOM && box.right <= world.right - WALL_ROOM;
+}
+
 // Whether a figure on a spot is inside its world: its picture within the world's left, right and top, and the line it rests on at or
 // above the world's foot, as a seated figure's legs hang past any edge it sits on; a hanging figure is inside it whole. A seated figure
 // needs only its body inside, as it sits on the very corner of a box with its legs hanging past the end, the empty sides of its picture
@@ -154,6 +163,10 @@ const BODY_XS = [0.35, 0.5, 0.65];
 const BODY_YS = [0.15, 0.3, 0.45, 0.6, 0.75, 0.9];
 // the part of the picture the body is drawn in, as shares of its width and height, which is what the user can click
 export const BODY = {left: BODY_XS[0], right: BODY_XS.at(-1), top: BODY_YS[0], bottom: BODY_YS.at(-1)};
+
+// how far in from a floor's end a figure standing at its corner has its middle, as a share of its height: half its body's width and a
+// margin more, so both feet are on the floor and well clear of its end, never one over the edge
+export const FEET_INBOARD = (BODY.right - BODY.left) / 2 + 0.08;
 
 // the part of the body that takes the click: above the line the figure rests on, as hiddenAt counts it, so a figure sitting on the chat
 // box never takes a press meant for the box below its seat
@@ -229,7 +242,7 @@ const CORNER_SIDES = {
     right: {along: 1, inboard: -1, face: 60},
     left: {along: 0, inboard: 1, face: 300},
 };
-const CORNER_INBOARD = 0.14;
+const CORNER_INBOARD = FEET_INBOARD;
 
 // The place on one corner of a box's top edge, `side` being "left" or "right", the feet `reach` of the figure's height inside the corner;
 // `face` turns the figure along the edge, 0 faces the viewer
