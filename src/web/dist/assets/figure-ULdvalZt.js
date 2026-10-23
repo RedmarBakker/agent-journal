@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-4Z6T-lqy.js
-import{A as re,p as Se,a as ap,b as cp,h as Ol,s as lp,R as up,f as hp,F as fp,g as dp,l as pp,t as mp,P as ns,L as gp,c as _p,V as xp}from"./main-BZu3IJ7G.js";import{e as Dc}from"./tokens-yhQHMRrA.js";import"./tip-B4NzFvpQ.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as re,p as Se,a as ap,b as cp,h as Ol,s as lp,R as up,f as hp,F as fp,g as dp,l as pp,t as mp,P as ns,L as gp,c as _p,V as xp}from"./main-BgiTC2Qg.js";import{e as Dc}from"./tokens-yhQHMRrA.js";import"./tip-B4NzFvpQ.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 8dfb8ab64 (Pushing a box is a normal push: the body leans in 25 to 27 degrees from the hips, the knees give a little, the feet step behind, both hands flat on the box's near side part way up it, and the head stands behind the box looking ahead, never down over its top; the figure stands further behind the box to reach it):src/web/dist/assets/figure-BKNVTLGF.js
+import{A as re,p as Se,a as ap,b as cp,h as Ol,s as lp,R as up,f as hp,F as fp,g as dp,l as pp,t as mp,P as ns,L as gp,c as _p,V as xp}from"./main-_btAY7Vj.js";import{e as Dc}from"./tokens-yhQHMRrA.js";import"./tip-B4NzFvpQ.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
