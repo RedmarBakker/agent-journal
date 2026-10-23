@@ -116,6 +116,7 @@ class SettingRows(ScopedRepository[Setting]):
         return getattr(self._writing, "is_open", False)
 
     def stored(self) -> None:
+        super().stored()
         self._writing.is_open = True
         self.clear_cache()
         self.connection.commit_callback(self.committed)

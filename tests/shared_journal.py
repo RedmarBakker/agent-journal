@@ -61,6 +61,7 @@ class SharedJournal:
             self.restored(instance, fields)
         with sqlite3.connect(self.app.config.database) as live:
             self.rows.backup(live)
+        self.app.container.get(Connection).cache.cleared()
         self.put_back_files()
 
     def settled(self) -> None:

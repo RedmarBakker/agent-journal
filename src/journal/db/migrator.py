@@ -24,4 +24,6 @@ class Migrator:
             with self.connection.transaction() as db:
                 migration.apply(db)
                 db.execute("INSERT INTO migrations (number, ran_at) VALUES (?, ?)", (migration.number, datetime.now(timezone.utc).isoformat()))
+        if completed:
+            self.connection.cache.cleared()
         return completed

@@ -1954,6 +1954,7 @@ def test_the_look_runs_the_commands_the_setting_names_each_under_its_heading_in_
     from journal.db.connection import Connection
     from journal.db.migrations.overview_whole_lines import OverviewWholeLines
     OverviewWholeLines().apply(app.container.get(Connection))
+    app.container.get(Connection).cache.cleared()
     app.container.get(SettingRows).clear_cache()
     stored = app.container.get(SettingRows).project("briefing.look_commands")
     assert stored == ["journal task show current", "journal plan show current", "journal question list", "journal task list"], "a list saved in the short form, placeholders and all, is written as whole lines"
@@ -4394,6 +4395,7 @@ def test_a_fresh_start_asks_whether_old_facts_rules_and_reminders_still_hold(app
         facts = app.container.get(Facts)
         old = facts.scoped()[0]
         facts.connection.execute(f"UPDATE {facts.table} SET created_at = ?, updated_at = ? WHERE id = ?", ((datetime.now(timezone.utc) - timedelta(days=9)).isoformat(),) * 2 + (old.id,))
+        facts.stored()
     line_text = hook(app, "SessionStart", source="startup")[1]["hookSpecificOutput"]["additionalContext"]
     assert "these are 7 days old or more, check they still hold: fact 1, 9 days" in line_text and "fact 2" not in line_text.split("check they still hold:")[1].split("\n")[0], "the old one is named with its age, the new one is not"
     repeat = hook(app, "SessionStart", source="startup")[1]["hookSpecificOutput"]["additionalContext"]

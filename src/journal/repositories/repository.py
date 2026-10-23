@@ -71,6 +71,7 @@ class Repository(Generic[M]):
 
     def _purged(self, query: Query) -> None:
         self.connection.execute(*query.delete())
+        self.stored()
 
     def purged_rows(self, model: type[Model], query: Query, actor: Actor) -> None:
         ids = tuple(row["id"] for row in self.connection.all(*query.select()))
@@ -183,6 +184,7 @@ class Repository(Generic[M]):
 
     def restored(self, id: int, fields: dict) -> None:
         self.connection.execute(*self.query().upsert(id=id, **self._column_values(self._team_row(id, fields))))
+        self.stored()
 
     def _team_row(self, id: int, fields: dict) -> M:
         parsed = self._parsed(fields)
@@ -246,10 +248,10 @@ class Repository(Generic[M]):
         return row.without_events()
 
     def stored(self) -> None:
-        ...
+        self.connection.changed(self.table)
 
     def _loaded(self, query: Query) -> list[M]:
-        return [self._load(row) for row in self.connection.all(*query.select())]
+        return self.connection.cached(query.tables(), *query.select(), lambda rows: [self._load(row) for row in rows])
 
     def _column_values(self, row: M) -> dict:
         return {column.name: getattr(row, column.name) for column in self.columns if column.name != "id"}

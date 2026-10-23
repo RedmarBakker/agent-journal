@@ -36,10 +36,11 @@ class EntryController:
             with self.scope.environment(environment):
                 return entries()
 
+        start_id = request.query.get("since")
+        journal_newest = read(self.entries.last_id)
+
         def events() -> Iterator[bytes]:
             yield b": open\n\n"
-            start_id = request.query.get("since")
-            journal_newest = read(self.entries.last_id)
             newest_id, silence_seconds = (min(int(start_id), journal_newest) if start_id else journal_newest), 0.0
             while True:
                 time.sleep(0.5)

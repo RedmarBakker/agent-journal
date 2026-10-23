@@ -126,6 +126,8 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
         call(server, "GET", "/journal/tasks?limit=50")
         assert logged("GET /journal/tasks") and developer()["loads"] == [] and developer()["models"] == [], "off, a request is timed and nothing is counted"
         call(server, "POST", "/journal/settings", {"faults": {"count_loads": True}})
+        from journal.db.connection import Connection
+        app.container.get(Connection).cache.cleared()
         call(server, "GET", "/journal/tasks?limit=51")
         for _ in range(50):
             counted = [line for line in developer()["loads"] if line["label"] == "GET /journal/tasks"]

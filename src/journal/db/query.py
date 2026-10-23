@@ -23,6 +23,7 @@ class Query:
     orders: tuple[str, ...] = ()
     row_limit: int = -1
     row_offset: int = 0
+    subquery_tables: tuple[str, ...] = ()
 
     @classmethod
     def build(cls, model: type[Model]) -> "Query":
@@ -82,7 +83,11 @@ class Query:
 
     def filter_absent(self, query: "Query") -> "Query":
         filters = query._filters()
-        return self._with(Condition(f"NOT EXISTS (SELECT 1 FROM {query.table}{filters.text})", filters.params))
+        absent = self._with(Condition(f"NOT EXISTS (SELECT 1 FROM {query.table}{filters.text})", filters.params))
+        return replace(absent, subquery_tables=(*self.subquery_tables, query.table, *query.subquery_tables))
+
+    def tables(self) -> tuple[str, ...]:
+        return (self.table, *self.subquery_tables)
 
     def filter_ref(self, column: str, query: "Query") -> "Query":
         return self._with(Condition(f"{self.table}.{self._column(column).name} = ? || {query.table}.id", (f"{query.table}:",)))
