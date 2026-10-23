@@ -33,6 +33,7 @@ class Working(BaseState):
     edits: int = 0
     active_at: float = 0.0
     log_requested: bool = False
+    reminder_edits: int = 0
 
     def label(self) -> str:
         if self.task_id and self.focus:
@@ -40,7 +41,7 @@ class Working(BaseState):
         return f"task {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
 
     def logged(self, time: float) -> "Working":
-        return replace(self, logged_at=time, edits=0, log_requested=False)
+        return replace(self, logged_at=time, edits=0, log_requested=False, reminder_edits=0)
 
     def log_span(self, settings: Settings) -> Timeout:
         from journal.features.tasks.feature import Tasks
@@ -70,8 +71,8 @@ class Working(BaseState):
         if Timeout.edits(settings.integer(Tasks.LOG_LIMIT)).is_elapsed(self.edits):
             return self.refuse(Tasks.LOG_EDIT_BLOCK.create(edits=self.edits, name=self.label(), log=self.log_command()))
         counted = replace(active, edits=self.edits + 1)
-        if self.edits and self.edits % settings.integer(Tasks.TASK_REMINDER_INTERVAL) == 0:
-            return self.log_request(counted, event.time, settings, Tasks.CURRENT_TASK_REMINDER.create(name=self.label(), edits=self.edits))
+        if Timeout.edits(settings.integer(Tasks.TASK_REMINDER_INTERVAL)).started(self.reminder_edits).is_elapsed(self.edits):
+            return self.log_request(replace(counted, reminder_edits=self.edits), event.time, settings, Tasks.CURRENT_TASK_REMINDER.create(name=self.label(), edits=self.edits))
         return self.log_request(counted, event.time, settings)
 
     def log_request(self, working: "Working", time: float, settings: Settings, *lines: Nudge) -> Transition:
@@ -101,7 +102,7 @@ class Working(BaseState):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
-        if event.silence_seconds >= OPEN_TASK_LIMIT_SECONDS:
+        if Timeout.seconds(OPEN_TASK_LIMIT_SECONDS).is_elapsed(event.silence_seconds):
             return self.none(Tasks.OPEN_TASK.create(name=self.label()))
         return self.none()
 

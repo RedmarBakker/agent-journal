@@ -1,4 +1,5 @@
 from journal.engine.conduct import Conduct
+from journal.support.timeout import Timeout
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.rows.plan_approved import PlanApproved
@@ -26,7 +27,8 @@ class PlansConduct(Conduct):
         from journal.features.plans.feature import Plans
         plans = event.data.part(Plans)
         uses = event.tool_use - plans.review_tool_use
-        if event.subagent or not event.call.writes or not plans.review_plan or uses <= settings.integer(Plans.REVIEW_TOOL_USE_LIMIT):
+        waited = Timeout.tool_uses(settings.integer(Plans.REVIEW_TOOL_USE_LIMIT)).started(plans.review_tool_use + 1)
+        if event.subagent or not event.call.writes or not plans.review_plan or not waited.is_elapsed(event.tool_use):
             return self.none()
         return self.refuse(Plans.REVIEW_ENTRY_BLOCK.create(n=plans.review_plan, uses=uses))
 

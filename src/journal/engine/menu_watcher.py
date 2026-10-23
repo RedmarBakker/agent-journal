@@ -10,6 +10,7 @@ from journal.supervisor_link import SupervisorLink
 from journal.engine.support.launch_files import LaunchFiles
 from journal.engine.support.menu_answers import MenuAnswers
 from journal.support.card_kind import CardKind
+from journal.support.timeout import Timeout
 
 STILLNESS_SECONDS = 1.5
 CAUSE_WINDOW_SECONDS = 15.0
@@ -44,10 +45,10 @@ class MenuWatcher(Job):
             self._menu_signatures[environment], self._menu_changed_at[environment] = menu.signature(), moment
         if self._answered.get(environment) == menu.signature() or self.is_drawing(environment, moment):
             return ""
-        user_owned = self.supervisor.last_keystroke(environment) > self._menu_changed_at[environment] - USER_KEY_WINDOW_SECONDS
+        user_owned = not Timeout.seconds(USER_KEY_WINDOW_SECONDS).started(self.supervisor.last_keystroke(environment)).is_elapsed(self._menu_changed_at[environment])
         if user_owned and not menu.confirming():
             return ""
-        triggered = user_owned or self.supervisor.last_selection(environment) > self._menu_changed_at[environment] - CAUSE_WINDOW_SECONDS
+        triggered = user_owned or not Timeout.seconds(CAUSE_WINDOW_SECONDS).started(self.supervisor.last_selection(environment)).is_elapsed(self._menu_changed_at[environment])
         decided = self.decided(menu, triggered, agent)
         if decided is None:
             return ""

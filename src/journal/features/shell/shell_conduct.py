@@ -107,7 +107,7 @@ def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Set
     from journal.features.shell.feature import Shell
     shell = event.data.part(Shell)
     shape = event.call.recorded().shape
-    if event.shape_runs < READER_RUNS or ActivityLabel.build(shape) not in LONG_RUNS or any(r.commands.is_read(event.call.command) for r in shell.readers):
+    if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or ActivityLabel.build(shape) not in LONG_RUNS or any(r.commands.is_read(event.call.command) for r in shell.readers):
         return state.none()
     tip = Shell.NEW_READER_SUGGESTION.create(command=shape)
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
@@ -116,7 +116,7 @@ def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Set
 def counting_reader_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     from journal.features.shell.feature import Shell
     shape = event.call.recorded().shape
-    if ActivityLabel.build(shape) != TESTING or event.shape_runs % COUNTING_SUGGESTION_RUNS != 1:
+    if ActivityLabel.build(shape) != TESTING or not Timeout.tool_uses(COUNTING_SUGGESTION_RUNS).started(1).is_period_start(event.shape_runs):
         return state.none()
     if any(r.is_counting() and r.commands.is_read(event.call.command) for r in event.data.part(Shell).readers):
         return state.none()
@@ -130,7 +130,7 @@ def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
     if hints:
         return state.none(hints[0])
     command, shape = event.call.command, event.call.recorded().shape
-    if event.shape_runs < ALIAS_RUNS or Chain.is_journal(CommandShape.inner(command)) or Chain.is_read_line(command) or " " not in shape:
+    if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or Chain.is_journal(CommandShape.inner(command)) or Chain.is_read_line(command) or " " not in shape:
         return state.none()
     reader = next((r.name for r in shell.readers if r.commands.is_read(command)), "<the reader that reads its output>")
     tip = Shell.ALIAS_SUGGESTION.create(shape=shape, reader=f" --reader {reader}")
@@ -153,7 +153,7 @@ def readers_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
 def ended_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:
     from journal.features.shell.feature import Shell
     ended = event.data.part(Shell).unannounced
-    if event.silence_seconds < SILENCE_SECONDS or not ended:
+    if not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds) or not ended:
         return state.none()
     return state.none(Shell.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id))
 
@@ -172,6 +172,6 @@ def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Tra
 def background_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:
     from journal.features.shell.feature import Shell
     shell = event.data.part(Shell)
-    if not shell.background or event.time - shell.backgrounded_at < BACKGROUND_CHECK_DELAY_SECONDS:
+    if not shell.background or not Timeout.seconds(BACKGROUND_CHECK_DELAY_SECONDS).started(shell.backgrounded_at).is_elapsed(event.time):
         return state.none()
     return state.none(Shell.BACKGROUND_CHECK.create(background_outputs=", ".join(str(n) for n in shell.background)))

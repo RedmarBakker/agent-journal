@@ -7,6 +7,7 @@ from journal.engine.clock import Clock
 from journal.engine.job import Job
 from journal.events.bus import Bus
 from journal.events.slow_tick import SlowTick
+from journal.support.timeout import Timeout
 
 SLOW_TICK_SECONDS = 1.0
 IDLE_SECONDS = 60.0
@@ -60,6 +61,6 @@ class JobRunner:
         except Exception:
             sys.stderr.write(f"job {name} failed:\n{traceback.format_exc()}")
         seconds = timing.monotonic() - began
-        if seconds > SLOW_TICK_SECONDS:
+        if Timeout.seconds(SLOW_TICK_SECONDS).is_elapsed(seconds):
             sys.stderr.write(f"job {name} took {seconds:.1f} seconds for one tick\n")
             self.bus.dispatch(SlowTick(job=name, seconds=round(seconds, 1)))

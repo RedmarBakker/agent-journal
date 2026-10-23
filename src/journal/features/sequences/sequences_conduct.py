@@ -1,4 +1,5 @@
 from journal.engine.conduct import Conduct
+from journal.support.timeout import Timeout
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -26,7 +27,7 @@ class SequencesConduct(Conduct):
             return self.none()
         if not runs.is_adopted:
             return self.refuse(Sequences.STEP_EDIT_BLOCK.create(n=runs.sequence_id, step=runs.step, text=runs.step_text))
-        if runs.adoption_edits >= settings.integer(Sequences.STALENESS_LIMIT):
+        if Timeout.edits(settings.integer(Sequences.STALENESS_LIMIT)).is_elapsed(runs.adoption_edits):
             return self.refuse(Sequences.STALE_STEP.create(writes=runs.adoption_edits, n=runs.sequence_id, step=runs.step, text=runs.step_text))
         return self.none()
 
@@ -43,9 +44,9 @@ class SequencesConduct(Conduct):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         runs = event.data.part(sequences_feature())
-        if not runs.has_run() or runs.suspension_reason or runs.question_open or not runs.is_typable or event.silence_seconds < SILENCE_SECONDS:
+        if not runs.has_run() or runs.suspension_reason or runs.question_open or not runs.is_typable or not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds):
             return self.none()
-        if runs.step_silence_seconds < settings.decimal(sequences_feature().STEP_REPEAT_INTERVAL) * 60:
+        if not Timeout.minutes(settings.decimal(sequences_feature().STEP_REPEAT_INTERVAL)).is_elapsed(runs.step_silence_seconds):
             return self.none()
         return self.none().typing(reminder_line(runs))
 

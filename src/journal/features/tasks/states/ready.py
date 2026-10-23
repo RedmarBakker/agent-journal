@@ -2,6 +2,7 @@ from dataclasses import dataclass, replace
 from typing import Self
 
 from journal.engine.base_state import BaseState
+from journal.support.timeout import Timeout
 from journal.support.permission import Permission
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -31,6 +32,9 @@ class Ready(BaseState):
     silenced_at: float = 0.0
     suspension_reported: bool = False
     stop_round: int = 0
+
+    def has_silence(self, seconds: float, time: float) -> bool:
+        return Timeout.seconds(seconds).started(self.silenced_at).is_elapsed(time)
 
     def active(self, time: float) -> Self:
         return replace(self, silenced_at=time, suspension_reported=False)
@@ -90,13 +94,12 @@ class Ready(BaseState):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
-        silent = event.time - self.silenced_at
         tasks = event.data.part(Tasks)
-        if tasks.suspended and silent >= SUSPENDED_REMINDER_DELAY_SECONDS and not self.suspension_reported:
+        if tasks.suspended and self.has_silence(SUSPENDED_REMINDER_DELAY_SECONDS, event.time) and not self.suspension_reported:
             return self.swap(replace(self, suspension_reported=True), Tasks.SUSPENDED_TASK_REMINDER.create(n=tasks.suspended[0], why=tasks.first_suspension_reason))
-        if tasks.blocked_without_wait and silent >= BLOCKED_REMINDER_DELAY_SECONDS:
+        if tasks.blocked_without_wait and self.has_silence(BLOCKED_REMINDER_DELAY_SECONDS, event.time):
             return self.none(Tasks.BLOCKED_TASK_REMINDER.create(tasks=tasks.blocked_without_wait_summary))
-        if settings.value(Tasks.AUTO) and silent >= IDLE_CHECK_DELAY_SECONDS:
+        if settings.value(Tasks.AUTO) and self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
             return self.none(*self.silent_nudges(tasks))
         return self.none()
 

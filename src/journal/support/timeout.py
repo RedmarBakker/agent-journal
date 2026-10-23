@@ -6,7 +6,7 @@ from journal.support.moment import Moment
 
 @dataclass(frozen=True)
 class Timeout:
-    """A span a state waits out, in seconds, tool uses, edits or context marks: started or reset at a moment counted in that unit, and asked at a later moment whether it has passed. Combined with spans in other units, it has passed once any of them has, such as five tool uses or thirty seconds, whichever comes first."""
+    """A span a state waits out, in seconds, tool uses, edits or context marks: started or reset at a moment counted in that unit, and asked at a later moment whether it has passed. Combined with spans in other units, it has passed once any of them has, such as five tool uses or thirty seconds, whichever comes first; a span repeated from its start marks each period, for what is said every so many times."""
 
     SECONDS: ClassVar[str] = "seconds"
     TOOL_USES: ClassVar[str] = "tool_uses"
@@ -56,3 +56,6 @@ class Timeout:
 
     def is_elapsed(self, moment: float) -> bool:
         return moment - self.start >= self.amount
+
+    def is_period_start(self, moment: float) -> bool:
+        return moment >= self.start and (moment - self.start) % self.amount == 0

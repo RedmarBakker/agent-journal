@@ -1,4 +1,5 @@
 from journal.engine.conduct import Conduct
+from journal.support.timeout import Timeout
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.rows.check_completed import CheckCompleted
@@ -15,6 +16,6 @@ class ChecksConduct(Conduct):
         if not event.prior_failure:
             return self.none(Checks.CHECK_FAILED.create(n=event.check_id, title=event.title, tail=CheckOutput.summary(event.output)))
         minutes = settings.decimal(Checks.REPEAT)
-        if not minutes or event.time - event.failure_reported_at < minutes * 60:
+        if not minutes or not Timeout.minutes(minutes).started(event.failure_reported_at).is_elapsed(event.time):
             return self.none()
         return self.none(Checks.CHECK_FAILURE_REPEAT.create(n=event.check_id, title=event.title, tail=CheckOutput.summary(event.output)))

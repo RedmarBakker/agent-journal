@@ -2,6 +2,7 @@ import re
 
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
+from journal.support.timeout import Timeout
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -71,9 +72,9 @@ def unanswered_check(state: BaseState, event: ToolStarting, settings: Settings) 
     if event.subagent or not messages.unanswered or event.call.is_journal or file_reads(event, messages.unanswered_files):
         return state.none()
     obligations = ", ".join(str(n) for n in messages.unanswered)
-    if messages.uses_unanswered >= settings.integer(feature.TOOL_BLOCK_LIMIT):
+    if Timeout.tool_uses(settings.integer(feature.TOOL_BLOCK_LIMIT)).is_elapsed(messages.uses_unanswered):
         return state.refuse(feature.UNANSWERED_TOOL_BLOCK.create(messages=obligations))
-    if messages.uses_unanswered >= settings.integer(feature.ANSWER_REQUEST_LIMIT):
+    if Timeout.tool_uses(settings.integer(feature.ANSWER_REQUEST_LIMIT)).is_elapsed(messages.uses_unanswered):
         return state.none(feature.unanswered_countdown(messages.unanswered, settings.integer(feature.TOOL_BLOCK_LIMIT) - messages.uses_unanswered - 1))
     return state.none()
 
@@ -84,6 +85,6 @@ def unread_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
     if event.subagent or event.call.is_journal or not messages.unread:
         return state.none()
     limit = settings.integer(feature.EDIT_BLOCK_LIMIT)
-    if event.call.writes and messages.inbox_tool_uses >= limit:
+    if event.call.writes and Timeout.tool_uses(limit).is_elapsed(messages.inbox_tool_uses):
         return state.refuse(feature.INBOX_EDIT_BLOCK.create(count=len(messages.unread)))
     return state.none(feature.inbox_countdown(messages.unread, max(limit - messages.inbox_tool_uses - 1, 0)))

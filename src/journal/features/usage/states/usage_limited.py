@@ -4,6 +4,7 @@ from journal.engine.states.wait import Wait
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.engine.support.typist import Typist
+from journal.support.timeout import Timeout
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.turn_failed import TurnFailed
 from journal.events.rows.message_arrived import MessageArrived
@@ -31,7 +32,7 @@ class UsageLimited(Wait):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         from journal.features.usage.feature import Usage
-        if event.time - self.limited_at < settings.integer(Usage.CHECK_MINUTES) * 60:
+        if not Timeout.minutes(settings.integer(Usage.CHECK_MINUTES)).started(self.limited_at).is_elapsed(event.time):
             return self.none()
         return self.pop(Usage.LIMIT_CHECK.create())
 
