@@ -5775,6 +5775,36 @@ def test_a_workers_worktree_is_cut_from_the_working_tip_and_a_failed_cut_refuses
     assert not (app.config.home / "worktrees" / "2-Ada-Byron").exists()
 
 
+def test_a_workers_merge_that_clashes_only_in_built_files_takes_the_projects_side_and_builds_them_again(app: App):
+    import subprocess
+    from journal.repositories.setting_rows import SettingRows
+    from journal.repositories.workers import Workers
+    from journal.repositories.scope import Scope
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    commit = lambda name, text, cwd=root: ((cwd / name).parent.mkdir(parents=True, exist_ok=True), (cwd / name).write_text(text), git("add", name, cwd=cwd), git("commit", "-qm", name, cwd=cwd))
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    commit(".gitignore", ".journal/\n")
+    commit("dist/app.js", "built from one\n")
+    settings = app.container.get(SettingRows)
+    settings.set("workers.built_paths", ["dist"], Actor.system())
+    settings.set("workers.build_command", "printf 'built from both\\n' > dist/app.js", Actor.system())
+    hook(app, "SessionStart")
+    dispatched(app.console(), ["Lady Lovelace", "change the viewer", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
+    branch = app.container.get(WorkerBranch)
+    with app.container.get(Scope).environment(1):
+        worker = app.container.get(Workers).find(1)
+    tree = branch.folder(worker)
+    commit("view.py", "VIEW = 1\n", cwd=tree)
+    commit("dist/app.js", "built by the worker\n", cwd=tree)
+    commit("dist/app.js", "built on the project\n")
+    line_text = branch.merge(worker)
+    assert "were taken into this branch" in line_text, line_text
+    assert (root / "dist/app.js").read_text() == "built from both\n" and (root / "view.py").is_file(), "the clash in the built file is settled by building it again, and the worker's sources land"
+
+
 def test_a_workers_merge_never_touches_the_users_work_and_says_what_stood_in_its_way(app: App):
     import subprocess
     from journal.repositories.workers import Workers

@@ -49,13 +49,15 @@ class Workers(Feature[WorkersData]):
     PROFILE_LIMIT = Option("workers.idle_kept", "Workers kept for reuse per profile", "The most workers of one profile kept out or idle for reuse; past it a dispatch of that profile is refused while one of them is idle, so the job goes to that one. Reviewers always start fresh. 0 is no limit", 8, unit="workers")
     WORKTREE_STEP = Option("workers.worktree_step", "Make worker worktrees the journal's way", "The journal makes a worker's worktree, a worktree of each inner repository it needs and its library folders; off, your own commands below make them, told where in JOURNAL_WORKTREE and on which branch in JOURNAL_BRANCH", True, kind="switch", setter=AGENT, scope=OptionScope.MACHINE)
     PREPARATION_COMMANDS = Option("workers.preparation_commands", "Commands before a worker's worktree is made", "Your own shell commands, one per line, run in the project folder just before a worker's worktree is made; each is told JOURNAL_WORKTREE, JOURNAL_BRANCH, JOURNAL_PROJECT, JOURNAL_REPOSITORIES, JOURNAL_LIBRARIES and JOURNAL_COPIES", [], kind="lines", setter=AGENT, scope=OptionScope.MACHINE)
+    BUILT_PATHS = Option("workers.built_paths", "Folders built from the sources", "Folders, one per line, that a build makes from the sources, such as a built viewer; a worker's merge that clashes only in them takes the project's side and builds them again with the command below", [], kind="lines", setter=AGENT)
+    BUILD_COMMAND = Option("workers.build_command", "Command that builds them", "The shell command, run in the worker's worktree, that builds the folders above again after a merge clashed only in them", "", kind="text", setter=AGENT)
     COMPLETION_COMMANDS = Option("workers.completion_commands", "Commands after a worker's worktree is made", "Your own shell commands, one per line, run inside a worker's worktree once it is made, such as installing its dependencies; told the same as the commands before", [], kind="lines", setter=AGENT, scope=OptionScope.MACHINE)
 
     name = "workers"
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports."
     modes = Modes(MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
-    options = (TIMEOUT, MODE, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS)
+    options = (TIMEOUT, MODE, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS, BUILT_PATHS, BUILD_COMMAND)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
     seeds = (WorkersSeed, SubagentsSeed)

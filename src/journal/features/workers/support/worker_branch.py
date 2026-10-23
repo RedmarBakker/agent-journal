@@ -11,17 +11,20 @@ from journal.support.rejection import Rejection
 from journal.support.worktree_refs import TIPS_REF
 from journal.support.worktree import Worktree
 from journal.repositories.environments import Environments
+from journal.repositories.setting_rows import SettingRows
 from journal.sync.team_account import TeamAccount
 
 GIT_TIMEOUT_SECONDS = 30
 CHECKOUT_TIMEOUT_SECONDS = 600
 
+BUILD_SECONDS = 600
+
 
 class WorkerBranch:
-    """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none."""
+    """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again."""
 
-    def __init__(self, config: Config, deferred: ListenerQueue, account: TeamAccount, environments: Environments) -> None:
-        self.config, self.deferred, self.account, self.environments = config, deferred, account, environments
+    def __init__(self, config: Config, deferred: ListenerQueue, account: TeamAccount, environments: Environments, settings: SettingRows) -> None:
+        self.config, self.deferred, self.account, self.environments, self.settings = config, deferred, account, environments, settings
         self.removed_root = config.home / "removed-worktrees"
 
     def name(self, worker: Worker) -> str:
@@ -174,11 +177,42 @@ class WorkerBranch:
             return ""
         if not repository.is_present:
             return f"{repository.label()}, whose worktree is gone, so its commits cannot be rebased"
-        if self.git("rebase", "--autostash", head, cwd=repository.worktree).returncode == 0:
-            return ""
+        outcome = self.git("rebase", "--autostash", head, cwd=repository.worktree)
+        rebuilt = False
+        while outcome.returncode != 0 and self.is_built_clash(repository.worktree):
+            outcome = self.project_side(repository.worktree)
+            rebuilt = True
+        if outcome.returncode == 0:
+            return self.rebuild(repository.worktree) if rebuilt else ""
         clashing = self.conflicts(repository.worktree)
         self.git("rebase", "--abort", cwd=repository.worktree)
         return ", ".join(repository.path(path) for path in clashing.split(", ")) if clashing else f"the files of {repository.label()}"
+
+    def built_paths(self) -> tuple[str, ...]:
+        from journal.features.workers.feature import Workers
+        lines = self.settings.texts(Workers.BUILT_PATHS)
+        return tuple(path.strip().rstrip("/") + "/" for path in lines if path.strip())
+
+    def is_built_clash(self, folder: Path) -> bool:
+        clashing = self.conflicts(folder)
+        return bool(clashing) and bool(self.built_paths()) and all(path.startswith(self.built_paths()) for path in clashing.split(", "))
+
+    def project_side(self, folder: Path) -> subprocess.CompletedProcess:
+        for path in self.conflicts(folder).split(", "):
+            if self.git("checkout", "--ours", "--", path, cwd=folder).returncode != 0:
+                self.git("rm", "-q", "--", path, cwd=folder)
+        self.git("add", "-A", "--", *self.built_paths(), cwd=folder)
+        return self.git("-c", "core.editor=true", "rebase", "--continue", cwd=folder)
+
+    def rebuild(self, folder: Path) -> str:
+        from journal.features.workers.feature import Workers
+        command = str(self.settings.option(Workers.BUILD_COMMAND)).strip()
+        if command and subprocess.run(command, shell=True, cwd=folder, capture_output=True, text=True, timeout=BUILD_SECONDS).returncode != 0:
+            return f"the build that makes {', '.join(self.built_paths())} again failed after the merge took the project's side of them"
+        self.git("add", "-A", "--", *self.built_paths(), cwd=folder)
+        if self.git("diff", "--cached", "--quiet", cwd=folder).returncode != 0:
+            self.git("commit", "-qm", "Build the built files again on the project's branch", cwd=folder)
+        return ""
 
     def merged(self, repository: WorkerRepository, worker: Worker) -> str:
         merged = self.git("merge", "--no-edit", self.tip(repository, worker), cwd=repository.checkout)
