@@ -41,7 +41,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../figure/parcels.js";
+import {PARCEL, PILE, PUSH, UFO, behind, phasesOf, blowsLanded, craneAt, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -135,6 +135,8 @@ let visor = null;
 const halo = ref(null);
 // the status lights of the server units the figure built (parcels.js lightsAfter), and whether the agent ran a build or a test at the last look
 const lights = ref("amber");
+// the pictures of a parcel's block with its lights as they are, one for each step of their blink, drawn by the figure's own renderer
+const blocks = ref(null);
 let running = false;
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
@@ -1013,6 +1015,7 @@ async function load(name) {
         below.value = module.GROUND;
         canvas.value.width = canvas.value.height = Math.round(SIZE * (window.devicePixelRatio || 1));
         player = new FigurePlayer(loaded, canvas.value);
+        drawBlocks();
         home();
         body.here = belongs.value;
         body.arriving = body.here;
@@ -1026,6 +1029,15 @@ async function load(name) {
     }
 }
 
+// the block's pictures for the lights as they are now, through the player's stage, so the parcels are drawn as the figure is
+function drawBlocks() {
+    if (!player) return;
+    const ratio = window.devicePixelRatio || 1;
+    const drawn = Array.from({length: phasesOf(lights.value)}, (_, phase) => player.stage.drawBlock(lights.value, phase, SIZE, ratio));
+    blocks.value = {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, below: drawn[0].below};
+}
+
+watch(lights, drawBlocks);
 watch(voice, load);
 watch(belongs, present);
 onMounted(() => {
@@ -1144,7 +1156,7 @@ const style = computed(() => {
         </div>
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
-        <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :lights="lights" />
+        <CodeParcel v-if="blocks" :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :block="blocks" />
     </template>
     <template v-if="crane">
         <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />

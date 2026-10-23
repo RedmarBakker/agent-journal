@@ -1,12 +1,27 @@
 import {draw} from "./pile.js";
+import {VISOR} from "./visor.js";
 
 // The parcels of code the figure builds on the compose box's top and the UFO that takes them once the work is committed, drawn by the page
 // beside the figure (chat/CodeParcel.vue, chat/FlyingSaucer.vue). Every number that decides where they go and when is here, in pixels and
 // milliseconds on the page.
 
-// A parcel's drawing, a flat 1U server unit, as wide and as deep as the boxes it once was, `height` pixels high with its top; and how far
-// inside either end of the floor one stands at least
-export const PARCEL = {width: 24, height: 13, inside: 14};
+// A parcel's drawing, a square block of `units` 1U server units stacked, drawn in 3D by the figure's own renderer and camera
+// (figure.js serverBlockOf): `width` pixels wide and as deep, `height` pixels high with the strip of its top that shows, `top`; and how
+// far inside either end of the floor one stands at least
+export const PARCEL = {width: 24, height: 27, top: 3, units: 2, inside: 14};
+
+// The colours the status lights shine in: amber while the run goes, and the visor's green and red once it has ended
+export const LIGHT_COLOURS = {amber: [1, 0.69, 0.125], good: VISOR.colours.good, bad: VISOR.colours.bad};
+
+// Amber lights blink, each out of step with the next: the blink is `phases` steps of `ms` each, a light on for half of them and dimmed to
+// `dim` for the rest; green and red stay on
+export const BLINK = {phases: 4, ms: 230, dim: 0.25};
+
+// how bright the light numbered `index` on a unit's front is at step `phase` of the blink, with its lights `lit`
+export const brightness = (lit, phase, index) => (lit !== "amber" || (phase + index) % BLINK.phases < BLINK.phases / 2 ? 1 : BLINK.dim);
+
+// the steps of the blink a unit's lights `lit` show, one for lights that stay on
+export const phasesOf = (lit) => (lit === "amber" ? BLINK.phases : 1);
 
 // The status lights on a unit's front after a look: amber, blinking, from the moment a run `started`, and all green or red with the visor
 // once a run has `ended` good or bad, kept so until the next run starts; `lit` is how they were
@@ -27,13 +42,13 @@ export function digitsOf(random) {
     });
 }
 
-// The pile at the right end of the floor: parcels stacked `high` to a column, the columns going leftward from the end
+// The pile at the right end of the floor: blocks stacked `high` to a column, each on the top of the one under it, the columns going leftward from the end
 export const PILE = {high: 3, gap: 1};
 
 // where the parcel numbered `index` on the pile sits: `left` pixels from the floor's right end, its middle, and `up` above the floor
 export function pileSlot(index) {
     const column = Math.floor(index / PILE.high);
-    return {left: -(PARCEL.inside + PARCEL.width / 2 + column * (PARCEL.width + PILE.gap)), up: (index % PILE.high) * (PARCEL.height - 2)};
+    return {left: -(PARCEL.inside + PARCEL.width / 2 + column * (PARCEL.width + PILE.gap)), up: (index % PILE.high) * (PARCEL.height - PARCEL.top)};
 }
 
 // how long the figure hammers each parcel, a random number of milliseconds between the two

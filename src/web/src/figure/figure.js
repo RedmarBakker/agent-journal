@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import {ACTS, heldPhases, hornOpen, partOf} from "./acts.js";
 import {VISOR, glowTurn} from "./visor.js";
+import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
@@ -2704,6 +2705,50 @@ function laptopOf() {
     return laptop;
 }
 
+// A block of 1U server units stacked (parcels.js PARCEL), in the same flat colours, for the parcels the figure builds: its front toward the
+// viewer, tipped back by as much as shows the strip of its top, its front's bottom edge on the floor at the origin. Each unit's status
+// lights run along the left of its front and its vent slits along the right, at these shares of the front's width, the lights' radius and
+// the slits' width and height too, of its width and its unit's height
+const UNIT_FRONT = {lights: [0.144, 0.267, 0.389, 0.511], light: 0.047, vents: [0.633, 0.711, 0.789, 0.867], vent: [0.033, 0.49]};
+const UNIT_COLOURS = {front: 0x1c1e25, top: 0x2c2f39, side: 0x121318, vent: 0x050608, edge: 0x4a4e5c};
+
+function serverBlockOf(perPixel) {
+    const width = PARCEL.width * perPixel;
+    const tilt = Math.asin(PARCEL.top / PARCEL.width);
+    const unit = ((PARCEL.height - PARCEL.top) * perPixel) / Math.cos(tilt) / PARCEL.units;
+    const [side, top, front] = [UNIT_COLOURS.side, UNIT_COLOURS.top, UNIT_COLOURS.front].map((colour) => new THREE.MeshBasicMaterial({color: colour}));
+    const lights = [];
+    const units = Array.from({length: PARCEL.units}, (_, index) => {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(width, unit, width), [side, side, top, side, front, side]);
+        box.add(new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), new THREE.LineBasicMaterial({color: UNIT_COLOURS.edge})));
+        box.position.set(0, unit * (index + 0.5), -width / 2);
+        const onFront = (mesh, share) => {
+            mesh.position.set(width * (share - 0.5), 0, width / 2 + 0.002);
+            box.add(mesh);
+            return mesh;
+        };
+        lights.push(...UNIT_FRONT.lights.map((share) => onFront(new THREE.Mesh(new THREE.CircleGeometry(width * UNIT_FRONT.light, 12), new THREE.MeshBasicMaterial()), share)));
+        UNIT_FRONT.vents.forEach((share) => onFront(flat(new THREE.PlaneGeometry(width * UNIT_FRONT.vent[0], unit * UNIT_FRONT.vent[1]), UNIT_COLOURS.vent), share));
+        return box;
+    });
+    const block = new THREE.Group();
+    block.rotation.x = tilt;
+    block.add(...units);
+    const scene = new THREE.Scene();
+    scene.add(block);
+    scene.updateMatrixWorld(true);
+    return {scene, lights, bounds: new THREE.Box3().setFromObject(block)};
+}
+
+// the block's lights as they shine at step `phase` of the blink (parcels.js brightness), lit `lit`
+function lightBlock(block, lit, phase) {
+    const dark = new THREE.Color(UNIT_COLOURS.front);
+    block.lights.forEach((light, index) => {
+        const shine = new THREE.Color().setRGB(...LIGHT_COLOURS[lit], THREE.SRGBColorSpace);
+        light.material.color.copy(dark.clone().lerp(shine, brightness(lit, phase, index % UNIT_FRONT.lights.length)));
+    });
+}
+
 // A magnifying glass in the same flat colours, comically large as the figure is drawn small: its handle up its y axis with the handle's
 // middle, where the hand closes on it, at the origin, its lens in the plane of x and y above the handle
 const GLASS = {radius: 0.52, rim: 0.08, handle: 0.5, grip: 0.07};
@@ -3299,5 +3344,32 @@ export class Stage {
         context.filter = `blur(${(SOFTEN * canvas.width) / CELL}px)`;
         context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
         return moves;
+    }
+
+    // A parcel's block of server units (serverBlockOf) with its lights `lit` at step `phase` of their blink, drawn through the figure's own
+    // camera at the scale of a figure whose picture is `picture` pixels high on the page, `ratio` canvas pixels to a page pixel: a canvas
+    // just holding it, and how many page pixels of it lie below the floor
+    drawBlock(lit, phase, picture, ratio) {
+        if (this.blockFor !== picture) this.block = serverBlockOf(FRAMED_HEIGHT / picture);
+        this.blockFor = picture;
+        lightBlock(this.block, lit, phase);
+        const size = Math.round(picture * ratio) * SUPERSAMPLE;
+        if (this.renderer.domElement.width !== size) this.renderer.setSize(size, size, false);
+        this.renderer.render(this.block.scene, this.camera);
+        const {min, max} = this.block.bounds;
+        const corners = [min.x, max.x].flatMap((x) => [min.y, max.y].flatMap((y) => [min.z, max.z].map((z) => new THREE.Vector3(x, y, z).project(this.camera))));
+        const across = (k) => ((k + 1) / 2) * size;
+        const left = Math.floor(Math.min(...corners.map((at) => across(at.x)))) - SUPERSAMPLE;
+        const right = Math.ceil(Math.max(...corners.map((at) => across(at.x)))) + SUPERSAMPLE;
+        const top = Math.floor(Math.min(...corners.map((at) => size - across(at.y)))) - SUPERSAMPLE;
+        const bottom = Math.ceil(Math.max(...corners.map((at) => size - across(at.y)))) + SUPERSAMPLE;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round((right - left) / SUPERSAMPLE);
+        canvas.height = Math.round((bottom - top) / SUPERSAMPLE);
+        const context = canvas.getContext("2d");
+        context.imageSmoothingQuality = "high";
+        context.drawImage(this.renderer.domElement, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
+        const floor = size - across(new THREE.Vector3(0, 0, 0).project(this.camera).y);
+        return {canvas, below: (bottom - floor) / SUPERSAMPLE / ratio};
     }
 }

@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
-import {CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, craneMs, digitsOf, flightMs, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {BLINK, CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, lightsAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
 import {carrierOf} from "../src/figure/reactions.js";
 import {PILE as ANIMATIONS} from "../src/figure/pile.js";
@@ -18,7 +18,7 @@ test("finished parcels pile up at the floor's right end, stacked three high, eac
     const slots = Array.from({length: 7}, (_, index) => pileSlot(index));
     expect(slots[0].left).toBe(-(PARCEL.inside + PARCEL.width / 2));
     expect(slots.slice(0, PILE.high).map((slot) => slot.left)).toEqual(Array(PILE.high).fill(slots[0].left));
-    expect(slots.slice(0, PILE.high).map((slot) => slot.up)).toEqual([0, 11, 22]);
+    expect(slots.slice(0, PILE.high).map((slot) => slot.up)).toEqual([0, 24, 48]);
     expect(slots[PILE.high]).toEqual({left: slots[0].left - PARCEL.width - PILE.gap, up: 0});
     const boxes = slots.map((slot) => `${slot.left}/${slot.up}`);
     expect(new Set(boxes).size).toBe(slots.length);
@@ -189,10 +189,19 @@ test("the head never turns further than HEAD_TURN from the way the body faces; a
     }
 });
 
-test("the parcels are flat 1U server units of the boxes' square footprint, stacked three high a unit's height apart", () => {
+test("each parcel is a square block of two 1U server units, a strip of its top showing, and the blocks stack each on the top of the one under it", () => {
     expect(PARCEL.width).toBe(24);
-    expect(PARCEL.height).toBeLessThan(PARCEL.width / 1.5);
-    expect(pileSlot(1).up - pileSlot(0).up).toBe(PARCEL.height - 2);
+    expect(PARCEL.units).toBe(2);
+    // its front is as high as it is wide, and a little of its top shows above it
+    expect(PARCEL.height - PARCEL.top).toBe(PARCEL.width);
+    expect(PARCEL.top).toBeGreaterThan(0);
+    expect(PARCEL.top).toBeLessThan(PARCEL.width / 4);
+    expect(pileSlot(1).up - pileSlot(0).up).toBe(PARCEL.height - PARCEL.top);
+    // amber lights blink each a step out of the next, on for half the blink; green and red stay on
+    const steps = (lit) => Array.from({length: phasesOf(lit)}, (_, phase) => [0, 1, 2, 3].map((index) => brightness(lit, phase, index)));
+    expect(steps("amber")).toEqual([[1, 1, BLINK.dim, BLINK.dim], [1, BLINK.dim, BLINK.dim, 1], [BLINK.dim, BLINK.dim, 1, 1], [BLINK.dim, 1, 1, BLINK.dim]]);
+    expect(steps("good")).toEqual([[1, 1, 1, 1]]);
+    expect(steps("bad")).toEqual([[1, 1, 1, 1]]);
 });
 
 test("a unit's lights blink amber from the moment a run starts, all turn green or red with the visor when it ends, and stay so until the next", () => {
