@@ -9896,12 +9896,12 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         major, minor, _ = (int(n) for n in VERSION.split("."))
         pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
         assert "the team is pinned to version" in a.console().run(["team", "upgrade", pinned], USER).text
-        assert eventually(lambda: b.container.get(SyncStatus).line() == f"Your team is on version {pinned}: journal update apply installs it"), "the admin's pin makes every member's status bar ask for the upgrade"
+        assert eventually(lambda: b.container.get(SyncStatus).line() == f"Not syncing: your team runs {pinned} and this journal {VERSION}; your changes wait here until you update it with journal update apply"), "the admin's pin makes every member's status bar ask for the upgrade"
         updater = b.container.get(Updater)
         updater.releases = Release.lookup([f"v{pinned}", f"v{beyond}"])
         assert [release.version for release in updater.newer()] == [pinned], "a shared journal is offered only the team's version, never a newer release"
         own_start = HttpRequest(f"http://127.0.0.1:{b.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "bob-own"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-        assert f"this journal is behind its team: Your team is on version {pinned}" in urlopen(own_start, timeout=5).read().decode(), "the agent is told at its session start that the journal must be upgraded"
+        assert f"this journal is behind its team: Not syncing: your team runs {pinned}" in urlopen(own_start, timeout=5).read().decode(), "the agent is told at its session start that the journal must be upgraded"
         migrated = a.container.get(Schema).version() + 1
         a.container.get(SyncClient).prepare_upgrade()
         assert a.container.get(TeamAccount).is_upgrader(), "an upgrade marks its journal the upgrader before the new version installs"
