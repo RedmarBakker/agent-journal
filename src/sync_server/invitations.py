@@ -21,7 +21,7 @@ class Invitations:
         self.rows.insert(self.code_hash(code), email.lower(), created_at, created_at + VALID_SECONDS)
         return code, created_at + VALID_SECONDS
 
-    def accept(self, code: str, name: str, password: str, password_repeat: str, accepted_at: float) -> Account:
+    def accept(self, code: str, email: str, name: str, password: str, password_repeat: str, accepted_at: float) -> Account:
         if password != password_repeat:
             raise Refusal("the two passwords differ: type the same password twice")
         with self.store.transaction():
@@ -30,6 +30,8 @@ class Invitations:
                 raise Refusal("this invitation code is not known or was used already: ask the admin for a new one")
             if invitation["expires_at"] < accepted_at:
                 raise Refusal("this invitation code expired: ask the admin for a new one")
+            if email.strip().lower() != invitation["email"]:
+                raise Refusal(f"this invitation is for {invitation['email']}: join with that email")
             account = self.accounts.verified(invitation["email"], password) if self.accounts.has_email(invitation["email"]) else self.accounts.create(invitation["email"], name, password, MEMBER, accepted_at)
             self.rows.use(invitation["id"], accepted_at)
             return account

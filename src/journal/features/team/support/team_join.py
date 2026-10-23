@@ -118,7 +118,7 @@ class TeamJoin:
             return self.link.install(url.address, email, name, password, socket.gethostname())
         if not url.is_invitation():
             raise Rejection(f"the team server at {url.address} has its admin already: join with the invitation URL an admin shares from the Team tab")
-        return self.link.accept(url.address, url.code, name, password, socket.gethostname())
+        return self.link.accept(url.address, url.code, email, name, password, socket.gethostname())
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)

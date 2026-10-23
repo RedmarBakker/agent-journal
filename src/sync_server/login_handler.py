@@ -20,7 +20,7 @@ class LoginHandler:
         return LoginAnswer(token, device.id, person.id, person.name, person.role)
 
     def accepted(self, request: AcceptRequest, address: str) -> LoginAnswer:
-        account = self.invitations.accept(request.code, request.name, request.password, request.password_repeat, self.clock.time())
+        account = self.invitations.accept(request.code, request.email, request.name, request.password, request.password_repeat, self.clock.time())
         return self.answer(LoginRequest(account.email, request.password, request.device_name), address)
 
     def installed(self, request: InstallRequest, address: str) -> LoginAnswer:

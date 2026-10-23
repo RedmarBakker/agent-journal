@@ -26,7 +26,7 @@ class HostedInvitation:
             time.sleep(POLL_SECONDS)
         password = self.password(team)
         code, _ = team.invitations.issue(HOSTED_EMAIL, time.time())
-        return HostedJoin(code, HOSTED_NAME, password, team.details.version())
+        return HostedJoin(code, HOSTED_EMAIL, HOSTED_NAME, password, team.details.version())
 
     def password(self, team: TeamServer) -> str:
         password_file = self.data / HOSTED_FILE

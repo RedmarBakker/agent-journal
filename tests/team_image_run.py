@@ -68,7 +68,7 @@ def test_the_host_setup_starts_a_server_on_a_fresh_volume_whose_admin_logs_in_an
         unverified.check_hostname, unverified.verify_mode = False, ssl.CERT_NONE
         with urllib.request.urlopen(f"{line.group(1)}/root.crt", timeout=10, context=unverified) as answer:
             assert hashlib.sha256(ssl.PEM_cert_to_DER_cert(answer.read().decode())).hexdigest() == line.group(3), "the fingerprint is the authority the server serves"
-        accept = urllib.request.Request(f"{line.group(1)}/accept", data=json.dumps({"code": line.group(2), "name": "Ada", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "laptop"}).encode(), headers=SPOKEN)
+        accept = urllib.request.Request(f"{line.group(1)}/accept", data=json.dumps({"code": line.group(2), "email": "ada@example.com", "name": "Ada", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "laptop"}).encode(), headers=SPOKEN)
         with urllib.request.urlopen(accept, timeout=10, context=unverified) as answer:
             assert json.loads(answer.read())["account_id"] == 1, "the admin's code logs the admin's journal in"
         again = subprocess.run(["sh", str(ROOT / "host" / "install.sh")], input=answers, capture_output=True, text=True, env=environment, timeout=120)

@@ -245,8 +245,9 @@ def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_an
         assert call("/blocks", {"tables": ["tasks", "messages"]}, ada)[1]["blocks"] == [{"row_table": "tasks", "first": 1451, "last": 1950}, {"row_table": "messages", "first": 1, "last": 5000}], "blocks start above the copy's numbers and messages get a bigger one"
         invitation = call("/invite", {"email": "Bob@Example.com"}, ada)[1]
         assert invitation["email"] == "bob@example.com" and invitation["code"]
-        assert call("/accept", {"code": invitation["code"], "name": "Bob", "password": PASSWORD, "password_repeat": "another password", "device_name": "desktop"})[1]["error"].startswith("the two passwords differ")
-        bob = call("/accept", {"code": invitation["code"], "name": "Bob", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "desktop"})[1]
+        assert call("/accept", {"code": invitation["code"], "email": "bob@example.com", "name": "Bob", "password": PASSWORD, "password_repeat": "another password", "device_name": "desktop"})[1]["error"].startswith("the two passwords differ")
+        assert call("/accept", {"code": invitation["code"], "email": "eve@example.com", "name": "Bob", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "desktop"})[1]["error"] == "this invitation is for bob@example.com: join with that email", "an invitation is taken up only with the email it was made for"
+        bob = call("/accept", {"code": invitation["code"], "email": "Bob@Example.com", "name": "Bob", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "desktop"})[1]
         assert bob["name"] == "Bob" and bob["account_id"] == 2
         assert call("/team/version", {"version": "4.21.0"}, bob["token"])[0] == 403, "only an admin moves the team's version"
         assert call("/team/version", {"version": "latest"}, ada)[1]["error"].startswith("latest is not a journal version"), "a version is three numbers"
@@ -262,7 +263,7 @@ def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_an
         assert call("/pull?after=0&wait=0", None, bob["token"], version="4.20.9")[0] == 200, "once the admin allows any version, another version syncs"
         assert call("/team/versions", {"versions": "exact"}, ada)[1]["versions"] == "exact"
         assert call("/pull?after=0&wait=0", None, bob["token"], version="4.20.9")[0] == 403 and call("/pull?after=0&wait=0", None, bob["token"])[0] == 200, "exact again refuses it, and the matching journal syncs either way"
-        assert call("/accept", {"code": invitation["code"], "name": "Eve", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "x"})[1]["error"].startswith("this invitation code is not known or was used"), "a code is used once"
+        assert call("/accept", {"code": invitation["code"], "email": "bob@example.com", "name": "Eve", "password": PASSWORD, "password_repeat": PASSWORD, "device_name": "x"})[1]["error"].startswith("this invitation code is not known or was used"), "a code is used once"
         assert call("/invite", {"email": "eve@example.com"}, bob["token"])[1]["error"].startswith("Bob is no admin"), "only an admin invites"
         assert [device["name"] for device in call("/devices", token=ada)[1]["devices"]] == ["laptop", "desktop"]
         _, laptop = call("/login", {"email": "bob@example.com", "password": PASSWORD, "device_name": "bob's laptop"})

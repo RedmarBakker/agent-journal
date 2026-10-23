@@ -9818,13 +9818,13 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         major, minor, patch = (int(n) for n in VERSION.split("."))
         for other in (f"{major}.{minor}.{patch + 1}", f"{major}.{minor - 1}.0"):
             monkeypatch.setattr("journal.features.team.support.team_join.VERSION", other)
-            refused_join = b.console().run(["team", "join", bob_url, "--name", "Bob", "--password", "correct horse battery"], USER)
+            refused_join = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
             assert refused_join.error.startswith(f"the team runs journal version {VERSION} and this journal {other}: install {VERSION} first with curl -fsSL"), "a join from a newer or an older journal is refused with the line to install the team's version"
         monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
         assert [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()] == before_refusal and not b.container.get(TeamAccount).is_joined(), "a refused join leaves every environment as it was"
-        kept = b.console().run(["team", "join", bob_url, "--name", "Bob", "--password", "correct horse battery"], USER)
+        kept = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert "this journal holds 1 tasks and" in kept.error and "--replace-mine" in kept.error and not b.container.get(TeamAccount).is_joined(), "a journal with its own history is never replaced by the team's unless it asks"
-        joined_b = b.console().run(["team", "join", bob_url, "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
         assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
         assert [row.title for row in b.container.get(Tasks).global_matching()] == [row.title for row in a.container.get(Tasks).global_matching()], "the joining journal holds exactly the team's tasks, its own replaced"
         bob_names = {row.name: row for row in b.container.get(Environments).rows()}
