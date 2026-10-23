@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.31.2
+
+- A journal behind its team updates from an Update button on Settings, Team, instead of a command to copy, and the status bar says plainly that it is not syncing and its changes wait until it is updated.
+
 ## 4.31.1
 
 - A machine's own settings, and a person's, never travel through the team: the first upload leaves them out, and a journal that downloads the team's copy keeps its own. A team's hosted journal no longer takes a member's update settings at its join.

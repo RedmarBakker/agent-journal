@@ -23,7 +23,7 @@ class SyncStatus:
         team_version = self.account.team_version()
         if not team_version or not Release(team_version).is_newer(Release(VERSION)):
             return ""
-        return f"Not syncing: your team runs {team_version} and this journal {VERSION}; your changes wait here until you update it with journal update apply"
+        return f"Not syncing: your team runs {team_version} and this journal {VERSION}; your changes wait here until you update it"
 
     def state(self) -> str:
         if self.upgrade_line():

@@ -108,3 +108,9 @@ test("the join form asks only for the team URL, the email git knows and a passwo
     expect(made).toHaveLength(22);
     expect(strongPassword()).not.toBe(made);
 });
+
+test("a journal behind its team updates from a button on the Team tab, never a command to copy", () => {
+    const sync = readFileSync(resolve(__dirname, "../src/pages/TeamSync.vue"), "utf8");
+    expect(sync).toMatch(/<Btn kind="primary" :busy="updating" @click="update">Update to \{\{ standing\.version \}\}<\/Btn>/);
+    expect(sync).not.toMatch(/journal update apply/);
+});

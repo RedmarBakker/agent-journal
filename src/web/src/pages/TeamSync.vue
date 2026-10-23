@@ -1,5 +1,7 @@
 <script setup>
-import {computed} from "vue";
+import {computed, ref} from "vue";
+import {runUpdate} from "../composables/updates.js";
+import Btn from "../kit/Btn.vue";
 import CopyButton from "../kit/CopyButton.vue";
 import ListBox from "../kit/ListBox.vue";
 import StateDot from "../kit/StateDot.vue";
@@ -7,10 +9,17 @@ import "./team.css";
 
 const props = defineProps({standing: {type: Object, required: true}});
 const DOTS = {in_step: "done", waiting: "running", connecting: "running", not_connected: "failed", version: "you"};
-const UPDATE = "journal update apply";
 const behind = computed(() => props.standing.state === "version");
 const matches = computed(() => props.standing.version === props.standing.running);
 const waiting = computed(() => (props.standing.waiting ? String(props.standing.waiting) : "None"));
+const updating = ref(false);
+const failure = ref("");
+
+async function update() {
+    updating.value = true;
+    failure.value = (await runUpdate(props.standing.version)) || "";
+    updating.value = false;
+}
 </script>
 
 <template>
@@ -21,10 +30,12 @@ const waiting = computed(() => (props.standing.waiting ? String(props.standing.w
                 <span>{{ standing.line }}</span>
             </div>
             <template v-if="behind">
-                <div class="team-command">
-                    <code>{{ UPDATE }}</code>
-                    <CopyButton :text="UPDATE" label="Copy" />
+                <div>
+                    <Btn kind="primary" :busy="updating" @click="update">Update to {{ standing.version }}</Btn>
                 </div>
+                <template v-if="failure">
+                    <p class="team-failure">{{ failure }}</p>
+                </template>
             </template>
             <dl class="team-facts">
                 <div>
