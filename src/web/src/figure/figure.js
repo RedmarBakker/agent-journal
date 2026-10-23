@@ -1540,10 +1540,11 @@ function watch(pose, stance, t) {
 // Pushes a parcel along in front of it, which stands far lower than its hands: the knees bent to lower the hips by `drop` and the back
 // leaning into the parcel it pushes: the body angled forward, the back `lean` degrees from upright, the knees
 // giving by `drop`, the feet stepping `behind` the hips, and both hands out against the parcel's near side at `hands` from where its feet
-// stand, about half way up it. It turns to face the parcel before it leans in: the clip's first `turn` frames it stands upright while it turns, as long as the change of
+// stand, about half way up it, its head going with the lean, nodded `nod` degrees further down the way it goes and never turned by a look
+// (the clip's `ownLook`). It turns to face the parcel before it leans in: the clip's first `turn` frames it stands upright while it turns, as long as the change of
 // facing eases at its pace (places.js CHANGE_SECONDS), and over the rest of its `intro` it leans in; then it pushes, a stride a `stride`
 // frames
-export const SHOVE = {lean: 60, nod: -12, drop: 0.3, behind: 0.25, hands: [0.4, -0.25, 0.8], turn: 4, intro: 9, stride: 6, fps: 12};
+export const SHOVE = {lean: 60, nod: 4, drop: 0.3, behind: 0.25, hands: [0.4, -0.25, 0.8], turn: 4, intro: 9, stride: 6, fps: 12};
 
 // how far into the lean the push is at `t` of its frames, 0 upright while it turns and 1 leaning in
 export function leanOf(t) {
@@ -2594,7 +2595,8 @@ const ON_A_LAP = ["sit", "lounge"];
 // landing never is. A clip that names `marks` has the page draw its mark drifting up from the head in the frames it names, from one to
 // the next of each pair: the Z of sleep, the notes of a whistled tune. A clip that `cuts` in takes over at once from whatever plays, as the
 // figure stops what it does to watch the UFO or swats at a tickle. A clip with its `ownLook` keeps it, the head never turned away to watch
-// the bar under it or the UFO, as the figure faces the user dancing or laughing.
+// the bar under it or the UFO, nor turned toward the viewer for a look in the eyes, as the figure faces the user dancing or laughing, or
+// pushes a parcel with its head going with its lean.
 
 export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
@@ -2632,7 +2634,7 @@ export const CLIPS = [
     {name: "work", frames: WORK.blows * WORK.blowFrames, fps: WORK.fps, loops: true, postures: ["stand", "sit"], pose: work},
     {name: "point", frames: 12, fps: 8, loops: true, postures: GESTURE, pose: point},
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
-    {name: "push", frames: SHOVE.intro + SHOVE.stride, intro: SHOVE.intro, fps: SHOVE.fps, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
+    {name: "push", frames: SHOVE.intro + SHOVE.stride, intro: SHOVE.intro, fps: SHOVE.fps, loops: true, legs: true, ownLook: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "tickle_swat", frames: 24, fps: 16, loops: false, cuts: true, ownLook: true, postures: GESTURE, pose: tickle_swat},
     {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, ownLook: true, postures: MOVE, pose: disco},
@@ -3806,7 +3808,7 @@ export class Stage {
         if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
         // with a look in its eyes or its visor aglow, it turns toward the viewer so they are seen
         const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0);
-        if (toward && !pose.gaze && !sideOn) turnToViewer(pose, turned, toward);
+        if (toward && !pose.gaze && !sideOn && !clip.ownLook) turnToViewer(pose, turned, toward);
         if (eyes) lookAs(pose, eyes);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;

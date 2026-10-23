@@ -389,3 +389,29 @@ test("a running chat mark titled with the word test builds boxes one after anoth
     const second = run(memory, (now) => [mark("b", "npm test", 62)], 62, 300, first.units);
     expect(second.begun[0]).toBe(60 + UNIT.every);
 });
+
+test("pushing, the head goes with the body's lean, nodded a little further down the way it goes, never straightened up, turned or tilted by itself, and no look turns it", () => {
+    const clip = CLIPS.find((each) => each.name === "push");
+    // it keeps its own look: the page's looks and the turn toward the viewer leave its head alone
+    expect(clip.ownLook).toBe(true);
+    const degrees = (a, b) => THREE.MathUtils.radToDeg(a.angleTo(b));
+    for (const voice of Object.keys(stances)) {
+        for (const posture of clip.postures) {
+            for (let frame = 0; frame < clip.frames; frame++) {
+                const label = `${voice} ${posture} ${frame}`;
+                const pose = new Posing(RIG, posture, frame / clip.frames);
+                clip.pose(pose, stanceOf(voice), frame / clip.frames);
+                const moves = pose.moves(0);
+                const way = (name, axis) => new THREE.Vector3(...axis).transformDirection(moves.get(name)).normalize();
+                // the head's up within a few degrees of the chest's, as the lean carries it
+                expect(degrees(way("head", [0, 0, 1]), way("chest", [0, 0, 1])), label).toBeLessThan(8);
+                // its face no further round or over than the chest's: the same way across, the same roll
+                const [face, chest] = [way("head", [0, -1, 0]), way("chest", [0, -1, 0])];
+                expect(Math.abs(face.x - chest.x), label).toBeLessThan(0.05);
+                expect(Math.abs(way("head", [1, 0, 0]).z - way("chest", [1, 0, 0]).z), label).toBeLessThan(0.05);
+                // and leaning in, its face at or a little below the chest's, never tipped back up
+                if (leanOf(frame / clip.frames) > 0.5) expect(face.z, label).toBeLessThanOrEqual(chest.z + 1e-6);
+            }
+        }
+    }
+});
