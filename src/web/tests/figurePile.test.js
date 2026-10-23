@@ -62,7 +62,7 @@ test("an act may be cut off by the next moment only as the pile says and once it
     expect(cutsAfter("rest", 2)).toBe(false);
     expect(cutsAfter("rest", 3)).toBe(true);
     // a fall, a backflip, a crane's grab, a celebration play out
-    for (const name of ["fall", "backflip", "tumble", "joy", "party_horn", "post_dove"]) expect(cutsAfter(name, 60), name).toBe(false);
+    for (const name of ["fall", "backflip", "tumble", "joy", "party_horn", "phone_call"]) expect(cutsAfter(name, 60), name).toBe(false);
     // the longer acts that may be cut, longer than three seconds, must have played three first
     const seconds = (name) => {
         const clip = CLIPS.find((each) => each.name === name);
@@ -85,8 +85,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip joy ×2 when moment=committed, plays out",
         "clip party_horn ×1 when moment=committed, plays out",
         "nothing nothing ×2 when moment=committed",
-        "clip post_dove ×7 when moment=messaged, plays out",
-        "nothing nothing ×13 when moment=messaged",
+        "clip phone_call ×1 when moment=messaged, plays out",
         "clip nod ×4 when moment=task_finished, cut after 1s",
         "clip joy ×2 when moment=task_finished, plays out",
         "clip party_horn ×1 when moment=task_finished, plays out",
@@ -94,9 +93,6 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip ask_sign ×9 when moment=question_asked, plays out",
         "clip think ×3 when moment=question_asked, cut after 1s",
         "nothing nothing ×8 when moment=question_asked",
-        "clip whistle_runner ×3 when moment=worker_sent, plays out",
-        "clip wave ×1 when moment=worker_sent, cut after 1s",
-        "nothing nothing ×4 when moment=worker_sent",
         "clip scroll ×3 when moment=reported, plays out",
         "clip nod ×1 when moment=reported, cut after 1s",
         "nothing nothing ×4 when moment=reported",

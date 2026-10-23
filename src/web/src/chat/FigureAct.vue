@@ -22,7 +22,7 @@ const props = defineProps({
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
 const STANDS = {file_card: {across: 0.24, top: 0.3}};
-const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1"};
+const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", wood: "#8a5a2b", gold: "#e8b84a", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1"};
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
@@ -114,32 +114,12 @@ const stand = computed(() => {
 });
 const growing = computed(() => stand.value && `translate(0 ${floor.value}) scale(1 ${stand.value.up}) translate(0 ${-floor.value})`);
 
-// the dove: flying in to the envelope held up beside the head, and off with it, its wings beating
-const dove = computed(() => {
-    const {comes, taken, goes} = act.value;
-    if (props.u < comes[0] || props.u > goes[1]) return null;
-    const held = {x: head.value.x + out.value * 21, y: head.value.y - 16};
-    const from = {x: held.x + out.value * 80, y: held.y - 70};
-    const away = {x: held.x + out.value * (props.room[out.value > 0 ? "right" : "left"] + 60), y: held.y - 150};
-    const k = props.u < taken ? partOf(props.u, comes) : partOf(props.u, goes) ** 2;
-    const [a, b] = props.u < taken ? [from, held] : [held, away];
-    return {x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, way: props.u < taken ? -out.value : out.value, wings: Math.sin(props.u * 60), carrying: props.u >= taken};
-});
-
 
 // the sign over its head on a stick, tipping as it waggles
 const waggle = computed(() => {
     const [from, to] = act.value.waggle;
     const k = Math.min(Math.max((props.u - from) / (to - from), 0), 1);
     return 14 * Math.sin(2 * Math.PI * act.value.waggles * k) * Math.sin(Math.PI * k);
-});
-
-// the runner: from beside the figure's feet off past the screen's edge, its legs going
-const runner = computed(() => {
-    const k = partOf(props.u, act.value.runs);
-    if (k <= 0 || k >= 1) return null;
-    const far = props.room[out.value > 0 ? "right" : "left"] + props.size / 2 + 20;
-    return {x: middle.value + out.value * (14 + far * k ** 1.4), stride: Math.sin(2 * Math.PI * act.value.strides * k)};
 });
 
 // how far the scroll has unrolled, 0 to 1
@@ -223,38 +203,11 @@ const flap = computed(() => {
 <template>
     <svg class="figure-act" :width="size" :height="size" :viewBox="`0 0 ${size} ${size}`" aria-hidden="true" :data-act="name">
         <g :stroke="COLOURS.ink" stroke-width="1" stroke-linejoin="round">
-            <template v-if="name === 'post_dove'">
-                <g v-if="!dove?.carrying && u > act.raise[0]" :transform="`translate(${hand.x} ${hand.y - 10})`">
-                    <rect x="-7" y="-5" width="14" height="10" rx="1" :fill="COLOURS.paper" />
-                    <path d="M-7 -5 0 1 7 -5" fill="none" />
-                </g>
-                <g v-if="dove" :transform="`translate(${dove.x} ${dove.y}) scale(${1.5 * dove.way} 1.5)`">
-                    <g v-if="dove.carrying" transform="translate(0 8)">
-                        <rect x="-6" y="-4" width="12" height="8" rx="1" :fill="COLOURS.paper" />
-                        <path d="M-6 -4 0 0.8 6 -4" fill="none" />
-                    </g>
-                    <ellipse cx="0" cy="0" rx="8" ry="4.5" :fill="COLOURS.dove" />
-                    <circle cx="7" cy="-3" r="3" :fill="COLOURS.dove" />
-                    <path d="M10 -3.4 13 -2.6 10 -1.8Z" :fill="COLOURS.gold" />
-                    <path d="M-8 0 -13 -2.5 -12 2Z" :fill="COLOURS.dove" />
-                    <path :d="`M-2 -2 Q-4 ${-12 * dove.wings} 6 ${-14 * dove.wings} Q3 ${-5 * dove.wings} 3 -2Z`" :fill="COLOURS.dove" />
-                </g>
-            </template>
-
             <template v-if="name === 'ask_sign' && u > act.raise[0] && u < act.lower[1]">
                 <g :transform="`translate(${hand.x} ${hand.y}) rotate(${waggle})`">
                     <rect x="-1.2" y="-22" width="2.4" height="26" :fill="COLOURS.wood" />
                     <rect x="-12" y="-40" width="24" height="20" rx="2" :fill="COLOURS.paper" stroke-width="1.4" />
                     <text x="0" y="-24.5" text-anchor="middle" class="figure-act-mark" :fill="COLOURS.ink" stroke="none">?</text>
-                </g>
-            </template>
-
-            <template v-if="name === 'whistle_runner' && runner">
-                <g :transform="`translate(${runner.x} ${floor}) scale(${out} 1)`" class="figure-act-runner" stroke-width="1.8" stroke-linecap="round" fill="none">
-                    <circle cx="1.5" cy="-14.5" r="2.4" fill="currentColor" />
-                    <path d="M1 -11.5 -1 -5.5" />
-                    <path :d="`M-1 -5.5 ${-1 + 4 * runner.stride} 0M-1 -5.5 ${-1 - 4 * runner.stride} 0`" />
-                    <path :d="`M0.6 -10 ${0.6 - 3.5 * runner.stride} -7M0.6 -10 ${0.6 + 3.5 * runner.stride} -8`" />
                 </g>
             </template>
 
@@ -443,11 +396,6 @@ const flap = computed(() => {
 
 .figure-act-mark {
     font: 800 15px/1 var(--mono, monospace);
-}
-
-.figure-act-runner {
-    color: var(--text);
-    stroke: var(--text);
 }
 
 .figure-act-word {

@@ -11,7 +11,7 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
-const ACTED = ["post_dove", "ask_sign", "whistle_runner", "scroll", "file_card"];
+const ACTED = ["phone_call", "ask_sign", "scroll", "file_card"];
 const NEW = ["ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
@@ -42,10 +42,8 @@ const cooldownOf = (moment) => played(moment)[0].cooldown;
 const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 
 const JOURNAL = {
-    messaged: ["post_dove"],
     task_finished: ["nod", "joy", "party_horn"],
     question_asked: ["ask_sign"],
-    worker_sent: ["whistle_runner"],
     reported: ["scroll"],
     fact_filed: ["file_card"],
     check_passed: ["joy", "party_horn"],
@@ -62,7 +60,7 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(2, "system", "Started task 13: the parser", {icon: "todos", tone: ""}),
         message(3, "system", "Filed task 14 from your message", {icon: "inbox"}),
         message(4, "system", "Which one?", {kind: "question", process: "question"}, "s"),
-        message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: dispatched on claude opus", {icon: "agents", tone: ""}),
+        message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {icon: "agents", tone: ""}),
         message(6, "system", "Fact 15 recorded", {icon: "check", tone: "good"}),
         message(7, "system", "Reminder 16 recorded", {icon: "check", tone: "good"}),
         message(8, "system", "Check Check for sins passed", {icon: "check", tone: "good"}),
@@ -74,9 +72,11 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(14, "agent", "thinking it over", {kind: "thought"}, "s"),
         message(15, "agent", "a reply in another session", {}, "other"),
         message(16, "user", "thanks", {}),
-        // a message the agent sends: a worker's next job, a note told it in its session, a message to another session
+        // a worker sent off or a message the agent sends: a worker's next job, its start again, a note sent it in its session, a message to
+        // another session
         message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: ""}),
-        message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: told a message in its session", {kind: "card", icon: "agents", tone: ""}),
+        message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
+        message(21, "system", "Worker 48, Mr. Sheraton, joiner of panels: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
         message(19, "system", "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),
         // a message from another session is not one the agent sends
         message(20, "system", "Drafted: the reader is committed", {kind: "peer", asks: "x", peer: "code-commandments-e1"}),
@@ -86,13 +86,14 @@ test("each thing the agent does in the journal is its own moment, read from the 
     expect(beats).toEqual([
         ["task_finished", "messages:1"],
         ["question_asked", "messages:4"],
-        ["worker_sent", "messages:5"],
+        ["messaged", "messages:5"],
         ["fact_filed", "messages:6"],
         ["fact_filed", "messages:7"],
         ["check_passed", "messages:8"],
         ["messaged", "messages:17"],
         ["messaged", "messages:18"],
         ["messaged", "messages:19"],
+        ["messaged", "messages:21"],
         ["reported", "messages:13"],
     ]);
     // a message seen at the last look is not a moment again
@@ -125,9 +126,9 @@ const picks = (among, pick) => {
 test("every moment the figure acts out has more than one way to play it, picks among them by weight, and never picks one it lacks", () => {
     const has = (name) => Boolean(clipNamed(name));
     // the journal moments, the celebrations and the breaks from the hammering
-    // the journal moments but the message, which the user wants as the dove alone (message 40754), the celebrations, the breaks from the
-    // hammering and the glances from standing still
-    for (const moment of [...Object.keys(JOURNAL).filter((each) => each !== "messaged"), "tests_passed", "committed", "building", "standing"]) {
+    // the journal moments, the celebrations, the breaks from the hammering and the glances from standing still; a message sent is the
+    // telephone call alone (figureCall.test.js)
+    for (const moment of [...Object.keys(JOURNAL), "tests_passed", "committed", "building", "standing"]) {
         expect(played(moment).length, moment).toBeGreaterThan(1);
         expect(picks(of(moment), (random) => reactionTo(moment, new Map(), 0, random)?.clip ?? "nothing"), moment).toEqual(of(moment).map((each) => each.name));
     }

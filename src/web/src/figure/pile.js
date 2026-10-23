@@ -79,10 +79,10 @@ export const PILE = [
     ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [...celebrations(), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
-    ...at("messaged", {cooldown: 120}, [clip("post_dove", 7), nothing(13)]),
+    // a worker sent off or another session messaged: a call on the telephone, every time but in a burst of them
+    ...at("messaged", {cooldown: 30}, [clip("phone_call", 1)]),
     ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), ...celebrations(), nothing(7)]),
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("think", 3), nothing(8)]),
-    ...at("worker_sent", {cooldown: 90}, [clip("whistle_runner", 3), clip("wave", 1), nothing(4)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
     ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [...celebrations(), nothing(9)]),

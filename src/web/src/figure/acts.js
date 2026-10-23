@@ -2,12 +2,13 @@
 // length, unless it plays a clip of figure.js's own, and the shares of its clip over which each of its parts plays, read alike by the clip
 // that moves the body (figure.js) and by the page that draws what it holds, so the hand and the thing in it never part.
 export const ACTS = {
-    // a message to a worker or another session: it holds an envelope up high, a dove flies in, takes it and flies off with it
-    post_dove: {frames: 48, fps: 12, raise: [0, 0.18], comes: [0.2, 0.5], taken: 0.5, goes: [0.5, 0.95], lower: [0.58, 0.8]},
+    // a worker sent off or another session messaged: a call on an old desk telephone (figure.js TELEPHONE). The telephone appears on the
+    // floor before it over `appears`; it bends to the handset over `reach` and lifts it to its ear over `lift`; it bends to the dial and
+    // puts a finger in it over `finger`, turns it `turn` degrees round to the stop over `dial`, and the dial springs back over `back`; it
+    // talks over `talk`, nodding `nods` times; it bends to put the handset back on the cradle over `hang`, and the telephone goes over `goes`
+    phone_call: {frames: 96, fps: 12, appears: [0, 0.08], reach: [0.06, 0.16], lift: [0.16, 0.26], finger: [0.26, 0.32], dial: [0.32, 0.42], turn: 250, back: [0.42, 0.5], talk: [0.5, 0.74], nods: 3, hang: [0.74, 0.88], goes: [0.9, 1]},
     // a question asked: it raises a sign with a question mark on a stick over its head and waggles it
     ask_sign: {frames: 42, fps: 12, raise: [0, 0.22], waggle: [0.22, 0.78], waggles: 3, lower: [0.78, 1]},
-    // a worker sent out: it blows a whistle and a small runner sets off from beside it and runs off the screen
-    whistle_runner: {runs: [0.3, 0.98], strides: 9},
     // a report: it holds a scroll up before it in both hands, which unrolls down, is read, and rolls up again
     scroll: {frames: 48, fps: 12, raise: [0, 0.16], unrolls: [0.16, 0.4], rolls: [0.8, 0.94], lower: [0.9, 1]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
