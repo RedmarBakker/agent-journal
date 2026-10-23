@@ -668,6 +668,24 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     assert settings_b.project(WorkersFeature.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersFeature.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
 
 
+def test_an_environment_deleted_on_one_journal_is_gone_from_the_other_with_everything_in_it(tmp_path):
+    from journal.models.environment import Environment
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+
+    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
+    environments_a, environments_b = Environments(tasks_a.connection, tasks_a.bus), Environments(tasks_b.connection, tasks_b.bus)
+    side = environments_a.save(Environment(name="side"), USER)
+    with scope_a.environment(side.row_id):
+        task = tasks_a.save(Task(environment_id=side.row_id, title="in the side line"), USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    assert environments_b.find(side.row_id) and tasks_b.find(task.row_id).title == "in the side line"
+    environments_a.wipe(environments_a.find(side.row_id), USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    assert side.row_id not in [row.row_id for row in environments_b.rows()] and task.row_id not in [row.row_id for row in tasks_b.global_matching()], "deleting an environment deletes it, and everything in it, from the other journal too"
+
+
 def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is_the_teams(tmp_path):
     from datetime import datetime, timezone
     from journal.models.check import Check
