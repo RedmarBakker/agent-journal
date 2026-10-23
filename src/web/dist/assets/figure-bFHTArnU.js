@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-9yrQrR9I.js
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-BNjaIYKL.js";import"./tokens-D2Th-Z3L.js";import"./tip-lw2PxB3z.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-GwzAeOln.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 84624b2d0 (After building a box the avatar goes straight round behind it and pushes in one flowing move, with no idle look about or standing still between; lounging with its legs straight out it is only ever drawn side-on, never turned toward the viewer; the composed sit faces the user with its knees up):src/web/dist/assets/figure-D1JCuoAB.js
+import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-DSzQ0i8B.js";import"./tokens-D2Th-Z3L.js";import"./tip-lw2PxB3z.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
