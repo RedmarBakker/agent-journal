@@ -8,7 +8,7 @@ from journal.features.tasks.listeners.clear_waits import ClearWaits
 from journal.features.tasks.listeners.wait_cycle_check import WaitCycleCheck
 from journal.features.tasks.tasks_conduct import TasksConduct
 from journal.engine.nudge import Nudge
-from journal.support.option import Option
+from journal.support.option import USER, Option
 from journal.support.skill import Skill
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
@@ -19,7 +19,7 @@ from journal.features.tasks.listeners.task_move_cards import TaskMoveCards
 
 
 class Tasks(Feature[TasksData]):
-    AUTO = Option("tasks.auto", "Work the list on its own", "At a stop with tasks open, the next one holds the stop until it is taken up; off, the agent stops and waits for you", True, kind="switch")
+    AUTO = Option("tasks.auto", "Work the list on its own", "At a stop with tasks open, the next one holds the stop until it is taken up; off, the agent stops and waits for you", True, kind="switch", setter=USER)
     FIRST_DELAY = Option("tasks.first_nudge_after", "Ask for a log after", "Edits without a log line before the agent is asked where its task stands", 25, unit="edits")
     TASK_REMINDER_INTERVAL = Option("tasks.name_every", "Name the task back every", "Edits between reminders of the task in hand, so drift is noticed", 25, unit="edits")
     LOG_LIMIT = Option("tasks.log_after", "Hold the next write after", "Edits without a log line before the agent's next write waits for one", 50, unit="edits")

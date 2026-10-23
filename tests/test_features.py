@@ -9358,6 +9358,7 @@ def test_the_settings_command_lists_shows_and_sets_and_an_agent_sets_only_the_on
     assert "Work the list on its own" in console.run(["settings", "show", "tasks.auto"], AGENT).text
     refused = console.run(["settings", "set", "tasks.auto", "off"], AGENT)
     assert refused.code != 0 and "the user's to set" in refused.error, "an agent never changes a setting the user keeps"
+    assert console.run(["settings", "set", "workers.most_out", "4"], AGENT).code == 0, "every setting not marked the user's is the agent's to set as well"
     assert console.run(["settings", "set", "tasks.auto", "off"], USER).code == 0 and app.container.get(SettingRows).option(TasksFeature.AUTO) is False
     assert "is on or off" in console.run(["settings", "set", "tasks.auto", "maybe"], USER).error
     assert "no setting is named tasks.nothing" in console.run(["settings", "set", "tasks.nothing", "1"], USER).error

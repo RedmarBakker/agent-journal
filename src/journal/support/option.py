@@ -21,7 +21,7 @@ class Option:
     unit: str = ""
     choices: tuple[str, ...] = ()
     provider: str = ""
-    setter: str = USER
+    setter: str = AGENT
     scope: OptionScope = OptionScope.TEAM
 
     def integer(self, value: object) -> int:

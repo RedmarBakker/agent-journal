@@ -4,7 +4,7 @@ from journal.console.command import Command
 from journal.features.registry import Registry
 from journal.repositories.setting_rows import SettingRows
 from journal.support.caller import Caller
-from journal.support.option import AGENT, Option
+from journal.support.option import USER, Option
 from journal.support.rejection import Rejection
 
 
@@ -26,18 +26,18 @@ class SettingsCommand(Command):
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for option in self.registry.options():
-            print(f"{option.key} = {self.shown(option)}{'  (the agent may set it)' if option.setter == AGENT else ''}")
+            print(f"{option.key} = {self.shown(option)}{'  (the user sets it)' if option.setter == USER else ''}")
         return 0
 
     def show(self, args: Namespace, caller: Caller) -> int:
         option = self.option(args.key)
-        print(f"{option.key} = {self.shown(option)}\n{option.title}: {option.abstract}\ndefault: {option.default!r}; set by {'the user or the agent' if option.setter == AGENT else 'the user, on the Settings page'}")
+        print(f"{option.key} = {self.shown(option)}\n{option.title}: {option.abstract}\ndefault: {option.default!r}; set by {'the user, on the Settings page' if option.setter == USER else 'the user or the agent'}")
         return 0
 
     def set(self, args: Namespace, caller: Caller) -> int:
         option = self.option(args.key)
-        if option.setter != AGENT and not caller.actor.is_user():
-            raise Rejection(f"{option.key} is the user's to set, on the Settings page; the settings an agent may set are marked in journal settings list")
+        if option.setter == USER and not caller.actor.is_user():
+            raise Rejection(f"{option.key} is the user's to set, on the Settings page")
         self.settings.set(option.key, option.parsed(args.value), caller.actor)
         print(f"{option.key} = {self.shown(option)}")
         return 0

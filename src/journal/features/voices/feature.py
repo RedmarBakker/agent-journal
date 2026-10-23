@@ -1,6 +1,6 @@
 from journal.features.feature import Feature
 from journal.engine.nudge import Nudge
-from journal.support.option import Option
+from journal.support.option import USER, Option
 from journal.support.option_scope import OptionScope
 from journal.features.voices.support.builtin_catalogue import BuiltinCatalogue
 from journal.features.voices.commands.voice_command import VoiceCommand
@@ -11,7 +11,7 @@ from journal.features.voices.support.voices_data import VoicesData
 
 class Voices(Feature[VoicesData]):
     """The agent talks to you in the voice you choose, by your title and first name, as the voice says."""
-    PROFILE = Option("voices.profile", "Voice", "How the agent talks to you", "butler", kind="choice", choices=tuple(v.name for v in BuiltinCatalogue.ALL), scope=OptionScope.PERSON)
+    PROFILE = Option("voices.profile", "Voice", "How the agent talks to you", "butler", kind="choice", choices=tuple(v.name for v in BuiltinCatalogue.ALL), scope=OptionScope.PERSON, setter=USER)
     TITLE = Option("voices.title", "Your title", "Sir, Madam, Captain: what the voice calls you before your name", "Sir", kind="text", scope=OptionScope.PERSON)
     NAME = Option("voices.name", "Your first name", "Empty takes the name git knows you by", "", kind="text", scope=OptionScope.PERSON)
     VOICE_OPTIONS = (PROFILE, TITLE, NAME)
