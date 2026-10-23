@@ -22,7 +22,7 @@ const props = defineProps({
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
 const STANDS = {file_card: {across: 0.24, top: 0.3}};
-const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", wood: "#8a5a2b", gold: "#e8b84a", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1"};
+const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", wood: "#8a5a2b", gold: "#e8b84a", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1", smoke: "#e9e7e1"};
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
@@ -172,6 +172,21 @@ const vacuumed = computed(() => {
 });
 
 // the steam rising off the head of a figure fuming, puff after puff from either side
+// the little cloud rising from the rubbing hands: puffs drifting up and fading, one after another, and a few sparkles twinkling among
+// them, each at its place from the hands in pixels; empty outside the act's puff
+const SPARKLES = [[-9, -12], [8, -18], [1, -26]];
+const rub = computed(() => {
+    const k = (props.u - act.value.puff[0]) / (act.value.puff[1] - act.value.puff[0]);
+    if (k <= 0 || k >= 1) return null;
+    const fade = Math.min(k * 6, 1, (1 - k) * 6);
+    const puffs = Array.from({length: 5}, (_, index) => {
+        const rise = (k * 3 + index / 5) % 1;
+        return {x: (index - 2) * 3 + 3 * Math.sin(rise * 6 + index), y: -4 - 16 * rise, r: 2 + 3.5 * rise, fade: fade * (1 - rise) * 0.85};
+    });
+    const sparkles = SPARKLES.map(([x, y], index) => ({x, y, size: 2.6 * Math.max(Math.sin(Math.PI * ((k * 4 + index / 3) % 1)), 0), fade}));
+    return {x: hand.value.x, y: hand.value.y, puffs, sparkles};
+});
+
 const steam = computed(() => {
     const k = (props.u - act.value.steam[0]) / (act.value.steam[1] - act.value.steam[0]);
     if (k <= 0 || k >= 1) return [];
@@ -242,6 +257,17 @@ const flap = computed(() => {
                 <g :transform="`translate(${hand.x} ${hand.y}) rotate(${Math.atan2(beam.lit.y - beam.tip.y, beam.lit.x - beam.tip.x) * 57.3})`">
                     <rect x="-4" y="-1.6" width="9" height="3.2" rx="1" fill="#35374b" />
                     <rect x="5" y="-2.4" width="2.4" height="4.8" :fill="COLOURS.gold" />
+                </g>
+            </template>
+
+            <template v-if="name === 'hand_rub' && rub">
+                <g class="figure-act-rub" :transform="`translate(${rub.x} ${rub.y})`">
+                    <template v-for="(puff, index) in rub.puffs" :key="`puff${index}`">
+                        <circle :cx="puff.x" :cy="puff.y" :r="puff.r" :fill="COLOURS.smoke" stroke="#a9adb8" stroke-width="0.5" :opacity="puff.fade" />
+                    </template>
+                    <template v-for="(sparkle, index) in rub.sparkles" :key="`sparkle${index}`">
+                        <path :d="`M${sparkle.x} ${sparkle.y - sparkle.size * 2}L${sparkle.x + sparkle.size * 0.5} ${sparkle.y - sparkle.size * 0.5}L${sparkle.x + sparkle.size * 2} ${sparkle.y}L${sparkle.x + sparkle.size * 0.5} ${sparkle.y + sparkle.size * 0.5}L${sparkle.x} ${sparkle.y + sparkle.size * 2}L${sparkle.x - sparkle.size * 0.5} ${sparkle.y + sparkle.size * 0.5}L${sparkle.x - sparkle.size * 2} ${sparkle.y}L${sparkle.x - sparkle.size * 0.5} ${sparkle.y - sparkle.size * 0.5}Z`" :fill="COLOURS.light" stroke="none" :opacity="sparkle.fade" />
+                    </template>
                 </g>
             </template>
 

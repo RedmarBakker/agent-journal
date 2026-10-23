@@ -84,6 +84,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "nothing nothing ×2 when moment=committed",
         "clip phone_call ×1 when moment=messaged, plays out",
         "clip nod ×4 when moment=task_finished, cut after 1s",
+        "clip hand_rub ×4 when moment=task_finished, plays out",
         "clip joy ×2 when moment=task_finished, plays out",
         "nothing nothing ×7 when moment=task_finished",
         "clip ask_sign ×9 when moment=question_asked, plays out",
@@ -287,13 +288,13 @@ test("a pass that fixed a failed test run, and only that, may bring a bug the fi
     expect(bugShot("tests_fixed", {memory, now: SHOWPIECES.bug_shot})).toBe(true);
 });
 
-test("a finished task never brings the stamp: no stamp in the pile or among the clips, and its moment draws a nod, a celebration or nothing", () => {
+test("a finished task never brings the stamp: no stamp in the pile or among the clips, and its moment draws a nod, the hands rubbed together, a celebration or nothing", () => {
     expect(PILE.some((entry) => entry.name === "stamp")).toBe(false);
     expect(CLIPS.some((clip) => clip.name === "stamp")).toBe(false);
     expect(Object.keys(ACTS)).not.toContain("stamp");
     const drawn = new Set();
     for (let share = 0; share < 1; share += 0.01) drawn.add(draw({moment: "task_finished"}, () => share)?.name ?? "nothing");
-    expect([...drawn].sort()).toEqual(["joy", "nod", "nothing"]);
+    expect([...drawn].sort()).toEqual(["hand_rub", "joy", "nod", "nothing"]);
 });
 
 test("every celebrated moment draws the jump for joy", () => {

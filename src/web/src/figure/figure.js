@@ -395,6 +395,28 @@ function nod(pose, stance, t) {
     armsAtRest(pose, stance);
 }
 
+// Rubbing its hands together before its chest, pleased with a job well done (acts.js hand_rub): the hands meet at `at` (across, forward, up),
+// each `apart` to its own side of it, and slide round each other in circles `circle` round turning opposite ways, so each passes the other
+// over and under; the head nods `nod` degrees with each rub
+export const RUB = {at: [0, -0.62, 1.95], apart: 0.07, circle: 0.13, nod: 8};
+
+function hand_rub(pose, stance, t) {
+    const act = ACTS.hand_rub;
+    const u = onceTime(t, act.frames);
+    const ready = partOf(u, act.together) * (1 - partOf(u, act.apart));
+    const angle = 2 * Math.PI * act.rubs * span(u, act.together[1], act.apart[0]);
+    breathe(pose, 0);
+    trunk(pose, {lean: 4 * ready, nod: RUB.nod * ready * (0.5 + 0.5 * Math.sin(2 * angle))});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, ready ? Object.keys(SIDES) : []);
+    const [x, y, z] = RUB.at;
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const spot = new THREE.Vector3(x + sign * (RUB.apart + RUB.circle * Math.cos(angle)), y, z + sign * RUB.circle * Math.sin(angle));
+        if (ready) handTo(pose, side, ready, pose.withinReach(side, pose.carried(spot), 0.97), new THREE.Vector3(...ACTING.elbow));
+    }
+    eyesAs(pose, "amused", ready);
+}
+
 function shake(pose, stance, t) {
     trunk(pose, {turn: 28 * waveOf(t, 2), tilt: 4 * waveOf(t, 2)});
     armsAtRest(pose, stance);
@@ -2614,6 +2636,7 @@ const ON_A_LAP = ["sit", "lounge"];
 export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
     {name: "nod", frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
+    {name: "hand_rub", frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: GESTURE, pose: hand_rub},
     {name: "shake", frames: 12, fps: 12, loops: false, postures: GESTURE, pose: shake},
     {name: "wave", frames: 12, fps: 12, loops: true, postures: GESTURE, pose: wave},
     {name: "think", frames: 12, fps: 6, loops: true, postures: GESTURE, pose: think},

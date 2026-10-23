@@ -11,7 +11,7 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
-const ACTED = ["phone_call", "ask_sign", "scroll", "file_card"];
+const ACTED = ["phone_call", "ask_sign", "scroll", "file_card", "hand_rub"];
 const NEW = ["ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
@@ -503,4 +503,42 @@ test("the jump for joy lasts three to four and a half seconds, a few jumps, and 
     expect(seconds).toBeLessThanOrEqual(4.5);
     expect(ACTS.joy.jumps).toBeGreaterThanOrEqual(3);
     expect(cutsAfter("joy", seconds), "no following beat cuts it short").toBe(false);
+});
+
+test("a finished task now and then brings the hands rubbed together before the chest, sliding round each other, with a little nod", async () => {
+    const {choicesFor} = await import("../src/figure/pile.js");
+    const {ACTS} = await import("../src/figure/acts.js");
+    const rub = choicesFor({moment: "task_finished"}).find((entry) => entry.name === "hand_rub");
+    expect(rub.weight).toBeGreaterThanOrEqual(3);
+    const clip = clipNamed("hand_rub");
+    // about two seconds
+    expect(clip.frames / clip.fps).toBeGreaterThan(1.8);
+    expect(clip.frames / clip.fps).toBeLessThan(2.6);
+    const act = ACTS.hand_rub;
+    for (const voice of Object.keys(stances)) {
+        const across = new Set();
+        const over = new Set();
+        for (let frame = 0; frame < clip.frames; frame++) {
+            const t = frame / clip.frames;
+            const u = (t * clip.frames) / (clip.frames - 1);
+            if (u <= act.together[1] || u >= act.apart[0]) continue;
+            const pose = new Posing(RIG, "stand", 0);
+            clip.pose(pose, stanceOf(voice), t);
+            const moves = pose.moves(0);
+            const at = (name) => pose.head(name, moves.get(name));
+            const [left, right, chest] = [at("hand_l"), at("hand_r"), at("chest")];
+            const label = `${voice} ${frame}`;
+            // the hands together, before the chest at its height
+            expect(left.distanceTo(right), label).toBeLessThan(0.75);
+            for (const hand of [left, right]) {
+                expect(hand.y, label).toBeLessThan(chest.y - 0.3);
+                expect(Math.abs(hand.z - chest.z), label).toBeLessThan(0.5);
+            }
+            across.add(Math.sign(Math.round((left.x - right.x) * 100)));
+            over.add(Math.sign(Math.round((left.z - right.z) * 100)));
+        }
+        // sliding round each other: each passes the other, over and under, as they rub
+        expect(over.has(1) && over.has(-1), voice).toBe(true);
+        expect(across.size, voice).toBeGreaterThan(1);
+    }
 });

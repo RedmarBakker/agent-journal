@@ -15,6 +15,10 @@ export const ACTS = {
     ask_sign: {frames: 42, fps: 12, raise: [0, 0.22], waggle: [0.22, 0.78], waggles: 3, lower: [0.78, 1]},
     // a report: it holds a scroll up before it in both hands, which unrolls down, is read, and rolls up again
     scroll: {frames: 48, fps: 12, raise: [0, 0.16], unrolls: [0.16, 0.4], rolls: [0.8, 0.94], lower: [0.9, 1]},
+    // a task finished, a job well done: it brings its hands together before its chest over `together`, rubs them round each other
+    // `rubs` times, nodding a little with each, and lowers them over `apart`; a small puff with a few sparkles rises from the hands over
+    // `puff` (chat/FigureAct.vue)
+    hand_rub: {frames: 26, fps: 12, together: [0, 0.18], rubs: 3, apart: [0.84, 1], puff: [0.2, 0.92]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
     // searching: binoculars at its eyes, sweeping slowly left and right

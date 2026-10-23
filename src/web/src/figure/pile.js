@@ -81,7 +81,7 @@ export const PILE = [
     // what the agent has just done in the journal, acted out now and then, never every time
     // a worker sent off or another session messaged: a call on the telephone, at most one in a minute and a half
     ...at("messaged", {cooldown: 90}, [clip("phone_call", 1)]),
-    ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), ...celebrations(), nothing(7)]),
+    ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), clip("hand_rub", 4), ...celebrations(), nothing(7)]),
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("think", 3), nothing(8)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
