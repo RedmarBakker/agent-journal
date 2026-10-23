@@ -3,7 +3,7 @@ import {beforeEach, expect, test} from "vitest";
 
 const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
-const {PILE, SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
+const {HANG: HANG_COOLDOWN, PILE, SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
 const {ACTS} = await import("../src/figure/acts.js");
 const {JUMP, POGO, climbStops, heightOf, jumpMost, pogoClimb} = await import("../src/figure/climbs.js");
 const {legAt} = await import("../src/domain/figureMotion.js");
@@ -70,6 +70,24 @@ test("it perches on the side of a bubble with more room outside it, and hangs or
     expect(perchOn(floorsOf(at(300)), FIGURE, HANDS, fixed(0)).kind).toBe(HANGS);
     expect(perchOn(floorsOf(at(300)), FIGURE, HANDS, fixed(HANG_SHARE)).kind).toBe(STANDS);
     expect(perchOn(floorsOf(at(300)), FIGURE, [], fixed(0)).kind).toBe(STANDS);
+});
+
+test("it hangs from a bubble's side at most once every two minutes, drawn or as the stand's fallback, and may hang again after", () => {
+    expect(HANG_COOLDOWN.every).toBe(120);
+    const memory = new Map();
+    const perch = (now, random = fixed(0)) => perchOn(floorsOf(at(300)), FIGURE, HANDS, random, {memory, now}).kind;
+    const kinds = [10, 40, 70, 100, 129].map((now) => perch(now));
+    expect(kinds.filter((kind) => kind === HANGS).length, "one hang in two minutes, drawn every time").toBe(1);
+    expect(perch(130), "a hang possible again two minutes after").toBe(HANGS);
+    // the stand drawn but no room for it on the newest bubble: the hang it falls back to counts as one, and is not taken while it cools
+    const words = new Map();
+    const older = at(300);
+    const newest = at(500);
+    write([{left: 470, right: 520, top: 440, bottom: 470}]);
+    const fallback = (now) => perchOn(floorsOf(older, newest), FIGURE, HANDS, () => 0.99, {memory: words, now});
+    expect(fallback(0)).toMatchObject({floor: newest.id, kind: HANGS});
+    expect(fallback(60)).toMatchObject({floor: older.id, kind: STANDS});
+    expect(fallback(120)).toMatchObject({floor: newest.id, kind: HANGS});
 });
 
 test("a hanging figure grips the roomy corner with the hand on its side, or turns to face the bubble to grip it with its one free hand", () => {

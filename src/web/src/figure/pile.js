@@ -26,6 +26,9 @@ export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 *
 // seconds
 export const UNIT = {weight: 19, every: 3 * 60};
 
+// A one-armed hang from a bubble's side at most once every `every` seconds
+export const HANG = {every: 2 * 60};
+
 // The clip each voice plays when the agent puts one of the voice's own faces on a message, by voice and then by face
 export const VOICE_FACES = {
     butler: {"🎩": "hat_tip", "🧐": "monocle", "🥂": "toast"},
@@ -168,8 +171,8 @@ export const PILE = [
     // rolls in from
     ...at("carrier", {}, [pick("ufo", 3), pick("crane", 1)]),
     ...at("crane_from", {}, [pick("left", 1), pick("right", 1)]),
-    // a perch on a bubble: a hang from its corner by a free hand, or a stand on its corner
-    ...at("perch", {}, [pick("hang", 1, {hands: true}), pick("stand", 5)]),
+    // a perch on a bubble: a hang from its corner by a free hand, at most once every HANG.every, or a stand on its corner
+    ...at("perch", {}, [{...pick("hang", 1, {hands: true}), cooldown: HANG.every, apart: true}, pick("stand", 5)]),
     // a falling figure caught by a bubble it falls past, but never soon after another fall, or dropping straight home
     ...at("fall", {}, [pick("caught", 1, {settled: true}), pick("home", 1)]),
     // a digit a blow's dust lets out
@@ -230,12 +233,23 @@ export function draw(scene, random) {
     let roll = random() * choices.reduce((sum, entry) => sum + entry.weight, 0);
     const drawn = choices.find((entry) => (roll -= entry.weight) < 0) ?? choices.at(-1) ?? null;
     if (!drawn || drawn.kind === "nothing") return null;
-    // a cooldown of a random length is kept as one of its least that began as much later
-    const later = beyondLeast(drawn.cooldown ?? drawn.waits, random);
-    scene.memory?.set(cooledUnder(drawn), scene.now + later);
-    if (drawn.waits) scene.memory?.set(drawn.when.moment, scene.now + later);
+    cool(scene, drawn, random);
     if (scene.tally) Object.assign(scene.tally, {plain: drawn.shenanigan ? 0 : scene.tally.plain + 1, last: drawn.name});
     return drawn;
+}
+
+// The cooldown of `entry` begun in the scene's memory at its `now`, as when it is drawn; a cooldown of a random length is kept as one of
+// its least that began as much later
+function cool(scene, entry, random) {
+    const later = beyondLeast(entry.cooldown ?? entry.waits, random);
+    scene.memory?.set(cooledUnder(entry), scene.now + later);
+    if (entry.waits) scene.memory?.set(entry.when.moment, scene.now + later);
+}
+
+// The entry `name` of the scene's moment taken without being drawn, as a perch's other kind when the drawn one does not fit: its cooldown
+// begun as a draw begins it
+export function taken(scene, name, random) {
+    cool(scene, PILE.find((entry) => entry.when.moment === scene.moment && entry.name === name), random);
 }
 
 // an entry as a line: what it is, its weight and the condition it plays under

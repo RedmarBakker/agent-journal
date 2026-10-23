@@ -4,7 +4,7 @@ import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
-import {PILE, choicesFor, draw} from "./pile.js";
+import {PILE, choicesFor, draw, taken} from "./pile.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
 // or hanging from its top corner by its hands. A perch names its bubble's floor (figure/floors.js), so it rides the bubble as the thread
@@ -43,14 +43,18 @@ const TURNED_TO_THE_BUBBLE = 180;
 
 // The perch a figure takes now on the bubbles of the floors snapshot `floors`, or null when no bubble in view has one free: the newest
 // bubble first, as the thread keeps it in view while older ones scroll away, and on each the kind the pile draws first (pile.js perch), a
-// hang only with a free hand, then the other. `hands` are the sides, "l" or "r", of the hands that carry nothing; `random` is a function
-// returning 0 up to 1.
-export function perchOn(floors, figure, hands, random) {
+// hang only with a free hand and not cooling down in the figure's `memory` at `now`, then the other, a hang taken either way starting its
+// cooldown. `hands` are the sides, "l" or "r", of the hands that carry nothing; `random` is a function returning 0 up to 1.
+export function perchOn(floors, figure, hands, random, {memory = null, now = 0} = {}) {
     const open = floors.floors.filter((floor) => floor.kind === "bubble" && inView(floor, floors.view, figure));
-    const first = draw({moment: "perch", hands: hands.length > 0}, random).name;
-    const kinds = !hands.length ? [STANDS] : first === HANGS ? [HANGS, STANDS] : [STANDS, HANGS];
+    const scene = {moment: "perch", hands: hands.length > 0, memory, now};
+    const hangs = choicesFor(scene).some((entry) => entry.name === HANGS);
+    const first = draw({moment: "perch", hands: hangs}, random).name;
+    const kinds = !hangs ? [STANDS] : first === HANGS ? [HANGS, STANDS] : [STANDS, HANGS];
     const perches = open.reverse().flatMap((floor) => kinds.map((kind) => perchAt(floor, kind, floors.view, hands)));
-    return perches.find((perch) => perchSpot(perch, floors, figure)) ?? null;
+    const perch = perches.find((each) => perchSpot(each, floors, figure)) ?? null;
+    if (perch?.kind === HANGS) taken(scene, HANGS, random);
+    return perch;
 }
 
 // A perch of `kind` on a bubble's floor, on its side with more room. A hang there is by the hand on that side, facing the viewer; with
@@ -205,7 +209,7 @@ export function nextStay(now, figure, hands, random, {tally = null, free = false
     if (where === "ledge") return {where, until, along: draw({moment: "ledge_at"}, random).along};
     if (where === "rope_swing") return {where, until, floor: swings[Math.floor(random() * swings.length)].id};
     if (where === "bubble") {
-        const perch = perchOn(readFloors(), figure, hands, random);
+        const perch = perchOn(readFloors(), figure, hands, random, {memory, now});
         return {where, until: perch?.kind === HANGS ? now + between(HANG_STAY, random) : until, perch};
     }
     if (where === "tab") {
