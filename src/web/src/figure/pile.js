@@ -226,3 +226,7 @@ export const lineOf = (entry) =>
 
 // whether the clip `name` may be cut off by the next moment once it has played `seconds`: only an act of CUT that has played its least
 export const cutsAfter = (name, seconds) => Boolean(CUT[name]) && seconds >= CUT[name];
+
+// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: a loop at once, an act once it has played
+// its least (cutsAfter), and anything at once for a `trip` that drops everything, as for the end of a long run (reactions.js EAGER)
+export const givesWay = (shown, seconds, trip = null) => Boolean(trip?.urgent) || !shown?.once || cutsAfter(shown.clip.name, seconds);

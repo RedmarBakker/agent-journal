@@ -243,6 +243,37 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
 });
 
+test("a run gone over two minutes is always anticipated near its end, whatever the roll: the figure cuts off any act and goes to the mark; a shorter run is left to the odds", async () => {
+    const {givesWay} = await import("../src/figure/pile.js");
+    const {eagerSpot} = await import("../src/figure/perches.js");
+    const {boxed} = await import("./support/figurePage.js");
+    // a run that began at 100, five seconds or less from its end at its pace when the figure looks
+    const nearEnd = (seconds) => ({bar: {}, share: 1 - 4 / (seconds + 4), ended: "", began: 100});
+    expect(secondsLeft(121, nearEnd(121).share)).toBeLessThan(EAGER.lead);
+    for (const roll of [0, 0.5, 0.999]) expect(eagerFor(nearEnd(121), null, () => roll, 100 + 121).eager, `${roll}`).toEqual({run: 100, on: true, urgent: true});
+    // a minute's run rolls the odds as ever: eager on a winning roll, not on a losing one, and never urgent
+    expect(eagerFor(nearEnd(60), null, () => 0, 100 + 60).eager).toEqual({run: 100, on: true});
+    expect(eagerFor(nearEnd(60), null, () => 0.999, 100 + 60).eager).toEqual({run: 100, on: false});
+    // the act in hand gives way at once to the urgent trip, even one that plays out otherwise, as the disco does and a fresh act
+    for (const name of ["disco", "phone_call", "rope_swing", "joy"]) {
+        const shown = {once: true, clip: {name}};
+        expect(givesWay(shown, 0.1, {urgent: true}), name).toBe(true);
+        expect(givesWay(shown, 0.1, {pressing: true}), name).toBe(false);
+        expect(givesWay(shown, 0.1), name).toBe(false);
+    }
+    // and it goes to the mark docked over the compose box, from wherever it is, staying there once it is on it
+    const bars = boxed({left: 300, right: 700, top: 540, bottom: 600});
+    const scroll = {...boxed({left: 200, top: 100, right: 900, bottom: 540}), querySelectorAll: () => []};
+    const thread = {...boxed({left: 200, top: 100, right: 900, bottom: 800}), querySelector: (selector) => (selector === ".thread-scroll" ? scroll : selector === "[data-figure-docked-bars]" ? bars : null)};
+    const home = {...boxed({left: 300, right: 700, top: 600, bottom: 720}), closest: () => thread};
+    globalThis.window = {innerWidth: 1280, innerHeight: 800};
+    globalThis.CSS = {escape: (text) => text};
+    globalThis.document = {querySelector: (selector) => (selector === "[data-figure-home]" ? home : null), querySelectorAll: () => []};
+    expect(eagerSpot({home: false}, {size: 112, below: 0.05})).toMatchObject({y: 540, on: bars});
+    expect(eagerSpot(null, {size: 112, below: 0.05})).toMatchObject({y: 540, on: bars});
+    expect(eagerSpot({home: true}, {size: 112, below: 0.05})).toBe(null);
+});
+
 test("eager, the figure's eyes are sparkling stars from the first frames until it lets go of the bar, for every voice", () => {
     const clip = clipNamed("eager");
     for (const voice of Object.keys(stances)) {

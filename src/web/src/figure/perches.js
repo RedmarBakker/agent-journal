@@ -254,6 +254,10 @@ export function targetFor({state, counts, stay, now, near, figure, hands, work =
 // for one, and one already on it may stay
 const unlessClosing = (spot, near) => (spot?.on && spot.on !== near.on && spot.on === groundEdge().element && homeCloses() ? null : spot);
 
+// Where a figure eager for the bar docked over the compose box goes, `footing` what it stands by: onto that bar, unless it stands on it
+// already, where it stays (null)
+export const eagerSpot = (footing, figure) => (footing?.home ? null : spotOf(null, figure));
+
 // whether the figure builds in `state`: its clip there is the hammering
 export const builds = (state) => clipOf(state) === "work";
 

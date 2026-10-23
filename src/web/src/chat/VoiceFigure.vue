@@ -39,7 +39,7 @@ import {
     withSystemCards,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
@@ -52,7 +52,7 @@ import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
 import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
-import {cutsAfter} from "../figure/pile.js";
+import {givesWay} from "../figure/pile.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -296,9 +296,10 @@ const playedOut = () =>
         ? frameOf(playing.shown) >= playing.closing + playing.shown.clip.outro
         : canSwitch(playing.shown.clip, frameOf(playing.shown), playing.index));
 
-// whether the clip on screen may be cut off now by what is wanted instead: a loop, held by a state, may; an act played once only as the
-// pile says it may and once it has played its least (pile.js cutsAfter), so the figure never flickers between acts
-const mayCut = (shown) => !shown?.once || cutsAfter(shown.clip.name, (performance.now() - playing.started) / 1000);
+// whether the clip on screen may be cut off now by what is wanted instead (pile.js givesWay): a loop, held by a state, may; an act played
+// once only as the pile says it may and once it has played its least, so the figure never flickers between acts; anything, for a `trip`
+// that drops everything
+const mayCut = (shown, trip = null) => givesWay(shown, (performance.now() - playing.started) / 1000, trip);
 
 // how far through its step the walk under a clip on the move is, stepped as the walk's own frames are, `pace` times as quick
 function strideNow(pace) {
@@ -320,7 +321,7 @@ function step() {
         playing.closing = null;
     // a clip that cuts in, as watching the UFO, takes over at once from whatever plays, and so does a trip out of something's way, the
     // beat it breaks off dropped
-    const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted)) && mayCut(playing.shown);
+    const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted)) && mayCut(playing.shown, body.trip);
     if (breaking && playing.shown.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed) beats.value = beats.value.slice(1);
     const finished = playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
     const continuing = keyOf(wanted) === playing.name && playing.closing === null;
@@ -437,9 +438,9 @@ function slideOn() {
 // the trip to a spot, from where the figure is in the posture it travels in to that spot in the one it travels in there (places.js); the
 // clip on screen is drawn in that posture first, so the figure gets to its feet or takes its grip where it is before the first leg
 // a trip that is `pressing`, as one out of the way of a new message, sets off at once, breaking off whatever clip plays
-async function moveTo(spot, {straight = false, pace = 1, pressing = false} = {}) {
+async function moveTo(spot, {straight = false, pace = 1, pressing = false, urgent = false} = {}) {
     if (!tripTo(body.place, spot, figureSize(), {straight, pace})) return restOn(spot);
-    body.trip = {to: spot, straight, pace, pressing, footing: footingOn(spot), legs: []};
+    body.trip = {to: spot, straight, pace, pressing, urgent, footing: footingOn(spot), legs: []};
     // read back, since the ref hands out its reactive copy, never the object it was given
     const trip = body.trip;
     step();
@@ -783,11 +784,14 @@ function look() {
     });
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
-    // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended
-    const going = eager?.on ? !body.footing?.home && spotOf(null, figureSize()) : target.spot;
+    // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended; for a long run it drops what it does
+    const going = eager?.on ? eagerSpot(body.footing, figureSize()) : target.spot;
+    // a trip that waits to set off gives way to one that drops everything
+    if (eager?.urgent && going && body.trip && !body.trip.urgent && !body.trip.moves) body.trip = null;
     if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going) {
+        if (eager?.urgent) beats.value = beats.value.slice(0, 1);
         // round behind a box it built and pushing it, it sets off at once, breaking off what it plays, so the build flows into the push
-        moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried || pushing});
+        moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried || pushing || Boolean(eager?.urgent), urgent: Boolean(eager?.urgent)});
         hurried = false;
     }
     if (!document.hidden) lookTimer = setTimeout(look, LOOK_EVERY);
