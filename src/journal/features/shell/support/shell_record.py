@@ -60,6 +60,10 @@ class ShellRecord:
         if agent is not None:
             self.events.ended(saved, agent)
 
+    def foreground_end(self, chain: str, status: int, caller: Caller) -> None:
+        output = self.outputs.chain_output(chain)
+        self.outputs.save(output.ended_with(status, datetime.now(timezone.utc).timestamp()), caller.actor)
+
     def wait_covers(self, output: CommandOutput, agent: Agent) -> bool:
         top = self.states.stack(agent).top() if agent.session == output.session else None
         return isinstance(top, Wait) and f"{output.table()}:{output.id}" in top.wait_description()[1].split(",")

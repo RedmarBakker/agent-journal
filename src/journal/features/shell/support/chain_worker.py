@@ -55,6 +55,8 @@ class ChainWorker:
         folder.finish(code)
         if folder.is_moved():
             self.record.ended(folder.folder.name, code, folder.folder, "\n".join(folder.last(5)), caller)
+        elif folder.number():
+            self.record.foreground_end(folder.folder.name, code, caller)
         return code
 
     def started(self, request: ShellRequest, output_text: Callable[[bytes], None]) -> tuple[ShellProcess, threading.Thread]:

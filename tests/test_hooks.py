@@ -395,3 +395,16 @@ def test_a_main_agents_journal_command_is_never_taken_for_a_subagents_whose_shel
     assert announced.claim("main", "s1", ["task", "show", "1397"]) is True, "while its own journal command is claimed as the subagent's"
     announced.note("main", "s1", ('journal message send "a reply, with words" --reply-to 4',))
     assert announced.claim("main", "s1", ["message", "send", "a reply, with words", "--reply-to", "4"]) is True, "quoted words count as one, as the shim's argv has them"
+
+
+def test_a_foreground_command_kept_under_its_number_is_recorded_ended_so_no_restart_takes_it_for_cut_off(app: App):
+    from journal.repositories.command_outputs import CommandOutputs
+    raw = "JOURNAL_ENV=main\0\0seq 1 3000\n"
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main", "X-Journal-Cwd": str(app.config.root), "X-Journal-Shell": "sh"})
+    with urlopen(request, timeout=10) as reply:
+        shown = reply.read().decode()
+    assert shown.rstrip().endswith("__journal_exit 0"), shown[-200:]
+    outputs = app.container.get(CommandOutputs)
+    kept = [output for output in outputs.selected_globally(outputs.query().order("id")) if "seq 1 3000" in output.command]
+    assert kept and kept[-1].ended and not kept[-1].is_interrupted and kept[-1].status == 0, "the end of a foreground run is recorded as the run ends"
+    assert all(output.id != kept[-1].id for output in outputs.unended()), "so the boot's cut-off seed finds nothing of it"
