@@ -244,12 +244,15 @@ function wheeled(e) {
     if (e.deltaY > 0 && s && s.scrollHeight - s.scrollTop - s.clientHeight <= AT_BOTTOM) settlePlan(true);
 }
 
+// the docks open again at the foot and fold only on a scroll up: the pane gliding down to what arrived passes through a gap
+// on its way, which folds nothing
 function followPlan(s) {
     const gap = s.scrollHeight - s.scrollTop - s.clientHeight;
     const down = s.scrollTop > lastTop;
+    const up = s.scrollTop < lastTop;
     lastTop = s.scrollTop;
     if (gap <= AT_BOTTOM && down) settlePlan(true);
-    else if (gap > foldingRoom(s)) settlePlan(false);
+    else if (up && gap > foldingRoom(s)) settlePlan(false);
     return gap;
 }
 

@@ -14,6 +14,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
+from tests.in_process import posted
 
 RECORDS = Path(__file__).with_name("replays")
 FREEZE = os.environ.get("REPLAY_FREEZE") == "1"
@@ -34,13 +35,7 @@ PROVIDERS = tuple(TOOLS)
 
 def hook_as(app, provider: str, kind: str, session: str = "s1", **body):
     """A hook as the provider's agent sends it, for the session named: the status and the answer."""
-    data = json.dumps({"hook_event_name": kind, "session_id": session, **body}).encode()
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/{provider}", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-    try:
-        with urlopen(request, timeout=5) as reply:
-            return reply.status, json.loads(reply.read())
-    except HTTPError as error:
-        return error.code, json.loads(error.read())
+    return posted(app, f"/hooks/{provider}", {"hook_event_name": kind, "session_id": session, **body}, {"X-Journal-Env": "main"})
 
 
 def catch_typed(app, monkeypatch, keystrokes: list) -> None:

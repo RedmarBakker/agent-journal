@@ -1,14 +1,12 @@
-import json
 import traceback
-from urllib.parse import parse_qs, urlsplit
 
 from journal.http.support.json_out import JsonOut
 from journal.http.support.file_response import FileResponse
 from journal.http.support.identity import Identity
 from journal.http.support.login_gate import LoginGate
-from journal.http.support.multipart import Multipart
 from journal.http.support.pooled_handler import PooledHandler
 from journal.http.support.request import Request
+from journal.http.support.request_reading import RequestReading
 from journal.support.response import Response
 from journal.http.router import Router
 from journal.http.static_files import StaticFiles
@@ -53,17 +51,9 @@ class Handler(PooledHandler):
         return None
 
     def _request(self) -> Request:
-        url = urlsplit(self.path)
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
-        headers = {name.lower(): value for name, value in self.headers.items()}
-        query = {k: v[-1] for k, v in parse_qs(url.query).items()}
-        if headers.get("content-type", "") == "application/octet-stream":
-            return Request(self.command, url.path, query, {"raw": raw}, {}, headers, self.identity.build(headers, headers.get("cookie", "")), request_at=Request.request_time(headers))
-        if headers.get("content-type", "").startswith("multipart/form-data"):
-            form = Multipart(headers["content-type"], raw)
-            return Request(self.command, url.path, query, form.fields(), {}, headers, self.identity.build(headers, headers.get("cookie", "")), form.files(), Request.request_time(headers))
-        return Request(self.command, url.path, query, json.loads(raw) if raw else {}, {}, headers, self.identity.build(headers, headers.get("cookie", "")), request_at=Request.request_time(headers))
+        return RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity)
 
     def _file(self, file: FileResponse) -> None:
         self.send_response(file.status)

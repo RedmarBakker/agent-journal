@@ -18,6 +18,7 @@ from journal.support.decision import Decision
 from journal.support.listener_queue import ListenerQueue
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
+from tests.in_process import posted
 
 MAIN = 1
 """The id of main, made by the first hook: what a test reads directly, it reads there."""
@@ -64,12 +65,8 @@ def app(app: App):
 
 def post_hook(app, body: dict, started_ms: int = 0):
     stamp = {"X-Journal-Request-At": str(started_ms)} if started_ms else {}
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", **stamp})
-    try:
-        with urlopen(request, timeout=5) as reply:
-            return reply.status, json.loads(reply.read())
-    except HTTPError as error:
-        return error.code, json.loads(error.read())
+    return posted(app, "/hooks/claude", body, {"X-Journal-Env": "main", **stamp})
+
 
 
 def test_a_hook_lands_as_an_entry_and_answers_200(app: App):

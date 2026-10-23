@@ -44,6 +44,7 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.replay import catch_typed, drive_the_clock, tick_after
+from tests.in_process import posted
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -97,13 +98,7 @@ def made(output) -> int:
 
 
 def hook(app, kind: str, **body):
-    data = json.dumps({"hook_event_name": kind, "session_id": "s1", **body}).encode()
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-    try:
-        with urlopen(request, timeout=5) as reply:
-            return reply.status, json.loads(reply.read())
-    except HTTPError as error:
-        return error.code, json.loads(error.read())
+    return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
 
 def context(app, percent: int):

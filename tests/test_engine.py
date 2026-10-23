@@ -78,6 +78,7 @@ from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.events.agent.session_started import SessionStarted
+from tests.in_process import posted
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.stop import Stop
 from journal.engine.states.wait import Wait
@@ -108,13 +109,7 @@ def boot():
 
 
 def hook(app, kind: str, **body):
-    data = json.dumps({"hook_event_name": kind, "session_id": "s1", **body}).encode()
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-    try:
-        with urlopen(request, timeout=5) as reply:
-            return reply.status, json.loads(reply.read())
-    except HTTPError as error:
-        return error.code, json.loads(error.read())
+    return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
 
 def write(app):

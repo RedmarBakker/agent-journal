@@ -1,7 +1,8 @@
 // Needs a browser and a running journal, so it is not in the default run: node src/web/tests/chatScroll.browser.mjs [viewer address]
 // The chat's scroll, driven in a real browser on the live viewer: scrolled up past a quarter of its height, rows above grow, arrive and
 // fold away, and the row being read keeps its place on screen to the pixel, nothing takes the reader to the foot, and the line of what
-// the agent is doing fades; scrolled up within a quarter and left alone, it settles at the foot after five seconds and not before.
+// the agent is doing fades; at the foot, what arrives carries the reader down and folds no docked mark; scrolled up within a quarter and
+// left alone, it settles at the foot after five seconds and not before.
 import {chromium} from "playwright-core";
 
 const address = process.argv[2] || "http://127.0.0.1:8420/";
@@ -54,6 +55,25 @@ try {
     expect(reading.drifts.every((drift) => Math.abs(drift) <= 1), `the row read moved by ${reading.drifts.join(", ")} pixels as rows changed above it`);
     expect(reading.stayed && reading.gap > 100, "the reader scrolled up was taken toward the foot");
     expect(Number(reading.faded) === 0, `the line of what the agent is doing is not faded while scrolled up (opacity ${reading.faded})`);
+
+    // at the foot, something arriving carries the reader down and folds no docked mark: they fold only on a scroll up
+    await page.reload();
+    await page.waitForSelector(".thread-scroll [data-ref]", {timeout: 20000});
+    await page.waitForTimeout(2000);
+    const arriving = await page.evaluate(async () => {
+        const box = document.querySelector(".thread-scroll");
+        box.scrollTop = box.scrollHeight;
+        box.dispatchEvent(new Event("scroll"));
+        await new Promise((done) => setTimeout(done, 600));
+        const folded = () => document.querySelectorAll(".chat-dock-body.folded").length;
+        const before = folded();
+        const rows = [...box.querySelectorAll("[data-ref]")];
+        rows.at(-1).appendChild(Object.assign(document.createElement("div"), {style: "height: 400px"}));
+        await new Promise((done) => setTimeout(done, 1500));
+        return {before, after: folded(), gap: box.scrollHeight - box.scrollTop - box.clientHeight};
+    });
+    expect(arriving.after <= arriving.before, `docked marks folded as something arrived at the foot (${arriving.before} folded before, ${arriving.after} after)`);
+    expect(arriving.gap <= 24, `the reader at the foot was not carried down to what arrived (gap ${arriving.gap})`);
 
     // scrolled up within a quarter and left alone: it settles at the foot after five seconds, not before
     await page.reload();
