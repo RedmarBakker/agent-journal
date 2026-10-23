@@ -226,6 +226,15 @@ class WorkerActions:
         return worker
 
     def complete(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
+        unmerged = self.branch.unmerged_count(self.local(n))
+        if unmerged:
+            raise Rejection(f"worker {n} has {unmerged} commits not merged: take them in with journal worker merge {n}, or throw them away on purpose with journal worker discard {n} --why \"<why>\"")
+        return self.retired(n, reason, actor)
+
+    def discard(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
+        return self.retired(n, f"its work thrown away: {reason}", actor)
+
+    def retired(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
         with self.runner.lock(n):
             worker = self.workers.save(self.local(n).finished(datetime.now(timezone.utc).timestamp(), reason), actor)
             self.runner.stop(worker)

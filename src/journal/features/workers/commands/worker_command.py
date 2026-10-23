@@ -98,6 +98,9 @@ class WorkerCommand(Command):
             retire = self.verb(verbs, verb, help)
             retire.add_argument("n", type=int)
             retire.add_argument("--why", default="", help="why the worker cannot be reused for the next job")
+        discard = self.verb(verbs, "discard", "retire a worker and throw its unmerged commits away, on purpose")
+        discard.add_argument("n", type=int)
+        discard.add_argument("--why", required=True, help="why its work is thrown away instead of merged")
         self.verb(verbs, "list", "every worker, and the subagents this agent started")
         self.verb(verbs, "open", "the workers still to act on: out, clocked out with work to check, or ended without clocking out, and the subagents still running")
         self.verb(verbs, "peers", "for a worker: the other workers of the agent that dispatched it, out or idle, and what each is on")
@@ -283,6 +286,11 @@ class WorkerCommand(Command):
     def complete(self, args: Namespace, caller: Caller) -> int:
         worker, dropped = self.actions.complete(args.n, args.why, caller.actor)
         print(f"worker {worker.id}'s report is acted on" + (f": {args.why}" if args.why else "") + (f"; {dropped}" if dropped else ""))
+        return 0
+
+    def discard(self, args: Namespace, caller: Caller) -> int:
+        worker, dropped = self.actions.discard(args.n, args.why, caller.actor)
+        print(f"worker {worker.id} is retired and its work thrown away: {args.why}" + (f"; {dropped}" if dropped else ""))
         return 0
 
     def peers(self, args: Namespace, caller: Caller) -> int:

@@ -5947,6 +5947,33 @@ def test_a_workers_merge_never_touches_the_users_work_and_says_what_stood_in_its
     assert "the project is on no branch, a detached head" in branch.merge(worker)
 
 
+def test_a_worker_with_unmerged_commits_is_retired_only_by_a_merge_or_an_explicit_discard(app: App):
+    import subprocess
+    from journal.repositories.workers import Workers
+    from journal.repositories.scope import Scope
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    commit = lambda name, text, cwd=root: ((cwd / name).write_text(text), git("add", name, cwd=cwd), git("commit", "-qm", name, cwd=cwd))
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "T")
+    (root / ".gitignore").write_text(".journal/\n")
+    commit(".gitignore", ".journal/\n")
+    hook(app, "SessionStart")
+    console = app.console()
+    for name in ("Lady Lovelace", "Mr Faraday"):
+        dispatched(console, [name, f"job of {name}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
+    with app.container.get(Scope).environment(1):
+        worker = app.container.get(Workers).find(1)
+    commit("parser.py", "PARSE = 1\n", cwd=app.container.get(WorkerBranch).folder(worker))
+    refused = console.run(["worker", "complete", "1", "--why", "done with it"], AGENT)
+    assert refused.code != 0 and "worker 1 has 1 commits not merged" in refused.error and "journal worker merge 1" in refused.error and "journal worker discard 1" in refused.error, refused.error
+    assert console.run(["worker", "discard", "1", "--why", "the parser was rewritten elsewhere"], AGENT).code == 0
+    with app.container.get(Scope).environment(1):
+        assert "the parser was rewritten elsewhere" in app.container.get(Workers).find(1).retire_reason, "a discard records why the work was thrown away"
+    assert console.run(["worker", "complete", "2", "--why", "nothing to merge"], AGENT).code == 0, "a worker with nothing unmerged retires at once"
+
+
 def test_a_worktree_for_a_worker_in_a_project_with_no_commit_is_refused_in_plain_words(app: App):
     import subprocess
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=app.config.root, capture_output=True, timeout=30)
@@ -6013,10 +6040,10 @@ def test_a_done_workers_worktree_goes_with_its_branch_its_last_commit_kept_and_n
         assert "stays while it works" in app.container.get(WorkerBranch).dropped(workers.find(1)), "never while the worker runs in it"
         workers.save(workers.find(1).reported(0.0, 0), Actor.system())
     (tree / "notes.txt").write_text("half\n")
-    stored = app.console().run(["worker", "complete", "1"], AGENT).text
+    stored = app.console().run(["worker", "discard", "1", "--why", "the parser is not needed"], AGENT).text
     assert "stays, since 1 files in it are not committed: notes.txt" in stored and tree.is_dir(), "uncommitted work keeps it"
     (tree / "notes.txt").unlink()
-    missing = app.console().run(["worker", "complete", "1"], AGENT).text
+    missing = app.console().run(["worker", "discard", "1", "--why", "the parser is not needed"], AGENT).text
     assert "its worktree and branch are removed; its last commit is kept as refs/journal/worktrees/1-Lady-Lovelace" in missing and not tree.exists()
     assert git("log", "-1", "--format=%s", "refs/journal/worktrees/1-Lady-Lovelace").stdout.strip() == "the parser", "its last commit can still be taken in"
     app.runtime().deferred.drain()

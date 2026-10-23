@@ -113,6 +113,9 @@ class WorkerBranch:
             raise Rejection(f"git could not list worker {worker.id}'s commits in {repository.label()}: {(finished.stderr.strip().splitlines() or ['no reason given'])[-1]}")
         return [line for line in finished.stdout.splitlines() if line.strip()]
 
+    def unmerged_count(self, worker: Worker) -> int:
+        return sum(len(self.commits(repository, worker)) for repository in self.repositories(worker))
+
     def pending(self, worker: Worker) -> list[WorkerRepository]:
         return [repository for repository in self.repositories(worker) if self.commits(repository, worker)]
 
