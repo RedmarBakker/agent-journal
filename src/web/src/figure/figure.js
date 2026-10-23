@@ -648,8 +648,9 @@ function stepLeg(pose, side, forward, lift, rootHeight, toe = 0) {
 }
 
 // A stride `cycle` steps into its run along the figure's own forward line, faded out by `motion`, posed parent first: the root's bob lowered by `drop`,
-// the trunk with idle's first breath, its lean and any `bend` of the trunk on top, the arms not held `apart`, and the legs, folded by `drop` when standing
-function stride(pose, stance, cycle, motion, {running = false, lean = running ? 10 : 3, clearance, apart = [], drop = 0, bend = {}} = {}) {
+// the trunk with idle's first breath, its lean and any `bend` of the trunk on top, the arms not held `apart`, and the legs, folded by `drop` when standing,
+// their steps `behind` the hips by so much, as when leaning into a push
+function stride(pose, stance, cycle, motion, {running = false, lean = running ? 10 : 3, clearance, apart = [], drop = 0, bend = {}, behind = 0} = {}) {
     const [length, duty, lift] = running ? RUN_STRIDE : WALK_STRIDE;
     const halfPhase = cycle % 0.5;
     const flight = running && halfPhase > duty ? Math.max(0, Math.sin((Math.PI * (halfPhase - duty)) / (0.5 - duty))) : 0;
@@ -667,7 +668,7 @@ function stride(pose, stance, cycle, motion, {running = false, lean = running ? 
         Object.fromEntries(Object.entries(SIDES).map(([side, sign]) => [side, carried.has(side) ? 0 : sign * swing]))
     );
     for (const side of jogging) hang(pose, side, SIDES[side] * swing, 10 + 40 * motion);
-    if (motion > 0 || drop) {
+    if (motion > 0 || drop || behind) {
         for (const [side, offset] of [
             ["l", 0],
             ["r", 0.5],
@@ -676,7 +677,7 @@ function stride(pose, stance, cycle, motion, {running = false, lean = running ? 
             const phase = (cycle + offset) % 1;
             const flightPhase = phase >= duty ? (phase - duty) / (1 - duty) : 0;
             const toe = (running ? 14 : 11) * Math.sin(Math.PI * flightPhase) * motion;
-            stepLeg(pose, side, motion * step, motion * raised, rootHeight, toe);
+            stepLeg(pose, side, motion * step + behind, motion * raised, rootHeight, toe);
         }
     }
 }
@@ -1493,12 +1494,13 @@ function watch(pose, stance, t) {
 }
 
 // Pushes a parcel along in front of it, which stands far lower than its hands: the knees bent to lower the hips by `drop` and the back
-// bent forward `lean` degrees until both hands are on the parcel's near side, the wrists at `hands` from where its feet stand, over the
-// floor; it walks the parcel along on bent knees, and on the spot it stays bent over it
-export const SHOVE = {lean: 70, nod: -25, drop: 0.45, hands: [0.4, -0.15, 0.5]};
+// leaning into the parcel it pushes: the body angled forward, the back `lean` degrees from upright, the knees
+// giving by `drop`, the feet stepping `behind` the hips, and both hands out against the parcel's near side at `hands` from where its feet
+// stand, about half way up it
+export const SHOVE = {lean: 60, nod: -12, drop: 0.3, behind: 0.25, hands: [0.4, -0.25, 0.8]};
 
 function push(pose, stance, t) {
-    stride(pose, stance, pose.stride, pose.posture === "walk" ? 1 : 0, {lean: 0, drop: SHOVE.drop, bend: {nod: SHOVE.nod}});
+    stride(pose, stance, pose.stride, pose.posture === "walk" ? 1 : 0, {lean: 0, drop: SHOVE.drop, behind: SHOVE.behind, bend: {nod: SHOVE.nod}});
     pose.bendAbove("spine", {x: SHOVE.lean});
     const [across, forward, up] = SHOVE.hands;
     for (const [side, sign] of Object.entries(SIDES)) {

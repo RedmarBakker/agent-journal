@@ -119,7 +119,7 @@ test("while the UFO is here the figure stops whatever it does to watch it: its h
     }
 });
 
-test("pushing a parcel far lower than its hands, the figure bends its knees and its back until both hands are on the parcel, feet on the floor", () => {
+test("pushing a parcel the figure leans into it, its back angled well forward, both hands out against the parcel's near side about half way up, its feet stepping behind its hips, on the floor", () => {
     const push = CLIPS.find((clip) => clip.name === "push");
     // the parcel's near side, from the figure's feet, in the figure's units: PUSH.reach pixels ahead of the feet less half a parcel, up to
     // its height, at the chat's 112-pixel figure, whose picture is 5.4 units high
@@ -136,8 +136,8 @@ test("pushing a parcel far lower than its hands, the figure bends its knees and 
                 const label = `${voice} ${posture} ${step}`;
                 for (const side of ["l", "r"]) {
                     const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
-                    expect(grip.z, label).toBeLessThan(top);
-                    expect(grip.z, label).toBeGreaterThan(0);
+                    expect(grip.z, label).toBeLessThan(top * 0.8);
+                    expect(grip.z, label).toBeGreaterThan(top * 0.25);
                     expect(-grip.y, label).toBeGreaterThan(near - 0.25);
                     expect(-grip.y, label).toBeLessThan(near + 0.35);
                 }
@@ -145,6 +145,9 @@ test("pushing a parcel far lower than its hands, the figure bends its knees and 
                 const back = at("neck").sub(at("hips")).normalize();
                 expect(back.z, label).toBeLessThan(Math.cos(THREE.MathUtils.degToRad(45)));
                 for (const side of ["l", "r"]) expect(at(`foot_${side}`).z, label).toBeGreaterThan(-0.05);
+                // the feet behind the hips, as one leaning into a push: forward is less y
+                const feet = (at("foot_l").y + at("foot_r").y) / 2;
+                expect(feet - at("hips").y, label).toBeGreaterThan(0.1);
             }
         }
     }
