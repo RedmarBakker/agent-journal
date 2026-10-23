@@ -402,7 +402,7 @@ def test_messages_are_put_before_the_agent_and_a_reply_tag_answers_them(app: App
     status, body = hook(app, "UserPromptSubmit", prompt="hi")
     assert "new message 1" in body["hookSpecificOutput"]["additionalContext"]
     shown = console.run(["message", "read", "1"], AGENT).text
-    assert "can you look at the login?" in shown and "[!reply:1]" in shown
+    assert "can you look at the login?" in shown and "[!reply:1]" not in shown, "the read prints the message alone; how to answer it comes after the tool use"
     hook(app, "MessageDisplay", message="[!reply:1] On it, the login is next.")
     app.runtime().deferred.drain()
     messages = app.container.get(Messages).scoped()
@@ -1604,8 +1604,12 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     app.console().run(["message", "send", "four"], USER)
     app.console().run(["message", "send", "five"], USER)
     assert "4 messages unread: `journal message unread`" in hook(app, "Stop")[1]["reason"]
+    reading = {"tool_name": "Bash", "tool_input": {"command": "journal message unread"}}
+    hook(app, "PreToolUse", **reading)
     shown = app.console().run(["message", "unread"], AGENT).text
-    assert shown.count("reply with [!reply:") == 4 and "are you there?" in shown and "five" in shown
+    after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
+    assert "reply with [!reply:" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
+    assert all(f"reply with [!reply:{n}] in your turn" in after for n in (2, 3, 4, 5)), "how to answer each comes after the tool use, in its context"
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 

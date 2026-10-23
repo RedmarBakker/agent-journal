@@ -130,8 +130,6 @@ class MessageCommand(Command):
             print(f"  {link.kind} {counterpart}")
             if link.kind == Messages.COMMENT_LINK and message.is_passage_comment:
                 print(self.passage_place(counterpart, message.quote))
-        print(f"  reply with [!reply:{message.id}] in your turn")
-        print(f"  steering? take it as steering. something to do? file it: `journal task create \"<title>\" --from {message.id}`")
 
     def _tool_use(self, caller: Caller) -> int:
         agents = self.agents.global_matching(session=caller.session) if caller.session is not None else [agent for agent in (self.agents.current(),) if agent]

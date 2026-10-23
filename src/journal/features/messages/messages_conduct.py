@@ -10,6 +10,7 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.agent.tool_finished import ToolFinished
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.reaction_added import ReactionAdded
 from journal.events.rows.colleague_commented import ColleagueCommented
@@ -19,7 +20,7 @@ TRUNCATED = re.compile(r"(?:^|[;&|(]\s*)\S*journal\s+(?:message\s+(?:read|unread
 
 
 class MessagesConduct(Conduct):
-    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a write blocked once the unread were named often enough, the tools blocked while a read message stays unanswered past so many uses and an answer asked for before that, a read of the user's words piped into a filter blocked, the reply tag hinted after a message sent by command, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
+    """The messages feature's conduct in every state: the inbox named at a prompt and a stop and every so many of the agent's own tool uses, a write blocked once the unread were named often enough, the tools blocked while a read message stays unanswered past so many uses and an answer asked for before that, a read of the user's words piped into a filter blocked, the reply tag hinted after a message sent by command, and after a tool use that read a message how to answer it, the user's emoji on a message informed, a colleague's comment informed as no words of the user's, and at a session start the comments that arrived while no agent ran."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         comments = event.data.part(messages_feature()).unread_comments
@@ -41,6 +42,11 @@ class MessagesConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return Transition.merged(self, [truncated_read_check(self, event, settings), unanswered_check(self, event, settings), unread_check(self, event, settings)])
+
+    def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
+        if event.subagent:
+            return self.none()
+        return self.none(*[messages_feature().MESSAGE_READ.create(n=n) for n in event.data.part(messages_feature()).tool_use_reads])
 
     def on_colleague_commented(self, event: ColleagueCommented, settings: Settings) -> Transition:
         return self.none(messages_feature().COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))

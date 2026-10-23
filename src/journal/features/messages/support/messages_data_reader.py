@@ -25,6 +25,7 @@ class MessagesDataReader:
             "uses_unanswered": lambda: self.uses_unanswered(agent, facts.unanswered_rows),
             "peer_questions": lambda: tuple(PeerQuestion(m.row_id, m.data[Message.PEER]) for m in self.messages.peer_questions()),
             "unread_comments": lambda: tuple(m.row_id for m in self.messages.unread_comments()),
+            "tool_use_reads": lambda: tuple(m.row_id for m in facts.unanswered_rows if m.read_at and m.read_position == agent.tool_uses),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
 
