@@ -1029,7 +1029,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({MessagesFeature.TOOL_BLOCK_LIMIT.key: 10, MessagesFeature.ANSWER_REQUEST_LIMIT.key: 3, MessagesFeature.EDIT_BLOCK_LIMIT.key: 5, Shell.SHOWN.key: 100, WorkersFeature.SUBAGENT_LIMIT.key: 2, "tasks.auto": False})
+    settings = SettingsValue({WorkersFeature.CHECK_REMINDER_USES.key: 25, MessagesFeature.TOOL_BLOCK_LIMIT.key: 10, MessagesFeature.ANSWER_REQUEST_LIMIT.key: 3, MessagesFeature.EDIT_BLOCK_LIMIT.key: 5, Shell.SHOWN.key: 100, WorkersFeature.SUBAGENT_LIMIT.key: 2, "tasks.auto": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0, 0), "tasks": TasksData(current_task=0, last_log_line="", suspended=(), suspension_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_suspension_reason="", next_open=None, last_commands=()),
@@ -1785,3 +1785,25 @@ def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_la
     assert said(fresh.respond(at(write, 603.0), settings)) == [] and not fresh.log_requested, "right after a log nothing is asked"
     assert fresh.respond(at(Stop(), 700.0), settings).refusal.name == "carry_on", "a stop inside the span carries on"
     assert late.target.respond(at(Stop(), 700.0), settings).refusal.name == "log_first_at_stop", "a stop past the span asks for the log first"
+
+
+def test_work_waiting_to_be_checked_is_named_every_so_many_tool_uses_while_the_agent_works_on(tmp_path):
+    from dataclasses import replace
+
+    from journal.events.feature_data import FeatureData
+    from journal.features.workers.support.ready_work import ReadyWork
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import waiting_work_check
+    from journal.features.tasks.states.ready import Ready
+
+    settings = SettingsValue({"workers.check_reminder_uses": 5})
+    waiting = WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=tmp_path, worktrees=(), ready_work=(ReadyWork(worker=57, name="Mr. Muybridge", task=2589),))
+    merged = replace(waiting, ready_work=())
+    read = ToolStarting(call=ToolCall.decoded("Read", {"file_path": "a.py"}, Claude().operation("Read", {"file_path": "a.py"}), ()))
+
+    def said(data, use):
+        return [n.rendered() for n in waiting_work_check(Ready(), replace(read, tool_use=use).with_data(FeatureData({"workers": data})), settings).nudges]
+
+    assert [said(waiting, use) for use in (1, 4)] == [[], []], "between the reminders nothing is said"
+    assert said(waiting, 5) == ["worker 57, Mr. Muybridge: task 2589 still waits to be checked. journal task show 2589, then journal worker check 57 <point>, or --short \"<what is missing>\""], "at the set tool use the waiting work is named"
+    assert said(waiting, 10) and said(merged, 10) == [], "again at the next, and not once it is merged"

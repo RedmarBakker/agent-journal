@@ -47,6 +47,7 @@ class Workers(Feature[WorkersData]):
     """A worker is an agent sent to write: code in a worktree of its own, a document, a change. A subagent only reads; a worker is the one that writes."""
     TIMEOUT = Option("workers.timeout_minutes", "Time limit of a worker run", "Minutes a worker may run before it is stopped and its report says so; 0 sets no limit", 60, unit="min")
     MODE = Option("workers.mode", "Work mode", "Builder: the agent builds it itself and sends workers when a job is better done beside it. Orchestrator: it plans, hands the work to workers, then reviews and merges it. Solo: it does everything itself, with no workers", "builder", kind="choice", choices=("builder", "orchestrator", "solo"), scope=OptionScope.PERSON, setter=USER)
+    CHECK_REMINDER_USES = Option("workers.check_reminder_uses", "Name work to check every", "Tool uses between the reminders, while the agent works on, of a worker's work that waits to be checked and merged", 25, unit="tool uses")
     WORKER_LIMIT = Option("workers.most_out", "Workers out at once", "The most workers out at a time; a dispatch past it is refused until one reports. 0 is no limit", 3, unit="workers")
     SUBAGENT_LIMIT = Option("workers.most_subagents", "Subagents running at once", "The most subagents running at a time; one more is held until one finishes. 0 is no limit", 5, unit="subagents")
     PROFILE_LIMIT = Option("workers.idle_kept", "Workers kept for reuse per profile", "The most workers of one profile kept out or idle for reuse; past it a dispatch of that profile is refused while one of them is idle, so the job goes to that one. Reviewers always start fresh. 0 is no limit", 8, unit="workers")
@@ -63,7 +64,7 @@ class Workers(Feature[WorkersData]):
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports."
     modes = Modes(MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
-    options = (TIMEOUT, MODE, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS, BUILT_PATHS, BUILD_COMMAND, POOL_SLOTS, POOL_MINUTES, POOL_PROFILES)
+    options = (TIMEOUT, MODE, CHECK_REMINDER_USES, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS, BUILT_PATHS, BUILD_COMMAND, POOL_SLOTS, POOL_MINUTES, POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
     seeds = (WorkersSeed, SubagentsSeed)

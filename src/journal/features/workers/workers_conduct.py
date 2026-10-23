@@ -3,6 +3,7 @@ from pathlib import Path
 from journal.events.feature_data import FeatureData
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
+from journal.support.timeout import Timeout
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -30,10 +31,10 @@ INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 
 
 class WorkersConduct(Conduct):
-    """The workers feature's conduct in every state: a subagent past the most allowed at once is held, a write into a worker's worktree is held, a new subagent whose job names files an idle one of the same kind worked on is held in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is held in favour of that worker, a dispatch past its profile's kept workers is held while one of them is idle, retiring an idle worker is held until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, and a worker's report is told as it comes."""
+    """The workers feature's conduct in every state: a subagent past the most allowed at once is held, a write into a worker's worktree is held, a new subagent whose job names files an idle one of the same kind worked on is held in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is held in favour of that worker, a dispatch past its profile's kept workers is held while one of them is idle, retiring an idle worker is held until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, and a worker's report is told as it comes."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check)
+        checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
@@ -195,6 +196,15 @@ def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -
     if not tasks.open_ids or settings.value(workers_feature().MODE) != "orchestrator" or workers.is_full(settings.integer(workers_feature().WORKER_LIMIT)):
         return state.none()
     return state.none(workers_feature().CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_summary))
+
+
+def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    feature = workers_feature()
+    span = Timeout.tool_uses(settings.integer(feature.CHECK_REMINDER_USES))
+    if event.subagent or not span.amount or not span.started(0).is_period_start(event.tool_use):
+        return state.none()
+    ready = event.data.part(feature).ready_work
+    return state.none(*(feature.CHECK_REMINDER.create(n=work.worker, name=work.name, task=work.task) for work in ready))
 
 
 def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
