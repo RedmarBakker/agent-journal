@@ -31,6 +31,7 @@ import {
     facesAfter,
     figureStateOf,
     frameIn,
+    processEndsAfter,
     sayingsAfter,
     testResultsAfter,
     waitingSinceAt,
@@ -46,6 +47,7 @@ import FigureAct from "./FigureAct.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, eagerFor, eyesAt, lookOf, pastimeFor, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
+import {visorAt, visorFor} from "../figure/visor.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -124,6 +126,9 @@ let looking = null;
 const memory = {reacted: new Map(), played: []};
 const pastimesDue = new Map();
 const testStates = new Map();
+// whether each process card was running when last looked at, and the glow a card's end lit on the visor (figure/visor.js), or null
+const processStates = new Map();
+let visor = null;
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 let playing = {name: "", started: 0, shown: null, index: 0, closing: null};
@@ -196,6 +201,9 @@ function doing() {
     if (parcels.value.some((each) => each.state === "building")) return "work";
     return builds(held.value.state) && !body.place.stays ? "idle" : heldClip();
 }
+
+// whether the figure sleeps, as it does while its agent is asleep or stopped
+const asleep = () => clipOf(held.value.state) === "sleep";
 
 function heldClip() {
     const {state} = held.value;
@@ -309,6 +317,7 @@ function step() {
         sky: shown.clip.name === watching ? sky : null,
         at: lookingAt(shown),
         open: blinked(),
+        screen: visorAt(visor, performance.now() / 1000, asleep()),
     });
     headAt.value = player.headAt();
     handAt.value = player.handAt();
@@ -618,6 +627,8 @@ function look() {
         ...facesAfter(rows("reactions"), seenAt),
         ...sayingsAfter(lead.value, rows("messages"), seenAt),
     ];
+    const ends = processEndsAfter(lead.value, processStates);
+    visor = visorFor(asleep() ? [] : ends, visor, performance.now() / 1000);
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
     if (committed(happened)) sendUfo();
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
@@ -897,6 +908,7 @@ async function load(name) {
         beside = module.blowsLandAt(loaded.stance) * SIZE;
         blow = {frames: module.WORK.blowFrames, lands: module.WORK.lands};
         testResultsAfter(lead.value, testStates);
+        processEndsAfter(lead.value, processStates);
         cardsAfter(lead.value, knownCards);
         below.value = module.GROUND;
         canvas.value.width = canvas.value.height = Math.round(SIZE * (window.devicePixelRatio || 1));

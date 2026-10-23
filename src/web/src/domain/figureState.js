@@ -180,6 +180,15 @@ export function testResultsAfter(agent, known) {
     }));
 }
 
+// The process cards that have ended since `known` (card key to whether it was active) was last filled in, which this fills in: each one
+// seen running and now ended with a tone of good or bad, as {tone, time, card}. A card first seen already ended is not an end.
+export function processEndsAfter(agent, known) {
+    const cards = (agent?.data?.cards || []).filter((card) => card.process);
+    const ended = cards.filter((card) => known.get(card.key) === true && !card.active && ["good", "bad"].includes(card.tone));
+    cards.forEach((card) => known.set(card.key, card.active));
+    return ended.map((card) => ({tone: card.tone, time: Number(card.time), card: card.key}));
+}
+
 // The agent's row with the system's cards for its session, or for no session, among its own, as messages carry them
 export const withSystemCards = (agent, messages) =>
     agent && {
@@ -197,6 +206,8 @@ export const withSystemCards = (agent, messages) =>
                         tone: m.data.tone,
                         kind: m.data.kind,
                         label: m.text,
+                        process: m.data.card_type === "process",
+                        active: Boolean(m.data.active),
                         watch: m.data.output ? {figure: m.data.figure || "", ending: m.data.ending || ""} : null,
                     })),
             ],

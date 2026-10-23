@@ -117,6 +117,7 @@ export class Posing {
         this.sway = 0;
         this.stride = stride;
         this.sky = null;
+        this.screen = null;
     }
 
     standing(name) {
@@ -2374,6 +2375,7 @@ const SKINNED = /* glsl */ `
     uniform float openness;
     uniform float eyeMiddle;
     varying vec3 worldNormal;
+    varying vec3 worldPosition;
 
     void main() {
         #include <beginnormal_vertex>
@@ -2387,6 +2389,7 @@ const SKINNED = /* glsl */ `
         #include <skinning_vertex>
         transformed += normalize(objectNormal) * push;
         worldNormal = normalize(mat3(modelMatrix) * objectNormal);
+        worldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
     }
 `;
@@ -2408,6 +2411,43 @@ const FLAT = /* glsl */ `
         #include <colorspace_fragment>
     }
 `;
+
+// The visor, shaded as any flat part, and lit as a screen `lit` of the way in `glow`: a grid of square pixels `pitch` apart across its face,
+// the lines between them `gap` of a pixel wide and darker, as a big screen is seen up close
+export const SCREEN = {pitch: 0.1, gap: 0.24, dark: 0.3};
+const SCREEN_FRAGMENT = /* glsl */ `
+    uniform vec3 colour;
+    uniform vec3 light;
+    uniform vec3 shade;
+    uniform float litFrom;
+    uniform vec3 glow;
+    uniform float lit;
+    uniform float pitch;
+    uniform float gap;
+    uniform float dark;
+    varying vec3 worldNormal;
+    varying vec3 worldPosition;
+
+    void main() {
+        vec3 normal = normalize(worldNormal);
+        if (!gl_FrontFacing) {
+            normal = -normal;
+        }
+        vec3 shaded = colour * mix(shade, vec3(1.0), step(litFrom, dot(normal, light)));
+        vec2 cell = fract(worldPosition.xy / pitch);
+        float pixel = step(gap, cell.x) * step(gap, cell.y);
+        gl_FragColor = vec4(mix(shaded, glow * mix(dark, 1.0, pixel), lit), 1.0);
+        #include <colorspace_fragment>
+    }
+`;
+
+// the visor's material: a flat part's, which lights as a screen
+function screenMaterial(mesh) {
+    const material = flatMaterial(mesh);
+    material.fragmentShader = SCREEN_FRAGMENT;
+    Object.assign(material.uniforms, {glow: {value: new THREE.Vector3()}, lit: {value: 0}, pitch: {value: SCREEN.pitch}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark}});
+    return material;
+}
 
 const LINE = /* glsl */ `
     uniform vec3 colour;
@@ -2530,6 +2570,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const meshes = [];
     scene.traverse((node) => node.isSkinnedMesh && meshes.push(node));
     const eyes = {materials: [], shapes: [], hearts: [], stars: []};
+    const screens = [];
     for (const mesh of meshes) {
         mesh.visible = shows(mesh) && !LEFT_OUT.has(mesh.userData.item) && mesh.userData.item !== TABLET && mesh.userData.item !== CLOTH;
         addHullNormals(mesh.geometry);
@@ -2539,7 +2580,8 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
         mesh.userData.hull = hull;
         hull.userData.item = mesh.userData.item;
         hull.frustumCulled = mesh.frustumCulled = false;
-        mesh.material = flatMaterial(mesh);
+        mesh.material = mesh.name === VISOR_MESH ? screenMaterial(mesh) : flatMaterial(mesh);
+        if (mesh.name === VISOR_MESH) screens.push(mesh.material);
         mesh.parent.add(hull);
         hull.position.copy(mesh.position);
         hull.quaternion.copy(mesh.quaternion);
@@ -2573,7 +2615,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const hulls = (shown) => shown.flatMap((mesh) => [mesh, mesh.userData.hull]);
     const inHand = carried.filter((mesh) => IN_HAND.has(mesh.userData.item));
     const stowable = hulls(carried.filter((mesh) => mesh.userData.item));
-    return {scene, rig: rigOf(scene), stance, eyes, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand)};
+    return {scene, rig: rigOf(scene), stance, eyes, screens, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand)};
 }
 
 // A laptop drawn in the flat colours of the chat's own: its hinge at the origin, its keyboard toward the body (-z), its lid opened a little
@@ -3083,13 +3125,20 @@ function place(figure, pose, facing, blend) {
         figure.laptop.matrix.copy(lapOf(world));
         figure.laptop.matrixWorldNeedsUpdate = true;
     }
-    for (const shape of figure.eyes.shapes) shape.visible = !pose.hearts && !pose.stars;
+    const lit = pose.screen?.amount ?? 0;
+    for (const material of figure.screens) {
+        material.uniforms.lit.value = lit;
+        if (lit) material.uniforms.glow.value.set(...pose.screen.colour);
+    }
+    // the eyes are gone from a lit visor, a display with nothing on it
+    const eyed = lit < EYES_GONE;
+    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars;
     for (const heart of figure.eyes.hearts) {
-        heart.visible = pose.hearts > 0;
+        heart.visible = eyed && pose.hearts > 0;
         heart.scale.setScalar(HEART_SIZE * pose.hearts);
     }
     for (const star of figure.eyes.stars) {
-        star.visible = pose.stars > 0 && !pose.hearts;
+        star.visible = eyed && pose.stars > 0 && !pose.hearts;
         star.scale.setScalar(STAR_SIZE * pose.stars);
         star.rotation.z = 1.2 * (pose.stars - 1);
     }
@@ -3115,6 +3164,10 @@ function lookAs(pose, {mood, seconds, lasts}, facing) {
         eyesAs(pose, mood, strength);
     }
 }
+
+// the visor mesh every voice wears, the black screen its eyes are drawn on, and how lit it is before the eyes are gone from it
+const VISOR_MESH = "face_screen";
+const EYES_GONE = 0.3;
 
 // One renderer for every picture on a page: it poses the figure, draws it and copies the result onto a canvas
 export class Stage {
@@ -3152,9 +3205,10 @@ export class Stage {
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `at` is where
     // in its picture it looks (lookToward), `open` how open a blink leaves the eyes (blink.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1, screen = null} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
+        pose.screen = screen;
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         if (!clip.legs) LEGS[posture]?.over(pose);
