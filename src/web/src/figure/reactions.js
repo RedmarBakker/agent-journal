@@ -113,15 +113,16 @@ export const pastimeOf = (state, held, memory, now, random, voice = "", has = ()
 // salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES)
 export const flips = (height, size, random, memory, now) => draw({moment: "jump", high: height > FLIP_OVER * size, memory, now}, random).name === "backflip";
 
-// the moment each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle or thinks
-const WHILE = {work: "building", idle: "standing", think: "standing"};
+// the moments each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle or thinks,
+// working while it hammers, types, reads or searches, and resting while it stands idle
+const WHILE = {work: ["building", "working"], type: ["working"], read: ["working"], search: ["working"], idle: ["standing", "resting"], think: ["standing"]};
 
 // The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, the moment of the held clip
 // (WHILE), the end of a stretch of thinking, the state having been `was` at the last look, and the end of a stretch of work that lasted
 // WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
 export function workMoments(state, typed, began, now, was = state) {
     const held = HELD[state];
-    const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(WHILE[held] ? [{beat: WHILE[held], time: now}] : [])];
+    const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(WHILE[held] ?? []).map((beat) => ({beat, time: now}))];
     if (was === "thinking" && state !== "thinking") moments.push({beat: "thought", time: now});
     if (WORKING.has(state)) return {moments, began: began || now};
     if (began && now - began >= WORKED_SECONDS) moments.push({beat: "work_done", time: now});

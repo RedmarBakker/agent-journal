@@ -162,6 +162,9 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             {beat: "work_done"},
             // and the end of a stretch of thinking
             ...workMoments("writing", false, 0, 1, "thinking").moments,
+            // and the eyes' moments while it works and while it stands idle
+            ...workMoments("reading", false, 0, 1).moments,
+            ...workMoments("idle", false, 0, 1).moments,
             {beat: "long_walk"},
             {beat: "building"},
             {beat: "standing"},
@@ -204,13 +207,16 @@ test("typing is a moment, and so is the end of a stretch of work long enough, ti
     // thinking, as while a plain command runs, it stands as it stands idle, and glances about now and then
     expect(workMoments("running", false, 0, 50)).toEqual({moments: [{beat: "standing", time: 50}], began: 50});
     expect(workMoments("thinking", false, 50, 60).began).toBe(50);
-    expect(workMoments("reading", false, 10, 20)).toEqual({moments: [], began: 10});
+    expect(workMoments("reading", false, 10, 20)).toEqual({moments: [{beat: "working", time: 20}], began: 10});
     expect(workMoments("waiting", false, 50, 50 + WORKED_SECONDS)).toEqual({
         moments: [{beat: "work_done", time: 50 + WORKED_SECONDS}],
         began: 0,
     });
     expect(workMoments("waiting", false, 50, 51).moments).toEqual([]);
-    expect(workMoments("idle", false, 0, 51).moments).toEqual([{beat: "standing", time: 51}]);
+    expect(workMoments("idle", false, 0, 51).moments).toEqual([
+        {beat: "standing", time: 51},
+        {beat: "resting", time: 51},
+    ]);
 });
 
 test("a moment is answered by its egg first, else by its reaction, a beat for the body or a look for the eyes, and a missing clip by nothing", () => {
@@ -222,16 +228,9 @@ test("a moment is answered by its egg first, else by its reaction, a beat for th
     expect(answerTo({beat: "tests_passed", time: 1, card: "tests:1"}, "butler", memory(), 0, () => 0, has)).toEqual({
         beat: {clip: "joy", card: "tests:1", mark: "tests:1", onto: true},
     });
-    expect(
-        answerTo(
-            {beat: "tests_passed", time: 1},
-            "butler",
-            memory(),
-            0,
-            () => 0,
-            () => false
-        )
-    ).toBe(null);
+    // with no clip to play, a pass still brightens the eyes, and a moment of clips alone is answered by nothing
+    expect(answerTo({beat: "tests_passed", time: 1}, "butler", memory(), 0, () => 0, () => false)).toEqual({look: "bright"});
+    expect(answerTo({beat: "work_done", time: 1}, "butler", memory(), 0, () => 0, () => false)).toBe(null);
 });
 
 test("the figure does something by itself only while it is calm, not hanging, with nothing to play and neither coming nor going; at work only a shenanigan", () => {

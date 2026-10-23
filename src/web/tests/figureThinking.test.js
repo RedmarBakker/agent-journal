@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, PONDERING, Posing, THINKING} from "../src/figure/figure.js";
+import {CLIPS, EYE_SHAPES, Posing, THINKING} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {GROUNDED, HELD, clipFor, clipOf} from "../src/domain/figureState.js";
 import {reactionTo, workMoments} from "../src/figure/reactions.js";
@@ -61,13 +61,14 @@ describe("the figure thinking", () => {
 
     it("turns its eyes up and aside, round and not smiling, while it thinks", () => {
         const {pose} = thinking(0);
-        expect(pose.pondering).toBe(1);
-        expect(Math.abs(pose.ponderWay)).toBe(1);
-        expect(PONDERING.up, "up").toBeGreaterThan(0);
-        expect(PONDERING.aside, "to one side").toBeGreaterThan(0);
+        expect(pose.eyeShape.name).toBe("pondering");
+        expect(pose.eyeShape.strength).toBe(1);
+        expect(Math.abs(pose.eyeShape.way)).toBe(1);
+        expect(EYE_SHAPES.pondering.up, "up").toBeGreaterThan(0);
+        expect(EYE_SHAPES.pondering.aside, "to one side").toBeGreaterThan(0);
         const idle = new Posing(RIG, "stand", 0);
         named.idle.pose(idle, stanceOf("butler"), 0);
-        expect(idle.pondering, "the usual smile otherwise").toBe(0);
+        expect(idle.eyeShape, "the usual smile otherwise").toBe(null);
     });
 });
 

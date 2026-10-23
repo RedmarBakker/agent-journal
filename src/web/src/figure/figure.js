@@ -104,8 +104,7 @@ export class Posing {
         this.rig = rig;
         this.final = new Map();
         this.eyes = 1;
-        this.pondering = 0;
-        this.ponderWay = 1;
+        this.eyeShape = null;
         this.eyeTint = null;
         this.hearts = 0;
         this.stars = 0;
@@ -257,10 +256,9 @@ export class Posing {
         this.eyes = Math.max(open, MIN_EYE_HEIGHT);
     }
 
-    // round eyes in place of the eyes, `size` times their own size, looking up and aside toward `way`, 1 the figure's left
-    lookUpAside(size, way) {
-        this.pondering = size;
-        this.ponderWay = way;
+    // the eyes taking on the shape `name` of EYE_SHAPES, `strength` of the way from their own, aside toward `way`, 1 the figure's left
+    shapeEyes(name, strength = 1, way = 1) {
+        this.eyeShape = strength > 0 ? {name, strength, way} : null;
     }
 
     // the eyes' colour, as red, green and blue from 0 to 1; none leaves them their own
@@ -485,7 +483,7 @@ function think(pose, stance, t) {
     const elbow = pose.head(`forearm_${side}`, pose.matrix(`forearm_${side}`));
     const under = new THREE.Vector3(elbow.x * THINKING.inboard, elbow.y, elbow.z - THINKING.under);
     pose.reach(other, pose.withinReach(other, under, 0.97), new THREE.Vector3(...THINKING.folded));
-    pose.lookUpAside(1, -sign);
+    pose.shapeEyes("pondering", 1, -sign);
 }
 
 // the chin rested on the hand on `side`
@@ -664,8 +662,8 @@ function handsTo(pose, stance, k, spot, elbow = THINK_ELBOW) {
     }
 }
 
-// The looks the eyes take on, over whatever the body does: how far they open, the colour they turn, and whether they are hearts. The
-// helmet hides everything else, so the eyes carry the expression.
+// The looks the eyes take on, over whatever the body does: how far they open, the colour they turn, whether they are hearts, and the shape
+// of EYE_SHAPES they take on. The helmet hides everything else, so the eyes carry the expression.
 export const EYES = {
     hearts: {open: 1, tint: null, hearts: true},
     amused: {open: 0.3, tint: [1, 0.85, 0.4]},
@@ -673,12 +671,18 @@ export const EYES = {
     worried: {open: 0.7, tint: [0.6, 0.75, 1]},
     angry: {open: 0.45, tint: [1, 0.35, 0.3]},
     reading: {open: 0.8, tint: null},
+    focused: {open: 1, tint: null, shape: "focused"},
+    narrowed: {open: 1, tint: null, shape: "narrowed"},
+    bright: {open: 1, tint: null, shape: "bright"},
+    calm: {open: 1, tint: null, shape: "calm"},
+    eyeing: {open: 1, tint: null, shape: "eyeing"},
 };
 
 function eyesAs(pose, mood, strength = 1) {
-    const {open, tint} = EYES[mood];
+    const {open, tint, shape} = EYES[mood];
     pose.shutEyes(mix(1, open, strength));
     if (tint && strength > 0.5) pose.tintEyes(tint);
+    if (shape) pose.shapeEyes(shape, strength);
 }
 
 // where the hands rest to type on a laptop on the lap, and where they cover the eyes
@@ -3051,7 +3055,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const found = [];
     scene.traverse((node) => node.isSkinnedMesh && found.push(node));
     const meshes = (DRESSES[voice] ?? ((each) => each))(found);
-    const eyes = {materials: [], shapes: [], hearts: [], stars: [], squeezed: [], pondering: []};
+    const eyes = {materials: [], shapes: [], hearts: [], stars: [], squeezed: [], over: []};
     const screens = [];
     const visorHulls = [];
     for (const mesh of meshes) {
@@ -3077,7 +3081,8 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
             eyes.hearts.push(shapeOver(mesh, HEART, HEART_COLOUR));
             eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
             eyes.squeezed.push(Object.assign(shapeOver(mesh, SQUEEZE, SQUEEZE_COLOUR), {userData: {way: mesh.name === "eye_l" ? -1 : 1}}));
-            eyes.pondering.push(shapeOver(mesh, PONDER, SQUEEZE_COLOUR));
+            const side = mesh.name === "eye_l" ? 1 : -1;
+            for (const [name, {geometry}] of Object.entries(EYE_SHAPES)) eyes.over.push(Object.assign(shapeOver(mesh, geometry, SQUEEZE_COLOUR), {userData: {name, side}}));
         }
     }
     const carried = meshes.filter((mesh) => mesh.visible);
@@ -3768,9 +3773,43 @@ const SQUEEZE = (() => {
 })();
 const SQUEEZE_SIZE = 0.5;
 const SQUEEZE_COLOUR = new THREE.Color(1, 0.94, 0.81);
-// an eye looking up in thought: a round eye in the eyes' own ivory, no smile, `size` across, moved `up` and `aside` on the visor
-const PONDER = new THREE.CircleGeometry(0.5, 24);
-export const PONDERING = {size: 0.3, up: 0.14, aside: 0.1};
+// the half of a round eye below its middle, its top flat as a lowered lid
+const LIDDED = (() => {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, 0.5, Math.PI, 2 * Math.PI, false);
+    shape.closePath();
+    return new THREE.ShapeGeometry(shape, 16);
+})();
+
+// The shapes the eyes take on in place of their smile, in the eyes' own ivory, each `size` across and moved `aside` and `up` on the visor,
+// one that is `mirrored` drawn the other way round on the figure's right eye, so the two face each other: round and looking up in
+// thought; focused, narrowed to a flat oval at work; narrowed and serious, a bar sloping down toward the nose, at a failure; bright, a
+// thick happy arch with a sparkle beside it, at a pass; calm, half-lidded, at rest; and eyeing, half-lidded and turned aside, at something that catches
+// the eye
+export const EYE_SHAPES = {
+    pondering: {geometry: new THREE.CircleGeometry(0.5, 24), size: 0.3, aside: 0.1, up: 0.14},
+    focused: {geometry: (() => {
+        const shape = new THREE.Shape();
+        shape.absellipse(0, 0, 0.5, 0.2, 0, 2 * Math.PI, false, 0);
+        return new THREE.ShapeGeometry(shape, 24);
+    })(), size: 0.42, aside: 0, up: 0},
+    narrowed: {geometry: new THREE.ShapeGeometry(new THREE.Shape([[-0.5, -0.12], [0.5, 0.14], [0.5, -0.06], [-0.5, -0.3]].map(([x, y]) => new THREE.Vector2(x, y)))), size: 0.44, aside: 0, up: 0, mirrored: true},
+    bright: {geometry: (() => {
+        const arch = new THREE.Shape();
+        arch.absarc(0, -0.2, 0.5, 0, Math.PI, false);
+        arch.absarc(0, -0.2, 0.26, Math.PI, 0, true);
+        arch.closePath();
+        const sparkle = new THREE.Shape();
+        for (let point = 0; point < 8; point++) {
+            const reach = point % 2 ? 0.05 : 0.17;
+            const way = (point * Math.PI) / 4;
+            sparkle[point ? "lineTo" : "moveTo"](0.62 + reach * Math.cos(way), 0.38 + reach * Math.sin(way));
+        }
+        return new THREE.ShapeGeometry([arch, sparkle], 16);
+    })(), size: 0.46, aside: 0, up: 0, mirrored: true},
+    calm: {geometry: LIDDED, size: 0.38, aside: 0, up: -0.02},
+    eyeing: {geometry: LIDDED, size: 0.32, aside: 0.13, up: 0},
+};
 
 // a shape over an eye, a heart or a star, carried by the head as the eye is, hidden until the eyes take it on
 function shapeOver(eye, geometry, colour) {
@@ -3808,7 +3847,7 @@ function place(figure, pose, facing, blend) {
         parentWorld.clone().invert().multiply(placed).decompose(bone.position, bone.quaternion, bone.scale);
     }
     for (const material of figure.eyes.materials) {
-        material.uniforms.openness.value = pose.eyes;
+        material.uniforms.openness.value = Math.max(pose.eyes * (1 - (pose.eyeShape?.strength ?? 0)), MIN_EYE_HEIGHT);
         if (material.uniforms.light) material.uniforms.colour.value.set(...(pose.eyeTint ?? material.userData.colour));
     }
     figure.laptop.visible = pose.laptop;
@@ -3840,7 +3879,8 @@ function place(figure, pose, facing, blend) {
     for (const hull of figure.visorHulls) hull.visible = !pose.screen;
     // the eyes go out before a lit visor comes on, a display with nothing on it
     const eyed = crt.eyes > EYES_GONE;
-    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars && !pose.squeezed && !pose.pondering;
+    const shaped = pose.eyeShape && !pose.hearts && !pose.stars && !pose.squeezed ? pose.eyeShape : null;
+    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars && !pose.squeezed && !(shaped?.strength >= 1);
     for (const heart of figure.eyes.hearts) {
         heart.visible = eyed && pose.hearts > 0;
         heart.scale.setScalar(HEART_SIZE * pose.hearts);
@@ -3854,10 +3894,14 @@ function place(figure, pose, facing, blend) {
         squeeze.visible = eyed && pose.squeezed > 0 && !pose.hearts && !pose.stars;
         squeeze.scale.set(SQUEEZE_SIZE * pose.squeezed * squeeze.userData.way, SQUEEZE_SIZE * pose.squeezed, 1);
     }
-    for (const round of figure.eyes.pondering) {
-        round.visible = eyed && pose.pondering > 0 && !pose.hearts && !pose.stars && !pose.squeezed;
-        round.scale.setScalar(PONDERING.size * pose.pondering);
-        round.position.set(PONDERING.aside * pose.ponderWay, PONDERING.up, 0);
+    // a shape the eyes take on opens as their own smile closes, and closes again as the smile comes back
+    for (const over of figure.eyes.over) {
+        const {name, side} = over.userData;
+        over.visible = eyed && shaped?.name === name;
+        if (!over.visible) continue;
+        const {size, aside, up, mirrored} = EYE_SHAPES[name];
+        over.scale.set(size * (mirrored ? side : 1), size * Math.max(shaped.strength, MIN_EYE_HEIGHT), 1);
+        over.position.set(aside * shaped.way, up, 0);
     }
     return moves;
 }
@@ -3866,8 +3910,9 @@ function place(figure, pose, facing, blend) {
 // end, the head turned to the viewer meanwhile so the eyes are seen. Hearts beat as a heart does, a strong swell and a weaker one.
 const BEAT_SECONDS = 0.8;
 
-// how strongly a look holds, 0 to 1, `seconds` into one that lasts `lasts`: taken on at once and let go at the end
-const lookStrength = ({seconds, lasts}) => span(seconds, 0, 0.15) * (1 - span(seconds, lasts - 0.3, lasts));
+// how strongly a look holds, 0 to 1, `seconds` into one that lasts `lasts`: eased in over `into` seconds and back out over `out` at the end
+export const LOOK_EASE = {into: 0.35, out: 0.45};
+export const lookStrength = ({seconds, lasts}) => partOf(seconds, [0, LOOK_EASE.into]) * (1 - partOf(seconds, [lasts - LOOK_EASE.out, lasts]));
 
 function lookAs(pose, {mood, seconds, lasts}) {
     const strength = lookStrength({seconds, lasts});

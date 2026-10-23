@@ -11,7 +11,7 @@ const names = (entries) => entries.map((entry) => entry.name);
 const rolls = (...shares) => () => shares.shift();
 
 test("the pile is filtered to what may play where things stand: the moment, the voice, how long the state has lasted, a free hand", () => {
-    expect(names(choicesFor({moment: "tests_failed"}))).toEqual(["startled", "dismay", "nothing"]);
+    expect(names(choicesFor({moment: "tests_failed"}))).toEqual(["startled", "dismay", "narrowed", "nothing"]);
     expect(names(choicesFor({moment: "heard", voice: "butler"}))).toEqual(["bow", "nothing"]);
     expect(names(choicesFor({moment: "heard", voice: "homie"}))).toEqual(["nod", "nothing"]);
     // an idle act once the state has lasted long enough, and only while the figure has nothing to do; a shenanigan in any state
@@ -25,7 +25,7 @@ test("the pile is filtered to what may play where things stand: the moment, the 
     expect(names(choicesFor({moment: "jump", high: false}))).toEqual(["jump"]);
     expect(names(choicesFor({moment: "spell", state: "reading"}))).toEqual(["reading", "nothing"]);
     // what the figure cannot draw where it is, it never draws
-    expect(names(choicesFor({moment: "tests_failed", has: (name) => name !== "dismay"}))).toEqual(["startled", "nothing"]);
+    expect(names(choicesFor({moment: "tests_failed", has: (name) => name !== "dismay"}))).toEqual(["startled", "narrowed", "nothing"]);
 });
 
 test("one is drawn by weight, a weight of 3 counting as three tickets, and a moment cools down once it has played", () => {
@@ -74,11 +74,13 @@ test("an act may be cut off by the next moment only as the pile says and once it
 test("every animation in the pile, with its weight and the condition it plays under, and whether it may be cut or plays out", () => {
     expect(PILE.map(lineOf)).toEqual([
         "clip joy ×2 when moment=tests_passed, plays out",
+        "look bright ×2 when moment=tests_passed",
         "nothing nothing ×1 when moment=tests_passed",
         "shenanigan clip bug_shot ×3 when moment=tests_fixed, plays out",
         "clip joy ×2 when moment=tests_fixed, plays out",
         "clip startled ×2 when moment=tests_failed, plays out",
         "clip dismay ×1 when moment=tests_failed, plays out",
+        "look narrowed ×2 when moment=tests_failed",
         "nothing nothing ×1 when moment=tests_failed",
         "clip joy ×2 when moment=committed, plays out",
         "nothing nothing ×2 when moment=committed",
@@ -97,6 +99,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip nod ×1 when moment=fact_filed, cut after 1s",
         "nothing nothing ×6 when moment=fact_filed",
         "clip joy ×2 when moment=check_passed, plays out",
+        "look bright ×3 when moment=check_passed",
         "nothing nothing ×9 when moment=check_passed",
         "clip joy ×2 when moment=bar_done, plays out",
         "clip fume ×1 when moment=bar_failed, plays out",
@@ -104,6 +107,10 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip look_right ×2 when moment=standing, cut after 1s",
         "clip look_up ×1 when moment=standing, cut after 1s",
         "nothing nothing ×40 when moment=standing",
+        "look focused ×1 when moment=working",
+        "nothing nothing ×1 when moment=working",
+        "look calm ×1 when moment=resting",
+        "nothing nothing ×2 when moment=resting",
         "clip tumble ×3 when moment=launched, plays out",
         "nothing nothing ×47 when moment=launched",
         "clip wipe_brow ×4 when moment=building, cut after 1s",
@@ -111,6 +118,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip look_right ×1 when moment=building, cut after 1s",
         "nothing nothing ×69 when moment=building",
         "clip shake ×3 when moment=failed, cut after 1s",
+        "look narrowed ×3 when moment=failed",
         "nothing nothing ×2 when moment=failed",
         "clip shake ×1 when moment=refused, cut after 1s",
         "nothing nothing ×1 when moment=refused",
@@ -127,6 +135,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip stumble ×3 when moment=long_walk, plays out",
         "nothing nothing ×22 when moment=long_walk",
         "clip glance ×7 when moment=card_arrived, cut after 1s",
+        "look eyeing ×4 when moment=card_arrived",
         "nothing nothing ×13 when moment=card_arrived",
         "look reading ×1 when moment=typing",
         "nothing nothing ×4 when moment=typing",
