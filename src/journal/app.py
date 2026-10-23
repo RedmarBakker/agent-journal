@@ -7,6 +7,8 @@ from journal.db.connection import Connection
 from journal.support.masks import Masks
 from journal.db.migrations import MIGRATIONS
 from journal.db.migrator import Migrator
+from journal.db.indexes import Indexes
+from journal.repositories.declared_indexes import INDEXES
 from journal.db.schema import Schema
 from journal.engine.support.feature_registry import FeatureRegistry
 from journal.events.bus import Bus
@@ -53,6 +55,7 @@ class App:
         if schema.create():
             migrator.record_all()
         migrator.run()
+        Indexes(connection, INDEXES).refresh()
         return connection
 
     def server(self) -> Server:

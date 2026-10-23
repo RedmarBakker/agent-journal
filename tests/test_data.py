@@ -817,3 +817,20 @@ def test_a_write_queued_before_a_column_rename_is_sent_under_the_new_name(connec
         Migration.column_rename(connection, "tasks", "headline", "subtitle")
     [change] = outgoing.waiting()
     assert change.fields == {"subtitle": {"words": "kept whole"}, "state": "open"} and change.changed_at == {"subtitle": 1.0, "state": 1.0}, "a write queued offline before the rename goes out under the new name, its value intact"
+
+
+def test_a_new_journal_has_every_index_and_an_index_whose_definition_changed_is_made_again(tmp_path):
+    from journal.app import App
+    from journal.config import Config
+    from journal.db.indexes import Indexes
+    from journal.repositories.declared_indexes import INDEXES
+
+    connection = App(Config(tmp_path / "fresh", port=0)).connection()
+    present = {row["name"]: row["sql"] for row in connection.all("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL")}
+    assert {index.name: index.sql() for index in INDEXES}.items() <= present.items(), "a journal created fresh has every index its reads rely on"
+    assert present["environments_key"].startswith("CREATE UNIQUE INDEX"), "one environment to a key"
+    connection.execute("DROP INDEX entries_dispatches")
+    connection.execute("CREATE INDEX entries_dispatches ON entries (environment_id, id) WHERE kind = 'Stop'")
+    Indexes(connection, INDEXES).refresh()
+    assert connection.result("SELECT sql FROM sqlite_master WHERE name = 'entries_dispatches'")[0] == next(index.sql() for index in INDEXES if index.name == "entries_dispatches"), "an index made under an older definition is made again under the current one"
+    connection.close()
