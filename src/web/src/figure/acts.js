@@ -21,6 +21,9 @@ export const ACTS = {
     // `rubs` times, nodding a little with each, and lowers them over `apart`; a small puff with a few sparkles rises from the hands over
     // `puff` (chat/FigureAct.vue)
     hand_rub: {frames: 26, fps: 12, together: [0, 0.18], rubs: 3, apart: [0.84, 1], puff: [0.2, 0.92]},
+    // the end of a stretch of thinking, now and then: an "ah, got it", the head coming up and the free hand's finger raised over `rise`, a
+    // light bulb over the head lighting up over `lights`, glowing, and fading out over `fades` (chat/FigureAct.vue)
+    bulb: {frames: 30, fps: 12, rise: [0, 0.2], lights: [0.1, 0.3], fades: [0.7, 1]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
     // searching: binoculars at its eyes, sweeping slowly left and right

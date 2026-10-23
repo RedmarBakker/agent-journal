@@ -137,6 +137,20 @@ const scrollHeld = computed(() => {
     return {top, bottom, half, parchment};
 });
 
+// The light bulb over the head at the end of a stretch of thinking: its middle `above` the eyes as a share of the picture, its glass `r`
+// pixels round, how lit it is, lighting up and fading out, and the rays around it while it is lit
+const BULB = {above: 0.34, r: 0.07, rays: 8};
+const bulbLit = computed(() => {
+    const lit = partOf(props.u, act.value.lights) * (1 - partOf(props.u, act.value.fades));
+    if (!lit) return null;
+    const r = px(BULB.r);
+    const rays = Array.from({length: BULB.rays}, (_, index) => {
+        const way = (2 * Math.PI * index) / BULB.rays;
+        return {x1: Math.cos(way) * r * 1.4, y1: Math.sin(way) * r * 1.4, x2: Math.cos(way) * r * (1.4 + 0.6 * lit), y2: Math.sin(way) * r * (1.4 + 0.6 * lit)};
+    });
+    return {x: head.value.x, y: head.value.y - px(BULB.above), r, lit, rays};
+});
+
 // the drawer slid out, 0 to 1, and the card dropped into it
 const drawer = computed(() => partOf(props.u, act.value.opens) * (1 - partOf(props.u, act.value.shuts)));
 const filed = computed(() => partOf(props.u, act.value.filed));
@@ -234,6 +248,16 @@ const flap = computed(() => {
             <template v-if="name === 'scroll' && u > act.raise[0] && u < act.lower[1]">
                 <path :d="scrollHeld.parchment" :fill="PARCHMENT_BACK" stroke-width="0.8" data-scroll-parchment />
                 <rect v-for="(roller, index) in [scrollHeld.top, scrollHeld.bottom]" :key="`roller${index}`" :x="roller.x - scrollHeld.half - 1" :y="roller.y - ROLLER / 2" :width="2 * scrollHeld.half + 2" :height="ROLLER" :rx="ROLLER / 2" :fill="COLOURS.wood" :data-scroll-roller="index ? 'bottom' : 'top'" />
+            </template>
+
+            <template v-if="name === 'bulb' && bulbLit">
+                <g :transform="`translate(${bulbLit.x} ${bulbLit.y})`" :opacity="Math.min(bulbLit.lit * 1.5, 1)" data-bulb>
+                    <circle :r="bulbLit.r * 1.9" :fill="COLOURS.light" stroke="none" :opacity="0.45 * bulbLit.lit" />
+                    <line v-for="(ray, index) in bulbLit.rays" :key="index" :x1="ray.x1" :y1="ray.y1" :x2="ray.x2" :y2="ray.y2" :stroke="COLOURS.gold" stroke-width="1.2" stroke-linecap="round" />
+                    <circle :r="bulbLit.r" :fill="COLOURS.light" stroke-width="1" />
+                    <path :d="`M${-bulbLit.r * 0.3} ${bulbLit.r * 0.2}l${bulbLit.r * 0.15} ${-bulbLit.r * 0.5}l${bulbLit.r * 0.15} ${bulbLit.r * 0.35}l${bulbLit.r * 0.15} ${-bulbLit.r * 0.35}l${bulbLit.r * 0.15} ${bulbLit.r * 0.5}`" :stroke="COLOURS.gold" stroke-width="0.8" fill="none" />
+                    <rect :x="-bulbLit.r * 0.45" :y="bulbLit.r * 0.85" :width="bulbLit.r * 0.9" :height="bulbLit.r * 0.6" rx="1" :fill="COLOURS.silver" stroke-width="0.8" />
+                </g>
             </template>
 
             <template v-if="name === 'file_card' && stand">

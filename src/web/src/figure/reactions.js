@@ -117,10 +117,12 @@ export const flips = (height, size, random, memory, now) => draw({moment: "jump"
 const WHILE = {work: "building", idle: "standing", think: "standing"};
 
 // The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, the moment of the held clip
-// (WHILE), and the end of a stretch of work that lasted WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
-export function workMoments(state, typed, began, now) {
+// (WHILE), the end of a stretch of thinking, the state having been `was` at the last look, and the end of a stretch of work that lasted
+// WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
+export function workMoments(state, typed, began, now, was = state) {
     const held = HELD[state];
     const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(WHILE[held] ? [{beat: WHILE[held], time: now}] : [])];
+    if (was === "thinking" && state !== "thinking") moments.push({beat: "thought", time: now});
     if (WORKING.has(state)) return {moments, began: began || now};
     if (began && now - began >= WORKED_SECONDS) moments.push({beat: "work_done", time: now});
     return {moments, began: 0};

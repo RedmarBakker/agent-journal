@@ -51,8 +51,8 @@ test("in every resting and default pose both arms hang beside the body as they d
         clip.pose(pose, stanceOf(voice), t);
         return ["l", "r"].map((side) => armOf(pose, side));
     };
-    // thinking, waiting, paused and asleep after its yawn, standing and seated
-    const resting = [["think", 0], ["waiting", 0], ["idle", 0], ["sleep", ACTING.yawnFrames]];
+    // waiting, paused and asleep after its yawn, standing and seated
+    const resting = [["waiting", 0], ["idle", 0], ["sleep", ACTING.yawnFrames]];
     for (const voice of Object.keys(stances)) {
         for (const posture of ["stand", "sit"]) {
             const standing = armsOf(idle, voice, 0, posture);

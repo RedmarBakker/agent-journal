@@ -160,6 +160,8 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             // the figure's own page sees these two: a key pressed in the compose box, and the agent settling after WORKED_SECONDS of work
             {beat: "typing"},
             {beat: "work_done"},
+            // and the end of a stretch of thinking
+            ...workMoments("writing", false, 0, 1, "thinking").moments,
             {beat: "long_walk"},
             {beat: "building"},
             {beat: "standing"},

@@ -104,6 +104,7 @@ export class Posing {
         this.rig = rig;
         this.final = new Map();
         this.eyes = 1;
+        this.eyesUp = 0;
         this.eyeTint = null;
         this.hearts = 0;
         this.stars = 0;
@@ -253,6 +254,11 @@ export class Posing {
 
     shutEyes(open) {
         this.eyes = Math.max(open, MIN_EYE_HEIGHT);
+    }
+
+    // the eyes raised on the visor `share` of their own height, looking up
+    lookUp(share) {
+        this.eyesUp = share;
     }
 
     // the eyes' colour, as red, green and blue from 0 to 1; none leaves them their own
@@ -437,11 +443,36 @@ function waveArm(pose, side, t) {
     pose.bend(`forearm_${side}`, WAVE_BEND + WAVE_SWING * waveOf(t));
 }
 
-// thinks it over with both arms hanging at its sides as it stands idle, the head tipped to one side, looking up and turning slowly
+// How the figure thinks: the head tipped back `nod` degrees and turned `turn` toward the free hand's side, the eyes raised `eyesUp` of
+// their height on the visor, and the fingers of the hand at the chin tapping the cheek `taps` times a loop, each tap tipping them `tap`
+// degrees
+export const THINKING = {nod: -12, turn: 12, eyesUp: 0.6, taps: 2, tap: 22};
+
+// "ah, got it": the head comes up and the eyes open wide as the free hand comes up before the shoulder, its finger raised, and goes down
+// again as the bulb over the head fades
+const GOT_IT = [0.7, -0.5, 2.5];
+
+function bulb(pose, stance, t) {
+    const act = ACTS.bulb;
+    const u = onceTime(t, act.frames);
+    const up = partOf(u, act.rise) * (1 - partOf(u, act.fades));
+    breathe(pose, 0);
+    trunk(pose, {nod: -10 * up, lean: -3 * up});
+    actHand(pose, stance, up, GOT_IT, {x: -60});
+    eyesAs(pose, "startled", up);
+}
+
+// thinks it over, a hand at its chin, its eyes turned up and away, the fingers tapping slowly at its cheek
 function think(pose, stance, t) {
-    const sign = SIDES[freeSide(stance)];
-    trunk(pose, {nod: -6 + 3 * waveOf(t), turn: -sign * 10 + 4 * waveOf(t), tilt: -sign * 6});
-    armsAtRest(pose, stance);
+    const side = freeSide(stance);
+    const sign = SIDES[side];
+    const tapping = Math.max(waveOf(t, THINKING.taps), 0) ** 3;
+    breathe(pose, t);
+    trunk(pose, {nod: THINKING.nod + 2 * waveOf(t), turn: -sign * THINKING.turn, tilt: -sign * 5});
+    armsAtRest(pose, stance, [side]);
+    chinOnHand(pose, side);
+    pose.turn(`hand_${side}`, {y: -THINKING.tap * tapping});
+    pose.lookUp(THINKING.eyesUp);
 }
 
 // the chin rested on the hand on `side`
@@ -2687,9 +2718,10 @@ export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
     {name: "nod", frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
     {name: "hand_rub", frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: GESTURE, pose: hand_rub},
+    {name: "bulb", frames: ACTS.bulb.frames, fps: ACTS.bulb.fps, loops: false, postures: GESTURE, pose: bulb},
     {name: "shake", frames: 12, fps: 12, loops: false, postures: GESTURE, pose: shake},
     {name: "wave", frames: 12, fps: 12, loops: true, postures: GESTURE, pose: wave},
-    {name: "think", frames: 12, fps: 6, loops: true, postures: GESTURE, pose: think},
+    {name: "think", frames: 24, fps: 6, loops: true, leaves: 12, postures: GESTURE, pose: think},
     {name: "celebrate", frames: 12, fps: 10, loops: true, postures: MOVE, pose: celebrate},
     {name: "sleep", frames: ACTING.yawnFrames + SLEEP_FRAMES, intro: ACTING.yawnFrames, leaves: SLEEP_FRAMES, fps: 6, loops: true, postures: GESTURE, marks: {mark: "Z", frames: [[ACTING.yawnFrames, ACTING.yawnFrames + SLEEP_FRAMES]]}, pose: sleep},
     {name: "walk", frames: 12, fps: 12, loops: true, interruptible: true, postures: MOVE, pose: walk},
@@ -2784,6 +2816,8 @@ const SKINNED = /* glsl */ `
     uniform float push;
     uniform float openness;
     uniform float eyeMiddle;
+    uniform float eyeHeight;
+    uniform float eyesUp;
     varying vec3 worldNormal;
     varying vec3 worldPosition;
     varying vec3 localPosition;
@@ -2797,7 +2831,7 @@ const SKINNED = /* glsl */ `
         #include <skinbase_vertex>
         #include <skinnormal_vertex>
         #include <begin_vertex>
-        transformed.y = eyeMiddle + (transformed.y - eyeMiddle) * openness;
+        transformed.y = eyeMiddle + (transformed.y - eyeMiddle) * openness + eyesUp * eyeHeight;
         #include <skinning_vertex>
         transformed += normalize(objectNormal) * push;
         worldNormal = normalize(mat3(modelMatrix) * objectNormal);
@@ -2894,11 +2928,13 @@ const LINE = /* glsl */ `
 function vertexUniforms(mesh, push) {
     const position = mesh.geometry.attributes.position;
     let middle = 0;
+    let [low, high] = [Infinity, -Infinity];
     for (let i = 0; i < position.count; i++) {
         middle += position.getY(i) / position.count;
+        [low, high] = [Math.min(low, position.getY(i)), Math.max(high, position.getY(i))];
     }
     // a quantized glb scales each mesh up from small units, so the outline is pushed in the mesh's own units
-    return {push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x}, openness: {value: 1}, eyeMiddle: {value: middle}};
+    return {push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x}, openness: {value: 1}, eyeMiddle: {value: middle}, eyeHeight: {value: high - low}, eyesUp: {value: 0}};
 }
 
 function flatMaterial(mesh) {
@@ -3753,6 +3789,7 @@ function place(figure, pose, facing, blend) {
     }
     for (const material of figure.eyes.materials) {
         material.uniforms.openness.value = pose.eyes;
+        material.uniforms.eyesUp.value = pose.eyesUp;
         if (material.uniforms.light) material.uniforms.colour.value.set(...(pose.eyeTint ?? material.userData.colour));
     }
     figure.laptop.visible = pose.laptop;

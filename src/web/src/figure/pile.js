@@ -47,11 +47,11 @@ const USER_FACES = {
 };
 
 // The acts the next moment may cut off, and the seconds each must have played first: a look about, a stretch or a nod may give way after a
-// second, the longer idle acts after three; every other act plays out, as a fall, a backflip, a celebration or an act with a prop in hand,
+// second, the longer idle acts and thinking after three; every other act plays out, as a fall, a backflip, a celebration or an act with a prop in hand,
 // so the figure never flickers between acts
 export const CUT = {
     look_left: 1, look_right: 1, look_up: 1, glance: 1, wipe_brow: 1, stretch: 1, yawn: 1, nod: 1, shake: 1, bow: 1,
-    salute: 1, wave: 1, think: 1, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
+    salute: 1, wave: 1, think: 3, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
 };
 
 const clip = (name, weight, when = {}) => ({name, kind: "clip", weight, when, cut: CUT[name] ?? false});
@@ -100,6 +100,8 @@ export const PILE = [
     ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), nothing(2)]),
     ...at("refused", {cooldown: 20}, [clip("shake", 1), nothing(1)]),
     ...at("work_done", {cooldown: 120}, [clip("stretch", 2), nothing(3)]),
+    // the end of a stretch of thinking: now and then a light bulb lights up over the head, never twice within two minutes
+    ...at("thought", {cooldown: 120}, [clip("bulb", 1), nothing(4)]),
     ...at("answered", {cooldown: 15}, [look("amused", 3), nothing(2)]),
     ...at("heard", {cooldown: 30}, [
         clip("bow", 1, {voices: ["butler"]}),
