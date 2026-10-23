@@ -41,8 +41,9 @@ class TeamServerLink:
         self.account, self.schema = account, schema
 
     def send_changes(self, changes: list[dict], clock_offset: float, query: PullQuery) -> SyncAnswer:
-        query_fields = {"sequence": query.sequence, "environment_keys": list(query.environment_keys), "pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version}
-        return SyncAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset, **query_fields})))
+        # a team server from before the pool refuses a push with fields it does not know
+        pool_fields = {"pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version} if query.pool.slots else {}
+        return SyncAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields})))
 
     def fetch_changes(self, query: PullQuery) -> PullAnswer:
         path = f"/pull?after={query.sequence}&wait={query.wait_seconds}&keys={','.join(query.environment_keys)}&slots={query.pool.slots}&free={query.pool.free}&version={query.version}"
