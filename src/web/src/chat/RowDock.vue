@@ -24,7 +24,7 @@ const dock = ref(null);
 const takeDown = () => undock(scope, props.message);
 
 const open = () => peek(row.value.table, row.value.id);
-const openUpdateHere = () => openUpdate(row.value.id, dock.value?.card?.closest(".thread"));
+const openUpdateHere = () => openUpdate(row.value.id, dock.value?.card?.closest(".thread"), dock.value?.card);
 const OWN = {open, close: takeDown, open_update: openUpdateHere};
 const press = (button) => (OWN[button.act] || (() => scope.api.act(row.value.table, row.value.id, button.act)))();
 </script>

@@ -13,15 +13,17 @@ export function closeQuestion() {
     questionView.owner = null;
 }
 
-// The update report opened over the chat from its card above it: its id, and the chat it belongs to.
-export const updateView = reactive({id: 0, owner: null});
+// The update report opened over the chat from its card above it: its id, the chat it belongs to, and the card it grows out of.
+export const updateView = reactive({id: 0, owner: null, card: null});
 
-export function openUpdate(id, owner) {
+export function openUpdate(id, owner, card) {
     updateView.owner = markRaw(owner);
+    updateView.card = card ? markRaw(card) : null;
     updateView.id = id;
 }
 
 export function closeUpdate() {
     updateView.id = 0;
     updateView.owner = null;
+    updateView.card = null;
 }

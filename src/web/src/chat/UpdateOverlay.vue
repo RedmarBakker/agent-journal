@@ -1,7 +1,8 @@
 <script setup>
-import {computed, onMounted, watchEffect} from "vue";
+import {computed, onMounted, ref, watchEffect} from "vue";
 import {closeUpdate, updateView} from "../state/overlays.js";
 import {useEscape} from "../composables/windowEvent.js";
+import {useGrowFromCard} from "../composables/growFromCard.js";
 import TextDisplay from "../kit/TextDisplay.vue";
 import CloseButton from "../kit/CloseButton.vue";
 import {useScope} from "../composables/scope.js";
@@ -29,23 +30,32 @@ watchEffect(() => {
     if (!report.value) holding("reports", [id]).catch((error) => console.error(error));
 });
 
+const panel = ref(null);
+const content = ref(null);
+const ghost = ref(null);
+const {grow, shrink} = useGrowFromCard(panel, content, ghost, () => updateView.card);
+const close = () => shrink(closeUpdate);
+
 function openRow(ref) {
     const [table, n] = ref.split(":");
     closeUpdate();
     peek(table, Number(n));
 }
 
-useEscape(closeUpdate, () => !route.value.open);
-onMounted(() => scope.api.act("reports", id, "read").catch((error) => console.error(error)));
+useEscape(close, () => !route.value.open);
+onMounted(() => {
+    grow();
+    scope.api.act("reports", id, "read").catch((error) => console.error(error));
+});
 </script>
 
 <template>
-    <div class="update-layer">
-        <div class="update-veil" @click="closeUpdate" />
-        <section class="update-card" role="dialog" aria-label="Update report">
+    <section ref="panel" class="update-layer" role="dialog" aria-label="Update report">
+        <div ref="ghost" class="update-ghost" />
+        <div ref="content" class="update-scroll">
             <header class="update-head">
                 <p class="update-label">Update report</p>
-                <CloseButton title="Close the update" @click="closeUpdate" />
+                <CloseButton title="Close the update" @click="close" />
             </header>
             <template v-if="report">
                 <h2 class="update-title">{{ report.title }}</h2>
@@ -64,8 +74,8 @@ onMounted(() => scope.api.act("reports", id, "read").catch((error) => console.er
                     </ul>
                 </template>
             </template>
-        </section>
-    </div>
+        </div>
+    </section>
 </template>
 
 <style scoped>
@@ -73,30 +83,23 @@ onMounted(() => scope.api.act("reports", id, "read").catch((error) => console.er
     position: absolute;
     inset: 0;
     z-index: 21;
-    display: grid;
-    place-items: center;
-    padding: 16px;
-}
-
-.update-veil {
-    position: absolute;
-    inset: 0;
-    background: color-mix(in srgb, var(--bg) 55%, transparent);
-    backdrop-filter: blur(6px) saturate(0.8);
-}
-
-.update-card {
-    position: relative;
-    box-sizing: border-box;
-    width: min(560px, 100%);
-    max-height: 100%;
-    overflow-y: auto;
-    padding: 14px 16px 16px;
-    border: 1px solid var(--border-2);
-    border-radius: 12px;
-    background: var(--raised);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
     overflow-wrap: anywhere;
+}
+
+.update-ghost {
+    position: absolute;
+    pointer-events: none;
+}
+
+.update-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px 16px 32px;
 }
 
 .update-head {

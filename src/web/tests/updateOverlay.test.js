@@ -52,3 +52,30 @@ test("an update's card above the chat opens it over the chat, by section, and op
     expect(host.querySelector(".update-note").textContent).toBe("the slow part");
     expect(read).toHaveBeenCalledWith("reports", 5, "read");
 });
+
+test("the update covers the whole chat, as wide as it, on a layer pinned to all four of its sides", async () => {
+    vi.spyOn(api, "act").mockResolvedValue({});
+    store.rows.reports = [update];
+    updateView.id = 5;
+    const host = mounted(UpdateOverlay);
+    await flush();
+    const layer = getComputedStyle(host.querySelector(".update-layer"));
+    expect([layer.position, layer.inset, layer.width]).toEqual(["absolute", "0px", "auto"]);
+    expect(host.querySelector(".update-layer").parentElement).toBe(host);
+});
+
+test("Escape and the close button each close the update", async () => {
+    vi.spyOn(api, "act").mockResolvedValue({});
+    store.rows.reports = [update];
+    for (const closing of [() => window.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape"})), (host) => host.querySelector(".update-head button").click()]) {
+        updateView.id = 5;
+        const host = mounted(UpdateOverlay);
+        await flush();
+        closing(host);
+        await flush();
+        expect(updateView.id).toBe(0);
+        app.unmount();
+        app = null;
+        document.body.innerHTML = "";
+    }
+});
