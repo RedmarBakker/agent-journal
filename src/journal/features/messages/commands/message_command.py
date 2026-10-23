@@ -48,7 +48,7 @@ class MessageCommand(Command):
         author = Author.build(caller.actor)
         if args.reply_to and author == Author.AGENT:
             return self.reply(args, caller)
-        draft = Message(author=author, text=args.text, reply_target=args.reply_to)
+        draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {})
         message = self.messages.save(draft.arrived() if author == Author.USER else draft, caller.actor)
         print(f"message {message.id} sent")
         return 0

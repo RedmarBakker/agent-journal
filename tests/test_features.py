@@ -11417,3 +11417,26 @@ def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_t
         assert "no such priority: soon" in refused.error
         app.console().run(["task", "edit", str(outage.id), "--priority", "normal"], USER)
         assert tasks.find(outage.id).priority == 100
+
+
+def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_reaches_the_main_chat(app: App):
+    from journal.chat.moment_cards import MomentCards
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.agents import Agents
+    from journal.repositories.messages import Messages
+    from journal.support.card_kind import CardKind
+    from journal.support.rejection import Rejection
+    messages = app.container.get(Messages)
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Agents).save(Agent(environment_id=MAIN, session="worker-s", provider="claude", role=AgentRole.WORKER, state="duty"), Actor.system())
+        with pytest.raises(Rejection, match="names its kind"):
+            messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, text="something happened"), Actor.system())
+        with pytest.raises(Rejection, match="its agent's own chat"):
+            messages.save(Message(environment_id=MAIN, author=Author.SYSTEM, session="worker-s", text="Searched for x", data={"kind": "card"}), Actor.system())
+        mark = app.container.get(MomentCards).show(MAIN, "worker-s", 'Searched for "base"', "search", shows=CardKind.CREATED)
+        main_chat = messages.selected(messages.main_chat())
+    assert mark.agent_role == AgentRole.WORKER, "a mark in a worker's session lands in the worker's own chat"
+    assert all(message.id != mark.id for message in main_chat), "and never in the main chat"

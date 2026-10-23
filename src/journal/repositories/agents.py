@@ -67,6 +67,9 @@ class Agents(ScopedRepository[Agent]):
     def global_state(self, name: str) -> list[Agent]:
         return self.global_matching(state=name)
 
+    def session_roles(self, session: str) -> list[AgentRole]:
+        return [agent.role for agent in self.global_matching(session=session)]
+
     def session_agent(self, session: str) -> Agent:
         rows = self.global_matching(session=session)
         if not rows:

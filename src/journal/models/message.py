@@ -67,7 +67,7 @@ class Message(Scoped):
         return cls(author=Author.AGENT, text=text, reply_target=target.id, session=target.session, agent_role=target.agent_role)
 
     def authored(self, session: str | None) -> "Message":
-        return self.with_(session=session) if self.is_new and self.session is None else self
+        return self.with_(session=session) if self.is_new and self.session is None and self.agent_role == AgentRole.MAIN else self
 
     def host_fields(self) -> dict:
         return {"text": self.text, "reply_target": self.reply_target, "idempotency": self.idempotency}

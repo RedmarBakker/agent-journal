@@ -8,6 +8,8 @@ from journal.models.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.links import Links
+from journal.support.rejection import Rejection
+from journal.repositories.agents import Agents
 from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
@@ -21,8 +23,8 @@ class Messages(ScopedRepository[Message]):
 
     model = Message
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners) -> None:
-        self.owners = owners
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners, agents: Agents) -> None:
+        self.owners, self.agents = owners, agents
         super().__init__(connection, bus, scope)
         self.reactions, self.links = reactions, links
 
@@ -32,7 +34,16 @@ class Messages(ScopedRepository[Message]):
             authored = authored.commented(self.owners.person_name(actor.number()), actor.number())
         if authored.is_unsaved_user_message() and self.owners.is_teammate(actor, authored.environment_id):
             authored = authored.with_merged("data", {Message.TEAMMATE: self.owners.person_name(actor.number())})
+        if authored.is_new:
+            self.check_chat(authored)
         return super().save(authored, actor)
+
+    def check_chat(self, message: Message) -> None:
+        if message.author == Author.SYSTEM and not message.data.get("kind"):
+            raise Rejection("a system message names its kind, so the chat knows what it shows")
+        roles = self.agents.session_roles(message.session) if message.session else []
+        if roles and message.agent_role not in roles:
+            raise Rejection(f"a message of session {message.session} belongs to its agent's own chat, the {roles[0]} one, not the {message.agent_role} one")
 
     def unread_comments(self) -> list[Message]:
         return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))
