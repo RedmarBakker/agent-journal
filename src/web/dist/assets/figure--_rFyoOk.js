@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-pHJCM4Pe.js
-import{A as Se,p as Ke,h as cl,s as dd,g as pd,a as md,P as zi,L as gd,b as _d,V as xd}from"./main-D0AhxgCa.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as ye,p as qe,h as ll,s as pd,g as md,a as gd,P as zi,L as _d,b as xd,V as vd}from"./main-BCq8CRfD.js";import"./tokens-D2Th-Z3L.js";import"./tip-CE3lbJsV.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 42a710889 (On a passing test run the figure now and then shoots a bug instead of its visor's glow: a small bug crawls in along the floor beside it, it pulls a rifle from behind its back and fires, the bug splatters and a few drops land on the screen as on a camera's lens, run down and fade; a showpiece of the passing run in the pile with its own cooldown, waiting the run's too, for every avatar):src/web/dist/assets/figure-C2Nc6sCy.js
+import{A as ye,p as qe,h as ll,s as pd,g as md,a as gd,P as zi,L as _d,b as xd,V as vd}from"./main-DRX7JNyn.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
