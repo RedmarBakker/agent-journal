@@ -1493,15 +1493,16 @@ function work(pose, stance, t) {
 // and pointing out over it like a cap's peak; and stepped back by `back`, 0 to 1, with a small hop as it steps, leaning back to look up
 export const SKY = {step: 0.6, hop: 0.12, lean: 8, shadeWrist: [1.18, -0.5, 2.72], shadeHand: [-0.35, -1, 0.2]};
 
-// how far in front of the figure what it looks at in its picture is taken to be
+// how far in front of the figure what it looks at in its picture is taken to be, or behind it on the page for a look `behind`
 const LOOK_DEPTH = -1.2;
 
 // The head turned to look at `at`, a point in the figure's picture as shares of its width from the left and its height from the top, as
-// the UFO it watches or the leading edge of a progress bar under its feet, the figure turned `facing` degrees; `at.amount` of the way from
+// the UFO it watches or the leading edge of a progress bar under its feet, in front of the figure, or `at.behind` it on the page, the
+// figure turned `facing` degrees; `at.amount` of the way from
 // the head as its clip has it, 0 to 1, as the look eases in and out. It returns how many degrees the body turns for a look further round
 // than the head goes, the body following the head as the look eases in, so the head leads.
 export function lookToward(pose, at, facing = 0) {
-    const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
+    const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, at.behind ? -LOOK_DEPTH : LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
     const own = pose.matrix("head").clone();
     const further = eyesToward(pose, point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing)));
     const amount = at.amount ?? 1;

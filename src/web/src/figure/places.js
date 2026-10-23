@@ -405,6 +405,30 @@ export function progressEdge(element) {
 // a progress bar marked for the figure, its value how it ended, as the card's tone, and empty while it runs
 export const BAR = "[data-figure-bar]";
 
+// How the figure watches a bar running on the bars docked over the compose box: it stands on them `aside` of its picture to the left of
+// the bar's end, where the bar is heading, so it looks along the bar and never straight down on it, and it looks at the leading edge
+// kept at least `along` of its picture to one side of where it stands, toward the bar's end
+export const WATCH = {aside: 0.55, along: 0.4};
+
+// the spot the figure watches the running bar from (WATCH), on top of the docked bars; null with no bar running there
+export function watchSpot(figure) {
+    const {element, docked, edge} = groundEdge();
+    const track = docked ? element.querySelector(BAR) : null;
+    if (!track?.querySelector(PROGRESS)) return null;
+    const end = track.getBoundingClientRect().right;
+    return {...insideWorld({x: end - WATCH.aside * figure.size, y: edge.top, face: 0, posture: "stand"}, figure), view: null, on: element};
+}
+
+// What the figure looks at while it watches the bar whose leading edge is `edge`, standing at `feet`, page points, its picture `figure`:
+// the edge, kept to one side of it toward the bar's end (WATCH along) so the look runs along the bar; and `behind`, when it stands in
+// front of the mark, `mark` its box on the page, its feet below the mark, as on the compose box under a dock covering it: then it turns
+// its head to the mark on the page behind it, its back to the viewer, as one looking at a screen; on top of the mark it looks down at it
+// facing the viewer
+export function watchLook(edge, feet, mark, figure) {
+    const near = Math.abs(edge.x - feet.x) < WATCH.along * figure.size;
+    return {x: near ? feet.x + WATCH.along * figure.size : edge.x, y: edge.y, behind: feet.y > mark.bottom + 1};
+}
+
 // How the progress bar on `element` stands, as the bars docked over the compose box: the bar itself, how far its fill has run, 0 to 1,
 // how it ended, "" while it runs, and when its run began, in seconds; null when there is none
 export function progressOf(element) {

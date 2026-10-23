@@ -2,7 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, worldBox} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw} from "./pile.js";
 
@@ -247,16 +247,22 @@ export function targetFor({state, counts, stay, now, near, figure, hands, work =
     const building = work && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory});
-    return {...target, spot: unlessClosing(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), near)};
+    return {...target, spot: unlessClosing(watching(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), figure), near)};
 }
 
 // the spot, or null when it is on a docked card about to close by itself and the figure at `near` is not on it already: it never sets out
 // for one, and one already on it may stay
 const unlessClosing = (spot, near) => (spot?.on && spot.on !== near.on && spot.on === groundEdge().element && homeCloses() ? null : spot);
 
-// Where a figure eager for the bar docked over the compose box goes, `footing` what it stands by: onto that bar, unless it stands on it
-// already, where it stays (null)
-export const eagerSpot = (footing, figure) => (footing?.home ? null : spotOf(null, figure));
+// Where a figure at `near` eager for the bar docked over the compose box goes: onto the bars, at the spot it watches the bar from
+// (places.js watchSpot), else anywhere on them; null once it stands there, where it stays until the run ends
+export function eagerSpot(near, figure) {
+    const spot = watchSpot(figure) ?? spotOf(null, figure);
+    return near?.on === spot.on && Math.abs(near.x - spot.x) < 2 ? null : spot;
+}
+
+// a spot at home on the bars docked over the compose box, while a bar runs there, is the spot the figure watches it from
+const watching = (spot, figure) => (spot && groundEdge().docked && spot.on === groundEdge().element ? (watchSpot(figure) ?? spot) : spot);
 
 // whether the figure builds in `state`: its clip there is the hammering
 export const builds = (state) => clipOf(state) === "work";

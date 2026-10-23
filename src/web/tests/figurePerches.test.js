@@ -209,7 +209,7 @@ test("a hang whose feet would reach the ground at home is no perch, since the fi
 
 test("while its agent runs a test suite or a build and the run was granted a unit, the figure goes down onto the compose box's top to build, under any bars docked over it, beside its parcel", () => {
     const box = (rect) => ({...rect, width: rect.right - rect.left, height: rect.bottom - rect.top});
-    const bars = {getBoundingClientRect: () => box({left: 300, right: 900, top: 640, bottom: 700})};
+    const bars = {getBoundingClientRect: () => box({left: 300, right: 900, top: 640, bottom: 700}), querySelector: () => null};
     const thread = {querySelector: (selector) => (selector === "[data-figure-docked-bars]" ? bars : null), getBoundingClientRect: () => box({left: 250, right: 950, top: 0, bottom: 800})};
     const home = {getBoundingClientRect: () => box({left: 300, right: 900, top: 700, bottom: 780}), closest: () => thread};
     document.querySelector = (selector) => (selector === "[data-figure-home]" ? home : null);

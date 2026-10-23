@@ -67,6 +67,7 @@ import {
     gripIn,
     groundEdge,
     progressEdge,
+    watchLook,
     progressOf,
     hiddenAt,
     spotOf,
@@ -759,9 +760,11 @@ function look() {
     visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const pushing = pushWaits(parcels.value);
-    const egg = pushing ? null : answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
+    // pushing a box, or eager for a run's end, it takes up nothing else
+    const quiet = pushing || Boolean(eager?.on);
+    const egg = quiet ? null : answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
     const over = body.trip ? null : discoBall(body.place, figureSize(), latestFloors());
-    const pastime = pushing ? null : pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
+    const pastime = quiet ? null : pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
     if (pastime?.clip === "disco") ball.value = over;
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
@@ -785,7 +788,7 @@ function look() {
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
     // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended; for a long run it drops what it does
-    const going = eager?.on ? eagerSpot(body.footing, figureSize()) : target.spot;
+    const going = eager?.on ? eagerSpot(body.place, figureSize()) : target.spot;
     // a trip that waits to set off gives way to one that drops everything
     if (eager?.urgent && going && body.trip && !body.trip.urgent && !body.trip.moves) body.trip = null;
     if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going) {
@@ -1026,8 +1029,8 @@ function stepForward() {
 
 // What the figure looks at on the page: the UFO while it flies, or the crane's claw, else the box it builds, pushes or stacks while it works
 // (parcels.js workLook), else the leading edge of a progress bar running on the bars docked over the compose box, so its head follows the
-// edge as it moves: looking down at it standing on the bars, and up at it from the compose box's top under them; null when there is
-// nothing to look at
+// edge as it moves, along the bar and never straight down (places.js watchLook): looking down at it, facing the viewer, standing on the
+// bars, and turned to it, its back to the viewer, from the compose box's top under them; null when there is nothing to look at
 function lookedAt(shown) {
     if (shown.clip.name === "tickle_swat") return pointerAt;
     if (shown.clip.ownLook) return null;
@@ -1035,7 +1038,9 @@ function lookedAt(shown) {
     if (flying) return flying;
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
     if (work) return work.at;
-    return onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(groundEdge().element) : null;
+    const docks = groundEdge();
+    const edge = onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(docks.element) : null;
+    return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
 }
 
 // whether the figure is at rest by the bars docked over the compose box
@@ -1056,7 +1061,7 @@ function lookingAt(shown) {
     if (point) gaze.point = point;
     if (!gaze.amount || !gaze.point) return null;
     const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
-    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased};
+    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind)};
 }
 
 const onType = (event) => {

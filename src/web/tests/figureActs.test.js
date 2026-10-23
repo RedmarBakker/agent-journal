@@ -271,9 +271,10 @@ test("a run gone over two minutes is always anticipated near its end, whatever t
     globalThis.window = {innerWidth: 1280, innerHeight: 800};
     globalThis.CSS = {escape: (text) => text};
     globalThis.document = {querySelector: (selector) => (selector === "[data-figure-home]" ? home : null), querySelectorAll: () => []};
-    expect(eagerSpot({home: false}, {size: 112, below: 0.05})).toMatchObject({y: 540, on: bars});
+    const spot = eagerSpot({x: 400, y: 600, on: home}, {size: 112, below: 0.05});
+    expect(spot).toMatchObject({y: 540, on: bars});
     expect(eagerSpot(null, {size: 112, below: 0.05})).toMatchObject({y: 540, on: bars});
-    expect(eagerSpot({home: true}, {size: 112, below: 0.05})).toBe(null);
+    expect(eagerSpot(spot, {size: 112, below: 0.05})).toBe(null);
 });
 
 test("eager, the figure's eyes are sparkling stars from the first frames until it lets go of the bar, for every voice", () => {
