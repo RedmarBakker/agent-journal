@@ -3,7 +3,8 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing, REST} from "../src/figure/figure.js";
-import {AMBIENT, pastimeFor} from "../src/figure/reactions.js";
+import {pastimeFor} from "../src/figure/reactions.js";
+import {PILE} from "../src/figure/pile.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -55,15 +56,14 @@ test("every voice lies on its back on the floor, a straw in its mouth and a foot
 });
 
 test("the rest is a pastime of every voice after a long quiet, played only where the figure stands on a floor", () => {
-    const pastime = AMBIENT.find((each) => each.clip === "rest");
-    expect(pastime.voice).toBeUndefined();
-    const others = new Map(AMBIENT.filter((each) => each.clip !== "rest").map((each) => [each.clip, Infinity]));
+    const pastime = PILE.find((each) => each.when.moment === "pastime" && each.name === "rest");
+    expect(pastime.when.voices).toBeUndefined();
     for (const voice of Object.keys(stances)) {
         for (const [posture, played] of [["stand", {clip: "rest", card: "", flies: false}], ["sit", null]]) {
             const scene = {voice, place: {posture}, beats: 0, arriving: false, leaving: false, moving: false};
-            const has = (name) => clipNamed(name).postures.includes(posture);
-            expect(pastimeFor(scene, {state: "idle", lasted: pastime.after - 1}, new Map(others), 0, () => 0, has), voice).toBe(null);
-            expect(pastimeFor(scene, {state: "idle", lasted: pastime.after}, new Map(others), 0, () => 0, has), `${voice} ${posture}`).toEqual(played);
+            const has = (name) => name === "rest" && clipNamed(name).postures.includes(posture);
+            expect(pastimeFor(scene, {state: "idle", lasted: pastime.when.lasted - 1}, new Map(), 0, () => 0, has), voice).toBe(null);
+            expect(pastimeFor(scene, {state: "idle", lasted: pastime.when.lasted}, new Map(), 0, () => 0, has), `${voice} ${posture}`).toEqual(played);
         }
     }
 });

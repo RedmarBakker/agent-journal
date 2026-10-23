@@ -5,7 +5,8 @@ import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
 import {CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, craneMs, digitsOf, flightMs, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
-import {CARRIERS, carrierOf} from "../src/figure/reactions.js";
+import {carrierOf} from "../src/figure/reactions.js";
+import {PILE as ANIMATIONS} from "../src/figure/pile.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -220,7 +221,7 @@ test("each blow lets a few 0 and 1 digits out of the dust, starting about the un
 
 
 test("the UFO takes the work away three times in four and the claw crane the fourth, picked by weight from one list", () => {
-    expect(CARRIERS).toEqual([{clip: "ufo", weight: 3}, {clip: "crane", weight: 1}]);
+    expect(ANIMATIONS.filter((entry) => entry.when.moment === "carrier").map((entry) => [entry.name, entry.weight])).toEqual([["ufo", 3], ["crane", 1]]);
     const rolls = Array.from({length: 1000}, (_, index) => carrierOf(() => (index + 0.5) / 1000));
     expect(rolls.filter((by) => by === "ufo").length).toBe(750);
     expect(rolls.filter((by) => by === "crane").length).toBe(250);

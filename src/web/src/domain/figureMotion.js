@@ -1,3 +1,4 @@
+import {draw} from "../figure/pile.js";
 import {fallStep} from "./falls.js";
 
 // How far, in pixels, a figure's feet may be from a floor's top and still stand on it: a floor that moves away under the figure must move
@@ -121,20 +122,21 @@ export function chaseRoom(floors, world, feet, picture, most) {
     return Math.max(0, Math.min(most, floor.right - feet.x, world.right - picture.right));
 }
 
-// the odds that a bubble a figure falls past catches it, rather than it dropping straight home: the avatar's own choice, fall by fall
-export const BUBBLES_CATCH = 0.5;
+// whether a bubble a figure falls past catches it, rather than its dropping straight home, as the pile draws it (pile.js fall): never
+// for a fall that comes soon after another, `settled` false, so a fall onto a bubble that then goes from under it never chains on
+export const catches = (settled, random) => draw({moment: "fall", settled}, random).name === "caught";
 
 // A fall from the line a figure rests on at `spot`, in its posture there, starting at `now`: never from below the floor at home, going on
-// to `to` once it lands, and caught by a bubble it falls past when `random()` says so
-export function fallingFrom(spot, to, floors, now, random) {
+// to `to` once it lands, and caught by a bubble it falls past when the pile draws so
+export function fallingFrom(spot, to, floors, now, random, settled) {
     const home = floors.find((floor) => floor.id === "home");
     const y = home ? Math.min(spot.y, home.top) : spot.y;
-    return {x: spot.x, y, posture: spot.posture, speed: 0, at: now, to, catches: random() < BUBBLES_CATCH};
+    return {x: spot.x, y, posture: spot.posture, speed: 0, at: now, to, catches: catches(settled, random)};
 }
 
 // A parachute's descent from `top`, above the screen, at `x`, starting at `now`: a fall no faster than `most` pixels a second, caught by a
 // bubble it comes down past when `random()` says so
-export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, catches: random() < BUBBLES_CATCH, most, chute: true});
+export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, catches: catches(true, random), most, chute: true});
 
 // One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
 // fell in, where it goes on to and whether it landed on its feet

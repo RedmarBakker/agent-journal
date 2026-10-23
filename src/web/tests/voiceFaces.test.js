@@ -3,7 +3,8 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing} from "../src/figure/figure.js";
-import {EVERY_VOICE_FACES, REACTIONS, VOICE_FACES, answerTo} from "../src/figure/reactions.js";
+import {answerTo} from "../src/figure/reactions.js";
+import {EVERY_VOICE_FACES, PILE, VOICE_FACES} from "../src/figure/pile.js";
 import {facesAfter} from "../src/domain/figureState.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
@@ -43,7 +44,7 @@ test("every face of every built-in voice has a clip of that voice's own, which t
             const clip = clipNamed(VOICE_FACES[voice][face]);
             expect(clip, `${voice} ${face}`).toBeDefined();
             expect(clip.voices, `${voice} ${face}`).toEqual([voice]);
-            expect(REACTIONS.find((each) => each.moment === `agent_reacted:${face}` && each.voice === voice).clip).toBe(clip.name);
+            expect(PILE.find((each) => each.when.moment === `agent_reacted:${face}` && each.when.voices?.includes(voice)).name).toBe(clip.name);
         }
     }
     const clips = Object.values(VOICE_FACES).flatMap((faces) => Object.values(faces));

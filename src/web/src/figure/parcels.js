@@ -1,3 +1,5 @@
+import {draw} from "./pile.js";
+
 // The parcels of code the figure builds on the compose box's top and the UFO that takes them once the work is committed, drawn by the page
 // beside the figure (chat/CodeParcel.vue, chat/FlyingSaucer.vue). Every number that decides where they go and when is here, in pixels and
 // milliseconds on the page.
@@ -21,7 +23,7 @@ export function digitsOf(random) {
     return Array.from({length: Math.min(count, DIGITS.most)}, () => {
         const way = -Math.PI / 2 + (random() - 0.5) * 2.4;
         const far = DIGITS.from[0] + random() * (DIGITS.from[1] - DIGITS.from[0]);
-        return {text: random() < 0.5 ? "0" : "1", x: Math.cos(way) * far, y: Math.min(Math.sin(way) * far, -4)};
+        return {text: draw({moment: "digit"}, random).name, x: Math.cos(way) * far, y: Math.min(Math.sin(way) * far, -4)};
     });
 }
 

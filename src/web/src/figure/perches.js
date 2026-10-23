@@ -2,6 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {holds, readFloors} from "./floors.js";
 import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
 import {letsGoFor} from "./reactions.js";
+import {draw} from "./pile.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
 // or hanging from its top corner by its hands. A perch names its bubble's floor (figure/floors.js), so it rides the bubble as the thread
@@ -9,27 +10,16 @@ import {letsGoFor} from "./reactions.js";
 export const STANDS = "stand";
 export const HANGS = "hang";
 
-// the share of perches that are a hang rather than a stand on the corner
-export const HANG_SHARE = 0.4;
-
-// Where the figure goes when nothing calls it elsewhere, and how long it stays, in seconds between the two: each time a stay is over it
-// draws the next by its odds. Mostly it strolls along the compose box's edge and stands a while on a corner of it, now and then sits on
-// the corner itself with its legs hanging past the end (places.js seatAt), perches on a message bubble or crosses to stand on one of the
-// page's tabs, and whatever the agent is doing it does from there. A hang is short, as hanging is work.
-export const ROAMS = [
-    {where: "rest", odds: 0.3, stay: [15, 40]},
-    {where: "seat", odds: 0.15, stay: [15, 40]},
-    {where: "edge", odds: 0.4, stay: [8, 20]},
-    {where: "bubble", odds: 0.15, stay: [15, 40]},
-    {where: "tab", odds: 0.15, stay: [10, 25]},
-];
+// A hang from a bubble's corner is short, as hanging is work, in seconds between the two
 export const HANG_STAY = [8, 20];
 
-// The next place to go and for how many seconds to stay, as {where, stay}; `random` is a function returning 0 up to 1
-export function roamNext(random) {
-    let roll = random() * ROAMS.reduce((sum, each) => sum + each.odds, 0);
-    const found = ROAMS.find((each) => (roll -= each.odds) < 0) ?? ROAMS[0];
-    return {where: found.where, stay: between(found.stay, random)};
+// The next place to go and for how many seconds to stay, as {where, stay}, drawn from the pile (pile.js roam): mostly it strolls along the
+// compose box's edge and stands a while on a corner of it, now and then sits on the corner itself with its legs hanging past the end
+// (places.js seatAt), perches on a message bubble or crosses to stand on one of the page's tabs, and whatever the agent is doing it does
+// from there. `tally` counts the acts since the last shenanigan, a perch on a bubble being one.
+export function roamNext(random, tally) {
+    const drawn = draw({moment: "roam", tally}, random);
+    return {where: drawn.name, stay: between(drawn.stay, random)};
 }
 
 // a number between the two in `range`
@@ -51,11 +41,13 @@ const HANG_OUT = 0.3;
 const TURNED_TO_THE_BUBBLE = 180;
 
 // The perch a figure takes now on the bubbles of the floors snapshot `floors`, or null when no bubble in view has one free: the newest
-// bubble first, as the thread keeps it in view while older ones scroll away, and on each the way the roll says first, a hang or a stand on the corner,
-// then the other. `hands` are the sides, "l" or "r", of the hands that carry nothing; `random` is a function returning 0 up to 1.
+// bubble first, as the thread keeps it in view while older ones scroll away, and on each the kind the pile draws first (pile.js perch), a
+// hang only with a free hand, then the other. `hands` are the sides, "l" or "r", of the hands that carry nothing; `random` is a function
+// returning 0 up to 1.
 export function perchOn(floors, figure, hands, random) {
     const open = floors.floors.filter((floor) => floor.kind === "bubble" && inView(floor, floors.view, figure));
-    const kinds = !hands.length ? [STANDS] : random() < HANG_SHARE ? [HANGS, STANDS] : [STANDS, HANGS];
+    const first = draw({moment: "perch", hands: hands.length > 0}, random).name;
+    const kinds = !hands.length ? [STANDS] : first === HANGS ? [HANGS, STANDS] : [STANDS, HANGS];
     const perches = open.reverse().flatMap((floor) => kinds.map((kind) => perchAt(floor, kind, floors.view, hands)));
     return perches.find((perch) => perchSpot(perch, floors, figure)) ?? null;
 }
@@ -111,11 +103,11 @@ export function climbOf(floors, figure, from) {
     return stands.reduce((up, spot) => (spot.y <= (up.at(-1) ?? from).y - figure.size / 5 ? [...up, {x: spot.x, y: spot.y}] : up), []);
 }
 
-// The next stay, drawn at `now` seconds by the roams' odds: where, until when, and what it holds for the stay, the perch on a bubble, the
+// The next stay, drawn at `now` seconds from the pile: where, until when, and what it holds for the stay, the perch on a bubble, the
 // tab it stands on, of those with a spot inside its world, or the point along the home edge it strolls to. A hang from a bubble is a short
 // one.
-export function nextStay(now, figure, hands, random) {
-    const {where, stay: seconds} = roamNext(random);
+export function nextStay(now, figure, hands, random, tally) {
+    const {where, stay: seconds} = roamNext(random, tally);
     const until = now + seconds;
     if (where === "bubble") {
         const perch = perchOn(readFloors(), figure, hands, random);
@@ -152,10 +144,10 @@ export function stayingAt(stay, figure, near) {
 // the figure's world; otherwise where its stay is, drawing the next stay when this one is over or its place is gone. `near` is where it
 // is, `counts` the views' badge counts and `state` what the agent does. The spot is kept clear of the box the figure stepped aside from
 // while that box is `cleared` (keptClear), except where it builds; resting by the parcel `pile`, it stands beside it (places.js besidePile).
-export function targetFor({state, counts, stay, now, near, figure, hands, work = {}, pile = null, cleared = {until: 0}, random = Math.random}) {
+export function targetFor({state, counts, stay, now, near, figure, hands, work = {}, pile = null, cleared = {until: 0}, random = Math.random, tally = null}) {
     const building = (work.x != null || builds(state)) && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
-    const target = targetOf({state, counts, stay, now, near, figure, hands, random});
+    const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally});
     return {...target, spot: besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure)};
 }
 
@@ -168,7 +160,7 @@ export function keptClear(spot, {state, now, near, figure, cleared}) {
     return clearOf(cleared.box, figure, near, RESTS.has(state)) ?? spot;
 }
 
-function targetOf({state, counts, stay, now, near, figure, hands, random}) {
+function targetOf({state, counts, stay, now, near, figure, hands, random, tally}) {
     if (RESTS.has(state)) return {spot: restOf(figure, near), stay};
     // at its laptop, while its agent edits, it sits on a corner where there is one
     const seat = clipOf(state) === "type" && seatOf(figure, near);
@@ -178,7 +170,7 @@ function targetOf({state, counts, stay, now, near, figure, hands, random}) {
     if (pointing) return {spot: pointing, stay};
     const kept = now < stay.until && stayingAt(stay, figure, near);
     if (kept) return {spot: kept, stay};
-    const next = nextStay(now, figure, hands, random);
+    const next = nextStay(now, figure, hands, random, tally);
     return {spot: stayingAt(next, figure, near) || restOf(figure, near), stay: next};
 }
 

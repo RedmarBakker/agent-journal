@@ -22,7 +22,7 @@ const {
     modeOf,
     waitingSinceAt,
 } = await import("../src/domain/figureState.js");
-const {REACTIONS} = await import("../src/figure/reactions.js");
+const {PILE} = await import("../src/figure/pile.js");
 const {drawnIn, pointedView} = await import("../src/figure/places.js");
 const {CLIPS} = await import("../src/figure/figure.js");
 
@@ -119,7 +119,7 @@ const STATES = [
 ];
 // every moment the figure can meet: each beat, and each held state both fresh and long held
 const MOMENTS = [
-    ...[...new Set(REACTIONS.map((each) => each.moment))].map((beat) => ({beat, time: 1})),
+    ...[...new Set(PILE.map((each) => each.when.moment))].map((beat) => ({beat, time: 1})),
     ...STATES.flatMap((state) => [0, POINTED_AFTER - 1, POINTED_AFTER, 10 * POINTED_AFTER].map((lasted) => ({state, since: 1, lasted}))),
 ];
 // the design, said plainly: the squire's chase on a failed check, any voice's remark after a long wait
@@ -239,7 +239,8 @@ test("at rest it hangs by its grip, plays a beat turned to it, points while the 
         facing: 180,
     });
     expect(clipFor(scene({beat: {clip: "joy", facing: 270}}), canDraw)).toEqual({clip: "joy", facing: 270, once: true});
-    expect(clipFor(scene({place: {posture: "stand", view: "question"}, state: "asking", doing: "waiting"}), canDraw).clip).toBe("waiting");
+    // restored (task 2652): pointing at the tab was dropped when the waiting pose came in, and is back beside it
+    expect(clipFor(scene({place: {posture: "stand", view: "question"}, state: "asking", doing: "waiting"}), canDraw).clip).toBe("point");
     expect(clipFor(scene({place: {posture: "stand", view: "question"}}), canDraw).clip).toBe("think");
     expect(clipFor(scene({place: {posture: "sit", face: 60}, state: "running", doing: "type"}), canDraw)).toEqual({
         clip: "type",

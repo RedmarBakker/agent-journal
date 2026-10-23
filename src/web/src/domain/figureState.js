@@ -111,6 +111,8 @@ export function clipFor(scene, canDraw) {
     if (scene.eager) return {clip: "eager", facing: 0};
     // a beat to play on its chat mark waits while the figure is on its way there
     if (beat && !(beat.onto && trip)) return {clip: beat.clip, facing: beat.facing, once: true};
+    // standing at the tab of what waits on the user it points up at it; anywhere else it waits turned toward the compose box
+    if (place.view && state === "asking") return {clip: "point", facing: 0};
     if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : 0};
 }

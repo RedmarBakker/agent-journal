@@ -2,17 +2,10 @@
 import {expect, test} from "vitest";
 
 const {
-    AMBIENT,
     EAGER,
-    EVERY_VOICE_FACES,
-    FLIP_ODDS,
     FLIP_OVER,
     LOOK_SECONDS,
-    REACTIONS,
-    VARIANTS,
-    VOICE_FACES,
     WORKED_SECONDS,
-    ambientFor,
     answerTo,
     eagerFor,
     eyesAt,
@@ -21,18 +14,24 @@ const {
     letsGoFor,
     lookOf,
     pastimeFor,
+    pastimeOf,
     reactionTo,
     workMoments,
 } = await import("../src/figure/reactions.js");
 const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, sayingsAfter, testResultsAfter} = await import("../src/domain/figureState.js");
 const {CLIPS, EYES} = await import("../src/figure/figure.js");
 const {FACES} = await import("../src/domain/faces.js");
+const {EVERY_VOICE_FACES, PILE, VOICE_FACES} = await import("../src/figure/pile.js");
+
+// the pile's entries of a moment
+const of = (moment) => PILE.filter((entry) => entry.when.moment === moment);
 
 test("a test run that passed turns the figure to its card and celebrates, a jump for joy or a party horn, and one that failed gives it a startled hop", () => {
-    const passed = REACTIONS.find((each) => each.moment === "tests_passed");
-    expect(passed.toward).toBe("card");
-    expect(passed.among.map((each) => each.clip)).toEqual(["joy", "party_horn"]);
-    expect(REACTIONS.find((each) => each.moment === "tests_failed")).toMatchObject({clip: "startled", toward: "card"});
+    const passed = of("tests_passed").filter((entry) => entry.kind === "clip");
+    expect(passed.every((entry) => entry.toward === "card" && entry.onto)).toBe(true);
+    expect(passed.map((entry) => entry.name)).toEqual(["joy", "party_horn"]);
+    // the start at a failure, and the dismay that came before it, restored beside it (task 2652)
+    expect(of("tests_failed").filter((entry) => entry.kind === "clip").map((entry) => [entry.name, entry.toward])).toEqual([["startled", "card"], ["dismay", "card"]]);
 });
 
 test("a reaction fires only when its roll wins, and not again before its cooldown is over", () => {
@@ -47,22 +46,18 @@ test("a reaction fires only when its roll wins, and not again before its cooldow
 test("typing and reactions change the eyes; messages and work can move the body", () => {
     const user = ["answered", "typing", ...FACES.map((face) => `reacted:${face}`)];
     for (const moment of user) {
-        const reactions = REACTIONS.filter((each) => each.moment === moment);
+        const reactions = of(moment).filter((entry) => entry.kind !== "nothing");
         expect(reactions.length, moment).toBeGreaterThan(0);
-        for (const each of reactions) expect([each.look, each.clip], moment).toEqual([expect.any(String), undefined]);
+        for (const each of reactions) expect(each.kind, moment).toBe("look");
     }
     expect(reactionTo("reacted:\u2764\ufe0f", new Map(), 0, () => 0.99).look).toBe("hearts");
-    for (const each of REACTIONS.filter((reaction) => !user.includes(reaction.moment)))
-        expect(each.clip ?? each.among.map((one) => one.clip).join(), each.moment).toEqual(expect.any(String));
 });
 
 test("every clip and look the figure is ever asked for exists, so no reaction, egg, held state or pastime is dead on arrival", () => {
     const named = new Set(CLIPS.map((clip) => clip.name));
     const asked = [
-        ...REACTIONS.flatMap((each) => [each.clip, ...(each.among ?? []).map((one) => one.clip)]).filter(Boolean),
-        ...Object.values(VARIANTS).flatMap((among) => among.map((one) => one.clip)),
+        ...PILE.filter((entry) => entry.kind === "clip").map((entry) => entry.name),
         ...EGGS.map((egg) => egg.clip),
-        ...AMBIENT.map((each) => each.clip),
         ...Object.values(HELD),
         "walk",
         "jump",
@@ -76,25 +71,28 @@ test("every clip and look the figure is ever asked for exists, so no reaction, e
         "hang_r",
     ];
     for (const clip of asked) expect(named.has(clip), clip).toBe(true);
-    for (const each of REACTIONS.filter((reaction) => reaction.look)) expect(EYES[each.look], each.look).toBeDefined();
+    for (const each of PILE.filter((entry) => entry.kind === "look")) expect(EYES[each.name], each.name).toBeDefined();
     for (const clip of CLIPS) expect(clip.postures.length, clip.name).toBeGreaterThan(0);
 });
 
-test("a figure at rest looks about and stretches only after the state has lasted, and then not on every occasion", () => {
-    const next = new Map();
-    const [look] = AMBIENT;
-    expect(ambientFor("idle", look.after - 1, next, 0, () => 0)).toBe("");
-    expect(ambientFor("idle", look.after, next, 0, () => 0)).toBe("look_around");
-    expect(ambientFor("idle", look.after, next, 1, () => 0)).toBe("");
-    expect(ambientFor("working", 999, next, 1000, () => 0)).toBe("");
-    const rolled = new Map();
-    expect(ambientFor("idle", look.after, rolled, 0, () => 0.99)).toBe("");
+test("a figure at rest looks about only after the state has lasted, not again before its cooldown, and then not on every occasion", () => {
+    const look = of("pastime").find((entry) => entry.name === "look_around");
+    const only = (name) => name === "look_around";
+    const memory = new Map();
+    expect(pastimeOf("idle", look.when.lasted - 1, memory, 0, () => 0, "", only)).toBe(null);
+    expect(pastimeOf("idle", look.when.lasted, memory, 0, () => 0, "", only).name).toBe("look_around");
+    expect(pastimeOf("idle", look.when.lasted, memory, 1, () => 0, "", only)).toBe(null);
+    // an idle act is for a figure with nothing to do
+    expect(pastimeOf("thinking", 999, new Map(), 1000, () => 0, "", only)).toBe(null);
+    expect(pastimeOf("idle", look.when.lasted, new Map(), 0, () => 0.99, "", only)).toBe(null);
 });
 
 test("only a jump of more than the figure's own height sometimes turns over", () => {
+    const [backflip, jump] = of("jump");
+    const odds = backflip.weight / (backflip.weight + jump.weight);
     expect(flips(112 * FLIP_OVER, 112, () => 0)).toBe(false);
-    expect(flips(112 * FLIP_OVER + 1, 112, () => FLIP_ODDS - 0.01)).toBe(true);
-    expect(flips(112 * FLIP_OVER + 1, 112, () => FLIP_ODDS)).toBe(false);
+    expect(flips(112 * FLIP_OVER + 1, 112, () => odds - 0.01)).toBe(true);
+    expect(flips(112 * FLIP_OVER + 1, 112, () => odds)).toBe(false);
 });
 
 test("a watched test run that ends is seen once, as a pass or a failure, and a run already known is not seen again", () => {
@@ -173,7 +171,10 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             }),
         ].map((fire) => fire.beat)
     );
-    for (const each of REACTIONS) expect(made.has(each.moment), each.moment).toBe(true);
+    // every reaction's moment: the pile's moments but those of the figure's own choices, drawn where it chooses them
+    const choices = ["pastime", "spell", "eager", "jump", "carrier", "crane_from", "perch", "fall", "digit", "roam"];
+    for (const moment of new Set(PILE.map((entry) => entry.when.moment)))
+        if (!choices.includes(moment) && !moment.startsWith("held:")) expect(made.has(moment), moment).toBe(true);
 });
 
 test("a look shows only while the figure faces no further than sideways, so one that comes while it hangs with its back turned waits", () => {
@@ -196,7 +197,8 @@ test("a look's clock runs only while its eyes are shown: it waits while the figu
 
 test("typing is a moment, and so is the end of a stretch of work long enough, timed from when the work began; standing idle is one every look", () => {
     expect(workMoments("waiting", true, 0, 50)).toEqual({moments: [{beat: "typing", time: 50}], began: 0});
-    expect(workMoments("running", false, 0, 50)).toEqual({moments: [], began: 50});
+    // thinking, as while a plain command runs, it stands as it stands idle, and glances about now and then
+    expect(workMoments("running", false, 0, 50)).toEqual({moments: [{beat: "standing", time: 50}], began: 50});
     expect(workMoments("thinking", false, 50, 60).began).toBe(50);
     expect(workMoments("reading", false, 10, 20)).toEqual({moments: [], began: 10});
     expect(workMoments("waiting", false, 50, 50 + WORKED_SECONDS)).toEqual({
@@ -228,13 +230,13 @@ test("a moment is answered by its egg first, else by its reaction, a beat for th
     ).toBe(null);
 });
 
-test("the figure does something by itself only while it is calm: idle, not hanging, with nothing to play and neither coming nor going", () => {
+test("the figure does something by itself only while it is calm, not hanging, with nothing to play and neither coming nor going; at work only a shenanigan", () => {
     const calm = {place: {posture: "sit"}, beats: 0, arriving: false, leaving: false};
     const waited = {state: "idle", lasted: 1000};
     const has = () => true;
-    expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: AMBIENT[0].clip, card: "", flies: false});
+    expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: "look_around", card: "", flies: false});
     expect(pastimeFor({...calm, beats: 1}, waited, new Map(), 0, () => 0, has)).toBe(null);
     expect(pastimeFor({...calm, place: {posture: "hang"}}, waited, new Map(), 0, () => 0, has)).toBe(null);
-    expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toBe(null);
+    expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toEqual({clip: "hop_up", card: "", flies: true});
 });
 

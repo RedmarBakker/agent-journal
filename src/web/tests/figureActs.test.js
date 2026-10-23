@@ -31,7 +31,14 @@ test("every voice plays every journal moment and every new variant in each postu
     }
 });
 
-const {REACTIONS, VARIANTS, AMBIENT, pastimeFor, reactionTo, variantOf, workMoments} = await import("../src/figure/reactions.js");
+const {pastimeFor, reactionTo, variantOf, workMoments} = await import("../src/figure/reactions.js");
+const {PILE} = await import("../src/figure/pile.js");
+
+// the pile's entries of a moment, those that play something, the chance that one does, and the moment's cooldown
+const of = (moment) => PILE.filter((entry) => entry.when.moment === moment);
+const played = (moment) => of(moment).filter((entry) => entry.kind !== "nothing");
+const oddsOf = (moment) => played(moment).reduce((sum, entry) => sum + entry.weight, 0) / of(moment).reduce((sum, entry) => sum + entry.weight, 0);
+const cooldownOf = (moment) => played(moment)[0].cooldown;
 const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 
 const JOURNAL = {
@@ -94,18 +101,17 @@ test("each thing the agent does in the journal is its own moment, read from the 
 
 test("each journal moment is acted out now and then, never every time: it plays on a winning roll only, and not again before its cooldown", () => {
     for (const [moment, acts] of Object.entries(JOURNAL)) {
-        const reaction = REACTIONS.find((each) => each.moment === moment);
-        expect(reaction.odds, moment).toBeLessThan(1);
-        expect(reaction.cooldown, moment).toBeGreaterThanOrEqual(60);
+        expect(oddsOf(moment), moment).toBeLessThan(1);
+        expect(cooldownOf(moment), moment).toBeGreaterThanOrEqual(60);
         const memory = new Map();
-        expect(reactionTo(moment, memory, 1000, () => reaction.odds), moment).toBe(null);
+        expect(reactionTo(moment, memory, 1000, () => oddsOf(moment)), moment).toBe(null);
         expect(acts, moment).toContain(reactionTo(moment, memory, 1000, () => 0).clip);
-        expect(reactionTo(moment, memory, 1000 + reaction.cooldown - 1, () => 0), moment).toBe(null);
-        expect(reactionTo(moment, memory, 1000 + reaction.cooldown, () => 0)?.clip, moment).toEqual(expect.any(String));
+        expect(reactionTo(moment, memory, 1000 + cooldownOf(moment) - 1, () => 0), moment).toBe(null);
+        expect(reactionTo(moment, memory, 1000 + cooldownOf(moment), () => 0)?.clip, moment).toEqual(expect.any(String));
     }
 });
 
-// every clip a pick may land on, each at the roll that lands on it
+// every entry of a moment a draw may land on, each at the roll that lands on it, `nothing` among them
 const picks = (among, pick) => {
     const total = among.reduce((sum, each) => sum + each.weight, 0);
     let before = 0;
@@ -122,28 +128,22 @@ test("every moment the figure acts out has more than one way to play it, picks a
     // the journal moments but the message, which the user wants as the dove alone (message 40754), the celebrations, the breaks from the
     // hammering and the glances from standing still
     for (const moment of [...Object.keys(JOURNAL).filter((each) => each !== "messaged"), "tests_passed", "committed", "building", "standing"]) {
-        const reaction = REACTIONS.find((each) => each.moment === moment);
-        expect(reaction.among.length, moment).toBeGreaterThan(1);
-        const memory = () => new Map();
-        // the first roll is the odds', the second the pick's
-        const rolls = (random) => {
-            const seen = [0, random()];
-            return () => seen.shift();
-        };
-        expect(picks(reaction.among, (random) => reactionTo(moment, memory(), 0, rolls(random)).clip), moment).toEqual(reaction.among.map((each) => each.clip));
+        expect(played(moment).length, moment).toBeGreaterThan(1);
+        expect(picks(of(moment), (random) => reactionTo(moment, new Map(), 0, random)?.clip ?? "nothing"), moment).toEqual(of(moment).map((each) => each.name));
     }
     expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}]);
     // searching, typing and watching the UFO, each picked again for each stretch
-    expect(VARIANTS.search.map((each) => each.clip)).toEqual(["search", "binoculars", "flashlight", "peek_under"]);
-    for (const [clip, among] of Object.entries(VARIANTS)) {
+    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "flashlight", "peek_under"]);
+    for (const clip of ["search", "type", "watch", "compacting"]) {
+        const among = of(`held:${clip}`);
         expect(among.length, clip).toBeGreaterThan(1);
-        expect(among.map((each) => each.clip), clip).toContain(clip);
-        expect(picks(among, (random) => variantOf(clip, random, has)), clip).toEqual(among.map((each) => each.clip));
+        expect(among.map((each) => each.name), clip).toContain(clip);
+        expect(picks(among, (random) => variantOf(clip, random, has)), clip).toEqual(among.map((each) => each.name));
         expect(variantOf(clip, () => 0.99, (name) => name === clip), clip).toBe(clip);
     }
     expect(variantOf("idle", () => 0, has)).toBe("idle");
-    // the figure at rest has more pastimes than one
-    expect(new Set(AMBIENT.filter((each) => !each.voice).map((each) => each.clip)).size).toBeGreaterThan(2);
+    // the figure at rest has more idle acts than one
+    expect(new Set(played("pastime").filter((each) => each.when.free && !each.when.voices).map((each) => each.name)).size).toBeGreaterThan(2);
 });
 
 const {SKYWARD, goneMs, skywardAt, skywardHops, skywardMs} = await import("../src/figure/skyward.js");
@@ -153,16 +153,14 @@ const {clipFor} = await import("../src/domain/figureState.js");
 const {ACTS, heldPhases, squeezeOf} = await import("../src/figure/acts.js");
 
 test("now and then while idle the figure hops up the bubbles above it very fast, off the top of the screen, and stays gone one to five seconds", () => {
-    const pastime = AMBIENT.find((each) => each.flies);
-    expect([pastime.clip, pastime.odds < 1]).toEqual(["hop_up", true]);
-    // played whenever the figure has nothing to do, a wait on a run, a worker or the user as much as idle (messages 40669, 40680)
-    const has = (name) => Boolean(clipNamed(name));
-    for (const state of ["idle", "waiting", "asking"]) {
-        const due = new Map(AMBIENT.filter((each) => !each.flies).map((each) => [each.clip, Infinity]));
+    const pastime = of("pastime").find((each) => each.flies);
+    expect([pastime.name, pastime.shenanigan, oddsOf("pastime") < 1]).toEqual(["hop_up", true, true]);
+    // a shenanigan, played in any state, a wait on a run, a worker or the user, or work, as much as idle (messages 40669, 40680, 41809)
+    const has = (name) => name === "hop_up";
+    for (const state of ["idle", "waiting", "asking", "thinking"]) {
         const scene = {voice: "butler", place: {posture: "stand"}, beats: 0, arriving: false, leaving: false, moving: false};
-        expect(pastimeFor(scene, {state, lasted: pastime.after}, due, 0, () => 0, has), state).toEqual({clip: "hop_up", card: "", flies: true});
+        expect(pastimeFor(scene, {state, lasted: 0}, new Map(), 0, () => 0, has), state).toEqual({clip: "hop_up", card: "", flies: true});
     }
-    expect(pastimeFor({voice: "butler", place: {posture: "stand"}, beats: 0}, {state: "thinking", lasted: 999}, new Map(), 0, () => 0, has)).toBe(null);
     const hops = skywardHops({x: 300, y: 700}, [{x: 340, y: 560}, {x: 260, y: 400}, {x: 330, y: 260}], 0, 112);
     expect(hops.map((hop) => hop.to.y)).toEqual([560, 400, 260, -168]);
     // each hop goes up, and a hop of the figure's height takes well under half a second
@@ -197,7 +195,7 @@ test("it floats back down on a parachute, never faster than the parachute lets i
 });
 
 test("while the context compacts the figure is packed into a box that shrinks, squashed under a press, or vacuums up words, picked each time", () => {
-    expect(VARIANTS.compacting.map((each) => each.clip)).toEqual(["pack_box", "press", "vacuum", "compacting"]);
+    expect(of("held:compacting").map((each) => each.name)).toEqual(["pack_box", "press", "vacuum", "compacting"]);
     const box = ACTS.pack_box;
     const frames = box.intro + box.hold + box.outro;
     const at = (frame) => frame / frames;
@@ -227,7 +225,7 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     // a run 20 seconds in at 70 percent has over 8 seconds left: not yet
     expect(eagerFor(at(0.7), null, () => 0, 120)).toEqual({eager: null, moment: null});
     // at 80 percent after 20 seconds it has 5 left: it rolls, once, by the odds
-    expect(eagerFor(at(0.8), null, () => EAGER.odds, 120).eager).toEqual({bar, on: false});
+    expect(eagerFor(at(0.8), null, () => oddsOf("eager"), 120).eager).toEqual({bar, on: false});
     const eager = eagerFor(at(0.8), null, () => 0, 120).eager;
     expect(eager).toEqual({bar, on: true});
     expect(eagerFor(at(0.95), {bar, on: false}, () => 0, 123).eager.on).toBe(false);
@@ -238,7 +236,7 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     expect(eagerFor(at(1, "good"), eager, () => 0, 125)).toEqual({eager: {bar, on: false}, moment: {beat: "bar_done"}});
     expect(eagerFor(at(1, "bad"), eager, () => 0, 125).moment).toEqual({beat: "bar_failed"});
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
-    expect(REACTIONS.find((each) => each.moment === "bar_done").among.map((each) => each.clip)).toEqual(["joy", "party_horn"]);
+    expect(of("bar_done").map((each) => each.name)).toEqual(["joy", "party_horn"]);
     // only the bar going ends it with nothing to mark
     expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {bar, on: false}, moment: null});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
@@ -273,7 +271,7 @@ test("sitting on a corner the figure sits just inside it, toward the inside of t
     expect([right.face, left.face, right.posture]).toEqual([70, 290, "sit"]);
 });
 
-const {TYPING, typingIn, typingSpell} = await import("../src/figure/reactions.js");
+const {SPELL, spellFor, spellIn} = await import("../src/figure/reactions.js");
 const {hornOpen, partOf} = await import("../src/figure/acts.js");
 const {GLANCE, HEAD_TURN, TUMBLE} = await import("../src/figure/figure.js");
 
@@ -307,28 +305,32 @@ test("blown, the party horn shoots open at once, stays open over a second, rolls
     }
 });
 
-test("now and then an edit sets the figure typing for a spell it is plainly seen at, kept while its agent works on, and not again too soon", () => {
-    const spell = typingSpell("writing", null, 100, () => 0);
-    expect(spell.until - spell.began).toBeGreaterThanOrEqual(TYPING.seconds[0]);
-    expect(TYPING.odds).toBeLessThan(1);
+test("now and then an edit, a read or a search sets the figure at its work for a spell it is plainly seen at, kept while its agent works on, and not again too soon", () => {
+    const spell = spellFor("writing", null, 100, () => 0);
+    expect(spell.state).toBe("writing");
+    expect(spell.until - spell.began).toBeGreaterThanOrEqual(SPELL.seconds[0]);
+    // the work's own acts, each only while that work goes on, weighted heavily (message 41805)
+    for (const state of SPELL.kept) {
+        expect(spellFor(state, null, 100, () => 0).state, state).toBe(state);
+        expect(oddsOf("spell") > 0.5 && played("spell").find((each) => each.name === state).when.state === state, state).toBe(true);
+    }
     // the edit is over and the agent thinks or reads: the figure types on; once the agent waits or idles, it stops
-    expect(typingIn({state: "thinking", since: 103}, spell, 105)).toEqual({state: "writing", since: 100});
-    expect(typingIn({state: "reading", since: 103}, spell, 105).state).toBe("writing");
-    expect(typingIn({state: "waiting", since: 103}, spell, 105).state).toBe("waiting");
-    expect(typingIn({state: "thinking", since: 103}, spell, spell.until).state).toBe("thinking");
-    // a lost roll, and the cooldown after a spell, hold the next one back
-    const lost = typingSpell("writing", null, 100, () => 0.99);
-    expect(lost).toEqual({began: 0, until: 0, next: 100 + TYPING.cooldown});
-    expect(typingSpell("writing", lost, 110, () => 0)).toBe(lost);
-    expect(typingSpell("writing", spell, spell.until + 1, () => 0)).toBe(spell);
-    expect(typingSpell("writing", spell, 100 + TYPING.cooldown, () => 0).began).toBe(100 + TYPING.cooldown);
-    expect(typingSpell("thinking", null, 100, () => 0)).toBe(null);
+    expect(spellIn({state: "thinking", since: 103}, spell, 105)).toEqual({state: "writing", since: 100});
+    expect(spellIn({state: "reading", since: 103}, spell, 105).state).toBe("writing");
+    expect(spellIn({state: "waiting", since: 103}, spell, 105).state).toBe("waiting");
+    expect(spellIn({state: "thinking", since: 103}, spell, spell.until).state).toBe("thinking");
+    // a lost draw, and the wait after a spell, hold the next one back
+    const lost = spellFor("writing", null, 100, () => 0.99);
+    expect(lost).toEqual({state: "writing", began: 0, until: 0, next: 100 + SPELL.every});
+    expect(spellFor("writing", lost, 110, () => 0)).toBe(lost);
+    expect(spellFor("writing", spell, spell.until + 1, () => 0)).toBe(spell);
+    expect(spellFor("writing", spell, 100 + SPELL.every, () => 0).began).toBe(100 + SPELL.every);
+    expect(spellFor("thinking", null, 100, () => 0)).toBe(null);
 });
 
 test("standing still, the figure now and then glances left, right or up, its head within HEAD_TURN of its body, the body turning past that", () => {
-    const standing = REACTIONS.find((each) => each.moment === "standing");
-    expect(standing.among.map((each) => each.clip)).toEqual(["look_left", "look_right", "look_up"]);
-    expect([standing.odds < 1, standing.cooldown > 0]).toEqual([true, true]);
+    expect(played("standing").map((each) => each.name)).toEqual(["look_left", "look_right", "look_up"]);
+    expect([oddsOf("standing") < 1, cooldownOf("standing") > 0]).toEqual([true, true]);
     for (const voice of Object.keys(stances)) {
         for (const [name, way] of [["look_left", -1], ["look_right", 1]]) {
             const {head, chest} = facingsOf(posedAt(name, voice, 0.5));
@@ -344,8 +346,7 @@ test("standing still, the figure now and then glances left, right or up, its hea
 });
 
 test("very rarely, landing from a launch, the figure trips onto its knees, shakes its head and gets up, never through the floor", () => {
-    const launched = REACTIONS.find((each) => each.moment === "launched");
-    expect([launched.clip, launched.odds <= 0.1, launched.cooldown >= 120]).toEqual(["tumble", true, true]);
+    expect([played("launched").map((each) => each.name), oddsOf("launched") <= 0.1, cooldownOf("launched") >= 120]).toEqual([["tumble"], true, true]);
     for (const voice of Object.keys(stances)) {
         const kneeling = posedAt("tumble", voice, 0.4);
         const moves = kneeling.moves(0);

@@ -1,7 +1,8 @@
 // @vitest-environment node
 import {expect, test} from "vitest";
 import {HELD, cardsAfter, clipFor, frameIn} from "../src/domain/figureState.js";
-import {AMBIENT, LONG_WALK_SECONDS, answerTo, ambientFor, walkingMoment} from "../src/figure/reactions.js";
+import {LONG_WALK_SECONDS, answerTo, pastimeOf, walkingMoment} from "../src/figure/reactions.js";
+import {choicesFor} from "../src/figure/pile.js";
 import {CLIPS} from "../src/figure/figure.js";
 
 const VOICES = ["butler", "coach", "colleague", "homie", "squire"];
@@ -23,13 +24,14 @@ test("sleep plays its yawn once, then loops only its sleeping frames", () => {
 
 test("each voice has its own available, occasional pastime", () => {
     for (const voice of VOICES) {
-        const own = AMBIENT.find((rule) => rule.voice === voice);
-        const due = new Map(AMBIENT.filter((rule) => rule !== own).map((rule) => [rule.clip, Infinity]));
-        expect(ambientFor("idle", 1000, due, 1000, () => 0, voice, has(voice))).toBe(own.clip);
-        expect(ambientFor("idle", 1000, due, 1001, () => 0, voice, has(voice))).toBe("");
-        const blocked = new Map();
-        expect(ambientFor("idle", 1000, blocked, 1000, () => 0, voice, () => false)).toBe("");
-        expect(blocked.size).toBe(0);
+        const own = choicesFor({moment: "pastime", free: true, lasted: 1000, voice}).filter((entry) => entry.when.voices?.length === 1);
+        expect(own.map((entry) => entry.when.voices), voice).toEqual([[voice]]);
+        const only = (name) => name === own[0].name && has(voice)(name);
+        const memory = new Map();
+        expect(pastimeOf("idle", 1000, memory, 1000, () => 0, voice, only)?.name).toBe(own[0].name);
+        // drawn, it waits out its cooldown before it may be drawn again
+        expect(pastimeOf("idle", 1000, memory, 1001, () => 0, voice, only)).toBe(null);
+        expect(pastimeOf("idle", 1000, new Map(), 1000, () => 0, voice, () => false)).toBe(null);
     }
 });
 

@@ -46,9 +46,10 @@ import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, carrierOf, eagerFor, eyesAt, lookOf, pastimeFor, typingIn, typingSpell, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, spellFor, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
 import {VISOR, visorAt, visorFor} from "../figure/visor.js";
+import {cutsAfter} from "../figure/pile.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -124,7 +125,7 @@ const beats = ref([]);
 let looking = null;
 // what the figure remembers between looks: when each reaction last played and the eggs played so far, when each pastime may next play,
 // and the state each test run's card had when last looked at
-const memory = {reacted: new Map(), played: []};
+const memory = {reacted: new Map(), played: [], tally: {plain: 0, last: ""}};
 const pastimesDue = new Map();
 const testStates = new Map();
 // whether each process card was running when last looked at, and the glow a card's end lit on the visor (figure/visor.js), or null
@@ -148,10 +149,10 @@ const walking = ref(false);
 
 // the agent's row with the system's cards that are its own, which the figure's beats are read from
 const lead = computed(() => withSystemCards(agent.value, rows("messages")));
-// what the agent does, and what the figure plays of it: writing for the typing spell an edit set it (reactions.js typingSpell)
+// what the agent does, and what the figure plays of it: the work of the spell an edit, a read or a search set it (reactions.js spellSpell)
 const doings = computed(() => figureStateOf(agent.value, waitingSince.value, now.value));
 const spell = ref(null);
-const held = computed(() => typingIn(doings.value, spell.value, now.value));
+const held = computed(() => spellIn(doings.value, spell.value, now.value));
 // whether the figure belongs in the chat now: its agent is here, in a state Settings shows it in
 const belongs = computed(() => Boolean(agent.value) && shownIn(store.settings?.voices?.avatar_shown, held.value.state));
 // the stay the figure keeps while nothing calls it anywhere, and the box it was last clicked out of, kept clear of it (perches.js)
@@ -267,6 +268,10 @@ const playedOut = () =>
         ? frameOf(playing.shown) >= playing.closing + playing.shown.clip.outro
         : canSwitch(playing.shown.clip, frameOf(playing.shown), playing.index));
 
+// whether the clip on screen may be cut off now by what is wanted instead: a loop, held by a state, may; an act played once only as the
+// pile says it may and once it has played its least (pile.js cutsAfter), so the figure never flickers between acts
+const mayCut = (shown) => !shown?.once || cutsAfter(shown.clip.name, (performance.now() - playing.started) / 1000);
+
 // how far through its step the walk under a clip on the move is, stepped as the walk's own frames are, `pace` times as quick
 function strideNow(pace) {
     const {frames, fps} = clipNamed("walk");
@@ -284,9 +289,9 @@ function step() {
         playing.closing = null;
     // a clip that cuts in, as watching the UFO, takes over at once from whatever plays, and so does a trip out of something's way, the
     // beat it breaks off dropped
-    const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted));
+    const breaking = Boolean(wanted.startsLeg && body.trip?.pressing && playing.shown && !playing.shown.clip.interruptible && playing.name !== keyOf(wanted)) && mayCut(playing.shown);
     if (breaking && playing.shown.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed) beats.value = beats.value.slice(1);
-    const finished = playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name);
+    const finished = playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
     const continuing = keyOf(wanted) === playing.name && playing.closing === null;
     const shown = continuing || finished ? wanted : playing.shown;
     const key = keyOf(shown);
@@ -481,7 +486,9 @@ function watchFooting() {
     const ground = groundUnder(body.footing, body.place, figureSize());
     if (!ground) return uprooted();
     body.footing = ground.footing;
-    if (ground.motion === "dropping") return fallFrom(body.place, null);
+    // the bars under it drop: it falls, unless it landed a moment ago, when it goes down with them rather than play the fall again, as
+    // the bars docked over the compose box go down in steps when a card closes and goes
+    if (ground.motion === "dropping" && performance.now() - landedAt >= SETTLED_MS) return fallFrom(body.place, null);
     const spot = ground.spot;
     if (Math.hypot(spot.x - body.place.x, spot.y - body.place.y) <= 0.3) return;
     if (ground.motion === "launched" && !body.arriving) groundMoved("launched");
@@ -537,9 +544,14 @@ function flyOn() {
     step();
 }
 
+// when the figure last landed from a fall, on the page's clock; a fall within SETTLED_MS of it is no new fall onto a bubble, and a drop of
+// the bars under it then carries it down rather than playing the fall again
+let landedAt = -Infinity;
+const SETTLED_MS = 1500;
+
 function fallFrom(spot, to) {
     endSlide();
-    body.airborne = fallingFrom(spot, to, latestFloors().floors, performance.now(), Math.random);
+    body.airborne = fallingFrom(spot, to, latestFloors().floors, performance.now(), Math.random, performance.now() - landedAt >= SETTLED_MS);
     body.trip = null;
     body.footing = null;
     body.at = placed(body.airborne, body.airborne.posture);
@@ -551,6 +563,7 @@ function fallOn() {
     body.at = placed(airborne ?? landed.spot, (airborne ?? landed.spot).posture);
     body.airborne = airborne;
     if (!landed) return;
+    landedAt = performance.now();
     body.landing = landed.standing;
     groundMoved("dropping");
     settle(landed.spot);
@@ -638,7 +651,7 @@ function look() {
     clearTimeout(lookTimer);
     now.value = Date.now() / 1000;
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
-    spell.value = typingSpell(doings.value.state, spell.value, now.value, Math.random);
+    spell.value = spellFor(doings.value.state, spell.value, now.value, Math.random, memory.tally);
     const happened = [
         ...beatsAfter(lead.value, seenAt),
         ...cardsAfter(lead.value, knownCards),
@@ -666,7 +679,7 @@ function look() {
     [...happened, ...work.moments].forEach(react);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const egg = answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
-    const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere);
+    const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
@@ -682,6 +695,7 @@ function look() {
         cleared,
         work: workOf(),
         pile: pileOf(),
+        tally: memory.tally,
     });
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
@@ -815,7 +829,7 @@ const CARRY = {
     },
     crane: {
         start: (items, world) => {
-            const [from, away] = Math.random() < 0.5 ? [world.left - CRANE_OFF, world.right + CRANE_OFF] : [world.right + CRANE_OFF, world.left - CRANE_OFF];
+            const [from, away] = craneFrom(Math.random) === "left" ? [world.left - CRANE_OFF, world.right + CRANE_OFF] : [world.right + CRANE_OFF, world.left - CRANE_OFF];
             return {stops: stacksOf(items), from, away};
         },
         frame: runCrane,

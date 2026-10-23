@@ -33,8 +33,10 @@ describe("a body in the air", () => {
 
     it("is caught by a bubble it falls past only when the roll lets one catch it", () => {
         const floors = [floor("b1", 300), floor("home", 500)];
-        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.1), floors).landed.spot.y).toBe(300);
-        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.9), floors).landed.spot.y).toBe(500);
+        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.1, true), floors).landed.spot.y).toBe(300);
+        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.9, true), floors).landed.spot.y).toBe(500);
+        // a fall soon after another is never caught, so falls onto bubbles that go from under it never chain on
+        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.1, false), floors).landed.spot.y).toBe(500);
     });
 });
 

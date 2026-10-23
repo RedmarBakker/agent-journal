@@ -1,8 +1,14 @@
 // @vitest-environment node
 import {beforeEach, expect, test} from "vitest";
 
-const {CLEARED_SECONDS, HANGS, HANG_SHARE, ROAMS, STANDS, perchOn, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
+const {CLEARED_SECONDS, HANGS, STANDS, perchOn, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
+const {PILE} = await import("../src/figure/pile.js");
+
+// the pile's places to roam to, and its share of perches that are a hang
+const ROAMS = PILE.filter((entry) => entry.when.moment === "roam");
+const [HANG, STAND] = PILE.filter((entry) => entry.when.moment === "perch");
+const HANG_SHARE = HANG.weight / (HANG.weight + STAND.weight);
 const {SEAT_INBOARD, boxAt, overlaps} = await import("../src/figure/places.js");
 const {write} = await import("./figurePage.js");
 
@@ -75,21 +81,23 @@ test("a hanging figure grips the roomy corner with the hand on its side, or turn
 });
 
 test("every place the figure roams to comes up by its odds and is stayed at between its shortest and longest stay", () => {
-    const total = ROAMS.reduce((sum, each) => sum + each.odds, 0);
+    const total = ROAMS.reduce((sum, each) => sum + each.weight, 0);
     let before = 0;
     for (const each of ROAMS) {
-        const middle = (before + each.odds / 2) / total;
-        expect(roamNext(fixed(middle, 0))).toEqual({where: each.where, stay: each.stay[0]});
+        const middle = (before + each.weight / 2) / total;
+        expect(roamNext(fixed(middle, 0))).toEqual({where: each.name, stay: each.stay[0]});
         expect(roamNext(fixed(middle, 1)).stay).toBe(each.stay[1]);
-        before += each.odds;
+        before += each.weight;
     }
-    expect(new Set(ROAMS.map((each) => each.where))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab"]));
+    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab"]));
 });
 
-test("mostly the figure strolls along the compose box's edge and sits on its corners, and no stay keeps it still for long", () => {
-    const odds = Object.fromEntries(ROAMS.map((each) => [each.where, each.odds]));
-    expect(odds.edge).toBe(Math.max(...Object.values(odds)));
-    expect(odds.edge + odds.rest).toBeGreaterThanOrEqual(0.7);
+test("mostly the figure rests on a corner of the compose box or strolls along its edge, and no stay keeps it still for long", () => {
+    const total = ROAMS.reduce((sum, each) => sum + each.weight, 0);
+    const odds = Object.fromEntries(ROAMS.map((each) => [each.name, each.weight / total]));
+    // it rests more than it strolls, as it walked about too much to be seen doing anything (task 2652)
+    expect(odds.rest).toBe(Math.max(...Object.values(odds)));
+    expect(odds.edge + odds.rest).toBeGreaterThanOrEqual(0.6);
     // now and then it sits on a corner, less often than it stands there
     expect(odds.seat).toBeGreaterThan(0);
     expect(odds.seat).toBeLessThan(odds.rest);
@@ -130,7 +138,7 @@ test("the figure goes home to rest while its agent cannot act, keeps a stay unti
     const edge = {where: "edge", until: 500, along: {x: 0, y: 0}};
     expect(targetFor({...at, stay: edge})).toMatchObject({stay: edge, spot: {posture: "stand"}});
     const next = targetFor({...at, stay: {...edge, until: 50}, random: () => 0});
-    expect(next.stay).toMatchObject({where: ROAMS[0].where, until: 100 + ROAMS[0].stay[0]});
+    expect(next.stay).toMatchObject({where: ROAMS[0].name, until: 100 + ROAMS[0].stay[0]});
 });
 
 test("a perch that would put any part of the figure past the edge of its world is refused", () => {
