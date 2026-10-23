@@ -11,6 +11,7 @@ import PluginsPage from "./pages/PluginsPage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
 import SearchPage from "./pages/SearchPage.vue";
 import SecretsPage from "./pages/SecretsPage.vue";
+import TeamPage from "./pages/TeamPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
@@ -31,6 +32,7 @@ defineProps({page: {type: String, required: true}});
         <template #about><AboutPage /></template>
         <template #plugins><PluginsPage /></template>
         <template #secrets><SecretsPage /></template>
+        <template #team><TeamPage /></template>
         <template #mcp><IntegrationsPage /></template>
         <template #resources><ResourcesPage /></template>
         <template #file><FilePage /></template>

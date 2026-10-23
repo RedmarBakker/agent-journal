@@ -10,6 +10,7 @@ export const PAGES = {
     secrets: {title: "Secrets", icon: "key", text: "Keys and logins the agent may use without ever seeing them"},
     mcp: {title: "MCP", icon: "share", text: "The MCP servers the agents are given"},
     plugins: {title: "Plugins", icon: "plug", text: "Installed plugins, with their dashboards and settings"},
+    team: {title: "Team", icon: "people", text: "The team this journal syncs with: its people, machines and worker pool"},
     settings: {title: "Settings", icon: "settings", text: "Features, notifications and how the viewer behaves"},
 };
 

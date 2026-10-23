@@ -3,6 +3,7 @@ defineProps({
     title: {type: String, required: true},
     count: {type: [Number, String], default: ""},
     lead: {type: String, default: ""},
+    aside: {type: String, default: ""},
     folds: Boolean,
     sticky: Boolean,
     open: {type: Boolean, default: true},
@@ -22,6 +23,9 @@ const emit = defineEmits(["toggle"]);
             <span class="list-box-title">{{ title }}</span>
             <template v-if="count !== ''">
                 <span class="list-box-count">{{ count }}</span>
+            </template>
+            <template v-if="aside">
+                <span class="list-box-aside">{{ aside }}</span>
             </template>
             <template v-if="folds">
                 <span :class="['list-box-mark', {shut: !open}]" />
@@ -88,6 +92,15 @@ const emit = defineEmits(["toggle"]);
     opacity: 0.7;
     transform: rotate(45deg);
     transition: transform 0.15s;
+}
+
+.list-box-aside {
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.list-box-aside + .list-box-mark {
+    margin-left: 8px;
 }
 
 .list-box-mark.shut {

@@ -8,6 +8,7 @@ import {href} from "../route.js";
 import {choose} from "../state/environment.js";
 import "./team.css";
 
+defineProps({hosted: Boolean});
 const TEAM_CHAT = "team";
 const chat = ref(null);
 const busy = ref(false);
@@ -43,19 +44,25 @@ onMounted(load);
             <template v-if="chat">
                 <div class="team-chat-row">
                     <span class="team-chat-line">{{ chat.line }}</span>
-                    <template v-if="chat.mine">
+                    <template v-if="!hosted && chat.mine">
                         <Btn small :busy="busy" @click="act(() => api.releaseTeamChat())">Release</Btn>
                     </template>
-                    <template v-else-if="chat.claimable">
+                    <template v-else-if="!hosted && chat.claimable">
                         <Btn small :busy="busy" @click="act(() => api.claimTeamChat())">Claim</Btn>
                     </template>
                     <Btn small :href="href.page()" @click="choose(TEAM_CHAT)">Open <Icon name="chevronRight" /></Btn>
                 </div>
-                <template v-if="chat.mine">
+                <template v-if="hosted">
+                    <p class="team-fine">The Team chat is claimed or released from a member's own journal, not from here.</p>
+                </template>
+                <template v-else-if="chat.mine">
                     <p class="team-fine">Its agent runs on this machine. Release stops it after its files are committed and pushed.</p>
                 </template>
                 <template v-else-if="offline">
                     <p class="team-fine">Whatever {{ chat.holder }} had not pushed stays on {{ chat.holder }}'s machine. The new agent starts from the chat's latest messages.</p>
+                </template>
+                <template v-else-if="chat.holder">
+                    <p class="team-fine">Its agent runs on {{ chat.holder }}'s machine and answers everyone. Claim shows here if {{ chat.holder }} releases it or goes offline.</p>
                 </template>
             </template>
             <template v-if="failure">

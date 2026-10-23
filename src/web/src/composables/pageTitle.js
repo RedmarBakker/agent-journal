@@ -13,6 +13,7 @@ const PAGES = {
     plugins: "Plugins",
     mcp: "MCP",
     secrets: "Secrets",
+    team: "Team",
     file: "File",
     resources: "Resources",
 };

@@ -1,14 +1,10 @@
 <script setup>
 import {onMounted, ref} from "vue";
 import {api} from "../api/client.js";
+import Btn from "../kit/Btn.vue";
 import EmptyState from "../kit/EmptyState.vue";
-import TeamChatBox from "./TeamChatBox.vue";
+import {href} from "../route.js";
 import TeamConnect from "./TeamConnect.vue";
-import TeamDevices from "./TeamDevices.vue";
-import TeamInvite from "./TeamInvite.vue";
-import TeamPassword from "./TeamPassword.vue";
-import TeamPeople from "./TeamPeople.vue";
-import TeamSync from "./TeamSync.vue";
 import "./team.css";
 
 const standing = ref(null);
@@ -46,14 +42,10 @@ onMounted(load);
             <template v-if="outcome">
                 <p class="team-line">{{ outcome }}</p>
             </template>
-            <TeamSync :standing="standing" />
-            <TeamChatBox />
-            <TeamPeople :admin="standing.admin" />
-            <TeamPassword />
-            <template v-if="standing.admin">
-                <TeamInvite />
-                <TeamDevices />
-            </template>
+            <p class="team-plain">{{ standing.line }}. The team's sync, people, machines and worker pool are on the Team page.</p>
+            <div>
+                <Btn :href="href.page('team')">Open the Team page</Btn>
+            </div>
         </template>
     </div>
 </template>

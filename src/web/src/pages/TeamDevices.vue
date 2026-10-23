@@ -27,10 +27,11 @@ async function take(call) {
 }
 
 onMounted(() => take(() => api.teamDevices()));
+const open = ref(false);
 </script>
 
 <template>
-    <ListBox title="Devices" :count="devices.length" :lead="devices.length ? '' : 'No devices yet'">
+    <ListBox title="Devices" :count="devices.length" :lead="devices.length ? '' : 'No devices yet'" aside="Admin" folds :open="open" @toggle="open = !open">
         <template v-for="device in devices" :key="device.id">
             <div class="team-device">
                 <span class="team-device-number">{{ device.id }}</span>

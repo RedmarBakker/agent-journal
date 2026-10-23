@@ -1,8 +1,8 @@
 <script setup>
-import {onMounted, ref} from "vue";
+import {ref} from "vue";
 import {api} from "../api/client.js";
 import {agentRunningIn} from "../composables/settings.js";
-import {clock} from "../format/time.js";
+import {initial, isOnline, machinesOf, onlineCount, presence, ROLES} from "../domain/team.js";
 import Btn from "../kit/Btn.vue";
 import CopyButton from "../kit/CopyButton.vue";
 import Icon from "../kit/Icon.vue";
@@ -13,14 +13,10 @@ import {choose} from "../state/environment.js";
 import TeamFailure from "./TeamFailure.vue";
 import "./team.css";
 
-const props = defineProps({admin: {type: Boolean, default: false}});
+const props = defineProps({people: {type: Array, required: true}, devices: {type: Array, default: () => []}, admin: Boolean});
 const LEAD = "A colleague's environment opens read-only: what you write there is a comment, and their agent treats it as a colleague's words.";
-const ROLES = {admin: "Admin", member: "Member", relay: "Hosted journal"};
-const people = ref([]);
 const failure = ref("");
 const resets = ref({});
-const initial = (name) => (name || "?").trim().charAt(0).toUpperCase();
-const presence = (person) => (person.online ? "Online" : person.seen_at ? `Offline since ${clock(person.seen_at)}` : "Not seen yet");
 
 async function reset(person) {
     failure.value = "";
@@ -30,18 +26,10 @@ async function reset(person) {
         failure.value = e.message;
     }
 }
-
-onMounted(async () => {
-    try {
-        people.value = (await api.teamPeople()).people;
-    } catch (e) {
-        failure.value = e.message;
-    }
-});
 </script>
 
 <template>
-    <ListBox title="People" :count="people.length" :lead="LEAD">
+    <ListBox title="Connected now" :count="`${onlineCount(people)} of ${people.length} online`" :lead="LEAD">
         <template v-if="failure">
             <TeamFailure :text="failure" />
         </template>
@@ -49,24 +37,22 @@ onMounted(async () => {
             <div class="team-person">
                 <div class="team-person-head">
                     <span class="team-initial">{{ initial(person.name) }}</span>
-                    <div class="team-person-name">
-                        <span class="team-name">
+                    <div class="team-row-main">
+                        <b>
                             {{ person.name }}
                             <template v-if="person.me">
-                                <span class="team-you">You</span>
+                                <span class="team-tag">You</span>
                             </template>
-                        </span>
-                        <span class="team-role">{{ ROLES[person.role] || person.role }}</span>
+                        </b>
+                        <span class="team-row-sub">{{ ROLES[person.role] || person.role }}</span>
                     </div>
-                    <template v-if="!person.me">
-                        <span class="team-presence">
-                            <StateDot :state="person.online ? 'done' : ''" />
-                            {{ presence(person) }}
-                        </span>
-                    </template>
-                    <template v-if="props.admin && !person.me && person.role !== 'relay'">
+                    <template v-if="admin && !person.me && person.role !== 'relay'">
                         <Btn small @click="reset(person)">Reset password</Btn>
                     </template>
+                    <span class="team-presence">
+                        <StateDot :state="person.online ? 'done' : ''" />
+                        {{ presence(person.online, person.seen_at) }}
+                    </span>
                 </div>
                 <template v-if="resets[person.id]">
                     <div class="team-command">
@@ -75,24 +61,41 @@ onMounted(async () => {
                     </div>
                     <p class="team-fine">{{ person.name }}'s new password. Pass it on to them; it is shown only here.</p>
                 </template>
-                <div class="team-environments">
-                    <template v-if="!person.environments.length">
-                        <p class="team-fine">No environments yet</p>
-                    </template>
-                    <template v-for="environment in person.environments" :key="environment.id">
-                        <div class="team-environment">
-                            <StateDot :state="person.me && agentRunningIn(environment.name) ? 'running' : ''" />
-                            <span class="team-environment-name">{{ environment.name }}</span>
-                            <template v-if="person.me">
-                                <span class="team-environment-word">{{ agentRunningIn(environment.name) ? "Agent working" : "No agent running" }}</span>
-                                <span class="team-fine">In the sidebar</span>
-                            </template>
-                            <template v-else>
-                                <span class="team-environment-word" />
-                                <Btn small :href="href.page()" @click="choose(environment.name)">Open <Icon name="chevronRight" /></Btn>
-                            </template>
-                        </div>
-                    </template>
+                <div class="team-person-parts">
+                    <div>
+                        <span class="team-label">Machines</span>
+                        <template v-if="!admin">
+                            <p class="team-fine">Only an admin is shown the machines.</p>
+                        </template>
+                        <template v-else-if="!machinesOf(person, devices).length">
+                            <p class="team-fine">None</p>
+                        </template>
+                        <template v-for="device in machinesOf(person, devices)" :key="device.id">
+                            <div class="team-mini">
+                                <StateDot :state="isOnline(device.pulled_at) ? 'done' : ''" />
+                                <span class="team-mono">{{ device.name }}</span>
+                                <span class="team-word">{{ presence(isOnline(device.pulled_at), device.pulled_at) }} · Offers none</span>
+                            </div>
+                        </template>
+                    </div>
+                    <div>
+                        <span class="team-label">Environments</span>
+                        <template v-if="!person.environments.length">
+                            <p class="team-fine">None</p>
+                        </template>
+                        <template v-for="environment in person.environments" :key="environment.id">
+                            <div class="team-mini">
+                                <span class="team-mono">{{ environment.name }}</span>
+                                <template v-if="person.me">
+                                    <span class="team-word">{{ agentRunningIn(environment.name) ? "Agent working" : "No agent running" }}</span>
+                                </template>
+                                <template v-else>
+                                    <span class="team-word" />
+                                    <Btn small kind="text" :href="href.page()" @click="choose(environment.name)">Open <Icon name="chevronRight" /></Btn>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
         </template>
@@ -103,7 +106,7 @@ onMounted(async () => {
 .team-person {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     padding: 12px 16px;
 }
 
@@ -117,89 +120,27 @@ onMounted(async () => {
     gap: 10px;
 }
 
-.team-initial {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--border-2);
-    border-radius: 50%;
-    font-size: 11.5px;
-    font-weight: 600;
-}
-
-.team-person-name {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.team-name {
+.team-person-head b {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-weight: 500;
 }
 
-.team-you {
-    padding: 0 6px;
-    border: 1px solid var(--border-2);
-    border-radius: 5px;
-    color: var(--text-3);
-    font-size: 11px;
-    font-weight: 400;
-}
-
-.team-role {
-    color: var(--text-3);
-    font-size: 12px;
-}
-
-.team-presence {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-3);
-    font-size: 12px;
-}
-
-.team-environments {
-    display: flex;
-    flex-direction: column;
+.team-person-parts {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 10px 24px;
     margin-left: 36px;
-    border-left: 1px solid var(--border);
 }
 
-.team-environment,
-.team-environments > .team-fine {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    min-height: 30px;
-    padding-left: 12px;
+.team-person-parts .team-label {
+    display: block;
+    margin-bottom: 2px;
 }
 
-.team-environment-name {
-    font-family: var(--mono);
-    font-size: 12px;
-}
-
-.team-environment-word {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    color: var(--text-3);
-    font-size: 12px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-@media (max-width: 600px) {
-    .team-environments {
+@media (max-width: 700px) {
+    .team-person-parts {
+        grid-template-columns: minmax(0, 1fr);
         margin-left: 0;
     }
 }

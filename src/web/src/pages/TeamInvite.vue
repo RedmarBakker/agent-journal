@@ -29,10 +29,11 @@ async function invite() {
         busy.value = false;
     }
 }
+const open = ref(false);
 </script>
 
 <template>
-    <ListBox title="Invite a person">
+    <ListBox title="Invite a person" aside="Admin" folds :open="open" @toggle="open = !open">
         <form class="team-block" @submit.prevent="invite">
             <FormField label="Email" for="team-invite">
                 <div class="team-inline">

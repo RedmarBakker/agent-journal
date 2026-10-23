@@ -91,12 +91,15 @@ test("the sidebar lists the viewer's own environments and the Team chat", () => 
 });
 
 test("the Team page lists each person with their environments and opens a colleague's in place", () => {
-    const people = readFileSync(resolve(__dirname, "../src/pages/TeamPeople.vue"), "utf8");
-    expect(people).toMatch(/api\.teamPeople\(\)/);
-    expect(people).toMatch(/@click="choose\(environment\.name\)"/);
-    const page = readFileSync(resolve(__dirname, "../src/pages/SettingsTeam.vue"), "utf8");
+    const page = readFileSync(resolve(__dirname, "../src/pages/TeamPage.vue"), "utf8");
+    expect(page).toMatch(/api\.teamPeople\(\)/);
     expect(page).toMatch(/<TeamConnect :email="standing\.email" @joined="joined" \/>/);
-    expect(page).toMatch(/<template v-if="standing\.admin">\s*<TeamInvite \/>\s*<TeamDevices \/>/);
+    const people = readFileSync(resolve(__dirname, "../src/pages/TeamPeople.vue"), "utf8");
+    expect(people).toMatch(/@click="choose\(environment\.name\)"/);
+    const tab = readFileSync(resolve(__dirname, "../src/pages/SettingsTeam.vue"), "utf8");
+    expect(tab).toMatch(/<TeamConnect :email="standing\.email" @joined="joined" \/>/);
+    const local = readFileSync(resolve(__dirname, "../src/pages/TeamLocal.vue"), "utf8");
+    expect(local).toMatch(/<template v-if="standing\.admin">\s*<TeamInvite \/>\s*<TeamDevices \/>/);
 });
 
 test("the join form asks only for the team URL, the email git knows and a password it can generate", async () => {
@@ -129,10 +132,10 @@ test("a joined journal shows a Team button with a dot for how its sync stands, a
     expect(bar).not.toMatch(/statusbar-sync/);
 });
 
-test("the Team tab opens the shared journal by a one-time link from this journal", () => {
-    const sync = readFileSync(resolve(__dirname, "../src/pages/TeamSync.vue"), "utf8");
-    expect(sync).toMatch(/<Btn :busy="opening" @click="openShared">Open the shared journal<\/Btn>/);
-    expect(sync).toMatch(/window\.open\(\(await api\.openSharedJournal\(\)\)\.url, "_blank", "noopener"\)/);
+test("the Team page opens the shared journal by a one-time link from this journal", () => {
+    const page = readFileSync(resolve(__dirname, "../src/pages/TeamPage.vue"), "utf8");
+    expect(page).toMatch(/<Btn small :busy="opening" @click="openShared">Open the shared journal <Icon name="open" :size="12" \/><\/Btn>/);
+    expect(page).toMatch(/window\.open\(\(await api\.openSharedJournal\(\)\)\.url, "_blank", "noopener"\)/);
 });
 
 test("a person changes their team password, and an admin resets a member's from the people list", () => {
@@ -141,6 +144,6 @@ test("a person changes their team password, and an admin resets a member's from 
     expect(own).toMatch(/<Btn @click="generate">Generate<\/Btn>/);
     const people = readFileSync(resolve(__dirname, "../src/pages/TeamPeople.vue"), "utf8");
     expect(people).toMatch(/<Btn small @click="reset\(person\)">Reset password<\/Btn>/);
-    const team = readFileSync(resolve(__dirname, "../src/pages/SettingsTeam.vue"), "utf8");
-    expect(team).toMatch(/<TeamPeople :admin="standing\.admin" \/>\s*<TeamPassword \/>/);
+    const local = readFileSync(resolve(__dirname, "../src/pages/TeamLocal.vue"), "utf8");
+    expect(local).toMatch(/<TeamPeople :people="people" :devices="devices" :admin="standing\.admin" \/>\s*<TeamPassword \/>/);
 });

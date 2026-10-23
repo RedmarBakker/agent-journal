@@ -29,10 +29,11 @@ async function change() {
         busy.value = false;
     }
 }
+const open = ref(false);
 </script>
 
 <template>
-    <ListBox title="Your password">
+    <ListBox title="Your password" folds :open="open" @toggle="open = !open">
         <form class="team-block" @submit.prevent="change">
             <FormField label="Current password" for="team-old-password">
                 <TextInput id="team-old-password" :value="old" type="password" autocomplete="current-password" @input="old = $event.target.value" />

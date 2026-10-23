@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-B-l_bkMy.js
 import{A as Me,p as Be,h as qc,a as sd}from"./main-hz9nNxSU.js";import"./tokens-D2Th-Z3L.js";import"./tip-D75FdmbB.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{A as Me,p as Be,h as qc,a as sd}from"./main-BxDAs_P7.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 308e113e8 (The Team page is built as the approved designs: a member's own journal and the hosted journal each get their page, its sections placed and labelled as drawn, the worker pool's drawn empty until its data exists):src/web/dist/assets/figure-C2WARrC0.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
