@@ -3,6 +3,7 @@ from journal.features.briefing.listeners.end_silent_sessions import EndSilentSes
 from journal.features.briefing.listeners.start_overview_obligation import StartOverviewObligation
 from journal.features.feature import Feature
 from journal.features.briefing.briefing_conduct import BriefingConduct
+from journal.features.briefing.states.reading_overview import ReadingOverview
 from journal.features.briefing.support.briefing_data_reader import BriefingDataReader
 from journal.features.briefing.support.briefing_data import BriefingData
 from journal.engine.nudge import Nudge
@@ -18,6 +19,7 @@ class Briefing(Feature[BriefingData]):
     title = "Session briefing"
     help = "Every session start, and every resume after a compaction, tells the agent where it is and what binds it: the start block, the engine's own, said before any state's own line at the start."
     conduct = (BriefingConduct,)
+    states = (ReadingOverview,)
     listeners = (StartOverviewObligation, SessionExclusivity, EndSilentSessions)
     data = (BriefingDataReader,)
     options = (OVERVIEW_COMMANDS,)
@@ -33,5 +35,6 @@ class Briefing(Feature[BriefingData]):
     PENDING_ITEMS = Nudge(name, "waiting_for_you", "waiting for you here: {{rows}}", "`journal task list`, `journal message unread`, `journal question list`", repeat_interval=0)
     COMPACTION_SUMMARY = Nudge(name, "brief_and_log_after_compaction", "after the compaction, the work stands here: {{task}}, its last log {{last_log}}; uncommitted files: {{uncommitted}}", "pick up from there, and log what the summary does not say", repeat_interval=0)
     OVERVIEW_REQUEST = Nudge(name, "look_before_the_first_write", "before your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders", repeat_interval=0)
+    OVERVIEW_FIRST = Nudge(name, "overview_before_anything", "after the compaction, run `journal environment overview` before anything else", "it lists what is in flight; only it and the skills you owe go through until it has run", repeat_interval=0)
     OVERVIEW_STOP = Nudge(name, "stopped_unoriented", "you stopped before running `journal environment overview` this session", "run it first", repeat_interval=0)
-    nudges = (JOURNAL_READY, JOURNAL_DISCRETION, JOURNAL_LAWS, TAKEOVER, TEAM_HISTORY, ACTIVE_RULES, ENVIRONMENT_FACTS, ENVIRONMENT_REMINDERS, PENDING_ITEMS, COMPACTION_SUMMARY, OVERVIEW_REQUEST, OVERVIEW_STOP)
+    nudges = (JOURNAL_READY, JOURNAL_DISCRETION, JOURNAL_LAWS, TAKEOVER, TEAM_HISTORY, ACTIVE_RULES, ENVIRONMENT_FACTS, ENVIRONMENT_REMINDERS, PENDING_ITEMS, COMPACTION_SUMMARY, OVERVIEW_REQUEST, OVERVIEW_FIRST, OVERVIEW_STOP)

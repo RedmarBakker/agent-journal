@@ -11,11 +11,15 @@ COMPACT = "compact"
 
 
 class BriefingConduct(Conduct):
-    """The briefing feature's conduct in every state: the start block at every session start, ready, quiet, the laws, a takeover, the rules, facts and reminders and what waits, then the look owed before the first write; a write and a stop held until the agent has looked at what is in flight."""
+    """The briefing feature's conduct in every state: the start block at every session start, ready, quiet, the laws, a takeover, the rules, facts and reminders and what waits, then the look owed before the first write, and after a compaction the push of ReadingOverview, which lets nothing but the overview and the skills owed through until it has run; a write and a stop held until the agent has looked at what is in flight."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         feature = briefing_feature()
-        return self.none(*start_block(event.data.part(feature), event.source), feature.OVERVIEW_REQUEST.create())
+        lines = start_block(event.data.part(feature), event.source)
+        if event.is_compaction_start():
+            from journal.features.briefing.states.reading_overview import ReadingOverview
+            return self.push(ReadingOverview(), *lines, feature.OVERVIEW_FIRST.create())
+        return self.none(*lines, feature.OVERVIEW_REQUEST.create())
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         feature = briefing_feature()

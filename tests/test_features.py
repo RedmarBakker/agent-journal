@@ -1757,11 +1757,16 @@ def test_every_session_start_reads_what_is_in_flight_before_any_other_write(app:
     console.run(["task", "create", "t", "--start"], AGENT)
     console.run(["message", "send", "hi"], USER)
     status, body = hook(app, "SessionStart", source="compact")
-    assert "before your first write, run `journal environment overview`" in body["hookSpecificOutput"]["additionalContext"]
+    assert "after the compaction, run `journal environment overview` before anything else" in body["hookSpecificOutput"]["additionalContext"]
+    assert app.container.get(SessionAgents).top("s1").name == "reading_overview", "a compaction pushes the reading of the overview over the work"
     status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
     assert status == 409 and "`journal environment overview`" in body["error"]
+    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 409, "a read waits for the overview too"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 409, "and so does any other journal command"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal environment overview"})[0] == 200, "the overview itself goes through"
     shown = console.run(["environment", "overview"], AGENT).text
     assert "task in hand: 1 t" in shown and re.search(r"unread messages: \d+", shown)
+    assert app.container.get(SessionAgents).top("s1").name != "reading_overview", "once it has run the state pops"
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200
 
 def test_a_question_answered_under_a_pause_the_agent_owes_releases_the_wait_beneath_it(app: App, monkeypatch):
