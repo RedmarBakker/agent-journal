@@ -10928,6 +10928,13 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         assert "add --worktree" in dispatch("--profile", "journal-medior").error, "a pool worker works in a worktree"
         assert "leave --model out" in dispatch("--profile", "journal-medior", "--worktree", "--no-libraries", "--model", "opus").error, "a pool worker runs its profile's model, never one the dispatcher names"
         assert "runs only the profiles journal-medior" in dispatch("--profile", "journal-senior", "--worktree", "--no-libraries").error, "a profile the team keeps out of its pool is refused"
+        assert "stays on this machine" in dispatch("--profile", "journal-medior", "--worktree", "--no-libraries", "--needs-secrets").error, "a job that uses this machine's secrets is refused the pool"
+        (root / "inner").mkdir()
+        git("init", "-q", cwd=root / "inner")
+        (root / ".git" / "info" / "exclude").write_text("inner/\n")
+        assert "repositories of its own (inner)" in dispatch("--profile", "journal-medior", "--worktree", "--no-libraries").error, "a project holding repositories of its own, which origin does not carry, is refused the pool"
+        subprocess.run(["rm", "-rf", str(root / "inner")], timeout=30)
+        (root / ".git" / "info" / "exclude").write_text("")
         sent = dispatch("--profile", "journal-medior", "--worktree", "--no-libraries")
         assert sent.code == 0, sent.error
         assert "refs/heads/journal/pool/" in git("ls-remote", "origin").stdout, "the environment's head is pushed to origin as the base the worktree is cut from"
@@ -10935,6 +10942,12 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         assert [(request.kind, request.body["worker"], request.body["task"], request.body["profile"]) for request in offered] == [("pool_worker", "Lady Lovelace", 1, "journal-medior")], "the pool is asked with the worker's name, task and profile, offered to a teammate's machine with a free slot"
         worker = app.container.get(Workers).all()[0]
         assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).state == "delegated", "the worker keeps the request's number and holds its task, though nothing runs here"
+        with app.container.get(Scope).environment(MAIN):
+            assert app.container.get(Workers).running_locally() == [], "a pool worker does not count against the workers out on this machine"
+        from journal.features.workers.support.pool_lockfiles import PoolLockfiles
+        (root / "package-lock.json").write_text("{}\n")
+        assert PoolLockfiles(app.container.get(WorkerBranch)).differing(worker.with_(library_links=("node_modules",))) == ["package-lock.json"], "a library folder installed from a lockfile other than the base's is the wrong set for the base"
+        (root / "package-lock.json").unlink()
         started = []
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
         monkeypatch.setenv("PLANTED_CLOUD_KEY", "secret")

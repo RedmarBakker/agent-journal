@@ -24,6 +24,9 @@ class Workers(ScopedRepository[Worker]):
     def running_workers(self) -> list[Worker]:
         return [worker for worker in self.scoped() if worker.is_running()]
 
+    def running_locally(self) -> list[Worker]:
+        return [worker for worker in self.running_workers() if not worker.pool_request]
+
     def peers(self, sender: Worker) -> list[Worker]:
         return [worker for worker in self.scoped() if worker.dispatcher == sender.dispatcher and worker.id != sender.id and (worker.is_running() or worker.is_idle())]
 

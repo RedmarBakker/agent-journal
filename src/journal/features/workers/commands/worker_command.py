@@ -71,6 +71,7 @@ class WorkerCommand(Command):
         dispatch.add_argument("--copies", default="", help="library folders the worktree gets copies of its own of, comma separated, such as vendor for composer, whose autoloader would load the main checkout's classes through a link")
         dispatch.add_argument("--no-libraries", action="store_true", help="a worktree with no library folders, for a job that changes the libraries themselves")
         dispatch.add_argument("--pool", action="store_true", help="to the team's pool: a teammate's machine with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first; with --worktree, a profile the team allows its pool, and no --model")
+        dispatch.add_argument("--needs-secrets", action="store_true", help="the job uses secrets kept on this machine, so it cannot go to the pool")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task").add_argument("n", type=int)
@@ -112,7 +113,7 @@ class WorkerCommand(Command):
         if self.profiles.kind(args.profile) != ProfileKind.WORKER:
             raise Rejection(f"{args.profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
         from journal.features.workers.feature import Workers as Feature
-        output = self.workers.running_workers()
+        output = self.workers.running_locally()
         maximum = self.settings.integer(Feature.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
             raise Rejection(Feature.WORKER_OVERFLOW.create(out=len(output)).rendered())
@@ -162,6 +163,8 @@ class WorkerCommand(Command):
             (not args.worktree, "a pool worker works in a worktree cut from your environment's head: add --worktree with its library folders"),
             (bool(args.model), "a pool worker runs the model its profile names on the machine that takes it: leave --model out"),
             (args.profile not in allowed, f"the team's pool runs only the profiles {', '.join(allowed) or 'none'}: name one with --profile, or dispatch without --pool"),
+            (args.needs_secrets, "a job that uses this machine's secrets stays on this machine: dispatch it without --pool"),
+            (bool(self.branch.inner_folders()), f"the project holds repositories of its own ({', '.join(self.branch.inner_folders())}), which origin does not carry, so its workers cannot go to the pool: dispatch without --pool"),
         )
         return next((line for refused, line in refusals if refused), "")
 

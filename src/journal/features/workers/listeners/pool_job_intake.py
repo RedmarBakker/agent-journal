@@ -1,6 +1,7 @@
 from journal.events.listener import Listener
 from journal.events.pool_job_arrived import PoolJobArrived
 from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.features.workers.support.pool_lockfiles import PoolLockfiles
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.pool_job import PoolJob
@@ -18,11 +19,11 @@ from journal.sync.team_server_link import TeamServerLink
 
 
 class PoolJobIntake(Listener[PoolJobArrived]):
-    """Takes up a worker the team's pool offered this machine, off the sync thread: turns it down while every slot this machine gives is taken, claims it so no other machine starts it, fetches its base, cuts its worktree from it, runs it on the model its profile names here and tells the team server it is taken up. A job whose worker row has not reached this machine yet is forgotten, so the next pull brings it again; one that cannot be cut is turned down with the reason, so the server offers it to another machine."""
+    """Takes up a worker the team's pool offered this machine, off the sync thread: turns it down while every slot this machine gives is taken, claims it so no other machine starts it, fetches its base, turns it down when the libraries it links here were installed from lockfiles other than its base's, cuts its worktree from it, runs it on the model its profile names here and tells the team server it is taken up. A job whose worker row has not reached this machine yet is forgotten, so the next pull brings it again; one that cannot be cut is turned down with the reason, so the server offers it to another machine."""
 
-    def __init__(self, jobs: PoolJobs, link: TeamServerLink, workers: Workers, runner: WorkerRunner, branch: WorkerBranch, settings: SettingRows, scope: Scope, environments: Environments, providers: Providers, profiles: ProfileFiles) -> None:
+    def __init__(self, jobs: PoolJobs, link: TeamServerLink, workers: Workers, runner: WorkerRunner, branch: WorkerBranch, settings: SettingRows, scope: Scope, environments: Environments, providers: Providers, profiles: ProfileFiles, lockfiles: PoolLockfiles) -> None:
         self.jobs, self.link, self.workers, self.runner, self.branch, self.settings = jobs, link, workers, runner, branch, settings
-        self.scope, self.environments, self.providers, self.profiles = scope, environments, providers, profiles
+        self.scope, self.environments, self.providers, self.profiles, self.lockfiles = scope, environments, providers, profiles, lockfiles
 
     def handle(self, event: PoolJobArrived) -> None:
         from journal.features.workers.feature import Workers as Feature
@@ -46,6 +47,10 @@ class PoolJobIntake(Listener[PoolJobArrived]):
         fetched = self.branch.git("fetch", "origin", f"refs/heads/{worker.base}:refs/remotes/origin/{worker.base}", cwd=self.branch.checkout(worker))
         if fetched.returncode != 0:
             self.declined(job, f"its base {worker.base} could not be fetched from origin: {fetched.stderr.strip()}")
+            return
+        differing = self.lockfiles.differing(worker)
+        if differing:
+            self.declined(job, f"this machine's libraries were installed from lockfiles that differ from the base's: {', '.join(differing)}")
             return
         local = worker.with_(model=self.providers.lookup(worker.provider).profile_model(self.profiles.read(job.profile)))
         try:
