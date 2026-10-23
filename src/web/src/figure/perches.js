@@ -1,10 +1,10 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
-import {climbStops, jumpMost} from "./climbs.js";
+import {climbStops, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, homeCloses, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
-import {PILE, draw} from "./pile.js";
+import {PILE, choicesFor, draw} from "./pile.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
 // or hanging from its top corner by its hands. A perch names its bubble's floor (figure/floors.js), so it rides the bubble as the thread
@@ -145,8 +145,21 @@ export function climbOf(floors, figure, from, y) {
     return climbStops(from, y, stands, jumpMost(figure));
 }
 
-// the spot, when a figure at `near` can climb to it, else null
-export const climbable = (spot, figure, near) => (spot && climbOf(readFloors(), figure, near, spot.y) ? spot : null);
+// whether a climb from `from` up to height `y` may go on the pogo stick: past POGO.over of the figure's heights, within its reach, and
+// the stick not cooling down, as `scene` ({memory, now}) says
+const pogoFits = (figure, from, y, scene) => pogoClimb(figure, from.y - y) && choicesFor({moment: "climb", ...scene}).some((entry) => entry.name === "pogo");
+
+// How a figure at `from` gets up to height `y`: `via`, the footholds it hops up on (climbOf), or `pogo`, the stick it pulls from
+// behind its back, drawn now and then for a climb it fits (pile.js climb) and always when there are no footholds; null when it cannot
+export function wayUp(floors, figure, from, y, scene, random) {
+    const via = climbOf(floors, figure, from, y);
+    if (!pogoFits(figure, from, y, scene)) return via && {via, pogo: false};
+    return draw({moment: "climb", footholds: Boolean(via), ...scene}, random)?.name === "pogo" ? {via: [], pogo: true} : {via, pogo: false};
+}
+
+// the spot, when a figure at `near` can get up to it, hopping or on the pogo stick, else null
+export const climbable = (spot, figure, near, scene = {}) =>
+    spot && (climbOf(readFloors(), figure, near, spot.y) || pogoFits(figure, near, spot.y, scene)) ? spot : null;
 
 // The next stay, drawn at `now` seconds from the pile: where, until when, and what it holds for the stay, the perch on a bubble, the
 // tab it stands on, of those with a spot inside its world, or the point along the home edge it strolls to. A hang from a bubble is a short
@@ -221,12 +234,12 @@ function targetOf({state, counts, stay, now, near, figure, hands, random, tally,
     const seat = clipOf(state) === "type" && seatOf(figure, near);
     if (seat) return {spot: seat, stay};
     const pressing = pointedView(counts, openTabs());
-    const pointing = pressing && climbable(spotOf(pressing, figure, near), figure, near);
+    const pointing = pressing && climbable(spotOf(pressing, figure, near), figure, near, {memory, now});
     if (pointing) return {spot: pointing, stay};
-    const kept = now < stay.until && climbable(stayingAt(stay, figure, near), figure, near);
+    const kept = now < stay.until && climbable(stayingAt(stay, figure, near), figure, near, {memory, now});
     if (kept) return {spot: kept, stay};
     const next = nextStay(now, figure, hands, random, {tally, free: FREE.has(state), memory});
-    return {spot: climbable(stayingAt(next, figure, near), figure, near) || restOf(figure, near), stay: next};
+    return {spot: climbable(stayingAt(next, figure, near), figure, near, {memory, now}) || restOf(figure, near), stay: next};
 }
 
 // how long the box a figure stepped aside from stays clear of it, in seconds

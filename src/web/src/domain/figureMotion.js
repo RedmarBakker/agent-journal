@@ -1,3 +1,4 @@
+import {ACTS} from "../figure/acts.js";
 import {draw} from "../figure/pile.js";
 import {fallStep} from "./falls.js";
 
@@ -65,8 +66,26 @@ export const legEnded = (leg, began, now) => now - began >= leg.lead + leg.ms;
 // Where a leg under way has carried the picture `elapsed` milliseconds after it set off from `from`: still at the start through the
 // leg's lead, then along it by the leg's easing to its end; with motion kept `still`, a hop is at its end at once
 export function legAt(leg, from, elapsed, still = false) {
+    if (leg.pogo && !still) return pogoAt(leg, from, elapsed);
     const share = still && leg.hopping ? 1 : eased(leg.easing, leg.ms > 0 ? (elapsed - leg.lead) / leg.ms : 1);
     return {x: from.x + (leg.x - from.x) * share, y: from.y + (leg.y - from.y) * share};
+}
+
+// Where a leg up on the pogo stick (acts.js pogo) has carried the picture `elapsed` milliseconds after it set off from `from`, its picture
+// `leg.size` pixels tall: still while the stick is drawn, bouncing on the spot higher each time, then springing up in an arc onto the leg's
+// end, where it stays while the stick falls away
+export function pogoAt(leg, from, elapsed) {
+    const {bounces, count, bounce, spring, arc} = ACTS.pogo;
+    const u = Math.min(Math.max(elapsed / leg.ms, 0), 1);
+    const span = (range) => Math.min(Math.max((u - range[0]) / (range[1] - range[0]), 0), 1);
+    if (u < spring[0]) {
+        const k = span(bounces) * count;
+        const hop = Math.floor(Math.min(k, count - 1e-9));
+        const up = k > 0 ? bounce * leg.size * ((hop + 1) / count) * Math.sin(Math.PI * (k - hop)) : 0;
+        return {x: from.x, y: from.y - up};
+    }
+    const k = span(spring);
+    return {x: from.x + (leg.x - from.x) * k, y: from.y + (leg.y - from.y) * k - arc * leg.size * 4 * k * (1 - k)};
 }
 
 // One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last: it lands on that

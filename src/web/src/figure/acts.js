@@ -30,6 +30,11 @@ export const ACTS = {
     // while it swings, `swings` swings each way of `sway` degrees, the legs pumping with them; and an outro, the ropes pulled up. The knots
     // stand at least `room` of the figure's height in from either side of the chat, so it swings clear of them.
     rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.42, seat: 0.5, sway: 9, room: 0.85},
+    // a pogo stick up to a high place: it reaches behind its back and pulls the stick out over `draw`, bounces `count` times over
+    // `bounces`, each higher than the last up to `bounce` of its height, springs up onto the place over `spring`, arcing `arc` of its height
+    // above the straight way, and lets the stick go over `drop`, which falls away; the stick `stick` of its height long, its handles where
+    // the hands hold it
+    pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.68], count: 3, bounce: 0.45, spring: [0.68, 0.86], arc: 0.35, drop: [0.86, 1], stick: 0.62},
     // coming down on a parachute, swaying a little under it
     chute: {frames: 24, fps: 8, sway: 8},
     // compacting: a box appears, it hops into it and the box shrinks with it inside; once the compaction is over the box grows back and

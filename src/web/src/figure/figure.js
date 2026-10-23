@@ -2198,6 +2198,34 @@ function hop_up(pose, stance, t) {
     tucked(pose, 0.6 + 0.2 * pump);
 }
 
+// where the hands hold the pogo stick's handles, across, forward (toward the viewer is less) and up in the figure's units, and where the
+// hand reaching behind its back for the stick goes
+const POGO_GRIP = [0.42, -0.55, 1.55];
+const POGO_BEHIND = [0.45, 0.45, 1.45];
+
+// up a high place on a pogo stick (acts.js pogo): reaches behind its back and brings the stick round, holds both handles and bounces,
+// the knees giving at the foot of each bounce, springs up and lets the stick go
+function pogo(pose, stance, t) {
+    const act = ACTS.pogo;
+    const reach = partOf(t, [act.draw[0], act.draw[1] * 0.5]) * (1 - partOf(t, [act.draw[1] * 0.5, act.draw[1]]));
+    const held = partOf(t, [act.draw[1] * 0.6, act.draw[1]]) * (1 - partOf(t, act.drop));
+    const bouncing = Math.min(Math.max((t - act.bounces[0]) / (act.bounces[1] - act.bounces[0]), 0), 1) * act.count;
+    const give = t > act.bounces[0] && t < act.bounces[1] ? 1 - Math.sin(Math.PI * (bouncing % 1)) : 0;
+    breathe(pose, t);
+    trunk(pose, {lean: 6 * held, nod: -6 * held});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    const [x, y, z] = POGO_GRIP;
+    const [bx, by, bz] = POGO_BEHIND;
+    for (const side of Object.keys(SIDES)) {
+        const sign = SIDES[side];
+        if (side === "r" && reach > held) handTo(pose, side, reach, new THREE.Vector3(sign * bx, by, bz), new THREE.Vector3(1, 0.5, -0.5));
+        else handTo(pose, side, held, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(1, -0.2, -0.4));
+    }
+    fold(pose, 0.35 * give * held);
+    eyesAs(pose, "amused", held);
+}
+
 // where each hand holds its rope of the swing, beside the head, in the figure's units across, forward and up: the ropes' half span apart
 // (acts.js rope_swing ties, as a share of the 5.4 units the picture frames)
 const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2, -0.1, 2.6];
@@ -2359,6 +2387,7 @@ export const CLIPS = [
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
     {name: "push", frames: 6, fps: 12, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
+    {name: "pogo", frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
     {name: "land", frames: LANDING.frames, fps: LANDING.fps, loops: false, postures: MOVE, pose: land},

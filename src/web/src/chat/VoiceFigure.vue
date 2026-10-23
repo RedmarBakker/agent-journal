@@ -38,7 +38,7 @@ import {
     withSystemCards,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, lightsAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
@@ -403,13 +403,13 @@ async function moveTo(spot, {straight = false, pace = 1, pressing = false} = {})
 function setOff() {
     const {to, straight, pace, footing: held} = body.trip;
     const there = landingOn(to, held, figureSize());
-    const via = straight ? [] : climbOf(readFloors(), figureSize(), body.place, there.y);
+    const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there.y, {memory: memory.reacted, now: now.value}, Math.random);
     // grown out of its reach since the look sent it, it stays where it is until the next look sends it elsewhere
-    if (!via) {
+    if (!way) {
         body.trip = null;
         return step();
     }
-    const trip = tripTo(body.place, there, figureSize(), {straight, pace, via, memory: memory.reacted, now: now.value});
+    const trip = tripTo(body.place, there, figureSize(), {straight, pace, ...way, memory: memory.reacted, now: now.value});
     body.way = Math.sign(there.x - body.place.x);
     stopSwinging();
     if (trip) {

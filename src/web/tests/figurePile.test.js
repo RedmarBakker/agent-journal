@@ -198,6 +198,8 @@ test("every animation in the pile, with its weight and the condition it plays un
         "nothing nothing ×3 when moment=eager",
         "shenanigan clip backflip ×7 when moment=jump high=true, plays out",
         "clip jump ×13 when moment=jump, plays out",
+        "shenanigan pick pogo ×2 when moment=climb",
+        "pick hops ×3 when moment=climb footholds=true",
         "pick unit ×19 when moment=unit",
         "nothing nothing ×1 when moment=unit",
         "pick ufo ×3 when moment=carrier",

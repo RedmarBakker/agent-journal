@@ -20,12 +20,32 @@ const props = defineProps({
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
 const STANDS = {stamp: {across: 0.25, top: 0.32}, file_card: {across: 0.24, top: 0.3}};
-const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8", rope: "#c9a56a"};
+const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1"};
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
 const hand = computed(() => ({x: px(props.hand.x), y: px(props.hand.y), out: props.hand.out}));
 const head = computed(() => ({x: px(props.head.x), y: px(props.head.y)}));
+// the pogo stick, upright under the hands with its foot below the figure's feet: drawn out from behind the back, held, and let go to fall
+// away out of sight, turning as it goes; its handlebar, foot pegs and spring
+const stick = computed(() => {
+    const {draw, drop, stick: long} = ACTS.pogo;
+    const height = long * props.size;
+    const falling = partOf(props.u, drop);
+    const coil = Array.from({length: 7}, (_, index) => `${index % 2 ? 3 : -3} ${2 + index * 1.6}`).join(" L");
+    return {
+        shown: partOf(props.u, [draw[1] * 0.6, draw[1]]),
+        foot: floor.value,
+        top: -height * 0.82,
+        bottom: height * 0.18,
+        bar: props.size * 0.16,
+        peg: props.size * 0.13,
+        spring: `M0 1 L${coil} L0 ${2 + 7 * 1.6}`,
+        fall: falling * falling * props.size * 9,
+        turn: 70 * falling,
+    };
+});
+
 // the rope swing: where its seat runs, under the hips of the figure sitting on it, the knots it hangs from on the bubble's bottom edge above,
 // and how far its ropes are let down from them
 const swing = computed(() => {
@@ -262,6 +282,15 @@ const flap = computed(() => {
 
             <template v-if="name === 'fume'">
                 <circle v-for="(puff, index) in steam" :key="index" :cx="puff.x" :cy="puff.y" :r="puff.r" fill="#e9e7e1" stroke="#a9adb8" stroke-width="0.6" :opacity="puff.fade" />
+            </template>
+
+            <template v-if="name === 'pogo' && stick.shown">
+                <g :transform="`translate(${middle} ${stick.foot + stick.fall}) rotate(${stick.turn}) scale(${stick.shown})`">
+                    <line x1="0" :y1="stick.top" x2="0" :y2="stick.bottom" :stroke="COLOURS.silver" stroke-width="2.6" stroke-linecap="round" />
+                    <line :x1="-stick.bar" :y1="stick.top" :x2="stick.bar" :y2="stick.top" :stroke="COLOURS.silver" stroke-width="3" stroke-linecap="round" />
+                    <line :x1="-stick.peg" y1="-1" :x2="stick.peg" y2="-1" :stroke="COLOURS.red" stroke-width="2.4" stroke-linecap="round" />
+                    <path :d="stick.spring" :stroke="COLOURS.gold" stroke-width="1.2" fill="none" />
+                </g>
             </template>
 
             <template v-if="name === 'rope_swing'">
