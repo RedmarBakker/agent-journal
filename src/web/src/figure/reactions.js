@@ -1,5 +1,6 @@
 import {HELD, WORKING, eggFor} from "../domain/figureState.js";
 import {draw} from "./pile.js";
+import {lookAngles, lookWay, upFor} from "./look.js";
 
 // What the figure does about what happens around it, and when. Which animation plays is drawn from the one pile (pile.js); here are the
 // moments it is drawn for, and how what is drawn is played, so the figure is a creature that notices things now and then, not a status icon.
@@ -199,17 +200,42 @@ export const queues = (beats, beat) => !beat.during || !beats.some((each) => eac
 // How fast the figure's head can swing its look, in radians a second: a pointer moved faster is followed at this pace
 export const LOOK_TURN_SPEED = 2 * Math.PI;
 
-// The look on the page, {point, amount, at}, `at` milliseconds `now` with `point` to look at or null, about the head's middle `center`: it
-// eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once there is not,
-// as the UFO goes or the bar ends, so the head never snaps, `amount` how far into it the figure is, 0 to 1; and the point it looks at turns
-// toward `point` no faster than LOOK_TURN_SPEED
+// The look on the page, {point, toward, amount, at}, `at` milliseconds `now` with `point` to look at or null, about `center`, the point on
+// the page the head turns about: it eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last
+// place looked at once there is not, as the UFO goes or the bar ends, so the head never snaps, `amount` how far into it the figure is, 0
+// to 1. The look is kept as `toward`, its way from `center` on the page, so the figure walking never swings it, and turns toward `point`
+// no faster than LOOK_TURN_SPEED: with `head`, {depth, above, tip}, the head looking at the page from `depth` pixels before it, its eyes
+// `above` its pivot and tipping no further than `tip` (figure.js LOOK_REACH, eyesAboveOf, HEAD_TIP), the head's own turn (look.js), else
+// the look's turn about `center` on the page
 export const LOOK_EASE_MS = 500;
-export function gazeAfter(gaze, point, center, now) {
+export function gazeAfter(gaze, point, center, now, head = null) {
     const elapsedMs = now - (gaze.at || now);
     const step = elapsedMs / LOOK_EASE_MS;
     const amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
-    const turned = point && gaze.point ? headTurned(gaze.point, point, center, (LOOK_TURN_SPEED * elapsedMs) / 1000) : point;
-    return {point: turned ?? gaze.point, amount, at: now};
+    const largest = (LOOK_TURN_SPEED * elapsedMs) / 1000;
+    const from = gaze.toward ? {...gaze.point, x: center.x + gaze.toward.x, y: center.y + gaze.toward.y} : gaze.point;
+    const turned = point && from ? (head && !point.behind && !from.behind ? lookTurned(from, point, center, largest, head) : headTurned(from, point, center, largest)) : point;
+    const looked = turned ?? from;
+    return {point: looked ?? null, toward: looked ? {x: looked.x - center.x, y: looked.y - center.y} : null, amount, at: now};
+}
+
+// The point the head looks at next, from the one it looked at, `previous`, toward `target`, both on the page, the head's pivot at `center`
+// looking at the page from `depth` pixels before it, its eyes `above` the pivot, tipping no further than `tip` degrees {down, up}: the
+// head's turn (look.js lookAngles), as far as it tips, turned toward the target's the short way round by at most `largest` radians,
+// wherever on the page that falls
+export function lookTurned(previous, target, center, largest, {depth, above, tip}) {
+    const tipped = (point) => {
+        const {yaw, pitch} = lookAngles(point.x - center.x, depth, center.y - point.y, above);
+        return {yaw, pitch: Math.min(Math.max(pitch, (-tip.up * Math.PI) / 180), (tip.down * Math.PI) / 180)};
+    };
+    const [a, b] = [lookWay(tipped(previous)), lookWay(tipped(target))];
+    const apart = Math.acos(Math.min(Math.max(a[0] * b[0] + a[1] * b[1] + a[2] * b[2], -1), 1));
+    if (apart <= largest) return {...target};
+    const k = largest / apart;
+    const [p, q] = [Math.sin((1 - k) * apart) / Math.sin(apart), Math.sin(k * apart) / Math.sin(apart)];
+    const [x, y, z] = a.map((part, index) => p * part + q * b[index]);
+    const across = (depth * x) / y;
+    return {...target, x: center.x + across, y: center.y - upFor(across, depth, -Math.asin(Math.min(Math.max(z, -1), 1)), above)};
 }
 
 // how near, in radians about the head, the look comes to a point for the figure to face it

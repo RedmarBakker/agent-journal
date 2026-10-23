@@ -2,6 +2,7 @@
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
 import {ACTS, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
+import {lookAngles} from "./look.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -1266,8 +1267,10 @@ function propHand(pose, side, ready, target, turn = {}) {
     pose.face(`hand_${side}`, {z: -SIDES[side] * 90 * ready, ...turn});
 }
 
-// the most the head turns from the way the body faces, either side, in degrees; a look further round turns the body the rest of the way
+// the most the head turns from the way the body faces, either side, in degrees; a look further round turns the body the rest of the way;
+// and the most it tips, `down` and `up`, as a neck can, in degrees: a look steeper than that is looked at as far as the neck goes
 export const HEAD_TURN = 65;
+export const HEAD_TIP = {down: 35, up: 25};
 
 // The head turned to look at `target`, `amount` of the way, never further round than HEAD_TURN from the body: it returns how many degrees
 // further round the look is, which the body turns
@@ -1276,8 +1279,9 @@ function eyesToward(pose, target, amount = 1) {
     const pivot = pose.head("head", pose.standing("head"));
     const way = target.clone().sub(pivot);
     const above = centre.z - pose.rig.heads.get("head").z;
-    const pitch = Math.asin(THREE.MathUtils.clamp(above / way.length(), -1, 1)) - Math.atan2(way.z, Math.hypot(way.x, way.y));
-    const yaw = THREE.MathUtils.radToDeg(Math.atan2(way.x, -way.y));
+    const looked = lookAngles(way.x, -way.y, way.z, above);
+    const pitch = THREE.MathUtils.clamp(looked.pitch, radians(-HEAD_TIP.up), radians(HEAD_TIP.down));
+    const yaw = THREE.MathUtils.radToDeg(looked.yaw);
     const turned = THREE.MathUtils.clamp(yaw, -HEAD_TURN, HEAD_TURN);
     pose.face("head", {x: THREE.MathUtils.radToDeg(pitch) * amount, z: turned * amount});
     pose.gaze = {target: target.toArray(), forward: READ_GAZE.forward};
@@ -1633,8 +1637,13 @@ function inspect(pose, stance, t) {
 // and pointing out over it like a cap's peak; and stepped back by `back`, 0 to 1, with a small hop as it steps, leaning back to look up
 export const SKY = {step: 0.6, hop: 0.12, lean: 8, shadeWrist: [1.18, -0.5, 2.72], shadeHand: [-0.35, -1, 0.2]};
 
-// how far in front of the figure what it looks at in its picture is taken to be, or behind it on the page for a look `behind`
-const LOOK_DEPTH = -1.2;
+// how far in front of the figure what it looks at in its picture is taken to be, or behind it on the page for a look `behind`; and that
+// as a share of the picture's height
+export const LOOK_DEPTH = -1.2;
+export const LOOK_REACH = Math.abs(LOOK_DEPTH) / FRAMED_HEIGHT;
+// how far down a figure's picture its head turns about, and how far above that its eyes are, as shares of the picture's height
+export const headPivotOf = (figure) => 0.5 - (figure.rig.heads.get("head").z - FRAMED_MIDDLE) / FRAMED_HEIGHT;
+export const eyesAboveOf = (figure) => (figure.rig.eyes.reduce((sum, eye) => sum + eye.z, 0) / figure.rig.eyes.length - figure.rig.heads.get("head").z) / FRAMED_HEIGHT;
 
 // The head turned to look at `at`, a point in the figure's picture as shares of its width from the left and its height from the top, as
 // the UFO it watches or the leading edge of a progress bar under its feet, in front of the figure, or `at.behind` it on the page, the

@@ -6,8 +6,9 @@ import {boxed} from "./support/figurePage.js";
 
 const {BAR, PROGRESS, WATCH, watchLook, watchSpot} = await import("../src/figure/places.js");
 const {eagerSpot, targetFor} = await import("../src/figure/perches.js");
-const {HEAD_TURN, Posing, lookToward} = await import("../src/figure/figure.js");
-const {eagerFor} = await import("../src/figure/reactions.js");
+const {CLIPS, HEAD_TIP, HEAD_TURN, LOOK_REACH, Posing, eyesAboveOf, headPivotOf, lookToward} = await import("../src/figure/figure.js");
+const {LOOK_TURN_SPEED, eagerFor, gazeAfter} = await import("../src/figure/reactions.js");
+const {boxAt} = await import("../src/figure/places.js");
 const {clipFor} = await import("../src/domain/figureState.js");
 
 const FIGURE = {size: 112, below: 0.05};
@@ -35,8 +36,8 @@ test("watching a docked bar run, and anticipating its end, the figure stands on 
     const spot = watchSpot(FIGURE);
     // on top of the bars, left of the bar's end at 680 by the margin, so the bar runs on past it
     expect(spot).toMatchObject({y: 540, on: bars, posture: "stand"});
-    expect(680 - spot.x).toBeCloseTo(WATCH.aside * FIGURE.size, 5);
-    expect(680 - spot.x).toBeGreaterThan(FIGURE.size / 2);
+    expect(680 - spot.x, "stood back from the bar's end").toBeCloseTo(WATCH.back, 5);
+    expect(WATCH.back, "about the figure's own width").toBeCloseTo(FIGURE.size, -1);
     // anticipating the end it goes to that same spot, from the compose box under the bars, and stays once there
     expect(eagerSpot({x: 420, y: 600, on: home}, FIGURE)).toEqual(spot);
     expect(eagerSpot(spot, FIGURE)).toBe(null);
@@ -84,4 +85,65 @@ test("once eager for a run's end nothing calls it off but that end: the roll, a 
     // standing at its spot it is sent nowhere
     chat();
     expect(eagerSpot(watchSpot(FIGURE), FIGURE)).toBe(null);
+});
+
+// the figure standing idle at the picture's top-left `corner` on the page, its head looking at `point` on the page `amount` of the way, as
+// the page draws it (chat/VoiceFigure.vue lookingAt): where its head faces, and how far down and round it is turned, in degrees
+function headLooking(corner, point, amount = 1) {
+    const pose = new Posing(RIG, "stand", 0);
+    CLIPS.find((clip) => clip.name === "idle").pose(pose, {voice: "butler", level: new Set(), busy: new Set(), carried: new Set(), free: new Set(HANDS), tablet: new Set(), cloth: new Set(), shield: new Set()}, 0);
+    if (point && amount) lookToward(pose, {x: (point.x - corner.x) / FIGURE.size, y: (point.y - corner.y) / FIGURE.size, amount});
+    const faces = new THREE.Vector3(0, -1, 0).transformDirection(pose.moves(0).get("head"));
+    return {faces, down: THREE.MathUtils.radToDeg(Math.asin(-faces.z)), round: THREE.MathUtils.radToDeg(Math.atan2(faces.x, -faces.y))};
+}
+
+// the page's picture corner for a figure standing on `spot`, and where on the page its head turns about, as the page has it
+const cornerOf = (spot) => {
+    const box = boxAt(spot, FIGURE);
+    return {x: box.left, y: box.top};
+};
+const headOf = (corner) => ({x: corner.x + FIGURE.size / 2, y: corner.y + FIGURE.size * headPivotOf({rig: RIG})});
+
+test("walking onto its mark as a bar comes into view, the head turns to the bar smoothly, never faster than the turn speed and never past the neck's reach", () => {
+    const {bars} = chat();
+    const spot = watchSpot(FIGURE);
+    const looks = {depth: LOOK_REACH * FIGURE.size, above: eyesAboveOf({rig: RIG}) * FIGURE.size, tip: HEAD_TIP};
+    const frame = 1000 / 60;
+    let gaze = {point: null, toward: null, amount: 0, at: 0};
+    let before = null;
+    let steepest = 0;
+    for (let step = 0; step < 120; step++) {
+        const now = 1000 + step * frame;
+        // it walks in from 150 pixels left of its spot over the first second, the bar in view from the fifth frame
+        const feet = {x: spot.x - 150 * Math.max(1 - step / 60, 0), y: 540};
+        const corner = cornerOf({...spot, x: feet.x});
+        const edge = step >= 5 ? watchLook({x: 500, y: 563}, feet, bars.getBoundingClientRect(), FIGURE) : null;
+        gaze = gazeAfter(gaze, edge, headOf(corner), now, looks);
+        const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
+        const head = headLooking(corner, gaze.point, eased);
+        // to a hundredth: the head's pivot moves a little with the idle breath, which the page does not follow
+        if (before) expect(head.faces.angleTo(before.faces), `frame ${step} turns no faster than the limit`).toBeLessThanOrEqual(((LOOK_TURN_SPEED * frame) / 1000) * 1.01);
+        expect(head.down, `frame ${step} tips no further down than the neck goes`).toBeLessThanOrEqual(HEAD_TIP.down + 1e-6);
+        expect(Math.abs(head.round), `frame ${step} turns no further round than the neck goes`).toBeLessThanOrEqual(HEAD_TURN + 1e-6);
+        steepest = Math.max(steepest, head.down);
+        before = head;
+    }
+    expect(gaze.amount, "in the end it looks at the bar").toBe(1);
+    expect(steepest, "looking down at it").toBeGreaterThan(5);
+});
+
+test("anticipating a run's end it stands back at least WATCH.back from the bar's end, and looks down along the bar at a gentle angle", () => {
+    const {bars} = chat();
+    const spot = watchSpot(FIGURE);
+    expect(680 - spot.x).toBeGreaterThanOrEqual(WATCH.back - 1e-9);
+    expect(eagerSpot({x: 420, y: 600, on: bars}, FIGURE)).toEqual(spot);
+    const lookFrom = (x) => {
+        const feet = {x, y: 540};
+        return headLooking(cornerOf({...spot, x}), watchLook({x: 670, y: 563}, feet, bars.getBoundingClientRect(), FIGURE)).down;
+    };
+    const back = lookFrom(spot.x);
+    const close = lookFrom(680 - 0.55 * FIGURE.size);
+    expect(back, "down at the bar").toBeGreaterThan(0);
+    expect(back, "more gently than from close by the bar's end").toBeLessThan(close);
+    expect(back, "inside the neck's tip").toBeLessThanOrEqual(HEAD_TIP.down);
 });

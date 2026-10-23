@@ -1111,11 +1111,16 @@ const onDocks = () => groundEdge().docked && !body.trip;
 
 // how far down the figure's picture its head's middle sits, as a share of the picture's height
 const HEAD_HEIGHT = 0.3;
-let gaze = {point: null, amount: 0, at: 0};
+let gaze = {point: null, toward: null, amount: 0, at: 0};
+// once the figure has loaded, how its head looks at the page, in the page's pixels: from how far before it (figure.js LOOK_REACH), its
+// eyes how far above its pivot (figure.js eyesAboveOf), and how far it tips (figure.js HEAD_TIP); and how far down its picture the head
+// turns about (figure.js headPivotOf)
+let lookHead = null;
+let lookPivot = HEAD_HEIGHT;
 
 // where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
 function lookingAt(shown) {
-    gaze = gazeAfter(gaze, lookedAt(shown), headCenter(), performance.now());
+    gaze = gazeAfter(gaze, lookedAt(shown), {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead);
     if (!gaze.amount || !gaze.point) return null;
     const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
     return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind)};
@@ -1212,6 +1217,8 @@ async function load(name) {
         hands = [...loaded.stance.free];
         beside = module.blowsLandAt(loaded.stance) * SIZE;
         blow = {frames: module.WORK.blowFrames, lands: module.WORK.lands};
+        lookHead = {depth: module.LOOK_REACH * SIZE, above: module.eyesAboveOf(loaded) * SIZE, tip: module.HEAD_TIP};
+        lookPivot = module.headPivotOf(loaded);
         testResultsAfter(lead.value, testStates);
         processEndsAfter(lead.value, processStates);
         cardsAfter(lead.value, knownCards);
