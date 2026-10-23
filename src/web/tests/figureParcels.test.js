@@ -8,6 +8,7 @@ import {GROUNDED, clipFor} from "../src/domain/figureState.js";
 import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
 import {PILE as ANIMATIONS, UNIT} from "../src/figure/pile.js";
+import {headYaw} from "./support/headYaw.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -166,10 +167,6 @@ test("each parcel is hammered a random eight to twenty seconds, and every blow t
 
 test("the head never turns further than HEAD_TURN from the way the body faces; a look further round turns the body the rest, after the head", () => {
     const watch = CLIPS.find((clip) => clip.name === "watch");
-    const yawOf = (moves) => {
-        const ahead = new THREE.Vector3(0, -1, 0).transformDirection(moves.get("head"));
-        return THREE.MathUtils.radToDeg(Math.atan2(ahead.x, -ahead.y));
-    };
     for (const voice of Object.keys(stances)) {
         for (const [facing, at] of [[90, {x: 0.02, y: 0.4}], [270, {x: 0.98, y: 0.4}], [0, {x: 0.5, y: 0.3}], [90, {x: 0.9, y: 0.3}]]) {
             for (const amount of [0.3, 0.7, 1]) {
@@ -177,7 +174,7 @@ test("the head never turns further than HEAD_TURN from the way the body faces; a
                 watch.pose(pose, stanceOf(voice), 0);
                 const body = lookToward(pose, {...at, amount}, facing);
                 const label = `${voice} ${facing} ${at.x} ${amount}`;
-                expect(Math.abs(yawOf(pose.moves(0))), label).toBeLessThanOrEqual(HEAD_TURN + 0.5);
+                expect(Math.abs(headYaw(pose.moves(0))), label).toBeLessThanOrEqual(HEAD_TURN + 0.5);
                 // a look behind a figure turned sideways turns its body, less than the head while the look eases in
                 if (Math.abs(at.x - 0.5) > 0.4) expect(Math.abs(body), label).toBeGreaterThan(0);
                 else expect(body, label).toBe(0);
@@ -186,7 +183,7 @@ test("the head never turns further than HEAD_TURN from the way the body faces; a
             const pose = new Posing(RIG, "stand", 0);
             watch.pose(pose, stanceOf(voice), 0);
             const body = lookToward(pose, {...at, amount: 1}, facing);
-            const full = yawOf(pose.moves(0)) + body;
+            const full = headYaw(pose.moves(0)) + body;
             const want = THREE.MathUtils.radToDeg(Math.atan2((at.x - 0.5) * 5.4, 1.2 + 0.0)) - facing;
             expect(Math.abs(((full - want + 540) % 360) - 180), `${voice} ${facing}`).toBeLessThan(25);
         }

@@ -50,9 +50,9 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleRows, bubbleSize} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, faces, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
-import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
+import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
 import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
 import {givesWay} from "../figure/pile.js";
@@ -376,7 +376,8 @@ function step() {
     if (!body.trip?.departed && !body.airborne && !flight) rest();
     carry();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
-    // dancing the disco its visor flashes through the colours, else it lights as a run's end says
+    // dancing the disco its visor flashes through the colours, else it lights as a run's end says, once the head faces the run's mark
+    visor = lightOnce(visor, facesMark(shown), performance.now() / 1000);
     const lit = shown.clip.name === "disco" ? discoScreen(frameOf(shown) / shown.clip.frames, ACTS.disco.beats) : visorAt(visor, performance.now() / 1000, asleep());
     halo.value = lit && {colour: lit.colour, strength: VISOR.halo * lit.glow * lit.open};
     looking = look.looking;
@@ -1073,6 +1074,8 @@ function stepForward() {
 function lookedAt(shown) {
     if (shown.clip.name === "tickle_swat") return pointerAt;
     if (shown.clip.ownLook) return null;
+    const mark = waitingMark();
+    if (mark) return mark;
     const flying = saucer.value ?? crane.value?.look;
     if (flying) return flying;
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
@@ -1082,25 +1085,31 @@ function lookedAt(shown) {
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
 }
 
+// The middle on the page of the chat mark of the run whose end the visor waits to light (figure/visor.js lightOnce), which the head turns to
+// first, whatever the figure goes on doing; null when it waits for none or the mark is not on the page
+function waitingMark() {
+    if (!visor || visor.at !== null) return null;
+    const box = document.querySelector(`[data-figure-mark="${CSS.escape(visor.card)}"]`)?.getBoundingClientRect();
+    return box ? {x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2} : null;
+}
+
+// whether the head faces the mark of the run whose end the visor waits to light, or cannot turn to it, its clip looking as it does itself
+// or the mark not on the page
+function facesMark(shown) {
+    const mark = waitingMark();
+    return !mark || Boolean(shown.clip.ownLook) || (gaze.amount === 1 && Boolean(gaze.point) && faces(gaze.point, mark, headCenter()));
+}
+
 // whether the figure is at rest by the bars docked over the compose box
 const onDocks = () => groundEdge().docked && !body.trip;
 
-// The look eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once
-// there is not, as the UFO goes or the bar ends, so the head never snaps; `amount` is how far into it the figure is, 0 to 1
-const LOOK_EASE_MS = 500;
 // how far down the figure's picture its head's middle sits, as a share of the picture's height
 const HEAD_HEIGHT = 0.3;
-const gaze = {point: null, amount: 0, at: 0};
+let gaze = {point: null, amount: 0, at: 0};
 
 // where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
 function lookingAt(shown) {
-    const now = performance.now();
-    const point = lookedAt(shown);
-    const elapsedMs = now - (gaze.at || now);
-    const step = elapsedMs / LOOK_EASE_MS;
-    gaze.at = now;
-    gaze.amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
-    if (point) gaze.point = gaze.point ? headTurned(gaze.point, point, headCenter(), (LOOK_TURN_SPEED * elapsedMs) / 1000) : point;
+    gaze = gazeAfter(gaze, lookedAt(shown), headCenter(), performance.now());
     if (!gaze.amount || !gaze.point) return null;
     const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
     return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind)};

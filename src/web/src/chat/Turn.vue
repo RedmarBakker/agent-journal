@@ -30,7 +30,7 @@ const skillMark = computed(() => ({
 }));
 const compactedMark = computed(() => ({icon: "activity", tone: "warn", label: "Conversation compacted", time: props.turn.time}));
 const opened = ref(false);
-const cardMark = computed(() => ({...data.value, detail: data.value.collapsed ? "" : data.value.detail, time: props.turn.time}));
+const cardMark = computed(() => ({...data.value, key: props.turn.key, detail: data.value.collapsed ? "" : data.value.detail, time: props.turn.time}));
 const lines = computed(() => (data.value.lines || []).filter(Boolean));
 
 function markClick(data) {

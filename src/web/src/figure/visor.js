@@ -5,9 +5,10 @@ import {draw} from "./pile.js";
 // across the middle, widening out from its centre over `line`; the line opens out top and bottom to fill the visor over `open`, its white
 // flash fading into the colour by the end of `flash`; the glow holds, fades over `fade`, and the eyes come back over `eyesBack`. Its red
 // and green are its own, a glowing screen's, brighter to the core by `core` and with a soft halo about the visor as strong as `halo`, and the
-// server units' lights shine in the same two. Every number of it is here, in seconds.
+// server units' lights shine in the same two. It lights only once the figure has turned its head to the chat mark of the run that ended
+// (lightOnce), or `waits` on when it cannot. Every number of it is here, in seconds.
 export const VISOR = {
-    seconds: 2.4, eyesOut: 0.14, line: [0.14, 0.3], open: [0.3, 0.52], flash: [0.3, 0.7], fade: 0.35, eyesBack: 0.15, thin: 0.05,
+    seconds: 2.4, waits: 1.5, eyesOut: 0.14, line: [0.14, 0.3], open: [0.3, 0.52], flash: [0.3, 0.7], fade: 0.35, eyesBack: 0.15, thin: 0.05,
     colours: {bad: [1, 0.06, 0.1], good: [0.08, 1, 0.32]}, core: 0.45, halo: 0.75,
 };
 
@@ -49,11 +50,11 @@ export function signAt(seconds) {
 // eyes go out, held all the while it glows, and back as the glow fades and the eyes return
 export const glowTurn = (crt) => Math.max(crt.glow, 1 - crt.eyes, crt.sign?.strength ?? 0);
 
-// The visor as the page draws it `now` seconds, for a glow `lit` ({tone, at, sign}) or none, while the figure is `asleep` or not: its
+// The visor as the page draws it `now` seconds, for a glow `lit` ({tone, at, sign, card, since}) or none, dark while it waits to light, while the figure is `asleep` or not: its
 // colour with how it stands (crtAt), or, for a sign, the visor dark and the eyes the sign of its tone as it stands (signAt); null when it
 // shows the eyes
 export function visorAt(lit, now, asleep) {
-    if (!lit || asleep) return null;
+    if (!lit || lit.at === null || asleep) return null;
     if (lit.sign) {
         const sign = signAt(now - lit.at);
         return sign && {colour: VISOR.colours[lit.tone], eyes: 1, across: 0, open: 0, flash: 0, glow: 0, sign: {name: SIGN.signs[lit.tone], ...sign}};
@@ -62,11 +63,19 @@ export function visorAt(lit, now, asleep) {
     return crt && {colour: VISOR.colours[lit.tone], ...crt};
 }
 
-// The glow a process card ending lights, from `ends` (figureState.js processEndsAfter), the newest of them, or `lit` as it was; whether it
-// shows as a sign in the eyes is drawn from the pile with `random` (pile.js run_end)
+// The glow a process card ending lights, from `ends` (figureState.js processEndsAfter), the newest of them, or `lit` as it was: waiting
+// since `now` to light, its `at` null, while the figure turns to the run's chat mark `card`; whether it shows as a sign in the eyes is
+// drawn from the pile with `random` (pile.js run_end)
 export function visorFor(ends, lit, now, random = Math.random) {
     if (!ends.length) return lit;
-    return {tone: ends.at(-1).tone, at: now, sign: draw({moment: "run_end"}, random)?.name === "sign"};
+    return {tone: ends.at(-1).tone, at: null, since: now, card: ends.at(-1).card, sign: draw({moment: "run_end"}, random)?.name === "sign"};
+}
+
+// The glow `lit` lit `now` once the figure `faces` its run's chat mark, or `waits` seconds after the run ended when it never does; as it
+// was otherwise
+export function lightOnce(lit, faces, now) {
+    if (!lit || lit.at !== null) return lit;
+    return faces || now - lit.since >= VISOR.waits ? {...lit, at: now} : lit;
 }
 
 // The visor through a disco dance `u` of the way through it (acts.js disco): lit as a screen all the dance long, its colour stepping round

@@ -2,7 +2,7 @@
 import {readFileSync, readdirSync} from "node:fs";
 import {expect, test} from "vitest";
 import {processEndsAfter, withSystemCards} from "../src/domain/figureState.js";
-import {VISOR, crtAt, visorAt, visorFor} from "../src/figure/visor.js";
+import {VISOR, crtAt, lightOnce, visorAt, visorFor} from "../src/figure/visor.js";
 import {SCREEN} from "../src/figure/figure.js";
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
@@ -19,8 +19,12 @@ test("a process card that ends bad lights the visor red for about two seconds an
         // seen once, an end is not lit again
         expect(ends(known, card(1, false, tone))).toEqual([]);
         // the plain glow, as the pile draws it for most ends (figureSigns.test.js)
-        const lit = visorFor(ended, null, 100, () => 0.99);
-        expect(lit).toEqual({tone, at: 100, sign: false});
+        const waiting = visorFor(ended, null, 100, () => 0.99);
+        expect(waiting).toEqual({tone, at: null, since: 100, card: "messages:1", sign: false});
+        // dark while the head turns to the run's mark (figureLookFirst.test.js), lit once it faces it
+        expect(visorAt(waiting, 100.5, false)).toBe(null);
+        const lit = lightOnce(waiting, true, 100);
+        expect(lit.at).toBe(100);
         expect(visorAt(lit, 101, false)).toEqual({colour, eyes: 0, across: 1, open: 1, flash: 0, glow: 1});
         expect(visorAt(lit, 100 + VISOR.seconds - 0.05, false).eyes).toBeGreaterThan(0);
         expect(visorAt(lit, 100 + VISOR.seconds, false)).toBe(null);

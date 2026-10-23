@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {describe, expect, it} from "vitest";
 import {EYE_SHAPES} from "../src/figure/figure.js";
-import {SIGN, VISOR, glowTurn, signAt, visorAt, visorFor} from "../src/figure/visor.js";
+import {SIGN, VISOR, glowTurn, lightOnce, signAt, visorAt, visorFor} from "../src/figure/visor.js";
 
 // a seeded random, the same rolls every run
 function seeded(seed) {
@@ -14,8 +14,11 @@ function seeded(seed) {
     };
 }
 
-// the visor `seconds` after a run ending `tone` lit it, `lit` being how visorFor drew it
-const shownAt = (lit, seconds) => visorAt(lit, lit.at + seconds, false);
+// the visor `seconds` after a run ending `tone` lit it, `lit` being how visorFor drew it, lit as the run ended
+function shownAt(lit, seconds) {
+    const on = lightOnce(lit, true, lit.since);
+    return visorAt(on, on.at + seconds, false);
+}
 
 describe("a run's end shown in the eyes", () => {
     it("draws, with a seeded random, the crosses for some failures and the ticks for some passes, the plain glow for the rest", () => {

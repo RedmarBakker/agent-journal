@@ -200,6 +200,28 @@ export const queues = (beats, beat) => !beat.during || !beats.some((each) => eac
 // How fast the figure's head can swing its look, in radians a second: a pointer moved faster is followed at this pace
 export const LOOK_TURN_SPEED = 2 * Math.PI;
 
+// The look on the page, {point, amount, at}, `at` milliseconds `now` with `point` to look at or null, about the head's middle `center`: it
+// eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once there is not,
+// as the UFO goes or the bar ends, so the head never snaps, `amount` how far into it the figure is, 0 to 1; and the point it looks at turns
+// toward `point` no faster than LOOK_TURN_SPEED
+export const LOOK_EASE_MS = 500;
+export function gazeAfter(gaze, point, center, now) {
+    const elapsedMs = now - (gaze.at || now);
+    const step = elapsedMs / LOOK_EASE_MS;
+    const amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
+    const turned = point && gaze.point ? headTurned(gaze.point, point, center, (LOOK_TURN_SPEED * elapsedMs) / 1000) : point;
+    return {point: turned ?? gaze.point, amount, at: now};
+}
+
+// how near, in radians about the head, the look comes to a point for the figure to face it
+export const LOOK_FACES = 0.15;
+
+// whether the look at `point` faces `target`, both on the page, about the head's middle `center`
+export function faces(point, target, center) {
+    const gap = Math.atan2(target.y - center.y, target.x - center.x) - Math.atan2(point.y - center.y, point.x - center.x);
+    return Math.abs(Math.atan2(Math.sin(gap), Math.cos(gap))) <= LOOK_FACES;
+}
+
 // The point the head looks at next, from the one it looked at, `previous`, toward `target`, both on the page: turned about the head,
 // `center`, by at most `largest` radians, at the target's own distance
 export function headTurned(previous, target, center, largest) {
