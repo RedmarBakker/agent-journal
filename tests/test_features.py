@@ -11326,6 +11326,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
         ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
         status, body = sent("/journal/agents", cookie=ada)
         assert status == 200 and [(row["session"], row["remote"]) for row in json.loads(body)["rows"]] == [("ada-session", True)], "on the hosted journal Ada sees her agent as her own journal shows it"
+        assert sent(f"/journal/agents/{agent.id}/terminal", cookie=ada) == (200, b"[]"), "its terminal stays on her machine, so the pane shows nothing rather than a fault"
         assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=bob)[0] == 409 and waiting() == [], "Bob sees it but cannot change it"
         assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=ada) == (200, b'{"asked": true}') and waiting() == [("agent_pause", 1)], "Ada's pause is asked of her journal, where the agent runs"
         team.host_requests.created(relay, HostAskRequest(main.key, "agent_resume", {"agent_id": agent.id}, 2), clock.time())

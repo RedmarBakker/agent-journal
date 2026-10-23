@@ -106,6 +106,8 @@ class AgentController(Controller[Agent]):
         return Response.json({"path": path, "text": file.read_text(errors="replace")[:200000]})
 
     def terminal(self, request: Request) -> Response:
+        if not self.hosts.is_host(self.environment()):
+            return Response.json([])
         return Response.json(self.terminal_lines.lines(self.repository.find(request.number("id")), request.queried("after")))
 
     def pause(self, request: Request) -> Response:
