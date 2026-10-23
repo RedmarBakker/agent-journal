@@ -61,7 +61,7 @@ export const POINTED_AFTER = 180;
 // count it, or 0 when nothing waits
 export function figureStateOf(agent, waitingSince, now = Date.now() / 1000) {
     const bar = stateOf(agent);
-    const since = seconds(agent?.heard_at) || now;
+    const since = agent?.part_started_at || seconds(agent?.heard_at) || now;
     if (BAR_STATES[bar]) return {state: BAR_STATES[bar], since};
     // the pose says what the agent does, so it waits on the user only while it does nothing else; where it stands says what waits
     if (bar === "idle" && (waitingSince || agent?.awaiting)) return {state: "asking", since: waitingSince || since};

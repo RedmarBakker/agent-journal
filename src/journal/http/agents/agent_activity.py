@@ -73,6 +73,7 @@ class AgentActivity:
             "tool": last.data.get("tool_name", "") if last and kind in ("ToolStarting", "ToolFinished") else "",
             "tool_work": self.work(last, entries) if last and kind in ("ToolStarting", "ToolFinished") else "",
             "tool_running": kind == "ToolStarting" or self.unended_part(entries) is not None,
+            "part_started_at": self.part_start(entries),
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),
             "branch": self.files.branch(), "context": round(status.context * 100) if status.context is not None else None,
@@ -122,6 +123,10 @@ class AgentActivity:
         if part is not None:
             return CommandText.shown(part.data["part"])
         return self.described(state) or ("at work" if hooks else "")
+
+    def part_start(self, entries) -> float | None:
+        part = self.unended_part(entries)
+        return part.data["time"] if part is not None else None
 
     @staticmethod
     def unended_part(entries):

@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, buildAim, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, buildAim, buildRunAt, isPileLeft, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -771,6 +771,7 @@ function look() {
     if (after.length) beats.value = [...beats.value, ...after];
     if (coveredSince() && !body.airborne && !body.place.stays) stepOutOf(boxAt(body.place, figureSize(), drawn));
     grantUnit();
+    clearLeftPile();
     const target = targetFor({
         state: held.value.state,
         counts: counts.value,
@@ -866,7 +867,7 @@ function workOf() {
 let units = null;
 let making = false;
 let aim = null;
-let restUntil = 0;
+let nextBoxAt = 0;
 
 // at a look: with no box in hand the figure builds the next while the run going on is granted boxes, and gives up one not yet begun once
 // it ends
@@ -874,9 +875,17 @@ function grantUnit() {
     const inHand = parcels.value.some((each) => each.state !== "piled");
     units = unitsAfter(units, buildRunAt(lead.value?.data?.cards || [], shellRun(), now.value), memory.reacted, now.value, Math.random);
     if (inHand) return;
-    const starting = Boolean(units?.granted) && now.value >= restUntil;
+    const starting = Boolean(units?.granted) && now.value >= nextBoxAt;
     if (starting && !making) aim = nextAim();
     making = starting;
+}
+
+// when no run has built since, in seconds, null while one builds; a pile left that long goes as at a commit (parcels.js isPileLeft)
+let runEndAt = null;
+
+function clearLeftPile() {
+    runEndAt = units ? null : (runEndAt ?? now.value);
+    if (isPileLeft(parcels.value, Boolean(units), runEndAt, now.value)) sendAway();
 }
 
 // a new place along the floor to begin the next box, clear of the last
@@ -918,7 +927,7 @@ function keepParcels(shown) {
         if (Math.abs(parcelX(pushing) - to) < PUSH.room) {
             Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
             making = false;
-            restUntil = now.value + boxGapSeconds(Math.random);
+            nextBoxAt = now.value + boxGapSeconds(Math.random);
         }
     }
     if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows, lit: each.lit, state: each.state}));

@@ -436,3 +436,24 @@ test("each box takes eight to twenty seconds of hammering, the pause before the 
         last = aim;
     }
 });
+
+test("a pile is taken away a minute after its run ended with no commit, never sooner and never while a run builds", async () => {
+    const {isPileLeft, LEFT_PILE_SECONDS} = await import("../src/figure/parcels.js");
+    const pile = [{state: "piled"}, {state: "piled"}];
+    expect(LEFT_PILE_SECONDS).toBe(60);
+    expect(isPileLeft(pile, false, 100, 159)).toBe(false);
+    expect(isPileLeft(pile, false, 100, 160)).toBe(true);
+    expect(isPileLeft(pile, true, null, 500), "a run still building keeps it").toBe(false);
+    expect(isPileLeft([...pile, {state: "building"}], false, 100, 500), "a box still in hand keeps it").toBe(false);
+    expect(isPileLeft([], false, 100, 500)).toBe(false);
+});
+
+test("a build command is timed from its own start, so one that ends within five seconds is never hammered for", async () => {
+    const {figureStateOf} = await import("../src/domain/figureState.js");
+    const {buildRunAt} = await import("../src/figure/parcels.js");
+    const agent = {status: "working", tool_running: true, tool: "Bash", doing: "npm run build", heard_at: new Date(1000 * 1000).toISOString(), part_started_at: 1060};
+    const held = figureStateOf(agent, 0, 1063);
+    expect(held.since, "the build's own start, not the chain's first hook").toBe(1060);
+    expect(buildRunAt([], {card: "", since: held.since}, 1063)).toBe(null);
+    expect(buildRunAt([], {card: "", since: held.since}, 1066)).not.toBe(null);
+});

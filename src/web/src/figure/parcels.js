@@ -281,3 +281,9 @@ export function buildAim(left, right, last, random) {
     const aim = left + random() * width;
     return last === null || Math.abs(aim - last) >= BUILD_SPREAD ? aim : left + ((aim - left + width / 2) % width);
 }
+
+// A pile is taken away without a commit once every box on it is piled and no run has built for LEFT_PILE_SECONDS, counted from
+// `runEndAt`, when the last run ended, in seconds; `running` says whether a run builds now
+export const LEFT_PILE_SECONDS = 60;
+export const isPileLeft = (parcels, running, runEndAt, now) =>
+    parcels.length > 0 && parcels.every((each) => each.state === "piled") && !running && runEndAt !== null && now - runEndAt >= LEFT_PILE_SECONDS;
