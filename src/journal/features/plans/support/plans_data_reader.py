@@ -1,3 +1,4 @@
+from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.plans_data import PlansData
 from journal.features.plans.support.started_plan import StartedPlan
 from journal.models.agent import Agent
@@ -13,8 +14,8 @@ EMPTY_PLAN_NOTE = "it has no brief and nothing logged yet"
 class PlansDataReader:
     """Reads the plans feature's part of the feature data for an agent."""
 
-    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries) -> None:
-        self.plans, self.briefing, self.entries = plans, briefing, entries
+    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting) -> None:
+        self.plans, self.briefing, self.entries, self.testing = plans, briefing, entries, testing
 
     def read(self, agent: Agent) -> PlansData:
         from journal.features.plans.feature import Plans as PlansFeature
@@ -32,4 +33,4 @@ class PlansDataReader:
         briefing = (self.briefing.text(current) or EMPTY_PLAN_NOTE) if current else ""
         checkpoint = plan.checkpoint_phase(list(tree.phased))
         phase = checkpoint.number if checkpoint is not None else 0
-        return StartedPlan(plan_id=plan.row_id, next_task=task.row_id if task else 0, started_task=current.row_id if current else 0, started_task_briefing=briefing, tasks=tuple(t.row_id for t in tasks), remaining_tasks=sum(1 for t in tasks if not t.is_closed()), checkpoint_pause=checkpoint is not None, checkpoint_phase=phase)
+        return StartedPlan(plan_id=plan.row_id, next_task=task.row_id if task else 0, started_task=current.row_id if current else 0, started_task_briefing=briefing, tasks=tuple(t.row_id for t in tasks), remaining_tasks=sum(1 for t in tasks if not t.is_closed()), checkpoint_pause=checkpoint is not None, checkpoint_phase=phase, testing=" ".join(template.brief for template in self.testing.chosen(plan)))

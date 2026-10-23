@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from journal.console.command import SUBAGENT_KINDS, Command
 from journal.support.caller import Caller
+from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.support.waits import Waits
@@ -26,9 +27,9 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
-        self.rounds, self.taking = rounds, taking
+        self.rounds, self.taking, self.plan_testing = rounds, taking, testing
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -74,6 +75,9 @@ class PlanCommand(Command):
         self.verb(verbs, "cancel", "a plan given up, with the tasks that are its alone; one another live plan holds stays").add_argument("n", type=int)
         self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, or current for the started plan")
         self.verb(verbs, "list", "every plan here")
+        testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
+        testing.add_argument("n", type=int)
+        testing.add_argument("title")
 
     def create(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.save(Plan(title=args.title, brief=args.brief), caller.actor)
@@ -197,6 +201,12 @@ class PlanCommand(Command):
         plan = self.plans.find(args.n)
         cancelled = self.plans.cancel(plan, caller.actor)
         print(f"plan {plan.id} cancelled" + (f", with tasks {', '.join(str(t.id) for t in cancelled)}" if cancelled else ""))
+        return 0
+
+    def testing(self, args: Namespace, caller: Caller) -> int:
+        plan = self.plans.find(args.n)
+        followed = self.plan_testing.follow(plan, args.title, caller.actor)
+        print(f"plan {plan.id} tests this way: {followed[0].brief}" if followed else f"plan {plan.id} follows no testing template")
         return 0
 
     def brief(self, args: Namespace, caller: Caller) -> int:

@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.31.0
+
+- A plan can follow a testing template: Never run tests, Tests at each phase end, Scoped tests after each task, or Test throughout. The agent is told it in one line when the plan starts and after each of its tasks. The plan page's Testing button picks it, journal plan testing <n> "<title>" sets it, and Settings names the one new plans start with.
+- A journal that joins a team lets go of the row numbers it held from an earlier team, so its new rows are never numbered from an old team's blocks.
+
 ## 4.30.1
 
 - The team image's proxy passes a new team server's first connection through to the team server, and a refusal that is not the team server's own is shown as the text it came with.

@@ -1,3 +1,4 @@
+from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.http.support.model_fields import ModelFields
 from journal.models.phase_tasks import PhaseTasks
@@ -9,10 +10,10 @@ from journal.repositories.workers import Workers
 
 
 class PlanOutline:
-    """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, and its review rounds, newest first, each with the reports it filed; a closed plan is read from its links alone, since none of that turns on its tasks' rows."""
+    """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, and its review rounds, newest first, each with the reports it filed; a closed plan is read from its links alone, since none of that turns on its tasks' rows."""
 
-    def __init__(self, plans: Plans, workers: Workers, reviews: PlanReviews, rounds: ReviewRounds) -> None:
-        self.plans, self.workers, self.reviews, self.rounds = plans, workers, reviews, rounds
+    def __init__(self, plans: Plans, workers: Workers, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting) -> None:
+        self.plans, self.workers, self.reviews, self.rounds, self.testing = plans, workers, reviews, rounds, testing
 
     def build(self, plan: Plan) -> dict:
         if plan.state.is_closed():
@@ -35,5 +36,5 @@ class PlanOutline:
     def outline(self, plan: Plan, task_ids: list[int], phases: list[dict], current_phase: int, checkpoint_pause: bool, is_delegated: bool) -> dict:
         members = {n for phase in phases for n in phase["task_ids"]}
         return {**ModelFields.build(plan), "task_ids": task_ids, "phases": phases, "unphased_task_ids": [n for n in task_ids if n not in members],
-                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated,
+                "current_phase": current_phase, "held": checkpoint_pause, "delegated": is_delegated, "testing": [template.title for template in self.testing.chosen(plan)],
                 "reviews": [{**ModelFields.build(review), "report_ids": self.rounds.report_ids(review)} for review in self.reviews.reviews(plan)]}

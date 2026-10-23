@@ -26,6 +26,9 @@ class IdBlocks(Repository[IdBlock]):
             self.delete(block, Actor.system())
         return block.next_number
 
+    def clear(self) -> None:
+        self.purged_rows(IdBlock, self.query(), Actor.system())
+
     def has_numbers(self, table: str) -> bool:
         return bool(self.all_matching(row_table=table))
 

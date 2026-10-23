@@ -12,7 +12,7 @@ from journal.events.rows.task_started import TaskStarted
 
 
 class PlansConduct(Conduct):
-    """The plans feature's conduct in every state: the user's approval told, a plan blocked or open again told, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, and a plan whose reviewers are all back told to be written into and readied, the agent's writes held once the set tool uses pass without it."""
+    """The plans feature's conduct in every state: the user's approval told, a plan blocked or open again told, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template told when it starts and after each of its tasks closes, and a plan whose reviewers are all back told to be written into and readied, the agent's writes held once the set tool uses pass without it."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         from journal.features.plans.feature import Plans
@@ -41,9 +41,12 @@ class PlansConduct(Conduct):
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
         from journal.features.plans.feature import Plans
         started = event.data.part(Plans).started
-        if event.task_id or started is None or not started.remaining_tasks:
+        if started is None:
             return self.none()
-        return self.none(Plans.PLAN_STALLED.create(n=event.plan_id, left=started.remaining_tasks))
+        testing = started.testing_lines(Plans.PLAN_TESTING)
+        if event.task_id or not started.remaining_tasks:
+            return self.none(*testing)
+        return self.none(*testing, Plans.PLAN_STALLED.create(n=event.plan_id, left=started.remaining_tasks))
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         from journal.features.plans.feature import Plans
@@ -56,6 +59,9 @@ class PlansConduct(Conduct):
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         from journal.features.plans.feature import Plans
         started = event.data.part(Plans).started
-        if started is None or event.task_id not in started.tasks or started.started_task or started.next_task or started.checkpoint_pause or not started.remaining_tasks:
+        if started is None or event.task_id not in started.tasks:
             return self.none()
-        return self.none(Plans.PLAN_STALLED.create(n=started.plan_id, left=started.remaining_tasks))
+        testing = started.testing_lines(Plans.PLAN_TESTING)
+        if started.started_task or started.next_task or started.checkpoint_pause or not started.remaining_tasks:
+            return self.none(*testing)
+        return self.none(*testing, Plans.PLAN_STALLED.create(n=started.plan_id, left=started.remaining_tasks))

@@ -265,6 +265,16 @@ export class ApiClient {
         return this.post(this.here(`/plans/${id}/tasks`), body);
     }
 
+    // sets how a plan's agent is told to test, by a plan testing template's title, or none
+    setPlanTesting(id, title) {
+        return this.post(this.here(`/plans/${id}/testing`), {title});
+    }
+
+    // the plan testing templates a plan may follow
+    planTestingTemplates() {
+        return this.get(this.here("/plan-testing"));
+    }
+
     taskLogs(id) {
         return this.get(this.here(`/tasks/${id}/logs`));
     }

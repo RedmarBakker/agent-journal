@@ -9708,7 +9708,10 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         Worktree(tmp_path / "a", "main").created()
         assert a.console().run(["team", "join", address], USER).error.startswith("run journal team join yourself in a terminal")
         assert "at least 12 characters" in a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "short"], USER).error, "a weak password is refused"
+        from journal.repositories.id_blocks import IdBlocks
+        a.container.get(IdBlocks).add("messages", 900001, 900009)
         joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert all(block.first_number != 900001 for block in a.container.get(IdBlocks).rows()), "a join lets go of row numbers held from an earlier team"
         assert team.accounts.find(1).email == "ada@example.com" and team.accounts.find(1).is_admin(), "the first journal to connect to a new team server by its bare URL makes its admin"
         assert joined.code == 0 and "this journal is now the team's" in joined.text and "1 files uploaded" in joined.text, joined.text + joined.error
         assert a.container.get(Workers).find(worker.id).device == str(a.container.get(TeamAccount).device()), "the first journal's workers are its device's"

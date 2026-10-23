@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.features.tasks.active_task import ActiveTask
 from journal.http.controllers.controller import Controller
@@ -22,8 +23,9 @@ class PlanController(Controller[Plan]):
 
     repository: Plans
 
-    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds) -> None:
+    def __init__(self, plans: Plans, tasks: Tasks, links: Links, outline: PlanOutline, timeline: PlanTimeline, taking: ActiveTask, rounds: ReviewRounds, testing: PlanTesting) -> None:
         self.repository, self.tasks, self.links, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, outline, timeline, taking, rounds
+        self.plan_testing = testing
 
     def rows(self) -> list[Plan]:
         return self.repository.scoped()
@@ -60,6 +62,14 @@ class PlanController(Controller[Plan]):
 
     def finish(self, request: Request) -> Response:
         return self.moved(request, lambda plan: plan.finished(datetime.now(timezone.utc).timestamp()))
+
+    def testing(self, request: Request) -> Response:
+        plan = self.repository.find(request.number("id"))
+        self.plan_testing.follow(plan, str(request.body.get("title", "")), request.actor)
+        return Response.json(self.outline.build(plan))
+
+    def testing_templates(self, request: Request) -> Response:
+        return Response.json([{"title": template.title, "brief": template.brief} for template in self.plan_testing.templates_offered()])
 
     def abandon(self, request: Request) -> Response:
         plan = self.repository.find(request.number("id"))
