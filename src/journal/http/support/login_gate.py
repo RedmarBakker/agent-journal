@@ -4,11 +4,11 @@ from journal.repositories.browser_sessions import BrowserSessions
 from journal.support.response import Response
 from journal.sync.hosting import Hosting
 
-OPEN_PATHS = ("/sign-in", "/hooks/", "/cli", "/shell/")
+OPEN_PATHS = ("/sign-in", "/assets/", "/hooks/", "/cli", "/shell/")
 
 
 class LoginGate:
-    """A hosted journal's door: every request but the sign-in page, the hooks and the CLI needs a browser session, and one without is sent to /sign-in when it asks for a page and refused 401 when it asks the API; a journal that is not hosted has no door."""
+    """A hosted journal's door: every request but the sign-in page, the built files it loads, the hooks and the CLI needs a browser session, and one without is sent to /sign-in when it asks for a page and refused 401 when it asks the API; a journal that is not hosted has no door."""
 
     def __init__(self, hosting: Hosting, sessions: BrowserSessions) -> None:
         self.hosting, self.sessions = hosting, sessions

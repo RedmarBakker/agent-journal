@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.28.1
+
+- A hosted journal's sign-in page loads its scripts and styles before anyone signs in, so its browser console is clean.
+
 ## 4.28.0
 
 - Joining a team never renames an environment on your machine. Each environment has a random key, made with it and never changed, and that key is how your machine and the team server match it. Its name stays your own; the team knows it under your name before it, as jesse-main. A colleague's environment arrives under that team name.

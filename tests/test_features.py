@@ -10063,6 +10063,11 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         (app.config.home / "hosted").touch()
         assert sent("/journal/people")[0] == 401, "a hosted journal refuses the API to a browser that has not signed in"
         assert sent("/")[1]["Location"] == "/sign-in", "and sends a page request to the sign-in"
+        built = sorted(path.name for path in (Path(__file__).resolve().parents[1] / "src" / "web" / "dist" / "assets").iterdir())
+        script = next(name for name in built if name.endswith(".js"))
+        style = next(name for name in built if name.endswith(".css"))
+        assert "javascript" in sent(f"/assets/{script}")[1]["Content-Type"], "the sign-in page loads its scripts before anyone signs in"
+        assert "text/css" in sent(f"/assets/{style}")[1]["Content-Type"], "and its styles"
         assert sent("/sign-in", form={"email": "ada@example.com", "password": "wrong"})[0] == 401, "a wrong password opens no session"
         ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
         assert json.loads(sent("/journal/people", cookie=ada)[2])["me"] == 1 and json.loads(sent("/journal/people", cookie=bob)[2])["me"] == 2, "each person signed in is me to their own browser"
