@@ -2470,7 +2470,7 @@ def test_reading_a_message_names_its_files_links_and_captions(app: App):
         assert reply.read() == b"PNG", "a file name with a space is found"
     shown = console.run(["message", "read", "1"], AGENT).text
     assert "file " in shown and "shot one.png" in shown and "`journal message tag 1 \"shot one.png\"" in shown
-    assert 'something to do? file it: `journal task create "<title>" --from 1`' in shown
+    assert "something to do? file it" not in shown, "how to answer a message comes after the tool use, not in what the read prints"
     assert "(from message 1)" in console.run(["task", "create", "look at the picture", "--from", "1"], AGENT).text
     console.run(["task", "create", "crop it", "--from", "1"], AGENT)
     from journal.repositories.messages import Messages

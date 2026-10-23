@@ -184,8 +184,12 @@ export function queuedFirst(beats, beat, playing) {
     return {beats: [beat, ...(onScreen ? beats.slice(1) : beats)], cut: onScreen};
 }
 
-// the beat queue once the clip `name` has played to its end: its beat gone from the head, when it is the one there
-export const playedFrom = (beats, name) => (beats[0]?.clip === name ? beats.slice(1) : beats);
+// the beat queue once the clip `name` has played to its end: its beat gone, wherever it stands, as when a beat put first came in front of it
+// while it played
+export function playedFrom(beats, name) {
+    const at = beats.findIndex((beat) => beat.clip === name);
+    return at < 0 ? beats : [...beats.slice(0, at), ...beats.slice(at + 1)];
+}
 
 // The beat queue as the agent stands in `state`: a beat shown during a state (`during`, as the thinking act is) gone once that state is
 // over, whether it waits or plays; `cut` says whether the beat on screen, playing as the clip `playing`, is one of them, ended at once

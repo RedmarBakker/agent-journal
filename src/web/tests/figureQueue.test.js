@@ -49,6 +49,9 @@ describe("the thinking act and the queue", () => {
         expect(stillGoing(after, "idle", "nod").beats.some((beat) => beat.clip === act.clip)).toBe(false);
         // a beat that played to its end takes only itself off the queue, never the one that came first meanwhile
         expect(playedFrom([swat, {clip: "nod", card: ""}], act.clip).map((beat) => beat.clip)).toEqual(["tickle_swat", "nod"]);
+        // an act that played to its end while a beat put first came in front of it is gone too, so it never plays a second time
+        const call = {clip: "phone_call", card: "messages:9"};
+        expect(playedFrom([swat, call, {clip: "nod", card: ""}], "phone_call").map((beat) => beat.clip)).toEqual(["tickle_swat", "nod"]);
     });
 });
 
