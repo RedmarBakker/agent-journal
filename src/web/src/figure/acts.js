@@ -13,8 +13,10 @@ export const ACTS = {
     phone_call: {frames: 108, fps: 12, poof: [0, 0.06], above: 0.7, drop: [0.015, 0.055], settle: [0.055, 0.12], squash: 0.24, wobbles: 3, reach: [0.13, 0.2], lift: [0.2, 0.28], finger: [0.28, 0.33], dial: [0.33, 0.42], turn: 250, back: [0.42, 0.5], talk: [0.5, 0.72], nods: 3, hang: [0.72, 0.84], goes: [0.92, 1]},
     // a question asked: it raises a sign with a question mark on a stick over its head and waggles it
     ask_sign: {frames: 42, fps: 12, raise: [0, 0.22], waggle: [0.22, 0.78], waggles: 3, lower: [0.78, 1]},
-    // a report: it holds a scroll up before it in both hands, which unrolls down, is read, and rolls up again
-    scroll: {frames: 48, fps: 12, raise: [0, 0.16], unrolls: [0.16, 0.4], rolls: [0.8, 0.94], lower: [0.9, 1]},
+    // a report: it brings the rolled scroll up before its face over `raise`, a roller in each hand, the free hand's on top; pulls the
+    // rollers apart over `unrolls`, the written side toward itself and the parchment's back to the viewer (figure.js SCROLL); reads it
+    // `lines` lines down, its head going along each; rolls it closed between its hands over `rolls` and lowers it over `lower`
+    scroll: {frames: 72, fps: 12, raise: [0, 0.12], unrolls: [0.12, 0.3], rolls: [0.8, 0.92], lower: [0.9, 1], lines: 3},
     // a task finished, a job well done: it brings its hands together before its chest over `together`, rubs them round each other
     // `rubs` times, nodding a little with each, and lowers them over `apart`; a small puff with a few sparkles rises from the hands over
     // `puff` (chat/FigureAct.vue)

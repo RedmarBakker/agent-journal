@@ -196,7 +196,7 @@ const drawnParcels = ref([]);
 let sky = null;
 const shownFrame = ref(0);
 const headAt = ref({x: 0.5, y: 0.3});
-const handAt = ref({x: 0.75, y: 0.6, out: 1});
+const handAt = ref({x: 0.75, y: 0.6, out: 1, other: {x: 0.25, y: 0.6}});
 // The figure's run up the bubbles and off the top of the screen (figure/skyward.js), or null: when it set off, its hops, and once it is out of
 // sight, when its parachute brings it back; and where the run is this frame, which the clip on screen turns by
 let flight = null;

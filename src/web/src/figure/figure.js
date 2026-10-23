@@ -2057,11 +2057,11 @@ function castle(pose, stance, t) {
 
 // The journal moments and the searches the figure acts out (acts.js ACTS), what it holds and what grows beside it drawn by the page at its
 // free hand and its feet (chat/FigureAct.vue). The wrist places, against the body at rest with the free hand's side outward: held up high,
-// the sign held up, the scroll held before it, at
+// the sign held up, at
 // the drawer, at the binoculars before the eyes, the flashlight held out, and down at the corner of the floor while it crouches `crouch`
 export const ACTED = {
     high: [1.0, -0.25, 2.92],
-    sign: [0.5, -0.25, 3.0], signWaggle: 0.1, scroll: [0.3, -0.84, 2.28],
+    sign: [0.5, -0.25, 3.0], signWaggle: 0.1,
     drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.1, -0.55, 1.88], torchSweep: 0.16,
     corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34,
 }
@@ -2239,15 +2239,34 @@ function ask_sign(pose, stance, t) {
     eyesAs(pose, "worried", up);
 }
 
-// holds a scroll up before it, nods down to read it as it unrolls, and lowers it once it has rolled up
+// Where the scroll is held, against the body at rest: the rollers' middle `at` before the chin, each hand `across` from the middle toward
+// its own side, the rollers `closed` apart in height while it is rolled and `apart` once it is open; and the head reading it, nodded
+// `nod` degrees down to its first line and `lineNod` more for each line below, turned `scan` degrees either side along a line
+export const SCROLL = {at: [0, -0.74, 2.42], across: 0.22, closed: 0.08, apart: 0.9, elbow: [1, 0.4, -0.6], nod: 10, lineNod: 6, scan: 14};
+
+// brings the rolled scroll up before its face, pulls its two rollers apart between its hands, the free hand's above, reads it down line
+// by line with its head going along each, and rolls it closed between its hands again
 function scroll(pose, stance, t) {
     const act = ACTS.scroll;
     const u = onceTime(t, act.frames);
-    const reading = partOf(u, act.unrolls) * (1 - partOf(u, act.rolls));
+    const ready = partOf(u, act.raise) * (1 - partOf(u, act.lower));
+    const open = partOf(u, act.unrolls) * (1 - partOf(u, act.rolls));
+    const read = span(u, act.unrolls[1], act.rolls[0]);
     breathe(pose, 0);
-    trunk(pose, {nod: 14 * reading, lean: 3 * reading});
-    actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTED.scroll, {x: -20});
-    eyesAs(pose, "reading", reading);
+    trunk(pose, {lean: 3 * ready});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, ready ? Object.keys(SIDES) : []);
+    const top = freeSide(stance);
+    const [x, y, z] = SCROLL.at;
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const height = z + ((side === top ? 1 : -1) * mix(SCROLL.closed, SCROLL.apart, open)) / 2;
+        const spot = new THREE.Vector3(x + sign * SCROLL.across, y, height);
+        if (ready) handTo(pose, side, ready, pose.withinReach(side, pose.carried(spot), 0.97), new THREE.Vector3(...SCROLL.elbow));
+    }
+    const line = Math.min(Math.floor(read * act.lines), act.lines - 1);
+    const along = read * act.lines - line;
+    pose.face("head", {x: (SCROLL.nod + SCROLL.lineNod * line) * open, z: mix(SCROLL.scan, -SCROLL.scan, along) * open});
+    eyesAs(pose, "reading", open);
 }
 
 // reaches down to the drawer slid out of the cabinet beside it and drops a card into it
@@ -2728,7 +2747,7 @@ export const CLIPS = [
     {name: "shield_up", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: shield_up},
     {name: "castle", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: castle},
     {name: "ask_sign", frames: ACTS.ask_sign.frames, fps: ACTS.ask_sign.fps, loops: false, postures: GESTURE, pose: ask_sign},
-    {name: "scroll", frames: ACTS.scroll.frames, fps: ACTS.scroll.fps, loops: false, postures: GESTURE, pose: scroll},
+    {name: "scroll", frames: ACTS.scroll.frames, fps: ACTS.scroll.fps, loops: false, ownLook: true, postures: GESTURE, pose: scroll},
     {name: "file_card", frames: ACTS.file_card.frames, fps: ACTS.file_card.fps, loops: false, postures: MOVE, pose: file_card},
     {name: "pack_box", frames: ACTS.pack_box.intro + ACTS.pack_box.hold + ACTS.pack_box.outro, intro: ACTS.pack_box.intro, outro: ACTS.pack_box.outro, leaves: ACTS.pack_box.hold, fps: ACTS.pack_box.fps, loops: true, postures: MOVE, pose: pack_box},
     {name: "press", frames: ACTS.press.intro + ACTS.press.hold + ACTS.press.outro, intro: ACTS.press.intro, outro: ACTS.press.outro, leaves: ACTS.press.hold, fps: ACTS.press.fps, loops: true, postures: GESTURE, pose: press},
@@ -3836,12 +3855,18 @@ export class Stage {
         return this.pictured(at.applyMatrix4(moves.get("head")));
     }
 
-    // where the free hand grips in the picture, and which way across the picture its side is, 1 to the right
+    // where the free hand grips in the picture, which way across the picture its side is, 1 to the right, and where the other hand grips
     handAt(figure, moves) {
         const side = freeSide(figure.stance);
-        if (!moves) return {x: 0.5 + SIDES[side] * 0.25, y: 0.6, out: SIDES[side]};
+        const other = side === "l" ? "r" : "l";
+        if (!moves) return {x: 0.5 + SIDES[side] * 0.25, y: 0.6, out: SIDES[side], other: {x: 0.5 - SIDES[side] * 0.25, y: 0.6}};
+        return {...this.gripAt(figure, moves, side), out: SIDES[side], other: this.gripAt(figure, moves, other)};
+    }
+
+    // where the hand on `side` grips in the picture
+    gripAt(figure, moves, side) {
         const grip = new THREE.Vector3(SIDES[side] * HAND.grip, HAND.forward, 0).add(figure.rig.heads.get(`hand_${side}`));
-        return {...this.pictured(grip.applyMatrix4(moves.get(`hand_${side}`))), out: SIDES[side]};
+        return this.pictured(grip.applyMatrix4(moves.get(`hand_${side}`)));
     }
 
     // a point of the posed figure as shares of its picture's width from the left and height from the top

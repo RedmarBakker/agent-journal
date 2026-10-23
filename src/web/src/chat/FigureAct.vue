@@ -5,7 +5,7 @@ import {POSTURES} from "../figure/places.js";
 
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
-// way across the picture the free hand's side is, 1 to the right); the picture `size` pixels square; and `room`, the pixels from its left
+// way across the picture the free hand's side is, 1 to the right, and `hand.other` the other hand's grip); the picture `size` pixels square; and `room`, the pixels from its left
 // and right sides to the screen's edges, which a runner runs off past; and `ball`, where the disco ball hangs over the feet while it
 // dances (perches.js discoBall).
 const props = defineProps({
@@ -122,8 +122,23 @@ const waggle = computed(() => {
     return 14 * Math.sin(2 * Math.PI * act.value.waggles * k) * Math.sin(Math.PI * k);
 });
 
-// how far the scroll has unrolled, 0 to 1
-const unrolled = computed(() => partOf(props.u, act.value.unrolls) * (1 - partOf(props.u, act.value.rolls)));
+// The scroll between the hands, `half` its width either side of a roller's middle: rolled in the free hand while the hands come up and go
+// down, and once both hold it, its top roller in the free hand and its bottom roller in the other, the parchment between them seen from
+// its back, the lines written on its other side showing faintly through
+const SCROLL_HALF = 0.09;
+const ROLLER = 3.4;
+const LINE_EVERY = 4.4;
+const scrollHeld = computed(() => {
+    const top = hand.value;
+    const held = partOf(props.u, act.value.raise) * (1 - partOf(props.u, act.value.lower)) === 1;
+    const bottom = held ? {x: px(props.hand.other.x), y: px(props.hand.other.y)} : {x: top.x, y: top.y + ROLLER};
+    const at = (k) => ({x: top.x + (bottom.x - top.x) * k, y: top.y + (bottom.y - top.y) * k});
+    const count = Math.max(Math.floor((bottom.y - top.y) / LINE_EVERY) - 1, 0);
+    const lines = Array.from({length: count}, (_, index) => at((index + 1) / (count + 1)));
+    const half = px(SCROLL_HALF);
+    const parchment = `M${top.x - half + 1} ${top.y}L${top.x + half - 1} ${top.y}L${bottom.x + half - 1} ${bottom.y}L${bottom.x - half + 1} ${bottom.y}Z`;
+    return {top, bottom, half, lines, parchment};
+});
 
 // the drawer slid out, 0 to 1, and the card dropped into it
 const drawer = computed(() => partOf(props.u, act.value.opens) * (1 - partOf(props.u, act.value.shuts)));
@@ -220,12 +235,9 @@ const flap = computed(() => {
             </template>
 
             <template v-if="name === 'scroll' && u > act.raise[0] && u < act.lower[1]">
-                <g :transform="`translate(${hand.x} ${hand.y})`">
-                    <rect x="-9" :y="0" width="18" :height="2 + 30 * unrolled" :fill="COLOURS.paper" stroke-width="0.8" />
-                    <path v-for="line in Math.floor(6 * unrolled)" :key="line" :d="`M-6 ${2 + line * 4.4}h${line % 3 ? 12 : 8}`" stroke-width="0.6" />
-                    <rect x="-11" y="-2" width="22" height="3.4" rx="1.7" :fill="COLOURS.wood" />
-                    <rect x="-10" :y="30 * unrolled" width="20" height="3.4" rx="1.7" :fill="COLOURS.wood" />
-                </g>
+                <path :d="scrollHeld.parchment" :fill="COLOURS.paper" stroke-width="0.8" data-scroll-parchment />
+                <path v-for="(line, index) in scrollHeld.lines" :key="index" :d="`M${line.x + scrollHeld.half * 0.6} ${line.y}h${-scrollHeld.half * (index % 3 === 2 ? 0.8 : 1.2)}`" stroke-width="0.6" opacity="0.15" />
+                <rect v-for="(roller, index) in [scrollHeld.top, scrollHeld.bottom]" :key="`roller${index}`" :x="roller.x - scrollHeld.half - 1" :y="roller.y - ROLLER / 2" :width="2 * scrollHeld.half + 2" :height="ROLLER" :rx="ROLLER / 2" :fill="COLOURS.wood" :data-scroll-roller="index ? 'bottom' : 'top'" />
             </template>
 
             <template v-if="name === 'file_card' && stand">
