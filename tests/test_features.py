@@ -10769,6 +10769,16 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
     (folder / "0.out").write_text("....                    [100%]\n4 passed in 0.12s\n")
     outputs.save(outputs.find(summed).ended_with(0, 1.0), Actor.system())
     assert (shown(summed)["detail"], shown(summed)["summary_missing"]) == ("4 passed in 0.12s", False), "a run that prints its summary ends on it"
+    # before a run prints its first percentage its bar is drawn from its dots against the steps the same line's last run took, and the
+    # card keeps its bar's room from the start
+    early, folder = run("early", "")
+    assert shown(early)["counting"] and shown(early)["fraction"] == 0, "a run whose reader counts keeps its bar's room before it prints anything"
+    (folder / "0.out").write_text(".F")
+    assert shown(early)["fraction"] == 2 / 4, "its first dots against the 4 tests the line's last run took, before any percentage"
+    (folder / "0.out").write_text("." * 30)
+    assert shown(early)["fraction"] == 3 / 4, "never the whole while it runs"
+    (folder / "0.out").write_text("." * 30 + "        [ 80%]\n")
+    assert shown(early)["fraction"] == 0.8, "the run's own percentage takes over once printed"
 
 
 def test_a_briefs_points_written_inline_after_points_are_five_points_a_worker_proves_one_by_one(app: App, monkeypatch):

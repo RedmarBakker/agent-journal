@@ -70,6 +70,7 @@ const SYSTEM_TURNS = {
             lines: card.lines || [],
             figure: (card.output ? card.count : card.figure) || "",
             fraction: card.fraction || 0,
+            counting: Boolean(card.counting),
             output: card.output || 0,
             line: card.line || "",
             ending: card.ending || "",

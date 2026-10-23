@@ -41,7 +41,7 @@ const tint = computed(() => ({
                 <span class="figure">{{ mark.figure }}</span>
             </template>
         </span>
-        <template v-if="mark.figure">
+        <template v-if="mark.figure || mark.counting">
             <span class="progress" :style="{width: `${Math.round((mark.fraction || 0) * 100)}%`, background: barShade}"></span>
         </template>
         <template v-if="mark.settled">

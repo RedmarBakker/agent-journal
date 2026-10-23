@@ -86,3 +86,25 @@ test("a docked test run shows how many passed and failed while it runs and keeps
     expect(host.querySelector(".watch-dock-figure").textContent).toBe("15 passed, 1 failed");
     expect(host.querySelector(".watch-dock-ending").textContent).toBe("failed with code 1");
 });
+
+test("a run whose reader counts keeps its bar's room from the start, before any progress, so the card never grows when it comes", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const early = {...watched, data: {...watched.data, figure: "", count: "", fraction: 0, counting: true}};
+    app = createApp({render: () => h(WatchDock, {message: early})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".watch-dock-bar")).not.toBeNull();
+    expect(host.querySelector(".watch-dock-fill").style.width).toBe("0%");
+});
+
+test("a chat mark of a counting run draws its empty bar before any progress", async () => {
+    const {default: ChatMark} = await import("../src/kit/ChatMark.vue");
+    const host = document.createElement("div");
+    document.body.append(host);
+    app = createApp({render: () => h(ChatMark, {mark: {label: "Running tests", counting: true, fraction: 0}})});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".progress")).not.toBeNull();
+});

@@ -71,7 +71,7 @@ watch(
                 </template>
             </ul>
         </template>
-        <template v-if="card.count || card.fraction">
+        <template v-if="card.counting || card.count || card.fraction">
             <div class="watch-dock-bar" :data-figure-bar="card.ending ? card.tone || 'ended' : ''" :data-figure-began="createdAt(message)">
                 <div class="watch-dock-fill" :style="{width, background: STATE_TONES[runState]}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>

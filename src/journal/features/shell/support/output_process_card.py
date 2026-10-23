@@ -45,7 +45,7 @@ class OutputProcessCard(ProcessCard):
         return {**self.progress(output, view).fields(), **CardDetail.parts(self.views.card_text(output, view)), "active": not output.ended}
 
     def progress(self, output: CommandOutput, view: OutputView) -> CardProgress:
-        return CardProgress(self.tone(output), view.figure, view.fraction, view.ending, self.views.count(output))
+        return CardProgress(self.tone(output), view.figure, view.fraction, view.ending, self.views.count(output), self.views.is_counting(output))
 
     def dock_state(self, output: CommandOutput) -> dict:
         from journal.features.shell.feature import Shell
