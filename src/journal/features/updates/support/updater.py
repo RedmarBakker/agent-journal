@@ -174,9 +174,15 @@ class Updater:
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             self.problem = f"The releases could not be read from {self.repository()}: {error}"
 
+    def leads_upgrade(self) -> bool:
+        return self.account.is_joined() and not self.is_hosted() and not self.has_newer_pin()
+
+    def has_newer_pin(self) -> bool:
+        return any(pinned.is_newer(self.running()) for pinned in Release.lookup([self.account.team_version()]))
+
     def install_newest(self, actor: Actor) -> None:
         target = self.target()
-        if self.account.is_joined() and not self.is_hosted():
+        if self.leads_upgrade():
             self.card.step("Sending this journal's changes to the team")
             self.client.prepare_upgrade()
         self.card.step("Installing the new version")
