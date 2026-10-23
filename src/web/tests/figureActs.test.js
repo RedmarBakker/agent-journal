@@ -268,7 +268,7 @@ test("sitting on a corner the figure sits just inside it, toward the inside of t
 
 const {SPELL, spellFor, spellIn} = await import("../src/figure/reactions.js");
 const {hornOpen, partOf} = await import("../src/figure/acts.js");
-const {GLANCE, HEAD_TURN, TUMBLE} = await import("../src/figure/figure.js");
+const {GLANCE, TUMBLE} = await import("../src/figure/figure.js");
 
 // the way the head and the chest face, in degrees toward the viewer's right, of a pose
 const facingsOf = (pose) => {
@@ -323,21 +323,31 @@ test("now and then an edit, a read or a search sets the figure at its work for a
     expect(spellFor("thinking", null, 100, () => 0)).toBe(null);
 });
 
-test("standing still, the figure now and then glances left, right or up, its head within HEAD_TURN of its body, the body turning past that", () => {
+test("standing still, the figure now and then glances a little to one side or up and holds it a moment, never sweeping left and right", () => {
     expect(played("standing").map((each) => each.name)).toEqual(["look_left", "look_right", "look_up"]);
-    expect([oddsOf("standing") < 1, cooldownOf("standing") > 0]).toEqual([true, true]);
+    expect([oddsOf("standing") <= 0.15, cooldownOf("standing") >= 10]).toEqual([true, true]);
     for (const voice of Object.keys(stances)) {
         for (const [name, way] of [["look_left", -1], ["look_right", 1]]) {
             const {head, chest} = facingsOf(posedAt(name, voice, 0.5));
-            expect(Math.abs(head - chest), `${voice} ${name}`).toBeLessThanOrEqual(HEAD_TURN);
             expect(Math.sign(head), `${voice} ${name}`).toBe(way);
-            expect(Math.abs(head), `${voice} ${name}`).toBeGreaterThan(HEAD_TURN);
+            expect(Math.abs(head), `${voice} ${name}`).toBeLessThanOrEqual(30);
+            expect(Math.abs(chest), `${voice} ${name}`).toBeLessThan(Math.abs(head));
+            const {head: held} = facingsOf(posedAt(name, voice, 0.3));
+            expect(Math.abs(held - head), `${voice} ${name} is held still in its middle`).toBeLessThan(1);
         }
         const up = posedAt("look_up", voice, 0.5);
         const ahead = new THREE.Vector3(0, -1, 0).transformDirection(up.moves(0).get("head"));
-        expect(ahead.z, voice).toBeGreaterThan(0.2);
-        expect(GLANCE.frames / GLANCE.fps).toBeLessThanOrEqual(2.5);
+        expect(ahead.z, voice).toBeGreaterThan(0);
     }
+    expect(GLANCE.frames / GLANCE.fps).toBeLessThanOrEqual(3);
+});
+
+test("the butler tips the top hat he wears: it leaves his head while it is in his hand, and there is no second hat to lift", () => {
+    const tipped = posedAt("hat_tip", "butler", 0.5);
+    expect([tipped.stowed.has("butler_top_hat"), tipped.stowed.has("butler_top_hat_band"), tipped.props.has("top_hat")]).toEqual([true, true, true]);
+    expect([...tipped.props.keys()].some((name) => name.includes("bowler"))).toBe(false);
+    const before = posedAt("hat_tip", "butler", 0.05);
+    expect([before.stowed.has("butler_top_hat"), before.props.has("top_hat")]).toEqual([false, false]);
 });
 
 test("very rarely, landing from a launch, the figure trips onto its knees, shakes its head and gets up, never through the floor", () => {

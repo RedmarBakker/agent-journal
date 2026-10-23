@@ -48,7 +48,7 @@ const USER_FACES = {
 // second, the longer idle acts after three; every other act plays out, as a fall, a backflip, a celebration or an act with a prop in hand,
 // so the figure never flickers between acts
 export const CUT = {
-    look_left: 1, look_right: 1, look_up: 1, look_around: 1, glance: 1, wipe_brow: 1, stretch: 1, yawn: 1, nod: 1, shake: 1, bow: 1,
+    look_left: 1, look_right: 1, look_up: 1, glance: 1, wipe_brow: 1, stretch: 1, yawn: 1, nod: 1, shake: 1, bow: 1,
     salute: 1, wave: 1, think: 1, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
 };
 
@@ -88,12 +88,12 @@ export const PILE = [
     // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes
     ...at("bar_done", {}, celebrations()),
     ...at("bar_failed", {}, [clip("fume", 1)]),
-    // standing still or thinking, it looks about now and then, so standing still is never the same loop
-    ...at("standing", {cooldown: 7}, [clip("look_left", 2), clip("look_right", 2), clip("look_up", 1), nothing(28)]),
+    // standing still or thinking, it glances aside now and then, at uneven times, so standing still is never the same loop
+    ...at("standing", {cooldown: 12}, [clip("look_left", 2), clip("look_right", 2), clip("look_up", 1), nothing(40)]),
     // landing from a launch it very rarely trips and falls to its knees
     ...at("launched", {cooldown: 300}, [clip("tumble", 3), nothing(47)]),
     // a break from the hammering now and then
-    ...at("building", {cooldown: 30}, [clip("wipe_brow", 4), clip("look_around", 2), nothing(69)]),
+    ...at("building", {cooldown: 30}, [clip("wipe_brow", 4), clip("look_left", 1), clip("look_right", 1), nothing(69)]),
     ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), nothing(2)]),
     ...at("refused", {cooldown: 20}, [clip("shake", 1), nothing(1)]),
     ...at("work_done", {cooldown: 120}, [clip("stretch", 2), nothing(3)]),
@@ -113,7 +113,6 @@ export const PILE = [
     ...Object.entries(EVERY_VOICE_FACES).flatMap(([face, name]) => at(`agent_reacted:${face}`, {}, [clip(name, 1)])),
     // the idle acts, while it has nothing to do, a wait on a run, a worker or the user as much as idle
     ...at("pastime", {}, [
-        pastime("look_around", 6, 20, 25),
         pastime("stretch", 3, 90, 90),
         // after a long quiet it lies down on its back for a while, whistling, on any floor it stands on
         pastime("rest", 3, 180, 120),

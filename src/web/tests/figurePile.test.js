@@ -15,7 +15,7 @@ test("the pile is filtered to what may play where things stand: the moment, the 
     expect(names(choicesFor({moment: "heard", voice: "homie"}))).toEqual(["nod", "nothing"]);
     // an idle act once the state has lasted long enough, and only while the figure has nothing to do; a shenanigan in any state
     const idle = names(choicesFor({moment: "pastime", free: true, lasted: 20, voice: "coach"}));
-    expect(idle).toEqual(["look_around", "hop_up", "nothing"]);
+    expect(idle).toEqual(["hop_up", "nothing"]);
     expect(names(choicesFor({moment: "pastime", free: true, lasted: 1000, voice: "coach"}))).toContain("whistle");
     expect(names(choicesFor({moment: "pastime", free: false, lasted: 1000, voice: "coach"}))).toEqual(["hop_up", "nothing"]);
     // a hang only with a free hand, a backflip only on a high jump, the work's acts only while that work goes on
@@ -109,11 +109,12 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip look_left ×2 when moment=standing, cut after 1s",
         "clip look_right ×2 when moment=standing, cut after 1s",
         "clip look_up ×1 when moment=standing, cut after 1s",
-        "nothing nothing ×28 when moment=standing",
+        "nothing nothing ×40 when moment=standing",
         "clip tumble ×3 when moment=launched, plays out",
         "nothing nothing ×47 when moment=launched",
         "clip wipe_brow ×4 when moment=building, cut after 1s",
-        "clip look_around ×2 when moment=building, cut after 1s",
+        "clip look_left ×1 when moment=building, cut after 1s",
+        "clip look_right ×1 when moment=building, cut after 1s",
         "nothing nothing ×69 when moment=building",
         "clip shake ×3 when moment=failed, cut after 1s",
         "nothing nothing ×2 when moment=failed",
@@ -168,7 +169,6 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip shield_up ×1 when moment=agent_reacted:🛡️ voices=squire, plays out",
         "clip castle ×1 when moment=agent_reacted:🏰 voices=squire, plays out",
         "clip thanks ×1 when moment=agent_reacted:🙏, plays out",
-        "clip look_around ×6 when moment=pastime free=true lasted=20, cut after 1s",
         "clip stretch ×3 when moment=pastime free=true lasted=90, cut after 1s",
         "clip rest ×3 when moment=pastime free=true lasted=180, cut after 3s",
         "clip yawn ×2 when moment=pastime free=true lasted=60, cut after 1s",

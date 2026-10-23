@@ -75,12 +75,12 @@ test("every clip and look the figure is ever asked for exists, so no reaction, e
     for (const clip of CLIPS) expect(clip.postures.length, clip.name).toBeGreaterThan(0);
 });
 
-test("a figure at rest looks about only after the state has lasted, not again before its cooldown, and then not on every occasion", () => {
-    const look = of("pastime").find((entry) => entry.name === "look_around");
-    const only = (name) => name === "look_around";
+test("a figure at rest stretches only after the state has lasted, not again before its cooldown, and then not on every occasion", () => {
+    const look = of("pastime").find((entry) => entry.name === "stretch");
+    const only = (name) => name === "stretch";
     const memory = new Map();
     expect(pastimeOf("idle", look.when.lasted - 1, memory, 0, () => 0, "", only)).toBe(null);
-    expect(pastimeOf("idle", look.when.lasted, memory, 0, () => 0, "", only).name).toBe("look_around");
+    expect(pastimeOf("idle", look.when.lasted, memory, 0, () => 0, "", only).name).toBe("stretch");
     expect(pastimeOf("idle", look.when.lasted, memory, 1, () => 0, "", only)).toBe(null);
     // an idle act is for a figure with nothing to do
     expect(pastimeOf("thinking", 999, new Map(), 1000, () => 0, "", only)).toBe(null);
@@ -234,7 +234,7 @@ test("the figure does something by itself only while it is calm, not hanging, wi
     const calm = {place: {posture: "sit"}, beats: 0, arriving: false, leaving: false};
     const waited = {state: "idle", lasted: 1000};
     const has = () => true;
-    expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: "look_around", card: "", flies: false});
+    expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: "stretch", card: "", flies: false});
     expect(pastimeFor({...calm, beats: 1}, waited, new Map(), 0, () => 0, has)).toBe(null);
     expect(pastimeFor({...calm, place: {posture: "hang"}}, waited, new Map(), 0, () => 0, has)).toBe(null);
     expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toEqual({clip: "hop_up", card: "", flies: true});

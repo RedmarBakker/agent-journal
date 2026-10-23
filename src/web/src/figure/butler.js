@@ -32,29 +32,28 @@ function partOn(on, name, geometry, colour) {
     return mesh;
 }
 
-// The top hat, turned about its upright middle over the head: its brim, the crown's straight sides and its flat top, the brim's edge
-// raised at the left and right so it curls up there
-function hatGeometry(middle) {
-    const {base, crown, height, brim, thick, curl, sides} = BUTLER.hat;
+// The top hat, turned about its upright middle with its brim's foot at the origin: its brim, the crown's straight sides and its flat top,
+// the brim's edge raised at the left and right so it curls up there; worn on the head, and the one the butler lifts off it
+export function topHatGeometry() {
+    const {crown, height, brim, thick, curl, sides} = BUTLER.hat;
     const outer = crown + brim;
-    const profile = [[0.001, base], [outer, base], [outer, base + thick], [crown, base + thick], [crown, base + height], [0.001, base + height]];
+    const profile = [[0.001, 0], [outer, 0], [outer, thick], [crown, thick], [crown, height], [0.001, height]];
     const geometry = new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), sides);
     const position = geometry.attributes.position;
     for (let i = 0; i < position.count; i++) {
         const [x, y, z] = [position.getX(i), position.getY(i), position.getZ(i)];
         const out = Math.hypot(x, z);
-        if (y <= base + thick + 1e-6 && out > crown) position.setY(i, y + curl * ((out - crown) / brim) ** 2 * (x / out) ** 2);
+        if (y <= thick + 1e-6 && out > crown) position.setY(i, y + curl * ((out - crown) / brim) ** 2 * (x / out) ** 2);
     }
-    geometry.translate(middle.x, 0, middle.z);
     geometry.computeVertexNormals();
     return geometry;
 }
 
-// the hat's band, a ring a little proud of the crown just above the brim
-function bandGeometry(middle) {
-    const {base, crown, band, bandOut, sides} = BUTLER.hat;
+// the top hat's band, a ring a little proud of the crown just above the brim, placed as topHatGeometry is
+export function topHatBandGeometry() {
+    const {crown, band, bandOut, sides} = BUTLER.hat;
     const geometry = new THREE.CylinderGeometry(crown + bandOut, crown + bandOut, band[1] - band[0], sides, 1, true);
-    geometry.translate(middle.x, base + (band[0] + band[1]) / 2, middle.z);
+    geometry.translate(0, (band[0] + band[1]) / 2, 0);
     return geometry;
 }
 
@@ -94,8 +93,8 @@ export function dressButler(meshes) {
     const collar = named("butler_bow_tie__knot");
     const spine = named("butler_tailcoat__tail_l");
     const added = [
-        partOn(crown, "butler_top_hat", hatGeometry(middle), hat),
-        partOn(crown, "butler_top_hat_band", bandGeometry(middle), BUTLER.satin),
+        partOn(crown, "butler_top_hat", topHatGeometry().translate(middle.x, BUTLER.hat.base, middle.z), hat),
+        partOn(crown, "butler_top_hat_band", topHatBandGeometry().translate(middle.x, BUTLER.hat.base, middle.z), BUTLER.satin),
         ...[1, -1].map((sign) => partOn(collar, `butler_wing_collar_${sign > 0 ? "l" : "r"}`, wingGeometry(sign), BUTLER.white)),
         ...[1, -1].map((sign) => partOn(spine, `butler_tail_${sign > 0 ? "l" : "r"}`, tailGeometry(sign), coat)),
     ];

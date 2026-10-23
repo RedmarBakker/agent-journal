@@ -5,7 +5,7 @@ import {ACTS, heldPhases, hornOpen, partOf, swingAngle} from "./acts.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
-import {dressButler} from "./butler.js";
+import {BUTLER, dressButler, topHatBandGeometry, topHatGeometry} from "./butler.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
 
@@ -598,15 +598,6 @@ function dismay(pose, stance, t) {
     handsTo(pose, stance, hands, EYE_HANDS);
     for (const side of stance.free) pose.face(`hand_${side}`, {z: -SIDES[side] * 90 * hands});
     eyesAs(pose, "worried", hands);
-}
-
-// looks about, to one side, then the other, as a creature does when nothing is going on
-function look_around(pose, stance, t) {
-    const u = onceTime(t, 24);
-    const look = swell(u, 0.05, 0.5) - swell(u, 0.5, 0.95);
-    breathe(pose, 0);
-    trunk(pose, {turn: 34 * look, nod: -4 * Math.abs(look), tilt: 4 * look});
-    armsAtRest(pose, stance);
 }
 
 // stretches both arms up and leans back with a yawn, then settles
@@ -1706,7 +1697,7 @@ function handUp(pose, side, k, target, turn = {}) {
 // straight up, at rest
 const UP = new THREE.Vector3(0, 0, 1);
 
-// the butler raises his hand beside his hat, the hat comes off into it by the brim, he lifts it and bows a little, and puts it back on
+// the butler raises his hand beside his top hat, the hat comes off into it by the brim, he lifts it and bows a little, and puts it back on
 function hat_tip(pose, stance, t) {
     const {u, ready} = reacting(t);
     const side = freeSide(stance);
@@ -1720,15 +1711,15 @@ function hat_tip(pose, stance, t) {
     if (ready) pose.aim(`hand_${side}`, pose.rig.along.get(`hand_${side}`).clone().transformDirection(pose.matrix(`hand_${side}`)).lerp(UP, ready));
     if (held) {
         const turn = {y: SIDES[side] * REACTING.hatTip * held};
-        pose.putAway("butler_bowler_hat");
-        pose.wearProp("bowler_hat", hatHeld(pose, side, held, turn).toArray(), turn);
+        pose.putAway("butler_top_hat", "butler_top_hat_band");
+        pose.wearProp("top_hat", hatHeld(pose, side, held, turn).toArray(), turn);
     }
     eyesAs(pose, "amused", bow);
 }
 
 // where the hat sits against the head at rest, `held` of the way from on the head to in the hand on `side`, its brim's edge at the fingers
 function hatHeld(pose, side, held, turn) {
-    const edge = new THREE.Vector3(SIDES[side] * REACTION_PROPS.hat.brim, 0, 0).applyMatrix4(euler(0, turn.y, 0));
+    const edge = new THREE.Vector3(SIDES[side] * (BUTLER.hat.crown + BUTLER.hat.brim), 0, 0).applyMatrix4(euler(0, turn.y, 0));
     const grip = handGrip(pose, side, [REACTING.hatFingers, 0, 0]).applyMatrix4(pose.matrix("head").clone().invert());
     const inHand = grip.sub(edge).sub(pose.rig.heads.get("head"));
     return new THREE.Vector3(0, 0, REACTING.hatOn).lerp(inHand, held);
@@ -2148,11 +2139,12 @@ function fume(pose, stance, t) {
 
 // A glance from standing still, held a moment and back: to the page's left or right, the head turned up to `head` degrees and the
 // shoulders `body` more after it, so a look further round than HEAD_TURN turns the body too; or up, the head tipped back
-export const GLANCE = {frames: 24, fps: 12, head: 55, body: 20, up: 24};
+// a glance aside is small and held a moment: the head turns a little, the body barely
+export const GLANCE = {frames: 36, fps: 12, head: 18, body: 5, up: 10};
 
 const glanceAt = (way, up) => (pose, stance, t) => {
     const u = onceTime(t, GLANCE.frames);
-    const held = rise(u, 0.05, 0.3) * (1 - rise(u, 0.7, 0.95));
+    const held = rise(u, 0.08, 0.25) * (1 - rise(u, 0.75, 0.92));
     trunk(pose, {twist: way * GLANCE.body * held, turn: way * GLANCE.head * held, nod: -up * GLANCE.up * held});
     armsAtRest(pose, stance);
 };
@@ -2477,7 +2469,6 @@ export const CLIPS = [
     {name: "type", frames: 24, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: type},
     {name: "joy", frames: 20, fps: 14, loops: false, postures: GESTURE, pose: joy},
     {name: "dismay", frames: 28, fps: 10, loops: false, postures: GESTURE, pose: dismay},
-    {name: "look_around", frames: 24, fps: 10, loops: false, postures: GESTURE, pose: look_around},
     {name: "polish", frames: 40, fps: 12, loops: false, postures: GESTURE, voices: ["butler"], pose: polish},
     {name: "stretch", frames: 24, fps: 8, loops: false, postures: GESTURE, pose: stretch},
     {name: "squire_chase", frames: 24, fps: 12, loops: false, postures: MOVE, pose: squire_chase},
@@ -3050,9 +3041,8 @@ function propsOf() {
 }
 
 // The things the voices bring out when the agent answers with one of their faces, sized against the figure, each standing up its y axis
-// with its front toward the viewer (+z): the butler's bowler as it sits on his head, from its brim, so it can be lifted off and put back
+// with its front toward the viewer (+z)
 export const REACTION_PROPS = {
-    hat: {brim: 1.084, brimDepth: 0.074, crown: 0.9, crownHeight: 0.787, band: 0.905, bandFrom: 0.104, bandDepth: 0.137, sides: 32},
     monocle: {radius: 0.2, tube: 0.028, chain: 0.55, chainWidth: 0.012},
     flute: {base: 0.13, baseDepth: 0.025, stem: 0.022, stemLength: 0.35, rim: 0.12, bottom: 0.05, bowl: 0.4, fill: 0.27},
     shades: {lens: [0.56, 0.34, 0.05], apart: 0.37, bridge: [0.2, 0.05, 0.05], temple: [0.04, 0.04, 0.7], shine: [0.2, 0.035, 0.01]},
@@ -3068,12 +3058,11 @@ export const REACTION_PROPS = {
 };
 
 function reactionPropsOf(group, part) {
-    const {hat, monocle, flute, shades, flame, finger, popper, confetti, trophy, sword, castle, colours} = REACTION_PROPS;
+    const {monocle, flute, shades, flame, finger, popper, confetti, trophy, sword, castle, colours} = REACTION_PROPS;
     const ink = TOOLS.colours.ink, silver = TOOLS.colours.silver, accent = TOOLS.colours.accent;
-    const bowler = group("bowler_hat");
-    part(bowler, "brim", new THREE.CylinderGeometry(hat.brim, hat.brim, hat.brimDepth, hat.sides), colours.hat, [0, hat.brimDepth / 2, 0]);
-    part(bowler, "crown", new THREE.SphereGeometry(hat.crown, hat.sides, 12, 0, 2 * Math.PI, 0, Math.PI / 2), colours.hat).scale.y = hat.crownHeight / hat.crown;
-    part(bowler, "band", new THREE.CylinderGeometry(hat.band, hat.band, hat.bandDepth, hat.sides), colours.band, [0, hat.bandFrom + hat.bandDepth / 2, 0]);
+    const topHat = group("top_hat");
+    part(topHat, "crown", topHatGeometry(), colours.hat);
+    part(topHat, "band", topHatBandGeometry(), new THREE.Color(...BUTLER.satin).getHex());
     const glass = group("monocle");
     part(glass, "ring", new THREE.TorusGeometry(monocle.radius, monocle.tube, 8, 24), colours.gold);
     part(glass, "lens", new THREE.CircleGeometry(monocle.radius, 24), colours.glass);
