@@ -10,13 +10,14 @@ from journal.config import Config
 from journal.support.caller import Caller
 from journal.support.actor import Actor
 from journal.repositories.scope import Scope
+from tests.main_journal import main_journal
 
 AGENT = Caller.agent("main", "s1", "claude")
 
 
 @pytest.fixture
 def app(journal_root: Path):
-    app = App(Config(journal_root, port=0))
+    app = main_journal(Config(journal_root, port=0))
     app.runtime().start()
     with app.container.get(Scope).environment(1):
         yield app

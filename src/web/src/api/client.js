@@ -439,6 +439,11 @@ export class ApiClient {
         return this.post(this.here("/mode"), {mode});
     }
 
+    // the project's conversations Claude Code and Codex kept on this machine, newest first, for a new environment to carry on from
+    pastSessions() {
+        return this.get("/environments/sessions");
+    }
+
     pauseAgent(id) {
         return this.act("agents", id, "pause");
     }

@@ -32,6 +32,7 @@ from journal.features.workers.support.worker_reports import WorkerReports
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.repositories.scope import Scope
+from tests.main_journal import main_journal
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 PROVIDERS = ("claude", "codex")
@@ -58,7 +59,7 @@ def live(tmp_path: Path, monkeypatch, provider: str):
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, timeout=10)
     (tmp_path / ".journal").mkdir()
     (tmp_path / ".journal" / "src").symlink_to(SRC)
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     port = app.server().port
     assert port > 20000 and not 8420 <= port <= 8429, f"the scratch server took {port}"
@@ -120,7 +121,7 @@ def test_untrusted_hooks_are_reported_not_ready_and_claim_no_hold(tmp_path: Path
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, timeout=10)
     (tmp_path / ".journal").mkdir()
     (tmp_path / ".journal" / "src").symlink_to(SRC)
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     try:
         (tmp_path / ".journal" / "port").write_text(str(app.server().port))

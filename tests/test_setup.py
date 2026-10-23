@@ -9,13 +9,14 @@ from journal.app import App
 from journal.config import Config
 from journal.console.commands.setup_command import SetupCommand
 from journal.support.caller import Caller
+from tests.main_journal import main_journal
 
 
 @pytest.fixture
 def app(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home" / ".local" / "bin").mkdir(parents=True)
-    return App(Config(tmp_path, port=0))
+    return main_journal(Config(tmp_path, port=0))
 
 
 def test_setup_wires_hooks_skills_and_the_law(app: App, monkeypatch):

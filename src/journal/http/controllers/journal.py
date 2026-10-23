@@ -39,7 +39,7 @@ class JournalController:
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
     def manifest(self, request: Request) -> Response:
-        return Response.json(self.boot.assembled(self.first().name))
+        return Response.json(self.boot.assembled(next((environment.name for environment in self.environments.all()), "")))
 
     def identity(self, request: Request) -> Response:
         return Response.json({"project": self.config.root.name, "color": COLOR, "root": str(self.config.home), "version": VERSION, "pid": os.getpid(), "parent": os.getppid(),
@@ -67,7 +67,7 @@ class JournalController:
         blocked = self.mark.running()
         return Response.json({"project": self.config.root.name, "root": str(self.config.home), "version": VERSION, "started": STARTED, "color": COLOR,
                               "updating": blocked.target if blocked else "", "step": blocked.step if blocked else "",
-                              "environments": [self.data(e) for e in (self.environments.all() or [self.environments.lookup("main")])]})
+                              "environments": [self.data(e) for e in self.environments.all()]})
 
     def data(self, environment: Environment) -> EnvironmentData:
         with self.scope.environment(environment.row_id):
@@ -92,6 +92,3 @@ class JournalController:
                 open_[row.key].update(done=True, parts=[*open_[row.key]["parts"], *row.counts()], hold=max(open_[row.key]["hold"], row.display_seconds()), **{"for": max(0.0, row.time - open_[row.key]["time"])})
                 queue.extend(row.file_items())
         return Response.json(queue[-ACTIVITY_ENTRIES:])
-
-    def first(self) -> Environment:
-        return (self.environments.all() or [self.environments.lookup("main")])[0]

@@ -83,9 +83,6 @@ class Runtime:
         self.registered(AgentBarWrites)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
-        from journal.repositories.environments import Environments
-        if not self.container.get(Environments).all() and not self.container.get(TeamAccount).is_joined():
-            self.container.get(Environments).lookup("main")
 
     def start(self) -> None:
         from journal.features.faults.support.slow_requests import STARTING
