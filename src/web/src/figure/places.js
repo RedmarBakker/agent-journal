@@ -393,6 +393,17 @@ export function groundEdge() {
     return {element: bars, docked: true, edge: {left: box.left, width: box.width, top: box.top}};
 }
 
+// Whether the figure resting at `place` has room to step aside from what appeared under it: never while it stands on bars docked over the
+// compose box that span the box whole, `within` pixels, as a full-width card does, with nowhere beside them to step to; on narrower bars,
+// or anywhere else, it has
+export const SPANS = {within: 2};
+export function roomToStepAside(place) {
+    const {element, docked, edge} = groundEdge();
+    if (!docked || place.on !== element) return true;
+    const home = composeEdge().edge;
+    return edge.left > home.left + SPANS.within || edge.left + edge.width < home.left + home.width - SPANS.within;
+}
+
 // A docked card that has finished and closes by itself soon is marked for the figure; while the top one of the bars docked over the compose
 // box, the one the figure would stand on, is such a card, the ground at home is about to go
 export const CLOSING = "[data-figure-closing]";

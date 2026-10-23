@@ -82,6 +82,7 @@ import {
     watchLook,
     progressOf,
     hiddenAt,
+    roomToStepAside,
     spotOf,
     SEATED,
     seatedFacing,
@@ -797,7 +798,7 @@ function look() {
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
-    if (coveredSince() && !body.airborne && !body.place.stays) stepOutOf(boxAt(body.place, figureSize(), drawn));
+    if (coveredSince() && !body.airborne && !body.place.stays && roomToStepAside(body.place)) stepOutOf(boxAt(body.place, figureSize(), drawn));
     grantUnit();
     clearLeftPile();
     const target = targetFor({
