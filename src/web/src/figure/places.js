@@ -271,10 +271,26 @@ export function clearOf(box, figure, near, resting) {
 export function groundEdge() {
     const home = document.querySelector(HOME);
     const bars = home?.closest(".thread")?.querySelector(DOCKED_BARS);
-    const element = bars || home;
-    if (!element) return {element: null, docked: false, edge: {left: 0, width: window.innerWidth, top: window.innerHeight}};
+    if (!bars) return {...composeEdge(), docked: false};
+    const box = bars.getBoundingClientRect();
+    return {element: bars, docked: true, edge: {left: box.left, width: box.width, top: box.top}};
+}
+
+// The main chat's compose box and its top edge, whatever is docked over it, else the foot of the window: the floor the figure builds on
+export function composeEdge() {
+    const element = document.querySelector(HOME);
+    if (!element) return {element: null, edge: {left: 0, width: window.innerWidth, top: window.innerHeight}};
     const box = element.getBoundingClientRect();
-    return {element, docked: Boolean(bars), edge: {left: box.left, width: box.width, top: box.top}};
+    return {element, edge: {left: box.left, width: box.width, top: box.top}};
+}
+
+// Where the figure stands to build: on its feet on the compose box's top edge, whatever is docked over it, and kept there as bars dock
+// and go (`stays`, floors.js footingOn); beside the parcel when one stands there, `parcel.x` on the page and `parcel.beside` pixels from
+// the figure's feet, else at a free place along the edge
+export function buildSpot(figure, near, parcel) {
+    const {element, edge} = composeEdge();
+    const spot = parcel ? insideWorld({x: parcel.x - parcel.beside, y: edge.top, posture: "stand"}, figure) : freeSpot(homeStands(edge, figure), figure, near);
+    return spot && {...spot, view: null, on: element, stays: true};
 }
 
 // The trip of a figure resting at `place` to `spot` (tripBetween), from its picture in the posture it travels in where it is to its picture

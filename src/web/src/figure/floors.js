@@ -1,4 +1,4 @@
-import {HOME, boxAt, groundEdge, inWorld, worldBox} from "./places.js";
+import {HOME, boxAt, composeEdge, groundEdge, inWorld, worldBox} from "./places.js";
 
 // the chat's bubbles, which the figure walks, sits and hangs on
 const BUBBLE = "[data-figure-bubble]";
@@ -42,7 +42,8 @@ const velocity = (prev, floor, at) => {
     return was && ms > 0 && ms <= GAP_MS ? ((floor.top - was.top) / ms) * 1000 : 0;
 };
 
-// One read of the page: home is the ground at home (places.js groundEdge), and under everything the foot of the figure's world
+// One read of the page: home is the ground at home (places.js groundEdge); the compose box's top, under whatever is docked over it, is
+// the floor the figure builds on, which nothing but a figure building stands on; and under everything the foot of the figure's world
 export function readFloors(prev = snapshot, at = performance.now()) {
     const world = worldBox();
     const thread = threadOf();
@@ -50,6 +51,8 @@ export function readFloors(prev = snapshot, at = performance.now()) {
     const {element, docked, edge} = groundEdge();
     const read = [];
     if (element) read.push({id: "home", kind: docked ? "dock" : "compose", element, left: edge.left, right: edge.left + edge.width, top: edge.top});
+    const build = composeEdge();
+    if (build.element) read.push({id: floorOf(build.element), kind: "build", element: build.element, left: build.edge.left, right: build.edge.left + build.edge.width, top: build.edge.top});
     read.push(...elementFloors(thread, view));
     read.push({id: "foot", kind: "foot", left: world.left, right: world.right, top: world.bottom});
     return Object.freeze({at, world, view, floors: Object.freeze(read.map((floor) => Object.freeze({...floor, vy: velocity(prev, floor, at)})))});
@@ -85,10 +88,10 @@ const floorNamed = (floors, id) => floors.find((floor) => floor.id === id) ?? nu
 
 // What a figure resting on a spot keeps of it: the floor it rests on by id, the spot's place from that floor's left end and top, the
 // posture it rests in there, whether it rests at home, which is then whatever is the ground at home as bars dock over the compose box
-// and go, and the height of home and the moment `at` it was there; null when it rests on no floor on the page
+// and go, unless the spot `stays` on its own element, as where the figure builds; null when it rests on no floor on the page
 export function footingOn(spot, floors = readFloors().floors) {
     const home = floorNamed(floors, "home");
-    const id = !spot.on ? null : spot.on === home?.element ? "home" : floorOf(spot.on);
+    const id = !spot.on ? null : spot.on === home?.element && !spot.stays ? "home" : floorOf(spot.on);
     const floor = id && floorNamed(floors, id);
     if (!floor) return null;
     return {id, dx: spot.x - floor.left, dy: spot.y - floor.top, posture: spot.posture, home: id === "home"};

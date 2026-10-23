@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {afterEach, expect, test} from "vitest";
 
-const {readFloors} = await import("../src/figure/floors.js");
+const {footingOn, readFloors} = await import("../src/figure/floors.js");
 
 const CHAT = {left: 200, top: 100, right: 900, bottom: 800};
 const VIEW = {left: 200, top: 100, right: 900, bottom: 540};
@@ -36,13 +36,28 @@ test("home is the compose box, and only the bars docked over it while they are t
     page();
     expect(kinds(readFloors())).toEqual([
         ["compose", 600],
+        ["build", 600],
         ["foot", 800],
     ]);
     page({docked: {left: 300, right: 700, top: 556, bottom: 600}});
     expect(kinds(readFloors())).toEqual([
         ["dock", 556],
+        ["build", 600],
         ["foot", 800],
     ]);
+});
+
+test("where the figure builds it keeps to the compose box's top, as bars dock over it and go, never thrown up onto them", () => {
+    const home = page();
+    const building = {x: 400, y: 600, posture: "stand", on: home, stays: true};
+    const footing = footingOn(building);
+    expect(footing).toMatchObject({home: false, dx: 100, dy: 0});
+    expect(footingOn({...building, stays: false})).toMatchObject({id: "home", home: true});
+    const docked = page({docked: {left: 300, right: 700, top: 556, bottom: 600}});
+    const floors = readFloors().floors;
+    const under = footingOn({...building, on: docked}, floors);
+    expect(under).toMatchObject({home: false, dy: 0});
+    expect(floors.find((floor) => floor.id === under.id)).toMatchObject({kind: "build", top: 600});
 });
 
 test("a bubble keeps its floor's id while the chat scrolls it, and its speed is measured from the read before", () => {
@@ -71,6 +86,7 @@ test("a bubble scrolled out of the chat's view is no floor, and neither is a tab
     });
     expect(kinds(readFloors())).toEqual([
         ["compose", 600],
+        ["build", 600],
         ["bubble", 200],
         ["tab", 60],
         ["foot", 800],

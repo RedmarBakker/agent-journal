@@ -33,5 +33,5 @@ test("every prop a hand holds sits in that hand, in every frame of every clip th
             }
         }
     }
-    expect([...held]).toEqual(expect.arrayContaining(["magnifying_glass", "pocket_watch", "writing_pen", "hand_whistle", "work_hammer"]));
+    expect([...held]).toEqual(expect.arrayContaining(["magnifying_glass", "writing_pen", "hand_whistle", "work_hammer"]));
 });

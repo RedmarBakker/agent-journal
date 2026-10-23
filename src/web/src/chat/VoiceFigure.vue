@@ -34,7 +34,8 @@ import {
     withSystemCards,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {builds, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import CodeParcel from "./CodeParcel.vue";
 import {answerTo, eyesAt, lookOf, pastimeFor, stretchClip, walkingMoment, workMoments} from "../figure/reactions.js";
 import {
     clickedBody,
@@ -43,6 +44,7 @@ import {
     POSTURES,
     SPRINT,
     boxAt,
+    composeEdge,
     drawnIn,
     facingToward,
     gripIn,
@@ -60,6 +62,8 @@ import {store} from "../state/store.js";
 
 // The figure is this many pixels square, as the chat's flat figure is
 const SIZE = 112;
+// how far inside either end of the compose box's top the parcel stands at least, in pixels
+const PARCEL_INSIDE = 14;
 // how often the figure looks again at what the agent does and where things are, in milliseconds
 const LOOK_EVERY = 1000;
 const COMPOSE_TURN = 30;
@@ -119,6 +123,12 @@ let rolled = {stretch: "", clip: ""};
 let typed = false;
 let workBegan = 0;
 let walkBegan = 0;
+// The parcel of code the figure builds: none until it first hammers where it builds, then standing on the compose box's top `along`
+// pixels from its left end, at `at` on the page now, until the work is committed and it is `taken`; `beside` is how far the blows land
+// from the figure's feet, in pixels toward the viewer's right
+const parcel = ref(null);
+const parcelAt = ref({x: 0, y: 0});
+let beside = 0;
 const shownFrame = ref(0);
 const headAt = ref({x: 0.5, y: 0.3});
 
@@ -131,9 +141,11 @@ const drawnHere = (name) => hasClip(name) && canDraw(name, body.place.posture);
 const figureSize = () => ({size: SIZE, below: below.value});
 
 // the clip the figure's body shows for the stretch it is in
+// the clip the figure's body shows for the stretch it is in; while its agent runs a command and it has yet to get to where it builds, it
+// only stands by, so it never hammers on the way there
 function doing() {
     rolled = stretchClip(held.value.state, rolled, Math.random);
-    return rolled.shows;
+    return builds(held.value.state) && !body.place.stays ? "idle" : rolled.shows;
 }
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
@@ -232,6 +244,7 @@ function step() {
         stride,
     });
     headAt.value = player.headAt();
+    keepParcel(shown);
     frameTimer = requestAnimationFrame(step);
 }
 
@@ -511,6 +524,7 @@ function look() {
         ...facesAfter(rows("reactions"), seenAt),
     ];
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
+    if (parcel.value && committed(happened)) parcel.value = {...parcel.value, taken: true};
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
@@ -523,7 +537,7 @@ function look() {
     const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere);
     const after = [egg, pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
-    if (coveredSince() && !body.airborne) stepOutOf(boxAt(body.place, figureSize(), drawn));
+    if (coveredSince() && !body.airborne && !body.place.stays) stepOutOf(boxAt(body.place, figureSize(), drawn));
     const target = targetFor({
         state: held.value.state,
         counts: counts.value,
@@ -533,6 +547,7 @@ function look() {
         figure: figureSize(),
         hands,
         cleared,
+        parcel: parcel.value && !parcel.value.taken ? {x: parcelAt.value.x, beside} : null,
     });
     stay = target.stay;
     if (!body.trip && !body.arriving && !body.airborne) {
@@ -571,8 +586,24 @@ const bodyStyle = computed(() => {
         width: `${(clickable.right - clickable.left) * 100}%`,
         top: `${clickable.top * 100}%`,
         height: `${(clickable.bottom - clickable.top) * 100}%`,
+        // where it builds the figure stands over the bars docked above the compose box, and lets every click through to them
+        ...(body.place.stays && {pointerEvents: "none"}),
     };
 });
+
+// The parcel pops in the first frame the figure hammers where it builds, where its blows land, kept inside the compose box's top; it
+// stays on that floor as the box moves, until it is taken and gone
+function keepParcel(shown) {
+    const {edge} = composeEdge();
+    if (!parcel.value && shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip) {
+        const at = body.at.x + SIZE / 2 + beside - edge.left;
+        parcel.value = {along: Math.min(Math.max(at, PARCEL_INSIDE), edge.width - PARCEL_INSIDE), taken: false};
+    }
+    if (parcel.value) parcelAt.value = {x: edge.left + parcel.value.along, y: edge.top};
+}
+
+// the work is committed: the UFO comes for the parcel
+const committed = (happened) => happened.some((fire) => fire.beat === "committed");
 
 const onType = (event) => {
     if (event.target.closest?.(HOME)) typed = true;
@@ -630,6 +661,7 @@ async function load(name) {
         const {FigurePlayer} = await import("../figure/player.js");
         clips = module.CLIPS.filter((clip) => !clip.voices || clip.voices.includes(name));
         hands = [...loaded.stance.free];
+        beside = module.blowsLandAt(loaded.stance) * SIZE;
         testResultsAfter(lead.value, testStates);
         cardsAfter(lead.value, knownCards);
         below.value = module.GROUND;
@@ -738,6 +770,9 @@ const style = computed(() => ({
             </template>
         </div>
     </div>
+    <template v-if="parcel">
+        <CodeParcel :x="parcelAt.x" :y="parcelAt.y" :taken="parcel.taken" @gone="parcel = null" />
+    </template>
 </template>
 
 <style scoped>

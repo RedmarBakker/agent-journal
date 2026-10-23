@@ -275,12 +275,6 @@ export class Posing {
         this.props.set(name, {bone: "head", frame: "head", at: this.rig.heads.get("head").clone().add(new THREE.Vector3(...offset)), turn});
     }
 
-    // a prop standing on the ground the feet stand on, `offset` from under them at rest, kept there however the body is lifted or lowered
-    standProp(name, offset, turn = {}) {
-        const lifted = this.head("root", this.matrix("root")).sub(this.rig.heads.get("root"));
-        this.props.set(name, {bone: "root", frame: "root", at: new THREE.Vector3(...offset).sub(lifted), turn});
-    }
-
     // where the hand on `side` grips at rest, `offset` from its own grip
     grip(side, offset) {
         return this.rig.heads.get(`hand_${side}`).clone().add(new THREE.Vector3(SIDES[side] * (HAND.grip + offset[0]), HAND.forward + offset[1], offset[2]));
@@ -1037,11 +1031,9 @@ export const ACTING = {
     hopFrames: 20, stumbleFrames: 24,
     elbow: [1, -0.15, -0.35],
     wrist: [0.72, -0.72, 1.76],
-    supportLift: 0.22, watchLift: 0.3, whistleLift: 0.25, clothLift: 0.2, clothTurn: -90, compactFps: 6,
+    supportLift: 0.22, whistleLift: 0.25, clothLift: 0.2, clothTurn: -90, compactFps: 6,
     tap: 10, rock: 3, turn: 12, nod: 8,
     writeStroke: 0.035, writeHeight: 0.02,
-    pocket: [0.83, -0.35, 1.46],
-    watch: [0.74, -0.72, 2.04],
     glance: 22, hop: 0.18, stumble: 12,
     writingWrist: [0.38, -0.76, 2.1],
     yawnWrist: [0.48, -0.86, 2.12], whistleWrist: [0.48, -0.82, 2.2],
@@ -1056,9 +1048,9 @@ export const ACTING = {
 };
 export const WRITING = {butler: "writing_stylus", coach: "writing_pencil", colleague: "writing_pen", homie: "writing_marker", squire: "writing_quill"};
 const HELD_FRAMES = ACTING.intro + ACTING.hold + ACTING.outro;
-// The wait, one long round: the watch taken out and held up for over five seconds, put back, and a while of whistling idly before the
-// next look, so the watch is never taken out and put away again in a quick loop. Spans are shares of the held part.
-export const WAIT = {intro: 8, hold: 144, outro: 8, watchOut: [0.04, 0.12], watchBack: [0.6, 0.68], whistleSpan: [0.7, 0.98], beats: 12, sways: 3};
+// The wait, one long round: the figure turned toward the compose box, tapping its foot, and toward the end a while of whistling idly.
+// Spans are shares of the held part.
+export const WAIT = {intro: 8, hold: 144, outro: 8, whistleSpan: [0.7, 0.98], beats: 12, sways: 3};
 const WAIT_FRAMES = WAIT.intro + WAIT.hold + WAIT.outro;
 const READ_GAZE = {across: 0.04, top: 0.52, bottom: 0.44, forward: [0, -1, 0]};
 
@@ -1169,23 +1161,17 @@ function polish(pose, stance, t) {
     eyesAs(pose, rub > 0.5 ? "amused" : "reading");
 }
 
-// The watch is looked at long in the wait, then put away while the figure whistles idly, swaying, before it looks again.
+// The figure waits turned toward the compose box, tapping its foot, its arms hanging as they do standing idle, and whistles idly, swaying,
+// toward the end of the round; the butler sways only while he whistles.
 function waiting(pose, stance, t) {
     const {ready, phase} = waitTime(t);
     const butler = stance.voice === "butler";
-    const watch = butler ? rise(phase, ...WAIT.watchOut) * (1 - rise(phase, ...WAIT.watchBack)) * ready : 0;
     const tune = swell(phase, ...WAIT.whistleSpan) * ready;
     breathe(pose, 0);
-    trunk(pose, {turn: ACTING.turn * ready * (1 - watch), nod: ACTING.nod * (watch - tune / 2), lean: ACTING.rock * waveOf(phase, WAIT.sways) * (butler ? tune : ready)});
+    trunk(pose, {turn: ACTING.turn * ready, nod: -ACTING.nod * tune / 2, lean: ACTING.rock * waveOf(phase, WAIT.sways) * (butler ? tune : ready)});
     armsAtRest(pose, stance);
     pose.tap = ACTING.tap * Math.max(waveOf(phase, WAIT.beats), 0) * ready;
     if (pose.posture === "stand") pose.turn("foot_r", {x: pose.tap});
-    if (watch) {
-        const target = ACTING.pocket.map((value, axis) => mix(value, ACTING.watch[axis], watch));
-        propHand(pose, "r", watch, target);
-        pose.putAway(...IN_HAND);
-        if (watch > 0.5) pose.holdProp("pocket_watch", "r", [0, 0, ACTING.watchLift], {z: -90});
-    }
     if (tune) pose.shutEyes(1 - ACTING.whistleEyes * tune);
 }
 
@@ -1393,13 +1379,24 @@ function onTablet(pose, stance, side, stroke) {
     }
 }
 
-// One blow a loop: the hammer comes down quick, gathering speed, lands `lands` of the way through, and lifts back slower, easing up; the
-// wrist snaps the hammer's head `snap` degrees down into the blow. On its feet the figure turns side-on, `turn` degrees, its face in
-// profile toward the parcel the blow lands on, standing `parcel` from its feet at rest
-export const WORK = {lands: 0.3, snap: 50, turn: 80, parcel: [0.74, -1.27, 0]};
+// `blows` blows of `blowFrames` frames a loop, so the hammering plays at least ten seconds once it starts: each blow comes down quick,
+// gathering speed, lands `lands` of the way through, and lifts back slower, easing up; the wrist snaps the hammer's head `snap` degrees
+// down into the blow. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
+// `landsAt` from its feet at rest across and forward; the parcel stands on the page, not in the picture, so it never turns with the figure.
+export const WORK = {blows: 13, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, turn: 80, landsAt: [0.74, -1.27]};
 
 function blowOf(t) {
-    return t < WORK.lands ? 1 - (t / WORK.lands) ** 2 : ease(span(t, WORK.lands, 1));
+    const phase = (t * WORK.blows) % 1;
+    return phase < WORK.lands ? 1 - (phase / WORK.lands) ** 2 : ease(span(phase, WORK.lands, 1));
+}
+
+// Where the blows land in the picture of a figure of `stance` hammering on its feet, as a share of the picture's width from its middle,
+// toward the viewer's right
+export function blowsLandAt(stance) {
+    const sign = SIDES[freeSide(stance)];
+    const [across, forward] = WORK.landsAt;
+    const turn = radians(sign * WORK.turn);
+    return (sign * across * Math.cos(turn) - forward * Math.sin(turn)) / FRAMED_HEIGHT;
 }
 
 // hammers away with a hammer in the free hand, the body dipping into each blow
@@ -1413,10 +1410,7 @@ function work(pose, stance, t) {
     armsAtRest(pose, stance, [side]);
     armTo(pose, side, 1, {y: mix(75, 5, raised), z: -35, bend: mix(15, 70, raised)});
     pose.holdProp("work_hammer", side, [0, 0, 0], {x: WORK.snap * blow, z: TOOLS.hammer.tilt * SIDES[side]});
-    if (pose.posture !== "stand") return;
-    const [across, forward, up] = WORK.parcel;
-    pose.standProp("code_parcel", [SIDES[side] * across, forward, up], {z: -SIDES[side] * WORK.turn});
-    pose.revolve(SIDES[side] * WORK.turn);
+    if (pose.posture === "stand") pose.revolve(SIDES[side] * WORK.turn);
 }
 
 // points up at what waits for the user, looking at it, the arm bobbing a little
@@ -1919,7 +1913,7 @@ export const CLIPS = [
     {name: "startled", frames: ACTING.hopFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: startled},
     {name: "stumble", frames: ACTING.stumbleFrames, fps: ACTING.fps, loops: false, postures: ["walk"], pose: stumble},
     {name: "glance", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: glance},
-    {name: "work", frames: 8, fps: 10, loops: true, postures: GESTURE, pose: work},
+    {name: "work", frames: WORK.blows * WORK.blowFrames, fps: WORK.fps, loops: true, postures: ["stand", "sit"], pose: work},
     {name: "point", frames: 12, fps: 8, loops: true, postures: GESTURE, pose: point},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
@@ -2273,20 +2267,13 @@ export const TOOLS = {
     pen: {radius: 0.027, length: 0.58, tip: 0.08, sides: 12, markerScale: 1.8, pencilSides: 6, bandScale: 1.05, bandAt: 1 / 3},
     feather: {at: 1 / 4, points: [[0, 0], [-0.12, 0.18], [-0.08, 0.42], [0.03, 0.6], [0.14, 0.34], [0.1, 0.12]]},
     paper: {width: 1.58, depth: 0.54, thickness: 0.012, count: 4, spread: 0.04, tabletLayers: 3, screenWidth: 0.91, screenDepth: 0.85, screenLift: 2},
-    watch: {radius: 0.38, depth: 0.09, ring: 0.08, sides: 24, faceScale: 0.85, faceGap: 0.002, handDepth: 0.014,
-        minuteWidth: 0.024, minuteLength: 0.72, minuteAt: 0.25, minuteGap: 0.014,
-        hourWidth: 0.02, hourLength: 0.5, hourAt: 0.13, hourGap: 0.016, hourTurn: -Math.PI / 3,
-        ringTube: 0.02, ringRadialSegments: 8, ringTubularSegments: 16},
     whistle: {body: [0.13, 0.1, 0.16], mouthpiece: [0.08, 0.04, 0.15], mouthAt: [0, 0.01, -0.12]},
     cloth: {width: 0.35, depth: 0.26, thickness: 0.02},
     // a hammer held a little up its handle, its head across the top, tipped outward so each blow lands downward
     hammer: {handleRadius: 0.06, handleLength: 1.05, gripFrom: 0.15, head: [0.55, 0.22, 0.22], sides: 10, tilt: 45},
     // a stalk of straw held in the corner of the mouth, its seed head at the far end
     straw: {radius: 0.03, length: 0.7, head: [0.045, 0.16]},
-    // a cardboard parcel standing on its base, taped across the top, with lines of code on the side toward the viewer: each line's
-    // indent and length as shares of the side's width, from the top down
-    parcel: {box: [0.8, 0.56, 0.6], tape: 0.14, line: 0.045, margin: 0.12, lines: [[0, 0.55], [0.15, 0.6], [0.15, 0.4], [0, 0.3]]},
-    colours: {ink: 0x272936, silver: 0xa9adb8, paper: 0xf3eedf, white: 0xf4f2ed, accent: 0x6366f1, pencil: 0xd6b06b, handle: 0x8a5a2b, cardboard: 0xc99a5f, tape: 0xe3c58e, straw: 0xe8c66a},
+    colours: {ink: 0x272936, silver: 0xa9adb8, paper: 0xf3eedf, white: 0xf4f2ed, accent: 0x6366f1, pencil: 0xd6b06b, handle: 0x8a5a2b, straw: 0xe8c66a},
 };
 
 function propsOf() {
@@ -2306,7 +2293,7 @@ function propsOf() {
         root.add(mesh);
         return mesh;
     };
-    const {pen, paper, watch, cloth, colours} = TOOLS;
+    const {pen, paper, cloth, colours} = TOOLS;
     for (const name of Object.values(WRITING)) {
         const root = group(name);
         const marker = name === "writing_marker";
@@ -2347,14 +2334,6 @@ function propsOf() {
             sheet.rotation.y = paper.spread * index * (1 - square);
         });
     };
-    const clock = group("pocket_watch");
-    const rim = part(clock, "rim", new THREE.CylinderGeometry(watch.radius, watch.radius, watch.depth, watch.sides), colours.silver);
-    rim.rotation.x = Math.PI / 2;
-    part(clock, "face", new THREE.CircleGeometry(watch.radius * watch.faceScale, watch.sides), colours.white, [0, 0, watch.depth / 2 + watch.faceGap]);
-    part(clock, "minute", new THREE.BoxGeometry(watch.minuteWidth, watch.radius * watch.minuteLength, watch.handDepth), colours.ink, [0, watch.radius * watch.minuteAt, watch.depth / 2 + watch.minuteGap]);
-    const hour = part(clock, "hour", new THREE.BoxGeometry(watch.hourWidth, watch.radius * watch.hourLength, watch.handDepth), colours.ink, [watch.radius * watch.hourAt, 0, watch.depth / 2 + watch.hourGap]);
-    hour.rotation.z = watch.hourTurn;
-    part(clock, "ring", new THREE.TorusGeometry(watch.ring, watch.ringTube, watch.ringRadialSegments, watch.ringTubularSegments), colours.silver, [0, watch.radius + watch.ring, 0]);
     const whistle = group("hand_whistle");
     part(whistle, "body", new THREE.BoxGeometry(...TOOLS.whistle.body), colours.accent);
     part(whistle, "mouthpiece", new THREE.BoxGeometry(...TOOLS.whistle.mouthpiece), colours.silver, TOOLS.whistle.mouthAt);
@@ -2362,20 +2341,10 @@ function propsOf() {
     const mallet = group("work_hammer");
     part(mallet, "handle", new THREE.CylinderGeometry(hammer.handleRadius, hammer.handleRadius, hammer.handleLength, hammer.sides), colours.handle, [0, hammer.handleLength / 2 - hammer.gripFrom, 0]);
     part(mallet, "head", new THREE.BoxGeometry(...hammer.head), colours.silver, [0, hammer.handleLength - hammer.gripFrom, 0]);
-    const {straw, parcel} = TOOLS;
+    const {straw} = TOOLS;
     const stalk = group("straw");
     part(stalk, "stalk", new THREE.CylinderGeometry(straw.radius, straw.radius, straw.length, 6), colours.straw, [0, straw.length / 2, 0]);
     part(stalk, "seeds", new THREE.ConeGeometry(...straw.head, 6), colours.pencil, [0, straw.length + straw.head[1] / 2, 0]);
-    const [width, height, depth] = parcel.box;
-    const box = group("code_parcel");
-    part(box, "box", new THREE.BoxGeometry(width, height, depth), colours.cardboard, [0, height / 2, 0]);
-    part(box, "tape", new THREE.BoxGeometry(width + 0.01, 0.02, parcel.tape), colours.tape, [0, height, 0]);
-    const written = width - 2 * parcel.margin;
-    parcel.lines.forEach(([indent, length], index) => {
-        const top = height - parcel.margin - index * 2.2 * parcel.line;
-        const left = -width / 2 + parcel.margin + indent * written;
-        part(box, `line_${index}`, new THREE.PlaneGeometry(length * written, parcel.line), index % 2 ? colours.accent : colours.ink, [left + (length * written) / 2, top, depth / 2 + 0.006]);
-    });
     glassOf(group("magnifying_glass"));
     const wipe = group("polishing_cloth");
     part(wipe, "fold", new THREE.BoxGeometry(cloth.width, cloth.thickness, cloth.depth), colours.white);
