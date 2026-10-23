@@ -162,6 +162,7 @@ class WorkerRunner:
         current = current.with_(resume=resume or current.resume)
         if self.moves.is_remote(current):
             self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
+            self.moves.ended(current)
             return
         if not self.awaits_report(current):
             self.close(current, outcome, actor)

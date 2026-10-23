@@ -10995,6 +10995,8 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
 def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_journal(app: App, tmp_path, monkeypatch):
     import subprocess
 
+    from journal.sync.pull_queries import PullQueries
+
     from journal.features.workers.support.worker_branch import WorkerBranch
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.link import Link
@@ -11074,6 +11076,22 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         with app.container.get(Scope).environment(MAIN):
             assert workers.find(worker.id).state == WorkerState.DELIVERED and any("the parser is done" in message.text for message in app.container.get(Messages).all()), "the host clocks the worker out and posts its report in the dispatcher's chat"
         assert hosted_requests() == (), "each request is made once and finished"
+        printer = console.run(["task", "create", "the printer", "--brief", "the printer prints"], AGENT).text.split()[1]
+        app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
+        assert console.run(["worker", "dispatch", "Mr. Babbage", "--task", printer, "--changes", "the printer", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
+        app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
+        app.container.get(SyncClient).pulled(0)
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            babbage = [each for each in workers.all() if each.name == "Mr. Babbage"][0]
+            babbage = workers.save(babbage.with_(device=app.container.get(TeamAccount).device()), Actor.system())
+        assert console.run(["worker", "stop", str(babbage.id), "--why", "my machine needs its memory back"], USER).code == 0
+        asked = hosted_requests()
+        assert [(request.kind, request.body["reason"]) for request in asked] == [("worker_stopped", "my machine needs its memory back")], "the member whose machine runs it may stop it, and the stop is asked of the dispatcher's journal"
+        app.container.get(HostDesk).handle(asked)
+        with app.container.get(Scope).environment(MAIN):
+            assert workers.find(babbage.id).state == WorkerState.STOPPED, "where the dispatcher is told it was stopped"
+        assert app.container.get(PullQueries).query(0).pool.free == 1, "and the slot it took is free again"
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
@@ -11149,6 +11167,17 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
         with app.container.get(Scope).environment(MAIN):
             worker = app.container.get(Workers).all()[0]
         assert worker.state == WorkerState.UNFINISHED and "no machine of the team's pool took it up" in worker.run_end, "and the dispatcher's worker ends unfinished with the reason, so the agent is told"
+        printer = console.run(["task", "create", "the printer", "--brief", "the printer prints"], AGENT).text.split()[1]
+        assert console.run(["worker", "dispatch", "Mr. Babbage", "--task", printer, "--changes", "the printer", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
+        second = offered(bob)[-1]
+        team.host_requests.claimed(bob, second.id)
+        team.host_requests.lapse(team.clock.time() + 601)
+        quiet = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (app.container.get(Environments).existing("main").key,), PoolSlots(0, 0), VERSION)) if each.kind == "pool_machine_offline"]
+        assert len(quiet) == 1, "a claimed pool worker whose machine has not pulled for ten minutes is answered back to its environment's host"
+        app.container.get(HostDesk).handle(tuple(quiet))
+        with app.container.get(Scope).environment(MAIN):
+            babbage = [each for each in app.container.get(Workers).all() if each.name == "Mr. Babbage"][0]
+        assert babbage.state == WorkerState.UNFINISHED and "has not reached the team server for ten minutes" in babbage.run_end, "and the dispatcher is told its machine went quiet"
         app.container.get(HostDesk).handle(tuple(team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION))) + (answered[0].__class__(id=0, environment_key="k", kind="from a later version", body={}, account_id=1, created_at=0.0),))
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)

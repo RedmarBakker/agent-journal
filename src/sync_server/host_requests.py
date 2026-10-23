@@ -17,10 +17,11 @@ from sync_server.request_audience import RequestAudience
 
 POOL_WAIT_SECONDS = 600
 UNCLAIMED = "pool_unclaimed"
+OFFLINE_MACHINE = "pool_machine_offline"
 
 
 class HostRequests:
-    """Writes and jobs asked of other machines by any journal of the team, kept until a machine has made them, each for the person who asked, or for the person the hosted journal names as signed in to it. A request goes to its environment's host, to one device, or to the pool: a pool request is offered to every machine with a free slot on the version it names, taken by the one that claims it first, offered again when a machine declines it, and answered back to its environment's host as pool_unclaimed when nobody claims it in ten minutes. A new request wakes the held pulls, and each pull names the environments its machine hosts and the pool slots it offers. A host that has made a write a person asked of it may send that person's writes from then on."""
+    """Writes and jobs asked of other machines by any journal of the team, kept until a machine has made them, each for the person who asked, or for the person the hosted journal names as signed in to it. A request goes to its environment's host, to one device, or to the pool: a pool request is offered to every machine with a free slot on the version it names, taken by the one that claims it first, offered again when a machine declines it, answered back to its environment's host as pool_unclaimed when nobody claims it in ten minutes, and as pool_machine_offline when the machine that claimed it has not pulled for ten minutes before it ended. A new request wakes the held pulls, and each pull names the environments its machine hosts and the pool slots it offers. A host that has made a write a person asked of it may send that person's writes from then on."""
 
     def __init__(self, rows: HostRequestRows, capacities: PoolCapacityRows, devices: Devices, log: ChangeLog) -> None:
         self.rows, self.capacities, self.devices, self.log = rows, capacities, devices, log
@@ -59,11 +60,16 @@ class HostRequests:
 
     def lapse(self, moment: float) -> None:
         unclaimed = [HostRequest.stored(row) for row in self.rows.unclaimed_pool(moment - POOL_WAIT_SECONDS)]
-        for request in unclaimed:
-            self.rows.finish(request.id, 0, moment)
-            self.rows.insert(HostRequestDraft(request.environment_key, UNCLAIMED, {"request": request.id, "kind": request.kind, "body": request.body}, request.account_id, moment))
-        if unclaimed:
+        quiet = [HostRequest.stored(row) for row in self.rows.claimed_by_quiet_devices(moment - POOL_WAIT_SECONDS)]
+        for kind, requests in ((UNCLAIMED, unclaimed), (OFFLINE_MACHINE, quiet)):
+            for request in requests:
+                self.answered_back(request, kind, moment)
+        if unclaimed or quiet:
             self.log.wake()
+
+    def answered_back(self, request: HostRequest, kind: str, moment: float) -> None:
+        self.rows.finish(request.id, 0, moment)
+        self.rows.insert(HostRequestDraft(request.environment_key, kind, {"request": request.id, "kind": request.kind, "body": request.body}, request.account_id, moment))
 
     def finished(self, token: str, id: int, finished_at: float) -> HostRequestList:
         self.rows.finish(id, self.devices.person(token).id, finished_at)

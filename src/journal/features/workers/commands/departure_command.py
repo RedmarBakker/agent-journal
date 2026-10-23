@@ -6,8 +6,6 @@ from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.actor import Actor
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
-from journal.models.pool_job_state import PoolJobState
-from journal.repositories.pool_jobs import PoolJobs
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.proof_state import ProofState
 from journal.models.support.ref import Ref
@@ -27,8 +25,8 @@ class DepartureCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, jobs: PoolJobs, moves: PoolWorkerMoves) -> None:
-        self.workers, self.tasks, self.proofs, self.reports, self.branch, self.jobs, self.moves = workers, tasks, proofs, reports, branch, jobs, moves
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves) -> None:
+        self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof").add_argument("report")
@@ -64,8 +62,7 @@ class DepartureCommand(Command):
         outcome = self.branch.git("push", "origin", f"{self.branch.name(worker)}:refs/heads/{PoolDispatch.branch(worker)}", cwd=self.branch.folder(worker))
         if outcome.returncode != 0:
             raise Rejection(f"your branch could not be pushed to origin for the agent that sent you: {outcome.stderr.strip()}; fix it and clock out again")
-        for job in self.jobs.all_matching(worker_id=worker.id, state=PoolJobState.STARTED):
-            self.jobs.save(job.finished(), Actor.system())
+        self.moves.ended(worker)
 
     def unproved(self, task: Task) -> list[int]:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}

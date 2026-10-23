@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.worker_branch import WorkerBranch
+from journal.features.workers.support.pool_worker_moves import STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
@@ -40,9 +41,9 @@ SENT_BACK = "sent back"
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, a word told while it runs, a stop, a retire."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
-        self.account = account
+        self.account, self.moves = account, moves
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -196,9 +197,18 @@ class WorkerActions:
 
     def stop(self, n: int, reason: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            worker = self.workers.save(self.local(n).stopped(datetime.now(timezone.utc).timestamp(), reason), actor)
+            worker = self.local(n)
+            if self.moves.is_remote(worker):
+                return self.pool_stop(worker, reason, actor)
+            worker = self.workers.save(worker.stopped(datetime.now(timezone.utc).timestamp(), reason), actor)
             self.runner.stop(worker)
             return worker
+
+    def pool_stop(self, worker: Worker, reason: str, actor: Actor) -> Worker:
+        self.runner.stop(worker)
+        self.moves.ask(worker, STOPPED, {"reason": reason}, actor)
+        self.moves.ended(worker)
+        return worker
 
     def complete(self, n: int, reason: str, actor: Actor) -> tuple[Worker, str]:
         with self.runner.lock(n):

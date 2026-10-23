@@ -19,7 +19,7 @@ from journal.sync.team_server_link import TeamServerLink
 
 
 class PoolJobIntake(Listener[PoolJobArrived]):
-    """Takes up a worker the team's pool offered this machine, off the sync thread: turns it down while every slot this machine gives is taken, claims it so no other machine starts it, fetches its base, turns it down when the libraries it links here were installed from lockfiles other than its base's, cuts its worktree from it, runs it on the model its profile names here and tells the team server it is taken up. A job whose worker row has not reached this machine yet is forgotten, so the next pull brings it again; one that cannot be cut is turned down with the reason, so the server offers it to another machine."""
+    """Takes up a worker the team's pool offered this machine, off the sync thread: turns it down while every slot this machine gives is taken, claims it so no other machine starts it, fetches its base, turns it down when the libraries it links here were installed from lockfiles other than its base's, cuts its worktree from it, runs it on the model its profile names here keeping the request claimed until the worker ends, so the team server knows the machine is running it. A job whose worker row has not reached this machine yet is forgotten, so the next pull brings it again; one that cannot be cut is turned down with the reason, so the server offers it to another machine."""
 
     def __init__(self, jobs: PoolJobs, link: TeamServerLink, workers: Workers, runner: WorkerRunner, branch: WorkerBranch, settings: SettingRows, scope: Scope, environments: Environments, providers: Providers, profiles: ProfileFiles, lockfiles: PoolLockfiles) -> None:
         self.jobs, self.link, self.workers, self.runner, self.branch, self.settings = jobs, link, workers, runner, branch, settings
@@ -63,7 +63,6 @@ class PoolJobIntake(Listener[PoolJobArrived]):
             return
         self.runner.start(self.workers.save(local.with_(repositories=repositories), Actor.user(job.account_id)), Actor.user(job.account_id))
         self.jobs.save(job.started(), Actor.system())
-        self.link.finish_host_request(job.request_id)
 
     def declined(self, job: PoolJob, reason: str) -> None:
         self.link.decline_request(job.request_id, reason)
