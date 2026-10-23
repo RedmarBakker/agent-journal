@@ -47,11 +47,11 @@ watch(
                 <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
             </span>
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="opened ? 'Fold the output' : 'Show the whole output'" @click="toggle">{{ message.text }}</button>
+            <template v-if="card.count">
+                <span class="watch-dock-figure">{{ card.count }}</span>
+            </template>
             <template v-if="card.ending">
                 <span class="watch-dock-ending">{{ card.ending }}</span>
-            </template>
-            <template v-else-if="card.count">
-                <span class="watch-dock-figure">{{ card.count }}</span>
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
@@ -71,7 +71,7 @@ watch(
                 </template>
             </ul>
         </template>
-        <template v-if="card.count">
+        <template v-if="card.count || card.fraction">
             <div class="watch-dock-bar" :data-figure-bar="card.ending ? card.tone || 'ended' : ''" :data-figure-began="createdAt(message)">
                 <div class="watch-dock-fill" :style="{width}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>

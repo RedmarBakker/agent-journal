@@ -67,3 +67,22 @@ test("a docked run shows its state as a dot in place of its icon, pulsing while 
         ["bad", "var(--tone-bad)", []],
     ]);
 });
+
+test("a docked test run shows how many passed and failed while it runs and keeps them at its end", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const running = {...watched, data: {...watched.data, count: "7 passed, 1 failed"}};
+    app = createApp({render: () => h(WatchDock, {message: running})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".watch-dock-figure").textContent).toBe("7 passed, 1 failed");
+    app.unmount();
+    const ended = {...watched, data: {...watched.data, count: "15 passed, 1 failed", ending: "failed with code 1", tone: "bad"}};
+    app = createApp({render: () => h(WatchDock, {message: ended})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".watch-dock-figure").textContent).toBe("15 passed, 1 failed");
+    expect(host.querySelector(".watch-dock-ending").textContent).toBe("failed with code 1");
+});

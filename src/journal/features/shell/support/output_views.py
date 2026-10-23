@@ -71,10 +71,12 @@ class OutputViews:
 
     def count(self, output: CommandOutput) -> str:
         files = OutputFiles(Path(output.folder))
-        if output.ended or not output.watch_reader or not files.is_stored():
+        if not output.watch_reader or not files.is_stored():
             return ""
-        progress = self.readers.lookup(output.watch_reader).progress(files.lines())
-        return progress.count_text() if progress.is_known() else ""
+        reader, lines = self.readers.lookup(output.watch_reader), files.lines()
+        progress, tally = reader.progress(lines), reader.tally(lines)
+        steps = progress.count_text() if progress.is_known() and not output.ended else ""
+        return " · ".join(part for part in (steps, tally.text() if tally.is_known() else "") if part)
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:
         return "\n".join(self.card_lines(output, view) or self.ending_lines(output))
