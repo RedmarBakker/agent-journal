@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-C2hWEL-0.js
-import{A as ye,p as Id,a as Dd,b as ke,h as yl,s as Nd,g as Ud,c as Od,P as Xi,L as Fd,d as Bd,V as kd}from"./main-EHFBl5dO.js";import"./tokens-nXp686mH.js";import"./tip-CICcXxQo.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as ye,p as Id,a as Dd,b as ke,h as yl,s as Nd,g as Ud,c as Od,P as Xi,L as Fd,d as Bd,V as kd}from"./main-BQdPIN18.js";import"./tokens-nXp686mH.js";import"./tip-7VDmi990.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> cd2077e35 (Hammering, the avatar looks at the box's top and every blow stops dead on it, the hammer's head resting on the surface before it lifts; taking a built box round, pushing and stacking it, it looks ahead the way it goes, never at the box; it builds only where there is room behind the box to push it from):src/web/dist/assets/figure-C-YzKXMr.js
+import{A as ye,p as Id,a as Dd,b as ke,h as yl,s as Nd,g as Ud,c as Od,P as Xi,L as Fd,d as Bd,V as kd}from"./main-CqLhR5ab.js";import"./tokens-nXp686mH.js";import"./tip-CICcXxQo.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
