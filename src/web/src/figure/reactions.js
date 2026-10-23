@@ -113,9 +113,8 @@ export const pastimeOf = (state, held, memory, now, random, voice = "", has = ()
 // salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES)
 export const flips = (height, size, random, memory, now) => draw({moment: "jump", high: height > FLIP_OVER * size, memory, now}, random).name === "backflip";
 
-// the moments each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle,
-// working while it hammers, types, reads or searches, and resting while it stands idle
-const WHILE = {work: ["building", "working"], type: ["working"], read: ["working"], search: ["working"], idle: ["standing", "resting"]};
+// the moments each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle
+const WHILE = {work: ["building"], idle: ["standing"]};
 
 // The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, the moment of the held clip
 // (WHILE), pondering while the agent thinks, and the end of a stretch of work that lasted WORKED_SECONDS. `began` is when the work in hand

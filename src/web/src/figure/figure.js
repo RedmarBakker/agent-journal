@@ -719,11 +719,6 @@ export const EYES = {
     worried: {open: 0.7, tint: [0.6, 0.75, 1]},
     angry: {open: 0.45, tint: [1, 0.35, 0.3]},
     reading: {open: 0.8, tint: null},
-    focused: {open: 1, tint: null, shape: "focused"},
-    narrowed: {open: 1, tint: null, shape: "narrowed"},
-    bright: {open: 1, tint: null, shape: "bright"},
-    calm: {open: 1, tint: null, shape: "calm"},
-    eyeing: {open: 1, tint: null, shape: "eyeing"},
 };
 
 function eyesAs(pose, mood, strength = 1) {
@@ -3173,10 +3168,9 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
             eyes.hearts.push(shapeOver(mesh, HEART, HEART_COLOUR));
             eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
             eyes.squeezed.push(Object.assign(shapeOver(mesh, SQUEEZE, SQUEEZE_COLOUR), {userData: {way: mesh.name === "eye_l" ? -1 : 1}}));
-            const side = mesh.name === "eye_l" ? 1 : -1;
             for (const [name, {geometry, glows}] of Object.entries(EYE_SHAPES)) {
-                eyes.over.push(Object.assign(shapeOver(mesh, geometry, SQUEEZE_COLOUR), {userData: {name, side, halo: false}}));
-                if (glows) eyes.over.push(Object.assign(haloOver(mesh, geometry), {userData: {name, side, halo: true}}));
+                eyes.over.push(Object.assign(shapeOver(mesh, geometry, SQUEEZE_COLOUR), {userData: {name, halo: false}}));
+                if (glows) eyes.over.push(Object.assign(haloOver(mesh, geometry), {userData: {name, halo: true}}));
             }
         }
     }
@@ -3987,41 +3981,9 @@ const SQUEEZE = (() => {
 })();
 const SQUEEZE_SIZE = 0.5;
 const SQUEEZE_COLOUR = new THREE.Color(1, 0.94, 0.81);
-// the half of a round eye below its middle, its top flat as a lowered lid
-const LIDDED = (() => {
-    const shape = new THREE.Shape();
-    shape.absarc(0, 0, 0.5, Math.PI, 2 * Math.PI, false);
-    shape.closePath();
-    return new THREE.ShapeGeometry(shape, 16);
-})();
-
-// The shapes the eyes take on in place of their smile, in the eyes' own ivory, each `size` across and moved `aside` and `up` on the visor,
-// one that is `mirrored` drawn the other way round on the figure's right eye, so the two face each other: focused, narrowed to a flat oval at work; narrowed and serious, a bar sloping down toward the nose, at a failure; bright, a
-// thick happy arch with a sparkle beside it, at a pass; calm, half-lidded, at rest; and eyeing, half-lidded and turned aside, at something that catches
-// the eye
+// The shapes the eyes take on in place of their arcs, never a filled-in eye: a run's end shown in them (visor.js SIGN), each glowing in the
+// visor's colour with a soft halo about it, a cross and a tick, `size` across and moved `aside` and `up` on the visor
 export const EYE_SHAPES = {
-    focused: {geometry: (() => {
-        const shape = new THREE.Shape();
-        shape.absellipse(0, 0, 0.5, 0.2, 0, 2 * Math.PI, false, 0);
-        return new THREE.ShapeGeometry(shape, 24);
-    })(), size: 0.42, aside: 0, up: 0},
-    narrowed: {geometry: new THREE.ShapeGeometry(new THREE.Shape([[-0.5, -0.12], [0.5, 0.14], [0.5, -0.06], [-0.5, -0.3]].map(([x, y]) => new THREE.Vector2(x, y)))), size: 0.44, aside: 0, up: 0, mirrored: true},
-    bright: {geometry: (() => {
-        const arch = new THREE.Shape();
-        arch.absarc(0, -0.2, 0.5, 0, Math.PI, false);
-        arch.absarc(0, -0.2, 0.26, Math.PI, 0, true);
-        arch.closePath();
-        const sparkle = new THREE.Shape();
-        for (let point = 0; point < 8; point++) {
-            const reach = point % 2 ? 0.05 : 0.17;
-            const way = (point * Math.PI) / 4;
-            sparkle[point ? "lineTo" : "moveTo"](0.62 + reach * Math.cos(way), 0.38 + reach * Math.sin(way));
-        }
-        return new THREE.ShapeGeometry([arch, sparkle], 16);
-    })(), size: 0.46, aside: 0, up: 0, mirrored: true},
-    calm: {geometry: LIDDED, size: 0.38, aside: 0, up: -0.02},
-    eyeing: {geometry: LIDDED, size: 0.32, aside: 0.13, up: 0},
-    // a run's end shown in the eyes (visor.js SIGN), each glowing in the visor's colour with a soft halo about it: a cross, and a tick
     cross: {geometry: new THREE.ShapeGeometry([[-1, 1], [1, -1]].map(([from, to]) => new THREE.Shape([[-0.5 * from, 0.5], [-0.5 * from + 0.18 * to, 0.5], [0.5 * from, -0.5], [0.5 * from - 0.18 * to, -0.5]].map(([x, y]) => new THREE.Vector2(x, y))))), size: 0.4, aside: 0, up: 0, glows: true},
     tick: {geometry: new THREE.ShapeGeometry(new THREE.Shape([[-0.5, 0.02], [-0.32, 0.18], [-0.12, -0.04], [0.36, 0.52], [0.52, 0.36], [-0.12, -0.36]].map(([x, y]) => new THREE.Vector2(x, y)))), size: 0.42, aside: 0, up: 0, glows: true},
 };
@@ -4125,12 +4087,12 @@ function place(figure, pose, facing, blend) {
     // a sign glows in the visor's colour, as white as its flash and as bright as it is lit
     const sign = pose.screen?.sign;
     for (const over of figure.eyes.over) {
-        const {name, side, halo} = over.userData;
+        const {name, halo} = over.userData;
         over.visible = eyed && shaped?.name === name;
         if (!over.visible) continue;
-        const {size, aside, up, mirrored} = EYE_SHAPES[name];
+        const {size, aside, up} = EYE_SHAPES[name];
         const grown = size * (halo ? HALO.size : 1);
-        over.scale.set(grown * (mirrored ? side : 1), grown * Math.max(shaped.strength, MIN_EYE_HEIGHT), 1);
+        over.scale.set(grown, grown * Math.max(shaped.strength, MIN_EYE_HEIGHT), 1);
         over.position.set(aside * shaped.way, up, halo ? -HALO.behind : 0);
         if (sign) over.material.color.setRGB(...pose.screen.colour.map((part) => (part + (1 - part) * sign.white) * sign.lit));
         if (halo) over.material.opacity = HALO.opacity * (sign?.lit ?? 1);

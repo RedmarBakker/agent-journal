@@ -1,51 +1,47 @@
-// @vitest-environment node
+import {readFileSync} from "node:fs";
+import {dirname} from "node:path";
+import {fileURLToPath} from "node:url";
+import * as THREE from "three";
 import {describe, expect, it} from "vitest";
-import {EYES, EYE_SHAPES, LOOK_EASE, lookStrength} from "../src/figure/figure.js";
-import {LOOK_SECONDS, reactionTo, workMoments} from "../src/figure/reactions.js";
+import {CLIPS, EYES, EYE_SHAPES, LOOK_EASE, Posing, lookStrength} from "../src/figure/figure.js";
+import {PILE} from "../src/figure/pile.js";
+import {LOOK_SECONDS} from "../src/figure/reactions.js";
 
-// the look the eyes take on at `moment`, on any of a hundred rolls through its tickets, or none
-const looksAt = (moment) => new Set(Array.from({length: 100}, (_, index) => reactionTo(moment, new Map(), 0, () => (index + 0.5) / 100)?.look).filter(Boolean));
+const {rig, stances} = JSON.parse(readFileSync(`${dirname(fileURLToPath(import.meta.url))}/figureRig.json`));
+const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [name, new THREE.Vector3(...at)]));
+const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), heads: vectors(rig.heads), along: vectors(rig.along), eyes: rig.eyes.map((at) => new THREE.Vector3(...at))};
+const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 
-// the moments of the agent's work, by name, while the agent is in `state`
-const momentsIn = (state) => workMoments(state, false, 0, 1).moments.map((moment) => moment.beat);
+// the eye shapes approved in place of the eyes' arcs: the crosses and the ticks at a run's end (visor.js SIGN)
+const APPROVED = ["cross", "tick"];
+const FRAMES = 12;
 
-const LOOKS = {working: "focused", failing: "narrowed", passing: "bright", resting: "calm", glancing: "eyeing"};
-
-describe("the eyes' looks", () => {
-    it("has a shape of its own for working, failing, passing, resting and glancing", () => {
-        const shapes = Object.values(LOOKS).map((mood) => EYES[mood].shape);
-        expect(shapes).toEqual(Object.values(LOOKS));
-        for (const shape of shapes) expect(EYE_SHAPES[shape], shape).toBeDefined();
-        const drawn = shapes.map((shape) => {
-            const {geometry, size, aside, up, mirrored} = EYE_SHAPES[shape];
-            return JSON.stringify([geometry.uuid, size, aside, up, Boolean(mirrored)]);
-        });
-        expect(new Set(drawn).size, "no two drawn alike").toBe(shapes.length);
-    });
-
-    it("plays each at its moment: focused while the agent works, narrowed at a failure, bright at a pass, calm at rest, eyeing at a new card", () => {
-        for (const state of ["writing", "reading", "searching", "building"]) expect(momentsIn(state), state).toContain("working");
-        expect(momentsIn("thinking"), "thinking keeps its own round eyes").not.toContain("working");
-        expect(momentsIn("idle")).toContain("resting");
-        expect(looksAt("working")).toEqual(new Set(["focused"]));
-        expect(looksAt("tests_failed")).toEqual(new Set(["narrowed"]));
-        expect(looksAt("failed")).toEqual(new Set(["narrowed"]));
-        expect(looksAt("tests_passed")).toEqual(new Set(["bright"]));
-        expect(looksAt("check_passed")).toEqual(new Set(["bright"]));
-        expect(looksAt("resting")).toEqual(new Set(["calm"]));
-        expect(looksAt("card_arrived")).toEqual(new Set(["eyeing"]));
-    });
-
-    it("comes and goes, not a fixed face: each look now and then, with a cooldown between", () => {
-        for (const moment of ["working", "resting"]) {
-            expect(reactionTo(moment, new Map(), 0, () => 0.99), `${moment} not every time`).toBe(null);
-            const memory = new Map();
-            expect(reactionTo(moment, memory, 100, () => 0)?.look, moment).toBeDefined();
-            expect(reactionTo(moment, memory, 105, () => 0), `${moment} not again at once`).toBe(null);
+describe("the eyes keep their arcs", () => {
+    it("walks every act of every voice and finds no filled, oval or round eye shape drawn", () => {
+        for (const voice of Object.keys(stances)) {
+            for (const clip of CLIPS.filter((each) => !each.voices || each.voices.includes(voice))) {
+                for (let frame = 0; frame < FRAMES; frame++) {
+                    const pose = new Posing(RIG, clip.postures[0], 0);
+                    clip.pose(pose, stanceOf(voice), frame / FRAMES);
+                    expect(pose.eyeShape, `${voice} ${clip.name} ${frame}`).toBe(null);
+                }
+            }
         }
     });
 
-    it("eases into the shape and back to the usual eyes", () => {
+    it("draws no shape in place of the eyes but the crosses and ticks, and no look takes on a shape", () => {
+        expect(Object.keys(EYE_SHAPES).sort()).toEqual(APPROVED);
+        for (const [mood, look] of Object.entries(EYES)) expect(look.shape, mood).toBeUndefined();
+        const looks = PILE.filter((entry) => entry.kind === "look").map((entry) => entry.name);
+        for (const mood of looks) expect(EYES[mood]?.shape, mood).toBeUndefined();
+        for (const gone of ["focused", "narrowed", "bright", "calm", "eyeing", "pondering"]) {
+            expect(EYES[gone], gone).toBeUndefined();
+            expect(EYE_SHAPES[gone], gone).toBeUndefined();
+            expect(looks, gone).not.toContain(gone);
+        }
+    });
+
+    it("eases a look in and back to the usual eyes", () => {
         const at = (seconds) => lookStrength({seconds, lasts: LOOK_SECONDS});
         expect(at(0)).toBe(0);
         expect(at(LOOK_EASE.into / 2)).toBeGreaterThan(0);
@@ -54,10 +50,5 @@ describe("the eyes' looks", () => {
         expect(at(LOOK_SECONDS - LOOK_EASE.out / 2)).toBeGreaterThan(0);
         expect(at(LOOK_SECONDS - LOOK_EASE.out / 2)).toBeLessThan(1);
         expect(at(LOOK_SECONDS)).toBe(0);
-        const steps = Array.from({length: 31}, (_, index) => at((index / 30) * LOOK_SECONDS));
-        const rising = steps.slice(0, 16);
-        rising.slice(1).forEach((each, index) => expect(each).toBeGreaterThanOrEqual(rising[index]));
-        const falling = steps.slice(15);
-        falling.slice(1).forEach((each, index) => expect(each).toBeLessThanOrEqual(falling[index]));
     });
 });

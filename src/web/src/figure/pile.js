@@ -76,9 +76,9 @@ const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name], apart
 export const PILE = [
     // a test run's end: celebrated on its card, or a start at a failure; a pass soon after a failure is the bug solved, most often shot
     // as it crawls into the chat instead of the visor's glow
-    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), look("bright", 2), nothing(1)]),
+    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), nothing(1)]),
     ...at("tests_fixed", {cooldown: 20, toward: "card", onto: true}, [{...showpiece(clip("bug_shot", 3)), toward: "", onto: false}, ...celebrations()]),
-    ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), look("narrowed", 2), nothing(1)]),
+    ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [...celebrations(), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
     // a worker sent off or another session messaged: a call on the telephone, at most one in a minute and a half
@@ -87,21 +87,18 @@ export const PILE = [
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("look_up", 3), nothing(8)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
-    ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [...celebrations(), look("bright", 3), nothing(9)]),
+    ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [...celebrations(), nothing(9)]),
     // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes;
     // either holds, playing to its end whatever comes, as the eagerness before it does (figure.js eager)
     ...at("bar_done", {holds: true}, celebrations()),
     ...at("bar_failed", {holds: true}, [clip("fume", 1)]),
     // standing still or thinking, it glances aside now and then, at uneven times, so standing still is never the same loop
     ...at("standing", {cooldown: 12}, [clip("look_left", 2), clip("look_right", 2), clip("look_up", 1), nothing(40)]),
-    // the eyes now and then: focused while it works, half-lidded and calm while it stands idle, never a fixed face
-    ...at("working", {cooldown: 25}, [look("focused", 1), nothing(1)]),
-    ...at("resting", {cooldown: 20}, [look("calm", 1), nothing(2)]),
     // landing from a launch it very rarely trips and falls to its knees
     ...at("launched", {cooldown: 300}, [clip("tumble", 3), nothing(47)]),
     // a break from the hammering now and then
     ...at("building", {cooldown: 30}, [clip("wipe_brow", 4), clip("look_left", 1), clip("look_right", 1), nothing(69)]),
-    ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), look("narrowed", 3), nothing(2)]),
+    ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), nothing(2)]),
     ...at("refused", {cooldown: 20}, [clip("shake", 1), nothing(1)]),
     ...at("work_done", {cooldown: 120}, [clip("stretch", 2), nothing(3)]),
     // while the agent thinks, the thinking act, at most once in 30 to 60 seconds, and nothing of thinking between plays; its two parts
@@ -118,7 +115,7 @@ export const PILE = [
         nothing(1),
     ]),
     ...at("long_walk", {cooldown: 90}, [clip("stumble", 3), nothing(22)]),
-    ...at("card_arrived", {cooldown: 20, toward: "card"}, [clip("glance", 7), look("eyeing", 4), nothing(13)]),
+    ...at("card_arrived", {cooldown: 20, toward: "card"}, [clip("glance", 7), nothing(13)]),
     ...at("typing", {cooldown: 60}, [look("reading", 1), nothing(4)]),
     // a face the user puts on a message changes the eyes, every time; one the agent puts on in its voice is played out, every time
     ...Object.entries(USER_FACES).flatMap(([face, mood]) => at(`reacted:${face}`, {}, [look(mood, 1)])),

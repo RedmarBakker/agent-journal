@@ -132,9 +132,9 @@ test("every moment the figure acts out has more than one way to play it, picks a
     const joyAlone = ["check_passed", "tests_passed", "committed"];
     for (const moment of [...Object.keys(JOURNAL), "tests_passed", "committed", "building", "standing"]) {
         expect(played(moment).length, moment).toBeGreaterThan(joyAlone.includes(moment) ? 0 : 1);
-        expect(picks(of(moment), (random) => reactionTo(moment, new Map(), 0, random)?.clip ?? reactionTo(moment, new Map(), 0, random)?.look ?? "nothing"), moment).toEqual(of(moment).map((each) => each.name));
+        expect(picks(of(moment), (random) => reactionTo(moment, new Map(), 0, random)?.clip ?? "nothing"), moment).toEqual(of(moment).map((each) => each.name));
     }
-    expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}, {beat: "working", time: 5}]);
+    expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}]);
     // searching, typing and watching the UFO, each picked again for each stretch
     expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "flashlight", "peek_under"]);
     for (const clip of ["search", "type", "watch", "compacting"]) {
