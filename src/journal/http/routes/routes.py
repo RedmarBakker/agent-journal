@@ -139,6 +139,7 @@ class Routes:
         router.post(f"{API}/docks/{{table}}/{{id}}/undock", get(DockController).undock)
         environments = get(EnvironmentController)
         router.get(f"{API}/environments/sessions", environments.sessions)
+        router.get(f"{API}/environments/filling", environments.filling)
         self.listed(router, "environments", environments)
         router.post(f"{API}/environments", environments.store)
         self.acts(router, "environments", environments, "launch", "stop", "remove")

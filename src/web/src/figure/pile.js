@@ -17,10 +17,10 @@ import {playedLeast} from "./timeline.js";
 export const SHENANIGAN = {after: 3};
 
 // The showpiece acts and how long each waits before it may play again once it has, in seconds, so they stay special: the run up to the
-// parachute at most every 20 minutes, the disco dance and the rope swing about every 15, the salto on a jump up, the pogo stick and the bug
+// parachute at most every 20 minutes, the disco dance at most every 2 hours and rarely then, the rope swing about every 15, the salto on a jump up, the pogo stick and the bug
 // shot about every 6; the tickle swats come as often as the user tickles. A cooldown only takes an act out of the draw while it lasts;
 // its weight is its own.
-export const SHOWPIECES = {hop_up: 20 * 60, disco: 15 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, tickle_swat: 0};
+export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, tickle_swat: 0};
 
 // While a test run, a build or a check runs, building a server unit is drawn far above doing nothing, but one unit at most every `every`
 // seconds
@@ -135,7 +135,7 @@ export const PILE = [
         {...showpiece(clip("hop_up", 2)), flies: true},
         // on a rare occasion it disco dances under a disco ball, only standing on a bubble with another above it to hang the ball from
         // (perches.js discoBall)
-        showpiece(clip("disco", 8, {ball: "bubble"})),
+        showpiece(clip("disco", 2, {ball: "bubble"})),
         nothing(560),
     ]),
     // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner or

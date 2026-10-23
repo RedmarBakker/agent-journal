@@ -41,6 +41,9 @@ class EnvironmentController(Controller[Environment]):
     def sessions(self, request: Request) -> Response:
         return Response.json(self.hydration.past_sessions())
 
+    def filling(self, request: Request) -> Response:
+        return Response.json({"percent": self.hydration.filled_percent(request.query.get("name", ""))})
+
     def launch(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
         refusal = self.starts.refusal(environment, request.actor.number())

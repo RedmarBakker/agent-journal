@@ -13,7 +13,7 @@ SHOWN_ROUTES = 3
 
 @dataclass(frozen=True)
 class SlowRequestTally:
-    """The slow requests one chat mark holds: each route's count and worst time, how many gathered since the agent was last informed and the slowest of them, when the last arrived and when the agent was last informed."""
+    """The slow requests counted since the boot: each route's count and worst time, how many gathered since the agent was last informed and the slowest of them, when the last arrived and when the agent was last informed."""
 
     routes: Mapping[str, RouteTime] = field(default_factory=lambda: MappingProxyType({}))
     gathered: int = 0
@@ -21,11 +21,6 @@ class SlowRequestTally:
     slowest_ms: int = 0
     flagged_at: float = 0.0
     reported_at: float = 0.0
-
-    @classmethod
-    def parsed(cls, data: SlowRequestData) -> "SlowRequestTally":
-        routes = {route: RouteTime(count, worst_ms) for route, (count, worst_ms) in data["routes"].items()}
-        return cls(MappingProxyType(routes), data["gathered"], data["slowest_route"], data["slowest_ms"], data["flagged_at"], data["reported_at"])
 
     def flagged(self, route: str, ms: int, moment: float) -> "SlowRequestTally":
         routes = MappingProxyType({**self.routes, route: self.routes.get(route, RouteTime()).added(ms)})

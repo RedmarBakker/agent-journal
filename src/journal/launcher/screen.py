@@ -13,6 +13,9 @@ HINT = "↑ ↓ to move · Enter to pick · a number to jump · Esc to leave"
 ACTION_HINTS = {"x": "x to delete"}
 
 
+SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
 class Screen:
     """The terminal the boot menu draws on: a banner once, then one question at a time in the space under it, each moved through with the arrow keys. Without a terminal to draw on, the same questions are numbered lines answered by typing."""
 
@@ -50,6 +53,11 @@ class Screen:
             return input().strip()
         except EOFError:
             return ""
+
+    def progress(self, frame_number: int, line: str) -> None:
+        spinner_character = SPINNER[frame_number % len(SPINNER)]
+        self.out.write(f"\r  {self.paint(ACCENT, spinner_character)} {line}\x1b[K" if self.interactive else f"  {line}\n")
+        self.out.flush()
 
     def summary(self, rows: list[tuple[str, str]]) -> None:
         self._clear_screen()

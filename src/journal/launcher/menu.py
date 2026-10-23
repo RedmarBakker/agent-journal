@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import TypeVar
 
@@ -16,6 +17,7 @@ from journal.launcher.screen import Screen
 from journal.providers.providers import Providers
 
 SESSIONS_SHOWN = 12
+FILL_POLL_SECONDS = 0.3
 ListedRow = TypeVar("ListedRow", EnvironmentRow, PastSessionRow)
 
 
@@ -38,9 +40,15 @@ class Menu:
 
     def journal(self, *argv: str) -> str:
         try:
-            return subprocess.run([sys.executable, str(self.journal_py), *argv], cwd=self.root, capture_output=True, text=True, timeout=30, env={"JOURNAL_ROOT": str(self.root), "PATH": "/usr/bin:/bin:/usr/local/bin"}).stdout
+            return subprocess.run(self.command(argv), cwd=self.root, capture_output=True, text=True, timeout=30, env=self.command_environment()).stdout
         except (OSError, subprocess.TimeoutExpired):
             return ""
+
+    def command(self, argv: tuple[str, ...]) -> list[str]:
+        return [sys.executable, str(self.journal_py), *argv]
+
+    def command_environment(self) -> dict[str, str]:
+        return {"JOURNAL_ROOT": str(self.root), "PATH": "/usr/bin:/bin:/usr/local/bin"}
 
     def environment_rows(self, name: str, rows: list) -> list:
         if name in {row.name for row in rows}:
@@ -90,8 +98,19 @@ class Menu:
         if index == 0:
             return ""
         session = sessions[index - 1]
-        self.journal("environment", "create", name, "--session", session.session, "--provider", session.provider)
+        self.fill_chat(name, session)
         return session.session
+
+    def fill_chat(self, name: str, session: PastSessionRow) -> None:
+        creation = subprocess.Popen(self.command(("environment", "create", name, "--session", session.session, "--provider", session.provider)),
+                                    cwd=self.root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=self.command_environment())
+        frame_number = 0
+        while creation.poll() is None:
+            percent = self.journal("environment", "filling", name).strip() or "0"
+            self.screen.progress(frame_number, f"Filling {name}'s chat from the conversation: {percent}%")
+            frame_number += 1
+            time.sleep(FILL_POLL_SECONDS)
+        self.screen.progress(frame_number, f"Filled {name}'s chat from the conversation.")
 
     def _delete(self, row: EnvironmentRow) -> None:
         if row.working:

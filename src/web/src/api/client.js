@@ -444,6 +444,11 @@ export class ApiClient {
         return this.get("/environments/sessions");
     }
 
+    // how far a new environment's chat has been filled from its past session, in percent, null when it is not being filled
+    filledPercent(name) {
+        return this.get(`/environments/filling?name=${encodeURIComponent(name)}`);
+    }
+
     pauseAgent(id) {
         return this.act("agents", id, "pause");
     }

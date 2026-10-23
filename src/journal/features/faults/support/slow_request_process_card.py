@@ -7,7 +7,7 @@ from journal.support.card_kind import CardKind
 
 
 class SlowRequestProcessCard(ProcessCard):
-    """The process card of the slow requests: how many went over their budget, and the slowest routes with their worst time and count, updated in place at each slow request."""
+    """The process card of the slow requests: how many went over their budget, and the slowest routes with their worst time and count, written each time the agent is told of them."""
 
     KEY = "slow:requests"
     name = "slow_request"

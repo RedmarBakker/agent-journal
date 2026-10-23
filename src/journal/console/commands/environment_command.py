@@ -56,6 +56,7 @@ class EnvironmentCommand(Command):
         creation.add_argument("--session", help="a kept conversation's session to fill the new environment's chat from, as journal environment sessions lists them")
         creation.add_argument("--provider", default="claude", help="the program that kept that session")
         self.verb(verbs, "sessions", "the project's kept conversations a new environment can carry on from, for the boot menu")
+        self.verb(verbs, "filling", "how far a new environment's chat has been filled from its past session, in percent, for the boot menu").add_argument("name")
         branch = self.verb(verbs, "branch", "record the branch an environment's worktree works on, as the launcher does when it makes one")
         branch.add_argument("name")
         branch.add_argument("branch")
@@ -141,6 +142,10 @@ class EnvironmentCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         environment = self.hydration.created(args.name, args.provider, args.session, caller.actor) if args.session else self.environments.lookup(args.name)
         print(f"environment {environment.id}: {environment.name}")
+        return 0
+
+    def filling(self, args: Namespace, caller: Caller) -> int:
+        print(self.hydration.filled_percent(args.name))
         return 0
 
     def sessions(self, args: Namespace, caller: Caller) -> int:

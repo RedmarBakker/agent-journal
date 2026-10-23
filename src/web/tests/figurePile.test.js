@@ -183,7 +183,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip headphones ×4 when moment=pastime free=true lasted=45 voices=homie, cut after 3s",
         "clip shield_polish ×4 when moment=pastime free=true lasted=45 voices=squire, cut after 3s",
         "shenanigan clip hop_up ×2 when moment=pastime, plays out",
-        "shenanigan clip disco ×8 when moment=pastime ball=bubble, plays out",
+        "shenanigan clip disco ×2 when moment=pastime ball=bubble, plays out",
         "nothing nothing ×560 when moment=pastime",
         "clip search ×3 when moment=held:search, plays out",
         "clip binoculars ×2 when moment=held:search, plays out",
@@ -239,9 +239,9 @@ test("every animation in the pile, with its weight and the condition it plays un
     for (const entry of PILE.filter((each) => each.kind === "clip")) expect(clips.has(entry.name), entry.name).toBe(true);
 });
 
-test("each showpiece waits its own cooldown, listed in one place: the parachute 20 minutes, the disco and the rope swing 15, the salto, the pogo stick and the bug shot 5 to 8, the tickle swats none", () => {
+test("each showpiece waits its own cooldown, listed in one place: the parachute 20 minutes, the disco 2 hours, the rope swing 15, the salto, the pogo stick and the bug shot 5 to 8, the tickle swats none", () => {
     expect(SHOWPIECES.hop_up).toBe(20 * 60);
-    expect([SHOWPIECES.disco, SHOWPIECES.rope_swing]).toEqual([15 * 60, 15 * 60]);
+    expect([SHOWPIECES.disco, SHOWPIECES.rope_swing]).toEqual([2 * 60 * 60, 15 * 60]);
     for (const name of ["backflip", "pogo", "bug_shot"]) expect(SHOWPIECES[name] >= 5 * 60 && SHOWPIECES[name] <= 8 * 60, name).toBe(true);
     expect(SHOWPIECES.tickle_swat).toBe(0);
     // every showpiece in the pile takes its cooldown from the list, kept apart from the other acts of its moment

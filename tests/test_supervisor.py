@@ -54,11 +54,12 @@ def test_a_new_environment_in_the_menu_may_carry_on_from_a_past_conversation_or_
     shown = []
     menu = menu_answering(tmp_path, monkeypatch, ["3", "login", "2", "1", "2"])
     menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
+    menu.fill_chat = lambda name, session: calls.append(("filled", name, session.session, session.provider))
     real_pick = menu.screen.pick
     menu.screen.pick = lambda heading, notes, options, default: shown.append((heading, options)) or real_pick(heading, notes, options, default)
     choice = menu.choose("claude")
     assert choice.environment == "login" and choice.resume == "old-1", "the picked conversation is carried on, with no second question"
-    assert ("environment", "create", "login", "--session", "old-1", "--provider", "claude") in calls, "the picked conversation fills the new environment"
+    assert ("filled", "login", "old-1", "claude") in calls, "the picked conversation fills the new environment"
     options = next(options for heading, options in shown if heading.startswith("Carry on from a past conversation"))
     assert [option.label for option in options] == ["Start fresh", "fix the login page"], "only the launched program's free sessions, each by its first line"
     assert options[1].separate, "Start fresh stands apart from the conversations"
@@ -66,8 +67,9 @@ def test_a_new_environment_in_the_menu_may_carry_on_from_a_past_conversation_or_
     calls.clear()
     menu = menu_answering(tmp_path, monkeypatch, ["3", "fresh", "1", "1", "2"])
     menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
+    menu.fill_chat = lambda name, session: calls.append(("filled", name, session.session, session.provider))
     assert menu.choose("claude").environment == "fresh"
-    assert not [call for call in calls if "--session" in call], "start fresh fills nothing"
+    assert not [call for call in calls if call[0] == "filled"], "start fresh fills nothing"
 
 
 def test_the_hooks_question_is_asked_even_when_no_other_hooks_are_found_yet(tmp_path: Path, monkeypatch):

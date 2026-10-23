@@ -1233,7 +1233,7 @@ def test_a_task_the_reply_names_is_linked_to_the_message_it_answers_however_old(
     assert [ref.id for ref in app.container.get(Links).targets(requested, Messages.SUBJECT_LINK)] == [1], "your message carries the task the reply names, whenever it was filed"
 
 
-def test_slow_requests_gather_in_one_mark_and_one_line_told_once_they_go_quiet_or_ten_gathered_and_again_after_the_repeat_minutes(app: App, monkeypatch):
+def test_slow_requests_are_counted_in_memory_and_written_as_one_mark_only_when_the_agent_is_told(app: App, monkeypatch):
     from journal.engine.clock import Clock
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.repositories.messages import Messages
@@ -1249,7 +1249,6 @@ def test_slow_requests_gather_in_one_mark_and_one_line_told_once_they_go_quiet_o
     with app.container.get(Scope).environment(MAIN):
         slow.measured("GET", "/journal/plans", 80)
         slow.measured("GET", "/journal/messages/12/read", 70)
-        assert marks() == [], "nothing is judged in the first minute after a start"
         slow.started -= 120
         slow.measured("GET", "/journal/docs", 200)
         slow.measured("GET", "/journal/plans", 30)
@@ -1258,13 +1257,24 @@ def test_slow_requests_gather_in_one_mark_and_one_line_told_once_they_go_quiet_o
         slow.measured("GET", "/journal/messages/12/read", 70)
         slow.measured("GET", "/journal/messages/12/read", 400)
         app.runtime().deferred.drain()
-    assert [(m.text, m.data["routes"]) for m in marks()] == [("Slow requests: 4 over budget", {"GET /journal/plans": [2, 95], "GET /journal/messages/{n}/read": [2, 400]})], "one mark for every slow request, each route with its count and worst time; a request inside its budget not counted, nor a route's first since the boot, which loads its code"
-    assert "GET /journal/messages/{n}/read worst 400 ms, 2 times" in marks()[0].data["detail"], "the mark names the slowest routes"
-    assert lines() == [] and not any("over its budget" in t for t in keystrokes), "no line per request, and none while they still come"
-    flagged_at = marks()[0].data["flagged_at"]
+    assert marks() == [] and lines() == [], "slow requests are counted in memory: no message is written and no line typed while they still come"
+    written = len(app.container.get(Messages).all())
+    with app.container.get(Scope).environment(MAIN):
+        for _ in range(500):
+            slow.measured("GET", "/journal/messages", 900)
+        app.runtime().deferred.drain()
+    assert len(app.container.get(Messages).all()) == written, "a flood of slow requests writes nothing to the chat, so the viewer's reads of the chat can never set off more of them"
+    slow.slow_tally = slow.slow_tally.__class__()
+    with app.container.get(Scope).environment(MAIN):
+        for path, ms in (("/journal/plans", 80), ("/journal/plans", 95), ("/journal/messages/12/read", 70), ("/journal/messages/12/read", 400)):
+            slow.measured("GET", path, ms)
+        app.runtime().deferred.drain()
+    flagged_at = slow.slow_tally.flagged_at
     with app.container.get(Scope).environment(MAIN):
         slow.report_gathered(flagged_at + 31)
     assert lines() == ["[journal] 4 slow requests, the worst GET /journal/messages/{n}/read at 400 ms: journal developer slowest"], "thirty seconds without another, the agent is told once how many gathered and the worst"
+    assert [(m.text, m.data["routes"]) for m in marks()] == [("Slow requests: 4 over budget", {"GET /journal/plans": [2, 95], "GET /journal/messages/{n}/read": [2, 400]})], "and the one mark is written then, each route with its count and worst time"
+    assert "GET /journal/messages/{n}/read worst 400 ms, 2 times" in marks()[0].data["detail"], "the mark names the slowest routes"
     told_at = flagged_at + 31
     for minutes, said in ((10, 1), (16, 2)):
         monkeypatch.setattr(Clock, "time", lambda self, at=told_at + minutes * 60: at)
@@ -1274,6 +1284,7 @@ def test_slow_requests_gather_in_one_mark_and_one_line_told_once_they_go_quiet_o
             slow.report_gathered(told_at + minutes * 60 + 31)
         assert len(lines()) == said, f"{minutes} minutes after it was told, the gathered requests are told {said} times: again once fifteen minutes have passed, and not before"
     assert lines()[-1].startswith("[journal] 2 slow requests"), "the second line counts what gathered since the first"
+    assert len(marks()) == 1, "the mark is one message, written again in place at each report"
     monkeypatch.setattr(Clock, "time", lambda self, at=told_at + 3600: at)
     with app.container.get(Scope).environment(MAIN):
         for _ in range(10):
@@ -1288,10 +1299,6 @@ def test_slow_requests_gather_in_one_mark_and_one_line_told_once_they_go_quiet_o
         app.runtime().deferred.drain()
         slow.report_gathered(told_at + 7300)
     assert len(lines()) == 3, "0 tells it once only"
-    slow.measured("GET", "/journal/environments", 90)
-    slow.measured("GET", "/journal/environments", 90)
-    app.runtime().deferred.drain()
-    assert any("GET /journal/environments" in m.data.get("routes", {}) for m in app.container.get(Messages).all()), "a request that named no environment is marked in the live agent's, never failing on the missing one"
     runtime = app.config.home / "runtime"
     runtime.mkdir(parents=True, exist_ok=True)
     (runtime / "tests.running.999999").touch()
@@ -11834,3 +11841,23 @@ def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_o
         each.join()
     with scope.environment(MAIN):
         assert len(app.container.get(Messages).keyed("watch:77", Actor.system())) == 1, "shows of one output at once leave one mark"
+
+
+
+def test_filling_an_environment_reports_how_far_it_has_come(app: App, tmp_path, monkeypatch):
+    import re
+    from journal.features.hydration.support.session_hydration import SessionHydration
+    from journal.repositories.messages import Messages
+    config = tmp_path / "claude-config"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    folder = config / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(app.config.root.resolve()))
+    folder.mkdir(parents=True)
+    rows = [{"type": "user" if n % 2 == 0 else "assistant", "message": {"content": f"prompt {n}"} if n % 2 == 0 else {"content": [{"type": "text", "text": f"reply {n}"}]}, "timestamp": f"2026-10-01T10:{n // 60:02d}:{n % 60:02d}Z"} for n in range(40)]
+    (folder / "long-session.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    hydration = app.container.get(SessionHydration)
+    steps = []
+    imported = Messages.imported
+    monkeypatch.setattr(Messages, "imported", lambda self, *args: (steps.append(hydration.filled_percent("long")), imported(self, *args))[1])
+    hydration.created("long", "claude", "long-session", Actor.user(1))
+    assert steps[0] == 0 and steps[-1] == 100 and steps == sorted(steps) and len(set(steps)) > 10, "the percentage climbs from 0 to 100 as the chat fills"
+    assert hydration.filled_percent("long") == 0, "and is back to nothing once the environment is filled"

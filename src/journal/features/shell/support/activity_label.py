@@ -36,6 +36,8 @@ class ActivityLabel:
 
     @staticmethod
     def working_part(part: str) -> str:
+        if not part.strip().startswith("("):
+            return part
         unwrapped = part.strip().removeprefix("(").removesuffix(")")
         commands = [command.strip() for command in CHAIN_SEPARATOR.split(unwrapped) if command.strip()]
         return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else part)

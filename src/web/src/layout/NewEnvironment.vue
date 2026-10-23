@@ -5,6 +5,7 @@ import {PROVIDER_CHOICES} from "../domain/agents.js";
 import Btn from "../kit/Btn.vue";
 import Dialog from "../kit/Dialog.vue";
 import Segmented from "../kit/Segmented.vue";
+import Spinner from "../kit/Spinner.vue";
 import Switch from "../kit/Switch.vue";
 import TextInput from "../kit/TextInput.vue";
 import {ago} from "../format/time.js";
@@ -29,10 +30,20 @@ function pick(row) {
 
 watch(field, (input) => input && input.$el.focus());
 
+const FILL_POLL_MS = 400;
+const filled = ref(null);
+
+// how far the chat is filled from the chosen session, read every so often while the environment is made
+function watchFilling(environment) {
+    const timer = setInterval(async () => (filled.value = (await api.filledPercent(environment)).percent), FILL_POLL_MS);
+    return () => clearInterval(timer);
+}
+
 async function create() {
     if (!name.value.trim() || busy.value) return;
     error.value = "";
     busy.value = true;
+    const stopWatching = session.value ? watchFilling(name.value.trim()) : () => {};
     try {
         const from = session.value ? {provider: session.value.provider, session: session.value.session} : {};
         made = made || (await api.create("environments", {name: name.value.trim(), ...from}));
@@ -41,6 +52,8 @@ async function create() {
     } catch (e) {
         error.value = e.message;
     } finally {
+        stopWatching();
+        filled.value = null;
         busy.value = false;
     }
 }
@@ -86,6 +99,9 @@ async function create() {
             </template>
         </div>
         <template #foot>
+            <template v-if="filled !== null">
+                <span class="new-env-filling"><Spinner /> Filling the chat from the conversation: {{ filled }}%</span>
+            </template>
             <span class="new-env-space" />
             <Btn small @click="emit('close')">Cancel</Btn>
             <Btn kind="primary" small :busy="busy" :disabled="!name.trim()" @click="create">Create</Btn>
@@ -125,6 +141,14 @@ async function create() {
     width: min(320px, 100%);
     color: var(--text-2);
     font-size: 12.5px;
+}
+
+.new-env-filling {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-3);
+    font-size: 12px;
 }
 
 .new-env-sessions {
