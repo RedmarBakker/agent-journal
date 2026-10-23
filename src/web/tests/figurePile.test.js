@@ -62,7 +62,7 @@ test("an act may be cut off by the next moment only as the pile says and once it
     expect(cutsAfter("rest", 2)).toBe(false);
     expect(cutsAfter("rest", 3)).toBe(true);
     // a fall, a backflip, a crane's grab, a celebration play out
-    for (const name of ["fall", "backflip", "tumble", "joy", "party_horn", "phone_call"]) expect(cutsAfter(name, 60), name).toBe(false);
+    for (const name of ["fall", "backflip", "tumble", "joy", "phone_call"]) expect(cutsAfter(name, 60), name).toBe(false);
     // the longer acts that may be cut, longer than three seconds, must have played three first
     const seconds = (name) => {
         const clip = CLIPS.find((each) => each.name === name);
@@ -74,21 +74,17 @@ test("an act may be cut off by the next moment only as the pile says and once it
 test("every animation in the pile, with its weight and the condition it plays under, and whether it may be cut or plays out", () => {
     expect(PILE.map(lineOf)).toEqual([
         "clip joy ×2 when moment=tests_passed, plays out",
-        "clip party_horn ×1 when moment=tests_passed, plays out",
         "nothing nothing ×1 when moment=tests_passed",
         "shenanigan clip bug_shot ×3 when moment=tests_fixed, plays out",
         "clip joy ×2 when moment=tests_fixed, plays out",
-        "clip party_horn ×1 when moment=tests_fixed, plays out",
         "clip startled ×2 when moment=tests_failed, plays out",
         "clip dismay ×1 when moment=tests_failed, plays out",
         "nothing nothing ×1 when moment=tests_failed",
         "clip joy ×2 when moment=committed, plays out",
-        "clip party_horn ×1 when moment=committed, plays out",
         "nothing nothing ×2 when moment=committed",
         "clip phone_call ×1 when moment=messaged, plays out",
         "clip nod ×4 when moment=task_finished, cut after 1s",
         "clip joy ×2 when moment=task_finished, plays out",
-        "clip party_horn ×1 when moment=task_finished, plays out",
         "nothing nothing ×7 when moment=task_finished",
         "clip ask_sign ×9 when moment=question_asked, plays out",
         "clip think ×3 when moment=question_asked, cut after 1s",
@@ -100,10 +96,8 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip nod ×1 when moment=fact_filed, cut after 1s",
         "nothing nothing ×6 when moment=fact_filed",
         "clip joy ×2 when moment=check_passed, plays out",
-        "clip party_horn ×1 when moment=check_passed, plays out",
         "nothing nothing ×9 when moment=check_passed",
         "clip joy ×2 when moment=bar_done, plays out",
-        "clip party_horn ×1 when moment=bar_done, plays out",
         "clip fume ×1 when moment=bar_failed, plays out",
         "clip look_left ×2 when moment=standing, cut after 1s",
         "clip look_right ×2 when moment=standing, cut after 1s",
@@ -299,5 +293,9 @@ test("a finished task never brings the stamp: no stamp in the pile or among the 
     expect(Object.keys(ACTS)).not.toContain("stamp");
     const drawn = new Set();
     for (let share = 0; share < 1; share += 0.01) drawn.add(draw({moment: "task_finished"}, () => share)?.name ?? "nothing");
-    expect([...drawn].sort()).toEqual(["joy", "nod", "nothing", "party_horn"]);
+    expect([...drawn].sort()).toEqual(["joy", "nod", "nothing"]);
+});
+
+test("every celebrated moment draws the jump for joy", () => {
+    for (const moment of ["tests_passed", "tests_fixed", "committed", "task_finished", "check_passed", "bar_done"]) expect(choicesFor({moment}).some((entry) => entry.name === "joy"), moment).toBe(true);
 });

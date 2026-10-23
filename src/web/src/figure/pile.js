@@ -61,8 +61,8 @@ const nothing = (weight) => ({name: "nothing", kind: "nothing", weight, when: {}
 // with a cooldown of its own still waits the moment's, `moment` seconds after any of them played
 const at = (moment, shared, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}, ...(shared.cooldown && {waits: shared.cooldown})}));
 
-// the ways the figure celebrates: a jump for joy with its hands up, a party horn blown
-const celebrations = () => [clip("joy", 2), clip("party_horn", 1)];
+// the way the figure celebrates: a jump for joy with its hands up
+const celebrations = () => [clip("joy", 2)];
 
 // the idle acts, while the figure has nothing to do: each once the state has lasted `lasted` seconds, apart from the others, and so
 // weighted against nothing that one is played about every half minute, looked for every second

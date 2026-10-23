@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {ACTS, heldPhases, hornOpen, partOf, ropeDown, standingAt} from "../figure/acts.js";
+import {ACTS, heldPhases, partOf, ropeDown, standingAt} from "../figure/acts.js";
 import {POSTURES} from "../figure/places.js";
 
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
@@ -129,13 +129,6 @@ const unrolled = computed(() => partOf(props.u, act.value.unrolls) * (1 - partOf
 const drawer = computed(() => partOf(props.u, act.value.opens) * (1 - partOf(props.u, act.value.shuts)));
 const filed = computed(() => partOf(props.u, act.value.filed));
 
-// the party horn at the mouth: unrolled with each blow, coiled up between them
-const horn = computed(() => {
-    const blown = hornOpen(props.u);
-    const up = partOf(props.u, act.value.raise) * (1 - partOf(props.u, act.value.lower));
-    return {x: head.value.x + out.value * 4, y: head.value.y + 9, length: 4 + 24 * blown, coil: 5 * (1 - blown) + 1, up};
-});
-
 // the flashlight's beam into the dark corner beside the figure, its lit end moving as the hand does
 const corner = computed(() => ({x: middle.value + out.value * px(0.5), y: floor.value - 10}));
 const beam = computed(() => {
@@ -231,14 +224,6 @@ const flap = computed(() => {
                     <rect :x="stand.x - 10 - 1.5 * drawer" :y="stand.top + 2" :width="20 + 3 * drawer" height="10" rx="1" :fill="COLOURS.wood" />
                     <rect :x="stand.x - 10" :y="stand.top + 14" width="20" height="10" rx="1" :fill="COLOURS.wood" />
                     <path :d="`M${stand.x - 3} ${stand.top + 7}h6M${stand.x - 3} ${stand.top + 19}h6`" stroke-width="1.4" />
-                </g>
-            </template>
-
-            <template v-if="name === 'party_horn' && horn.up > 0">
-                <g :transform="`translate(${horn.x} ${horn.y}) scale(${out} 1)`" :opacity="Math.min(horn.up * 3, 1)">
-                    <path d="M0 -1.6 4 -1 4 1 0 1.6Z" :fill="COLOURS.gold" />
-                    <rect x="4" y="-1.4" :width="horn.length" height="2.8" :fill="COLOURS.red" stroke-width="0.6" />
-                    <circle :cx="4 + horn.length" :cy="-horn.coil + 1.4" :r="horn.coil" fill="none" :stroke="COLOURS.red" stroke-width="2.6" />
                 </g>
             </template>
 

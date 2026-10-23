@@ -12,7 +12,7 @@ const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).ma
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
 const ACTED = ["phone_call", "ask_sign", "scroll", "file_card"];
-const NEW = ["ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
+const NEW = ["ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
     for (const name of [...ACTED, ...NEW]) {
@@ -42,11 +42,11 @@ const cooldownOf = (moment) => played(moment)[0].cooldown;
 const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 
 const JOURNAL = {
-    task_finished: ["nod", "joy", "party_horn"],
+    task_finished: ["nod", "joy"],
     question_asked: ["ask_sign"],
     reported: ["scroll"],
     fact_filed: ["file_card"],
-    check_passed: ["joy", "party_horn"],
+    check_passed: ["joy"],
 };
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
@@ -128,8 +128,10 @@ test("every moment the figure acts out has more than one way to play it, picks a
     // the journal moments, the celebrations and the breaks from the hammering
     // the journal moments, the celebrations, the breaks from the hammering and the glances from standing still; a message sent is the
     // telephone call alone (figureCall.test.js)
+    // a pass, a passed check and a commit are celebrated by the jump for joy alone
+    const joyAlone = ["check_passed", "tests_passed", "committed"];
     for (const moment of [...Object.keys(JOURNAL), "tests_passed", "committed", "building", "standing"]) {
-        expect(played(moment).length, moment).toBeGreaterThan(1);
+        expect(played(moment).length, moment).toBeGreaterThan(joyAlone.includes(moment) ? 0 : 1);
         expect(picks(of(moment), (random) => reactionTo(moment, new Map(), 0, random)?.clip ?? "nothing"), moment).toEqual(of(moment).map((each) => each.name));
     }
     expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}]);
@@ -237,7 +239,7 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     expect(eagerFor(redrawn(0.97), fumed, () => 0, 126)).toEqual({eager: fumed, moment: null});
     expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 127).moment).toBe(null);
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
-    expect(of("bar_done").map((each) => each.name)).toEqual(["joy", "party_horn"]);
+    expect(of("bar_done").map((each) => each.name)).toEqual(["joy"]);
     // only the bar going ends it with nothing to mark
     expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {run: 100, on: false}, moment: null});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
@@ -335,21 +337,6 @@ const posedAt = (name, voice, t) => {
     return pose;
 };
 
-test("blown, the party horn shoots open at once, stays open over a second, rolls back up a little slower, the head turned to the side", () => {
-    const {frames, fps, opens, rolls} = ACTS.party_horn;
-    const seconds = (share) => (share * frames) / fps;
-    expect(seconds(opens[1] - opens[0])).toBeLessThan(0.2);
-    expect(seconds(rolls[0] - opens[1])).toBeGreaterThanOrEqual(1);
-    expect(seconds(rolls[0] - opens[1])).toBeLessThanOrEqual(1.5);
-    expect(seconds(rolls[1] - rolls[0])).toBeGreaterThan(seconds(opens[1] - opens[0]));
-    expect(hornOpen((opens[1] + rolls[0]) / 2)).toBe(1);
-    expect([hornOpen(0), hornOpen(1)]).toEqual([0, 0]);
-    for (const voice of Object.keys(stances)) {
-        const {head, chest} = facingsOf(posedAt("party_horn", voice, (opens[1] + rolls[0]) / 2));
-        expect(Math.abs(head - chest), voice).toBeGreaterThan(35);
-    }
-});
-
 test("now and then an edit, a read or a search sets the figure at its work for a spell it is plainly seen at, kept while its agent works on, and not again too soon", () => {
     const spell = spellFor("writing", null, 100, () => 0);
     expect(spell.state).toBe("writing");
@@ -423,24 +410,6 @@ test("falls are snappy: the tumble drops to its knees in a quarter of a second w
     expect(TUMBLE.bounce[0]).toBe(TUMBLE.down[1]);
     const land = clipNamed("land");
     expect(land.frames / land.fps).toBeLessThanOrEqual(0.35);
-});
-
-test("the head holds its turn to the side, unmoved, from the party horn's first frame up to its last, for every voice, the horn being flat", () => {
-    const {frames, raise, lower, turn} = ACTS.party_horn;
-    // the page draws the horn while it is raised and not yet lowered (chat/FigureAct.vue horn.up)
-    const shown = (u) => partOf(u, raise) * (1 - partOf(u, lower)) > 0;
-    for (const voice of Object.keys(stances)) {
-        const held = [];
-        for (let step = 0; step <= frames * 4; step++) {
-            const u = step / (frames * 4);
-            if (!shown(u)) continue;
-            const {head, chest} = facingsOf(posedAt("party_horn", voice, u * (frames - 1) / frames));
-            held.push(head - chest);
-        }
-        expect(held.length, voice).toBeGreaterThan(frames);
-        expect(Math.max(...held) - Math.min(...held), voice).toBeLessThan(0.5);
-        expect(Math.abs(held[0]), voice).toBeGreaterThan(turn / 2);
-    }
 });
 
 const {VISOR, crtAt, glowTurn} = await import("../src/figure/visor.js");

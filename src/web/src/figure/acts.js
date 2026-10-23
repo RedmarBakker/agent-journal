@@ -15,9 +15,6 @@ export const ACTS = {
     scroll: {frames: 48, fps: 12, raise: [0, 0.16], unrolls: [0.16, 0.4], rolls: [0.8, 0.94], lower: [0.9, 1]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
-    // a celebration: it turns its head to the side, then blows a party horn at its mouth, which shoots open at once, stays open over a second
-    // and rolls back up a little slower; the horn is flat, so the head keeps its turn from the horn coming up to its going away
-    party_horn: {frames: 40, fps: 12, turns: [0, 0.12], raise: [0.12, 0.2], opens: [0.22, 0.25], rolls: [0.6, 0.74], lower: [0.74, 0.84], back: [0.84, 0.97], turn: 70},
     // searching: binoculars at its eyes, sweeping slowly left and right
     binoculars: {frames: 80, fps: 10, sweep: 1},
     // searching: a flashlight shone into a dark corner beside it, the beam moving about in it
@@ -83,9 +80,6 @@ export function pogoHop(heights, share) {
 
 // the pogo stick's bounces on the spot, in the figure's heights, each higher than the last
 export const pogoBounces = () => Array.from({length: ACTS.pogo.count}, (_, hop) => (ACTS.pogo.bounce * (hop + 1)) / ACTS.pogo.count);
-
-// how far the party horn has unrolled at `u`, 0 to 1: shot open at once, held open, and rolled back up
-export const hornOpen = (u) => partOf(u, ACTS.party_horn.opens) * (1 - partOf(u, ACTS.party_horn.rolls));
 
 // how far a thing that grows out of the floor at the start of an act and sinks at its end stands up at `u`, 0 to 1
 export const standingAt = (act, u) => partOf(u, act.grows) * (1 - partOf(u, act.sinks));

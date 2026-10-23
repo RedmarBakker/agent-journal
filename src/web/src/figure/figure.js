@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, heldPhases, hornOpen, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
+import {ACTS, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -2203,18 +2203,6 @@ function file_card(pose, stance, t) {
     actHand(pose, stance, out, [x, y, z - ACTED.drop * partOf(u, act.filed)]);
 }
 
-// blows a party horn held at its mouth, its head turned to the free hand's side and held so all the while the horn is up
-function party_horn(pose, stance, t) {
-    const act = ACTS.party_horn;
-    const u = onceTime(t, act.frames);
-    const blowing = hornOpen(u);
-    const aside = partOf(u, act.turns) * (1 - partOf(u, act.back));
-    breathe(pose, 0);
-    trunk(pose, {turn: SIDES[freeSide(stance)] * act.turn * aside});
-    actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTING.whistleWrist);
-    pose.shutEyes(1 - 0.6 * blowing);
-}
-
 // how far into the box the packed figure sinks, below the floor where the page hides it
 const PACKED = {sink: 2.1, hop: 0.75, leap: 1.0};
 
@@ -2677,7 +2665,6 @@ export const CLIPS = [
     {name: "ask_sign", frames: ACTS.ask_sign.frames, fps: ACTS.ask_sign.fps, loops: false, postures: GESTURE, pose: ask_sign},
     {name: "scroll", frames: ACTS.scroll.frames, fps: ACTS.scroll.fps, loops: false, postures: GESTURE, pose: scroll},
     {name: "file_card", frames: ACTS.file_card.frames, fps: ACTS.file_card.fps, loops: false, postures: MOVE, pose: file_card},
-    {name: "party_horn", frames: ACTS.party_horn.frames, fps: ACTS.party_horn.fps, loops: false, postures: GESTURE, pose: party_horn},
     {name: "pack_box", frames: ACTS.pack_box.intro + ACTS.pack_box.hold + ACTS.pack_box.outro, intro: ACTS.pack_box.intro, outro: ACTS.pack_box.outro, leaves: ACTS.pack_box.hold, fps: ACTS.pack_box.fps, loops: true, postures: MOVE, pose: pack_box},
     {name: "press", frames: ACTS.press.intro + ACTS.press.hold + ACTS.press.outro, intro: ACTS.press.intro, outro: ACTS.press.outro, leaves: ACTS.press.hold, fps: ACTS.press.fps, loops: true, postures: GESTURE, pose: press},
     {name: "vacuum", frames: ACTS.vacuum.intro + ACTS.vacuum.hold + ACTS.vacuum.outro, intro: ACTS.vacuum.intro, outro: ACTS.vacuum.outro, leaves: ACTS.vacuum.hold, fps: ACTS.vacuum.fps, loops: true, postures: MOVE, pose: vacuum},
