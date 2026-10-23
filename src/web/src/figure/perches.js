@@ -2,7 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, worldBox} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw} from "./pile.js";
 
@@ -94,8 +94,10 @@ export function ledgeSpot(along, figure, near) {
     const floor = floors.floors.find((each) => each.element && each.element === near.on && LEDGES.has(each.kind));
     if (!floor || floor.right - floor.left < LEDGE_WIDTH * figure.size) return null;
     const posture = floor.kind === "compose" ? "lounge" : "sit";
+    // lounging, it lies side-on, its legs toward the floor's longer side
+    const faceAt = (share) => (posture === "lounge" ? loungeFacing(share <= 0.5 ? 1 : -1) : 0);
     const spots = [along, ...LEDGE_ALONG.filter((each) => each !== along)].map((share) => ({
-        x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: 0, posture, leans: posture === "sit", on: floor.element,
+        x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: faceAt(share), posture, leans: posture === "sit", on: floor.element,
     }));
     return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) && clearOfPile(spot, figure)) ?? null;
 }

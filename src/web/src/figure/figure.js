@@ -547,15 +547,15 @@ function loungedLegs(pose) {
     }
 }
 
-// Sitting composed on a floor's top (places.js POSTURES composed): sat upright facing the viewer, the legs together straight out along the
-// floor toward it, the feet up, both hands set flat on the floor at its sides; the floor line is `floor` above the standing feet, as when
-// it lounges, but it sits up straight rather than leaning back on its hands
-export const COMPOSED = {thigh: -88, feet: 12, hands: [0.78, -0.05], nod: -4, floor: LOUNGE.floor};
+// Sitting composed on a floor's top (places.js POSTURES composed): sat upright facing the viewer with its knees up, its feet flat on the
+// floor before it at `feet` (across, forward, up from the standing feet, in the figure's units), never its legs straight out toward the
+// viewer, and both hands set flat on the floor at its sides; the floor line is `floor` above the standing feet, as when it lounges
+export const COMPOSED = {feet: [0.3, -0.72, 1.5], hands: [0.78, -0.05], nod: -4, floor: LOUNGE.floor};
 
 function composedLegs(pose) {
-    for (const side of Object.keys(SIDES)) {
-        pose.turn(`thigh_${side}`, {x: COMPOSED.thigh});
-        pose.turn(`foot_${side}`, {x: COMPOSED.feet});
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const [x, y, z] = COMPOSED.feet;
+        pose.step(side, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(0, -1, 1));
     }
     trunk(pose, {nod: COMPOSED.nod});
     for (const [side, sign] of Object.entries(SIDES)) {
@@ -3476,6 +3476,10 @@ const EYES_GONE = 0.05;
 // the visor as it is unlit: its eyes shown and its band dark
 const DARK_SCREEN = {eyes: 1, across: 0, open: 0, flash: 0, glow: 0};
 
+// whether a figure in `posture` may turn to the viewer for a look or its lit visor, or turn its head to look at something: never lounging,
+// its legs straight out, as it is only ever drawn side-on
+export const turnsToViewer = (posture) => posture !== "lounge";
+
 // One renderer for every picture on a page: it poses the figure, draws it and copies the result onto a canvas
 export class Stage {
     constructor() {
@@ -3521,13 +3525,14 @@ export class Stage {
         clip.pose(pose, figure.stance, frame / clip.frames);
         if (tilt) trunk(pose, {tilt});
         if (!clip.legs) LEGS[posture]?.over(pose);
-        const turned = facing + (at ? lookToward(pose, at, facing) : 0);
+        const sideOn = !turnsToViewer(posture);
+        const turned = facing + (at && !sideOn ? lookToward(pose, at, facing) : 0);
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
         // the eyes go out as a lit visor comes on, closing to a line
         if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
         // with a look in its eyes or its visor aglow, it turns toward the viewer so they are seen
         const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0);
-        if (toward && !pose.gaze) turnToViewer(pose, turned, toward);
+        if (toward && !pose.gaze && !sideOn) turnToViewer(pose, turned, toward);
         if (eyes) lookAs(pose, eyes);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;

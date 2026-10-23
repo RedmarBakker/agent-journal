@@ -93,7 +93,15 @@ export const TRAVELLING = "travelling";
 export const GROUNDED = "grounded";
 export const modeOf = ({airborne, landing, trip}) => (airborne ? AIRBORNE : landing ? LANDING : trip?.started ? TRAVELLING : GROUNDED);
 
+// A figure lounging, its legs straight out along the floor, is only ever drawn side-on, turned the way its spot faces, whatever it plays
+// there; on its way or in the air it faces as anywhere
 export function clipFor(scene, canDraw) {
+    const wanted = wantedClip(scene, canDraw);
+    const lounging = scene.mode === GROUNDED && scene.place.posture === "lounge" && !scene.trip?.started;
+    return lounging ? {...wanted, facing: scene.place.face} : wanted;
+}
+
+function wantedClip(scene, canDraw) {
     const {mode, leaving, arriving, trip, landing, place, beat, state, doing, doingFacing = 0} = scene;
     // a figure in the air on its feet falls before anything else, leaving included: it lands first, and then goes; one dropping with its
     // seat stays seated
@@ -115,7 +123,8 @@ export function clipFor(scene, canDraw) {
     if (beat && !(beat.onto && trip)) return {clip: beat.clip, facing: beat.facing, once: true};
     // standing at the tab of what waits on the user it points up at it; anywhere else it waits turned toward the compose box
     if (place.view && state === "asking") return {clip: "point", facing: 0};
-    if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
+    // pushing a box it built goes on while the agent waits as well
+    if (["asking", "waiting"].includes(state) && doing !== "push") return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : doingFacing};
 }
 

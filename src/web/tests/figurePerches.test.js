@@ -231,17 +231,17 @@ test("while its agent runs a test suite or a build and the run was granted a uni
     expect(targetFor({...running, state: "thinking", work: null}).spot.stays).toBeUndefined();
 });
 
-test("now and then the figure lounges at a corner, back from the end, facing the user, and lounges there at its laptop while its agent edits", () => {
+test("now and then the figure lounges at a corner, back from the end, side-on with its legs along the floor away from the end, and lounges there at its laptop while its agent edits", () => {
     const box = (rect) => ({...rect, width: rect.right - rect.left, height: rect.bottom - rect.top});
     const thread = {querySelector: () => null, getBoundingClientRect: () => box({left: 236, right: 778, top: 0, bottom: 900})};
     const home = {getBoundingClientRect: () => box({left: 258, right: 754, top: 768, bottom: 888}), closest: () => thread};
     document.querySelector = (selector) => (selector === "[data-figure-home]" ? home : null);
     const at = {counts: {question: 0, waiting: 0, suggestion: 0}, now: 100, figure: FIGURE, hands: HANDS};
-    // a stay sitting: on the corner nearest, back from its end on the top, facing the viewer with its legs out toward them
+    // a stay sitting: on the corner nearest, back from its end on the top, side-on with its legs out along the floor away from the end
     const right = targetFor({...at, state: "idle", near: {x: 700, y: 768}, stay: {where: "seat", until: 500}}).spot;
-    expect(right).toMatchObject({x: 754 - SEAT_INBOARD * FIGURE.size, y: 768, posture: "lounge", face: 0, on: home});
+    expect(right).toMatchObject({x: 754 - SEAT_INBOARD * FIGURE.size, y: 768, posture: "lounge", face: 270, on: home});
     const left = targetFor({...at, state: "idle", near: {x: 300, y: 768}, stay: {where: "seat", until: 500}}).spot;
-    expect(left).toMatchObject({x: 258 + SEAT_INBOARD * FIGURE.size, posture: "lounge", face: 0});
+    expect(left).toMatchObject({x: 258 + SEAT_INBOARD * FIGURE.size, posture: "lounge", face: 90});
     // far enough in that its whole picture is inside the chat, nothing over the end
     expect(boxAt(right, FIGURE).right).toBeLessThanOrEqual(778);
     expect(SEAT_INBOARD).toBeGreaterThan(FEET_INBOARD);
@@ -269,7 +269,7 @@ test("resting by its parcel pile the figure stands beside it, never in front of 
     expect(targetFor({...at, pile: {...pile, top: 600}, stay: {where: "rest", until: 500}}).spot.x).toBe(plain.x);
 });
 
-test("now and then the figure sits down facing the user halfway or a third or two thirds along a floor, never near an end, lounging on the composer", () => {
+test("now and then the figure sits down halfway or a third or two thirds along a floor, never near an end, lounging side-on on the composer", () => {
     const box = (rect) => ({...rect, width: rect.right - rect.left, height: rect.bottom - rect.top});
     const thread = {querySelector: () => null, getBoundingClientRect: () => box({left: 236, right: 778, top: 0, bottom: 900})};
     const home = {getBoundingClientRect: () => box({left: 258, right: 754, top: 768, bottom: 888}), closest: () => thread};
@@ -279,7 +279,7 @@ test("now and then the figure sits down facing the user halfway or a third or tw
     expect([...LEDGE_ALONG].sort()).toEqual([1 / 3, 1 / 2, 2 / 3].sort());
     for (const along of LEDGE_ALONG) {
         const spot = ledgeSpot(along, FIGURE, {on: home});
-        expect(spot).toMatchObject({x: 258 + width * along, y: 768, posture: "lounge", face: 0, leans: false, on: home});
+        expect(spot).toMatchObject({x: 258 + width * along, y: 768, posture: "lounge", face: along <= 0.5 ? 90 : 270, leans: false, on: home});
         expect(Math.min(spot.x - 258, 754 - spot.x)).toBeGreaterThanOrEqual(width / 3 - 1e-9);
     }
     // a stay on the ledge takes the figure there

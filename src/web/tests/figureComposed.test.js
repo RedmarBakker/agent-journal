@@ -4,7 +4,7 @@ import * as THREE from "three";
 import {expect, test} from "vitest";
 import {boxed} from "./support/figurePage.js";
 
-const {CLIPS, COMPOSED, LEGS, Posing} = await import("../src/figure/figure.js");
+const {CLIPS, COMPOSED, LEGS, Posing, turnsToViewer} = await import("../src/figure/figure.js");
 const {choicesFor} = await import("../src/figure/pile.js");
 const {COMPOSED_ALONG, composedSpot} = await import("../src/figure/perches.js");
 const {GROUNDED, clipFor} = await import("../src/domain/figureState.js");
@@ -63,5 +63,35 @@ test("sitting composed, both hands lie flat on the floor at its sides, beside th
         // upright, not leaning back as it does lounging
         const back = at("neck").sub(hips).normalize();
         expect(back.z, voice).toBeGreaterThan(Math.cos(THREE.MathUtils.degToRad(15)));
+        // its knees up and its feet flat on the floor before it, never its legs straight out toward the viewer
+        for (const side of ["l", "r"]) {
+            const knee = at(`shin_${side}`);
+            const foot = at(`foot_${side}`);
+            expect(knee.z, `${voice} ${side} knee up`).toBeGreaterThan(at(`thigh_${side}`).z + 0.15);
+            expect(knee.z, `${voice} ${side} knee over the foot`).toBeGreaterThan(foot.z + 0.25);
+            expect(foot.y - hips.y, `${voice} ${side} foot near`).toBeGreaterThan(-0.9);
+        }
     }
+});
+
+test("lounging, its legs straight out, the figure is only ever side-on: every lounge spot faces sideways and nothing turns it toward the viewer", async () => {
+    const {seatAt} = await import("../src/figure/places.js");
+    const {ledgeSpot} = await import("../src/figure/perches.js");
+    const box = {left: 300, width: 400, top: 600};
+    for (const side of ["left", "right"]) expect([90, 270].includes(seatAt(box, side, FIGURE).face), side).toBe(true);
+    const home = chat();
+    for (const along of [1 / 3, 1 / 2, 2 / 3]) {
+        const spot = ledgeSpot(along, FIGURE, {on: home});
+        expect(spot.posture).toBe("lounge");
+        expect([90, 270].includes(spot.face), String(along)).toBe(true);
+    }
+    // whatever it plays there, a look, a beat facing the viewer or a wait turned to the compose box, it keeps its side-on facing
+    const place = {...seatAt(box, "right", FIGURE), on: home};
+    for (const scene of [{doing: "idle"}, {beat: {clip: "nod", facing: 0}}, {state: "waiting", composeFacing: 30}, {watching: "watch"}]) {
+        expect(clipFor({mode: GROUNDED, place, state: "idle", doing: "idle", ...scene}, () => true).facing, JSON.stringify(scene)).toBe(place.face);
+    }
+    // and its picture never turns to the viewer for a look or a lit visor, nor its head to look at anything
+    expect(turnsToViewer("lounge")).toBe(false);
+    expect(turnsToViewer("composed")).toBe(true);
+    expect(turnsToViewer("stand")).toBe(true);
 });

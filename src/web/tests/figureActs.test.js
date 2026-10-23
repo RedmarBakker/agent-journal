@@ -254,13 +254,13 @@ test("eager, the figure's eyes are sparkling stars from the first frames until i
 const {SEAT_INBOARD, seatAt} = await import("../src/figure/places.js");
 const {LEGS} = await import("../src/figure/figure.js");
 
-test("at a corner the figure lounges back from the end on the top, facing the viewer, legs straight out and hands flat on the floor behind", () => {
+test("at a corner the figure lounges back from the end on the top, side-on with its legs straight out along the floor away from the end and hands flat on the floor behind", () => {
     const box = {left: 100, width: 400, top: 300};
     const figure = {size: 112};
     const right = seatAt(box, "right", figure);
     const left = seatAt(box, "left", figure);
     expect([right.x, left.x]).toEqual([500 - SEAT_INBOARD * 112, 100 + SEAT_INBOARD * 112]);
-    expect([right.face, left.face, right.posture]).toEqual([0, 0, "lounge"]);
+    expect([right.face, left.face, right.posture]).toEqual([270, 90, "lounge"]);
     for (const voice of Object.keys(stances)) {
         const pose = new Posing(RIG, "lounge", 0);
         LEGS.lounge.under(pose);
@@ -270,7 +270,7 @@ test("at a corner the figure lounges back from the end on the top, facing the vi
         const at = (bone) => pose.head(bone, moves.get(bone));
         for (const side of ["l", "r"]) {
             if (!stanceOf(voice).free.has(side)) continue;
-            // the feet out ahead of the hips toward the viewer and up level with them, the hands behind the hips and down at the floor line
+            // the feet out ahead of the hips, along the floor as it lies side-on, and up level with them, the hands behind the hips and down at the floor line
             expect(at(`foot_${side}`).y, `${voice} foot`).toBeLessThan(at(`thigh_${side}`).y - 0.6);
             expect(Math.abs(at(`foot_${side}`).z - at(`thigh_${side}`).z), `${voice} foot level`).toBeLessThan(0.45);
             expect(at(`hand_${side}`).y, `${voice} hand`).toBeGreaterThan(at(`thigh_${side}`).y);

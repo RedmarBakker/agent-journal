@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {LAYER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -458,6 +458,8 @@ function nextLeg() {
         body.trip = null;
         if (Math.hypot(landed.x - to.x, landed.y - to.y) >= 1) slide();
         settle(landed, held);
+        // round behind a box it built, it sets off pushing it at once
+        if (pushWaits(parcels.value)) setTimeout(look);
         return step();
     }
     const left = legs.slice(legs.indexOf(next));
@@ -727,13 +729,14 @@ function look() {
     const work = workMoments(held.value.state, typed, workBegan, now.value);
     typed = false;
     workBegan = work.began;
-    [...happened, ...work.moments].forEach(react);
+    [...happened, ...answeredWith(work.moments, parcels.value)].forEach(react);
     // the visor lights at a run's end, unless the figure shoots a bug for it instead
     visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
-    const egg = answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
+    const pushing = pushWaits(parcels.value);
+    const egg = pushing ? null : answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
     const over = body.trip ? null : discoBall(body.place, figureSize(), latestFloors());
-    const pastime = pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
+    const pastime = pushing ? null : pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
     if (pastime?.clip === "disco") ball.value = over;
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
@@ -759,7 +762,8 @@ function look() {
     // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended
     const going = eager?.on ? !body.footing?.home && spotOf(null, figureSize()) : target.spot;
     if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going) {
-        moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried});
+        // round behind a box it built and pushing it, it sets off at once, breaking off what it plays, so the build flows into the push
+        moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried || pushing});
         hurried = false;
     }
     if (!document.hidden) lookTimer = setTimeout(look, LOOK_EVERY);
@@ -834,6 +838,15 @@ function grantUnit() {
     if (!builds(held.value.state) && !inHand) making = false;
 }
 
+// The box the figure builds is done: it goes straight round behind it to push it, at once, its idle looks about that wait dropped but the
+// one on screen
+function builtUp(parcel) {
+    parcel.state = "built";
+    const shown = playing.shown?.once ? 1 : 0;
+    beats.value = beats.value.filter((beat, index) => index < shown || !IDLE_CLIPS.has(beat.clip));
+    setTimeout(look);
+}
+
 // Each frame: a parcel pops in the first frame the figure hammers where it builds, where its blows land, kept inside the compose box's
 // top; it is built once the figure has stopped hammering and its agent runs no command; a built one is pushed along in front of the
 // figure as it walks behind it, and once it meets the pile it is piled, hopping up onto it. They stay on that floor as the box moves.
@@ -847,7 +860,7 @@ function keepParcels(shown) {
     }
     const building = parcels.value.find((each) => each.state === "building");
     if (building && hammers) countBlows(building, shown);
-    if (building && performance.now() >= building.until && !taking.value) building.state = "built";
+    if (building && performance.now() >= building.until && !taking.value) builtUp(building);
     const pushing = list.find((each) => each.state === "built");
     if (pushing && !taking.value) {
         const to = slotX(piled());

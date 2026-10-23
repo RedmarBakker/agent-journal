@@ -3,9 +3,9 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, SHOVE, leanOf, lookToward} from "../src/figure/figure.js";
-import {BLINK, CLAW, CRANE, DIGITS, HAMMER, LAYER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {BLINK, CLAW, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
-import {CHANGE_SECONDS} from "../src/figure/places.js";
+import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
 import {PILE as ANIMATIONS} from "../src/figure/pile.js";
 
@@ -327,4 +327,29 @@ test("the crane's claw comes down around the box, its hub on the stack's top, an
     expect(lifting.open).toBe(0);
     expect(lifting.lifted).toBeCloseTo(shut.chain - lifting.chain, 5);
     expect(CLAW.reach).toBeLessThan(PARCEL.height);
+});
+
+test("a box built, the figure goes straight round behind it and pushes, in one move: no look about, no act of its own and no standing still between", () => {
+    const built = [{id: 1, state: "built"}];
+    // the moments it answers meanwhile: none of its idle ones, the looks about and the breaks from the work, but the journal's as ever
+    const moments = [{beat: "standing", time: 1}, {beat: "building", time: 1}, {beat: "work_done", time: 1}, {beat: "tests_passed", time: 1}];
+    expect(pushWaits(built)).toBe(true);
+    expect(answeredWith(moments, built).map((moment) => moment.beat)).toEqual(["tests_passed"]);
+    expect(answeredWith(moments, [{id: 1, state: "piled"}])).toEqual(moments);
+    // and none of their clips waits to play: the looks about are idle clips, a celebration is not
+    for (const name of ["look_left", "look_right", "look_up", "wipe_brow"]) expect(IDLE_CLIPS.has(name), name).toBe(true);
+    expect(IDLE_CLIPS.has("joy")).toBe(false);
+    // from where it hammered, either side of the box, it walks straight round behind it, one stroll on the floor, and from there pushes it
+    // along to the pile
+    const figure = {size: 112, below: 0.05};
+    const parcel = 400;
+    const pile = 600;
+    const feet = parcel + 29;
+    const stand = pushStand(parcel, pile, feet);
+    expect(behind(parcel, stand)).toBe(true);
+    const legs = tripTo({x: feet, y: 700, posture: "stand"}, {x: stand, y: 700, posture: "stand"}, figure).legs;
+    expect(legs.filter((leg) => leg.hopping && leg.ms > 0)).toEqual([]);
+    expect(pushStand(parcel, pile, stand)).toBe(pile - PUSH.reach);
+    // hammering on the box's near side already, it pushes from where it stands
+    expect(pushStand(parcel, pile, parcel - 29)).toBe(pile - PUSH.reach);
 });

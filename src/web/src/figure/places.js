@@ -253,15 +253,18 @@ export function cornerAt(box, side, {size}, reach = CORNER_INBOARD) {
     return {x: box.left + box.width * along + inboard * reach * size, y: box.top, face, posture: "stand"};
 }
 
-// Where a figure sits now and then at a corner of the edge: back from the end on the floor's top, lounging (POSTURES lounge), facing the
-// viewer with its legs straight out toward them and its hands flat behind it, its middle FEET_INBOARD inside the corner and a share more,
-// so it never seems to slide off the end
+// Where a figure sits now and then at a corner of the edge: back from the end on the floor's top, lounging (POSTURES lounge), side-on with
+// its legs straight out along the floor away from the end and its hands flat behind it, its middle FEET_INBOARD inside the corner and a
+// share more, so it never seems to slide off the end
 export const SEAT_INBOARD = FEET_INBOARD + 0.12;
 
 export function seatAt(box, side, {size}) {
     const inboard = side === "right" ? -1 : 1;
-    return {x: box.left + box.width * (side === "right" ? 1 : 0) + inboard * SEAT_INBOARD * size, y: box.top, face: 0, posture: "lounge"};
+    return {x: box.left + box.width * (side === "right" ? 1 : 0) + inboard * SEAT_INBOARD * size, y: box.top, face: loungeFacing(inboard), posture: "lounge"};
 }
+
+// the way a lounging figure faces, side-on with its legs along the floor toward `way` (1 to the right, -1 to the left), never the viewer
+export const loungeFacing = (way) => (way > 0 ? 90 : 270);
 
 // Where the figure sits at home: on a corner of the edge it stands on, beside the pile (freeEdge), whose seat is inside its world and hides
 // nothing, the one nearest `near`; null when neither corner holds a seat

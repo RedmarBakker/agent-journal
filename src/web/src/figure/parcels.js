@@ -1,4 +1,4 @@
-import {draw} from "./pile.js";
+import {PILE as ANIMATIONS, draw} from "./pile.js";
 import {VISOR} from "./visor.js";
 
 // The parcels of code the figure builds on the compose box's top and the UFO that takes them once the work is committed, drawn by the page
@@ -88,6 +88,17 @@ export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAM
 
 // how many blows have landed `frames` frames into a hammering whose blows are `blowFrames` frames long and land `lands` of the way through
 export const blowsLanded = (frames, blowFrames, lands) => Math.max(Math.floor(frames / blowFrames - lands) + 1, 0);
+
+// While a box the figure built waits to be pushed it goes straight round behind it and pushes, in one move: it answers none of its idle
+// moments meanwhile, the looks about and the breaks from the work, and none of their clips waits to play
+export const IDLE_MOMENTS = new Set(["standing", "building", "typing", "work_done"]);
+export const IDLE_CLIPS = new Set(ANIMATIONS.filter((entry) => IDLE_MOMENTS.has(entry.when.moment) && entry.kind === "clip").map((entry) => entry.name));
+
+// whether a box the figure built waits among `parcels` to be pushed onto the pile
+export const pushWaits = (parcels) => parcels.some((each) => each.state === "built");
+
+// the moments of `moments` the figure answers with `parcels` as they are: all of them, but none of its idle ones while a box waits to be pushed
+export const answeredWith = (moments, parcels) => (pushWaits(parcels) ? moments.filter((moment) => !IDLE_MOMENTS.has(moment.beat)) : moments);
 
 // how far in front of its feet a pushing figure's hands meet the parcel's middle, and the room it leaves behind a parcel before pushing
 export const PUSH = {reach: 24, room: 6};
