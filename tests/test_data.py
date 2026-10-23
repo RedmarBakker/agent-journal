@@ -656,6 +656,16 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     settings_a.set(Voices.NAME.key, "Ada", USER)
     incoming_b.apply(team_changes(outgoing_a))
     assert settings_b.project_values() == {WorkersFeature.WORKER_LIMIT.key: 3}, "the team's setting arrives; the machine's commands and the person's name stay where they were set"
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.journal_copy import JournalCopy
+    from sync_server.copied_row import CopiedRow
+    copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus), team_scopes(tasks_a.connection, tasks_a.bus, scope_a)).rows()
+    assert sorted(row.fields["key"] for row in copied if row.row_table == "settings") == [WorkersFeature.WORKER_LIMIT.key], "the first upload carries the team's settings alone"
+    settings_b.set(WorkersFeature.PREPARATION_COMMANDS.key, ["make mine"], USER)
+    copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus), team_scopes(tasks_b.connection, tasks_b.bus, scope_b))
+    stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersFeature.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
+    copy_b.replace_whole(tuple(copied) + tuple(stray))
+    assert settings_b.project(WorkersFeature.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersFeature.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
 
 
 def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_while_it_is_down_arrives_later(tmp_path):
@@ -707,7 +717,7 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
         messages = Messages(tasks.connection, tasks.bus, scope, Reactions(tasks.connection, tasks.bus, scope, links), links, EnvironmentOwners(links, Users(tasks.connection, tasks.bus), Environments(tasks.connection, tasks.bus)))
         rejected = RejectedEdits(SharedTables(tasks.connection, tasks.bus), outgoing, links, MomentCards(messages))
         uploads = PendingUploads(tasks.connection, tasks.bus)
-        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), outgoing, incoming, rejected, signal, SyncStatus(account, outgoing), uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), MomentCards(messages), SyncStatus(account, outgoing)), MomentCards(messages)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus))), JournalCopy(SharedTables(tasks.connection, tasks.bus)), BlockSupply(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus)))
+        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), outgoing, incoming, rejected, signal, SyncStatus(account, outgoing), uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), MomentCards(messages), SyncStatus(account, outgoing)), MomentCards(messages)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus), team_scopes(tasks.connection, tasks.bus, scope))), JournalCopy(SharedTables(tasks.connection, tasks.bus), team_scopes(tasks.connection, tasks.bus, scope)), BlockSupply(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus)))
         client.start()
         return scope, tasks, client, messages
 

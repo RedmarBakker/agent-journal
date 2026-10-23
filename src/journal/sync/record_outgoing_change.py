@@ -9,8 +9,6 @@ from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.sync.team_account import TeamAccount
 from journal.sync.commit_signal import CommitSignal
 from journal.sync.setting_scopes import SettingScopes
-from journal.models.model import Model
-from journal.models.setting import Setting
 
 ACTIONS = {Created: CREATED, Updated: UPDATED, Deleted: DELETED}
 STAMP_COLUMNS = ("updated_at", "updater")
@@ -24,7 +22,7 @@ class RecordOutgoingChange(Listener[ModelEvent]):
 
     def handle(self, event: ModelEvent) -> None:
         action = ACTIONS.get(type(event))
-        if action is None or not self.is_team_row(event.model) or not self.account.is_joined():
+        if action is None or not self.scopes.is_team_row(event.model) or not self.account.is_joined():
             return
         names = self.names(event, action)
         model = event.model.team_ready(self.account.prefix())
@@ -34,9 +32,6 @@ class RecordOutgoingChange(Listener[ModelEvent]):
         updated_at = event.model.updated_at.timestamp()
         self.changes.queued(OutgoingChange(row_table=event.model.table(), row=event.model.row_id, action=action, fields=fields, changed_at={name: updated_at for name in fields}, writer=event.actor.stamp), event.actor)
         self.changes.commit_callback(self.signal.ring)
-
-    def is_team_row(self, model: Model) -> bool:
-        return model.shared and (not isinstance(model, Setting) or self.scopes.is_team(model.key))
 
     @staticmethod
     def names(event: ModelEvent, action: str) -> tuple[str, ...] | None:
