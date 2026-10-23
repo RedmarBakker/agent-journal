@@ -35,6 +35,11 @@ export const ACTS = {
     // above the straight way, and lets the stick go over `drop`, which falls away; the stick `stick` of its height long, its handles where
     // the hands hold it
     pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.68], count: 3, bounce: 0.45, spring: [0.68, 0.86], arc: 0.35, drop: [0.86, 1], stick: 0.62},
+    // a passing test run's bug: a small bug crawls in along the floor over `crawl` to `away` of the figure's height out on its free hand's
+    // side; it pulls a rifle from behind its back over `draw`, shoots `count` times over `shots`, each shot kicking the rifle back `kick`
+    // degrees, the bug splatters at `splat`, and a few drops of the splatter land on the screen, as on a camera's lens, and run down and
+    // fade over `drops`
+    bug_shot: {frames: 72, fps: 12, crawl: [0, 0.3], draw: [0.2, 0.38], shots: [0.4, 0.56], count: 3, kick: 8, splat: 0.56, drops: [0.58, 1], away: 0.85},
     // coming down on a parachute, swaying a little under it
     chute: {frames: 24, fps: 8, sway: 8},
     // compacting: a box appears, it hops into it and the box shrinks with it inside; once the compaction is over the box grows back and

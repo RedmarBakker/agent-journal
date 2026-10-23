@@ -677,7 +677,6 @@ function look() {
         ...sayingsAfter(lead.value, rows("messages"), seenAt),
     ];
     const ends = processEndsAfter(lead.value, processStates);
-    visor = visorFor(asleep() ? [] : ends, visor, performance.now() / 1000);
     const runs = builds(held.value.state);
     lights.value = lightsAfter(lights.value, runs && !running, ends.length ? ends.at(-1).tone : "");
     running = runs;
@@ -694,6 +693,8 @@ function look() {
     typed = false;
     workBegan = work.began;
     [...happened, ...work.moments].forEach(react);
+    // the visor lights at a run's end, unless the figure shoots a bug for it instead
+    visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const egg = answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
     const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);

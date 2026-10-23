@@ -2198,6 +2198,32 @@ function hop_up(pose, stance, t) {
     tucked(pose, 0.6 + 0.2 * pump);
 }
 
+// where the hands hold the rifle for the bug shot, across toward the free hand's side, forward (toward the viewer is less) and up in the
+// figure's units: the trigger hand at the stock, the other forward on it near the middle, and the trigger hand reaching behind the back
+const RIFLE = {trigger: [0.5, -0.4, 1.7], fore: [0.12, -0.45, 1.85], behind: [0.45, 0.45, 1.45]};
+
+// shoots the bug a passing run brings (acts.js bug_shot): reaches behind its back for the rifle, brings it up at the bug out on its free
+// hand's side, turned toward it, each shot kicking it back, and lowers it once the bug has splattered
+function bug_shot(pose, stance, t) {
+    const act = ACTS.bug_shot;
+    const middle = (act.draw[0] + act.draw[1]) / 2;
+    const reach = partOf(t, [act.draw[0], middle]) * (1 - partOf(t, [middle, act.draw[1]]));
+    const aim = partOf(t, [middle, act.draw[1]]) * (1 - partOf(t, [act.drops[0] + 0.05, act.drops[0] + 0.2]));
+    const shot = Math.min(Math.max((t - act.shots[0]) / (act.shots[1] - act.shots[0]), 0), 1) * act.count;
+    const kick = t > act.shots[0] && t < act.shots[1] ? Math.max(0, 1 - (shot % 1) * 3) : 0;
+    const side = freeSide(stance);
+    const sign = SIDES[side];
+    breathe(pose, t);
+    trunk(pose, {twist: -sign * 25 * aim, lean: 4 * aim - 5 * kick});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    const at = (point, mirror = sign) => new THREE.Vector3(mirror * point[0], point[1], point[2]);
+    if (reach > aim) handTo(pose, side, reach, at(RIFLE.behind), new THREE.Vector3(1, 0.5, -0.5));
+    else handTo(pose, side, aim, at(RIFLE.trigger), new THREE.Vector3(1, -0.2, -0.4));
+    handTo(pose, side === "l" ? "r" : "l", aim, at(RIFLE.fore), new THREE.Vector3(-1, -0.4, -0.4));
+    eyesAs(pose, "amused", aim);
+}
+
 // where the hands hold the pogo stick's handles, across, forward (toward the viewer is less) and up in the figure's units, and where the
 // hand reaching behind its back for the stick goes
 const POGO_GRIP = [0.42, -0.55, 1.55];
@@ -2387,6 +2413,7 @@ export const CLIPS = [
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
     {name: "push", frames: 6, fps: 12, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
+    {name: "bug_shot", frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: GESTURE, pose: bug_shot},
     {name: "pogo", frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},

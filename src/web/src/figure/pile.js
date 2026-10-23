@@ -57,8 +57,9 @@ const look = (name, weight, when = {}) => ({name, kind: "look", weight, when});
 const pick = (name, weight, when = {}, more = {}) => ({name, kind: "pick", weight, when, ...more});
 const nothing = (weight) => ({name: "nothing", kind: "nothing", weight, when: {}});
 
-// the entries of one moment, each given the moment and whatever the moment says of them all, as its cooldown
-const at = (moment, shared, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}}));
+// the entries of one moment, each given the moment and whatever the moment says of them all, as its cooldown; one apart from the others
+// with a cooldown of its own still waits the moment's, `moment` seconds after any of them played
+const at = (moment, shared, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}, ...(shared.cooldown && {waits: shared.cooldown})}));
 
 // the ways the figure celebrates: a jump for joy with its hands up, a party horn blown
 const celebrations = () => [clip("joy", 2), clip("party_horn", 1)];
@@ -71,8 +72,9 @@ const pastime = (name, weight, lasted, cooldown, more = {}) => ({...clip(name, w
 const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name], apart: true, shenanigan: true});
 
 export const PILE = [
-    // a test run's end: celebrated on its card, or a start at a failure, now and then
-    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), nothing(1)]),
+    // a test run's end: celebrated on its card, now and then by shooting a bug that crawls into the chat instead of the visor's glow, or a
+    // start at a failure
+    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), {...showpiece(clip("bug_shot", 1)), toward: "", onto: false}, nothing(1)]),
     ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [...celebrations(), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
@@ -187,7 +189,8 @@ const cooledUnder = (entry) => (entry.apart ? `${entry.when.moment}/${entry.name
 // again while anything else may play.
 export function choicesFor(scene) {
     const has = scene.has ?? (() => true);
-    const cooled = (entry) => !entry.cooldown || !scene.memory || scene.now - (scene.memory.get(cooledUnder(entry)) ?? -Infinity) >= entry.cooldown;
+    const since = (key) => scene.now - (scene.memory.get(key) ?? -Infinity);
+    const cooled = (entry) => !scene.memory || ((!entry.cooldown || since(cooledUnder(entry)) >= entry.cooldown) && (!entry.waits || since(entry.when.moment) >= entry.waits));
     const choices = PILE.filter((entry) => holds(entry.when, scene) && (entry.kind !== "clip" || has(entry.name)) && cooled(entry));
     const due = (scene.tally?.plain ?? 0) >= SHENANIGAN.after && choices.some((entry) => entry.shenanigan);
     const kept = due ? choices.filter((entry) => entry.shenanigan) : choices;
@@ -204,6 +207,7 @@ export function draw(scene, random) {
     const drawn = choices.find((entry) => (roll -= entry.weight) < 0) ?? choices.at(-1) ?? null;
     if (!drawn || drawn.kind === "nothing") return null;
     scene.memory?.set(cooledUnder(drawn), scene.now);
+    if (drawn.waits) scene.memory?.set(drawn.when.moment, scene.now);
     if (scene.tally) Object.assign(scene.tally, {plain: drawn.shenanigan ? 0 : scene.tally.plain + 1, last: drawn.name});
     return drawn;
 }

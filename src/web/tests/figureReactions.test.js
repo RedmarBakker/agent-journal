@@ -27,7 +27,7 @@ const {EVERY_VOICE_FACES, PILE, VOICE_FACES} = await import("../src/figure/pile.
 const of = (moment) => PILE.filter((entry) => entry.when.moment === moment);
 
 test("a test run that passed turns the figure to its card and celebrates, a jump for joy or a party horn, and one that failed gives it a startled hop", () => {
-    const passed = of("tests_passed").filter((entry) => entry.kind === "clip");
+    const passed = of("tests_passed").filter((entry) => entry.kind === "clip" && !entry.shenanigan);
     expect(passed.every((entry) => entry.toward === "card" && entry.onto)).toBe(true);
     expect(passed.map((entry) => entry.name)).toEqual(["joy", "party_horn"]);
     // the start at a failure, and the dismay that came before it, restored beside it (task 2652)
