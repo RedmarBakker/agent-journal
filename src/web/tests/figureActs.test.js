@@ -161,19 +161,14 @@ test("now and then while idle the figure hops up the bubbles above it very fast,
         const scene = {voice: "butler", place: {posture: "stand"}, beats: 0, arriving: false, leaving: false, moving: false};
         expect(pastimeFor(scene, {state, lasted: 0}, new Map(), 0, () => 0, has), state).toEqual({clip: "hop_up", card: "", flies: true});
     }
-    const hops = skywardHops({x: 300, y: 700}, [{x: 340, y: 560}, {x: 260, y: 400}, {x: 330, y: 260}], 0, 112);
-    expect(hops.map((hop) => hop.to.y)).toEqual([560, 400, 260, -168]);
+    // the run ends over the chat's top, past which the figure is not drawn
+    const hops = skywardHops({x: 300, y: 700}, [{x: 340, y: 560}, {x: 260, y: 400}, {x: 330, y: 260}], 40);
+    expect(hops.map((hop) => hop.to.y)).toEqual([560, 400, 260, 40]);
     // each hop goes up, and a hop of the figure's height takes well under half a second
     for (const hop of hops) expect(hop.to.y).toBeLessThan(hop.from.y);
-    expect(skywardHops({x: 0, y: 112}, [], 0, 112)[0].ms).toBeLessThan(500);
-    let previous = skywardAt(hops, 0, 112);
-    for (let ms = 20; ms < skywardMs(hops); ms += 20) {
-        const now = skywardAt(hops, ms, 112);
-        expect(now.gone).toBe(false);
-        previous = now;
-    }
-    expect(previous.y).toBeLessThan(0);
-    expect(skywardAt(hops, skywardMs(hops), 112)).toMatchObject({y: -168, gone: true});
+    expect(skywardHops({x: 0, y: 112}, [], 0)[0].ms).toBeLessThan(500);
+    for (let ms = 20; ms < skywardMs(hops); ms += 20) expect(skywardAt(hops, ms, 112).gone).toBe(false);
+    expect(skywardAt(hops, skywardMs(hops), 112)).toMatchObject({y: 40, gone: true});
     expect([goneMs(() => 0), goneMs(() => 0.999999)].map(Math.round)).toEqual([1000, 5000]);
     expect(clipFor({place: {posture: "stand"}, flying: {way: 1}, state: "idle", doing: "idle"}, () => true)).toMatchObject({clip: "hop_up", facing: 90});
 });

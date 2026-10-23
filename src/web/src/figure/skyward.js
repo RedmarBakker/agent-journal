@@ -1,13 +1,13 @@
-// The figure's run up the message bubbles and off the top of the screen, now and then while it idles, and its parachute back down. Every
+// The figure's run up the message bubbles and out over the top of the chat, now and then while it idles, and its parachute back down. Every
 // number that decides it is here, in pixels and milliseconds on the page: how long a hop takes at least and for each pixel it covers, how
 // high above its higher end it arcs, as a share of the figure's height, how long the figure stays out of sight, between the two, and how
 // fast it comes down on its parachute, in its own heights a second.
 export const SKYWARD = {hopMs: 220, perPixel: 0.7, arc: 0.3, gone: [1000, 5000], chute: 1.1};
 
-// The hops of a run from the feet at `from` up the stands in `up` (each feet {x, y}, each higher than the last) and on off the top of the
-// screen, whose top is at `top`: each {from, to, ms}
-export function skywardHops(from, up, top, size) {
-    const stops = [...up, {x: (up.at(-1) ?? from).x, y: top - 1.5 * size}];
+// The hops of a run from the feet at `from` up the stands in `up` (each feet {x, y}, each higher than the last) and on out over the top of
+// the chat, whose top is at `top`, past which the figure is not drawn: each {from, to, ms}
+export function skywardHops(from, up, top) {
+    const stops = [...up, {x: (up.at(-1) ?? from).x, y: top}];
     return stops.map((to, index) => {
         const start = index ? stops[index - 1] : from;
         return {from: start, to, ms: SKYWARD.hopMs + SKYWARD.perPixel * Math.hypot(to.x - start.x, to.y - start.y)};

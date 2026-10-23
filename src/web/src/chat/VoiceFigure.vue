@@ -398,7 +398,13 @@ async function moveTo(spot, {straight = false, pace = 1, pressing = false} = {})
 function setOff() {
     const {to, straight, pace, footing: held} = body.trip;
     const there = landingOn(to, held, figureSize());
-    const trip = tripTo(body.place, there, figureSize(), {straight, pace});
+    const via = straight ? [] : climbOf(readFloors(), figureSize(), body.place, there.y);
+    // grown out of its reach since the look sent it, it stays where it is until the next look sends it elsewhere
+    if (!via) {
+        body.trip = null;
+        return step();
+    }
+    const trip = tripTo(body.place, there, figureSize(), {straight, pace, via});
     body.way = Math.sign(there.x - body.place.x);
     stopSwinging();
     if (trip) {
@@ -523,10 +529,13 @@ function carryWalk(dx, dy) {
 
 // The figure falls from the line it rests on at `spot`, in its posture there, never from below the ground at home, and goes on to `to`
 // once it lands
-// the run up the bubbles above the figure and off the top of the screen sets off from where it stands
+// the run up the bubbles above the figure and out over the top of the chat sets off from where it stands, when the bubbles reach that high
 function takeOff() {
     const from = {x: body.place.x, y: body.place.y};
-    flight = {began: performance.now(), hops: skywardHops(from, climbOf(readFloors(), figureSize(), from), 0, SIZE), back: 0};
+    const top = worldBox().top;
+    const up = climbOf(readFloors(), figureSize(), from, top);
+    if (!up) return;
+    flight = {began: performance.now(), hops: skywardHops(from, up, top), back: 0};
     body.footing = null;
 }
 
@@ -542,7 +551,7 @@ function flyOn() {
     const world = worldBox();
     const x = world.left + SIZE / 2 + Math.random() * Math.max(world.right - world.left - SIZE, 0);
     flight = null;
-    body.airborne = chuteFrom(x, -SIZE / 4, SKYWARD.chute * SIZE, now, Math.random);
+    body.airborne = chuteFrom(x, world.top - SIZE / 4, SKYWARD.chute * SIZE, now, Math.random);
     body.at = placed(body.airborne, "stand");
     step();
 }
@@ -1086,11 +1095,17 @@ const actorStyle = computed(() => ({
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
 }));
 
-const style = computed(() => ({
-    width: `${SIZE}px`,
-    height: `${SIZE}px`,
-    transform: `translate(${body.at.x}px, ${body.at.y}px)`,
-}));
+// the figure and all it holds are drawn inside the chat alone, cut off at its walls, as when it climbs out over the top
+const style = computed(() => {
+    const world = worldBox();
+    const {x, y} = body.at;
+    return {
+        width: `${SIZE}px`,
+        height: `${SIZE}px`,
+        transform: `translate(${x}px, ${y}px)`,
+        clipPath: `inset(${world.top - y}px ${x + SIZE - world.right}px ${y + SIZE - world.bottom}px ${world.left - x}px)`,
+    };
+});
 </script>
 
 <template>

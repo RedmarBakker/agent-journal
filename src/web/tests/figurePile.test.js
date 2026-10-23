@@ -13,9 +13,9 @@ test("the pile is filtered to what may play where things stand: the moment, the 
     expect(names(choicesFor({moment: "heard", voice: "homie"}))).toEqual(["nod", "nothing"]);
     // an idle act once the state has lasted long enough, and only while the figure has nothing to do; a shenanigan in any state
     const idle = names(choicesFor({moment: "pastime", free: true, lasted: 20, voice: "coach"}));
-    expect(idle).toEqual(["look_around", "hop_up", "salto", "nothing"]);
+    expect(idle).toEqual(["look_around", "hop_up", "nothing"]);
     expect(names(choicesFor({moment: "pastime", free: true, lasted: 1000, voice: "coach"}))).toContain("whistle");
-    expect(names(choicesFor({moment: "pastime", free: false, lasted: 1000, voice: "coach"}))).toEqual(["hop_up", "salto", "nothing"]);
+    expect(names(choicesFor({moment: "pastime", free: false, lasted: 1000, voice: "coach"}))).toEqual(["hop_up", "nothing"]);
     // a hang only with a free hand, a backflip only on a high jump, the work's acts only while that work goes on
     expect(names(choicesFor({moment: "perch", hands: false}))).toEqual(["stand"]);
     expect(names(choicesFor({moment: "perch", hands: true}))).toEqual(["hang", "stand"]);
@@ -58,8 +58,8 @@ test("an act may be cut off by the next moment only as the pile says and once it
     expect(cutsAfter("look_left", 1)).toBe(true);
     expect(cutsAfter("rest", 2)).toBe(false);
     expect(cutsAfter("rest", 3)).toBe(true);
-    // a fall, a salto, a crane's grab, a celebration play out
-    for (const name of ["fall", "salto", "tumble", "joy", "party_horn", "stamp", "post_dove"]) expect(cutsAfter(name, 60), name).toBe(false);
+    // a fall, a backflip, a crane's grab, a celebration play out
+    for (const name of ["fall", "backflip", "tumble", "joy", "party_horn", "stamp", "post_dove"]) expect(cutsAfter(name, 60), name).toBe(false);
     // the longer acts that may be cut, longer than three seconds, must have played three first
     const seconds = (name) => {
         const clip = CLIPS.find((each) => each.name === name);
@@ -175,7 +175,6 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip headphones ×4 when moment=pastime free=true lasted=45 voices=homie, cut after 3s",
         "clip shield_polish ×4 when moment=pastime free=true lasted=45 voices=squire, cut after 3s",
         "shenanigan clip hop_up ×2 when moment=pastime, plays out",
-        "shenanigan clip salto ×2 when moment=pastime, plays out",
         "nothing nothing ×560 when moment=pastime",
         "clip search ×3 when moment=held:search, plays out",
         "clip binoculars ×2 when moment=held:search, plays out",

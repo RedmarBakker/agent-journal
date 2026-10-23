@@ -368,16 +368,16 @@ function freeBuildSpot(edge, figure, near, beside, before) {
 }
 
 // The trip of a figure resting at `place` to `spot` (tripBetween), from its picture in the posture it travels in where it is to its picture
-// in the posture it travels in there
-export function tripTo(place, spot, figure, {straight = false, pace = 1, random = Math.random} = {}) {
-    const from = boxAt(place, figure, POSTURES[place.posture].travels);
-    const to = boxAt(spot, figure, POSTURES[spot.posture].travels);
-    return tripBetween({x: from.left, y: from.top}, {x: to.left, y: to.top}, figure.size, {
-        straight,
-        hangs: spot.posture === "hang",
-        pace,
-        random,
-    });
+// in the posture it travels in there; on a climb it hops on up from each foothold of `via` (perches.js climbOf) to the next, and on to the spot
+export function tripTo(place, spot, figure, {straight = false, pace = 1, random = Math.random, via = []} = {}) {
+    const corner = (each) => {
+        const box = boxAt(each, figure, POSTURES[each.posture].travels);
+        return {x: box.left, y: box.top};
+    };
+    const [from, ...stops] = [place, ...via, spot].map(corner);
+    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang", pace, random});
+    const hops = stops.slice(1).map((to, index) => tripBetween(stops[index], to, figure.size, {random})?.legs.find((leg) => leg.hopping));
+    return trip && {...trip, legs: [...trip.legs, ...hops.filter(Boolean)]};
 }
 
 // The way a figure whose middle is at `x` turns to look at a chat mark, by its key: to its right or its left, or toward the viewer when

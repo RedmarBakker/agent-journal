@@ -1,15 +1,16 @@
 // @vitest-environment node
 import {beforeEach, expect, test} from "vitest";
 
-const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_WIDTH, STANDS, ledgeSpot, perchOn, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
+const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_WIDTH, STANDS, climbOf, ledgeSpot, perchOn, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
-const {PILE} = await import("../src/figure/pile.js");
+const {PILE, choicesFor} = await import("../src/figure/pile.js");
+const {JUMP, climbStops, jumpMost} = await import("../src/figure/climbs.js");
 
 // the pile's places to roam to, and its share of perches that are a hang
 const ROAMS = PILE.filter((entry) => entry.when.moment === "roam");
 const [HANG, STAND] = PILE.filter((entry) => entry.when.moment === "perch");
 const HANG_SHARE = HANG.weight / (HANG.weight + STAND.weight);
-const {SEAT_INBOARD, boxAt, overlaps} = await import("../src/figure/places.js");
+const {SEAT_INBOARD, boxAt, overlaps, tripTo} = await import("../src/figure/places.js");
 const {write} = await import("./figurePage.js");
 
 // a page with nothing on it a perch could hide, until a test writes words onto it, and no chat, so the figure's world is the window
@@ -167,8 +168,11 @@ test("with something waiting on the user the figure keeps its stay rather than g
         stay: edge,
     };
     expect(targetFor(at)).toMatchObject({stay: edge, spot: {posture: "stand", view: null, y: 800}});
+    // a tab inside it but higher than it can climb to is one it points at from where it is
     tab.getBoundingClientRect = () => ({left: 600, right: 640, width: 40, top: 400, bottom: 430});
-    expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 400, view: "question", on: tab}});
+    expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 800, view: null}});
+    tab.getBoundingClientRect = () => ({left: 600, right: 640, width: 40, top: 640, bottom: 670});
+    expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 640, view: "question", on: tab}});
 });
 
 test("a click sends the figure out of the box it was in, to a spot at home clear of it, until the box has been clear a while", () => {
@@ -276,4 +280,43 @@ test("now and then the figure sits on the edge of a floor facing the user, halfw
     // a floor too short to sit a third along with room to spare is no ledge
     home.getBoundingClientRect = () => box({left: 258, right: 258 + LEDGE_WIDTH * FIGURE.size - 1, top: 768, bottom: 888});
     expect(ledgeSpot(1 / 2, FIGURE, {on: home})).toBe(null);
+});
+
+test("no jump goes higher than its one limit: a climb is as many hops as its height needs, each onto a bubble on the way, and a salto turns only on a jump up", () => {
+    const most = jumpMost(FIGURE);
+    expect(most).toBeCloseTo(JUMP.most * (1 - FIGURE.below - 0.15) * FIGURE.size);
+    // footholds a bubble's height apart, as a thread's bubbles stand, from the ground at 800 up
+    const holds = Array.from({length: 12}, (_, index) => ({x: 300 + (index % 2) * 120, y: 740 - index * 60}));
+    const from = {x: 300, y: 800};
+    const counts = [];
+    for (const height of [100, 300, 520, 700]) {
+        const stops = climbStops(from, from.y - height, holds, most);
+        const feet = [from, ...stops, {y: from.y - height}];
+        for (let hop = 1; hop < feet.length; hop++) {
+            expect(feet[hop - 1].y - feet[hop].y, `${height}: hop ${hop}`).toBeLessThanOrEqual(most);
+            expect(feet[hop].y).toBeLessThan(feet[hop - 1].y);
+        }
+        counts.push(feet.length - 1);
+    }
+    // the higher the climb the more hops, never a fixed count
+    expect(counts).toEqual([...counts].sort((a, b) => a - b));
+    expect(new Set(counts).size).toBe(counts.length);
+    expect(counts[0]).toBe(1);
+    // with no foothold in reach on the way a climb too high for one hop is refused, and one in reach is a single hop
+    expect(climbStops(from, from.y - most - 1, [], most)).toBe(null);
+    expect(climbStops(from, from.y - most + 1, [], most)).toEqual([]);
+    // on the page the footholds are the bubbles' corners, and a trip up hops from each to the next, never higher than the limit
+    const floors = floorsOf(at(560), at(400, 420, 660), at(240));
+    const via = climbOf(floors, FIGURE, {x: 300, y: 660}, 240);
+    expect(via.length).toBeGreaterThan(0);
+    const top = perchSpot({floor: floors.floors[2].id, kind: STANDS, side: "right", grip: ""}, floors, FIGURE);
+    const legs = tripTo({x: 300, y: 660, posture: "stand"}, top, FIGURE, {via}).legs;
+    const hops = legs.filter((leg) => leg.hopping);
+    expect(hops.length).toBe(via.length + 1);
+    hops.reduce((y, hop) => (expect(y - hop.y).toBeLessThanOrEqual(most), hop.y), legs[0].y);
+    expect(climbOf(floorsOf(at(240)), FIGURE, {x: 300, y: 660}, 240)).toBe(null);
+    // the salto is no idle act any more: it only turns now and then on a high jump up onto a bubble
+    expect(PILE.filter((entry) => entry.name === "salto")).toEqual([]);
+    expect(PILE.filter((entry) => entry.name === "backflip").map((entry) => entry.when)).toEqual([{moment: "jump", high: true}]);
+    expect(choicesFor({moment: "jump", high: false}).map((entry) => entry.name)).toEqual(["jump"]);
 });

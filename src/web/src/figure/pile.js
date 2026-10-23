@@ -9,7 +9,7 @@
 // play again once it has, kept under the moment, or under the entry itself when it stands `apart`. A reaction may turn `toward` its card
 // or go `onto` it, playing there.
 //
-// The playful acts are `shenanigan`s: a salto, the run up the bubbles off the screen, a jump up onto a bubble or a hang from one. They may
+// The playful acts are `shenanigan`s: a salto on a jump up, the run up the bubbles off the screen, a jump up onto a bubble or a hang from one. They may
 // play in any state, each state weighting its own acts higher, and after SHENANIGAN.after acts in a row with none among them the next
 // draw that may be one is one.
 export const SHENANIGAN = {after: 3};
@@ -35,7 +35,7 @@ const USER_FACES = {
 };
 
 // The acts the next moment may cut off, and the seconds each must have played first: a look about, a stretch or a nod may give way after a
-// second, the longer idle acts after three; every other act plays out, as a fall, a salto, a celebration or an act with a prop in hand,
+// second, the longer idle acts after three; every other act plays out, as a fall, a backflip, a celebration or an act with a prop in hand,
 // so the figure never flickers between acts
 export const CUT = {
     look_left: 1, look_right: 1, look_up: 1, look_around: 1, glance: 1, wipe_brow: 1, stretch: 1, yawn: 1, nod: 1, shake: 1, bow: 1,
@@ -111,10 +111,9 @@ export const PILE = [
         pastime("sip", 4, 45, 60, {when: {voices: ["colleague"]}}),
         pastime("headphones", 4, 45, 60, {when: {voices: ["homie"]}}),
         pastime("shield_polish", 4, 45, 60, {when: {voices: ["squire"]}}),
-        // the shenanigans: it hops up the bubbles off the top of the screen and comes back down on a parachute (figure/skyward.js), or
-        // springs up and turns a salto where it stands
+        // the shenanigan: it hops up the bubbles off the top of the chat and comes back down on a parachute (figure/skyward.js); it turns
+        // a salto only now and then on a high jump up onto a bubble (the jump moment), never where it stands
         shenanigan("hop_up", 2, 150, {flies: true}),
-        shenanigan("salto", 2, 60),
         nothing(560),
     ]),
     // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner or

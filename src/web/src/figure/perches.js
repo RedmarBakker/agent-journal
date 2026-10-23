@@ -1,4 +1,5 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
+import {climbStops, jumpMost} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
@@ -116,13 +117,16 @@ export function markSpot(card, figure) {
     return sides.map((side) => perchSpot({floor: floor.id, kind: STANDS, side, grip: ""}, floors, figure)).find(Boolean) ?? null;
 }
 
-// The stands a figure with its feet at `from` hops up on its run off the top of the screen (figure/skyward.js): the corner of each bubble
-// in the thread's view above it with a free stand, nearest first, each at least a fifth of its height above the last
-export function climbOf(floors, figure, from) {
-    const bubbles = floors.floors.filter((floor) => floor.kind === "bubble" && floor.top < from.y).sort((a, b) => b.top - a.top);
+// The footholds a figure with its feet at `from` hops onto to climb up to feet at height `y` (climbs.js climbStops): the corners of the
+// bubbles in the thread's view on the way with a free stand, each a place it stands at; null when it cannot climb that high
+export function climbOf(floors, figure, from, y) {
+    const bubbles = floors.floors.filter((floor) => floor.kind === "bubble" && floor.top < from.y);
     const stands = bubbles.map((floor) => perchSpot({floor: floor.id, kind: STANDS, side: sideOf(floor, floors.view), grip: ""}, floors, figure)).filter(Boolean);
-    return stands.reduce((up, spot) => (spot.y <= (up.at(-1) ?? from).y - figure.size / 5 ? [...up, {x: spot.x, y: spot.y}] : up), []);
+    return climbStops(from, y, stands, jumpMost(figure));
 }
+
+// the spot, when a figure at `near` can climb to it, else null
+export const climbable = (spot, figure, near) => (spot && climbOf(readFloors(), figure, near, spot.y) ? spot : null);
 
 // The next stay, drawn at `now` seconds from the pile: where, until when, and what it holds for the stay, the perch on a bubble, the
 // tab it stands on, of those with a spot inside its world, or the point along the home edge it strolls to. A hang from a bubble is a short
@@ -189,12 +193,12 @@ function targetOf({state, counts, stay, now, near, figure, hands, random, tally}
     const seat = clipOf(state) === "type" && seatOf(figure, near);
     if (seat) return {spot: seat, stay};
     const pressing = pointedView(counts, openTabs());
-    const pointing = pressing && spotOf(pressing, figure, near);
+    const pointing = pressing && climbable(spotOf(pressing, figure, near), figure, near);
     if (pointing) return {spot: pointing, stay};
-    const kept = now < stay.until && stayingAt(stay, figure, near);
+    const kept = now < stay.until && climbable(stayingAt(stay, figure, near), figure, near);
     if (kept) return {spot: kept, stay};
     const next = nextStay(now, figure, hands, random, tally, FREE.has(state));
-    return {spot: stayingAt(next, figure, near) || restOf(figure, near), stay: next};
+    return {spot: climbable(stayingAt(next, figure, near), figure, near) || restOf(figure, near), stay: next};
 }
 
 // how long the box a figure stepped aside from stays clear of it, in seconds

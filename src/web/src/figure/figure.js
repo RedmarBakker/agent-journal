@@ -1543,28 +1543,23 @@ function jump(pose, stance, t) {
 }
 
 const BACKFLIP_RAISE = 25;
-// how high a salto on the spot springs, in the figure's units, so its head clears the floor as it turns over
-const SALTO_LIFT = 1.1;
 const BACKFLIP_TURN = 360;
 
-// a jump that turns over backwards on the way: the crouch, then the body tucked and turned all the way round about its hips in the air
-// a backflip, crouched, turned over in the air `lift` units off the ground and landed: on a high jump's way up, where the jump carries it,
-// or as a salto where it stands, springing well up for the turn
-const flipOver = (lift) => (pose, stance, t) => {
+// a jump that turns over backwards on the way up a high jump, where the jump carries it: the crouch, then the body tucked and turned all the
+// way round about its hips in the air, and landed
+function backflip(pose, stance, t) {
     const u = onceTime(t, 22);
     const crouch = rise(u, 0, 0.26) * (1 - rise(u, 0.26, 0.34));
     const turn = rise(u, 0.3, 0.86);
     const air = rise(u, 0.28, 0.4) * (1 - rise(u, 0.86, 0.95));
-    pose.lift("root", {z: lift * air});
+    pose.lift("root", {z: 0.1 * air});
     breathe(pose, 0);
     trunk(pose, {lean: 12 * crouch});
     flung(pose, stance, 30 * crouch, BACKFLIP_RAISE * air);
     fold(pose, 0.28 * crouch);
     tucked(pose, 1.2 * air);
     pose.turnAll({x: BACKFLIP_TURN * turn}, pose.head("hips", pose.matrix("hips")));
-};
-const backflip = flipOver(0.1);
-const salto = flipOver(SALTO_LIFT);
+}
 
 // a fall down to a perch: the arms thrown up and flailing, the legs kicking, the body leaning back as it drops
 function fall(pose, stance, t) {
@@ -2343,7 +2338,6 @@ export const CLIPS = [
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
-    {name: "salto", frames: 22, fps: 20, loops: false, postures: MOVE, pose: salto},
     {name: "land", frames: LANDING.frames, fps: LANDING.fps, loops: false, postures: MOVE, pose: land},
     {name: "type", frames: 24, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: type},
     {name: "joy", frames: 20, fps: 14, loops: false, postures: GESTURE, pose: joy},
