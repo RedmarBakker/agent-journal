@@ -105,6 +105,7 @@ export class Posing {
         this.final = new Map();
         this.eyes = 1;
         this.eyeShape = null;
+        this.eyeShift = [0, 0];
         this.eyeTint = null;
         this.hearts = 0;
         this.stars = 0;
@@ -254,6 +255,11 @@ export class Posing {
 
     shutEyes(open) {
         this.eyes = Math.max(open, MIN_EYE_HEIGHT);
+    }
+
+    // the eyes in their own shape glancing up `up` of their height and aside `aside` of it, toward the figure's left
+    glanceEyes(up, aside) {
+        this.eyeShift = [aside, up];
     }
 
     // the eyes taking on the shape `name` of EYE_SHAPES, `strength` of the way from their own, aside toward `way`, 1 the figure's left
@@ -446,25 +452,29 @@ function waveArm(pose, side, t) {
 // How the figure thinks: the head tipped back `nod` degrees and turned `turn` away from the free hand; the free hand's knuckles at the
 // head's `chin`, the front of its bottom edge (measured on the head shell, the same on every voice), the hand pointing up along `fist`
 // with its wrist under them and its elbow pointing down along `elbow`; the other forearm folded across the body under that elbow, its
-// hand `inboard` of the way from the middle out to that elbow and `under` it, its own elbow out along `folded`; and the knuckles
-// tapping the chin `taps` times a loop, each tap lifting them `tap` off it and back
-export const THINKING = {nod: -10, turn: 14, chin: [0, -0.58, 2.5], fist: [0.15, -0.2, 1], elbow: [0.1, -0.5, -1], inboard: 0.1, under: 0.12, folded: [1, -0.6, -0.4], taps: 2, tap: 0.08};
+// hand `inboard` of the way from the middle out to that elbow and `under` it, its own elbow out along `folded`; the knuckles tapping the
+// chin `taps` times a loop, each tap lifting them `tap` off it and back; and the eyes glancing up `glance` of their height, and aside
+export const THINKING = {nod: -10, turn: 14, chin: [0, -0.58, 2.5], fist: [0.15, -0.2, 1], elbow: [0.1, -0.5, -1], inboard: 0.1, under: 0.12, folded: [1, -0.6, -0.4], taps: 2, tap: 0.08, glance: [0.35, 0.3]};
 
-// "ah, got it": the head comes up and the eyes open wide as the free hand comes up before the shoulder, its finger raised, and goes down
-// again as the bulb over the head fades
-const GOT_IT = [0.7, -0.5, 2.5];
+// The thinking act (acts.js ponder): the head tilted `tilt` degrees to the free hand's side and up `nod`, swaying `sway` degrees; the free
+// hand's fingers along the cheek at `cheek`, beside the bottom of the head, pointing up along `finger`; and at its end, "got it", the
+// hand raised before the shoulder at `gotIt`, its finger up
+export const PONDERING = {tilt: 22, nod: -12, sway: 4, cheek: [0.38, -0.78, 2.6], finger: [0.2, 0.15, 1], gotIt: [0.85, -0.45, 2.75]};
 
-function bulb(pose, stance, t) {
-    const act = ACTS.bulb;
-    const u = onceTime(t, act.frames);
-    const up = partOf(u, act.rise) * (1 - partOf(u, act.fades));
-    breathe(pose, 0);
-    trunk(pose, {nod: -10 * up, lean: -3 * up});
-    actHand(pose, stance, up, GOT_IT, {x: -60});
-    eyesAs(pose, "startled", up);
+// the wrist of the hand on `side` put so its grip is at `grip`, the hand pointing along `along`, `k` of the way up from hanging
+function handAlong(pose, side, k, grip, along, elbow) {
+    handTo(pose, side, k, grip.clone().addScaledVector(along, -HAND.grip), elbow);
+    pose.aim(`hand_${side}`, new THREE.Vector3(0, 0, -1).lerp(along, k).normalize());
 }
 
-// thinks it over, its knuckles at its chin and that elbow resting on the other arm folded across its body, its eyes turned up and
+// the forearm on `side` folded across the body under the elbow of the arm on `other`, `k` of the way up from hanging
+function foldUnder(pose, side, other, k) {
+    const elbow = pose.head(`forearm_${other}`, pose.matrix(`forearm_${other}`));
+    const under = new THREE.Vector3(elbow.x * THINKING.inboard, elbow.y, elbow.z - THINKING.under);
+    handTo(pose, side, k, pose.withinReach(side, under, 0.97), new THREE.Vector3(...THINKING.folded));
+}
+
+// thinks it over, its knuckles at its chin and that elbow resting on the other arm folded across its body, its eyes glancing up and
 // aside, the hand tapping slowly at the chin
 function think(pose, stance, t) {
     const side = freeSide(stance);
@@ -478,12 +488,37 @@ function think(pose, stance, t) {
     const chin = new THREE.Vector3(...THINKING.chin).applyMatrix4(pose.matrix("head"));
     const [across, forward, up] = THINKING.fist;
     const fist = new THREE.Vector3(-sign * across, forward, up).normalize();
-    pose.reach(side, chin.clone().addScaledVector(fist, -HAND.grip - THINKING.tap * tapping), new THREE.Vector3(...THINKING.elbow));
-    pose.aim(`hand_${side}`, fist);
-    const elbow = pose.head(`forearm_${side}`, pose.matrix(`forearm_${side}`));
-    const under = new THREE.Vector3(elbow.x * THINKING.inboard, elbow.y, elbow.z - THINKING.under);
-    pose.reach(other, pose.withinReach(other, under, 0.97), new THREE.Vector3(...THINKING.folded));
-    pose.shapeEyes("pondering", 1, -sign);
+    handAlong(pose, side, 1, chin.addScaledVector(fist, -THINKING.tap * tapping), fist, new THREE.Vector3(...THINKING.elbow));
+    foldUnder(pose, other, side, 1);
+    pose.glanceEyes(THINKING.glance[0], -sign * THINKING.glance[1]);
+}
+
+// The thinking act, played now and then while the agent thinks: it tilts its head up and to one side, swaying a little, its finger along
+// its cheek and that elbow on the other arm folded across it, its eyes glancing up and aside, while a thought cloud rises over its head
+// (chat/FigureAct.vue); and it always ends with "got it", the head up, the eyes wide and the finger raised as the bulb lights
+function ponder(pose, stance, t) {
+    const act = ACTS.ponder;
+    const u = onceTime(t, act.frames);
+    const side = freeSide(stance);
+    const other = side === "l" ? "r" : "l";
+    const sign = SIDES[side];
+    const thinking = partOf(u, act.into) * (1 - partOf(u, act.rise));
+    const got = partOf(u, act.rise) * (1 - partOf(u, act.fades));
+    const sway = Math.sin(2 * Math.PI * act.sways * u) * thinking;
+    breathe(pose, t);
+    trunk(pose, {nod: PONDERING.nod * thinking - 10 * got, tilt: -sign * (PONDERING.tilt * thinking + PONDERING.sway * sway), turn: 3 * sway});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, [...(thinking + got ? [side] : []), ...(thinking ? [other] : [])]);
+    const [x, y, z] = PONDERING.cheek;
+    const cheek = new THREE.Vector3(sign * x, y, z).applyMatrix4(pose.matrix("head"));
+    const [gx, gy, gz] = PONDERING.gotIt;
+    const raised = pose.carried(new THREE.Vector3(sign * gx, gy, gz + HAND.grip));
+    const [across, forward, up] = PONDERING.finger;
+    const finger = new THREE.Vector3(-sign * across, forward, up).normalize();
+    if (thinking + got) handAlong(pose, side, Math.max(thinking, got), cheek.lerp(raised, partOf(u, act.rise)), finger, new THREE.Vector3(...THINKING.elbow));
+    if (thinking) foldUnder(pose, other, side, thinking);
+    pose.glanceEyes(THINKING.glance[0] * thinking, -sign * THINKING.glance[1] * thinking);
+    eyesAs(pose, "startled", got);
 }
 
 // the chin rested on the hand on `side`
@@ -2735,7 +2770,7 @@ export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
     {name: "nod", frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
     {name: "hand_rub", frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: GESTURE, pose: hand_rub},
-    {name: "bulb", frames: ACTS.bulb.frames, fps: ACTS.bulb.fps, loops: false, postures: GESTURE, pose: bulb},
+    {name: "ponder", frames: ACTS.ponder.frames, fps: ACTS.ponder.fps, loops: false, ownLook: true, postures: GESTURE, pose: ponder},
     {name: "shake", frames: 12, fps: 12, loops: false, postures: GESTURE, pose: shake},
     {name: "wave", frames: 12, fps: 12, loops: true, postures: GESTURE, pose: wave},
     {name: "think", frames: 24, fps: 6, loops: true, leaves: 12, postures: GESTURE, pose: think},
@@ -2833,6 +2868,8 @@ const SKINNED = /* glsl */ `
     uniform float push;
     uniform float openness;
     uniform float eyeMiddle;
+    uniform float eyeHeight;
+    uniform vec2 eyeShift;
     varying vec3 worldNormal;
     varying vec3 worldPosition;
     varying vec3 localPosition;
@@ -2847,6 +2884,7 @@ const SKINNED = /* glsl */ `
         #include <skinnormal_vertex>
         #include <begin_vertex>
         transformed.y = eyeMiddle + (transformed.y - eyeMiddle) * openness;
+        transformed.xy += eyeShift * eyeHeight;
         #include <skinning_vertex>
         transformed += normalize(objectNormal) * push;
         worldNormal = normalize(mat3(modelMatrix) * objectNormal);
@@ -2943,11 +2981,19 @@ const LINE = /* glsl */ `
 function vertexUniforms(mesh, push) {
     const position = mesh.geometry.attributes.position;
     let middle = 0;
+    let [low, high] = [Infinity, -Infinity];
     for (let i = 0; i < position.count; i++) {
         middle += position.getY(i) / position.count;
+        [low, high] = [Math.min(low, position.getY(i)), Math.max(high, position.getY(i))];
     }
     // a quantized glb scales each mesh up from small units, so the outline is pushed in the mesh's own units
-    return {push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x}, openness: {value: 1}, eyeMiddle: {value: middle}};
+    return {
+        push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x},
+        openness: {value: 1},
+        eyeMiddle: {value: middle},
+        eyeHeight: {value: high - low},
+        eyeShift: {value: new THREE.Vector2()},
+    };
 }
 
 function flatMaterial(mesh) {
@@ -3785,12 +3831,10 @@ const LIDDED = (() => {
 })();
 
 // The shapes the eyes take on in place of their smile, in the eyes' own ivory, each `size` across and moved `aside` and `up` on the visor,
-// one that is `mirrored` drawn the other way round on the figure's right eye, so the two face each other: round and looking up in
-// thought; focused, narrowed to a flat oval at work; narrowed and serious, a bar sloping down toward the nose, at a failure; bright, a
+// one that is `mirrored` drawn the other way round on the figure's right eye, so the two face each other: focused, narrowed to a flat oval at work; narrowed and serious, a bar sloping down toward the nose, at a failure; bright, a
 // thick happy arch with a sparkle beside it, at a pass; calm, half-lidded, at rest; and eyeing, half-lidded and turned aside, at something that catches
 // the eye
 export const EYE_SHAPES = {
-    pondering: {geometry: new THREE.CircleGeometry(0.5, 24), size: 0.3, aside: 0.1, up: 0.14},
     focused: {geometry: (() => {
         const shape = new THREE.Shape();
         shape.absellipse(0, 0, 0.5, 0.2, 0, 2 * Math.PI, false, 0);
@@ -3864,6 +3908,7 @@ function place(figure, pose, facing, blend) {
     }
     for (const material of figure.eyes.materials) {
         material.uniforms.openness.value = Math.max(pose.eyes * (1 - (pose.eyeShape?.strength ?? 0)), MIN_EYE_HEIGHT);
+        material.uniforms.eyeShift.value.set(...pose.eyeShift);
         if (material.uniforms.light) material.uniforms.colour.value.set(...(pose.eyeTint ?? material.userData.colour));
     }
     figure.laptop.visible = pose.laptop;

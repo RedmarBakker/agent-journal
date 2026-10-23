@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, EYE_SHAPES, Posing, THINKING} from "../src/figure/figure.js";
+import {CLIPS, PONDERING, Posing, THINKING} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {GROUNDED, HELD, clipFor, clipOf} from "../src/domain/figureState.js";
 import {reactionTo, workMoments} from "../src/figure/reactions.js";
@@ -31,11 +31,19 @@ function thinking(t) {
     };
 }
 
-// FigureAct drawing the bulb act at `u`, the eyes at the middle of a 100 pixel picture a third of the way down
-function bulbAt(u) {
+// the thinking act posed at `u` of its way through for the butler: its pose, and where the eyes are as the head carries them
+function pondering(u) {
+    const pose = new Posing(RIG, "stand", 0);
+    named.ponder.pose(pose, stanceOf("butler"), u);
+    const moves = pose.moves(0);
+    return {pose, at: (name) => pose.head(name, moves.get(name)), head: moves.get("head")};
+}
+
+// FigureAct drawing the thinking act at `u`, the eyes at the middle of a 100 pixel picture a third of the way down
+function drawnAt(u) {
     const root = document.createElement("div");
-    createApp({render: () => h(FigureAct, {name: "bulb", u, hand: {x: 0.7, y: 0.6, out: 1, other: {x: 0.3, y: 0.6}}, head: {x: 0.5, y: 0.3}, feet: 0.9, size: 100, room: {left: 0, right: 0}})}).mount(root);
-    return root.querySelector("[data-bulb]");
+    createApp({render: () => h(FigureAct, {name: "ponder", u, hand: {x: 0.3, y: 0.4, out: -1, other: {x: 0.7, y: 0.6}}, head: {x: 0.5, y: 0.3}, feet: 0.9, size: 100, room: {left: 0, right: 0}})}).mount(root);
+    return root;
 }
 
 describe("the figure thinking", () => {
@@ -59,46 +67,77 @@ describe("the figure thinking", () => {
         expect(folded.x, "folded across the body toward the thinking side").toBeLessThan(0);
     });
 
-    it("turns its eyes up and aside, round and not smiling, while it thinks", () => {
+    it("glances up and aside with its eyes in their usual soft shape, never bare round dots", () => {
         const {pose} = thinking(0);
-        expect(pose.eyeShape.name).toBe("pondering");
-        expect(pose.eyeShape.strength).toBe(1);
-        expect(Math.abs(pose.eyeShape.way)).toBe(1);
-        expect(EYE_SHAPES.pondering.up, "up").toBeGreaterThan(0);
-        expect(EYE_SHAPES.pondering.aside, "to one side").toBeGreaterThan(0);
+        expect(pose.eyeShape, "the usual shape").toBe(null);
+        const [aside, up] = pose.eyeShift;
+        expect(up, "up").toBeGreaterThan(0.2);
+        expect(Math.abs(aside), "to one side").toBeGreaterThan(0.2);
         const idle = new Posing(RIG, "stand", 0);
         named.idle.pose(idle, stanceOf("butler"), 0);
-        expect(idle.eyeShape, "the usual smile otherwise").toBe(null);
+        expect(idle.eyeShift, "straight ahead otherwise").toEqual([0, 0]);
     });
 });
 
-describe("the bulb at the end of thinking", () => {
-    it("is a moment when the thinking ends, and only then", () => {
-        expect(workMoments("writing", false, 1, 10, "thinking").moments.map((moment) => moment.beat)).toContain("thought");
-        expect(workMoments("thinking", false, 1, 10, "thinking").moments.map((moment) => moment.beat)).not.toContain("thought");
-        expect(workMoments("writing", false, 1, 10, "reading").moments.map((moment) => moment.beat)).not.toContain("thought");
-    });
+describe("the thinking act", () => {
+    const act = ACTS.ponder;
+    const middle = (act.cloud[0] + act.cloud[1]) / 2;
 
-    it("lights now and then, not every time, and never again within its cooldown", () => {
-        const rolls = Array.from({length: 100}, (_, index) => (index + 0.5) / 100);
-        const lit = rolls.filter((roll) => reactionTo("thought", new Map(), 1000, () => roll)?.clip === "bulb").length;
-        expect(lit, "about one end in five").toBeGreaterThan(10);
-        expect(lit).toBeLessThan(35);
+    it("plays while the agent thinks, at most once a minute, and the held thinking shows between plays", () => {
+        expect(workMoments("thinking", false, 0, 1).moments.map((moment) => moment.beat)).toContain("pondering");
+        expect(workMoments("running", false, 0, 1).moments.map((moment) => moment.beat)).not.toContain("pondering");
         const memory = new Map();
-        expect(reactionTo("thought", memory, 1000, () => 0).clip).toBe("bulb");
-        expect(reactionTo("thought", memory, 1060, () => 0), "a minute later").toBe(null);
-        expect(reactionTo("thought", memory, 1121, () => 0).clip, "past two minutes").toBe("bulb");
+        expect(reactionTo("pondering", memory, 1000, () => 0.99).clip, "every time it is free to").toBe("ponder");
+        expect(reactionTo("pondering", memory, 1030, () => 0), "half a minute later").toBe(null);
+        expect(reactionTo("pondering", memory, 1059, () => 0), "just under a minute").toBe(null);
+        expect(reactionTo("pondering", memory, 1061, () => 0).clip, "a minute on").toBe("ponder");
+        expect(named.ponder.loops, "played once, then the held clip again").toBe(false);
+        expect(HELD.thinking).toBe("think");
     });
 
-    it("draws the bulb over the head, lit a moment, then faded", () => {
-        const act = ACTS.bulb;
-        const glowing = bulbAt((act.lights[1] + act.fades[0]) / 2);
-        expect(glowing).not.toBe(null);
-        const [, y] = glowing.getAttribute("transform").match(/translate\(([-\d.]+) ([-\d.]+)\)/).slice(1).map(Number);
-        expect(y, "above the eyes").toBeLessThan(30);
-        expect(Number(glowing.getAttribute("opacity"))).toBe(1);
-        expect(bulbAt(act.lights[0] / 2), "not yet lit").toBe(null);
-        expect(bulbAt(1), "faded out").toBe(null);
-        expect(named.bulb.loops).toBe(false);
+    it("tilts its head up and to one side, its finger along its cheek, swaying a little, its eyes glancing up in their usual shape", () => {
+        const {pose, at, head} = pondering(middle);
+        const tilted = new THREE.Vector3(0, 0, 1).transformDirection(head);
+        expect(Math.abs(tilted.x), "tilted to one side").toBeGreaterThan(0.15);
+        const looks = new THREE.Vector3(0, -1, 0).transformDirection(head);
+        expect(looks.z, "and up").toBeGreaterThan(0.1);
+        const cheek = new THREE.Vector3(-PONDERING.cheek[0], PONDERING.cheek[1], PONDERING.cheek[2]).applyMatrix4(head);
+        const grip = pose.grip("r", [0, 0, 0]).applyMatrix4(pose.moves(0).get("hand_r"));
+        expect(grip.distanceTo(cheek), "the finger at the cheek").toBeLessThan(0.05);
+        expect(at("hand_r").z, "the hand up by the head").toBeGreaterThan(RIG.heads.get("chest").z);
+        expect(pose.eyeShape).toBe(null);
+        expect(pose.eyeShift[1]).toBeGreaterThan(0.2);
+        const sways = Array.from({length: 20}, (_, index) => pondering(act.cloud[0] + 0.05 + (index / 20) * (act.cloud[1] - act.cloud[0] - 0.1)).head.elements[0]);
+        expect(Math.max(...sways) - Math.min(...sways), "it sways").toBeGreaterThan(0.01);
+    });
+
+    it("draws a thought cloud over the head rising from three puffs, its three dots pulsing one after another", () => {
+        const drawn = drawnAt(middle);
+        const cloud = drawn.querySelector("[data-thought-cloud]");
+        expect(cloud).not.toBe(null);
+        const dots = [...drawn.querySelectorAll("[data-thought-dot]")];
+        expect(dots.length).toBe(3);
+        const seconds = act.frames / act.fps;
+        const brightest = Array.from({length: 12}, (_, step) => {
+            const u = middle + ((step / 12) * act.pulse) / seconds;
+            const lit = [...drawnAt(u).querySelectorAll("[data-thought-dot]")].map((dot) => Number(dot.getAttribute("opacity")));
+            return lit.indexOf(Math.max(...lit));
+        });
+        expect(new Set(brightest), "each dot has its turn").toEqual(new Set([0, 1, 2]));
+        const order = brightest.filter((dot, index) => index === 0 || dot !== brightest[index - 1]);
+        order.slice(1).forEach((dot, index) => expect(dot, "one after another").toBe((order[index] + 1) % 3));
+        expect(drawnAt(act.cloud[0] / 2).querySelector("[data-thought-cloud]"), "none before it begins").toBe(null);
+        expect(drawnAt(act.lights[1]).querySelector("[data-thought-dot]"), "gone once the bulb lights").toBe(null);
+    });
+
+    it("ends with the bulb every time it plays, the finger raised, 'got it'", () => {
+        const lit = drawnAt((act.lights[1] + act.fades[0]) / 2).querySelector("[data-bulb]");
+        expect(lit).not.toBe(null);
+        expect(Number(lit.getAttribute("opacity"))).toBe(1);
+        expect(drawnAt(middle).querySelector("[data-bulb]"), "not while it thinks").toBe(null);
+        expect(drawnAt(1).querySelector("[data-bulb]"), "faded at the end").toBe(null);
+        const {at} = pondering((act.lights[1] + act.fades[0]) / 2);
+        expect(at("hand_r").z, "the hand raised").toBeGreaterThan(RIG.heads.get("upper_arm_r").z + 0.4);
+        expect(CLIPS.some((clip) => clip.name === "bulb"), "the bulb is the act's own end, never a clip apart").toBe(false);
     });
 });

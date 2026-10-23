@@ -137,7 +137,30 @@ const scrollHeld = computed(() => {
     return {top, bottom, half, parchment};
 });
 
-// The light bulb over the head at the end of a stretch of thinking: its middle `above` the eyes as a share of the picture, its glass `r`
+// The thought cloud over the thinking figure's head, out toward its free hand: three puffs rising from beside the head one after another
+// into a small cloud, `across` and `above` the eyes as shares of the picture, `wide` across, holding three dots that pulse one after
+// another, each its turn of the act's pulse; all of it fading as the bulb lights
+const CLOUD = {across: 0.24, above: 0.36, wide: 0.3, puffs: [[0.08, 0.12, 0.022], [0.13, 0.2, 0.03], [0.18, 0.27, 0.04]]};
+const cloud = computed(() => {
+    const {puffs, cloud: held, rise, pulse, frames, fps} = act.value;
+    const shown = partOf(props.u, [held[0], puffs[1]]) * (1 - partOf(props.u, [held[1], rise[1]]));
+    if (!shown) return null;
+    const out = props.hand.out;
+    const seconds = (props.u * frames) / fps;
+    const rising = CLOUD.puffs.map(([across, above, r], index) => ({
+        x: head.value.x + out * px(across),
+        y: head.value.y - px(above),
+        r: px(r) * partOf(props.u, [puffs[0] + (index * (puffs[1] - puffs[0])) / 3, puffs[0] + ((index + 1) * (puffs[1] - puffs[0])) / 3]),
+    }));
+    const x = head.value.x + out * px(CLOUD.across);
+    const y = head.value.y - px(CLOUD.above);
+    const w = px(CLOUD.wide);
+    const bumps = [[-0.32, 0.05, 0.2], [-0.12, -0.12, 0.24], [0.14, -0.1, 0.22], [0.32, 0.06, 0.18], [0, 0.12, 0.22]].map(([dx, dy, r]) => ({x: x + dx * w, y: y + dy * w, r: r * w}));
+    const dots = [-1, 0, 1].map((place, index) => ({x: x + place * w * 0.22, y, r: w * 0.05 * (1 + 0.5 * Math.max(Math.sin(2 * Math.PI * (seconds / pulse - index / 3)), 0)), lit: 0.35 + 0.65 * Math.max(Math.sin(2 * Math.PI * (seconds / pulse - index / 3)), 0)}));
+    return {shown, rising, bumps, dots, grown: partOf(props.u, [puffs[0] + (2 * (puffs[1] - puffs[0])) / 3, puffs[1]])};
+});
+
+// The light bulb over the head at the end of the thinking act: its middle `above` the eyes as a share of the picture, its glass `r`
 // pixels round, how lit it is, lighting up and fading out, and the rays around it while it is lit
 const BULB = {above: 0.34, r: 0.07, rays: 8};
 const bulbLit = computed(() => {
@@ -250,7 +273,18 @@ const flap = computed(() => {
                 <rect v-for="(roller, index) in [scrollHeld.top, scrollHeld.bottom]" :key="`roller${index}`" :x="roller.x - scrollHeld.half - 1" :y="roller.y - ROLLER / 2" :width="2 * scrollHeld.half + 2" :height="ROLLER" :rx="ROLLER / 2" :fill="COLOURS.wood" :data-scroll-roller="index ? 'bottom' : 'top'" />
             </template>
 
-            <template v-if="name === 'bulb' && bulbLit">
+            <template v-if="name === 'ponder' && cloud">
+                <g :opacity="cloud.shown" data-thought-cloud>
+                    <circle v-for="(puff, index) in cloud.rising" :key="`puff${index}`" :cx="puff.x" :cy="puff.y" :r="puff.r" :fill="COLOURS.paper" stroke-width="0.8" />
+                    <g v-if="cloud.grown" :opacity="cloud.grown">
+                        <circle v-for="(bump, index) in cloud.bumps" :key="`bump${index}`" :cx="bump.x" :cy="bump.y" :r="bump.r" :fill="COLOURS.paper" stroke-width="0.9" />
+                        <circle v-for="(bump, index) in cloud.bumps" :key="`fill${index}`" :cx="bump.x" :cy="bump.y" :r="bump.r - 0.8" :fill="COLOURS.paper" stroke="none" />
+                        <circle v-for="(dot, index) in cloud.dots" :key="`dot${index}`" :cx="dot.x" :cy="dot.y" :r="dot.r" :fill="COLOURS.ink" stroke="none" :opacity="dot.lit" data-thought-dot />
+                    </g>
+                </g>
+            </template>
+
+            <template v-if="name === 'ponder' && bulbLit">
                 <g :transform="`translate(${bulbLit.x} ${bulbLit.y})`" :opacity="Math.min(bulbLit.lit * 1.5, 1)" data-bulb>
                     <circle :r="bulbLit.r * 1.9" :fill="COLOURS.light" stroke="none" :opacity="0.45 * bulbLit.lit" />
                     <line v-for="(ray, index) in bulbLit.rays" :key="index" :x1="ray.x1" :y1="ray.y1" :x2="ray.x2" :y2="ray.y2" :stroke="COLOURS.gold" stroke-width="1.2" stroke-linecap="round" />

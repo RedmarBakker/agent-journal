@@ -178,8 +178,6 @@ let hands = [];
 // the user has typed in the compose box since the last look, and when the agent's work in hand began
 let typed = false;
 let workBegan = 0;
-// the held state at the last look, so the end of a stretch of thinking is seen
-let stateWas = "";
 let walkBegan = 0;
 // The parcels of code the figure has built (figure/parcels.js), oldest first, each {id, along, up, state, until, blows}: on the compose
 // box's top `along` pixels from its left end and `up` pixels up the pile; "building" while the figure hammers it, until `until` on the
@@ -760,10 +758,9 @@ function look() {
     const eagerness = eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value);
     eager = eagerness.eager;
     if (eagerness.moment) react(eagerness.moment);
-    const work = workMoments(held.value.state, typed, workBegan, now.value, stateWas);
+    const work = workMoments(held.value.state, typed, workBegan, now.value);
     typed = false;
     workBegan = work.began;
-    stateWas = held.value.state;
     [...happened, ...answeredWith(work.moments, parcels.value)].forEach(react);
     // the visor lights at a run's end, unless the figure shoots a bug for it instead
     visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);

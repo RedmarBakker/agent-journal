@@ -103,8 +103,8 @@ export const PILE = [
     ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), look("narrowed", 3), nothing(2)]),
     ...at("refused", {cooldown: 20}, [clip("shake", 1), nothing(1)]),
     ...at("work_done", {cooldown: 120}, [clip("stretch", 2), nothing(3)]),
-    // the end of a stretch of thinking: now and then a light bulb lights up over the head, never twice within two minutes
-    ...at("thought", {cooldown: 120}, [clip("bulb", 1), nothing(4)]),
+    // while the agent thinks, the thinking act, ending in the bulb, at most once a minute; between plays its thinking shows as the held clip
+    ...at("pondering", {cooldown: 60}, [clip("ponder", 1)]),
     ...at("answered", {cooldown: 15}, [look("amused", 3), nothing(2)]),
     ...at("heard", {cooldown: 30}, [
         clip("bow", 1, {voices: ["butler"]}),
