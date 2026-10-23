@@ -86,3 +86,15 @@ describe("acts that hold", () => {
         expect(givesWay({clip: named.nod, once: true}, 1), "an act that does not hold gives way as ever").toBe(true);
     });
 });
+
+describe("a one-off act whose mark moves while it plays", () => {
+    it("goes on facing the way it began, never starting again from its first frame; a loop, another act or a finished one does not", async () => {
+        const {goesOnFacing} = await import("../src/figure/timeline.js");
+        const call = {name: "phone_call"};
+        const playing = {clip: call, facing: 1, once: true};
+        expect(goesOnFacing({clip: call, facing: -1, once: true}, playing, false), "the mark moved to the other side mid-call").toBe(true);
+        expect(goesOnFacing({clip: call, facing: -1, once: true}, playing, true), "a call that played out is over").toBe(false);
+        expect(goesOnFacing({clip: {name: "joy"}, facing: -1, once: true}, playing, false)).toBe(false);
+        expect(goesOnFacing({clip: {name: "walk"}, facing: -1}, {clip: {name: "walk"}, facing: 1}, false), "a loop turns as it goes").toBe(false);
+    });
+});

@@ -28,6 +28,7 @@ import {
     clipOf,
     modeOf,
     closeAt,
+    goesOnFacing,
     facesAfter,
     figureStateOf,
     frameIn,
@@ -350,8 +351,9 @@ function step() {
     if (breaking && playing.shown.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed) beats.value = beats.value.slice(1);
     const finished = cutting || playedOut() || breaking || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name && mayCut(playing.shown));
     cutting = false;
-    const continuing = keyOf(wanted) === playing.name && playing.closing === null;
-    const shown = continuing || finished ? wanted : playing.shown;
+    const sameAct = goesOnFacing(wanted, playing.shown, finished);
+    const continuing = (keyOf(wanted) === playing.name || sameAct) && playing.closing === null;
+    const shown = sameAct ? {...wanted, facing: playing.shown.facing} : continuing || finished ? wanted : playing.shown;
     const key = keyOf(shown);
     if (playing.name !== key || (playing.closing !== null && finished)) {
         const turning = shown.clip.intro && playing.shown?.clip.name === shown.clip.name && playing.closing === null;

@@ -34,3 +34,8 @@ export function canSwitch(clip, index, last) {
     const unit = clip.leaves || clip.frames;
     return Math.floor(index / unit) > Math.floor(last / unit);
 }
+
+// Whether the one-off act on screen, `shown`, goes on as it is when `wanted` asks for the same act facing elsewhere, as its mark moved
+// to the figure's other side: it keeps the way it began facing, since a turn would start it again from its first frame; never once it
+// has `finished`, nor for a loop or another act
+export const goesOnFacing = (wanted, shown, finished) => Boolean(wanted.once && shown?.once && wanted.clip.name === shown.clip.name && !finished);

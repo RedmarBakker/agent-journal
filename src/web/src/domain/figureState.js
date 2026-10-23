@@ -140,7 +140,7 @@ function legClip(trip, doing, canDraw) {
     return doing !== "idle" && canDraw(doing, "walk") ? {clip: doing, facing, posture: "walk", ...steps} : {clip: "walk", facing, ...steps};
 }
 
-export {frameIn, closeAt, canSwitch, stretchedFrame} from "../figure/timeline.js";
+export {frameIn, closeAt, canSwitch, goesOnFacing, stretchedFrame} from "../figure/timeline.js";
 
 // a worker's chat mark of the agent giving it work: its dispatch on a task, or its next job; a message to it, its start again and the
 // mark's updates give it none (features/workers worker_process_card and worker_moment_cards)
