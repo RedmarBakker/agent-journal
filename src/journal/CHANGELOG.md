@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.30.1
+
+- The team image's proxy passes a new team server's first connection through to the team server, and a refusal that is not the team server's own is shown as the text it came with.
+
 ## 4.30.0
 
 - One team URL joins. A new team server's URL makes the first journal to connect its admin, with no setup step and no code; after that an admin hands out an invitation URL from Settings, Team (or journal team invite), which carries the code and the certificate. The join asks only for the URL, your email, filled in from git, and a password, which a Generate button can make.

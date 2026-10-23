@@ -1,5 +1,5 @@
 # The team server's paths go to the sync server, the hooks and the CLI to no one, and every other path to the hosted journal.
-@sync path /login /accept /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /upload /upgrade /team /team/* /files/* /leases /leases/*
+@sync path /login /accept /install /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /upload /upgrade /team /team/* /files/* /leases /leases/*
 handle @sync {
 	reverse_proxy 127.0.0.1:8470
 }
@@ -14,5 +14,5 @@ handle {
 }
 # The hosted journal starts only once the first journal has joined this server; until then its paths say so.
 handle_errors 502 {
-	respond "The team's journal opens here once the first journal has joined this server: run the join line the setup printed from your own journal." 503
+	respond "The team's journal opens here once the first journal has connected to this server: give this URL in your own journal's Settings, Team." 503
 }

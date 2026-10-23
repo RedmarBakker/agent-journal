@@ -430,3 +430,13 @@ def test_only_the_hosted_journals_relay_account_sends_writes_in_another_persons_
         team.admins.pin(bob, "4.99.0")
     assert team.admins.pin(hosted, "4.99.0").version == "4.99.0", "the hosted journal pins the team to the release it installed"
     team.store.close()
+
+
+def test_the_proxy_in_front_passes_every_path_the_team_server_answers():
+    import re
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    answered = set(re.findall(r'"(/[a-z/]+)": lambda', (root / "src/sync_server/team_request_handler.py").read_text()))
+    passed = re.search(r"@sync path (.+)", (root / "docker/team-server/routes.caddy").read_text()).group(1).split()
+    missing = [path for path in answered if path not in passed and not any(rule.endswith("/*") and path.startswith(rule[:-1]) for rule in passed)]
+    assert answered and missing == [], f"the proxy sends these to the hosted journal instead: {missing}"
