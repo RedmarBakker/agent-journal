@@ -51,6 +51,15 @@ class Message(Scoped):
     def send_failed(cls, receiver: str, text: str, session: str, address: str, reason: str) -> "Message":
         return cls(author=Author.SYSTEM, text=text, session=session, data={"kind": cls.PEER, cls.RECIPIENT_KEY: receiver, "address": address or receiver, "failure": reason})
 
+    def takes_fold(self, card: "Message", cutoff_at: datetime) -> bool:
+        kinds = ("card_type", "shows", "kind")
+        is_kind_match = all(self.data.get(name) == card.data.get(name) for name in kinds) and self.session == card.session
+        return is_kind_match and self.created_at >= cutoff_at and not card.data.get("key") and not self.data.get("key")
+
+    def folded(self, label: str, detail: str) -> "Message":
+        labels = [*self.data.get("covers", [self.text]), f"{label}: {detail}" if detail else label]
+        return self.with_(text=f"{labels[0]}, and {len(labels) - 1} more like it").with_merged("data", {"covers": labels, "detail": f"{len(labels)} in all", "lines": labels})
+
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":
         if target.agent_role == AgentRole.MAIN:

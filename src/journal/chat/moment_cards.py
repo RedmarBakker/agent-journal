@@ -1,4 +1,8 @@
+from datetime import datetime, timedelta, timezone
+
 from journal.chat.card_detail import CardDetail
+from journal.repositories.setting_rows import SettingRows
+from journal.support.option import Option
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
@@ -7,13 +11,14 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 
 MOMENT = "moment"
+FOLD_SECONDS = Option("messages.fold_marks_seconds", "Fold marks of one kind within", "Seconds within which a chat mark of the same kind as the chat's newest message, a mark too, is counted in it instead of posted", 10, unit="seconds")
 
 
 class MomentCards:
-    """A card in the chat for a moment, shown as it was: a task moved, a skill loaded, a check that ran. Each is a new message of the system's, and nothing updates it."""
+    """A card in the chat for a moment, shown as it was: a task moved, a skill loaded, a check that ran. Each is a new message of the system's, save one of a kind that folds, posted within the fold window after a mark of its kind that is the chat's newest message, which is counted in that mark with its detail."""
 
-    def __init__(self, messages: Messages) -> None:
-        self.messages = messages
+    def __init__(self, messages: Messages, settings: SettingRows) -> None:
+        self.messages, self.settings = messages, settings
 
     def show(self, environment_id: int, session: str | None, label: str, icon: str, tone: str = "", detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardKind) -> Message:
         data = {"kind": kind, "icon": icon, "tone": tone, "row": str(row) if row else "", "command": command}
@@ -21,7 +26,10 @@ class MomentCards:
 
     def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:
         data = {"row": "", **data, **CardDetail.parts(detail), "key": key, "shows": str(shows), "card_type": MOMENT}
-        return self.messages.save(Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, text=label, data=data), actor)
+        card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, text=label, data=data)
+        cutoff_at = datetime.now(timezone.utc) - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))
+        foldable = self.messages.fold_target(card, cutoff_at) if shows.folds() else []
+        return self.messages.save(foldable[0].folded(label, detail) if foldable else card, actor)
 
     def is_shown(self, key: str, actor: Actor) -> bool:
         return bool(self.messages.keyed(key, actor))

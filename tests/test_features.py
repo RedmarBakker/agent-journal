@@ -11364,3 +11364,19 @@ def test_the_overview_lists_only_the_workers_still_to_act_on(app: App):
     assert "Mr. Pepys" not in shown and "Mr. Brunel" not in shown, "a reported and a merged one are history, left out"
     assert all(name in listed for name in ("Mr. Pepys", "Mr. Brunel", "Lady Lovelace", "Mr. Babbage")), "the full list still has every one"
     assert "journal worker open" in Briefing.OVERVIEW_COMMANDS.default and "journal worker list" not in Briefing.OVERVIEW_COMMANDS.default, "the overview runs the short list"
+
+
+def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app: App):
+    from journal.chat.moment_cards import MomentCards
+    from journal.repositories.messages import Messages
+    from journal.support.card_kind import CardKind
+    cards, messages = app.container.get(MomentCards), app.container.get(Messages)
+    with app.container.get(Scope).environment(MAIN):
+        before = len(messages.scoped())
+        for label in ("Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours", "Hosted journal's edit of check 32's title was kept over yours"):
+            cards.show(MAIN, None, label, "warn", detail="kept: 4", shows=CardKind.CONFLICTS)
+        cards.show(MAIN, None, "Task 4 started", "task", shows=CardKind.FACTS)
+        chat = messages.scoped()[before:]
+    assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
+    assert chat[0].data["covers"] == ["Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours: kept: 4", "Hosted journal's edit of check 32's title was kept over yours: kept: 4"], "and the folded mark names each it covers, with its detail"
+    assert chat[0].data["detail"] == "3 in all" and chat[0].data["lines"] == chat[0].data["covers"], "which its card lists under its count"

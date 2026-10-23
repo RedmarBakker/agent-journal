@@ -40,6 +40,10 @@ class Messages(ScopedRepository[Message]):
     def side_thread(self) -> list[Message]:
         return self.newest(self.query().filter(agent_role=AgentRole.PEOPLE))
 
+    def fold_target(self, card: Message, cutoff_at: datetime) -> list[Message]:
+        newest = self.selected_globally(self.main_chat().filter(environment_id=card.environment_id).order_descending("id").limit(1))
+        return [message for message in newest if message.takes_fold(card, cutoff_at)]
+
     def main_chat(self) -> Query:
         return self.query().filter(agent_role=AgentRole.MAIN)
 

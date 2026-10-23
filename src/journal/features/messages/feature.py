@@ -18,6 +18,7 @@ from journal.features.messages.listeners.run_tags import RunTags
 from journal.engine.nudge import Nudge
 from journal.support.option import USER, Option
 from journal.support.skill import Skill
+from journal.chat.moment_cards import FOLD_SECONDS
 
 
 class Messages(Feature[MessagesData]):
@@ -29,7 +30,7 @@ class Messages(Feature[MessagesData]):
     title = "Messages"
     help = "A new message is named to the agent by its number, at once and again at start, at a prompt and at a stop; it reads it with the CLI and answers it first."
     commands = (MessageCommand,)
-    options = (ANSWER_REQUEST_LIMIT, TOOL_BLOCK_LIMIT, EDIT_BLOCK_LIMIT, TRANSCRIPT_SCAN_DELAY)
+    options = (ANSWER_REQUEST_LIMIT, TOOL_BLOCK_LIMIT, EDIT_BLOCK_LIMIT, TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
     listeners = (InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, RunTags, TaskMentionLinks, DumpItemCard, DeliverMessage, StartInboxDelivery)
     data = (MessagesDataReader,)
