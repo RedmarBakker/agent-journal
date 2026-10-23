@@ -2,6 +2,7 @@
 import {expect, test} from "vitest";
 import {CUT, PILE, SHENANIGAN, SHOWPIECES, UNIT, choicesFor, cutsAfter, draw, lineOf} from "../src/figure/pile.js";
 import {CLIPS} from "../src/figure/figure.js";
+import {ACTS} from "../src/figure/acts.js";
 import {unitGranted} from "../src/figure/parcels.js";
 import {carrierOf, flips} from "../src/figure/reactions.js";
 
@@ -61,7 +62,7 @@ test("an act may be cut off by the next moment only as the pile says and once it
     expect(cutsAfter("rest", 2)).toBe(false);
     expect(cutsAfter("rest", 3)).toBe(true);
     // a fall, a backflip, a crane's grab, a celebration play out
-    for (const name of ["fall", "backflip", "tumble", "joy", "party_horn", "stamp", "post_dove"]) expect(cutsAfter(name, 60), name).toBe(false);
+    for (const name of ["fall", "backflip", "tumble", "joy", "party_horn", "post_dove"]) expect(cutsAfter(name, 60), name).toBe(false);
     // the longer acts that may be cut, longer than three seconds, must have played three first
     const seconds = (name) => {
         const clip = CLIPS.find((each) => each.name === name);
@@ -84,7 +85,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "nothing nothing ×2 when moment=committed",
         "clip post_dove ×7 when moment=messaged, plays out",
         "nothing nothing ×13 when moment=messaged",
-        "clip stamp ×4 when moment=task_finished, plays out",
+        "clip nod ×4 when moment=task_finished, cut after 1s",
         "clip joy ×2 when moment=task_finished, plays out",
         "clip party_horn ×1 when moment=task_finished, plays out",
         "nothing nothing ×7 when moment=task_finished",
@@ -293,4 +294,13 @@ test("a passing test run, and only one, may bring a bug the figure shoots, in pl
     expect(choicesFor({moment: "tests_passed", memory, now: 10}).filter((each) => each.kind !== "nothing")).toEqual([]);
     expect(bugShot("tests_passed", {memory, now: 30})).toBe(false);
     expect(bugShot("tests_passed", {memory, now: SHOWPIECES.bug_shot})).toBe(true);
+});
+
+test("a finished task never brings the stamp: no stamp in the pile or among the clips, and its moment draws a nod, a celebration or nothing", () => {
+    expect(PILE.some((entry) => entry.name === "stamp")).toBe(false);
+    expect(CLIPS.some((clip) => clip.name === "stamp")).toBe(false);
+    expect(Object.keys(ACTS)).not.toContain("stamp");
+    const drawn = new Set();
+    for (let share = 0; share < 1; share += 0.01) drawn.add(draw({moment: "task_finished"}, () => share)?.name ?? "nothing");
+    expect([...drawn].sort()).toEqual(["joy", "nod", "nothing", "party_horn"]);
 });

@@ -79,7 +79,7 @@ export const PILE = [
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [...celebrations(), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
     ...at("messaged", {cooldown: 120}, [clip("post_dove", 7), nothing(13)]),
-    ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("stamp", 4), ...celebrations(), nothing(7)]),
+    ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), ...celebrations(), nothing(7)]),
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("think", 3), nothing(8)]),
     ...at("worker_sent", {cooldown: 90}, [clip("whistle_runner", 3), clip("wave", 1), nothing(4)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),

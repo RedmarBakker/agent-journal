@@ -21,8 +21,8 @@ const props = defineProps({
 
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
-const STANDS = {stamp: {across: 0.25, top: 0.32}, file_card: {across: 0.24, top: 0.3}};
-const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1"};
+const STANDS = {file_card: {across: 0.24, top: 0.3}};
+const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8", rope: "#c9a56a", silver: "#c3c7d1"};
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
@@ -126,8 +126,6 @@ const dove = computed(() => {
     return {x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, way: props.u < taken ? -out.value : out.value, wings: Math.sin(props.u * 60), carrying: props.u >= taken};
 });
 
-// the stamp's mark on the sheet, popping in as it lands
-const stamped = computed(() => (props.u >= act.value.stamped ? Math.min((props.u - act.value.stamped) / 0.05, 1) : 0));
 
 // the sign over its head on a stick, tipping as it waggles
 const waggle = computed(() => {
@@ -240,24 +238,6 @@ const flap = computed(() => {
                     <path d="M10 -3.4 13 -2.6 10 -1.8Z" :fill="COLOURS.gold" />
                     <path d="M-8 0 -13 -2.5 -12 2Z" :fill="COLOURS.dove" />
                     <path :d="`M-2 -2 Q-4 ${-12 * dove.wings} 6 ${-14 * dove.wings} Q3 ${-5 * dove.wings} 3 -2Z`" :fill="COLOURS.dove" />
-                </g>
-            </template>
-
-            <template v-if="name === 'stamp' && stand">
-                <g :transform="growing">
-                    <rect :x="stand.x - 2" :y="stand.top + 3" width="4" :height="floor - stand.top - 3" :fill="COLOURS.wood" />
-                    <path :d="`M${stand.x - 14} ${stand.top + 4}L${stand.x - 10} ${stand.top - 2}H${stand.x + 14}L${stand.x + 10} ${stand.top + 4}Z`" :fill="COLOURS.wood" />
-                    <path :d="`M${stand.x - 10} ${stand.top + 2.5}L${stand.x - 7} ${stand.top - 1}H${stand.x + 11}L${stand.x + 8} ${stand.top + 2.5}Z`" :fill="COLOURS.paper" stroke-width="0.6" />
-                    <g v-if="stamped" :transform="`translate(${stand.x + 1} ${stand.top + 0.8}) scale(${1.4 - 0.4 * stamped} ${(1.4 - 0.4 * stamped) * 0.42}) rotate(-8)`">
-                        <rect x="-8" y="-6" width="16" height="12" rx="2" fill="none" :stroke="COLOURS.green" stroke-width="2" />
-                        <path d="M-4.5 0 -1 3.5 5 -3.5" fill="none" :stroke="COLOURS.green" stroke-width="2.2" />
-                    </g>
-                </g>
-                <g v-if="u > act.lift[0] && u < act.sinks[0]" :transform="`translate(${hand.x} ${hand.y})`">
-                    <rect x="-3" y="-7" width="6" height="6" rx="3" :fill="COLOURS.wood" />
-                    <rect x="-1.5" y="-1" width="3" height="5" :fill="COLOURS.wood" />
-                    <rect x="-7" y="4" width="14" height="4" rx="1" :fill="COLOURS.wood" />
-                    <rect x="-7" y="8" width="14" height="2" :fill="COLOURS.green" />
                 </g>
             </template>
 
