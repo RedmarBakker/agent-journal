@@ -64,7 +64,6 @@ const SYSTEM_TURNS = {
         data: {
             icon: card.icon,
             tone: card.tone,
-            color: card.shows === "workers" && !card.tone ? SUBAGENT_COLOR : "",
             label,
             detail: card.detail,
             lines: card.lines || [],
