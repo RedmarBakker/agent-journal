@@ -11440,3 +11440,14 @@ def test_a_message_names_its_kind_and_its_agents_chat_and_a_workers_mark_never_r
         main_chat = messages.selected(messages.main_chat())
     assert mark.agent_role == AgentRole.WORKER, "a mark in a worker's session lands in the worker's own chat"
     assert all(message.id != mark.id for message in main_chat), "and never in the main chat"
+
+
+def test_a_codex_session_start_answers_the_briefing_in_codexs_shape_and_its_hooks_take_the_context_whole(app: App):
+    from journal.providers.codex import Codex
+    block = Codex().hook_block("sh hook.sh codex .")
+    assert block["SessionStart"][0]["hooks"][0]["additionalContextLimit"] == 0, "Codex hands a hook's context to the model whole only with no limit set; past 2500 tokens it shows a preview"
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/codex", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "c9", "source": "startup"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
+    with urlopen(request, timeout=5) as reply:
+        answer = json.loads(reply.read())
+    output = answer["hookSpecificOutput"]
+    assert output["hookEventName"] == "SessionStart" and "the journal is ready on main" in output["additionalContext"], "the briefing comes back as Codex reads it, hookSpecificOutput.additionalContext"

@@ -33,6 +33,8 @@ from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
 
 SCRIPT_FLAGS = ("-c", "-lc")
+# Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
+CONTEXT_LIMIT_NONE = 0
 
 
 class Codex(Provider):
@@ -215,4 +217,4 @@ class Codex(Provider):
             return message
 
     def hook_block(self, command: str) -> dict:
-        return {kind.value: [{"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": 60}]}] for kind in self.hook_kinds}
+        return {kind.value: [{"matcher": "", "hooks": [{"type": "command", "command": command, "timeout": 60, "additionalContextLimit": CONTEXT_LIMIT_NONE}]}] for kind in self.hook_kinds}
