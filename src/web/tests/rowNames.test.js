@@ -34,3 +34,10 @@ test("a chat mark draws the rows its words name as plain text, so a click on it 
     expect(into.querySelectorAll("a[data-peek]").length).toBe(0);
     expect(into.textContent).toBe("Started task 1398: the worker wait");
 });
+
+test("a row number in parentheses after its word is a chip too", () => {
+    const into = document.createElement("div");
+    into.innerHTML = render("the joining task (1463) and plan (24)", {env: ""});
+    expect([...into.querySelectorAll("a[data-peek]")].map((c) => c.dataset.peek)).toEqual(["tasks:1463", "plans:24"]);
+    expect(into.textContent).toBe("the joining task 1463 and plan 24");
+});
