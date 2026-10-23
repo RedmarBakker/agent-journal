@@ -100,6 +100,20 @@ export function ledgeSpot(along, figure, near) {
     return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) && clearOfPile(spot, figure)) ?? null;
 }
 
+// where along the floor it stands on the figure sits composed, as shares of the way across: the middle first, then a little either side
+export const COMPOSED_ALONG = [0.5, 0.42, 0.58];
+
+// Where the figure sits composed on the floor it stands at, `near`, a bubble, the dock or the composer: on its top near the middle, facing the
+// viewer (POSTURES composed), at the first of COMPOSED_ALONG where it is inside its world, clear of the chat's sides, hides no words and
+// keeps clear of the pile; null when it stands on no such floor or no place near the middle is free
+export function composedSpot(figure, near) {
+    const floors = readFloors();
+    const floor = floors.floors.find((each) => each.element && each.element === near.on && LEDGES.has(each.kind));
+    if (!floor) return null;
+    const spots = COMPOSED_ALONG.map((share) => ({x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: 0, posture: "composed", view: null, on: floor.element}));
+    return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) && clearOfPile(spot, figure)) ?? null;
+}
+
 // The seat of a rope swing under the bubble `floor`, the figure sitting on it facing the viewer: the rope's length (acts.js rope_swing)
 // below the middle of the bubble's bottom edge, riding the bubble; null when there is no such bubble, its middle is too near a side of
 // the chat for the swing to swing clear, or the figure there would hide words or hang its legs below the ground at home
@@ -208,6 +222,7 @@ export function stayingAt(stay, figure, near) {
     if (stay.where === "edge") return spotOf(null, figure, stay.along);
     if (stay.where === "mark") return markSpot(stay.card, figure);
     if (stay.where === "ledge") return ledgeSpot(stay.along, figure, near);
+    if (stay.where === "composed") return composedSpot(figure, near);
     if (stay.where === "rope_swing") return swingSpot(readFloors().floors.find((floor) => floor.id === stay.floor), figure);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
     return restOf(figure, near);

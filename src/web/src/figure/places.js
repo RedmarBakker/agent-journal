@@ -45,6 +45,7 @@ export const POSTURES = {
     stand: {drop: 0, travels: "stand"},
     sit: {drop: SEAT_DROP, travels: "stand"},
     lounge: {drop: SEAT_DROP, travels: "stand"},
+    composed: {drop: SEAT_DROP, travels: "stand"},
     hang: {drop: HANG_DROP, travels: "hang"},
     walk: {drop: 0, travels: "stand"},
 };

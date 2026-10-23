@@ -171,7 +171,10 @@ export const PILE = [
         pick("bubble", 15, {}, {stay: [30, 80], shenanigan: true}),
         pick("tab", 10, {}, {stay: [10, 25]}),
         // with nothing to do, it sits on the edge of the floor it stands on, facing the viewer, its legs over the edge
-        pick("ledge", 14, {free: true}, {stay: [20, 45]}),
+        pick("ledge", 9, {free: true}, {stay: [20, 45]}),
+        // with nothing to do, it walks to near the middle of the floor it stands on and sits there composed, facing the viewer, its hands
+        // flat on the floor at its sides (perches.js composedSpot)
+        pick("composed", 8, {free: true}, {stay: [25, 50]}),
         // with nothing to do and a bubble near the middle of the chat above it, it ties a rope swing under that bubble and swings
         showpiece(pick("rope_swing", 8, {free: true, swings: true}, {stay: [25, 50]})),
     ]),

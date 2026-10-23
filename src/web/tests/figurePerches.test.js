@@ -92,7 +92,7 @@ test("every place the figure roams to comes up by its odds and is stayed at betw
         expect(roamNext(fixed(middle, 1), {free: true, swings: true}).stay).toBe(each.stay[1]);
         before += each.weight;
     }
-    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge", "rope_swing"]));
+    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge", "composed", "rope_swing"]));
 });
 
 test("mostly the figure rests on a corner of the compose box or strolls along its edge, and no stay keeps it still for long", () => {

@@ -547,6 +547,24 @@ function loungedLegs(pose) {
     }
 }
 
+// Sitting composed on a floor's top (places.js POSTURES composed): sat upright facing the viewer, the legs together straight out along the
+// floor toward it, the feet up, both hands set flat on the floor at its sides; the floor line is `floor` above the standing feet, as when
+// it lounges, but it sits up straight rather than leaning back on its hands
+export const COMPOSED = {thigh: -88, feet: 12, hands: [0.78, -0.05], nod: -4, floor: LOUNGE.floor};
+
+function composedLegs(pose) {
+    for (const side of Object.keys(SIDES)) {
+        pose.turn(`thigh_${side}`, {x: COMPOSED.thigh});
+        pose.turn(`foot_${side}`, {x: COMPOSED.feet});
+    }
+    trunk(pose, {nod: COMPOSED.nod});
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const flat = new THREE.Vector3(sign * COMPOSED.hands[0], COMPOSED.hands[1], COMPOSED.floor);
+        handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(1, 0.3, 0));
+        pose.face(`hand_${side}`, {x: -80});
+    }
+}
+
 function seatedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
         pose.turn(`thigh_${side}`, {x: -88});
@@ -2440,12 +2458,13 @@ function wave_up(pose, stance, t) {
 export const LEGS = {
     sit: {under: seat, over: seatedLegs},
     lounge: {under: seat, over: loungedLegs},
+    composed: {under: seat, over: composedLegs},
     walk: {under: strideUnder, over: strideLegs},
 };
 
-// The postures a clip is drawn in: a gesture standing, seated on an edge, lounging on a floor's top or on the move, its legs laid by the posture; a move of the whole
+// The postures a clip is drawn in: a gesture standing, seated on an edge, lounging or sitting composed on a floor's top or on the move, its legs laid by the posture; a move of the whole
 // body on its feet alone; a hang from its hands alone; and the laptop only on a lap
-const GESTURE = ["stand", "sit", "lounge", "walk"];
+const GESTURE = ["stand", "sit", "lounge", "composed", "walk"];
 const MOVE = ["stand"];
 const HANGING = ["hang"];
 const ON_A_LAP = ["sit", "lounge"];
