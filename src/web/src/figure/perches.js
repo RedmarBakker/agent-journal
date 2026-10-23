@@ -1,8 +1,8 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
 import {holds, readFloors} from "./floors.js";
 import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
-import {letsGoFor} from "./reactions.js";
-import {draw} from "./pile.js";
+import {FREE, letsGoFor} from "./reactions.js";
+import {PILE, draw} from "./pile.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
 // or hanging from its top corner by its hands. A perch names its bubble's floor (figure/floors.js), so it rides the bubble as the thread
@@ -16,9 +16,10 @@ export const HANG_STAY = [8, 20];
 // The next place to go and for how many seconds to stay, as {where, stay}, drawn from the pile (pile.js roam): mostly it strolls along the
 // compose box's edge and stands a while on a corner of it, now and then sits on the corner itself with its legs hanging past the end
 // (places.js seatAt), perches on a message bubble or crosses to stand on one of the page's tabs, and whatever the agent is doing it does
-// from there. `tally` counts the acts since the last shenanigan, a perch on a bubble being one.
-export function roamNext(random, tally) {
-    const drawn = draw({moment: "roam", tally}, random);
+// from there; with nothing to do it may sit on the edge of the floor it stands on, facing the viewer. `tally` counts the acts since the
+// last shenanigan, a perch on a bubble being one, and the figure is `free` while it has nothing to do.
+export function roamNext(random, tally, free = false) {
+    const drawn = draw({moment: "roam", tally, free}, random);
     return {where: drawn.name, stay: between(drawn.stay, random)};
 }
 
@@ -78,6 +79,26 @@ function spotOn(perch, floor, figure) {
     return {x, y: floor.top, face: perch.face, posture: "hang", grip: perch.grip, on: floor.element};
 }
 
+// The floors a figure sits on the edge of, and how wide one must be, in the figure's heights, to have a place along it away from its ends
+const LEDGES = new Set(["bubble", "dock", "compose"]);
+export const LEDGE_WIDTH = 1.6;
+
+// the places along a floor a figure sits on its edge, as shares of the way across, as the pile has them (pile.js ledge_at)
+export const LEDGE_ALONG = PILE.filter((entry) => entry.when.moment === "ledge_at").map((entry) => entry.along);
+
+// Where the figure sits on the edge of the floor it stands at, `near`, a bubble or the composer, facing the viewer with its legs over the
+// edge: `along` of the way across it, or, where a figure sitting there would hide words or be outside its world, the next of LEDGE_ALONG
+// that would not, never by an end; null when it stands on no such floor, the floor is too narrow, or no place along it is free
+export function ledgeSpot(along, figure, near) {
+    const floors = readFloors();
+    const floor = floors.floors.find((each) => each.element && each.element === near.on && LEDGES.has(each.kind));
+    if (!floor || floor.right - floor.left < LEDGE_WIDTH * figure.size) return null;
+    const spots = [along, ...LEDGE_ALONG.filter((each) => each !== along)].map((share) => ({
+        x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: 0, posture: "sit", leans: true, on: floor.element,
+    }));
+    return spots.find((spot) => holds(spot, figure, floors.floors) && !hiddenAt(spot, figure)) ?? null;
+}
+
 // how long the figure keeps to the chat mark it went to celebrate on, in seconds
 export const MARK_STAY = 20;
 
@@ -106,9 +127,10 @@ export function climbOf(floors, figure, from) {
 // The next stay, drawn at `now` seconds from the pile: where, until when, and what it holds for the stay, the perch on a bubble, the
 // tab it stands on, of those with a spot inside its world, or the point along the home edge it strolls to. A hang from a bubble is a short
 // one.
-export function nextStay(now, figure, hands, random, tally) {
-    const {where, stay: seconds} = roamNext(random, tally);
+export function nextStay(now, figure, hands, random, tally, free = false) {
+    const {where, stay: seconds} = roamNext(random, tally, free);
     const until = now + seconds;
+    if (where === "ledge") return {where, until, along: draw({moment: "ledge_at"}, random).along};
     if (where === "bubble") {
         const perch = perchOn(readFloors(), figure, hands, random);
         return {where, until: perch?.kind === HANGS ? now + between(HANG_STAY, random) : until, perch};
@@ -134,6 +156,7 @@ export function stayingAt(stay, figure, near) {
     }
     if (stay.where === "edge") return spotOf(null, figure, stay.along);
     if (stay.where === "mark") return markSpot(stay.card, figure);
+    if (stay.where === "ledge") return ledgeSpot(stay.along, figure, near);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
     return restOf(figure, near);
 }
@@ -170,7 +193,7 @@ function targetOf({state, counts, stay, now, near, figure, hands, random, tally}
     if (pointing) return {spot: pointing, stay};
     const kept = now < stay.until && stayingAt(stay, figure, near);
     if (kept) return {spot: kept, stay};
-    const next = nextStay(now, figure, hands, random, tally);
+    const next = nextStay(now, figure, hands, random, tally, FREE.has(state));
     return {spot: stayingAt(next, figure, near) || restOf(figure, near), stay: next};
 }
 

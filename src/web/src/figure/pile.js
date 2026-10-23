@@ -149,7 +149,11 @@ export const PILE = [
         pick("edge", 25, {}, {stay: [8, 20]}),
         pick("bubble", 15, {}, {stay: [15, 40], shenanigan: true}),
         pick("tab", 10, {}, {stay: [10, 25]}),
+        // with nothing to do, it sits on the edge of the floor it stands on, facing the viewer, its legs over the edge
+        pick("ledge", 14, {free: true}, {stay: [20, 45]}),
     ]),
+    // where along the floor it sits on the edge: around the middle, or a third of the way from either end, never at an end
+    ...at("ledge_at", {}, [pick("middle", 2, {}, {along: 1 / 2}), pick("third", 1, {}, {along: 1 / 3}), pick("two_thirds", 1, {}, {along: 2 / 3})]),
 ];
 
 // whether a condition holds where things stand: its moment, a voice among its voices, a state lasted at least so long, and anything else

@@ -2174,6 +2174,24 @@ function tumble(pose, stance, t) {
     else eyesAs(pose, kneel > 0.5 ? "worried" : "startled", Math.max(kneel, flail));
 }
 
+// Sitting on the edge of a floor facing the viewer, legs over the edge, leaning back a little on both hands planted on the edge beside
+// its hips, the free hands only, a carried thing kept in hand; it breathes and its legs swing gently. `hands` is where each wrist rests,
+// against the body at rest, the free hand's side outward, before the seat lifts it
+export const LEDGE = {hands: [0.8, 0.18, 1.42], lean: -7, nod: -3};
+
+function ledge_sit(pose, stance, t) {
+    breathe(pose, t);
+    trunk(pose, {lean: LEDGE.lean, nod: LEDGE.nod + 2 * waveOf(t)});
+    const [x, y, z] = LEDGE.hands;
+    armsAtRest(pose, stance, [...stance.free]);
+    for (const side of stance.free) {
+        handTo(pose, side, 1, pose.carried(new THREE.Vector3(SIDES[side] * x, y, z)), new THREE.Vector3(1, 0.6, 0.2));
+        pose.face(`hand_${side}`, {z: -SIDES[side] * 90, x: -70});
+    }
+    if (stance.free.size) emptyHand(pose);
+    pose.swing(0.6 * waveOf(t));
+}
+
 // hops on up from bubble to bubble, arms flung up and legs tucked, very fast
 function hop_up(pose, stance, t) {
     const pump = waveOf(t);
@@ -2366,6 +2384,7 @@ export const CLIPS = [
     {name: "look_right", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(1, 0)},
     {name: "look_up", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(0, 1)},
     {name: "tumble", frames: TUMBLE.frames, fps: TUMBLE.fps, loops: false, postures: MOVE, pose: tumble},
+    {name: "ledge_sit", frames: 32, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: ledge_sit},
     {name: "hop_up", frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},

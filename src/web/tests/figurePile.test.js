@@ -212,6 +212,10 @@ test("every animation in the pile, with its weight and the condition it plays un
         "pick edge ×25 when moment=roam",
         "shenanigan pick bubble ×15 when moment=roam",
         "pick tab ×10 when moment=roam",
+        "pick ledge ×14 when moment=roam free=true",
+        "pick middle ×2 when moment=ledge_at",
+        "pick third ×1 when moment=ledge_at",
+        "pick two_thirds ×1 when moment=ledge_at",
     ]);
     // every clip of the pile is one the figure has
     const clips = new Set(CLIPS.map((clip) => clip.name));

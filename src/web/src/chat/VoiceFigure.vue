@@ -220,8 +220,11 @@ const asleep = () => clipOf(held.value.state) === "sleep";
 function heldClip() {
     const {state} = held.value;
     if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip)};
-    return variant.clip;
+    return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
 }
+
+// what a held clip is played as while the figure sits on the edge of a floor facing the viewer: standing idle, it leans back on its hands
+const LEANING = {idle: "ledge_sit"};
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
 function current() {
