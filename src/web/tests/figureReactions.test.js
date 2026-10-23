@@ -242,3 +242,13 @@ test("the figure does something by itself only while it is calm, not hanging, wi
     expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toEqual({clip: "hop_up", card: "", flies: true});
 });
 
+
+test("a beat cut in front of the one playing drops it, so the cut one never plays again from its start; one not yet begun waits on", async () => {
+    const {queuedFirst} = await import("../src/figure/reactions.js");
+    const joy = {clip: "joy"};
+    const nod = {clip: "nod"};
+    const swat = {clip: "tickle_swat"};
+    expect(queuedFirst([joy, nod], swat, "joy")).toEqual([swat, nod]);
+    expect(queuedFirst([joy, nod], swat, "idle")).toEqual([swat, joy, nod]);
+    expect(queuedFirst([], swat, "joy")).toEqual([swat]);
+});

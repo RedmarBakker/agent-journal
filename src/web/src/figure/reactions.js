@@ -152,3 +152,7 @@ export function pastimeFor(scene, waited, memory, now, random, has, tally = null
     const drawn = pastimeOf(waited.state, waited.lasted, memory, now, random, scene.voice, has, tally, scene.ball);
     return drawn && {clip: drawn.name, card: "", flies: Boolean(drawn.flies)};
 }
+
+// The beat queue with `beat` put before every other: the beat at its head, when it is the clip playing now, `playingClip`, is broken off
+// and dropped, so it never plays again from its start once `beat` has played
+export const queuedFirst = (beats, beat, playingClip) => [beat, ...(beats[0]?.clip === playingClip ? beats.slice(1) : beats)];
