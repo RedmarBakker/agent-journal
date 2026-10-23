@@ -22,12 +22,17 @@ export const ACTS = {
     // `rubs` times, nodding a little with each, and lowers them over `apart`; a small puff with a few sparkles rises from the hands over
     // `puff` (chat/FigureAct.vue)
     hand_rub: {frames: 26, fps: 12, together: [0, 0.18], rubs: 3, apart: [0.84, 1], puff: [0.2, 0.92]},
-    // thinking, now and then while the agent thinks (figure.js ponder): it raises its finger to its cheek over `into`, tilting its head up,
-    // swaying `sways` times; three puffs rise from its head over `puffs` into a small thought cloud over it, held over `cloud`, its three
-    // dots pulsing one after another, `pulse` seconds round (chat/FigureAct.vue); then "got it": the finger comes up over `rise`, the light
-    // bulb over the head (figure.js LIGHT_BULB) appears over `appears`, switches on over `lights`, glows, goes out over `fades` and is
-    // gone over `goes`
+    // stopping to think at the laptop (figure.js type_ponder), under the thought cloud, its dots pulsing three times a loop
+    type_ponder: {frames: 24, fps: 6, pulse: 4 / 3},
+    // The thinking act, now and then while the agent thinks (figure.js thinkingClip, reactions.js thinkingAct), in its three plays. With
+    // the cloud: it raises its finger to its cheek over `into`, tilting its head up, swaying `sways` times; three puffs rise from its head
+    // over `puffs` into a small thought cloud over it, held over `cloud`, its three dots pulsing one after another, `pulse` seconds round
+    // (chat/FigureAct.vue), and over `rise` its hand comes away. With the bulb: over `rise` the finger comes up, "got it", the light bulb
+    // over the head (figure.js LIGHT_BULB) appears over `appears`, switches on over `lights`, glows, goes out over `fades` and is gone over
+    // `goes`. "ponder" has both, the bulb at its end; "think_cloud" the cloud alone, its hand going down; "got_it" the bulb alone.
     ponder: {frames: 84, fps: 12, into: [0, 0.1], puffs: [0.06, 0.24], cloud: [0.06, 0.72], pulse: 1.2, sways: 2, rise: [0.72, 0.8], appears: [0.75, 0.78], lights: [0.79, 0.82], fades: [0.9, 0.96], goes: [0.95, 1]},
+    think_cloud: {frames: 66, fps: 12, into: [0, 0.12], puffs: [0.07, 0.29], cloud: [0.07, 0.86], pulse: 1.2, sways: 2, rise: [0.86, 1]},
+    got_it: {frames: 30, fps: 12, rise: [0, 0.25], appears: [0.05, 0.15], lights: [0.18, 0.26], fades: [0.72, 0.88], goes: [0.86, 1]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
     // searching: binoculars at its eyes, sweeping slowly left and right

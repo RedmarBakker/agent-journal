@@ -4,10 +4,11 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, LIGHT_BULB, PONDERING, Posing, THINKING, lightBulbOf, lightFromBulb} from "../src/figure/figure.js";
+import {CLIPS, LIGHT_BULB, PONDERING, Posing, lightBulbOf, lightFromBulb} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {GROUNDED, HELD, clipFor, clipOf} from "../src/domain/figureState.js";
-import {reactionTo, workMoments} from "../src/figure/reactions.js";
+import {thinkingAct, workMoments} from "../src/figure/reactions.js";
+import {choicesFor} from "../src/figure/pile.js";
 import FigureAct from "../src/chat/FigureAct.vue";
 
 const {rig, stances} = JSON.parse(readFileSync(`${dirname(fileURLToPath(import.meta.url))}/figureRig.json`));
@@ -16,19 +17,54 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const named = Object.fromEntries(CLIPS.map((clip) => [clip.name, clip]));
 
-// the thinking clip posed at `t` of its loop for the butler, whose free hand is the right: where its knuckles grip, where the chin is
-// as the head carries it, where the elbow of that arm is and where the other hand grips
-function thinking(t) {
-    const pose = new Posing(RIG, "stand", 0);
-    named.think.pose(pose, stanceOf("butler"), t);
+// the clip `name` posed at `t` of its loop for the butler, whose free hand is the right, in `posture`: where its finger grips, where the
+// cheek is as the head carries it, where the elbow of that arm is and where the other hand grips, and how the head is turned
+function thinking(t, name = "think_cloud", posture = "stand") {
+    const pose = new Posing(RIG, posture, 0);
+    named[name].pose(pose, stanceOf("butler"), t);
     const moves = pose.moves(0);
     return {
         pose,
-        knuckles: pose.grip("r", [0, 0, 0]).applyMatrix4(moves.get("hand_r")),
-        chin: new THREE.Vector3(...THINKING.chin).applyMatrix4(moves.get("head")),
+        finger: pose.grip("r", [0, 0, 0]).applyMatrix4(moves.get("hand_r")),
+        cheek: new THREE.Vector3(-PONDERING.cheek[0], PONDERING.cheek[1], PONDERING.cheek[2]).applyMatrix4(moves.get("head")),
         elbow: pose.head("forearm_r", moves.get("forearm_r")),
         folded: pose.grip("l", [0, 0, 0]).applyMatrix4(moves.get("hand_l")),
+        head: moves.get("head"),
     };
+}
+
+// FigureAct drawing the clip `name` at `u`, the eyes at the middle of a 100 pixel picture a third of the way down
+function cloudOver(name, u) {
+    const root = document.createElement("div");
+    createApp({render: () => h(FigureAct, {name, u, hand: {x: 0.3, y: 0.4, out: -1, other: {x: 0.7, y: 0.6}}, head: {x: 0.5, y: 0.3}, feet: 0.9, size: 100, room: {left: 0, right: 0}})}).mount(root);
+    return root;
+}
+
+// the clips the figure shows thinking in: the thinking act's three plays, and stopping to think at the laptop while it types
+const THINKING_CLIPS = ["ponder", "think_cloud", "got_it", "type_ponder"];
+// the middle of the cloud in the thinking act's play with the cloud alone
+const CLOUDED = (ACTS.think_cloud.cloud[0] + ACTS.think_cloud.cloud[1]) / 2;
+
+// a seeded random, the same rolls every run
+function seeded(seed) {
+    let state = seed;
+    return () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let t = Math.imul(state ^ (state >>> 15), 1 | state);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// the thinking act's plays over `seconds` of the agent thinking, looked at once a second, each {at, clip}
+function playsOver(seconds, random) {
+    const memory = new Map();
+    const plays = [];
+    for (let at = 0; at < seconds; at++) {
+        const clip = thinkingAct(memory, at, random);
+        if (clip) plays.push({at, clip});
+    }
+    return plays;
 }
 
 // the thinking act posed at `u` of its way through for the butler: its pose, and where the eyes are as the head carries them
@@ -39,43 +75,69 @@ function pondering(u) {
     return {pose, at: (name) => pose.head(name, moves.get(name)), head: moves.get("head")};
 }
 
-// FigureAct drawing the thinking act at `u`, the eyes at the middle of a 100 pixel picture a third of the way down
-function drawnAt(u) {
-    const root = document.createElement("div");
-    createApp({render: () => h(FigureAct, {name: "ponder", u, hand: {x: 0.3, y: 0.4, out: -1, other: {x: 0.7, y: 0.6}}, head: {x: 0.5, y: 0.3}, feet: 0.9, size: 100, room: {left: 0, right: 0}})}).mount(root);
-    return root;
-}
+// FigureAct drawing the thinking act at `u`
+const drawnAt = (u) => cloudOver("ponder", u);
 
 describe("the figure thinking", () => {
-    it("plays the thinking clip while the agent thinks", () => {
-        expect(HELD.thinking).toBe("think");
+    it("shows no thinking pose between plays of the act: thinking, or running a command, it stands as it does idle", () => {
+        expect([HELD.thinking, HELD.running]).toEqual(["idle", "idle"]);
         const scene = {mode: GROUNDED, place: {posture: "stand", face: 0}, state: "thinking", doing: clipOf("thinking"), doingFacing: 0};
-        expect(clipFor(scene, () => true).clip).toBe("think");
-    });
-
-    it("rests its knuckles on the bottom of its head where a chin would be, tapping it slowly, the elbow on the other arm folded across it", () => {
-        const loop = Array.from({length: named.think.frames}, (_, frame) => thinking(frame / named.think.frames));
-        const gaps = loop.map(({knuckles, chin}) => knuckles.distanceTo(chin));
-        expect(Math.min(...gaps), "the knuckles touch the chin").toBeLessThan(0.03);
-        expect(Math.max(...gaps), "and lift only a little off it to tap").toBeLessThan(THINKING.tap + 0.03);
-        expect(Math.max(...gaps) - Math.min(...gaps), "a tap").toBeGreaterThan(THINKING.tap / 2);
-        expect(THINKING.chin[2], "the chin is the bottom of the head, above the neck").toBeGreaterThan(RIG.heads.get("head").z);
-        expect(named.think.frames / named.think.fps / THINKING.taps, "slowly: a tap every second and a half or more").toBeGreaterThanOrEqual(1.5);
-        const {elbow, folded} = loop[0];
-        expect(folded.z, "the other hand under the elbow").toBeLessThan(elbow.z);
-        expect(folded.distanceTo(elbow), "close under it").toBeLessThan(0.45);
-        expect(folded.x, "folded across the body toward the thinking side").toBeLessThan(0);
-    });
-
-    it("glances up and aside with its eyes in their usual soft shape, never bare round dots", () => {
-        const {pose} = thinking(0);
-        expect(pose.eyeShape, "the usual shape").toBe(null);
-        const [aside, up] = pose.eyeShift;
-        expect(up, "up").toBeGreaterThan(0.2);
-        expect(Math.abs(aside), "to one side").toBeGreaterThan(0.2);
+        expect(clipFor(scene, () => true).clip).toBe("idle");
+        expect(Object.values(HELD).filter((clip) => THINKING_CLIPS.includes(clip)), "no thinking clip is ever held").toEqual([]);
+        expect(ACTS.idle, "nothing drawn over it").toBeUndefined();
         const idle = new Posing(RIG, "stand", 0);
         named.idle.pose(idle, stanceOf("butler"), 0);
-        expect(idle.eyeShift, "straight ahead otherwise").toEqual([0, 0]);
+        expect([idle.eyeShift, idle.props.size], "nor its eyes nor a bulb").toEqual([[0, 0], 0]);
+        expect(CLIPS.some((clip) => clip.name === "think"), "the cloudless chin pose is gone").toBe(false);
+    });
+
+    it("draws the thought cloud with its three pulsing dots wherever it shows thinking, and no thinking pose without it", () => {
+        const thinkingClips = CLIPS.filter((clip) => /think|ponder|got_it/.test(clip.name)).map((clip) => clip.name);
+        expect(thinkingClips.sort(), "every thinking clip").toEqual([...THINKING_CLIPS].sort());
+        for (let frame = 0; frame < named.type_ponder.frames; frame++) {
+            const drawn = cloudOver("type_ponder", frame / named.type_ponder.frames);
+            expect(drawn.querySelector("[data-thought-cloud]"), `type_ponder ${frame}`).not.toBe(null);
+            expect(drawn.querySelectorAll("[data-thought-dot]").length, `type_ponder ${frame}`).toBe(3);
+        }
+        for (const name of ["ponder", "think_cloud"]) {
+            const {puffs, cloud} = ACTS[name];
+            for (let step = 0; step < 10; step++) {
+                const u = puffs[1] + (step / 10) * (cloud[1] - puffs[1]);
+                expect(cloudOver(name, u).querySelectorAll("[data-thought-dot]").length, `${name} ${u}`).toBe(3);
+                expect(thinking(u, name).finger.distanceTo(thinking(u, name).cheek), `${name} ${u} the finger at the cheek under the cloud`).toBeLessThan(0.05);
+            }
+        }
+        for (let step = 0; step <= 10; step++) {
+            const u = step / 10;
+            expect(cloudOver("got_it", u).querySelector("[data-thought-cloud]"), `got_it ${u} no cloud`).toBe(null);
+            expect(thinking(u, "got_it").pose.eyeShift, `got_it ${u} no thinking pose`).toEqual([0, 0]);
+        }
+    });
+
+    it("under the cloud tilts its head up and aside with its finger along its cheek, that elbow on the other arm folded across it, swaying a little", () => {
+        const {elbow, folded, head, finger, cheek} = thinking(CLOUDED);
+        expect(finger.distanceTo(cheek), "the finger at the cheek").toBeLessThan(0.05);
+        expect(Math.abs(new THREE.Vector3(0, 0, 1).transformDirection(head).x), "tilted").toBeGreaterThan(0.15);
+        expect(new THREE.Vector3(0, -1, 0).transformDirection(head).z, "and up").toBeGreaterThan(0.1);
+        expect(folded.z, "the other hand under the elbow").toBeLessThan(elbow.z);
+        expect(folded.distanceTo(elbow), "close under it").toBeLessThan(0.45);
+        const {cloud} = ACTS.think_cloud;
+        const sways = Array.from({length: 20}, (_, index) => thinking(cloud[0] + 0.05 + (index / 20) * (cloud[1] - cloud[0] - 0.1)).head.elements[0]);
+        expect(Math.max(...sways) - Math.min(...sways), "it sways").toBeGreaterThan(0.005);
+        const laptop = thinking(0, "type_ponder", "sit");
+        expect(laptop.finger.distanceTo(laptop.cheek), "at the laptop too").toBeLessThan(0.05);
+        expect(laptop.pose.laptop).toBe(true);
+    });
+
+    it("glances up and aside with its eyes in their usual soft shape, never bare round dots, with no bulb under the cloud alone", () => {
+        for (const [name, t, posture] of [["think_cloud", CLOUDED, "stand"], ["type_ponder", 0.3, "sit"]]) {
+            const {pose} = thinking(t, name, posture);
+            expect(pose.eyeShape, `${name} the usual shape`).toBe(null);
+            const [aside, up] = pose.eyeShift;
+            expect(up, `${name} up`).toBeGreaterThan(0.2);
+            expect(Math.abs(aside), `${name} to one side`).toBeGreaterThan(0.2);
+        }
+        for (let frame = 0; frame < named.think_cloud.frames; frame++) expect(thinking(frame / named.think_cloud.frames).pose.props.get("light_bulb"), `${frame}`).toBeUndefined();
     });
 });
 
@@ -83,16 +145,44 @@ describe("the thinking act", () => {
     const act = ACTS.ponder;
     const middle = (act.cloud[0] + act.cloud[1]) / 2;
 
-    it("plays while the agent thinks, at most once a minute, and the held thinking shows between plays", () => {
+    it("plays while the agent thinks, at most once in a cooldown of 30 to 60 seconds, drawn afresh each time", () => {
         expect(workMoments("thinking", false, 0, 1).moments.map((moment) => moment.beat)).toContain("pondering");
         expect(workMoments("running", false, 0, 1).moments.map((moment) => moment.beat)).not.toContain("pondering");
-        const memory = new Map();
-        expect(reactionTo("pondering", memory, 1000, () => 0.99).clip, "every time it is free to").toBe("ponder");
-        expect(reactionTo("pondering", memory, 1030, () => 0), "half a minute later").toBe(null);
-        expect(reactionTo("pondering", memory, 1059, () => 0), "just under a minute").toBe(null);
-        expect(reactionTo("pondering", memory, 1061, () => 0).clip, "a minute on").toBe("ponder");
-        expect(named.ponder.loops, "played once, then the held clip again").toBe(false);
-        expect(HELD.thinking).toBe("think");
+        const random = seeded(2772);
+        const waits = Array.from({length: 30}, () => {
+            const memory = new Map();
+            choicesFor({moment: "pondering", memory, now: 1000});
+            thinkingAct(memory, 1000, random);
+            let at = 1001;
+            while (!choicesFor({moment: "pondering", memory, now: at}).some((entry) => entry.kind !== "nothing")) at++;
+            return at - 1000;
+        });
+        for (const wait of waits) {
+            expect(wait, "never sooner than 30 seconds").toBeGreaterThanOrEqual(30);
+            expect(wait, "never later than 60").toBeLessThanOrEqual(60);
+        }
+        expect(Math.max(...waits) - Math.min(...waits), "a different wait each time").toBeGreaterThan(10);
+        const plays = playsOver(30 * 60, seeded(45291));
+        plays.slice(1).forEach((play, index) => expect(play.at - plays[index].at, "at most once per cooldown").toBeGreaterThanOrEqual(30));
+        for (const name of ["ponder", "think_cloud", "got_it"]) expect(named[name].loops, `${name} played once`).toBe(false);
+    });
+
+    it("gives the cloud and the bulb each a cooldown of its own, so neither shows every play, the bulb only at a play's end", () => {
+        const plays = playsOver(30 * 60, seeded(45291));
+        const clips = plays.map((play) => play.clip);
+        expect(clips.length, "half an hour of thinking plays it many times").toBeGreaterThan(15);
+        const clouded = clips.filter((clip) => clip !== "got_it").length;
+        const lit = clips.filter((clip) => clip !== "think_cloud").length;
+        expect(clouded, "the cloud on some plays").toBeGreaterThan(0);
+        expect(clouded, "never on every play").toBeLessThan(clips.length);
+        expect(lit, "the bulb on some plays").toBeGreaterThan(0);
+        expect(lit, "never on every play").toBeLessThan(clips.length);
+        const cloudAt = plays.filter((play) => play.clip !== "got_it").map((play) => play.at);
+        cloudAt.slice(1).forEach((at, index) => expect(at - cloudAt[index], "the cloud's own cooldown").toBeGreaterThanOrEqual(90));
+        const bulbAt = plays.filter((play) => play.clip !== "think_cloud").map((play) => play.at);
+        bulbAt.slice(1).forEach((at, index) => expect(at - bulbAt[index], "the bulb's own cooldown").toBeGreaterThanOrEqual(150));
+        const {lights} = ACTS.ponder;
+        expect(lights[0], "the bulb comes at the end of the play").toBeGreaterThan(ACTS.ponder.cloud[1]);
     });
 
     it("tilts its head up and to one side, its finger along its cheek, swaying a little, its eyes glancing up in their usual shape", () => {
@@ -130,7 +220,7 @@ describe("the thinking act", () => {
         expect(drawnAt(act.lights[1]).querySelector("[data-thought-dot]"), "gone once the bulb lights").toBe(null);
     });
 
-    it("ends with the 3D light bulb every time it plays, over the head, switched on and lighting the head, the finger raised, 'got it'", () => {
+    it("ends a play with the bulb in the 3D light bulb, over the head, switched on and lighting the head, the finger raised, 'got it'", () => {
         const glowing = (act.lights[1] + act.fades[0]) / 2;
         const {pose, at} = pondering(glowing);
         const bulb = pose.props.get("light_bulb");
@@ -144,6 +234,9 @@ describe("the thinking act", () => {
         expect(pondering(act.fades[1]).pose.bulbLit, "out again as it fades").toBe(0);
         expect(CLIPS.some((clip) => clip.name === "bulb"), "the bulb is the act's own end, never a clip apart").toBe(false);
         expect(drawnAt(glowing).querySelector("[data-bulb]"), "drawn in 3D, never flat on the page").toBe(null);
+        const alone = new Posing(RIG, "stand", 0);
+        named.got_it.pose(alone, stanceOf("butler"), (ACTS.got_it.lights[1] + ACTS.got_it.fades[0]) / 2);
+        expect(alone.bulbLit, "the bulb alone lights too").toBe(1);
     });
 
     it("models the bulb with a glass globe, a filament and a screw base, glowing warm when lit", () => {

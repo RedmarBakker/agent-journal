@@ -179,7 +179,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         ].map((fire) => fire.beat)
     );
     // every reaction's moment: the pile's moments but those of the figure's own choices, drawn where it chooses them
-    const choices = ["pastime", "spell", "eager", "jump", "carrier", "run_end", "crane_from", "perch", "fall", "digit", "roam", "ledge_at", "unit", "climb", "tickled"];
+    const choices = ["pastime", "spell", "eager", "jump", "carrier", "run_end", "thought_cloud", "light_bulb", "crane_from", "perch", "fall", "digit", "roam", "ledge_at", "unit", "climb", "tickled"];
     for (const moment of new Set(PILE.map((entry) => entry.when.moment)))
         if (!choices.includes(moment) && !moment.startsWith("held:")) expect(made.has(moment), moment).toBe(true);
 });
@@ -204,8 +204,8 @@ test("a look's clock runs only while its eyes are shown: it waits while the figu
 
 test("typing is a moment, and so is the end of a stretch of work long enough, timed from when the work began; standing idle is one every look", () => {
     expect(workMoments("waiting", true, 0, 50)).toEqual({moments: [{beat: "typing", time: 50}], began: 0});
-    // thinking, as while a plain command runs, it stands as it stands idle, and glances about now and then
-    expect(workMoments("running", false, 0, 50)).toEqual({moments: [{beat: "standing", time: 50}], began: 50});
+    // thinking, as while a plain command runs, it stands as it stands idle, glancing about and resting its eyes now and then
+    expect(workMoments("running", false, 0, 50)).toEqual({moments: [{beat: "standing", time: 50}, {beat: "resting", time: 50}], began: 50});
     expect(workMoments("thinking", false, 50, 60).began).toBe(50);
     expect(workMoments("reading", false, 10, 20)).toEqual({moments: [{beat: "working", time: 20}], began: 10});
     expect(workMoments("waiting", false, 50, 50 + WORKED_SECONDS)).toEqual({

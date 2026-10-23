@@ -113,9 +113,9 @@ export const pastimeOf = (state, held, memory, now, random, voice = "", has = ()
 // salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES)
 export const flips = (height, size, random, memory, now) => draw({moment: "jump", high: height > FLIP_OVER * size, memory, now}, random).name === "backflip";
 
-// the moments each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle or thinks,
+// the moments each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle,
 // working while it hammers, types, reads or searches, and resting while it stands idle
-const WHILE = {work: ["building", "working"], type: ["working"], read: ["working"], search: ["working"], idle: ["standing", "resting"], think: ["standing"]};
+const WHILE = {work: ["building", "working"], type: ["working"], read: ["working"], search: ["working"], idle: ["standing", "resting"]};
 
 // The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, the moment of the held clip
 // (WHILE), pondering while the agent thinks, and the end of a stretch of work that lasted WORKED_SECONDS. `began` is when the work in hand
@@ -129,6 +129,19 @@ export function workMoments(state, typed, began, now) {
     return {moments, began: 0};
 }
 
+// The thinking act for this play while the agent thinks, as the pile draws it and its parts at `now` (pile.js pondering), each part on its
+// own cooldown in `memory`: with the thought cloud and the bulb "ponder", with the cloud alone "think_cloud", with the bulb alone
+// "got_it", or null when it is not due or neither part is
+export function thinkingAct(memory, now, random) {
+    if (!draw({moment: "pondering", memory, now}, random)) return null;
+    const cloud = Boolean(draw({moment: "thought_cloud", memory, now}, random));
+    const bulb = Boolean(draw({moment: "light_bulb", memory, now}, random));
+    return cloud && bulb ? "ponder" : cloud ? "think_cloud" : bulb ? "got_it" : null;
+}
+
+// the moments answered by an act put together from the pile's parts, by moment
+const COMPOSED = {pondering: thinkingAct};
+
 // What the figure does about a moment: the egg of `voice` that belongs to it, else its reaction when the roll says so, as a beat the body
 // plays once ({beat: {clip, card, mark}}), `card` being the chat mark it turns to and `mark` the one that set it off, as the call says whom
 // it calls (figureState.js callLines), or a look its eyes take on ({look: mood}); null for nothing.
@@ -140,6 +153,10 @@ export function answerTo(moment, voice, memory, now, random, has) {
     if (egg && has(egg.clip)) {
         memory.played.push(egg);
         return {beat: {clip: egg.clip, card: ""}};
+    }
+    if (COMPOSED[moment.beat]) {
+        const composed = COMPOSED[moment.beat](memory.reacted, now, random);
+        return composed && has(composed) ? {beat: {clip: composed, card: ""}} : null;
     }
     const reaction = reactionTo(moment.beat, memory.reacted, now, random, voice, has, memory.tally);
     if (reaction?.look) return {look: reaction.look};

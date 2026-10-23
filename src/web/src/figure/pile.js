@@ -51,7 +51,7 @@ const USER_FACES = {
 // so the figure never flickers between acts
 export const CUT = {
     look_left: 1, look_right: 1, look_up: 1, glance: 1, wipe_brow: 1, stretch: 1, yawn: 1, nod: 1, shake: 1, bow: 1,
-    salute: 1, wave: 1, think: 3, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
+    salute: 1, wave: 1, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
 };
 
 const clip = (name, weight, when = {}) => ({name, kind: "clip", weight, when, cut: CUT[name] ?? false});
@@ -84,7 +84,7 @@ export const PILE = [
     // a worker sent off or another session messaged: a call on the telephone, at most one in a minute and a half
     ...at("messaged", {cooldown: 90}, [clip("phone_call", 1)]),
     ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), clip("hand_rub", 4), ...celebrations(), nothing(7)]),
-    ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("think", 3), nothing(8)]),
+    ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("look_up", 3), nothing(8)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
     ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [...celebrations(), look("bright", 3), nothing(9)]),
@@ -103,8 +103,12 @@ export const PILE = [
     ...at("failed", {cooldown: 20, toward: "card"}, [clip("shake", 3), look("narrowed", 3), nothing(2)]),
     ...at("refused", {cooldown: 20}, [clip("shake", 1), nothing(1)]),
     ...at("work_done", {cooldown: 120}, [clip("stretch", 2), nothing(3)]),
-    // while the agent thinks, the thinking act, ending in the bulb, at most once a minute; between plays its thinking shows as the held clip
-    ...at("pondering", {cooldown: 60}, [clip("ponder", 1)]),
+    // while the agent thinks, the thinking act, at most once in 30 to 60 seconds, and nothing of thinking between plays; its two parts
+    // each on a cooldown of their own, so neither shows every play: the thought cloud with the finger at the cheek, and the bulb at its
+    // end (reactions.js thinkingAct)
+    ...at("pondering", {cooldown: [30, 60]}, [pick("ponder", 1)]),
+    ...at("thought_cloud", {cooldown: 90}, [pick("cloud", 1)]),
+    ...at("light_bulb", {cooldown: 150}, [pick("bulb", 1)]),
     ...at("answered", {cooldown: 15}, [look("amused", 3), nothing(2)]),
     ...at("heard", {cooldown: 30}, [
         clip("bow", 1, {voices: ["butler"]}),
@@ -200,6 +204,11 @@ const holds = (when, scene) =>
 // what an entry's cooldown is kept under: its moment, or itself when it stands apart
 const cooledUnder = (entry) => (entry.apart ? `${entry.when.moment}/${entry.name}` : entry.when.moment);
 
+// A cooldown is a number of seconds, or the least and the most, [least, most], when it lasts a random time between them each time: the
+// least, and the seconds past the least it lasts this time, drawn with `random`
+const leastOf = (cooldown) => (Array.isArray(cooldown) ? cooldown[0] : cooldown);
+const beyondLeast = (cooldown, random) => (Array.isArray(cooldown) ? random() * (cooldown[1] - cooldown[0]) : 0);
+
 // The entries that may play where things stand, `scene`: its moment and what else the conditions read, whether the figure `has` a clip,
 // and, with `memory` (cooldown key to when it last played, in seconds) and `now`, only those not cooling down. With a `tally` of the acts
 // played since the last shenanigan at SHENANIGAN.after or more, only the shenanigans, where there is one; and never the tally's last act
@@ -207,7 +216,7 @@ const cooledUnder = (entry) => (entry.apart ? `${entry.when.moment}/${entry.name
 export function choicesFor(scene) {
     const has = scene.has ?? (() => true);
     const since = (key) => scene.now - (scene.memory.get(key) ?? -Infinity);
-    const cooled = (entry) => !scene.memory || ((!entry.cooldown || since(cooledUnder(entry)) >= entry.cooldown) && (!entry.waits || since(entry.when.moment) >= entry.waits));
+    const cooled = (entry) => !scene.memory || ((!entry.cooldown || since(cooledUnder(entry)) >= leastOf(entry.cooldown)) && (!entry.waits || since(entry.when.moment) >= leastOf(entry.waits)));
     const choices = PILE.filter((entry) => holds(entry.when, scene) && (entry.kind !== "clip" || has(entry.name)) && cooled(entry));
     const due = (scene.tally?.plain ?? 0) >= SHENANIGAN.after && choices.some((entry) => entry.shenanigan);
     const kept = due ? choices.filter((entry) => entry.shenanigan) : choices;
@@ -223,8 +232,10 @@ export function draw(scene, random) {
     let roll = random() * choices.reduce((sum, entry) => sum + entry.weight, 0);
     const drawn = choices.find((entry) => (roll -= entry.weight) < 0) ?? choices.at(-1) ?? null;
     if (!drawn || drawn.kind === "nothing") return null;
-    scene.memory?.set(cooledUnder(drawn), scene.now);
-    if (drawn.waits) scene.memory?.set(drawn.when.moment, scene.now);
+    // a cooldown of a random length is kept as one of its least that began as much later
+    const later = beyondLeast(drawn.cooldown ?? drawn.waits, random);
+    scene.memory?.set(cooledUnder(drawn), scene.now + later);
+    if (drawn.waits) scene.memory?.set(drawn.when.moment, scene.now + later);
     if (scene.tally) Object.assign(scene.tally, {plain: drawn.shenanigan ? 0 : scene.tally.plain + 1, last: drawn.name});
     return drawn;
 }

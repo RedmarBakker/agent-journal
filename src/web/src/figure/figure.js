@@ -53,8 +53,6 @@ const WAVE_BEND = 25;
 const WAVE_SWING = 10;
 const CHIN_REST = [0.4, -0.92, 2.1];
 const THINK_ELBOW = [0.6, 0.3, -1.0];
-const THINK_HAND = [1.0, -0.4, 0.35];
-const THINK_TIP = 25;
 const SLEEP_TILT = 4;
 const SLEEP_FRAMES = 18;
 // what the butler once carried on the platter is left out, so both his hands are empty and hang and swing as each other
@@ -481,17 +479,15 @@ function waveArm(pose, side, t) {
     pose.bend(`forearm_${side}`, WAVE_BEND + WAVE_SWING * waveOf(t));
 }
 
-// How the figure thinks: the head tipped back `nod` degrees and turned `turn` away from the free hand; the free hand's knuckles at the
-// head's `chin`, the front of its bottom edge (measured on the head shell, the same on every voice), the hand pointing up along `fist`
-// with its wrist under them and its elbow pointing down along `elbow`; the other forearm folded across the body under that elbow, its
-// hand `inboard` of the way from the middle out to that elbow and `under` it, its own elbow out along `folded`; the knuckles tapping the
-// chin `taps` times a loop, each tap lifting them `tap` off it and back; and the eyes glancing up `glance` of their height, and aside
-export const THINKING = {nod: -10, turn: 14, chin: [0, -0.58, 2.5], fist: [0.15, -0.2, 1], elbow: [0.1, -0.5, -1], inboard: 0.1, under: 0.12, folded: [1, -0.6, -0.4], taps: 2, tap: 0.08, glance: [0.35, 0.3]};
-
-// The thinking act (acts.js ponder): the head tilted `tilt` degrees to the free hand's side and up `nod`, swaying `sway` degrees; the free
-// hand's fingers along the cheek at `cheek`, beside the bottom of the head, pointing up along `finger`; and at its end, "got it", the
-// hand raised before the shoulder at `gotIt`, its finger up
-export const PONDERING = {tilt: 22, nod: -12, sway: 4, cheek: [0.38, -0.78, 2.6], finger: [0.2, 0.15, 1], gotIt: [0.85, -0.45, 2.75]};
+// How the figure thinks (thinkingClip, type_ponder): the head tilted `tilt` degrees to the free hand's side and up `nod`, swaying `sway` degrees;
+// the free hand's fingers along the cheek at `cheek`, beside the bottom of the head, pointing up along `finger`, its elbow down along
+// `elbow`; the other forearm folded across the body under that elbow, its hand `inboard` of the way from the middle out to that elbow
+// and `under` it, its own elbow out along `folded`; the eyes glancing up `glance` of their height, and aside; and at the act's end,
+// "got it", the hand raised before the shoulder at `gotIt`, its finger up
+export const PONDERING = {
+    tilt: 22, nod: -12, sway: 4, cheek: [0.38, -0.78, 2.6], finger: [0.2, 0.15, 1], elbow: [0.1, -0.5, -1],
+    inboard: 0.1, under: 0.12, folded: [1, -0.6, -0.4], glance: [0.35, 0.3], gotIt: [0.85, -0.45, 2.75],
+};
 
 // the wrist of the hand on `side` put so its grip is at `grip`, the hand pointing along `along`, `k` of the way up from hanging
 function handAlong(pose, side, k, grip, along, elbow) {
@@ -502,67 +498,51 @@ function handAlong(pose, side, k, grip, along, elbow) {
 // the forearm on `side` folded across the body under the elbow of the arm on `other`, `k` of the way up from hanging
 function foldUnder(pose, side, other, k) {
     const elbow = pose.head(`forearm_${other}`, pose.matrix(`forearm_${other}`));
-    const under = new THREE.Vector3(elbow.x * THINKING.inboard, elbow.y, elbow.z - THINKING.under);
-    handTo(pose, side, k, pose.withinReach(side, under, 0.97), new THREE.Vector3(...THINKING.folded));
+    const under = new THREE.Vector3(elbow.x * PONDERING.inboard, elbow.y, elbow.z - PONDERING.under);
+    handTo(pose, side, k, pose.withinReach(side, under, 0.97), new THREE.Vector3(...PONDERING.folded));
 }
 
-// thinks it over, its knuckles at its chin and that elbow resting on the other arm folded across its body, its eyes glancing up and
-// aside, the hand tapping slowly at the chin
-function think(pose, stance, t) {
+// The figure thinking, `thinking` of the way into the pose, swayed `sway` of its sway, and `got` of the way into "got it", its hand
+// `raised` of the way from its cheek up before its shoulder: the head tilted up and aside, the finger at the cheek and that elbow on the
+// other arm folded across the body, the eyes glancing up and aside, in their own shape; the thought cloud over it is the page's
+// (chat/FigureAct.vue)
+function thinks(pose, stance, t, {thinking, sway, got, raised}) {
     const side = freeSide(stance);
     const other = side === "l" ? "r" : "l";
     const sign = SIDES[side];
-    const tapping = Math.max(waveOf(t, THINKING.taps), 0) ** 3;
-    breathe(pose, t);
-    trunk(pose, {nod: THINKING.nod + 2 * waveOf(t), turn: -sign * THINKING.turn, tilt: -sign * 4});
-    pose.putAway(...IN_HAND);
-    armsAtRest(pose, stance, [side, other]);
-    const chin = new THREE.Vector3(...THINKING.chin).applyMatrix4(pose.matrix("head"));
-    const [across, forward, up] = THINKING.fist;
-    const fist = new THREE.Vector3(-sign * across, forward, up).normalize();
-    handAlong(pose, side, 1, chin.addScaledVector(fist, -THINKING.tap * tapping), fist, new THREE.Vector3(...THINKING.elbow));
-    foldUnder(pose, other, side, 1);
-    pose.glanceEyes(THINKING.glance[0], -sign * THINKING.glance[1]);
-}
-
-// The thinking act, played now and then while the agent thinks: it tilts its head up and to one side, swaying a little, its finger along
-// its cheek and that elbow on the other arm folded across it, its eyes glancing up and aside, while a thought cloud rises over its head
-// (chat/FigureAct.vue); and it always ends with "got it", the head up, the eyes wide and the finger raised as the bulb lights
-function ponder(pose, stance, t) {
-    const act = ACTS.ponder;
-    const u = onceTime(t, act.frames);
-    const side = freeSide(stance);
-    const other = side === "l" ? "r" : "l";
-    const sign = SIDES[side];
-    const thinking = partOf(u, act.into) * (1 - partOf(u, act.rise));
-    const got = partOf(u, act.rise) * (1 - partOf(u, act.fades));
-    const sway = Math.sin(2 * Math.PI * act.sways * u) * thinking;
     breathe(pose, t);
     trunk(pose, {nod: PONDERING.nod * thinking - 10 * got, tilt: -sign * (PONDERING.tilt * thinking + PONDERING.sway * sway), turn: 3 * sway});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, [...(thinking + got ? [side] : []), ...(thinking ? [other] : [])]);
+    if (thinking + got) fingerAtCheek(pose, side, Math.max(thinking, got), raised);
+    if (thinking) foldUnder(pose, other, side, thinking);
+    pose.glanceEyes(PONDERING.glance[0] * thinking, -sign * PONDERING.glance[1] * thinking);
+    eyesAs(pose, "startled", got);
+}
+
+// the finger of the hand on `side` along the cheek, as the head is posed, `k` of the way up from hanging and `raised` of the way from
+// there up before the shoulder, "got it"
+function fingerAtCheek(pose, side, k, raised = 0) {
+    const sign = SIDES[side];
     const [x, y, z] = PONDERING.cheek;
     const cheek = new THREE.Vector3(sign * x, y, z).applyMatrix4(pose.matrix("head"));
     const [gx, gy, gz] = PONDERING.gotIt;
-    const raised = pose.carried(new THREE.Vector3(sign * gx, gy, gz + HAND.grip));
-    const [across, forward, up] = PONDERING.finger;
-    const finger = new THREE.Vector3(-sign * across, forward, up).normalize();
-    if (thinking + got) handAlong(pose, side, Math.max(thinking, got), cheek.lerp(raised, partOf(u, act.rise)), finger, new THREE.Vector3(...THINKING.elbow));
-    if (thinking) foldUnder(pose, other, side, thinking);
-    pose.glanceEyes(THINKING.glance[0] * thinking, -sign * THINKING.glance[1] * thinking);
-    eyesAs(pose, "startled", got);
-    if (u >= act.appears[0]) pose.lightBulb(partOf(u, act.appears) * (1 - partOf(u, act.goes)), partOf(u, act.lights) * (1 - partOf(u, act.fades)), sign);
+    const up = pose.carried(new THREE.Vector3(sign * gx, gy, gz + HAND.grip));
+    const [across, forward, rise] = PONDERING.finger;
+    handAlong(pose, side, k, cheek.lerp(up, raised), new THREE.Vector3(-sign * across, forward, rise).normalize(), new THREE.Vector3(...PONDERING.elbow));
 }
 
-// the chin rested on the hand on `side`
-function chinOnHand(pose, side) {
-    const sign = SIDES[side];
-    const [x, y, z] = CHIN_REST;
-    pose.reach(side, pose.carried(new THREE.Vector3(sign * x, y, z)), new THREE.Vector3(...THINK_ELBOW));
-    const [across, forward, up] = THINK_HAND;
-    pose.aim(`hand_${side}`, new THREE.Vector3(-sign * across, forward, up));
-    pose.turn(`hand_${side}`, {x: THINK_TIP});
-}
+// The pose of a play of the thinking act timed as `act` says (acts.js ponder, think_cloud, got_it): with the cloud, it comes into the
+// thinking pose under the thought cloud (chat/FigureAct.vue) and comes out of it at its `rise`; with the bulb, "got it", the head up, the
+// eyes wide and the finger raised as the bulb lights
+const thinkingClip = (act) => (pose, stance, t) => {
+    const u = onceTime(t, act.frames);
+    const thinking = act.cloud ? partOf(u, act.into) * (1 - partOf(u, act.rise)) : 0;
+    const bulb = Boolean(act.lights);
+    const got = bulb ? partOf(u, act.rise) * (1 - partOf(u, act.fades)) : 0;
+    thinks(pose, stance, t, {thinking, sway: (act.sways ? Math.sin(2 * Math.PI * act.sways * u) : 0) * thinking, got, raised: bulb ? partOf(u, act.rise) : 0});
+    if (bulb && u >= act.appears[0]) pose.lightBulb(partOf(u, act.appears) * (1 - partOf(u, act.goes)), partOf(u, act.lights) * (1 - partOf(u, act.fades)), SIDES[freeSide(stance)]);
+};
 
 function celebrate(pose, stance, t) {
     const jump = Math.max(Math.sin(2 * Math.PI * 2 * t), 0);
@@ -2751,17 +2731,18 @@ function peek_under(pose, stance, t) {
     eyesAs(pose, "reading", peek);
 }
 
-// The figure types on and stops to think now and then, a hand at its chin and the other tapping slowly at the laptop
+// The figure types on and stops to think now and then at the laptop, thinking as it does anywhere: its head tilted up and aside, its
+// finger at its cheek and its eyes glancing up, under the thought cloud (acts.js type_ponder), the other hand tapping slowly at the keys
 function type_ponder(pose, stance, t) {
     const side = freeSide(stance);
     const sign = SIDES[side];
     const [x, y, z] = TYPING_HANDS;
     breathe(pose, t);
-    trunk(pose, {lean: 4, nod: 14 + 3 * waveOf(t), turn: -sign * 6, tilt: -sign * 4});
+    trunk(pose, {lean: 2, nod: PONDERING.nod / 2 + 2 * waveOf(t), tilt: -sign * PONDERING.tilt * 0.7});
     handsTo(pose, stance, 1, [x, y, z + 0.03 * Math.max(waveOf(t, 2), 0)]);
-    chinOnHand(pose, side);
+    fingerAtCheek(pose, side, 1);
     pose.holdLaptop();
-    eyesAs(pose, "reading");
+    pose.glanceEyes(PONDERING.glance[0], -sign * PONDERING.glance[1]);
 }
 
 // The figure wipes its brow with the back of the free hand in a break from the work, and blows out
@@ -2822,10 +2803,11 @@ export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
     {name: "nod", frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
     {name: "hand_rub", frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: GESTURE, pose: hand_rub},
-    {name: "ponder", frames: ACTS.ponder.frames, fps: ACTS.ponder.fps, loops: false, ownLook: true, postures: GESTURE, pose: ponder},
+    {name: "ponder", frames: ACTS.ponder.frames, fps: ACTS.ponder.fps, loops: false, ownLook: true, postures: GESTURE, pose: thinkingClip(ACTS.ponder)},
+    {name: "think_cloud", frames: ACTS.think_cloud.frames, fps: ACTS.think_cloud.fps, loops: false, ownLook: true, postures: GESTURE, pose: thinkingClip(ACTS.think_cloud)},
+    {name: "got_it", frames: ACTS.got_it.frames, fps: ACTS.got_it.fps, loops: false, ownLook: true, postures: GESTURE, pose: thinkingClip(ACTS.got_it)},
     {name: "shake", frames: 12, fps: 12, loops: false, postures: GESTURE, pose: shake},
     {name: "wave", frames: 12, fps: 12, loops: true, postures: GESTURE, pose: wave},
-    {name: "think", frames: 24, fps: 6, loops: true, leaves: 12, postures: GESTURE, pose: think},
     {name: "celebrate", frames: 12, fps: 10, loops: true, postures: MOVE, pose: celebrate},
     {name: "sleep", frames: ACTING.yawnFrames + SLEEP_FRAMES, intro: ACTING.yawnFrames, leaves: SLEEP_FRAMES, fps: 6, loops: true, postures: GESTURE, marks: {mark: "Z", frames: [[ACTING.yawnFrames, ACTING.yawnFrames + SLEEP_FRAMES]]}, pose: sleep},
     {name: "walk", frames: 12, fps: 12, loops: true, interruptible: true, postures: MOVE, pose: walk},
@@ -2907,7 +2889,7 @@ export const CLIPS = [
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
     {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
     {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
-    {name: "type_ponder", frames: 24, fps: 6, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, postures: ON_A_LAP, pose: type_ponder},
+    {name: "type_ponder", frames: ACTS.type_ponder.frames, fps: ACTS.type_ponder.fps, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, ownLook: true, postures: ON_A_LAP, pose: type_ponder},
     {name: "wipe_brow", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
     {name: "wave_up", frames: 12, fps: 12, loops: true, cuts: true, postures: ["stand", "sit"], pose: wave_up},
 ];

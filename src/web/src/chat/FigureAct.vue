@@ -122,27 +122,30 @@ const waggle = computed(() => {
     return 14 * Math.sin(2 * Math.PI * act.value.waggles * k) * Math.sin(Math.PI * k);
 });
 
-// The thought cloud over the thinking figure's head, out toward its free hand: three puffs rising from beside the head one after another
-// into a small cloud, `across` and `above` the eyes as shares of the picture, `wide` across, holding three dots that pulse one after
-// another, each its turn of the act's pulse; all of it fading as the bulb lights
+// The thought cloud over the thinking figure's head, out toward its free hand, wherever it shows thinking (acts.js ponder, think_cloud,
+// type_ponder): three puffs rising from beside the head into a small cloud, `across` and `above` the eyes as shares of the picture, `wide`
+// across, holding three dots that pulse one after another, each its turn of the act's pulse. In the thinking act the puffs rise one after
+// another as it begins and all of it fades as its hand comes away; at the laptop, it is there whole.
 const CLOUD = {across: 0.24, above: 0.36, wide: 0.3, puffs: [[0.08, 0.12, 0.022], [0.13, 0.2, 0.03], [0.18, 0.27, 0.04]]};
 const cloud = computed(() => {
     const {puffs, cloud: held, rise, pulse, frames, fps} = act.value;
-    const shown = partOf(props.u, [held[0], puffs[1]]) * (1 - partOf(props.u, [held[1], rise[1]]));
+    if (!pulse) return null;
+    const forming = (from, to) => (puffs ? partOf(props.u, [from, to]) : 1);
+    const shown = puffs ? partOf(props.u, [held[0], puffs[1]]) * (1 - partOf(props.u, [held[1], rise[1]])) : 1;
     if (!shown) return null;
     const out = props.hand.out;
     const seconds = (props.u * frames) / fps;
     const rising = CLOUD.puffs.map(([across, above, r], index) => ({
         x: head.value.x + out * px(across),
         y: head.value.y - px(above),
-        r: px(r) * partOf(props.u, [puffs[0] + (index * (puffs[1] - puffs[0])) / 3, puffs[0] + ((index + 1) * (puffs[1] - puffs[0])) / 3]),
+        r: px(r) * (puffs ? forming(puffs[0] + (index * (puffs[1] - puffs[0])) / 3, puffs[0] + ((index + 1) * (puffs[1] - puffs[0])) / 3) : 1),
     }));
     const x = head.value.x + out * px(CLOUD.across);
     const y = head.value.y - px(CLOUD.above);
     const w = px(CLOUD.wide);
     const bumps = [[-0.32, 0.05, 0.2], [-0.12, -0.12, 0.24], [0.14, -0.1, 0.22], [0.32, 0.06, 0.18], [0, 0.12, 0.22]].map(([dx, dy, r]) => ({x: x + dx * w, y: y + dy * w, r: r * w}));
     const dots = [-1, 0, 1].map((place, index) => ({x: x + place * w * 0.22, y, r: w * 0.05 * (1 + 0.5 * Math.max(Math.sin(2 * Math.PI * (seconds / pulse - index / 3)), 0)), lit: 0.35 + 0.65 * Math.max(Math.sin(2 * Math.PI * (seconds / pulse - index / 3)), 0)}));
-    return {shown, rising, bumps, dots, grown: partOf(props.u, [puffs[0] + (2 * (puffs[1] - puffs[0])) / 3, puffs[1]])};
+    return {shown, rising, bumps, dots, grown: puffs ? forming(puffs[0] + (2 * (puffs[1] - puffs[0])) / 3, puffs[1]) : 1};
 });
 
 // the drawer slid out, 0 to 1, and the card dropped into it
@@ -239,7 +242,7 @@ const flap = computed(() => {
                 </g>
             </template>
 
-            <template v-if="name === 'ponder' && cloud">
+            <template v-if="cloud">
                 <g :opacity="cloud.shown" data-thought-cloud>
                     <circle v-for="(puff, index) in cloud.rising" :key="`puff${index}`" :cx="puff.x" :cy="puff.y" :r="puff.r" :fill="COLOURS.paper" stroke-width="0.8" />
                     <g v-if="cloud.grown" :opacity="cloud.grown">

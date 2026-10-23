@@ -220,8 +220,7 @@ test("the walk is cut short the moment there is nowhere to go, a fall, a hop up 
         expect(canSwitch(named[name], named[name].frames - 1, named[name].frames - 2), name).toBe(false);
         expect(canSwitch(named[name], named[name].frames, named[name].frames - 1), name).toBe(true);
     }
-    expect(canSwitch(named.think, 5, 4)).toBe(false);
-    expect(canSwitch(named.think, named.think.frames, named.think.frames - 1)).toBe(true);
+    expect(canSwitch(named.idle, 5, 4)).toBe(false);
     expect(canSwitch(named.idle, named.idle.leaves, named.idle.leaves - 1)).toBe(true);
 });
 
@@ -314,5 +313,6 @@ test("each prop is chosen for its tools, and stays a moment after a quick tool f
     ["Edit", "Write"].forEach((tool) => expect(prop({running: true, tool})).toBe("type"));
     expect(prop({tool: "Read", since: NOW - 1})).toBe("read");
     expect(prop({tool: "Grep", since: NOW - 1})).toBe("search");
-    expect(prop({tool: "Read", since: NOW - 10})).toBe("think");
+    // a while after it, thinking, it stands as it does idle: its thinking shows only in the thinking act (figureThinking.test.js)
+    expect(prop({tool: "Read", since: NOW - 10})).toBe("idle");
 });
