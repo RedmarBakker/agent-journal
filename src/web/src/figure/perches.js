@@ -180,23 +180,23 @@ export function climbOf(floors, figure, from, y) {
 // whether `spot` is one the figure stands on on top of a bubble of `floors`, the one place the pogo stick takes it
 const onBubbleTop = (floors, spot) => spot.posture === "stand" && floors.some((floor) => floor.kind === "bubble" && floor.element === spot.on);
 
-// whether a climb from `from` up to `spot` may go on the pogo stick: onto a bubble's top, past POGO.over of the figure's heights, within
-// its reach, and the stick not cooling down, as `scene` ({memory, now}) says
-const pogoFits = (floors, figure, from, spot, scene) =>
-    onBubbleTop(floors.floors, spot) && pogoClimb(figure, from.y - spot.y) && choicesFor({moment: "climb", ...scene}).some((entry) => entry.name === "pogo");
+// whether a climb from `from` up to `spot` may go on the pogo stick: onto a bubble's top, at least POGO.share of the height of the thread
+// in `floors` as it is now, and the stick not cooling down, as `scene` ({memory, now}) says
+const pogoFits = (floors, from, spot, scene) =>
+    onBubbleTop(floors.floors, spot) && pogoClimb(from.y - spot.y, floors.view.bottom - floors.view.top) && choicesFor({moment: "climb", ...scene}).some((entry) => entry.name === "pogo");
 
 // How a figure at `from` gets up to `spot`: `via`, the footholds it hops up on (climbOf), or `pogo`, the stick it pulls from behind its
 // back, drawn now and then for a climb it fits (pile.js climb) and always when there are no footholds; null when it cannot
 export function wayUp(floors, figure, from, spot, scene, random) {
     const via = climbOf(floors, figure, from, spot.y);
-    if (!pogoFits(floors, figure, from, spot, scene)) return via && {via, pogo: false};
+    if (!pogoFits(floors, from, spot, scene)) return via && {via, pogo: false};
     return draw({moment: "climb", footholds: Boolean(via), ...scene}, random)?.name === "pogo" ? {via: [], pogo: true} : {via, pogo: false};
 }
 
 // the spot, when a figure at `near` can get up to it, hopping or on the pogo stick, else null
 export function climbable(spot, figure, near, scene = {}) {
     const floors = readFloors();
-    return spot && (climbOf(floors, figure, near, spot.y) || pogoFits(floors, figure, near, spot, scene)) ? spot : null;
+    return spot && (climbOf(floors, figure, near, spot.y) || pogoFits(floors, near, spot, scene)) ? spot : null;
 }
 
 // The next stay, drawn at `now` seconds from the pile: where, until when, and what it holds for the stay, the perch on a bubble, the
