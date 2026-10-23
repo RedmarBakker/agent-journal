@@ -3,8 +3,9 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
-import {DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, digitsOf, flightMs, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, craneMs, digitsOf, flightMs, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
+import {CARRIERS, carrierOf} from "../src/figure/reactions.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -217,3 +218,40 @@ test("each blow lets a few 0 and 1 digits out of the dust, starting about the un
     }
 });
 
+
+test("the UFO takes the work away three times in four and the claw crane the fourth, picked by weight from one list", () => {
+    expect(CARRIERS).toEqual([{clip: "ufo", weight: 3}, {clip: "crane", weight: 1}]);
+    const rolls = Array.from({length: 1000}, (_, index) => carrierOf(() => (index + 0.5) / 1000));
+    expect(rolls.filter((by) => by === "ufo").length).toBe(750);
+    expect(rolls.filter((by) => by === "crane").length).toBe(250);
+    expect([carrierOf(() => 0), carrierOf(() => 0.7499), carrierOf(() => 0.75), carrierOf(() => 0.9999)]).toEqual(["ufo", "ufo", "crane", "crane"]);
+});
+
+test("the claw crane rolls in along the window's top, lowers its claw onto the stack, shuts it, lifts the stack out of the window and rolls away", () => {
+    const top = 100;
+    const floor = 700;
+    const stops = stacksOf([0, 1, 2].map((index) => ({id: index + 1, x: 600, up: pileSlot(index).up})));
+    expect(stops).toHaveLength(1);
+    expect(stops[0].high).toBe(pileSlot(2).up + PARCEL.height);
+    const visit = (ms) => craneAt(stops, ms, floor, top, -40, 1300);
+    // rolling in from the left along the rail, the claw wound up and open
+    expect(visit(0)).toMatchObject({x: -40, chain: CRANE.wound, open: 1, coming: true, lifted: 0});
+    expect(visit(CRANE.enter / 2).x).toBeGreaterThan(-40);
+    // over the stack the claw goes down on its chain until it meets the stack's top, then shuts
+    const lowered = visit(CRANE.enter + CRANE.lower);
+    expect(lowered.x).toBe(600);
+    expect(top + lowered.chain).toBeCloseTo(floor - stops[0].high, 6);
+    expect(lowered.open).toBe(1);
+    expect(visit(CRANE.enter + CRANE.lower + CRANE.grab).open).toBe(0);
+    // it lifts the stack, ever higher, until the stack is out past the window's top
+    let previous = 0;
+    for (let ms = CRANE.enter + CRANE.lower + CRANE.grab + 50; ms < CRANE.enter + CRANE.lower + CRANE.grab + CRANE.lift; ms += 50) {
+        const now = visit(ms);
+        expect(now.lifted).toBeGreaterThanOrEqual(previous);
+        expect(now.x).toBe(600);
+        previous = now.lifted;
+    }
+    expect(floor - previous - stops[0].high).toBeLessThan(top);
+    // and it rolls on out at the far side, gone once its visit is over
+    expect(visit(craneMs(1))).toMatchObject({x: 1300, taken: 1, gone: true});
+});

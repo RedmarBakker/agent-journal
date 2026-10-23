@@ -41,11 +41,12 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
+import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
+import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, eagerFor, eyesAt, lookOf, pastimeFor, typingIn, typingSpell, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, carrierOf, eagerFor, eyesAt, lookOf, pastimeFor, typingIn, typingSpell, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
 import {VISOR, visorAt, visorFor} from "../figure/visor.js";
 import {
@@ -172,10 +173,12 @@ let beside = 0;
 // how long one blow of the hammering is and where in it the blow lands (figure.js WORK), and the blows counted of the hammering on screen
 let blow = {frames: 1, lands: 0};
 let counted = {started: 0, landed: 0};
-// The UFO once the work is committed, or null: when it set off, the stops it makes for the parcels it takes (parcels.js stopsOf), and
-// where it comes from and goes off to; and what is drawn of it and of the parcels this frame
-const ufo = ref(null);
+// The carrier that takes the work away once it is committed, or null: which it is, the UFO or the claw crane (reactions.js carrierOf), when
+// it set off, the stops it makes for the parcels it takes and where it comes from and goes off to; and what is drawn of it and of the
+// parcels this frame
+const taking = ref(null);
 const saucer = ref(null);
+const crane = ref(null);
 const drawnParcels = ref([]);
 // how the figure watching the UFO stands this frame (figure.js watch), or null
 let sky = null;
@@ -188,7 +191,7 @@ let flight = null;
 const flying = ref(null);
 // the figure's eagerness for the bar docked under its feet to end (reactions.js eagerFor)
 let eager = null;
-// the clip the figure plays while its UFO is here (reactions.js VARIANTS watch), picked for each flight
+// the clip the figure plays while its UFO or crane is here (reactions.js VARIANTS watch), picked for each visit
 let watching = "watch";
 // the clip the held state is played as for this stretch of it (reactions.js variantOf), picked again each time the state changes
 let variant = {state: "", clip: ""};
@@ -234,7 +237,7 @@ function current() {
         beat,
         state: held.value.state,
         doing: doing(),
-        watching: ufo.value ? watching : "",
+        watching: taking.value ? watching : "",
         flying: flying.value,
         eager: Boolean(eager?.on),
         chute: Boolean(body.airborne?.chute),
@@ -311,7 +314,7 @@ function step() {
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
     drawn = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
     if (!body.trip?.started && !body.airborne && !flight) rest();
-    flyUfo();
+    carry();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
     const lit = visorAt(visor, performance.now() / 1000, asleep());
     halo.value = lit && {colour: lit.colour, strength: VISOR.halo * lit.glow * lit.open};
@@ -649,7 +652,7 @@ function look() {
     lights.value = lightsAfter(lights.value, runs && !running, ends.length ? ends.at(-1).tone : "");
     running = runs;
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
-    if (committed(happened)) sendUfo();
+    if (committed(happened)) sendAway();
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
@@ -681,10 +684,10 @@ function look() {
         pile: pileOf(),
     });
     stay = target.stay;
-    // while the UFO is here the figure stands watching it, and goes nowhere
+    // while the UFO or the crane is here the figure stands watching it, and goes nowhere
     // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended
     const going = eager?.on ? !body.footing?.home && spotOf(null, figureSize()) : target.spot;
-    if (!body.trip && !body.arriving && !body.airborne && !ufo.value && !flight && going) {
+    if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going) {
         moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried});
         hurried = false;
     }
@@ -763,14 +766,14 @@ function keepParcels(shown) {
     }
     const building = parcels.value.find((each) => each.state === "building");
     if (building && hammers) countBlows(building, shown);
-    if (building && performance.now() >= building.until && !ufo.value) building.state = "built";
+    if (building && performance.now() >= building.until && !taking.value) building.state = "built";
     const pushing = list.find((each) => each.state === "built");
-    if (pushing && !ufo.value) {
+    if (pushing && !taking.value) {
         const to = slotX(piled());
         if (body.trip?.moves) pushing.along = pushedTo(parcelX(pushing), feetX(), to, body.way) - edge.left;
         if (Math.abs(parcelX(pushing) - to) < PUSH.room) Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
     }
-    if (!ufo.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows}));
+    if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows}));
 }
 
 // each blow that lands on the parcel being built is counted on it, so the parcel puffs dust at it (CodeParcel.vue)
@@ -781,40 +784,68 @@ function countBlows(building, shown) {
     counted.landed = landed;
 }
 
-// the work is committed: the UFO comes for every parcel, on the pile or not, and the one the figure is hammering counts as finished, so
-// the UFO never stays away because the figure is busy
+// the work is committed: the UFO or the crane comes for every parcel, on the pile or not, and the one the figure is hammering counts as
+// finished, so it never stays away because the figure is busy
 const committed = (happened) => happened.some((fire) => fire.beat === "committed");
 
-function sendUfo() {
+function sendAway() {
     const taken = parcels.value;
-    if (ufo.value || !taken.length) return;
+    if (taking.value || !taken.length) return;
     for (const each of taken) if (each.state === "building") each.state = "built";
     if (keptStill()) {
         parcels.value = parcels.value.filter((each) => !taken.includes(each));
         return;
     }
-    const world = worldBox();
-    const stops = stopsOf(taken.map((each) => ({id: each.id, x: parcelX(each)})));
+    const by = carrierOf(Math.random);
     watching = variantOf("watch", Math.random, hasClip);
-    ufo.value = {
-        began: performance.now(),
-        stops,
-        from: {x: world.right + UFO_OFF.right, y: world.top + UFO_OFF.above},
-        away: {x: world.left - UFO_OFF.left, y: world.top + UFO_OFF.above},
-    };
+    taking.value = {by, began: performance.now(), ...CARRY[by].start(taken.map((each) => ({id: each.id, x: parcelX(each), up: each.up})), worldBox())};
 }
 
-// Each frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at rising up the beam
+// How each carrier sets off for the parcels `items` (each {id, x, up}) in the chat window `world`, and its frame `ms` into its visit: the
+// UFO flies in from far off to the right and away to the left, its stops the groups one beam takes; the claw crane rolls in along the
+// window's top from one side, the left or the right, and out at the other, its stops the stacks one claw takes
+const CARRY = {
+    ufo: {
+        start: (items, world) => ({
+            stops: stopsOf(items),
+            from: {x: world.right + UFO_OFF.right, y: world.top + UFO_OFF.above},
+            away: {x: world.left - UFO_OFF.left, y: world.top + UFO_OFF.above},
+        }),
+        frame: flyUfo,
+    },
+    crane: {
+        start: (items, world) => {
+            const [from, away] = Math.random() < 0.5 ? [world.left - CRANE_OFF, world.right + CRANE_OFF] : [world.right + CRANE_OFF, world.left - CRANE_OFF];
+            return {stops: stacksOf(items), from, away};
+        },
+        frame: runCrane,
+    },
+};
+
+// how far past the chat window's side the crane rolls in from and out to, in pixels
+const CRANE_OFF = 40;
+
+// Each frame of the carrier taking the work away; once it is gone the parcels it took are gone, and the figure steps forward again over as
+// long as it took to step back
+function carry() {
+    if (!taking.value) return stepForward();
+    const done = CARRY[taking.value.by].frame(performance.now() - taking.value.began);
+    if (!done) return;
+    parcels.value = parcels.value.filter((each) => !taking.value.stops.some((stop) => stop.ids.includes(each.id)));
+    taking.value = null;
+    saucer.value = null;
+    crane.value = null;
+    sky = {shade: 0, back: sky.back, at: performance.now()};
+}
+
+// A frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at rising up the beam
 // to its middle, shrinking, those of the stops it has made gone, and what the figure watches: the UFO, with a hand shading its eyes while
-// it is still coming in, and stepped back once it first lifts; once it is gone the figure steps forward again over as long as it took to
-// step back
-function flyUfo() {
-    if (!ufo.value) return stepForward();
+// it is still coming in, and stepped back once it first lifts; true once it is gone
+function flyUfo(ms) {
     const {edge} = composeEdge();
-    const ms = performance.now() - ufo.value.began;
-    const at = ufoAt(ufo.value.stops, ms, edge.top, ufo.value.from, ufo.value.away);
-    const gone = new Set(ufo.value.stops.slice(0, at.taken).flatMap((stop) => stop.ids));
-    const rising = new Set(ufo.value.stops[at.stop].ids);
+    const at = ufoAt(taking.value.stops, ms, edge.top, taking.value.from, taking.value.away);
+    const gone = new Set(taking.value.stops.slice(0, at.taken).flatMap((stop) => stop.ids));
+    const rising = new Set(taking.value.stops[at.stop].ids);
     const lifted = (each) => {
         const k = rising.has(each.id) ? at.risen : 0;
         const x = parcelX(each);
@@ -828,11 +859,27 @@ function flyUfo() {
         shade: at.coming ? Math.min(ms / STEP_BACK_MS, 1 - ms / UFO.enter) : 0,
         back: Math.min(Math.max(lifting / STEP_BACK_MS, 0), 1),
     };
-    if (!at.gone) return;
-    parcels.value = parcels.value.filter((each) => !ufo.value.stops.some((stop) => stop.ids.includes(each.id)));
-    ufo.value = null;
-    saucer.value = null;
-    sky = {shade: 0, back: sky.back, at: performance.now()};
+    return at.gone;
+}
+
+// A frame of the claw crane's visit (parcels.js craneAt): the crane drawn on its rail along the chat window's top, the stack it has shut
+// its claw on lifted with it, fading as it goes out past the window's top, those of the stops it has made gone, and the figure watching
+// the claw; true once it is gone
+function runCrane(ms) {
+    const {edge} = composeEdge();
+    const world = worldBox();
+    const at = craneAt(taking.value.stops, ms, edge.top, world.top, taking.value.from, taking.value.away);
+    const gone = new Set(taking.value.stops.slice(0, at.taken).flatMap((stop) => stop.ids));
+    const rising = new Set(taking.value.stops[at.stop].ids);
+    const lifted = (each) => {
+        const y = edge.top - (rising.has(each.id) ? at.lifted : 0);
+        const shown = Math.min(Math.max((y - each.up - PARCEL.height - world.top) / PARCEL.height + 1, 0), 1);
+        return {id: each.id, x: parcelX(each), y, up: each.up, scale: 1, opacity: shown};
+    };
+    drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
+    crane.value = {box: world, x: at.x, chain: at.chain, open: at.open, look: {x: at.x, y: world.top + Math.max(at.chain, 0)}};
+    sky = {shade: 0, back: 0};
+    return at.gone;
 }
 
 function stepForward() {
@@ -842,12 +889,12 @@ function stepForward() {
     sky = back ? {shade: 0, back, at: now} : null;
 }
 
-// What the figure looks at on the page: the UFO while it flies, else the leading edge of a progress bar running on the bars docked over
+// What the figure looks at on the page: the UFO while it flies, or the crane's claw, else the leading edge of a progress bar running on the bars docked over
 // the compose box, so its head follows the edge as it moves: looking down at it standing on the bars, and up at it from the compose box's
 // top under them, hammering there too, but not while it pushes a parcel bent over; null when there is nothing to look at
 function lookedAt(shown) {
     const near = body.footing?.home || (body.place.stays && shown.clip.name !== "push");
-    return saucer.value ?? (onDocks() && near ? progressEdge(groundEdge().element) : null);
+    return saucer.value ?? crane.value?.look ?? (onDocks() && near ? progressEdge(groundEdge().element) : null);
 }
 
 // whether the figure is at rest by the bars docked over the compose box
@@ -1066,6 +1113,9 @@ const style = computed(() => ({
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
         <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :lights="lights" />
+    </template>
+    <template v-if="crane">
+        <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />
     </template>
     <template v-if="saucer">
         <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />

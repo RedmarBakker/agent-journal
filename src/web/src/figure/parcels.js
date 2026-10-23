@@ -108,3 +108,54 @@ export function ufoAt(stops, ms, floor, from, away) {
     const k = clamp(at / UFO.leave);
     return {...still, ...toward(over(stops.at(-1)), away, k * k), stop: stops.length - 1, risen: 1, taken: stops.length, gone: k >= 1};
 }
+
+// The claw crane, as an arcade's claw machine: it rolls in along the chat window's top edge, stops over each stack, lowers its claw on a
+// chain, closes it on the stack and lifts it up out of the window, then rolls out at the far side. How long each part takes, in
+// milliseconds; how short the chain is when it is wound up, in pixels; and how far past the window's top a stack is lifted
+export const CRANE = {enter: 1700, move: 900, lower: 1000, grab: 400, lift: 1400, leave: 1500, wound: 10, clear: 30};
+
+const CRANE_STOP_MS = CRANE.lower + CRANE.grab + CRANE.lift;
+
+// how long a crane's visit to `stops` stops lasts
+export const craneMs = (stops) => CRANE.enter + (stops - 1) * CRANE.move + stops * CRANE_STOP_MS + CRANE.leave;
+
+// the chain a claw at the window's `top` needs to reach down onto `stop`'s stack, standing on the floor at `floor`, in pixels
+const reachOf = (stop, floor, top) => floor - top - stop.high;
+
+// Where the crane is `ms` into its visit to `stops` (stopsOf, each with `high`, its stack's height), its rail along the window's top at
+// `top` over a floor at `floor`, rolling in at `from` and out at `away`, all page x: its trolley's x; its chain's length down from the rail,
+// below the window's top when it is less than nothing; how open its claw is, 1 wide open and 0 shut on a stack; the stop it is at and how
+// far its stack has been lifted from the floor, in pixels; how many stops it has taken; and whether it is still coming in, or gone
+export function craneAt(stops, ms, floor, top, from, away) {
+    const still = {chain: CRANE.wound, open: 1, stop: 0, lifted: 0, taken: 0, coming: false, gone: false};
+    if (ms < CRANE.enter) return {...still, x: from + (stops[0].x - from) * ease(ms / CRANE.enter), coming: true};
+    let at = ms - CRANE.enter;
+    for (const [index, stop] of stops.entries()) {
+        if (index > 0) {
+            if (at < CRANE.move) {
+                const k = ease(at / CRANE.move);
+                return {...still, x: stops[index - 1].x + (stop.x - stops[index - 1].x) * k, chain: windingIn(stops[index - 1], k), stop: index, taken: index};
+            }
+            at -= CRANE.move;
+        }
+        if (at < CRANE_STOP_MS) {
+            const reach = reachOf(stop, floor, top);
+            const lowered = ease(clamp(at / CRANE.lower));
+            const shut = clamp((at - CRANE.lower) / CRANE.grab);
+            const lift = ease(clamp((at - CRANE.lower - CRANE.grab) / CRANE.lift));
+            const out = -(stop.high + CRANE.clear);
+            const chain = lift > 0 ? reach + (out - reach) * lift : CRANE.wound + (reach - CRANE.wound) * lowered;
+            return {...still, x: stop.x, chain, open: 1 - shut, stop: index, lifted: reach - chain > 0 && lift > 0 ? reach - chain : 0, taken: index};
+        }
+        at -= CRANE_STOP_MS;
+    }
+    const k = clamp(at / CRANE.leave);
+    return {...still, x: stops.at(-1).x + (away - stops.at(-1).x) * k * k, chain: windingIn(stops.at(-1), ease(k)), stop: stops.length - 1, taken: stops.length, gone: k >= 1};
+}
+
+// the chain wound back in, `k` of the way, from up past the window's top where it lifted `stop`'s stack out to its wound length
+const windingIn = (stop, k) => -(stop.high + CRANE.clear) + (CRANE.wound + stop.high + CRANE.clear) * k;
+
+// The stacks the crane takes from `parcels` (each {id, x, up}): the stops of stopsOf, each with `high`, its stack's height in pixels
+export const stacksOf = (parcels) =>
+    stopsOf(parcels).map((stop) => ({...stop, high: Math.max(...parcels.filter((each) => stop.ids.includes(each.id)).map((each) => each.up)) + PARCEL.height}));

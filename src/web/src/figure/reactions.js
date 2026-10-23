@@ -30,12 +30,19 @@ export const VARIANTS = {
     compacting: [{clip: "pack_box", weight: 3}, {clip: "press", weight: 2}, {clip: "vacuum", weight: 2}, {clip: "compacting", weight: 1}],
 };
 
-// one of `among` ({clip, weight}) the figure has, picked by weight with `random`, or null when it has none of them
+// one of `among` ({clip, weight}) the figure has, picked by weight with `random`, or null when it has none of them: every choice between
+// animations is such a weighted list
 function pick(among, random, has) {
     const had = among.filter((each) => has(each.clip));
     let roll = random() * had.reduce((sum, each) => sum + each.weight, 0);
     return had.find((each) => (roll -= each.weight) < 0)?.clip ?? had.at(-1)?.clip ?? null;
 }
+
+// What takes the work away once it is committed, by weight: the UFO three times in four and the claw crane the fourth
+export const CARRIERS = [{clip: "ufo", weight: 3}, {clip: "crane", weight: 1}];
+
+// the carrier that comes this time, picked from CARRIERS by weight with `random`
+export const carrierOf = (random) => pick(CARRIERS, random, () => true);
 
 // the clip a held clip is played as this time (VARIANTS), itself when it has no others
 export const variantOf = (clip, random, has) => (VARIANTS[clip] ? pick(VARIANTS[clip], random, has) : null) ?? clip;
