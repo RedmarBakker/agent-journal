@@ -350,6 +350,7 @@ function step() {
     headAt.value = player.headAt();
     handAt.value = player.handAt();
     keepParcels(shown);
+    keepBall(shown);
     frameTimer = requestAnimationFrame(step);
 }
 
@@ -623,6 +624,14 @@ function squashed(event) {
 const tilt = ref(0);
 // where the disco ball hangs over the figure while it dances (perches.js discoBall)
 const ball = ref(null);
+
+// the disco ball found again every frame of the dance, so its string stays tied to the bubble above as the chat scrolls or that bubble
+// moves; the dance stops the moment no bubble is above to hang it from
+function keepBall(shown) {
+    if (shown.clip.name !== "disco") return;
+    ball.value = discoBall(body.place, figureSize(), latestFloors());
+    if (!ball.value && beats.value[0]?.clip === "disco") beats.value = beats.value.slice(1);
+}
 let swing = STILL;
 let swungAt = 0;
 let swungFrom = null;

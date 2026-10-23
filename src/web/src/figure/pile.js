@@ -125,10 +125,9 @@ export const PILE = [
         // the shenanigan: it hops up the bubbles off the top of the chat and comes back down on a parachute (figure/skyward.js); it turns
         // a salto only now and then on a high jump up onto a bubble (the jump moment), never where it stands
         {...showpiece(clip("hop_up", 2)), flies: true},
-        // it disco dances under a disco ball: now and then where there is room over its hat for the ball, and most of all standing on a
-        // bubble with another above it to hang the ball from (perches.js discoBall), one cooldown for both
-        showpiece(clip("disco", 2, {ball: "room"})),
-        showpiece(clip("disco", 60, {ball: "bubble"})),
+        // on a rare occasion it disco dances under a disco ball, only standing on a bubble with another above it to hang the ball from
+        // (perches.js discoBall)
+        showpiece(clip("disco", 8, {ball: "bubble"})),
         nothing(560),
     ]),
     // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner or

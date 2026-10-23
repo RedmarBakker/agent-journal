@@ -388,7 +388,7 @@ test("a climb past three of its heights goes now and then on a pogo stick, the o
     expect(legAt(leg, start, leg.ms)).toEqual({x: leg.x, y: leg.y});
 });
 
-test("the disco dance is likeliest standing on a bubble with another above it to hang the ball from, plays now and then with room over the hat, and never without", () => {
+test("the disco dance plays only standing on a bubble with another above it to hang the ball from, and then only on a rare occasion", () => {
     const tall = heightOf(FIGURE);
     // standing on a bubble with another above it, near enough and with room between for the ball: the ball hangs from that one's bottom
     const under = bubble({left: 300, right: 600, top: 500, bottom: 560});
@@ -401,16 +401,20 @@ test("the disco dance is likeliest standing on a bubble with another above it to
     // the bubble above too near the hat for the ball: no room at all
     const low = bubble({left: 280, right: 620, top: 300, bottom: 500 - tall - 10});
     expect(discoBall(standing, FIGURE, floorsOf(under, low))).toBe(null);
-    // nothing above: room for the ball to hang down from out of sight; standing on the compose box with a bubble above is room only
-    expect(discoBall(standing, FIGURE, floorsOf(under))).toMatchObject({kind: "room"});
-    expect(discoBall({x: 450, y: 700, posture: "stand", on: {}}, FIGURE, floorsOf(over))).toMatchObject({kind: "room"});
+    // nothing above to hang it from, or standing on the compose box under a bubble: no ball
+    expect(discoBall(standing, FIGURE, floorsOf(under))).toBe(null);
+    expect(discoBall({x: 450, y: 700, posture: "stand", on: {}}, FIGURE, floorsOf(over))).toBe(null);
+    // the bubble above moved further up, as the chat lays out again: the string is tied to where it is now
+    const higher = bubble({left: 280, right: 620, top: 260, bottom: 500 - tall - 90});
+    expect(discoBall(standing, FIGURE, floorsOf(under, higher))).toMatchObject({kind: "bubble", above: 500 - higher.bottom});
     // no ball sitting or hanging
     expect(discoBall({...standing, posture: "sit"}, FIGURE, floorsOf(under, over))).toBe(null);
-    // the pile weights it far higher under a bubble than with room alone, and not at all with no room, one cooldown for both
-    const weight = (ball) => choicesFor({moment: "pastime", ball}).filter((each) => each.name === "disco").reduce((sum, each) => sum + each.weight, 0);
-    expect(weight("bubble")).toBeGreaterThan(20 * weight("room"));
-    expect(weight("room")).toBeGreaterThan(0);
+    // the pile has it only under a bubble, and rarely: under one draw in fifty of the idle acts
+    const choices = (ball) => choicesFor({moment: "pastime", ball, free: true, lasted: 1000});
+    const weight = (ball) => choices(ball).filter((each) => each.name === "disco").reduce((sum, each) => sum + each.weight, 0);
     expect(weight("")).toBe(0);
+    expect(weight("bubble")).toBeGreaterThan(0);
+    expect(weight("bubble") / choices("bubble").reduce((sum, each) => sum + each.weight, 0)).toBeLessThan(1 / 50);
     const memory = new Map([["pastime/disco", 0]]);
     expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: 15 * 60 - 1}).some((each) => each.name === "disco")).toBe(false);
     expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: SHOWPIECES.disco}).some((each) => each.name === "disco")).toBe(true);
