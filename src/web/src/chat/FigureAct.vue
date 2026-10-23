@@ -1,6 +1,7 @@
 <script setup>
 import {computed} from "vue";
-import {ACTS, heldPhases, hornOpen, partOf, standingAt} from "../figure/acts.js";
+import {ACTS, heldPhases, hornOpen, partOf, ropeDown, standingAt} from "../figure/acts.js";
+import {POSTURES} from "../figure/places.js";
 
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
@@ -19,12 +20,21 @@ const props = defineProps({
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
 const STANDS = {stamp: {across: 0.25, top: 0.32}, file_card: {across: 0.24, top: 0.3}};
-const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8"};
+const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8", rope: "#c9a56a"};
 
 const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
 const hand = computed(() => ({x: px(props.hand.x), y: px(props.hand.y), out: props.hand.out}));
 const head = computed(() => ({x: px(props.head.x), y: px(props.head.y)}));
+// the rope swing: where its seat runs, under the hips of the figure sitting on it, the knots it hangs from on the bubble's bottom edge above,
+// and how far its ropes are let down from them
+const swing = computed(() => {
+    const {rope, ties, seat} = ACTS.rope_swing;
+    const line = px(props.feet - POSTURES.sit.drop);
+    const top = line - rope * props.size;
+    const down = ropeDown(props.u);
+    return {line, top, reach: top + (line - top) * down, down, ropes: [-1, 1].map((side) => middle.value + (side * ties * props.size) / 2), seat: seat * props.size};
+});
 const floor = computed(() => px(props.feet));
 const middle = computed(() => px(0.5));
 const out = computed(() => props.hand.out);
@@ -252,6 +262,14 @@ const flap = computed(() => {
 
             <template v-if="name === 'fume'">
                 <circle v-for="(puff, index) in steam" :key="index" :cx="puff.x" :cy="puff.y" :r="puff.r" fill="#e9e7e1" stroke="#a9adb8" stroke-width="0.6" :opacity="puff.fade" />
+            </template>
+
+            <template v-if="name === 'rope_swing'">
+                <template v-for="x in swing.ropes" :key="x">
+                    <line :x1="x" :y1="swing.top" :x2="x" :y2="swing.reach" :stroke="COLOURS.rope" stroke-width="1.4" stroke-linecap="round" />
+                    <circle :cx="x" :cy="swing.top" r="1.8" :fill="COLOURS.rope" />
+                </template>
+                <rect v-if="swing.down > 0.95" :x="middle - swing.seat / 2" :y="swing.line - 1" :width="swing.seat" height="3" rx="1" :fill="COLOURS.wood" stroke-width="0.6" />
             </template>
 
             <template v-if="name === 'chute'">

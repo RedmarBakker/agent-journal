@@ -141,10 +141,10 @@ export function answerTo(moment, voice, memory, now, random, has) {
 }
 
 // What the figure does by itself after `waited` ({state, lasted}), as a beat, `flies` when it is the run off the top of the screen, or
-// null: only while it is calm, nothing to play, off any hang and neither coming nor going. `scene` says where things stand; `memory` when
+// null: only while it is calm, nothing to play, off any hang or swing and neither coming nor going. `scene` says where things stand; `memory` when
 // each act last played and `tally` the acts since the last shenanigan, filled in here.
 export function pastimeFor(scene, waited, memory, now, random, has, tally = null) {
-    const calm = scene.place.posture !== "hang" && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
+    const calm = scene.place.posture !== "hang" && !scene.place.swings && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
     if (!calm) return null;
     const drawn = pastimeOf(waited.state, waited.lasted, memory, now, random, scene.voice, has, tally);
     return drawn && {clip: drawn.name, card: "", flies: Boolean(drawn.flies)};

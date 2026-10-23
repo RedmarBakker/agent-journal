@@ -47,7 +47,7 @@ import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, spellFor, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
+import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, visorAt, visorFor} from "../figure/visor.js";
 import {cutsAfter} from "../figure/pile.js";
 import {
@@ -224,6 +224,7 @@ const asleep = () => clipOf(held.value.state) === "sleep";
 function heldClip() {
     const {state} = held.value;
     if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip)};
+    if (body.place.swings) return "rope_swing";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
 }
 
@@ -713,6 +714,7 @@ function look() {
         work: workOf(),
         pile: pileOf(),
         tally: memory.tally,
+        memory: memory.reacted,
     });
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
@@ -1121,6 +1123,7 @@ const actorStyle = computed(() => ({
     ...(squeezed.value && {scale: `${squeezed.value.x} ${squeezed.value.y}`, transformOrigin: `50% ${(1 - below.value) * 100}%`}),
     ...(chasing.value && {animationDuration: `${chaseMs.value}ms`, "--chase": `${chaseRun.value}px`}),
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
+    ...(acting.value?.name === "rope_swing" && {rotate: `${swingAngle(acting.value.u)}deg`, transformOrigin: `50% ${(1 - below.value - POSTURES.sit.drop - ACTS.rope_swing.rope) * 100}%`}),
 }));
 
 // the figure and all it holds are drawn inside the chat alone, cut off at its walls, as when it climbs out over the top

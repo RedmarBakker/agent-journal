@@ -78,7 +78,8 @@ export const STEADY = 5;
 // left or 1 right, and its legs, each a move of the picture taking `ms` after `lead`. Up to a perch it walks to below it and then jumps,
 // now and then turning over on a high jump, as the pile draws it with `memory` of when it last did at `now`; down from one it falls first
 // and then walks, never walking on air. `straight` is for ground
-// that came or went under it: it goes straight up or down where it is, then walks. It lands after a hop unless it `hangs` there. It walks
+// that came or went under it: it goes straight up or down where it is, then walks. It lands after a hop unless it `hangs` there, from a
+// bubble's corner or on a rope swing's seat. It walks
 // at `pace` times its walking speed, which the trip keeps.
 export function tripBetween(from, to, size, {straight = false, hangs = false, pace = 1, random = Math.random, memory = null, now = 0} = {}) {
     if (Math.hypot(to.x - from.x, to.y - from.y) < STEADY) return null;
@@ -384,7 +385,7 @@ export function tripTo(place, spot, figure, {straight = false, pace = 1, random 
         return {x: box.left, y: box.top};
     };
     const [from, ...stops] = [place, ...via, spot].map(corner);
-    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang", pace, random, memory, now});
+    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang" || Boolean(spot.swings), pace, random, memory, now});
     const hops = stops.slice(1).map((to, index) => tripBetween(stops[index], to, figure.size, {random, memory, now})?.legs.find((leg) => leg.hopping));
     return trip && {...trip, legs: [...trip.legs, ...hops.filter(Boolean)]};
 }

@@ -1,9 +1,10 @@
 // @vitest-environment node
 import {beforeEach, expect, test} from "vitest";
 
-const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_WIDTH, STANDS, climbOf, ledgeSpot, perchOn, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
+const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_WIDTH, STANDS, climbOf, ledgeSpot, perchOn, swingSpot, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
-const {PILE, choicesFor} = await import("../src/figure/pile.js");
+const {PILE, SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
+const {ACTS} = await import("../src/figure/acts.js");
 const {JUMP, climbStops, jumpMost} = await import("../src/figure/climbs.js");
 
 // the pile's places to roam to, and its share of perches that are a hang
@@ -86,23 +87,25 @@ test("every place the figure roams to comes up by its odds and is stayed at betw
     let before = 0;
     for (const each of ROAMS) {
         const middle = (before + each.weight / 2) / total;
-        expect(roamNext(fixed(middle, 0), undefined, true)).toEqual({where: each.name, stay: each.stay[0]});
-        expect(roamNext(fixed(middle, 1), undefined, true).stay).toBe(each.stay[1]);
+        expect(roamNext(fixed(middle, 0), {free: true, swings: true})).toEqual({where: each.name, stay: each.stay[0]});
+        expect(roamNext(fixed(middle, 1), {free: true, swings: true}).stay).toBe(each.stay[1]);
         before += each.weight;
     }
-    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge"]));
+    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge", "rope_swing"]));
 });
 
 test("mostly the figure rests on a corner of the compose box or strolls along its edge, and no stay keeps it still for long", () => {
-    const total = ROAMS.reduce((sum, each) => sum + each.weight, 0);
-    const odds = Object.fromEntries(ROAMS.map((each) => [each.name, each.weight / total]));
+    // of its everyday stays, the showpieces like the rope swing coming only once their long cooldown is over
+    const everyday = ROAMS.filter((each) => !each.cooldown);
+    const total = everyday.reduce((sum, each) => sum + each.weight, 0);
+    const odds = Object.fromEntries(everyday.map((each) => [each.name, each.weight / total]));
     // it rests more than it strolls, as it walked about too much to be seen doing anything (task 2652)
     expect(odds.rest).toBe(Math.max(...Object.values(odds)));
     expect(odds.edge + odds.rest).toBeGreaterThan(0.5);
     // now and then it sits on a corner, less often than it stands there
     expect(odds.seat).toBeGreaterThan(0);
     expect(odds.seat).toBeLessThan(odds.rest);
-    expect(Math.max(...ROAMS.map((each) => each.stay[1]))).toBeLessThanOrEqual(45);
+    expect(Math.max(...ROAMS.map((each) => each.stay[1]))).toBeLessThanOrEqual(50);
 });
 
 test("a figure standing on a corner or hanging stands where its bubble's corner is, and is let go when the bubble leaves the thread's view or the page", () => {
@@ -321,4 +324,28 @@ test("no jump goes higher than its one limit: a climb is as many hops as its hei
     expect(PILE.filter((entry) => entry.name === "salto")).toEqual([]);
     expect(PILE.filter((entry) => entry.name === "backflip").map((entry) => entry.when)).toEqual([{moment: "jump", high: true}]);
     expect(choicesFor({moment: "jump", high: false}).map((entry) => entry.name)).toEqual(["jump"]);
+});
+
+test("now and then the figure swings on a rope tied under a bubble near the middle of the chat, never under one too near its side", () => {
+    // a bubble near the middle: the seat hangs a rope's length below the middle of its bottom edge, the figure on it facing the viewer
+    const middle = bubble({left: 500, right: 780, top: 300, bottom: 360});
+    const spot = swingSpot(middle, FIGURE, floorsOf(middle));
+    expect(spot).toMatchObject({x: 640, y: 360 + ACTS.rope_swing.rope * FIGURE.size, posture: "sit", face: 0, swings: true, on: middle.element});
+    // one whose bottom edge's middle sits too near the chat's left or right side has no room to swing
+    for (const side of [bubble({left: 10, right: 150, top: 300, bottom: 360}), bubble({left: 1150, right: 1270, top: 300, bottom: 360})]) {
+        expect((side.left + side.right) / 2 < ACTS.rope_swing.room * FIGURE.size || 1280 - (side.left + side.right) / 2 < ACTS.rope_swing.room * FIGURE.size).toBe(true);
+        expect(swingSpot(side, FIGURE, floorsOf(side))).toBe(null);
+    }
+    // nor one so low that the figure's legs would hang below the ground at home
+    const home = {id: "home", kind: "compose", left: 260, right: 1000, top: 440};
+    expect(swingSpot(middle, FIGURE, floorsOf(middle, home))).toBe(null);
+    // it is a showpiece of the pile, for the idle figure under a bubble it may swing from, waiting fifteen minutes before it swings again
+    const entry = PILE.find((each) => each.name === "rope_swing");
+    expect(entry).toMatchObject({when: {moment: "roam", free: true, swings: true}, cooldown: SHOWPIECES.rope_swing, shenanigan: true});
+    expect(SHOWPIECES.rope_swing).toBe(15 * 60);
+    const offers = (scene) => choicesFor({moment: "roam", free: true, ...scene}).some((each) => each.name === "rope_swing");
+    expect(offers({swings: false})).toBe(false);
+    const memory = new Map([["roam/rope_swing", 0]]);
+    expect(offers({swings: true, memory, now: 600})).toBe(false);
+    expect(offers({swings: true, memory, now: 900})).toBe(true);
 });

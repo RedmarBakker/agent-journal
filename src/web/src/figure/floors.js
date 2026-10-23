@@ -26,14 +26,14 @@ const inView = (box, view) => box.top >= view.top && box.top <= view.bottom && b
 // the thread the main chat shows, whose bubbles are floors
 const threadOf = () => document.querySelector(HOME)?.closest(".thread")?.querySelector(".thread-scroll") ?? null;
 
-// The tops of the chat's bubbles in the thread's view and of the page's tabs, each a floor named by its element
+// The tops of the chat's bubbles in the thread's view and of the page's tabs, each a floor named by its element, with its bottom too
 function elementFloors(thread, view) {
     const bubbles = thread ? [...thread.querySelectorAll(BUBBLE)].map((element) => ({element, kind: "bubble"})) : [];
     const tabs = [...document.querySelectorAll("[data-tab]")].map((element) => ({element, kind: "tab"}));
     return [...bubbles, ...tabs]
         .map(({element, kind}) => ({element, kind, box: element.getBoundingClientRect()}))
         .filter(({kind, box}) => box.width > 0 && box.height > 0 && (kind !== "bubble" || inView(box, view)))
-        .map(({element, kind, box}) => ({id: floorOf(element), kind, element, left: box.left, right: box.right, top: box.top}));
+        .map(({element, kind, box}) => ({id: floorOf(element), kind, element, left: box.left, right: box.right, top: box.top, bottom: box.bottom}));
 }
 
 const velocity = (prev, floor, at) => {

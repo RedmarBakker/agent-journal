@@ -25,6 +25,11 @@ export const ACTS = {
     peek_under: {frames: 80, fps: 10, lift: [0.08, 0.3], peek: [0.3, 0.75], down: [0.75, 0.92], open: 42},
     // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
     fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
+    // a rope swing tied under a bubble: its two ropes `rope` of the figure's height long from the middle of the bubble's bottom edge, `ties`
+    // of it apart, down to a seat `seat` of it wide. Its frames are an intro, the knots tied and the ropes let down; a held stretch looped
+    // while it swings, `swings` swings each way of `sway` degrees, the legs pumping with them; and an outro, the ropes pulled up. The knots
+    // stand at least `room` of the figure's height in from either side of the chat, so it swings clear of them.
+    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.42, seat: 0.5, sway: 9, room: 0.85},
     // coming down on a parachute, swaying a little under it
     chute: {frames: 24, fps: 8, sway: 8},
     // compacting: a box appears, it hops into it and the box shrinks with it inside; once the compaction is over the box grows back and
@@ -76,3 +81,15 @@ export function squeezeOf(name, u) {
 
 // whether the picture is hidden below the floor through the act, as the figure in the box sinks past it
 export const hidesBelowFloor = (name) => name === "pack_box";
+
+// how far the rope swing's ropes are let down at `u` of its frames, 0 to 1: let down through the intro, pulled up through the outro
+export function ropeDown(u) {
+    const {into, out} = heldPhases(ACTS.rope_swing, u);
+    return partOf(into, [0, 1]) * (1 - partOf(out, [0, 1]));
+}
+
+// how far the rope swing has swung at `u` of its frames, in degrees, clockwise on the screen: still while the ropes go down or up
+export function swingAngle(u) {
+    const {held} = heldPhases(ACTS.rope_swing, u);
+    return held === null ? 0 : ACTS.rope_swing.sway * Math.sin(2 * Math.PI * ACTS.rope_swing.swings * held);
+}

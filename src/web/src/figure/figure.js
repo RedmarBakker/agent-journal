@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, heldPhases, hornOpen, partOf} from "./acts.js";
+import {ACTS, heldPhases, hornOpen, partOf, swingAngle} from "./acts.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -2198,6 +2198,27 @@ function hop_up(pose, stance, t) {
     tucked(pose, 0.6 + 0.2 * pump);
 }
 
+// where each hand holds its rope of the swing, beside the head, in the figure's units across, forward and up: the ropes' half span apart
+// (acts.js rope_swing ties, as a share of the 5.4 units the picture frames)
+const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2, -0.1, 2.6];
+
+// sits on the rope swing's seat holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
+// swingAngle)
+function rope_swing(pose, stance, t) {
+    const pump = swingAngle(t) / ACTS.rope_swing.sway;
+    breathe(pose, t);
+    trunk(pose, {lean: -5 * pump, nod: -4});
+    pose.putAway(...IN_HAND);
+    const [x, y, z] = ROPE_GRIP;
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    for (const side of Object.keys(SIDES)) {
+        handTo(pose, side, 1, pose.carried(new THREE.Vector3(SIDES[side] * x, y, z)), new THREE.Vector3(1, 0, -0.4));
+        pose.face(`hand_${side}`, {z: -SIDES[side] * 90});
+    }
+    pose.swing(1.2 * pump);
+    eyesAs(pose, "amused");
+}
+
 // hangs from the parachute's lines with both hands up holding them, the legs dangling and swinging a little
 function chute(pose, stance, t) {
     const swing = waveOf(t);
@@ -2382,6 +2403,7 @@ export const CLIPS = [
     {name: "tumble", frames: TUMBLE.frames, fps: TUMBLE.fps, loops: false, postures: MOVE, pose: tumble},
     {name: "ledge_sit", frames: 32, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: ledge_sit},
     {name: "hop_up", frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
+    {name: "rope_swing", frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ON_A_LAP, pose: rope_swing},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},
     {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
