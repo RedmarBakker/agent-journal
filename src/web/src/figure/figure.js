@@ -3478,15 +3478,16 @@ export class Stage {
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `at` is where
-    // in its picture it looks (lookToward), `open` how open a blink leaves the eyes (blink.js), and during a change `blend` eases from
+    // in its picture it looks (lookToward), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1, screen = null} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1, screen = null, tilt = 0} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         pose.screen = screen;
         pose.at = at;
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
+        if (tilt) trunk(pose, {tilt});
         if (!clip.legs) LEGS[posture]?.over(pose);
         const turned = facing + (at ? lookToward(pose, at, facing) : 0);
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));

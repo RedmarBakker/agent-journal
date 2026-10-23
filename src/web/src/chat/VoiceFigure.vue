@@ -51,6 +51,7 @@ import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, sp
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, tickling} from "../figure/tickle.js";
+import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
 import {cutsAfter} from "../figure/pile.js";
 import {
     clickedBody,
@@ -286,6 +287,9 @@ function strideNow(pace) {
     return (((performance.now() / 1000) * fps * pace) % frames) / frames;
 }
 
+// how the head leans while the figure rests idle, now to one side, now the other (figure/headTilt.js)
+let headTilt = UPRIGHT;
+
 function step() {
     cancelAnimationFrame(frameTimer);
     if (!player || document.hidden) return;
@@ -342,6 +346,8 @@ function step() {
     const stride = drawn === "walk" ? strideNow(pace) : null;
     walking.value = stride !== null || shown.clip.name === "walk";
     shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
+    const seconds = performance.now() / 1000;
+    headTilt = tiltAfter(headTilt, seconds, Math.random);
     player.show(shown.clip, shownFrame.value, shown.facing, {
         posture: drawn,
         eyes: look.eyes,
@@ -350,6 +356,7 @@ function step() {
         at: lookingAt(shown),
         open: blinked(),
         screen: lit,
+        tilt: shown.clip.name === "idle" ? Math.round(tiltAt(headTilt, seconds) * 4) / 4 : 0,
     });
     headAt.value = player.headAt();
     handAt.value = player.handAt();
