@@ -10111,6 +10111,7 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         (app.config.home / "hosted").touch()
         assert sent("/journal/people")[0] == 401, "a hosted journal refuses the API to a browser that has not signed in"
         assert sent("/")[1]["Location"] == "/sign-in", "and sends a page request to the sign-in"
+        assert b'<form method="post" action="/sign-in"' in sent("/sign-in")[2], "which answers with its own form, never the viewer's page, so a browser is not sent round in a loop"
         built = sorted(path.name for path in (Path(__file__).resolve().parents[1] / "src" / "web" / "dist" / "assets").iterdir())
         script = next(name for name in built if name.endswith(".js"))
         style = next(name for name in built if name.endswith(".css"))

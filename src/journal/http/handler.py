@@ -27,7 +27,7 @@ class Handler(PooledHandler):
         request = self._request()
         if refusal := self.gate.refusal(request):
             return self._reply(refusal)
-        if not request.path.startswith(("/journal/", "/hooks/", "/cli")) and (rows := self.static.serve(request.path)):
+        if not request.path.startswith(("/journal/", "/hooks/", "/cli")) and self.router.matched(request) is None and (rows := self.static.serve(request.path)):
             return self._file(rows)
         self._answer(self._dispatched(request))
 

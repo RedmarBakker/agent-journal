@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.31.3
+
+- A hosted journal's sign-in page answers with its own form again, instead of the viewer's page, which sent the browser round in a loop back to the sign-in.
+
 ## 4.31.2
 
 - A journal behind its team updates from an Update button on Settings, Team, instead of a command to copy, and the status bar says plainly that it is not syncing and its changes wait until it is updated.
