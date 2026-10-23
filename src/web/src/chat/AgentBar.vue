@@ -9,6 +9,7 @@ import SwitchCase from "../kit/SwitchCase.vue";
 import AgentBarViews from "./AgentBarViews.vue";
 import AgentControls from "./AgentControls.vue";
 import AgentFacts from "./AgentFacts.vue";
+import AgentJobs from "./AgentJobs.vue";
 import AgentMenu from "./AgentMenu.vue";
 import AgentPresets from "./AgentPresets.vue";
 import AgentSkills from "./AgentSkills.vue";
@@ -109,6 +110,9 @@ const {colleague, teamChat} = useColleague();
                         </template>
                         <template #usage>
                             <AgentUsage :usage="usage" />
+                        </template>
+                        <template #jobs>
+                            <AgentJobs :jobs="data.jobs || []" />
                         </template>
                         <template #default>
                             <CrewList heading="Subagents" :rows="subagentsOf(agent)" started="dispatched" @open="openSession" />

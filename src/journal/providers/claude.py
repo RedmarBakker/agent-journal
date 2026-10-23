@@ -18,6 +18,8 @@ from journal.models.mcp_server import McpServer
 from journal.providers.support.hooks_ready import HooksReady
 from journal.providers.support.profile import Profile
 from journal.support.agent_message import AgentMessage
+from journal.support.job_cancel import JobCancel
+from journal.support.job_schedule import JobSchedule
 from journal.support.file_edit import FileEdit
 from journal.support.file_read import FileRead
 from journal.support.file_write import FileWrite
@@ -71,6 +73,8 @@ class Claude(Provider):
         "Task": lambda input: Claude.subagent(input),
         "SendMessage": lambda input: AgentMessage(str(input.get("to", "")), str(input.get("message", ""))),
         "AskUserQuestion": lambda input: UserQuestion(),
+        "CronCreate": lambda input: JobSchedule(str(input.get("cron", "")), str(input.get("prompt", "")), bool(input.get("recurring", True))),
+        "CronDelete": lambda input: JobCancel(str(input.get("id", ""))),
     }
 
     @staticmethod

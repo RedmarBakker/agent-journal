@@ -31,6 +31,12 @@ const activityCounts = computed(() => [
         n: live(subagentsOf(agent.value)),
         title: "Subagents: helpers the agent started",
     },
+    {
+        key: "jobs",
+        icon: "clock",
+        n: (props.data?.jobs || []).length,
+        title: "Scheduled: prompts the agent set to run again later",
+    },
 ]);
 const toggle = (key, e) => emit("toggle", key, e);
 </script>

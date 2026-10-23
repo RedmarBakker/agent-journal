@@ -1,3 +1,4 @@
+import time
 from dataclasses import asdict
 
 from journal.engine.support.stack_history import StackHistory
@@ -18,6 +19,7 @@ from journal.http.support.model_fields import ModelFields
 from journal.models.agent import Agent
 from journal.support.sequence_run import SequenceRun
 from journal.repositories.entries import Entries
+from journal.repositories.scheduled_jobs import ScheduledJobs
 from journal.repositories.messages import Messages
 from journal.support.agent_message import AgentMessage
 from journal.support.file_edit import FileEdit
@@ -40,8 +42,9 @@ ENDED = "ended"
 class AgentActivity:
     """An agent with what it is doing, read from the timeline: its status from its latest hook, the tool or shell part in hand, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs) -> None:
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
+        self.jobs = jobs
 
     def page(self, agents: list[Agent]) -> list[dict]:
         recent = list(reversed(self.entries.kind_entries_scoped(ENTRY_COUNT))) if any(item.state != ENDED for item in agents) else []
@@ -81,7 +84,12 @@ class AgentActivity:
             "stack": self.stack(agent),
             "trail": [self.trail_entry(e) for e in [e for e in entries if e.kind == StackHistory.KIND][-HISTORY_ENTRIES:]],
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
+            "jobs": self.scheduled(agent),
         }
+
+    def scheduled(self, agent: Agent) -> list[dict]:
+        moment = time.time()
+        return [{"id": job.job_id, "cron": job.cron, "prompt": job.prompt, "recurring": job.recurring, "created_at": job.created_at} for job in self.jobs.session_jobs(agent.session) if job.is_running(moment)] if agent.state != ENDED else []
 
     @staticmethod
     def status(state: str, reported: str) -> str:

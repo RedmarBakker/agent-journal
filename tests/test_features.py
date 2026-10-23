@@ -11380,3 +11380,21 @@ def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app
     assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
     assert chat[0].data["covers"] == ["Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours: kept: 4", "Hosted journal's edit of check 32's title was kept over yours: kept: 4"], "and the folded mark names each it covers, with its detail"
     assert chat[0].data["detail"] == "3 in all" and chat[0].data["lines"] == chat[0].data["covers"], "which its card lists under its count"
+
+
+def test_a_job_the_agent_schedules_is_listed_on_its_row_until_it_cancels_it(app: App):
+    def jobs():
+        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+            rows = json.loads(reply.read())["rows"]
+        return [job for row in rows if row["session"] == "s1" for job in row["jobs"]]
+
+    hook(app, "SessionStart")
+    created = {"cron": "7,22,37,52 * * * *", "prompt": "Journal health check, every 15 minutes\nrun the script", "recurring": True}
+    hook(app, "PreToolUse", tool_name="CronCreate", tool_input=created, tool_use_id="c1")
+    hook(app, "PostToolUse", tool_name="CronCreate", tool_input=created, tool_response="Scheduled recurring job 200ed8b1 (7,22,37,52 * * * *). Session-only.", tool_use_id="c1")
+    app.runtime().deferred.drain()
+    assert [(job["id"], job["cron"], job["recurring"]) for job in jobs()] == [("200ed8b1", "7,22,37,52 * * * *", True)], "the job is recorded with the id its tool's answer names"
+    hook(app, "PreToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_use_id="c2")
+    hook(app, "PostToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_response="Cancelled job 200ed8b1.", tool_use_id="c2")
+    app.runtime().deferred.drain()
+    assert jobs() == [], "a cancelled job is no longer listed"
