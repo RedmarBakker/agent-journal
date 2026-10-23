@@ -288,3 +288,23 @@ def test_two_restarts_of_one_service_at_once_take_turns_and_raise_nothing(tmp_pa
         assert faults == [] and journal.is_active(), "the second restart waits for the first, and the service ends up running"
     finally:
         journal.stop()
+
+
+def test_a_revive_while_a_restart_runs_leaves_one_process_running(tmp_path: Path):
+    import threading
+
+    pids = tmp_path / "pids"
+    journal = Service("journal", ["sh", "-c", f"echo $$ >> {pids}; trap 'sleep 0.3; exit 0' TERM; while true; do sleep 0.05; done"], tmp_path, {"PATH": os.environ["PATH"]}, tmp_path / "server.log")
+    journal.start()
+    time.sleep(0.3)
+    restart = threading.Thread(target=journal.restart)
+    restart.start()
+    while restart.is_alive():
+        journal.revive()
+    time.sleep(0.3)
+    try:
+        started = [int(line) for line in pids.read_text().split()]
+        running = [pid for pid in started if os.system(f"kill -0 {pid} 2>/dev/null") == 0]
+        assert running == [journal.described()["pid"]], "the restart's own process is the only one left running"
+    finally:
+        journal.stop()

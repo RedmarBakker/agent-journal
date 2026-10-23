@@ -41,6 +41,14 @@ class Service:
         return self._process is not None and self._process.poll() is None
 
     def revive(self) -> None:
+        if not self._moving.acquire(blocking=False):
+            return
+        try:
+            self.revive_dead()
+        finally:
+            self._moving.release()
+
+    def revive_dead(self) -> None:
         if self._process is None or self.is_active():
             return
         moment = time.time()

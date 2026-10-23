@@ -7,6 +7,7 @@ from journal.features.faults.support.test_run_files import TestRunFiles
 
 from journal.config import Config
 from journal.features.faults.support.slow_request_process_card import SlowRequestProcessCard
+from journal.features.faults.support.slow_request_tally import SlowRequestTally
 from journal.support.listener_queue import ListenerQueue
 from journal.engine.clock import Clock
 from journal.features.faults.feature import Faults
@@ -25,6 +26,7 @@ from journal.support.timeout import Timeout
 from journal.repositories.scope import Scope
 
 STARTUP_GRACE_SECONDS = 60.0
+CHECK_INTERVAL_SECONDS = 5.0
 STARTING = "journal.starting"
 
 
@@ -34,7 +36,7 @@ OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin p
 
 
 class SlowRequests:
-    """Measures each request against its budget, on its whole time from the moment its sender sent it, by the stamp every sender puts on it, to its answer, every wait included, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and reports one over it: a mark in the chat per route, settled in place with its worst time and count, and a line to the agent the first time and again once the set minutes have passed since it was last told, the time it was told kept in the mark's data."""
+    """Measures each request against its budget, on its whole time from the moment its sender sent it, by the stamp every sender puts on it, to its answer, every wait included, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and reports one over it: one mark in the chat, settled in place with each route's worst time and count, and one line to the agent naming how many gathered and the worst, once ten have gathered or thirty seconds passed without another, asked at most every five seconds as requests come, and again only once the set minutes have passed since it was last told, the counts and the time it was told kept in the mark's data."""
 
     def __init__(self, config: Config, settings: SettingRows, card: SlowRequestProcessCard, messages: Messages, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, test_runs: TestRunFiles) -> None:
         self.config, self.settings, self.card, self.messages, self.agents, self.environments, self.scope, self.nudges, self.clock, self.deferred = config, settings, card, messages, agents, environments, scope, nudges, clock, deferred
@@ -42,6 +44,7 @@ class SlowRequests:
         self.test_runs = test_runs
         self.started = time.monotonic()
         self.measured_routes: set[str] = set()
+        self.checked_at = 0.0
 
     def begin(self, request_at: float) -> RequestTimer:
         if self.settings.option(Faults.LOADS):
@@ -51,6 +54,7 @@ class SlowRequests:
     def measured(self, method: str, path: str, ms: float) -> None:
         loads = LoadTally.ended()
         self.counted(method, path, round(ms), loads)
+        self.check_gathered(time.monotonic())
         route = re.sub(r"/\d+(?=/|$)", "/{n}", path)
         if self.is_first(f"{method} {route}") or not self.judging() or self.is_outward(route):
             return
@@ -89,22 +93,36 @@ class SlowRequests:
         return bool(self.settings.option(Faults.REPORT)) and resolved and not busy and not self.test_runs.is_testing()
 
     def reported(self, method: str, route: str, ms: int, budget: int) -> None:
-        agent = self.agents.all_current()
-        with self.scope.environment(agent.environment_id if agent else self.environments.all()[0].row_id):
-            self.flagged(method, route, ms, budget)
+        with self.scope.environment(self.environment_id()):
+            self.flagged(f"{method} {route}", ms, budget)
 
-    def flagged(self, method: str, route: str, ms: int, budget: int) -> None:
-        older = self.messages.keyed(SlowRequestProcessCard.key(method, route), Actor.system())
-        previous = older[0].data if older else {}
-        count, worst, moment = previous.get("count", 0) + 1, max(ms, previous.get("worst", 0)), self.clock.time()
-        agent = self.agents.current()
-        reported = agent if agent is not None and self.is_reportable(previous.get("reported_at", 0.0), moment) else None
-        reported_at = previous.get("reported_at", 0.0) if reported is None else moment
-        data = {"kind": "card", "icon": "gauge", "tone": "bad", "row": "", "count": count, "worst": worst, "reported_at": reported_at}
-        detail = f"worst {worst} ms, {count} {'time' if count == 1 else 'times'}, budget {budget} ms"
-        self.card.show(method, route, data, detail)
-        if reported is not None:
-            self.nudges.type_line(reported, Faults.SLOW_REQUEST.create(method=method, route=route, ms=ms, budget=budget))
+    def environment_id(self) -> int:
+        agent = self.agents.all_current()
+        return agent.environment_id if agent else self.environments.all()[0].row_id
+
+    def flagged(self, route: str, ms: int, budget: int) -> None:
+        self.show(self.card_tally().flagged(route, ms, self.clock.time()), budget)
+
+    def check_gathered(self, moment: float) -> None:
+        if moment - self.checked_at < CHECK_INTERVAL_SECONDS or not self.settings.option(Faults.REPORT):
+            return
+        self.checked_at = moment
+        self.deferred.add(lambda: self.report_gathered(self.clock.time()))
+
+    def report_gathered(self, moment: float) -> None:
+        with self.scope.environment(self.environment_id()):
+            tally, agent = self.card_tally(), self.agents.current()
+            if agent is None or not tally.is_gathered(moment) or not self.is_reportable(tally.reported_at, moment):
+                return
+            self.nudges.type_line(agent, Faults.SLOW_REQUESTS.create(count=tally.gathered, route=tally.slowest_route, ms=tally.slowest_ms))
+            self.show(tally.reported(moment), self.budget("GET"))
+
+    def card_tally(self) -> SlowRequestTally:
+        older = self.messages.keyed(SlowRequestProcessCard.KEY, Actor.system())
+        return SlowRequestTally.parsed(older[0].data) if older else SlowRequestTally()
+
+    def show(self, tally: SlowRequestTally, budget: int) -> None:
+        self.card.show(tally.total(), {"kind": "card", "icon": "gauge", "tone": "bad", "row": "", **tally.serialized()}, tally.detail(budget))
 
     def is_reportable(self, reported_at: float, moment: float) -> bool:
         if not reported_at:
