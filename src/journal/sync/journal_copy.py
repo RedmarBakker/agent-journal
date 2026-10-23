@@ -8,7 +8,7 @@ from sync_server.copied_row import CopiedRow
 
 
 class JournalCopy:
-    """This journal's shared rows as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, and at an upgrade of the same team the rows kept on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, kept on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here. A setting of one machine or one person is never in the copy either way: this machine's own are kept through it."""
+    """This journal's shared rows as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, and at an upgrade of the same team the rows kept on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, kept on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal meanwhile sees it half filled. A setting of one machine or one person is never in the copy either way: this machine's own are kept through it."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes) -> None:
         self.tables, self.scopes = tables, scopes
@@ -20,13 +20,15 @@ class JournalCopy:
         return {table: max((row.row for row in rows if row.row_table == table), default=0) for table in self.tables.names()}
 
     def replace(self, rows: tuple[CopiedRow, ...], waiting: list[OutgoingChange]) -> None:
-        self.rebuilt(rows, self.local_values())
-        for change in waiting:
-            if self.tables.has(change.row_table):
-                self.laid(change)
+        with self.tables.transaction():
+            self.rebuilt(rows, self.local_values())
+            for change in waiting:
+                if self.tables.has(change.row_table):
+                    self.laid(change)
 
     def replace_whole(self, rows: tuple[CopiedRow, ...]) -> None:
-        self.rebuilt(rows, {})
+        with self.tables.transaction():
+            self.rebuilt(rows, {})
 
     def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict]) -> None:
         machine_settings = self.machine_settings()

@@ -41,8 +41,6 @@ class SyncClient:
     def start(self) -> None:
         if not self.account.is_joined():
             return
-        if self.account.is_upgrader():
-            self.upgrade.finish()
         self.stopping.clear()
         self.sender = threading.Thread(target=self.repeated, args=(self.send,), daemon=True)
         self.sender.start()
@@ -66,6 +64,8 @@ class SyncClient:
                 delay = min(delay * 2, LAST_RETRY_SECONDS)
 
     def send(self) -> None:
+        if self.account.is_upgrader():
+            self.upgrade_finished()
         self.chat.renew()
         self.refill()
         batch = self.outgoing.sending_batch(BATCH_ROWS)
@@ -84,6 +84,11 @@ class SyncClient:
             if path.is_file():
                 self.link.upload_file(FilePlace(upload.row_table, upload.row, upload.name), path.read_bytes())
             self.uploads.delete(upload, Actor.system())
+
+    def upgrade_finished(self) -> None:
+        while self.pulled(0):
+            pass
+        self.upgrade.finish()
 
     def refill(self) -> None:
         self.supply.refill()

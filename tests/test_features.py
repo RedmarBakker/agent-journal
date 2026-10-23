@@ -9971,7 +9971,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         monkeypatch.setattr(Schema, "version", lambda self: migrated)
         monkeypatch.setattr("journal.sync.team_server_link.VERSION", pinned)
         b.container.get(Connection).execute("UPDATE tasks SET title = 'stamped by a migration on Bob''s machine'")
-        a.container.get(TeamUpgrade).finish()
+        a.container.get(SyncClient).upgrade_finished()
         link = a.container.get(TeamServerLink)
         assert link.summary(a.container.get(TeamAccount).address()).migration == migrated, "the upgrader's migrated copy becomes the team's"
         assert not a.container.get(TeamAccount).is_upgrader() and not link.lease_state("upgrade").holder, "and it lets the lease and the mark go"

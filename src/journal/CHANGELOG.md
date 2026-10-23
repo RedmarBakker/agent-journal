@@ -2,6 +2,12 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.32.1
+
+- After an update, a joined journal pulls what is new before it uploads its migrated copy, and a refusal from the team server is retried in the background instead of crashing the journal at every start.
+- A journal taking the team's full copy does it in one transaction, so nothing reading it meanwhile finds rows missing.
+- The team image's proxy turns away a team server path that comes without the journal's protocol header.
+
 ## 4.32.0
 
 - The worker and subagent inspector, as designed: a worker's points each with its proof and whether it is checked or sent back, its own to-do list, its state, brief, report and moves, and a transcript that says what each step did.

@@ -440,3 +440,5 @@ def test_the_proxy_in_front_passes_every_path_the_team_server_answers():
     passed = re.search(r"@sync path (.+)", (root / "docker/team-server/routes.caddy").read_text()).group(1).split()
     missing = [path for path in answered if path not in passed and not any(rule.endswith("/*") and path.startswith(rule[:-1]) for rule in passed)]
     assert answered and missing == [], f"the proxy sends these to the hosted journal instead: {missing}"
+    routes = (root / "docker/team-server/routes.caddy").read_text()
+    assert "@unmarked not header X-Journal-Protocol *" in routes and "respond @unmarked 404" in routes, "a team server path without the journal's protocol header is turned away at the proxy"
