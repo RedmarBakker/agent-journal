@@ -104,7 +104,8 @@ export class Posing {
         this.rig = rig;
         this.final = new Map();
         this.eyes = 1;
-        this.eyesUp = 0;
+        this.pondering = 0;
+        this.ponderWay = 1;
         this.eyeTint = null;
         this.hearts = 0;
         this.stars = 0;
@@ -256,9 +257,10 @@ export class Posing {
         this.eyes = Math.max(open, MIN_EYE_HEIGHT);
     }
 
-    // the eyes raised on the visor `share` of their own height, looking up
-    lookUp(share) {
-        this.eyesUp = share;
+    // round eyes in place of the eyes, `size` times their own size, looking up and aside toward `way`, 1 the figure's left
+    lookUpAside(size, way) {
+        this.pondering = size;
+        this.ponderWay = way;
     }
 
     // the eyes' colour, as red, green and blue from 0 to 1; none leaves them their own
@@ -443,10 +445,12 @@ function waveArm(pose, side, t) {
     pose.bend(`forearm_${side}`, WAVE_BEND + WAVE_SWING * waveOf(t));
 }
 
-// How the figure thinks: the head tipped back `nod` degrees and turned `turn` toward the free hand's side, the eyes raised `eyesUp` of
-// their height on the visor, and the fingers of the hand at the chin tapping the cheek `taps` times a loop, each tap tipping them `tap`
-// degrees
-export const THINKING = {nod: -12, turn: 12, eyesUp: 0.6, taps: 2, tap: 22};
+// How the figure thinks: the head tipped back `nod` degrees and turned `turn` away from the free hand; the free hand's knuckles at the
+// head's `chin`, the front of its bottom edge (measured on the head shell, the same on every voice), the hand pointing up along `fist`
+// with its wrist under them and its elbow pointing down along `elbow`; the other forearm folded across the body under that elbow, its
+// hand `inboard` of the way from the middle out to that elbow and `under` it, its own elbow out along `folded`; and the knuckles
+// tapping the chin `taps` times a loop, each tap lifting them `tap` off it and back
+export const THINKING = {nod: -10, turn: 14, chin: [0, -0.58, 2.5], fist: [0.15, -0.2, 1], elbow: [0.1, -0.5, -1], inboard: 0.1, under: 0.12, folded: [1, -0.6, -0.4], taps: 2, tap: 0.08};
 
 // "ah, got it": the head comes up and the eyes open wide as the free hand comes up before the shoulder, its finger raised, and goes down
 // again as the bulb over the head fades
@@ -462,17 +466,26 @@ function bulb(pose, stance, t) {
     eyesAs(pose, "startled", up);
 }
 
-// thinks it over, a hand at its chin, its eyes turned up and away, the fingers tapping slowly at its cheek
+// thinks it over, its knuckles at its chin and that elbow resting on the other arm folded across its body, its eyes turned up and
+// aside, the hand tapping slowly at the chin
 function think(pose, stance, t) {
     const side = freeSide(stance);
+    const other = side === "l" ? "r" : "l";
     const sign = SIDES[side];
     const tapping = Math.max(waveOf(t, THINKING.taps), 0) ** 3;
     breathe(pose, t);
-    trunk(pose, {nod: THINKING.nod + 2 * waveOf(t), turn: -sign * THINKING.turn, tilt: -sign * 5});
-    armsAtRest(pose, stance, [side]);
-    chinOnHand(pose, side);
-    pose.turn(`hand_${side}`, {y: -THINKING.tap * tapping});
-    pose.lookUp(THINKING.eyesUp);
+    trunk(pose, {nod: THINKING.nod + 2 * waveOf(t), turn: -sign * THINKING.turn, tilt: -sign * 4});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, [side, other]);
+    const chin = new THREE.Vector3(...THINKING.chin).applyMatrix4(pose.matrix("head"));
+    const [across, forward, up] = THINKING.fist;
+    const fist = new THREE.Vector3(-sign * across, forward, up).normalize();
+    pose.reach(side, chin.clone().addScaledVector(fist, -HAND.grip - THINKING.tap * tapping), new THREE.Vector3(...THINKING.elbow));
+    pose.aim(`hand_${side}`, fist);
+    const elbow = pose.head(`forearm_${side}`, pose.matrix(`forearm_${side}`));
+    const under = new THREE.Vector3(elbow.x * THINKING.inboard, elbow.y, elbow.z - THINKING.under);
+    pose.reach(other, pose.withinReach(other, under, 0.97), new THREE.Vector3(...THINKING.folded));
+    pose.lookUpAside(1, -sign);
 }
 
 // the chin rested on the hand on `side`
@@ -2816,8 +2829,6 @@ const SKINNED = /* glsl */ `
     uniform float push;
     uniform float openness;
     uniform float eyeMiddle;
-    uniform float eyeHeight;
-    uniform float eyesUp;
     varying vec3 worldNormal;
     varying vec3 worldPosition;
     varying vec3 localPosition;
@@ -2831,7 +2842,7 @@ const SKINNED = /* glsl */ `
         #include <skinbase_vertex>
         #include <skinnormal_vertex>
         #include <begin_vertex>
-        transformed.y = eyeMiddle + (transformed.y - eyeMiddle) * openness + eyesUp * eyeHeight;
+        transformed.y = eyeMiddle + (transformed.y - eyeMiddle) * openness;
         #include <skinning_vertex>
         transformed += normalize(objectNormal) * push;
         worldNormal = normalize(mat3(modelMatrix) * objectNormal);
@@ -2928,13 +2939,11 @@ const LINE = /* glsl */ `
 function vertexUniforms(mesh, push) {
     const position = mesh.geometry.attributes.position;
     let middle = 0;
-    let [low, high] = [Infinity, -Infinity];
     for (let i = 0; i < position.count; i++) {
         middle += position.getY(i) / position.count;
-        [low, high] = [Math.min(low, position.getY(i)), Math.max(high, position.getY(i))];
     }
     // a quantized glb scales each mesh up from small units, so the outline is pushed in the mesh's own units
-    return {push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x}, openness: {value: 1}, eyeMiddle: {value: middle}, eyeHeight: {value: high - low}, eyesUp: {value: 0}};
+    return {push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x}, openness: {value: 1}, eyeMiddle: {value: middle}};
 }
 
 function flatMaterial(mesh) {
@@ -3042,7 +3051,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const found = [];
     scene.traverse((node) => node.isSkinnedMesh && found.push(node));
     const meshes = (DRESSES[voice] ?? ((each) => each))(found);
-    const eyes = {materials: [], shapes: [], hearts: [], stars: [], squeezed: []};
+    const eyes = {materials: [], shapes: [], hearts: [], stars: [], squeezed: [], pondering: []};
     const screens = [];
     const visorHulls = [];
     for (const mesh of meshes) {
@@ -3068,6 +3077,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
             eyes.hearts.push(shapeOver(mesh, HEART, HEART_COLOUR));
             eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
             eyes.squeezed.push(Object.assign(shapeOver(mesh, SQUEEZE, SQUEEZE_COLOUR), {userData: {way: mesh.name === "eye_l" ? -1 : 1}}));
+            eyes.pondering.push(shapeOver(mesh, PONDER, SQUEEZE_COLOUR));
         }
     }
     const carried = meshes.filter((mesh) => mesh.visible);
@@ -3751,6 +3761,9 @@ const SQUEEZE = (() => {
 })();
 const SQUEEZE_SIZE = 0.5;
 const SQUEEZE_COLOUR = new THREE.Color(1, 0.94, 0.81);
+// an eye looking up in thought: a round eye in the eyes' own ivory, no smile, `size` across, moved `up` and `aside` on the visor
+const PONDER = new THREE.CircleGeometry(0.5, 24);
+export const PONDERING = {size: 0.3, up: 0.14, aside: 0.1};
 
 // a shape over an eye, a heart or a star, carried by the head as the eye is, hidden until the eyes take it on
 function shapeOver(eye, geometry, colour) {
@@ -3789,7 +3802,6 @@ function place(figure, pose, facing, blend) {
     }
     for (const material of figure.eyes.materials) {
         material.uniforms.openness.value = pose.eyes;
-        material.uniforms.eyesUp.value = pose.eyesUp;
         if (material.uniforms.light) material.uniforms.colour.value.set(...(pose.eyeTint ?? material.userData.colour));
     }
     figure.laptop.visible = pose.laptop;
@@ -3821,7 +3833,7 @@ function place(figure, pose, facing, blend) {
     for (const hull of figure.visorHulls) hull.visible = !pose.screen;
     // the eyes go out before a lit visor comes on, a display with nothing on it
     const eyed = crt.eyes > EYES_GONE;
-    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars && !pose.squeezed;
+    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars && !pose.squeezed && !pose.pondering;
     for (const heart of figure.eyes.hearts) {
         heart.visible = eyed && pose.hearts > 0;
         heart.scale.setScalar(HEART_SIZE * pose.hearts);
@@ -3834,6 +3846,11 @@ function place(figure, pose, facing, blend) {
     for (const squeeze of figure.eyes.squeezed) {
         squeeze.visible = eyed && pose.squeezed > 0 && !pose.hearts && !pose.stars;
         squeeze.scale.set(SQUEEZE_SIZE * pose.squeezed * squeeze.userData.way, SQUEEZE_SIZE * pose.squeezed, 1);
+    }
+    for (const round of figure.eyes.pondering) {
+        round.visible = eyed && pose.pondering > 0 && !pose.hearts && !pose.stars && !pose.squeezed;
+        round.scale.setScalar(PONDERING.size * pose.pondering);
+        round.position.set(PONDERING.aside * pose.ponderWay, PONDERING.up, 0);
     }
     return moves;
 }

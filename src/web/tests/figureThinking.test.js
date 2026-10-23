@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, Posing, THINKING} from "../src/figure/figure.js";
+import {CLIPS, PONDERING, Posing, THINKING} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {GROUNDED, HELD, clipFor, clipOf} from "../src/domain/figureState.js";
 import {reactionTo, workMoments} from "../src/figure/reactions.js";
@@ -16,13 +16,19 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const named = Object.fromEntries(CLIPS.map((clip) => [clip.name, clip]));
 
-// the thinking clip posed at `t` of its loop for the butler, whose free hand is the right
+// the thinking clip posed at `t` of its loop for the butler, whose free hand is the right: where its knuckles grip, where the chin is
+// as the head carries it, where the elbow of that arm is and where the other hand grips
 function thinking(t) {
     const pose = new Posing(RIG, "stand", 0);
     named.think.pose(pose, stanceOf("butler"), t);
     const moves = pose.moves(0);
-    const tip = new THREE.Vector3(0, 0, 0.3).add(RIG.heads.get("hand_r")).applyMatrix4(moves.get("hand_r"));
-    return {pose, hand: pose.head("hand_r", moves.get("hand_r")), tip, rest: pose.head("hand_l", moves.get("hand_l"))};
+    return {
+        pose,
+        knuckles: pose.grip("r", [0, 0, 0]).applyMatrix4(moves.get("hand_r")),
+        chin: new THREE.Vector3(...THINKING.chin).applyMatrix4(moves.get("head")),
+        elbow: pose.head("forearm_r", moves.get("forearm_r")),
+        folded: pose.grip("l", [0, 0, 0]).applyMatrix4(moves.get("hand_l")),
+    };
 }
 
 // FigureAct drawing the bulb act at `u`, the eyes at the middle of a 100 pixel picture a third of the way down
@@ -39,17 +45,29 @@ describe("the figure thinking", () => {
         expect(clipFor(scene, () => true).clip).toBe("think");
     });
 
-    it("holds its hand at its chin, its eyes turned up, the fingers tapping slowly", () => {
-        const {pose, hand, rest} = thinking(0);
-        expect(hand.z, "the hand up at the chin").toBeGreaterThan(RIG.heads.get("chest").z);
-        expect(hand.y, "before the face").toBeLessThan(-0.5);
-        expect(rest.z, "the other hand at rest").toBeLessThan(RIG.heads.get("chest").z);
-        expect(pose.eyesUp).toBe(THINKING.eyesUp);
-        expect(pose.eyesUp).toBeGreaterThan(0);
-        const tips = Array.from({length: named.think.frames}, (_, frame) => thinking(frame / named.think.frames).tip.x);
-        expect(Math.max(...tips) - Math.min(...tips), "the fingertips move").toBeGreaterThan(0.05);
-        const seconds = named.think.frames / named.think.fps;
-        expect(seconds / THINKING.taps, "a tap every second and more").toBeGreaterThanOrEqual(1.5);
+    it("rests its knuckles on the bottom of its head where a chin would be, tapping it slowly, the elbow on the other arm folded across it", () => {
+        const loop = Array.from({length: named.think.frames}, (_, frame) => thinking(frame / named.think.frames));
+        const gaps = loop.map(({knuckles, chin}) => knuckles.distanceTo(chin));
+        expect(Math.min(...gaps), "the knuckles touch the chin").toBeLessThan(0.03);
+        expect(Math.max(...gaps), "and lift only a little off it to tap").toBeLessThan(THINKING.tap + 0.03);
+        expect(Math.max(...gaps) - Math.min(...gaps), "a tap").toBeGreaterThan(THINKING.tap / 2);
+        expect(THINKING.chin[2], "the chin is the bottom of the head, above the neck").toBeGreaterThan(RIG.heads.get("head").z);
+        expect(named.think.frames / named.think.fps / THINKING.taps, "slowly: a tap every second and a half or more").toBeGreaterThanOrEqual(1.5);
+        const {elbow, folded} = loop[0];
+        expect(folded.z, "the other hand under the elbow").toBeLessThan(elbow.z);
+        expect(folded.distanceTo(elbow), "close under it").toBeLessThan(0.45);
+        expect(folded.x, "folded across the body toward the thinking side").toBeLessThan(0);
+    });
+
+    it("turns its eyes up and aside, round and not smiling, while it thinks", () => {
+        const {pose} = thinking(0);
+        expect(pose.pondering).toBe(1);
+        expect(Math.abs(pose.ponderWay)).toBe(1);
+        expect(PONDERING.up, "up").toBeGreaterThan(0);
+        expect(PONDERING.aside, "to one side").toBeGreaterThan(0);
+        const idle = new Posing(RIG, "stand", 0);
+        named.idle.pose(idle, stanceOf("butler"), 0);
+        expect(idle.pondering, "the usual smile otherwise").toBe(0);
     });
 });
 
