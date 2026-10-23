@@ -31,7 +31,7 @@ status=$(curl -sS --max-time 10 -o "$body" -w '%{http_code}' -X POST "http://127
     -H "X-Journal-Launch: ${JOURNAL_LAUNCH:-}" \
     -H "X-Journal-Worker: ${JOURNAL_WORKER:-}" \
     -H "X-Journal-Worker-Token: ${JOURNAL_WORKER_TOKEN:-}" \
-    -H "X-Journal-Hook-Started: $started" \
+    -H "X-Journal-Request-At: $started" \
     --data-binary @"$sent") || status=0
 rm -f "$sent"
 case "$status" in

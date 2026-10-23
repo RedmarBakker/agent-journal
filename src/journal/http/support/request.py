@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass, field, replace
 
 from journal.support.actor import Actor
@@ -6,6 +7,7 @@ from journal.support.rejection import Rejection
 from journal.support.missing_row import MissingRow
 
 ENVIRONMENT_HEADER = "X-Journal-Env"
+REQUEST_TIME_HEADER = "x-journal-request-at"
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,12 @@ class Request:
     headers: dict
     actor: Actor
     files: dict = field(default_factory=dict)
+    request_at: float = field(default_factory=time.time)
+
+    @staticmethod
+    def request_time(headers: dict) -> float:
+        stamp = headers.get(REQUEST_TIME_HEADER, "")
+        return int(stamp) / 1000 if stamp.isdigit() else time.time()
 
     def measured_path(self) -> str:
         if self.path == "/cli":

@@ -59,11 +59,11 @@ class Handler(PooledHandler):
         headers = {name.lower(): value for name, value in self.headers.items()}
         query = {k: v[-1] for k, v in parse_qs(url.query).items()}
         if headers.get("content-type", "") == "application/octet-stream":
-            return Request(self.command, url.path, query, {"raw": raw}, {}, headers, self.identity.build(headers, headers.get("cookie", "")))
+            return Request(self.command, url.path, query, {"raw": raw}, {}, headers, self.identity.build(headers, headers.get("cookie", "")), request_at=Request.request_time(headers))
         if headers.get("content-type", "").startswith("multipart/form-data"):
             form = Multipart(headers["content-type"], raw)
-            return Request(self.command, url.path, query, form.fields(), {}, headers, self.identity.build(headers, headers.get("cookie", "")), form.files())
-        return Request(self.command, url.path, query, json.loads(raw) if raw else {}, {}, headers, self.identity.build(headers, headers.get("cookie", "")))
+            return Request(self.command, url.path, query, form.fields(), {}, headers, self.identity.build(headers, headers.get("cookie", "")), form.files(), Request.request_time(headers))
+        return Request(self.command, url.path, query, json.loads(raw) if raw else {}, {}, headers, self.identity.build(headers, headers.get("cookie", "")), request_at=Request.request_time(headers))
 
     def _file(self, file: FileResponse) -> None:
         self.send_response(file.status)

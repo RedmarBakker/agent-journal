@@ -31,11 +31,10 @@ STARTING = "journal.starting"
 HOOK = "HOOK"
 OUTWARD_ROUTES = ("/journal/plugins/preview", "/journal/plugins/{n}/remove", "/journal/plugins/{n}/upgrade", "/journal/plugins/{n}/enable", "/journal/plugins", "/journal/updates/install")
 OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin propose", "/cli/setup update", "/cli/update ", "/cli/worker dispatch", "/cli/check run", "/cli/mcp ")
-STALL_MS = 2000
 
 
 class SlowRequests:
-    """Measures each request against its budget, on the CPU time the journal's thread spent on it so a busy machine or a process it waits on is not the journal's fault, though one that waited past two seconds in all is reported by its whole time, since a wait that long is a stall inside the journal, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and reports one over it: a mark in the chat per route, settled in place with its worst time and count, and a line to the agent the first time and again once the set minutes have passed since it was last told, the time it was told kept in the mark's data."""
+    """Measures each request against its budget, on its whole time from the moment its sender sent it, by the stamp every sender puts on it, to its answer, every wait included, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and reports one over it: a mark in the chat per route, settled in place with its worst time and count, and a line to the agent the first time and again once the set minutes have passed since it was last told, the time it was told kept in the mark's data."""
 
     def __init__(self, config: Config, settings: SettingRows, card: SlowRequestProcessCard, messages: Messages, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, test_runs: TestRunFiles) -> None:
         self.config, self.settings, self.card, self.messages, self.agents, self.environments, self.scope, self.nudges, self.clock, self.deferred = config, settings, card, messages, agents, environments, scope, nudges, clock, deferred
@@ -44,21 +43,21 @@ class SlowRequests:
         self.started = time.monotonic()
         self.measured_routes: set[str] = set()
 
-    def begin(self) -> RequestTimer:
+    def begin(self, request_at: float) -> RequestTimer:
         if self.settings.option(Faults.LOADS):
             LoadTally.begin()
-        return RequestTimer.started()
+        return RequestTimer(request_at)
 
-    def measured(self, method: str, path: str, ms: float, cpu_ms: float) -> None:
+    def measured(self, method: str, path: str, ms: float) -> None:
         loads = LoadTally.ended()
         self.counted(method, path, round(ms), loads)
         route = re.sub(r"/\d+(?=/|$)", "/{n}", path)
         if self.is_first(f"{method} {route}") or not self.judging() or self.is_outward(route):
             return
         budget = self.budget(method)
-        if not budget or (cpu_ms <= budget and ms <= STALL_MS):
+        if not budget or ms <= budget:
             return
-        self.deferred.add(lambda: self.reported(method, route, round(max(cpu_ms, ms if ms > STALL_MS else 0)), budget))
+        self.deferred.add(lambda: self.reported(method, route, round(ms), budget))
 
     def counted(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
         self.tally.measured("developer.hooks" if method == HOOK else "developer.requests", ms)

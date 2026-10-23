@@ -63,7 +63,7 @@ def app(app: App):
 
 
 def post_hook(app, body: dict, started_ms: int = 0):
-    stamp = {"X-Journal-Hook-Started": str(started_ms)} if started_ms else {}
+    stamp = {"X-Journal-Request-At": str(started_ms)} if started_ms else {}
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", **stamp})
     try:
         with urlopen(request, timeout=5) as reply:

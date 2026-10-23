@@ -4,17 +4,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RequestTimer:
-    """The clocks read when a request began: the wall clock and the CPU time of the thread that serves it."""
+    """When a request was sent, by the sender's own stamp or its arrival when it carries none, on the wall clock, so its time counts every wait from that moment to its answer."""
 
-    wall_seconds: float
-    cpu_seconds: float
-
-    @classmethod
-    def started(cls) -> "RequestTimer":
-        return cls(time.perf_counter(), time.thread_time())
+    request_at: float
 
     def wall_ms(self) -> float:
-        return (time.perf_counter() - self.wall_seconds) * 1000
-
-    def cpu_ms(self) -> float:
-        return (time.thread_time() - self.cpu_seconds) * 1000
+        return (time.time() - self.request_at) * 1000

@@ -10,5 +10,6 @@ root=$(cd "$here/../../.." && pwd)
 case "$1" in *"&& eval '"*"' < /dev/null && pwd -P"* | *"&& eval '"*"' && pwd -P"*) ;; *) exec "${SHELL:-bash}" -c "$1" ;; esac
 port=$(cat "$root/port" 2>/dev/null) || exec "${SHELL:-bash}" -c "$1"
 . "$here/environment.sh"
-{ env -0; printf '\0\0'; printf '%s' "$1"; } | curl -sN --max-time 0 -X POST "http://127.0.0.1:$port/shell/run" -H "Content-Type: application/octet-stream" -H "X-Journal-Env: $(journal_environment)" -H "X-Journal-Cwd: $PWD" -H "X-Journal-Shell: ${SHELL:-bash}" --data-binary @- \
+request_at=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
+{ env -0; printf '\0\0'; printf '%s' "$1"; } | curl -sN --max-time 0 -X POST "http://127.0.0.1:$port/shell/run" -H "Content-Type: application/octet-stream" -H "X-Journal-Env: $(journal_environment)" -H "X-Journal-Cwd: $PWD" -H "X-Journal-Shell: ${SHELL:-bash}" -H "X-Journal-Request-At: $request_at" --data-binary @- \
     | awk '{ if (NR > 1) { print prev; fflush() } prev = $0 } END { if (prev !~ /^__journal_exit /) { if (NR) print prev; print "the journal server stopped answering before this line ended" > "/dev/stderr"; exit 1 } split(prev, exit_line, " "); exit exit_line[2] + 0 }'

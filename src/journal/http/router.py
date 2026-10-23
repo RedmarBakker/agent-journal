@@ -7,6 +7,7 @@ from journal.support.rejection import Rejection
 from journal.support.missing_row import MissingRow
 from journal.http.support.file_response import FileResponse
 from journal.http.support.request import Request
+from journal.http.support.stall_watch import StallWatch
 from journal.http.support.stream_response import StreamResponse
 from journal.support.response import Response
 from journal.http.support.route import Answer, Handler, Route
@@ -17,8 +18,8 @@ from journal.repositories.scope import Scope
 class Router:
     """Finds the route a request takes and answers it inside the environment the request names, or in none for an unscoped route."""
 
-    def __init__(self, scope: Scope, presence: ViewerPresence, slow: SlowRequests) -> None:
-        self.scope, self.presence, self.slow = scope, presence, slow
+    def __init__(self, scope: Scope, presence: ViewerPresence, slow: SlowRequests, stalls: StallWatch) -> None:
+        self.scope, self.presence, self.slow, self.stalls = scope, presence, slow, stalls
         self.routes: list[Route] = []
 
     def get(self, path: str, handler: Handler) -> None:
@@ -57,9 +58,13 @@ class Router:
             with self.scope.requested(lambda: request.environment) if route.scoped else nullcontext():
                 if route.outward:
                     return route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
-                timer = self.slow.begin()
-                answer = route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
-                self.slow.measured(request.method, request.measured_path(), timer.wall_ms(), timer.cpu_ms())
+                timer = self.slow.begin(request.request_at)
+                self.stalls.begin(f"{request.method} {request.measured_path()}")
+                try:
+                    answer = route.handler(request.with_params({name: unquote(value) for name, value in params.items()}))
+                finally:
+                    self.stalls.end()
+                self.slow.measured(request.method, request.measured_path(), timer.wall_ms())
                 return answer
         except Rejection as refused:
             return Response.refused(str(refused))

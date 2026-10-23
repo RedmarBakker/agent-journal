@@ -15,6 +15,7 @@ function query(fields) {
 const NO_ENV = "the page does not know its environment yet";
 
 export const ENV_HEADER = "X-Journal-Env";
+export const REQUEST_TIME_HEADER = "X-Journal-Request-At";
 
 // The journal's API: every path the viewer asks for is named here, under /journal, scoped to the environment by its header.
 export class ApiClient {
@@ -35,8 +36,9 @@ export class ApiClient {
         return `${this.base}/journal${path}`;
     }
 
+    // every request names its environment, and the moment it was sent, from which the journal counts its time
     headers() {
-        return this.env() ? {[ENV_HEADER]: this.env()} : {};
+        return {[REQUEST_TIME_HEADER]: String(Date.now()), ...(this.env() ? {[ENV_HEADER]: this.env()} : {})};
     }
 
     get(path) {

@@ -4,7 +4,7 @@ from journal.support.hook import Hook
 from journal.support.hook_kind import HookKind
 from journal.hooks.receiver import Receiver
 from journal.hooks.support.tool_calls import ToolCalls
-from journal.http.support.request import Request
+from journal.http.support.request import REQUEST_TIME_HEADER, Request
 from journal.support.response import Response
 from journal.providers.providers import Providers
 
@@ -19,7 +19,7 @@ class HookController:
 
     def receive(self, request: Request) -> Response:
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
-        stamp = request.headers.get("x-journal-hook-started")
+        stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = parsed.stamped(int(stamp)) if stamp else parsed
         worker = request.headers.get(WORKER_HEADER)
         hook = stamped.worker_hook(int(worker), request.headers.get(WORKER_TOKEN_HEADER)) if worker else stamped
