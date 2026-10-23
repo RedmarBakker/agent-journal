@@ -1807,3 +1807,27 @@ def test_work_waiting_to_be_checked_is_named_every_so_many_tool_uses_while_the_a
     assert [said(waiting, use) for use in (1, 4)] == [[], []], "between the reminders nothing is said"
     assert said(waiting, 5) == ["worker 57, Mr. Muybridge: task 2589 still waits to be checked. journal task show 2589, then journal worker check 57 <point>, or --short \"<what is missing>\""], "at the set tool use the waiting work is named"
     assert said(waiting, 10) and said(merged, 10) == [], "again at the next, and not once it is merged"
+
+
+def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_wrote(app: App, monkeypatch):
+    import os
+    import time as timing
+    from journal.engine.menu_watcher import MenuWatcher
+    from journal.repositories.messages import Messages
+    from journal.supervisor_link import SupervisorLink
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
+    hook(app, "SessionStart")
+    watcher = app.container.get(MenuWatcher)
+    agent = app.container.get(SessionAgents).agent("s1", 1)
+    screens = app.config.home / "runtime" / "screens"
+    screens.mkdir(parents=True, exist_ok=True)
+    (app.config.home / "runtime" / "inboxes").mkdir(parents=True, exist_ok=True)
+    (app.config.home / "runtime" / "inboxes" / "main").write_text(json.dumps({"socket": "/tmp/none.sock", "protocol": 1, "screen": str(screens / "main.out")}))
+    screen = screens / "main.out"
+    screen.write_text("  Hooks need review\r\n  9 hooks are new or changed in .codex/hooks.json\r\n\r\n› 1. Review hooks\r\n  2. Trust all and continue\r\n  3. Continue without trusting\r\n\r\n  Press enter to confirm or esc to go back\r\n")
+    os.utime(screen, (timing.time() - 5, timing.time() - 5))
+    keys = watcher.check(agent)
+    assert keys == "\x1b[B\r" and transmitted[-1] == {"verb": "keys", "name": "agent", "keys": "\x1b[B\r"}, "the cursor goes down to option 2, Trust all and continue, and takes it"
+    with app.container.get(Scope).environment(1):
+        assert any('chose "Trust all and continue"' in m.text for m in app.container.get(Messages).scoped()), "and a card in the chat says so"

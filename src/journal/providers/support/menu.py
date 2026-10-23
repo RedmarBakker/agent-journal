@@ -9,6 +9,8 @@ FOOTER = re.compile(r"Enter to (?:select|confirm|continue)|Esc to (?:cancel|exit
 QUESTION = re.compile(r"\?\s*$")
 TRUSTED = re.compile(r"\btrust\b", re.I)
 SWITCHING_MODEL = re.compile(r"\bswitch model\b", re.I)
+HOOK_REVIEW = re.compile(r"\bhooks? (?:need|needs) review\b|\bhooks? (?:are|is) new or changed\b", re.I)
+TRUST_ALL = re.compile(r"^trust all\b", re.I)
 PERMISSION = re.compile(r"do you want to (?:proceed|make this edit|create|run|allow|read)|allow .* to\b", re.I)
 PERMISSION_PATTERN = re.compile(r"do you want to (?:proceed|make|create)|would you like to run|allow command|approve", re.I)
 HISTORY_PATTERN = re.compile(r"\(current\)|rewind|restore|resume|checkpoint", re.I)
@@ -75,6 +77,12 @@ class Menu:
 
     def trusting(self) -> bool:
         return bool(TRUSTED.search(self.question))
+
+    def reviewing_hooks(self) -> bool:
+        return bool(HOOK_REVIEW.search(self.question)) and self.trusting_all() is not None
+
+    def trusting_all(self) -> Option | None:
+        return next((o for o in self.options if TRUST_ALL.search(o.label)), None)
 
     def asking_permission(self) -> bool:
         return bool(PERMISSION.search(self.question))

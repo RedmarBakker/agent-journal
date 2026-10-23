@@ -18,7 +18,7 @@ USER_KEY_WINDOW_SECONDS = 3.0
 
 
 class MenuWatcher(Job):
-    """A job that reads, twice a second, each live agent's screen through the supervisor's mirror and keeps the agent from sitting at a menu: one the journal caused is confirmed, the trust question for the launched folder accepted, anything else declined or closed with Escape, and a card in the chat says what was done; a menu the user opened at the keyboard is left alone. A menu is answered at the first look when the screen has stood still, otherwise at the next look that finds the same menu, whatever a spinner above it does."""
+    """A job that reads, twice a second, each live agent's screen through the supervisor's mirror and keeps the agent from sitting at a menu: one the journal caused is confirmed, the trust question for the launched folder accepted, a program's review of the hooks the journal wrote answered by trusting them, anything else declined or closed with Escape, and a card in the chat says what was done; a menu the user opened at the keyboard is left alone. A menu is answered at the first look when the screen has stood still, otherwise at the next look that finds the same menu, whatever a spinner above it does."""
 
     interval_seconds = 0.5
 
@@ -67,6 +67,9 @@ class MenuWatcher(Job):
         return self._menu_changed_at[environment] == moment and moment - self.supervisor.last_screen_change(environment) < STILLNESS_SECONDS
 
     def decided(self, menu: Menu, triggered: bool, agent: Agent) -> tuple[str, str] | None:
+        trust_all = menu.trusting_all() if menu.reviewing_hooks() else None
+        if trust_all is not None:
+            return menu.keys(trust_all), f'chose "{trust_all.label}", since the hooks it reviews are the ones the journal wrote for this launch'
         if triggered or menu.trusting() or menu.switching_model():
             claimed = menu.accepting()
             return menu.keys(claimed), f'chose "{claimed.label}", since it confirms what was asked for' if triggered else f'chose "{claimed.label}"'
