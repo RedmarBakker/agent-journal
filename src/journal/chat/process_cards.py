@@ -1,4 +1,5 @@
 from journal.chat.card_detail import CardDetail
+from journal.chat.card_category import CardCategory
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.agent_role import AgentRole
@@ -20,7 +21,7 @@ class ProcessCards:
         self.messages, self.agents = messages, agents
 
     def show(self, process: str, environment_id: int, key: str, label: str, data: dict, actor: Actor, shows: CardKind, active: bool, detail: str = "", session: str | None = None) -> Message:
-        data = {"row": "", **data, **CardDetail.parts(detail), "key": key, "shows": str(shows), "card_type": PROCESS, "process": process, "active": active}
+        data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": PROCESS, "process": process, "active": active}
         older = self.messages.keyed(key, actor)
         if older:
             return self.messages.save(older[0].with_(text=label, session=session or older[0].session, data=self.docked_data(older[0], data)), actor)

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from journal.chat.card_detail import CardDetail
+from journal.chat.card_category import CardCategory
 from journal.repositories.setting_rows import SettingRows
 from journal.support.option import Option
 from journal.models.author import Author
@@ -27,7 +28,7 @@ class MomentCards:
         return self.show_fields(environment_id, session, label, data, actor, shows, detail, key)
 
     def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:
-        data = {"row": "", **data, **CardDetail.parts(detail), "key": key, "shows": str(shows), "card_type": MOMENT}
+        data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": MOMENT}
         roles = self.agents.session_roles(session) if session else []
         card = Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=label, data=data)
         cutoff_at = datetime.now(timezone.utc) - timedelta(seconds=self.settings.decimal(FOLD_SECONDS))

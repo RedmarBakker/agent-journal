@@ -1,5 +1,6 @@
 import {PILE as ANIMATIONS, draw} from "./pile.js";
 import {VISOR} from "./visor.js";
+import {ChatMark} from "../domain/chatMark.js";
 
 // The parcels of code the figure builds on the compose box's top and the UFO that takes them once the work is committed, drawn by the page
 // beside the figure (chat/CodeParcel.vue, chat/FlyingSaucer.vue). Every number that decides where they go and when is here, in pixels and
@@ -87,7 +88,7 @@ export const BUILD = {after: 5};
 
 // the running chat marks among `cards` that are test runs, whatever the language or tool: a process or watch card still active whose title
 // holds the word test, in any case
-export const testRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && /test/i.test(card.label ?? ""));
+export const testRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && new ChatMark(card).guessIsTest());
 
 // The run the figure builds for at `now`, in seconds, its card and when it began: the oldest running test mark among `cards`, else `shell`,
 // a shell command read as a test run or a build; null with none, or while it has gone on less than BUILD.after

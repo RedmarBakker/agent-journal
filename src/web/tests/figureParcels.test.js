@@ -355,7 +355,8 @@ test("a box built, the figure goes straight round behind it and pushes, in one m
 });
 
 test("a running chat mark titled with the word test builds boxes one after another from 5 seconds in, and the wait for the next is counted from its end", () => {
-    const mark = (key, label, time, active = true) => ({key, label, time, active, process: true, watch: null});
+    // a mark as the server writes it, its guesses made from its title
+    const mark = (key, label, time, active = true) => ({key, label, time, active, process: true, watch: null, guesses: {test: label.toLowerCase().includes("test")}});
     // a look every second from `from` to `to` with the marks `cardsAt(now)` gives, a box taking ten seconds from its start to the pile; the
     // seconds each box was begun at
     const run = (memory, cardsAt, from, to, units = null) => {

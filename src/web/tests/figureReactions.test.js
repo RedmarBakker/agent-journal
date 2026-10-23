@@ -96,7 +96,7 @@ test("only a jump of more than the figure's own height sometimes turns over", ()
 });
 
 test("a watched test run that ends is seen once, as a pass or a failure, and a run already known is not seen again", () => {
-    const card = (key, ending) => ({key, time: 9, label: "Running tests", watch: {figure: "Tests 100%", ending}});
+    const card = (key, ending) => ({key, time: 9, label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 100%", ending}});
     const known = new Map();
     const agent = (...cards) => ({data: {cards}});
     expect(testResultsAfter(agent(card("messages:1", "")), known)).toEqual([]);
@@ -132,10 +132,10 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, icon: "agents", label: "Worker 57, Mr. Muybridge, motion photographer: sent its next job"},
         {time: 2, icon: "check", tone: "good", label: "Fact 15 recorded"},
         {time: 2, icon: "check", tone: "good", label: "Check Check for sins passed"},
-        {time: 2, key: "messages:1", icon: "terminal", label: "Running tests", watch: {figure: "Tests 100%", ending: "finished"}},
-        {time: 2, key: "messages:2", icon: "terminal", label: "Running tests", watch: {figure: "Tests 90%", ending: "failed with code 1"}},
-        {time: 5, key: "messages:8", icon: "terminal", label: "Running tests", watch: {figure: "Tests 40%", ending: "failed with code 1"}},
-        {time: 6, key: "messages:9", icon: "terminal", label: "Running tests", watch: {figure: "Tests 100%", ending: "finished"}},
+        {time: 2, key: "messages:1", icon: "terminal", label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 100%", ending: "finished"}},
+        {time: 2, key: "messages:2", icon: "terminal", label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 90%", ending: "failed with code 1"}},
+        {time: 5, key: "messages:8", icon: "terminal", label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 40%", ending: "failed with code 1"}},
+        {time: 6, key: "messages:9", icon: "terminal", label: "Running tests", guesses: {test: true}, watch: {figure: "Tests 100%", ending: "finished"}},
     ];
     const agent = {data: {cards, person_at: 2}};
     const said = (kind) => ({table: "messages", id: kind.length + 1, author: "agent", session: "s", created_at: new Date(2000).toISOString(), data: {kind}});
