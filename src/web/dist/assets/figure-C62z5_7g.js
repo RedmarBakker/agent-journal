@@ -1,12 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-hNUiRWfV.js
-<<<<<<<< HEAD:src/web/dist/assets/figure-hNUiRWfV.js
-import{A as xe,p as Fe,h as Vc}from"./main-4aTOGD13.js";import"./tokens-D2Th-Z3L.js";import"./tip-Ba5Nwb0r.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as xe,p as Fe,h as Gc}from"./main--vvyZuDD.js";import"./tokens-D2Th-Z3L.js";import"./tip-CE7pQPAn.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 9ef92442c (The figure's visor lights as a screen for two seconds when a process card it saw running ends: red when it ends bad, green when it ends good, its eyes gone and a fine grid of pixels across it, for every voice and never while it sleeps):src/web/dist/assets/figure-D31XsM5c.js
-========
-import{A as Me,p as Be,h as qc,a as sd}from"./main-xLrGLNHp.js";import"./tokens-D2Th-Z3L.js";import"./tip-CE7pQPAn.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 5ec7da0ee (The party horn shoots open and holds, its head turned aside; the dove carries a message to a worker or another session and the mailbox is gone; the stunts play in a wait as in idle; an edit now and then sets it typing for a spell it is seen at; standing still it glances left, right and up; very rarely a launch trips it onto its knees; the eager moment starts five seconds from a slow run's end and plays to it; the confetti cannon bursts fuller; and a passed run or a done task is celebrated on its own chat mark):src/web/dist/assets/figure-C1dfGMn_.js
+import{A as Me,p as Be,h as qc,a as sd}from"./main-C9I9V6_3.js";import"./tokens-D2Th-Z3L.js";import"./tip-Ba5Nwb0r.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
