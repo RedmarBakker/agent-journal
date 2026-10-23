@@ -287,6 +287,19 @@ function targetOf({state, counts, stay, now, near, figure, hands, random, tally,
     return {spot: climbable(stayingAt(next, figure, near), figure, near, {memory, now}) || restOf(figure, near), stay: next};
 }
 
+// Having jumped up onto a bubble on purpose, by a hop or the pogo stick, the figure stays there `seconds` before any trip away, but one
+// that drops everything (reactions.js EAGER urgent)
+export const PERCHED = {seconds: 4};
+
+// whether a trip's `legs` climb, one of them a hop or the pogo stick up rather than a fall down
+export const climbs = (legs) => legs.some((leg) => leg.hopping && leg.clip !== "fall");
+
+// the stay a trip that `climbed` and ended on a floor of `kind` at `now`, in seconds, holds the figure to, or null when it holds it to none
+export const perchedAfter = (climbed, kind, now) => (climbed && kind === "bubble" ? {until: now + PERCHED.seconds} : null);
+
+// whether the figure may set off on a trip away at `now`, `perched` as it is: once its stay is over, or at once for an `urgent` trip
+export const mayLeave = (perched, now, urgent) => urgent || !perched || now >= perched.until;
+
 // how long the box a figure stepped aside from stays clear of it, in seconds
 export const CLEARED_SECONDS = 30;
 

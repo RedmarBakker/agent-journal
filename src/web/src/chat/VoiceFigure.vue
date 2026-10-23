@@ -41,7 +41,7 @@ import {
     stretchedFrame,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {MARK_STAY, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, markSpot, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, buildAim, buildRunAt, isPileLeft, craneAt, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
@@ -489,7 +489,7 @@ function setOff() {
     body.way = Math.sign(there.x - body.place.x);
     stopSwinging();
     if (trip) {
-        body.trip = {...body.trip, ...trip};
+        body.trip = {...body.trip, ...trip, climbs: climbs(trip.legs)};
         return nextLeg();
     }
     body.footing = null;
@@ -503,9 +503,10 @@ function nextLeg() {
     const legs = body.trip.legs;
     const next = legs.find((each) => each.ms > 0);
     if (!next) {
-        const {to, footing: held} = body.trip;
+        const {to, footing: held, climbs: climbed} = body.trip;
         const landed = landingOn(to, held, figureSize());
         body.trip = null;
+        perched = perchedAfter(Boolean(climbed), latestFloors().floors.find((floor) => floor.id === held?.id)?.kind, performance.now() / 1000);
         if (Math.hypot(landed.x - to.x, landed.y - to.y) >= 1) slide();
         settle(landed, held);
         // round behind a box it built, it sets off pushing it at once
@@ -821,7 +822,7 @@ function look() {
     const going = eager?.on ? eagerSpot(body.place, figureSize()) : target.spot;
     // a trip that waits to set off gives way to one that drops everything
     if (eager?.urgent && going && body.trip && !body.trip.urgent && !body.trip.moves) body.trip = null;
-    if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going) {
+    if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going && mayLeave(perched, performance.now() / 1000, Boolean(eager?.urgent))) {
         if (eager?.urgent) beats.value = beats.value.slice(0, 1);
         // round behind a box it built and pushing it, it sets off at once, breaking off what it plays, so the build flows into the push
         moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried || pushing || Boolean(eager?.urgent), urgent: Boolean(eager?.urgent)});
@@ -835,6 +836,9 @@ function look() {
 let covering = 0;
 // the figure sprints on its next trip, out of the way
 let hurried = false;
+// the stay on a bubble the figure jumped up onto on purpose, which no trip but an urgent one takes it from before it ends (perches.js
+// PERCHED), or null
+let perched = null;
 
 // The figure steps out of the way of what is under `box`, its picture, and sprints there, as when it is clicked or a new message appears
 // under it (perches.js stepAside)
