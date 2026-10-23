@@ -23,6 +23,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 WAIT_LINK = "waits_on"
 CURRENT_TASK_LINK = "in_hand"
 WORKED_LINK = "worked_on"
+QUEUED_LINK = "queued_for"
 WORKERS = "workers"
 WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task it holds, {holdings}"
 HOLDER_REFUSAL = "task {task} is held by worker {worker} until its work is merged or released: send that worker its next job, or release it first"
@@ -162,6 +163,18 @@ class Tasks(ScopedRepository[Task]):
             self.links.save(Link(source=holder, target=target, kind=WORKED_LINK), actor)
         if holder.type == WORKERS and task.state != TaskState.DELEGATED:
             self.save(task.delegated(datetime.now(timezone.utc)), actor)
+        for link in self.links.all_matching(source=holder, target=target, kind=QUEUED_LINK):
+            self.links.delete(link, actor)
+
+    def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
+        if task.state != TaskState.OPEN:
+            raise Rejection(f"task {task.id} is {task.state}: only an open task waits in a worker's queue")
+        self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
+        return self.save(task.delegated(datetime.now(timezone.utc)), actor)
+
+    def queue(self, worker: Ref) -> list[Task]:
+        links = sorted(self.links.all_matching(source=worker, kind=QUEUED_LINK), key=lambda link: link.row_id)
+        return [self.find(link.target.id) for link in links]
 
     def worker_task(self, task_id: int, worker: int) -> Task:
         holdings = self.holder_task_ids(Ref(WORKERS, worker))
@@ -170,7 +183,13 @@ class Tasks(ScopedRepository[Task]):
         return self.find(task_id)
 
     def release(self, holder: Ref, actor: Actor) -> None:
-        for link in self.links.all_matching(source=holder, kind=CURRENT_TASK_LINK):
+        self.freed(holder, CURRENT_TASK_LINK, actor)
+
+    def unqueued(self, holder: Ref, actor: Actor) -> None:
+        self.freed(holder, QUEUED_LINK, actor)
+
+    def freed(self, holder: Ref, kind: str, actor: Actor) -> None:
+        for link in self.links.all_matching(source=holder, kind=kind):
             self.links.delete(link, actor)
             for task in self.matching(id=link.target.id, state=TaskState.DELEGATED):
                 self.save(task.released(datetime.now(timezone.utc).timestamp()), actor)

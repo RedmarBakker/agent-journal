@@ -159,6 +159,9 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - Related work goes back to the worker that knows it: `journal worker send <n> "<next job>"` gives a worker that
   reported, or was stopped, its next job in its last session, with its memory of the last job, in the same worktree.
   Never dispatch a fresh worker for work one already out has done part of.
+- Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.
+  Each is delegated to that worker at once, so it is never offered to you, nor blocked or parked; when its work is merged
+  you are told the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
 - A worker still running takes a word in its live session: `journal worker notify <n> "<text>"`. Only a Claude
   worker has a session inbox; a Codex worker, and one that reported or was stopped, are refused with what to use instead.
 - A dispatch whose brief names files an idle worker touched is refused, naming that worker and its send line; add

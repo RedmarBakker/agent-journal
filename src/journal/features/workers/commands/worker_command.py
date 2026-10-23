@@ -87,6 +87,9 @@ class WorkerCommand(Command):
         line.add_argument("n", type=int)
         line.add_argument("brief")
         line.add_argument("--task", type=int, help="the task this job works on, which its plan then leaves to it")
+        queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order: each is delegated to it at once, and you are told the next when its work is merged")
+        queue.add_argument("n", type=int)
+        queue.add_argument("tasks", type=int, nargs="+")
         notify = self.verb(verbs, "notify", "give a running worker a message in its live session")
         notify.add_argument("n", type=int)
         notify.add_argument("text")
@@ -230,6 +233,16 @@ class WorkerCommand(Command):
     def merge(self, args: Namespace, caller: Caller) -> int:
         outcome = self.actions.merge(args.n, caller.actor)
         print(f"task {outcome.task.id} done: {outcome.task.outcome}; {outcome.worktree or 'it had no worktree'}")
+        waiting = self.tasks.queue(Ref.build(self.workers.find(args.n)))
+        if waiting:
+            print(f"next in worker {args.n}'s queue: task {waiting[0].id}, {waiting[0].title}: journal worker send {args.n} \"<the job>\" --task {waiting[0].id}")
+        return 0
+
+    def queue(self, args: Namespace, caller: Caller) -> int:
+        worker = self.workers.find(args.n)
+        for n in args.tasks:
+            self.tasks.queued(self.tasks.find(n), Ref.build(worker), caller.actor)
+        print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it")
         return 0
 
     def release(self, args: Namespace, caller: Caller) -> int:

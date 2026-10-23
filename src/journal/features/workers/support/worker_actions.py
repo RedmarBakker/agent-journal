@@ -149,6 +149,7 @@ class WorkerActions:
             if worker.is_running():
                 raise Rejection(f"worker {worker.id}, {worker.name}, is still out: stop it first with journal worker stop {worker.id}")
             self.tasks.release(Ref.build(worker), actor)
+            self.tasks.unqueued(Ref.build(worker), actor)
             self.moves.cleared(worker)
             return self.workers.save(worker.released(datetime.now(timezone.utc).timestamp()), actor)
 

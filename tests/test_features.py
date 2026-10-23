@@ -7679,6 +7679,47 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
         assert taken.code == 0 and tasks.find(4).state == TaskState.FINISHED and "no commit to merge" in tasks.find(4).outcome, "a worker whose work is journal rows, with no commit, has its task closed by its merge"
 
 
+def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge_names_the_next(app: App, monkeypatch):
+    import subprocess
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.task_state import TaskState
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "-b", "main")
+    (root / ".gitignore").write_text(".journal/\n")
+    git("add", ".gitignore")
+    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "start")
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the notes", "--brief", "the notes are written"], AGENT)
+    console.run(["worker", "dispatch", "Mr. Babbage", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    tasks = app.container.get(Tasks)
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        workers.save(workers.find(1).with_(token_hash="h", session="w-1").ready(1.0), Actor.system())
+    console.run(["task", "create", "the docs"], AGENT)
+    console.run(["task", "create", "the help page"], AGENT)
+    queued = console.run(["worker", "queue", "1", "2", "3"], AGENT)
+    assert queued.code == 0 and "queue: task 2, task 3" in queued.text, queued.error
+    with app.container.get(Scope).environment(MAIN):
+        assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
+    assert "only an open task" in console.run(["worker", "queue", "1", "2"], AGENT).error, "a task already delegated waits in no second queue"
+    babbage = Caller.worker("main", 1, "w-1", "claude")
+    console.run(["proof", "1", "notes.md:1, written"], babbage)
+    console.run(["clock-out", "the notes are written"], babbage)
+    console.run(["worker", "check", "1", "1"], AGENT)
+    merged = console.run(["worker", "merge", "1"], AGENT)
+    assert merged.code == 0 and "next in worker 1's queue: task 2, the docs: journal worker send 1" in merged.text and "--task 2" in merged.text, merged.error or merged.text
+    with app.container.get(Scope).environment(MAIN):
+        assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED], "the merge keeps the queue: the tasks wait for the worker still"
+    assert console.run(["worker", "release", "1"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert [tasks.find(n).state for n in (2, 3)] == [TaskState.OPEN, TaskState.OPEN], "a worker let go gives its queued tasks back, open again"
+
+
 def test_a_worker_in_a_workspace_of_repositories_gets_a_worktree_of_each_and_its_commits_merge_into_their_own(app: App, monkeypatch):
     import subprocess
     from journal.features.workers.support.worker_runner import WorkerRunner
