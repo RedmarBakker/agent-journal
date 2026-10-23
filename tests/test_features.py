@@ -11905,3 +11905,14 @@ def test_the_agent_is_marked_thinking_after_a_quiet_spell_at_work_and_no_longer_
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         assert not agent().is_thinking(), "a tool starting ends the thinking at once"
+
+
+def test_a_test_run_piped_into_a_filter_is_refused_and_a_whole_run_or_another_piped_command_goes_through(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    bash = lambda line: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
+    for line in ("python3 -m pytest -q tests/x.py | grep FAIL", "npx vitest run 2>&1 | tail -5", "npm test | head -20", "(cd src/web && npx vitest run 2>&1 | grep -E 'FAIL|Tests' | head -5)", "python3 -m pytest tests | awk '/passed/'"):
+        status, body = bash(line)
+        assert status == 409 and "hides the lines its reader reads" in body["error"] and "journal suite" in body["error"], line
+    for line in ("python3 -m pytest -q tests/x.py", "git log --oneline | head -3", "npm test | tee out.txt", "grep -n 'a|b' src/x.py"):
+        assert bash(line)[0] == 200, line
