@@ -44,6 +44,7 @@ const facts = computed(() => {
     return [
         {label: "Model", value: workerLine(row) || "Its profile's model"},
         {label: "Worktree", value: row.worktree ? "Its own" : "The project's checkout"},
+        {label: "Team's pool", value: row.pool_request ? (row.device ? `Runs on machine ${row.device}, from request ${row.pool_request}` : `Waiting for a machine to take request ${row.pool_request}`) : ""},
         {label: "Branch", value: row.branch, mono: true},
         {label: "Reuses", value: workerReusesLine(row)},
         {label: "Why it was retired", value: row.retire_reason},

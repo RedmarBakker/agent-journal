@@ -149,4 +149,9 @@ test("the worker page shows its points, its readable transcript and its tasks si
     await flush();
     const facts = Object.fromEntries([...branched.querySelectorAll(".fact")].map((fact) => [fact.querySelector(".label").textContent, fact.querySelector(".value").textContent.trim()]));
     expect([facts.Branch, facts.Reuses]).toEqual(["worker/3-Lady-Lovelace", "1, on task 1402"]);
+    app.unmount();
+    const pooled = mount(WorkerPage, {resource: {...worker("clocked in"), pool_request: 7, device: "2"}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    await flush();
+    const pool = [...pooled.querySelectorAll(".fact")].find((fact) => fact.querySelector(".label").textContent === "Team's pool");
+    expect(pool.querySelector(".value").textContent.trim()).toBe("Runs on machine 2, from request 7");
 });
