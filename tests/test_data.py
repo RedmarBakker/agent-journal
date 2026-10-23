@@ -1,3 +1,4 @@
+from journal.support.stage_times import StageTimes
 from datetime import datetime, timezone
 from journal.config import Config
 from journal.support.masks import Masks
@@ -135,7 +136,7 @@ def test_a_column_a_model_gained_is_added_to_a_table_made_before_it(tmp_path):
     from journal.db.connection import Connection
     from journal.db.schema import Schema
     from journal.models.all_models import AllModels
-    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))))
+    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes())
     with old.transaction() as db:
         db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_id INTEGER)")
     Schema(old, AllModels.MODELS).create()
@@ -165,7 +166,7 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
     from journal.repositories.links import Links
     from journal.repositories.environments import Environments
     from journal.repositories.scope import Scope
-    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))))
+    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes())
     with old.transaction() as db:
         db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_id INTEGER, author TEXT, text TEXT, created_at TEXT, updated_at TEXT, creator TEXT, updater TEXT)")
         db.execute("INSERT INTO messages (environment_id, author, text, created_at, updated_at, creator, updater) VALUES (1, 'user', 'old', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 'user:1', 'user:1')")
@@ -530,7 +531,7 @@ def team_journal(tmp_path, name: str, signal=None):
     config = Config(folder)
     config.home.mkdir(parents=True)
     (config.home / TEAM_FILE).write_text("{}")
-    connection = Connection(folder / "journal.db", Masks(SecretValues(config)))
+    connection = Connection(folder / "journal.db", Masks(SecretValues(config)), StageTimes())
     Schema(connection, AllModels.MODELS).create()
     bus = Bus()
     scope = Scope(Environments(connection, bus))

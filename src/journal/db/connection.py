@@ -8,13 +8,14 @@ from typing import Callable, Iterator
 from journal.db.empty_result import EmptyResult
 from journal.db.row_cache import RowCache
 from journal.support.masks import Masks
+from journal.support.stage_times import StageTimes
 
 
 class Connection:
     """The one place SQL is executed, a secret value masked out of every text it writes. Each thread reads on a sqlite connection leased from a pool, returned with release() or, by any thread that never says so, once the thread is gone, so no thread that ends leaves one open; writes take the one lock, so the threaded server never contends. Reads of rows may be answered from the row cache, which every write and every commit of a table moves on, and a rolled-back transaction clears."""
 
-    def __init__(self, path: Path, masks: Masks) -> None:
-        self.path, self.masks = path, masks
+    def __init__(self, path: Path, masks: Masks, stages: StageTimes) -> None:
+        self.path, self.masks, self.stages = path, masks, stages
         self._threads = threading.local()
         self._writing = threading.RLock()
         self._pooling = threading.Lock()
@@ -50,7 +51,11 @@ class Connection:
         return self.execute(sql, params).fetchall()
 
     def cached(self, tables: tuple[str, ...], sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
-        return self.cache.rows(tables, (sql, params), lambda: reader(self.all(sql, params)))
+        return self.cache.rows(tables, (sql, params), lambda: self.loaded_rows(tables[0], sql, params, reader))
+
+    def loaded_rows(self, table: str, sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
+        with self.stages.timed(f"read {table}"):
+            return reader(self.all(sql, params))
 
     def changed(self, table: str) -> None:
         self.cache.changed(table)
@@ -59,15 +64,19 @@ class Connection:
 
     @contextmanager
     def transaction(self) -> Iterator["Connection"]:
-        with self._writing:
-            local = self._local()
-            if local.in_transaction:
+        local = self._local()
+        if local.in_transaction:
+            with self._writing:
                 yield self
-                return
+            return
+        with self.stages.timed("write lock wait"):
+            self._writing.acquire()
+        try:
             local.execute("BEGIN IMMEDIATE")
             self._threads.committed, self._threads.written = [], set()
             try:
-                yield self
+                with self.stages.timed("write"):
+                    yield self
             except BaseException:
                 local.execute("ROLLBACK")
                 self._threads.committed = []
@@ -76,6 +85,8 @@ class Connection:
             local.execute("COMMIT")
             for table in self._threads.__dict__.pop("written", set()):
                 self.cache.changed(table)
+        finally:
+            self._writing.release()
         for work in self._threads.__dict__.pop("committed", []):
             work()
 

@@ -50,7 +50,7 @@ class App:
 
     def connection(self) -> Connection:
         self.config.home.mkdir(parents=True, exist_ok=True)
-        connection = Connection(self.config.database, self.container.get(Masks))
+        connection = Connection(self.config.database, self.container.get(Masks), self.container.get(StageTimes))
         schema = Schema(connection, AllModels.MODELS)
         migrator = Migrator(connection, schema, MIGRATIONS)
         if schema.create():
