@@ -53,10 +53,10 @@ MAIN = 1
 
 
 def viewer(app, path: str, body: dict | None = None) -> dict:
-    """A POST to the journal's API as the viewer sends it, the user's."""
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", data=json.dumps(body or {}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
-    with urlopen(request, timeout=10) as reply:
-        return json.loads(reply.read())
+    """A POST to the journal's API as the viewer sends it, the user's, answered in-process."""
+    status, answer = posted(app, f"/journal/{path}", body or {}, {"X-Journal-Env": "main"})
+    assert status < 400, answer
+    return answer
 
 
 @pytest.fixture
