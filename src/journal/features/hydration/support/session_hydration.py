@@ -17,7 +17,7 @@ from journal.support.rejection import Rejection
 
 
 class SessionHydration:
-    """Fills a new environment's chat from a conversation an agent program kept for this project, each message at its own time and none of them told to the agent as new, and keeps the session as the environment's ended agent, so its first launch carries the conversation on; a line at the end says where the chat came from, until the first agent there has been asked to read it; the project's kept conversations are listed here for the viewer's form and the boot menu."""
+    """Fills a new environment's chat from a conversation an agent program stored for this project, each message at its own time and none of them reported to the agent as new, and keeps the session as the environment's ended agent, so its first launch carries the conversation on; a line at the end says where the chat arrived from, until the first agent there has been asked to read it; the project's stored conversations are listed here for the viewer's form and the boot menu."""
 
     def __init__(self, config: Config, providers: Providers, messages: Messages, agents: Agents, scope: Scope, environments: Environments) -> None:
         self.config, self.providers, self.messages, self.agents, self.scope, self.environments = config, providers, messages, agents, scope, environments

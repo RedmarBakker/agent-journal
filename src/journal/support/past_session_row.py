@@ -5,7 +5,7 @@ PROMPT_CHARACTERS = 70
 
 @dataclass(frozen=True)
 class PastSessionRow:
-    """A conversation an agent program kept for the project, as the boot menu lists it to carry on from: its program and that program's title, its session, when it was last written, its first prompt, how many lines it holds, and the environment it already went into, if any."""
+    """A conversation an agent program stored for the project, as the boot menu lists it to carry on from: its program and that program's title, its session, when it was last written, its first prompt, how many lines it holds, and the environment it already went into, if any."""
 
     provider: str
     session: str
