@@ -93,8 +93,8 @@ test("each face's clip poses on every frame in every posture it is drawn in, and
 test("the agent's face plays its voice's clip once, the user's same face only changes the eyes, and a reload plays nothing again", () => {
     const at = (seconds) => new Date(seconds * 1000).toISOString();
     const rows = [
-        {table: "reactions", id: 1, author: "agent", face: "🎩", message_id: 7, created_at: at(100)},
-        {table: "reactions", id: 2, author: "user", face: "🎩", message_id: 8, created_at: at(101)},
+        {table: "reactions", id: 1, author: "agent", emoji: "🎩", message_id: 7, created_at: at(100)},
+        {table: "reactions", id: 2, author: "user", emoji: "🎩", message_id: 8, created_at: at(101)},
     ];
     const memory = {reacted: new Map(), played: []};
     const answer = (moment) => answerTo(moment, "butler", memory, 200, () => 0.99, (clip) => Boolean(clipNamed(clip)));
@@ -107,4 +107,14 @@ test("the agent's face plays its voice's clip once, the user's same face only ch
     expect(facesAfter(rows, 150)).toEqual([]);
     // a face from another voice's set plays nothing on this one
     expect(answerTo({beat: "agent_reacted:🏆", time: 1}, "butler", memory, 200, () => 0, (clip) => clipNamed(clip)?.voices?.includes("butler"))).toBe(null);
+});
+
+test("a heart the user puts on the agent's message turns the figure's eyes to hearts, read from the reaction row as the server writes it", () => {
+    const at = (seconds) => new Date(seconds * 1000).toISOString();
+    // models/reaction.py: the face a reaction puts on is its emoji
+    const rows = [{table: "reactions", id: 3, author: "user", emoji: "\u2764\ufe0f", message_id: 9, created_at: at(120)}];
+    const memory = {reacted: new Map(), played: []};
+    const [moment] = facesAfter(rows, 99);
+    expect(moment).toEqual({beat: "reacted:\u2764\ufe0f", time: 120, card: "messages:9"});
+    expect(answerTo(moment, "butler", memory, 200, () => 0.99, (clip) => Boolean(clipNamed(clip)))).toEqual({look: "hearts"});
 });

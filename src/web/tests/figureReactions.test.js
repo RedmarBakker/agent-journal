@@ -8,6 +8,7 @@ const {
     FLIP_OVER,
     LOOK_SECONDS,
     REACTIONS,
+    VARIANTS,
     VOICE_FACES,
     WORKED_SECONDS,
     ambientFor,
@@ -21,12 +22,14 @@ const {
     reactionTo,
     workMoments,
 } = await import("../src/figure/reactions.js");
-const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, testResultsAfter} = await import("../src/domain/figureState.js");
+const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, sayingsAfter, testResultsAfter} = await import("../src/domain/figureState.js");
 const {CLIPS, EYES} = await import("../src/figure/figure.js");
 const {FACES} = await import("../src/domain/faces.js");
 
-test("a test run that passed turns the figure to its card and jumps for joy, and one that failed gives it a startled hop", () => {
-    expect(REACTIONS.find((each) => each.moment === "tests_passed")).toMatchObject({clip: "joy", toward: "card"});
+test("a test run that passed turns the figure to its card and celebrates, a jump for joy, a confetti cannon or a party horn, and one that failed gives it a startled hop", () => {
+    const passed = REACTIONS.find((each) => each.moment === "tests_passed");
+    expect(passed.toward).toBe("card");
+    expect(passed.among.map((each) => each.clip)).toEqual(["joy", "confetti_cannon", "party_horn"]);
     expect(REACTIONS.find((each) => each.moment === "tests_failed")).toMatchObject({clip: "startled", toward: "card"});
 });
 
@@ -48,13 +51,14 @@ test("typing and reactions change the eyes; messages and work can move the body"
     }
     expect(reactionTo("reacted:\u2764\ufe0f", new Map(), 0, () => 0.99).look).toBe("hearts");
     for (const each of REACTIONS.filter((reaction) => !user.includes(reaction.moment)))
-        expect(each.clip, each.moment).toEqual(expect.any(String));
+        expect(each.clip ?? each.among.map((one) => one.clip).join(), each.moment).toEqual(expect.any(String));
 });
 
 test("every clip and look the figure is ever asked for exists, so no reaction, egg, held state or pastime is dead on arrival", () => {
     const named = new Set(CLIPS.map((clip) => clip.name));
     const asked = [
-        ...REACTIONS.map((each) => each.clip).filter(Boolean),
+        ...REACTIONS.flatMap((each) => [each.clip, ...(each.among ?? []).map((one) => one.clip)]).filter(Boolean),
+        ...Object.values(VARIANTS).flatMap((among) => among.map((one) => one.clip)),
         ...EGGS.map((egg) => egg.clip),
         ...AMBIENT.map((each) => each.clip),
         ...Object.values(HELD),
@@ -120,10 +124,18 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, icon: "check", tone: "danger"},
         {time: 2, icon: "terminal", tone: "danger"},
         {time: 2, icon: "question"},
+        // features/tasks, features/inbox, features/questions, features/workers, features/facts and features/checks, as their cards read
+        {time: 2, icon: "todos", tone: "good", label: "Finished task 12: the stamp"},
+        {time: 2, icon: "inbox", label: "Filed task 13 from your message"},
+        {time: 2, kind: "question", label: "Which one?"},
+        {time: 2, icon: "agents", label: "Worker 57, Mr. Muybridge, motion photographer: dispatched on claude opus"},
+        {time: 2, icon: "check", tone: "good", label: "Fact 15 recorded"},
+        {time: 2, icon: "check", tone: "good", label: "Check Check for sins passed"},
         {time: 2, key: "messages:1", icon: "terminal", watch: {figure: "Tests 100%", ending: "finished"}},
         {time: 2, key: "messages:2", icon: "terminal", watch: {figure: "Tests 90%", ending: "failed with code 1"}},
     ];
     const agent = {data: {cards, person_at: 2}};
+    const said = (kind) => ({table: "messages", id: kind.length + 1, author: "agent", session: "s", created_at: new Date(2000).toISOString(), data: {kind}});
     // the user's faces, and the agent's own in every voice's set and those of every voice
     const own = [...Object.values(VOICE_FACES).flatMap((faces) => Object.keys(faces)), ...Object.keys(EVERY_VOICE_FACES)];
     const put = [...FACES.map((face) => ["user", face]), ...own.map((face) => ["agent", face])];
@@ -132,7 +144,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         id: n + 1,
         author,
         created_at: new Date(2000).toISOString(),
-        face,
+        emoji: face,
         message_id: n,
     }));
     const made = new Set(
@@ -141,10 +153,12 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             ...cardsAfter(agent, new Set()),
             ...testResultsAfter(agent, new Map()),
             ...facesAfter(faces, 1),
+            ...sayingsAfter({session: "s"}, [said(""), said("report")], 1),
             // the figure's own page sees these two: a key pressed in the compose box, and the agent settling after WORKED_SECONDS of work
             {beat: "typing"},
             {beat: "work_done"},
             {beat: "long_walk"},
+            {beat: "building"},
         ].map((fire) => fire.beat)
     );
     for (const each of REACTIONS) expect(made.has(each.moment), each.moment).toBe(true);
@@ -204,7 +218,7 @@ test("the figure does something by itself only while it is calm: idle, not hangi
     const calm = {place: {posture: "sit"}, beats: 0, arriving: false, leaving: false};
     const waited = {state: "idle", lasted: 1000};
     const has = () => true;
-    expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: AMBIENT[0].clip, card: ""});
+    expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: AMBIENT[0].clip, card: "", flies: false});
     expect(pastimeFor({...calm, beats: 1}, waited, new Map(), 0, () => 0, has)).toBe(null);
     expect(pastimeFor({...calm, place: {posture: "hang"}}, waited, new Map(), 0, () => 0, has)).toBe(null);
     expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toBe(null);

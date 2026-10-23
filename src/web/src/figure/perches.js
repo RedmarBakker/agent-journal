@@ -86,6 +86,14 @@ function spotOn(perch, floor, figure) {
     return {x, y: floor.top, face: perch.face, posture: "hang", grip: perch.grip, on: floor.element};
 }
 
+// The stands a figure with its feet at `from` hops up on its run off the top of the screen (figure/skyward.js): the corner of each bubble
+// in the thread's view above it with a free stand, nearest first, each at least a fifth of its height above the last
+export function climbOf(floors, figure, from) {
+    const bubbles = floors.floors.filter((floor) => floor.kind === "bubble" && floor.top < from.y).sort((a, b) => b.top - a.top);
+    const stands = bubbles.map((floor) => perchSpot({floor: floor.id, kind: STANDS, side: sideOf(floor, floors.view), grip: ""}, floors, figure)).filter(Boolean);
+    return stands.reduce((up, spot) => (spot.y <= (up.at(-1) ?? from).y - figure.size / 5 ? [...up, {x: spot.x, y: spot.y}] : up), []);
+}
+
 // The next stay, drawn at `now` seconds by the roams' odds: where, until when, and what it holds for the stay, the perch on a bubble, the
 // tab it stands on, of those with a spot inside its world, or the point along the home edge it strolls to. A hang from a bubble is a short
 // one.

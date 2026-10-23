@@ -1,4 +1,4 @@
-import {WORKING, eggFor} from "../domain/figureState.js";
+import {HELD, WORKING, eggFor} from "../domain/figureState.js";
 
 // What the figure does about what happens around it, and how often. Every number that decides it is here, so it can be tuned in one place.
 // Nothing fires every time: `odds` is the chance a moment is reacted to at all, and `cooldown` the seconds before the same reaction may
@@ -16,12 +16,49 @@ export const VOICE_FACES = {
 // The clip every voice plays when the agent puts one of these faces on a message, beside its own
 export const EVERY_VOICE_FACES = {"🙏": "thanks"};
 
+// the ways the figure celebrates, by weight: a jump for joy with its hands up, a confetti cannon fired, a party horn blown
+const CELEBRATIONS = [{clip: "joy", weight: 2}, {clip: "confetti_cannon", weight: 1}, {clip: "party_horn", weight: 1}];
+
+// The clips a held clip is played as, one picked by its weight each time the figure takes it up, so one stretch of the same work looks
+// unlike the last: searching with the magnifying glass, binoculars, a flashlight in a dark corner, or under a lifted corner of the floor;
+// typing on, or stopping to think at the laptop; watching the UFO with a hand shading the eyes, or waving up at it; and while the context
+// compacts, packed into a box that shrinks, squashed under a press, vacuuming up words, or squaring a stack of papers
+export const VARIANTS = {
+    search: [{clip: "search", weight: 3}, {clip: "binoculars", weight: 2}, {clip: "flashlight", weight: 2}, {clip: "peek_under", weight: 1}],
+    type: [{clip: "type", weight: 3}, {clip: "type_ponder", weight: 1}],
+    watch: [{clip: "watch", weight: 2}, {clip: "wave_up", weight: 1}],
+    compacting: [{clip: "pack_box", weight: 3}, {clip: "press", weight: 2}, {clip: "vacuum", weight: 2}, {clip: "compacting", weight: 1}],
+};
+
+// one of `among` ({clip, weight}) the figure has, picked by weight with `random`, or null when it has none of them
+function pick(among, random, has) {
+    const had = among.filter((each) => has(each.clip));
+    let roll = random() * had.reduce((sum, each) => sum + each.weight, 0);
+    return had.find((each) => (roll -= each.weight) < 0)?.clip ?? had.at(-1)?.clip ?? null;
+}
+
+// the clip a held clip is played as this time (VARIANTS), itself when it has no others
+export const variantOf = (clip, random, has) => (VARIANTS[clip] ? pick(VARIANTS[clip], random, has) : null) ?? clip;
+
 // The reactions to a moment, by its name; the first whose roll succeeds plays. `moment` is a beat, a card seen to change, or a held state.
 // A clip moves the body once; a look changes only the eyes. Card-directed clips face their source.
+// A reaction with `among` plays one of those clips, picked by its weight, and keeps its cooldown under its moment, so the same moment is
+// not acted out the same way every time.
 export const REACTIONS = [
-    {moment: "tests_passed", clip: "joy", odds: 0.75, cooldown: 20, toward: "card"},
+    {moment: "tests_passed", among: CELEBRATIONS, odds: 0.75, cooldown: 20, toward: "card"},
     {moment: "tests_failed", clip: "startled", odds: 0.75, cooldown: 20, toward: "card"},
-    {moment: "committed", clip: "joy", odds: 0.6, cooldown: 30},
+    {moment: "committed", among: CELEBRATIONS, odds: 0.6, cooldown: 30},
+    // what the agent has just done in the journal, acted out now and then, never every time
+    {moment: "replied", among: [{clip: "post_dove", weight: 1}, {clip: "post_mailbox", weight: 1}], odds: 0.3, cooldown: 120},
+    {moment: "task_finished", among: [{clip: "stamp", weight: 4}, ...CELEBRATIONS], odds: 0.5, cooldown: 90},
+    {moment: "task_filed", among: [{clip: "pin_note", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 90},
+    {moment: "question_asked", among: [{clip: "ask_sign", weight: 3}, {clip: "think", weight: 1}], odds: 0.6, cooldown: 60},
+    {moment: "worker_sent", among: [{clip: "whistle_runner", weight: 3}, {clip: "wave", weight: 1}], odds: 0.5, cooldown: 90},
+    {moment: "reported", among: [{clip: "scroll", weight: 3}, {clip: "nod", weight: 1}], odds: 0.5, cooldown: 90},
+    {moment: "fact_filed", among: [{clip: "file_card", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 120},
+    {moment: "check_passed", among: [{clip: "cheer", weight: 3}, ...CELEBRATIONS], odds: 0.25, cooldown: 120},
+    // a break from the hammering now and then
+    {moment: "building", among: [{clip: "wipe_brow", weight: 2}, {clip: "look_around", weight: 1}], odds: 0.08, cooldown: 30},
     {moment: "failed", clip: "shake", odds: 0.6, cooldown: 20, toward: "card"},
     {moment: "refused", clip: "shake", odds: 0.5, cooldown: 20},
     {moment: "work_done", clip: "stretch", odds: 0.4, cooldown: 120},
@@ -93,6 +130,9 @@ export const AMBIENT = [
     {clip: "stretch", state: "idle", after: 240, every: [90, 180], odds: 0.5},
     // after a long quiet it lies down on its back for a while, whistling, on any floor it stands on
     {clip: "rest", state: "idle", after: 300, every: [120, 240], odds: 0.6},
+    {clip: "yawn", state: "idle", after: 120, every: [60, 150], odds: 0.4},
+    // now and then it hops up the bubbles off the top of the screen and comes back down on a parachute (figure/skyward.js)
+    {clip: "hop_up", flies: true, state: "idle", after: 90, every: [150, 360], odds: 0.4},
     {clip: "polish", voice: "butler", state: "idle", after: 90, every: [60, 150], odds: 0.5},
     ...[
         ["coach", "whistle"], ["colleague", "sip"], ["homie", "headphones"], ["squire", "shield_polish"],
@@ -114,18 +154,21 @@ export const WORKED_SECONDS = 30;
 export const FLIP_OVER = 1;
 export const FLIP_ODDS = 0.35;
 
-// what a reaction does, a clip or a look, which is what its cooldown is kept under
-const doing = (reaction) => reaction.clip ?? `look:${reaction.look}`;
+// what a reaction does, a clip, a look or one of several clips for its moment, which is what its cooldown is kept under
+const doing = (reaction) => reaction.clip ?? (reaction.among ? `moment:${reaction.moment}` : `look:${reaction.look}`);
 
-// the reaction to this moment, or null: the first for it that is off cooldown and wins its roll. `memory` maps what a reaction does to
-// when it last did it, in seconds, and is filled in here
+// whether the figure has what a reaction plays
+const playable = (reaction, has) => (reaction.clip ? has(reaction.clip) : !reaction.among || reaction.among.some((each) => has(each.clip)));
+
+// the reaction to this moment, or null: the first for it that is off cooldown and wins its roll, with the clip it plays picked when it has
+// several. `memory` maps what a reaction does to when it last did it, in seconds, and is filled in here
 export function reactionTo(moment, memory, now, random, voice = "", has = () => true) {
     const found = REACTIONS.find(
-        (each) => each.moment === moment && (!each.voice || each.voice === voice) && (!each.voices || each.voices.includes(voice)) && (!each.clip || has(each.clip)) && now - (memory.get(doing(each)) ?? -Infinity) >= each.cooldown && random() < each.odds
+        (each) => each.moment === moment && (!each.voice || each.voice === voice) && (!each.voices || each.voices.includes(voice)) && playable(each, has) && now - (memory.get(doing(each)) ?? -Infinity) >= each.cooldown && random() < each.odds
     );
     if (!found) return null;
     memory.set(doing(found), now);
-    return found;
+    return found.among ? {...found, clip: pick(found.among, random, has)} : found;
 }
 
 // the clip an ambient moment calls for after `held` seconds of `state`, or "": `next` maps a clip's name to when it may next play
@@ -140,10 +183,10 @@ export function ambientFor(state, held, next, now, random, voice = "", has = () 
 // whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way
 export const flips = (height, size, random) => height > FLIP_OVER * size && random() < FLIP_ODDS;
 
-// The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, and the end of a stretch of
-// work that lasted WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
+// The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, building while the figure
+// hammers, and the end of a stretch of work that lasted WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
 export function workMoments(state, typed, began, now) {
-    const moments = typed ? [{beat: "typing", time: now}] : [];
+    const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(HELD[state] === "work" ? [{beat: "building", time: now}] : [])];
     if (WORKING.has(state)) return {moments, began: began || now};
     if (began && now - began >= WORKED_SECONDS) moments.push({beat: "work_done", time: now});
     return {moments, began: 0};
@@ -165,12 +208,12 @@ export function answerTo(moment, voice, memory, now, random, has) {
     return null;
 }
 
-// What the figure does by itself after `waited` ({state, lasted}), as a beat, or null: only while it is calm, at rest in the idle state
+// What the figure does by itself after `waited` ({state, lasted}), as a beat, `flies` when it is the run off the top of the screen, or null: only while it is calm, at rest in the idle state
 // with nothing to play, its hands free and neither coming nor going. `scene` says where things stand; `due` when each pastime may next
 // play, filled in here.
 export function pastimeFor(scene, waited, due, now, random, has) {
     const calm = waited.state === "idle" && scene.place.posture !== "hang" && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
     if (!calm) return null;
     const clip = ambientFor(waited.state, waited.lasted, due, now, random, scene.voice, has);
-    return clip && has(clip) ? {clip, card: ""} : null;
+    return clip && has(clip) ? {clip, card: "", flies: Boolean(AMBIENT.find((each) => each.clip === clip).flies)} : null;
 }

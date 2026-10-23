@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
+import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
 import {HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, flightMs, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
 
@@ -88,8 +88,9 @@ test("while the UFO is here the figure stops whatever it does to watch it: its h
     // once the UFO is gone the figure carries on within a second
     expect(watch.frames / watch.fps).toBeLessThanOrEqual(1);
     const place = {posture: "stand", x: 0, y: 0};
-    expect(clipFor({place, state: "running", doing: "work", watching: true}, () => true).clip).toBe("watch");
-    expect(clipFor({place, state: "running", doing: "work", watching: false}, () => true).clip).toBe("work");
+    expect(clipFor({place, state: "running", doing: "work", watching: "watch"}, () => true).clip).toBe("watch");
+    expect(clipFor({place, state: "running", doing: "work", watching: "wave_up"}, () => true).clip).toBe("wave_up");
+    expect(clipFor({place, state: "running", doing: "work", watching: ""}, () => true).clip).toBe("work");
     for (const voice of Object.keys(stances)) {
         const posed = ({at, ...sky}) => {
             const pose = new Posing(RIG, "stand", 0);
@@ -155,4 +156,33 @@ test("each parcel is hammered a random three to eight seconds, and every blow th
     // a blow of 8 frames lands at 0.3 of its way: none before the first lands, then one a blow
     const landed = [0, 2, 2.4, 3, 10, 10.4, 11, 26.4].map((frames) => blowsLanded(frames, 8, 0.3));
     expect(landed).toEqual([0, 0, 1, 1, 1, 2, 2, 4]);
+});
+
+test("the head never turns further than HEAD_TURN from the way the body faces; a look further round turns the body the rest, after the head", () => {
+    const watch = CLIPS.find((clip) => clip.name === "watch");
+    const yawOf = (moves) => {
+        const ahead = new THREE.Vector3(0, -1, 0).transformDirection(moves.get("head"));
+        return THREE.MathUtils.radToDeg(Math.atan2(ahead.x, -ahead.y));
+    };
+    for (const voice of Object.keys(stances)) {
+        for (const [facing, at] of [[90, {x: 0.02, y: 0.4}], [270, {x: 0.98, y: 0.4}], [0, {x: 0.5, y: 0.3}], [90, {x: 0.9, y: 0.3}]]) {
+            for (const amount of [0.3, 0.7, 1]) {
+                const pose = new Posing(RIG, "stand", 0);
+                watch.pose(pose, stanceOf(voice), 0);
+                const body = lookToward(pose, {...at, amount}, facing);
+                const label = `${voice} ${facing} ${at.x} ${amount}`;
+                expect(Math.abs(yawOf(pose.moves(0))), label).toBeLessThanOrEqual(HEAD_TURN + 0.5);
+                // a look behind a figure turned sideways turns its body, less than the head while the look eases in
+                if (Math.abs(at.x - 0.5) > 0.4) expect(Math.abs(body), label).toBeGreaterThan(0);
+                else expect(body, label).toBe(0);
+            }
+            // looked fully round, the head and the body turned together face the point
+            const pose = new Posing(RIG, "stand", 0);
+            watch.pose(pose, stanceOf(voice), 0);
+            const body = lookToward(pose, {...at, amount: 1}, facing);
+            const full = yawOf(pose.moves(0)) + body;
+            const want = THREE.MathUtils.radToDeg(Math.atan2((at.x - 0.5) * 5.4, 1.2 + 0.0)) - facing;
+            expect(Math.abs(((full - want + 540) % 360) - 180), `${voice} ${facing}`).toBeLessThan(25);
+        }
+    }
 });

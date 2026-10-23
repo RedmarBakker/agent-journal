@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, Posing} from "../src/figure/figure.js";
+import {ACTING, CLIPS, Posing} from "../src/figure/figure.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -42,4 +42,28 @@ test("the butler's arms, with nothing in either since his tray is gone, hang and
     CLIPS.find((clip) => clip.name === "idle").pose(idle, butler, 0);
     expect(armOf(idle, "l").z).toBeCloseTo(armOf(idle, "r").z, 6);
     expect(armOf(idle, "l").z).toBeLessThan(-0.7);
+});
+
+test("in every resting and default pose both arms hang beside the body as they do standing idle, for every voice", () => {
+    const idle = CLIPS.find((clip) => clip.name === "idle");
+    const armsOf = (clip, voice, t, posture) => {
+        const pose = new Posing(RIG, posture, 0);
+        clip.pose(pose, stanceOf(voice), t);
+        return ["l", "r"].map((side) => armOf(pose, side));
+    };
+    // thinking, waiting, paused and asleep after its yawn, standing and seated
+    const resting = [["think", 0], ["waiting", 0], ["idle", 0], ["sleep", ACTING.yawnFrames]];
+    for (const voice of Object.keys(stances)) {
+        for (const posture of ["stand", "sit"]) {
+            const standing = armsOf(idle, voice, 0, posture);
+            for (const [name, from] of resting) {
+                const clip = CLIPS.find((each) => each.name === name);
+                for (let frame = from; frame < clip.frames; frame++) {
+                    armsOf(clip, voice, frame / clip.frames, posture).forEach((arm, index) =>
+                        expect(THREE.MathUtils.radToDeg(arm.angleTo(standing[index])), `${name} ${voice} ${posture} ${frame}`).toBeLessThan(5)
+                    );
+                }
+            }
+        }
+    }
 });

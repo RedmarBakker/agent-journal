@@ -9,6 +9,7 @@ import {
     aimedAt,
     airborneFrame,
     chaseRoom,
+    chuteFrom,
     fallingFrom,
     floorAt,
     legAt,
@@ -17,7 +18,7 @@ import {
     slideAt,
     underWalker,
 } from "../domain/figureMotion.js";
-import {footingNow, footingOn, groundUnder, landingOn, latestFloors} from "../figure/floors.js";
+import {footingNow, footingOn, groundUnder, landingOn, latestFloors, readFloors} from "../figure/floors.js";
 import {useFigureBody} from "../composables/figureBody.js";
 import {
     beatsAfter,
@@ -30,17 +31,21 @@ import {
     facesAfter,
     figureStateOf,
     frameIn,
+    sayingsAfter,
     testResultsAfter,
     waitingSinceAt,
     withSystemCards,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {builds, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {builds, climbOf, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
+import FigureAct from "./FigureAct.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, eyesAt, lookOf, pastimeFor, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, eyesAt, lookOf, pastimeFor, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -162,6 +167,15 @@ const drawnParcels = ref([]);
 let sky = null;
 const shownFrame = ref(0);
 const headAt = ref({x: 0.5, y: 0.3});
+const handAt = ref({x: 0.75, y: 0.6, out: 1});
+// The figure's run up the bubbles and off the top of the screen (figure/skyward.js), or null: when it set off, its hops, and once it is out of
+// sight, when its parachute brings it back; and where the run is this frame, which the clip on screen turns by
+let flight = null;
+const flying = ref(null);
+// the clip the figure plays while its UFO is here (reactions.js VARIANTS watch), picked for each flight
+let watching = "watch";
+// the clip the held state is played as for this stretch of it (reactions.js variantOf), picked again each time the state changes
+let variant = {state: "", clip: ""};
 
 // the clip of this name the figure has, or idle when it has none
 const clipNamed = (name) => clips.find((clip) => clip.name === name) || clips.find((clip) => clip.name === "idle");
@@ -177,7 +191,13 @@ function doing() {
     const pushing = parcels.value.find((each) => each.state === "built");
     if (pushing) return behind(parcelX(pushing), feetX()) ? "push" : "idle";
     if (parcels.value.some((each) => each.state === "building")) return "work";
-    return builds(held.value.state) && !body.place.stays ? "idle" : clipOf(held.value.state);
+    return builds(held.value.state) && !body.place.stays ? "idle" : heldClip();
+}
+
+function heldClip() {
+    const {state} = held.value;
+    if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip)};
+    return variant.clip;
 }
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
@@ -195,7 +215,9 @@ function current() {
         beat,
         state: held.value.state,
         doing: doing(),
-        watching: Boolean(ufo.value),
+        watching: ufo.value ? watching : "",
+        flying: flying.value,
+        chute: Boolean(body.airborne?.chute),
         composeFacing: composeFacing(),
     };
     const wanted = clipFor(scene, canDraw);
@@ -268,7 +290,7 @@ function step() {
     // the leg waiting for the clip it sets off with goes in the frame that clip goes on screen, so the walk is never drawn on the spot
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
     drawn = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
-    if (!body.trip?.started && !body.airborne) rest();
+    if (!body.trip?.started && !body.airborne && !flight) rest();
     flyUfo();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
     looking = look.looking;
@@ -280,11 +302,12 @@ function step() {
         posture: drawn,
         eyes: look.eyes,
         stride,
-        sky: shown.clip.name === "watch" ? sky : null,
+        sky: shown.clip.name === watching ? sky : null,
         at: lookingAt(shown),
         open: blinked(),
     });
     headAt.value = player.headAt();
+    handAt.value = player.handAt();
     keepParcels(shown);
     frameTimer = requestAnimationFrame(step);
 }
@@ -418,6 +441,7 @@ function settle(spot, held = footingOn(spot)) {
 // when the ground went from under it, it goes at once, without waiting for its clip, as gravity does not, straight up or down to the
 // ground at home and on to its place there
 function watchFooting() {
+    if (flight) return flyOn();
     if (body.slide && !body.trip?.moves && !body.airborne) slideOn();
     if (body.airborne) return fallOn();
     if (body.trip?.moves) {
@@ -463,6 +487,30 @@ function carryWalk(dx, dy) {
 
 // The figure falls from the line it rests on at `spot`, in its posture there, never from below the ground at home, and goes on to `to`
 // once it lands
+// the run up the bubbles above the figure and off the top of the screen sets off from where it stands
+function takeOff() {
+    const from = {x: body.place.x, y: body.place.y};
+    flight = {began: performance.now(), hops: skywardHops(from, climbOf(readFloors(), figureSize(), from), 0, SIZE), back: 0};
+    body.footing = null;
+}
+
+// Each frame of the run: the figure hops on up; once it has gone off the top it stays out of sight a random few seconds, and then comes
+// down on its parachute from above the screen, somewhere over its world, to whatever it falls onto
+function flyOn() {
+    const now = performance.now();
+    const at = skywardAt(flight.hops, now - flight.began, SIZE);
+    flying.value = at.gone ? null : at;
+    if (!at.gone) return void (body.at = placed({...at, posture: "stand"}, "stand"));
+    flight.back ||= now + goneMs(Math.random);
+    if (now < flight.back) return;
+    const world = worldBox();
+    const x = world.left + SIZE / 2 + Math.random() * Math.max(world.right - world.left - SIZE, 0);
+    flight = null;
+    body.airborne = chuteFrom(x, -SIZE / 4, SKYWARD.chute * SIZE, now, Math.random);
+    body.at = placed(body.airborne, "stand");
+    step();
+}
+
 function fallFrom(spot, to) {
     endSlide();
     body.airborne = fallingFrom(spot, to, latestFloors().floors, performance.now(), Math.random);
@@ -548,7 +596,7 @@ function uprooted() {
 // the scene the reactions are decided in
 const scene = () => ({
     voice: voice.value,
-    moving: Boolean(body.trip),
+    moving: Boolean(body.trip || flight),
     place: body.place,
     beats: beats.value.length,
     arriving: body.arriving,
@@ -564,6 +612,7 @@ function look() {
         ...cardsAfter(lead.value, knownCards),
         ...testResultsAfter(lead.value, testStates),
         ...facesAfter(rows("reactions"), seenAt),
+        ...sayingsAfter(lead.value, rows("messages"), seenAt),
     ];
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
     if (committed(happened)) sendUfo();
@@ -577,7 +626,8 @@ function look() {
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const egg = answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
     const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere);
-    const after = [egg, pastime].filter(Boolean);
+    if (pastime?.flies) takeOff();
+    const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
     if (coveredSince() && !body.airborne && !body.place.stays) stepOutOf(boxAt(body.place, figureSize(), drawn));
     const target = targetFor({
@@ -594,7 +644,7 @@ function look() {
     });
     stay = target.stay;
     // while the UFO is here the figure stands watching it, and goes nowhere
-    if (!body.trip && !body.arriving && !body.airborne && !ufo.value) {
+    if (!body.trip && !body.arriving && !body.airborne && !ufo.value && !flight) {
         moveTo(target.spot, {pace: hurried ? SPRINT : 1, pressing: hurried});
         hurried = false;
     }
@@ -705,6 +755,7 @@ function sendUfo() {
     }
     const world = worldBox();
     const stops = stopsOf(taken.map((each) => ({id: each.id, x: parcelX(each)})));
+    watching = variantOf("watch", Math.random, hasClip);
     ufo.value = {
         began: performance.now(),
         stops,
@@ -883,6 +934,12 @@ const markStyle = computed(() => ({
     "--mark-seconds": `${MARK_DRIFT_SECONDS}s`,
 }));
 
+// the act on screen, with how far through it the figure is, which the page draws what it holds for (figure/acts.js), or null
+const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.value.name, u: shownFrame.value / shownClip.value.frames} : null));
+const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
+// the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
+const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
+
 const chasing = computed(() => shownClip.value?.name === "squire_chase");
 // during an entrance or exit what is below the edge the figure stands on is hidden, as the box it climbs over or drops past would hide it
 const passing = computed(() => ["enter", "exit"].includes(shownClip.value?.name));
@@ -904,6 +961,7 @@ const actorStyle = computed(() => ({
     "--fall-ms": `${fall.value.ms}ms`,
     "--squash": fall.value.squash,
     "--bounce": `${fall.value.bounce}px`,
+    ...(squeezed.value && {scale: `${squeezed.value.x} ${squeezed.value.y}`, transformOrigin: `50% ${(1 - below.value) * 100}%`}),
     ...(chasing.value && {animationDuration: `${chaseMs.value}ms`, "--chase": `${chaseRun.value}px`}),
     ...(grip.value && {rotate: `${tilt.value}rad`, transformOrigin: `${grip.value.x * 100}% ${grip.value.y * 100}%`}),
 }));
@@ -928,13 +986,16 @@ const style = computed(() => ({
     >
         <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
-            <canvas ref="canvas" class="voice-figure-canvas" :style="passing ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
+            <canvas ref="canvas" class="voice-figure-canvas" :style="passing || hidesBelowFloor(acting?.name) ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
             <template v-if="mark">
                 <span class="voice-figure-marks" :style="markStyle">
                     <template v-for="index in MARK_COUNT" :key="index">
                         <span :style="{animationDelay: `${(-(index - 1) * MARK_DRIFT_SECONDS) / MARK_COUNT}s`}">{{ mark }}</span>
                     </template>
                 </span>
+            </template>
+            <template v-if="acting">
+                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" />
             </template>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">

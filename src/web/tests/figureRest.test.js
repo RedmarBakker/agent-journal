@@ -59,7 +59,7 @@ test("the rest is a pastime of every voice after a long quiet, played only where
     expect(pastime.voice).toBeUndefined();
     const others = new Map(AMBIENT.filter((each) => each.clip !== "rest").map((each) => [each.clip, Infinity]));
     for (const voice of Object.keys(stances)) {
-        for (const [posture, played] of [["stand", {clip: "rest", card: ""}], ["sit", null]]) {
+        for (const [posture, played] of [["stand", {clip: "rest", card: "", flies: false}], ["sit", null]]) {
             const scene = {voice, place: {posture}, beats: 0, arriving: false, leaving: false, moving: false};
             const has = (name) => clipNamed(name).postures.includes(posture);
             expect(pastimeFor(scene, {state: "idle", lasted: pastime.after - 1}, new Map(others), 0, () => 0, has), voice).toBe(null);

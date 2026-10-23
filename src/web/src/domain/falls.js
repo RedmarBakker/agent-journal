@@ -13,11 +13,12 @@ export const fallOf = (voice) => FALLS[voice] ?? FALLS.butler;
 const LONGEST_STEP = 0.05;
 
 // One frame of a figure falling to `floor` from `y`, `speed` pixels a second downward, `seconds` after the last: it falls under the pull
-// that takes it its own `size` in the voice's fall time, and lands, its speed spent, the moment it touches the floor
-export function fallStep({y, speed}, floor, seconds, fall, size) {
+// that takes it its own `size` in the voice's fall time, never faster than `most` pixels a second, as under a parachute, and lands, its
+// speed spent, the moment it touches the floor
+export function fallStep({y, speed}, floor, seconds, fall, size, most = Infinity) {
     const step = Math.min(seconds, LONGEST_STEP);
     const pull = (2 * size) / (fall.ms / 1000) ** 2;
-    const faster = speed + pull * step;
+    const faster = Math.min(speed + pull * step, most);
     const lower = y + faster * step;
     return lower < floor ? {y: lower, speed: faster, landed: false} : {y: floor, speed: 0, landed: true};
 }

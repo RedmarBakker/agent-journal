@@ -78,7 +78,7 @@ export function fallFrame(body, floors, seconds, fall, size, still = false) {
     if (!floor) return {...body, landed: null};
     if (floor.top < body.y) return {x: body.x, y: floor.top, speed: 0, landed: floor};
     if (still) return {x: body.x, y: floor.top, speed: 0, landed: floor};
-    const step = fallStep({y: body.y, speed: body.speed}, floor.top, seconds, fall, size);
+    const step = fallStep({y: body.y, speed: body.speed}, floor.top, seconds, fall, size, body.most);
     return {x: body.x, y: step.y, speed: step.speed, landed: step.landed ? floor : null};
 }
 
@@ -131,6 +131,10 @@ export function fallingFrom(spot, to, floors, now, random) {
     const y = home ? Math.min(spot.y, home.top) : spot.y;
     return {x: spot.x, y, posture: spot.posture, speed: 0, at: now, to, catches: random() < BUBBLES_CATCH};
 }
+
+// A parachute's descent from `top`, above the screen, at `x`, starting at `now`: a fall no faster than `most` pixels a second, caught by a
+// bubble it comes down past when `random()` says so
+export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, catches: random() < BUBBLES_CATCH, most, chute: true});
 
 // One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
 // fell in, where it goes on to and whether it landed on its feet

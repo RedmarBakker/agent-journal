@@ -76,8 +76,9 @@ export const clipOf = (state) => HELD[state] || HELD.idle;
 // wait, 0 once nothing does. `counts` are the views' badge counts.
 export const waitingSinceAt = (counts, since, now) => (counts.question + counts.waiting + counts.suggestion > 0 ? since || now : 0);
 
-// What the figure plays now, by clip name, with the way it faces: its entrance or exit, the landing, the leg of a trip it is on, its hang
-// while it hangs, watching the UFO while it is `watching`, a beat until it is done, pointing once it stands at a tab while the agent waits
+// What the figure plays now, by clip name, with the way it faces: its fall, under a parachute when it comes down on one, its run up the
+// bubbles while it is `flying`, its entrance or exit, the landing, the leg of a trip it is on, its hang
+// while it hangs, the clip it watches the UFO with while it is `watching` one, a beat until it is done, pointing once it stands at a tab while the agent waits
 // on the user, else what its body is doing,
 // drawn in its place. `scene` says where things stand, `doing` being the clip of the stretch it is in; `canDraw(name, posture)` whether a
 // clip is drawn in a posture. A beat comes with the way it faces.
@@ -94,7 +95,9 @@ export function clipFor(scene, canDraw) {
     const {mode, leaving, arriving, trip, landing, place, beat, state, doing} = scene;
     // a figure in the air on its feet falls before anything else, leaving included: it lands first, and then goes; one dropping with its
     // seat stays seated
-    if (mode === AIRBORNE && place.posture === "stand") return {clip: "fall", facing: 0};
+    if (mode === AIRBORNE && place.posture === "stand") return {clip: scene.chute ? "chute" : "fall", facing: 0};
+    // on its run up the bubbles it hops on and on, turned the way it goes
+    if (scene.flying) return {clip: "hop_up", facing: scene.flying.way > 0 ? 90 : scene.flying.way < 0 ? 270 : 0};
     if (leaving) return {clip: "exit", facing: 0, once: true, departure: true};
     if (arriving) return {clip: "enter", facing: 0, once: true, arrival: true};
     if (landing) return {clip: "land", facing: 0, once: true, landed: true};
@@ -104,7 +107,7 @@ export function clipFor(scene, canDraw) {
     if (trip?.started) return {...legClip(trip, doing, canDraw), ...(trip.moves ? {} : {startsLeg: true})};
     // a hanging figure holds on until it is let go; a beat waits until it has dropped
     if (place.posture === "hang") return {clip: `hang_${place.grip}`, facing: place.face};
-    if (scene.watching) return {clip: "watch", facing: 0};
+    if (scene.watching) return {clip: scene.watching, facing: 0};
     if (beat) return {clip: beat.clip, facing: beat.facing, once: true};
     if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : 0};
@@ -128,7 +131,28 @@ const BEATS = [
     {beat: "failed", matches: (card) => card.icon === "check" && card.tone === "danger"},
     {beat: "refused", matches: (card) => card.tone === "danger"},
     {beat: "answered", matches: (card) => card.icon === "question"},
+    {beat: "task_finished", matches: (card) => card.icon === "todos" && card.tone === "good"},
+    {beat: "task_filed", matches: (card) => card.icon === "inbox" || (card.icon === "todos" && card.label.startsWith("Started task"))},
+    {beat: "question_asked", matches: (card) => card.kind === "question"},
+    {beat: "worker_sent", matches: (card) => card.icon === "agents" && card.label.includes(": dispatched")},
+    {beat: "fact_filed", matches: (card) => card.icon === "check" && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
+    {beat: "check_passed", matches: (card) => card.icon === "check" && card.tone === "good"},
 ];
+
+// the beat for what the agent says in the chat, by the message's kind: a plain reply to the user, or a report
+const SAYINGS = {"": "replied", report: "reported"};
+
+// the messages of the agent's session, or of none, as the system's cards and a worker's reports are
+const ofSession = (agent, message) => [undefined, null, "", agent.session].includes(message.session);
+
+// The beats for what the agent has said in the chat since `seenAt` (seconds), oldest first, each turned to its message
+export const sayingsAfter = (agent, messages, seenAt) =>
+    agent
+        ? messages
+              .filter((m) => m.author === "agent" && SAYINGS[m.data?.kind || ""] && ofSession(agent, m) && createdAt(m) > seenAt)
+              .map((m) => ({beat: SAYINGS[m.data?.kind || ""], time: createdAt(m), card: refOf(m)}))
+              .sort((a, b) => a.time - b.time)
+        : [];
 
 // the moment a face on a message is, by who put it there: the user's is aimed at the figure, the agent's is the figure's own to play out
 const FACE_MOMENTS = {user: "reacted", agent: "agent_reacted"};
@@ -138,7 +162,7 @@ const FACE_MOMENTS = {user: "reacted", agent: "agent_reacted"};
 export function facesAfter(reactions, seenAt) {
     return reactions
         .filter((row) => FACE_MOMENTS[row.author] && createdAt(row) > seenAt)
-        .map((row) => ({beat: `${FACE_MOMENTS[row.author]}:${row.face}`, time: createdAt(row), card: `messages:${row.message_id}`}))
+        .map((row) => ({beat: `${FACE_MOMENTS[row.author]}:${row.emoji}`, time: createdAt(row), card: `messages:${row.message_id}`}))
         .sort((a, b) => a.time - b.time);
 }
 
@@ -164,12 +188,13 @@ export const withSystemCards = (agent, messages) =>
             cards: [
                 ...(agent.data?.cards || []),
                 ...messages
-                    .filter((m) => m.author === "system" && [undefined, null, "", agent.session].includes(m.session))
+                    .filter((m) => m.author === "system" && ofSession(agent, m))
                     .map((m) => ({
                         key: refOf(m),
                         time: createdAt(m),
                         icon: m.data.icon,
                         tone: m.data.tone,
+                        kind: m.data.kind,
                         label: m.text,
                         watch: m.data.output ? {figure: m.data.figure || "", ending: m.data.ending || ""} : null,
                     })),

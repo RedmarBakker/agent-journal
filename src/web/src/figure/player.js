@@ -58,6 +58,10 @@ export class FigurePlayer {
         return this.stage.headAt(this.figure, this.moves);
     }
 
+    handAt() {
+        return this.stage.handAt(this.figure, this.moves);
+    }
+
     frameOf(clip, index, facing, posture) {
         const key = `${clip.name}/${facing}/${posture}/${this.canvas.width}`;
         const frames = this.drawn.get(key) || [];

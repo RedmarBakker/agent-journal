@@ -1,6 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
+import {ACTS, heldPhases, partOf} from "./acts.js";
 import {blendMoves} from "./blend.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
@@ -373,16 +374,26 @@ function wave(pose, stance, t) {
     const sign = SIDES[side];
     trunk(pose, {twist: -sign * 4, turn: -sign * 8, tilt: -sign * 6});
     armsAtRest(pose, stance, [side]);
+    waveArm(pose, side, t);
+}
+
+// the arm on `side` raised and waving
+function waveArm(pose, side, t) {
     pose.turn(`upper_arm_${side}`, {x: -RAISED_ROLL});
-    pose.turn(`upper_arm_${side}`, {z: sign * WAVE_BACK});
+    pose.turn(`upper_arm_${side}`, {z: SIDES[side] * WAVE_BACK});
     pose.bend(`forearm_${side}`, WAVE_BEND + WAVE_SWING * waveOf(t));
 }
 
+// thinks it over with both arms hanging at its sides as it stands idle, the head tipped to one side, looking up and turning slowly
 function think(pose, stance, t) {
-    const side = freeSide(stance);
+    const sign = SIDES[freeSide(stance)];
+    trunk(pose, {nod: -6 + 3 * waveOf(t), turn: -sign * 10 + 4 * waveOf(t), tilt: -sign * 6});
+    armsAtRest(pose, stance);
+}
+
+// the chin rested on the hand on `side`
+function chinOnHand(pose, side) {
     const sign = SIDES[side];
-    trunk(pose, {nod: 8 + 3 * waveOf(t), turn: -sign * 10 + 3 * waveOf(t), tilt: -sign * 5});
-    armsAtRest(pose, stance, [side]);
     const [x, y, z] = CHIN_REST;
     pose.reach(side, pose.carried(new THREE.Vector3(sign * x, y, z)), new THREE.Vector3(...THINK_ELBOW));
     const [across, forward, up] = THINK_HAND;
@@ -1081,15 +1092,22 @@ function propHand(pose, side, ready, target, turn = {}) {
     pose.face(`hand_${side}`, {z: -SIDES[side] * 90 * ready, ...turn});
 }
 
+// the most the head turns from the way the body faces, either side, in degrees; a look further round turns the body the rest of the way
+export const HEAD_TURN = 65;
+
+// The head turned to look at `target`, `amount` of the way, never further round than HEAD_TURN from the body: it returns how many degrees
+// further round the look is, which the body turns
 function eyesToward(pose, target, amount = 1) {
     const centre = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length);
     const pivot = pose.head("head", pose.standing("head"));
     const way = target.clone().sub(pivot);
     const above = centre.z - pose.rig.heads.get("head").z;
     const pitch = Math.asin(THREE.MathUtils.clamp(above / way.length(), -1, 1)) - Math.atan2(way.z, Math.hypot(way.x, way.y));
-    const yaw = Math.atan2(way.x, -way.y);
-    pose.face("head", {x: THREE.MathUtils.radToDeg(pitch) * amount, z: THREE.MathUtils.radToDeg(yaw) * amount});
+    const yaw = THREE.MathUtils.radToDeg(Math.atan2(way.x, -way.y));
+    const turned = THREE.MathUtils.clamp(yaw, -HEAD_TURN, HEAD_TURN);
+    pose.face("head", {x: THREE.MathUtils.radToDeg(pitch) * amount, z: turned * amount});
     pose.gaze = {target: target.toArray(), forward: READ_GAZE.forward};
+    return (yaw - turned) * amount;
 }
 
 
@@ -1420,12 +1438,15 @@ const LOOK_DEPTH = -1.2;
 
 // The head turned to look at `at`, a point in the figure's picture as shares of its width from the left and its height from the top, as
 // the UFO it watches or the leading edge of a progress bar under its feet, the figure turned `facing` degrees; `at.amount` of the way from
-// the head as its clip has it, 0 to 1, as the look eases in and out
+// the head as its clip has it, 0 to 1, as the look eases in and out. It returns how many degrees the body turns for a look further round
+// than the head goes, the body following the head as the look eases in, so the head leads.
 export function lookToward(pose, at, facing = 0) {
     const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
     const own = pose.matrix("head").clone();
-    eyesToward(pose, point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing)));
-    if (at.amount < 1) pose.final.set("head", between(own, pose.matrix("head"), at.amount));
+    const further = eyesToward(pose, point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing)));
+    const amount = at.amount ?? 1;
+    if (amount < 1) pose.final.set("head", between(own, pose.matrix("head"), amount));
+    return further * amount * amount;
 }
 
 // a bone's move `k` of the way from `from` to `to`, turned and placed part way, as a head easing into or out of a look
@@ -1918,6 +1939,264 @@ function castle(pose, stance, t) {
     eyesAs(pose, "amused", bow);
 }
 
+// The journal moments and the searches the figure acts out (acts.js ACTS), what it holds and what grows beside it drawn by the page at its
+// free hand and its feet (chat/FigureAct.vue). The wrist places, against the body at rest with the free hand's side outward: held up high,
+// out at the mailbox's slot, the stamp lifted and brought down on the sheet, at the board, the sign held up, the scroll held before it, at
+// the drawer, at the binoculars before the eyes, the flashlight held out, and down at the corner of the floor while it crouches `crouch`
+export const ACTED = {
+    high: [1.0, -0.25, 2.92], slot: [1.32, -0.42, 2.0], stampHigh: [1.1, -0.42, 2.7], stampDown: [1.18, -0.46, 1.72],
+    board: [1.24, -0.36, 2.6], tap: 0.08, sign: [0.5, -0.25, 3.0], signWaggle: 0.1, scroll: [0.3, -0.84, 2.28],
+    drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.1, -0.55, 1.88], torchSweep: 0.16,
+    corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34, cannon: [1.2, -0.3, 2.45],
+}
+
+// the free hand's place between the wrist places `from` and `to`, `k` of the way
+const between3 = (from, to, k) => from.map((n, index) => mix(n, to[index], k));
+
+// what the free hand carries put away while it holds what the page draws in it, the busy hand keeping its own
+const emptyHand = (pose) => pose.putAway(...[...IN_HAND].filter((item) => !BUSY_ITEMS.has(item)));
+
+// the free hand carried `ready` of the way from hanging to the wrist place `at`, the other arm at rest
+function actHand(pose, stance, ready, at, turn = {}) {
+    const side = freeSide(stance);
+    armsAtRest(pose, stance, ready ? [side] : []);
+    propHand(pose, side, ready, at, turn);
+    if (ready) emptyHand(pose);
+}
+
+// holds an envelope up high, looking up at it, until the dove has taken it, then lowers the hand and watches it go
+function post_dove(pose, stance, t) {
+    const act = ACTS.post_dove;
+    const u = onceTime(t, act.frames);
+    const up = partOf(u, act.raise) * (1 - partOf(u, [0.86, 1]));
+    breathe(pose, 0);
+    trunk(pose, {lean: -6 * up, nod: -16 * up});
+    actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTED.high);
+    eyesAs(pose, "amused", partOf(u, [act.taken, act.taken + 0.1]) * (1 - partOf(u, [0.86, 1])));
+}
+
+// reaches out to the mailbox grown beside it and posts the letter into its slot
+function post_mailbox(pose, stance, t) {
+    const act = ACTS.post_mailbox;
+    const u = onceTime(t, act.frames);
+    const out = partOf(u, act.reach) * (1 - partOf(u, act.back));
+    breathe(pose, 0);
+    trunk(pose, {lean: 6 * out, nod: 8 * out});
+    actHand(pose, stance, out, between3(ACTED.slot, [ACTED.slot[0] + 0.06, ACTED.slot[1], ACTED.slot[2] - 0.08], partOf(u, act.posted)));
+}
+
+// lifts a big stamp, brings it down hard on the sheet beside it, dipping into the blow, and lifts it off again
+function stamp(pose, stance, t) {
+    const act = ACTS.stamp;
+    const u = onceTime(t, act.frames);
+    const held = partOf(u, act.lift) * (1 - partOf(u, [act.up[1], act.sinks[0]]));
+    const down = partOf(u, act.down) * (1 - partOf(u, act.up));
+    crouch(pose, 0.08 * down);
+    breathe(pose, 0);
+    trunk(pose, {lean: 4 + 8 * down, nod: 10 * held});
+    actHand(pose, stance, held, between3(ACTED.stampHigh, ACTED.stampDown, down), {x: -20 * down});
+    eyesAs(pose, "amused", partOf(u, [act.stamped, act.up[1]]) * (1 - partOf(u, act.sinks)));
+}
+
+// reaches up to the board grown beside it, pins a note on it and taps it twice
+function pin_note(pose, stance, t) {
+    const act = ACTS.pin_note;
+    const u = onceTime(t, act.frames);
+    const tap = Math.max(waveOf(span(u, ...act.tap), 2), 0);
+    const [x, y, z] = ACTED.board;
+    breathe(pose, 0);
+    trunk(pose, {nod: -6 * partOf(u, act.reach) * (1 - partOf(u, act.back))});
+    actHand(pose, stance, partOf(u, act.reach) * (1 - partOf(u, act.back)), [x, y - ACTED.tap * tap, z]);
+}
+
+// raises a sign with a question mark on a stick high over its head and waggles it
+function ask_sign(pose, stance, t) {
+    const act = ACTS.ask_sign;
+    const u = onceTime(t, act.frames);
+    const up = partOf(u, act.raise) * (1 - partOf(u, act.lower));
+    const waggle = waveOf(span(u, ...act.waggle), act.waggles) * swell(u, ...act.waggle);
+    const [x, y, z] = ACTED.sign;
+    breathe(pose, 0);
+    trunk(pose, {nod: -10 * up, tilt: 4 * waggle});
+    actHand(pose, stance, up, [x + ACTED.signWaggle * waggle, y, z]);
+    eyesAs(pose, "worried", up);
+}
+
+// holds a scroll up before it, nods down to read it as it unrolls, and lowers it once it has rolled up
+function scroll(pose, stance, t) {
+    const act = ACTS.scroll;
+    const u = onceTime(t, act.frames);
+    const reading = partOf(u, act.unrolls) * (1 - partOf(u, act.rolls));
+    breathe(pose, 0);
+    trunk(pose, {nod: 14 * reading, lean: 3 * reading});
+    actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTED.scroll, {x: -20});
+    eyesAs(pose, "reading", reading);
+}
+
+// reaches down to the drawer slid out of the cabinet beside it and drops a card into it
+function file_card(pose, stance, t) {
+    const act = ACTS.file_card;
+    const u = onceTime(t, act.frames);
+    const out = partOf(u, act.reach) * (1 - partOf(u, act.back));
+    const [x, y, z] = ACTED.drawer;
+    breathe(pose, 0);
+    trunk(pose, {lean: 10 * out, nod: 14 * out});
+    actHand(pose, stance, out, [x, y, z - ACTED.drop * partOf(u, act.filed)]);
+}
+
+// aims a confetti cannon up and out in the free hand, fires it, kicked back by it, and lowers it
+function confetti_cannon(pose, stance, t) {
+    const act = ACTS.confetti_cannon;
+    const u = onceTime(t, act.frames);
+    const kick = swell(u, ...act.kick);
+    breathe(pose, 0);
+    trunk(pose, {lean: -8 * kick, nod: -12 * partOf(u, act.aim)});
+    actHand(pose, stance, partOf(u, act.aim) * (1 - partOf(u, act.lower)), [ACTED.cannon[0], ACTED.cannon[1], ACTED.cannon[2] + 0.12 * kick], {x: -50});
+    eyesAs(pose, "amused", partOf(u, [act.fire, act.fire + 0.1]));
+}
+
+// blows a party horn held at its mouth, twice, leaning back into each blow
+function party_horn(pose, stance, t) {
+    const act = ACTS.party_horn;
+    const u = onceTime(t, act.frames);
+    const blowing = Math.max(...act.blows.map((blow) => swell(u, ...blow)));
+    breathe(pose, 0);
+    trunk(pose, {lean: -5 * blowing, nod: -8 * blowing});
+    actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTING.whistleWrist);
+    pose.shutEyes(1 - 0.6 * blowing);
+}
+
+// how far into the box the packed figure sinks, below the floor where the page hides it
+const PACKED = {sink: 2.1, hop: 0.75, leap: 1.0};
+
+// hops up into the box grown at its feet and sinks down in it, and once the compaction is over jumps out of it, arms up
+function pack_box(pose, stance, t) {
+    const act = ACTS.pack_box;
+    const {into, out} = heldPhases(act, t);
+    const hop = swell(into, ...act.hop);
+    const sunk = partOf(into, act.into) * (1 - partOf(out, [act.pops, act.pops + 0.2]));
+    const leap = swell(out, ...act.leap);
+    pose.lift("root", {z: PACKED.hop * hop - PACKED.sink * sunk + PACKED.leap * leap});
+    breathe(pose, 0);
+    trunk(pose, {lean: 6 * hop, nod: 12 * sunk - 10 * leap});
+    flung(pose, stance, 0, 60 * hop + 120 * leap);
+    tucked(pose, 0.7 * hop + 0.6 * leap);
+    pose.putAway(...IN_HAND);
+    eyesAs(pose, "amused", leap);
+}
+
+// holds up the press coming down on its head with both hands, eyes squeezed shut while it is squashed, and lets go as it lifts
+function press(pose, stance, t) {
+    const act = ACTS.press;
+    const {into, out} = heldPhases(act, t);
+    const up = partOf(into, [0.2, 0.55]) * (1 - partOf(out, [0.2, 0.5]));
+    breathe(pose, 0);
+    trunk(pose, {nod: -8 * up});
+    flung(pose, stance, 0, 140 * up);
+    pose.putAway(...IN_HAND);
+    pose.shutEyes(1 - 0.8 * partOf(into, act.squashes) * (1 - partOf(out, act.frees)));
+}
+
+// holds the vacuum's nozzle out low beside it, sweeping it a little, as the words fly into it
+function vacuum(pose, stance, t) {
+    const {held, into, out} = heldPhases(ACTS.vacuum, t);
+    const [x, y, z] = ACTED.torch;
+    breathe(pose, 0);
+    trunk(pose, {lean: 8, nod: 14, turn: -SIDES[freeSide(stance)] * 14});
+    actHand(pose, stance, into * (1 - out), [x, y, z - 0.12 * waveOf(held ?? 0, 2)], {x: -10});
+}
+
+// hops on up from bubble to bubble, arms flung up and legs tucked, very fast
+function hop_up(pose, stance, t) {
+    const pump = waveOf(t);
+    breathe(pose, 0);
+    trunk(pose, {lean: 8, nod: -12});
+    flung(pose, stance, 0, 110 + 20 * pump);
+    tucked(pose, 0.6 + 0.2 * pump);
+}
+
+// hangs from the parachute's lines with both hands up holding them, the legs dangling and swinging a little
+function chute(pose, stance, t) {
+    const swing = waveOf(t);
+    breathe(pose, t);
+    trunk(pose, {nod: -6, tilt: 3 * swing});
+    flung(pose, stance, 0, 150);
+    pose.putAway(...IN_HAND);
+    tucked(pose, 0.15, 6 * swing);
+    eyesAs(pose, "amused");
+}
+
+// The figure looks all about through binoculars held up to its eyes, sweeping slowly from one side to the other, the hand keeping them
+// before the eyes as the head turns
+function binoculars(pose, stance, t) {
+    const turn = ACTED.sweep * waveOf(t, ACTS.binoculars.sweep);
+    trunk(pose, {twist: turn, nod: -4});
+    const side = freeSide(stance);
+    const [x, y, z] = ACTED.binoculars;
+    const at = new THREE.Vector3(SIDES[side] * x, y, z).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
+    actHand(pose, stance, 1, [SIDES[side] * at.x, at.y, at.z], {x: -60});
+}
+
+// shines a flashlight held out low into a dark corner beside it, the beam moving about in it, leaning to look
+function flashlight(pose, stance, t) {
+    const sweep = glanceOf(t);
+    const [x, y, z] = ACTED.torch;
+    breathe(pose, 0);
+    trunk(pose, {lean: 10, nod: 18, turn: -SIDES[freeSide(stance)] * 20});
+    actHand(pose, stance, 1, [x, y, z - ACTED.torchSweep * sweep], {x: -10});
+    eyesAs(pose, "reading");
+}
+
+// crouches, lifts a corner of the floor beside it with the free hand and peeks under it, then lets it down and stands
+function peek_under(pose, stance, t) {
+    const act = ACTS.peek_under;
+    const down = partOf(t, [0, act.lift[0] + 0.1]) * (1 - partOf(t, [act.down[1], 1]));
+    const lifted = partOf(t, act.lift) * (1 - partOf(t, act.down));
+    const peek = partOf(t, act.peek) * (1 - partOf(t, act.down));
+    crouch(pose, ACTED.crouch * down);
+    breathe(pose, 0);
+    trunk(pose, {lean: ACTED.peekLean * down, nod: 14 * down + 10 * peek, turn: -SIDES[freeSide(stance)] * 24 * peek, tilt: 8 * peek});
+    const [x, y, z] = ACTED.corner;
+    actHand(pose, stance, down, [x, y, z + ACTED.lift * lifted]);
+    eyesAs(pose, "reading", peek);
+}
+
+// The figure types on and stops to think now and then, a hand at its chin and the other tapping slowly at the laptop
+function type_ponder(pose, stance, t) {
+    const side = freeSide(stance);
+    const sign = SIDES[side];
+    const [x, y, z] = TYPING_HANDS;
+    breathe(pose, t);
+    trunk(pose, {lean: 4, nod: 14 + 3 * waveOf(t), turn: -sign * 6, tilt: -sign * 4});
+    handsTo(pose, stance, 1, [x, y, z + 0.03 * Math.max(waveOf(t, 2), 0)]);
+    chinOnHand(pose, side);
+    pose.holdLaptop();
+    eyesAs(pose, "reading");
+}
+
+// The figure wipes its brow with the back of the free hand in a break from the work, and blows out
+function wipe_brow(pose, stance, t) {
+    const {u, ready} = gestureTime(t, ACTING.greetingFrames);
+    const across = swell(u, 0.3, 0.75);
+    breathe(pose, 0);
+    trunk(pose, {lean: -4 * ready, nod: -10 * ready});
+    actHand(pose, stance, ready, between3([0.7, -0.62, 2.34], [0.3, -0.84, 2.38], across), {x: -40});
+    pose.shutEyes(1 - 0.6 * across);
+}
+
+// The figure waves up at the UFO with the free hand, stepping back as the watch does
+function wave_up(pose, stance, t) {
+    const {back} = pose.sky ?? {back: 0};
+    pose.lift("root", {y: SKY.step * back, z: SKY.hop * Math.sin(Math.PI * back)});
+    breathe(pose, t);
+    trunk(pose, {lean: -SKY.lean * back});
+    const side = freeSide(stance);
+    armsAtRest(pose, stance, [side]);
+    waveArm(pose, side, t);
+    emptyHand(pose);
+    eyesAs(pose, "amused");
+}
+
 // What a posture does to the legs of whatever clip is drawn in it: what it sets before the clip poses the body, and what it lays over the
 // legs after. Standing, the clip has the legs to itself, and so does a clip that poses its own `legs`, as the push walks on bent knees.
 const LEGS = {
@@ -2002,6 +2281,28 @@ export const CLIPS = [
     {name: "sword", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: sword},
     {name: "shield_up", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: shield_up},
     {name: "castle", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: castle},
+    {name: "post_dove", frames: ACTS.post_dove.frames, fps: ACTS.post_dove.fps, loops: false, postures: GESTURE, pose: post_dove},
+    {name: "post_mailbox", frames: ACTS.post_mailbox.frames, fps: ACTS.post_mailbox.fps, loops: false, postures: MOVE, pose: post_mailbox},
+    {name: "stamp", frames: ACTS.stamp.frames, fps: ACTS.stamp.fps, loops: false, postures: MOVE, pose: stamp},
+    {name: "pin_note", frames: ACTS.pin_note.frames, fps: ACTS.pin_note.fps, loops: false, postures: MOVE, pose: pin_note},
+    {name: "ask_sign", frames: ACTS.ask_sign.frames, fps: ACTS.ask_sign.fps, loops: false, postures: GESTURE, pose: ask_sign},
+    {name: "whistle_runner", frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: MOVE, pose: whistle},
+    {name: "scroll", frames: ACTS.scroll.frames, fps: ACTS.scroll.fps, loops: false, postures: GESTURE, pose: scroll},
+    {name: "file_card", frames: ACTS.file_card.frames, fps: ACTS.file_card.fps, loops: false, postures: MOVE, pose: file_card},
+    {name: "cheer", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, pose: thumbs_up},
+    {name: "confetti_cannon", frames: ACTS.confetti_cannon.frames, fps: ACTS.confetti_cannon.fps, loops: false, postures: GESTURE, pose: confetti_cannon},
+    {name: "party_horn", frames: ACTS.party_horn.frames, fps: ACTS.party_horn.fps, loops: false, postures: GESTURE, pose: party_horn},
+    {name: "pack_box", frames: ACTS.pack_box.intro + ACTS.pack_box.hold + ACTS.pack_box.outro, intro: ACTS.pack_box.intro, outro: ACTS.pack_box.outro, leaves: ACTS.pack_box.hold, fps: ACTS.pack_box.fps, loops: true, postures: MOVE, pose: pack_box},
+    {name: "press", frames: ACTS.press.intro + ACTS.press.hold + ACTS.press.outro, intro: ACTS.press.intro, outro: ACTS.press.outro, leaves: ACTS.press.hold, fps: ACTS.press.fps, loops: true, postures: GESTURE, pose: press},
+    {name: "vacuum", frames: ACTS.vacuum.intro + ACTS.vacuum.hold + ACTS.vacuum.outro, intro: ACTS.vacuum.intro, outro: ACTS.vacuum.outro, leaves: ACTS.vacuum.hold, fps: ACTS.vacuum.fps, loops: true, postures: MOVE, pose: vacuum},
+    {name: "hop_up", frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
+    {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
+    {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},
+    {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
+    {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
+    {name: "type_ponder", frames: 24, fps: 6, loops: true, leaves: 8, postures: ON_A_LAP, pose: type_ponder},
+    {name: "wipe_brow", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
+    {name: "wave_up", frames: 12, fps: 12, loops: true, cuts: true, postures: ["stand", "sit"], pose: wave_up},
 ];
 
 // An eye closes about its own middle before the head carries it, as rig.Figure.shut_eyes scales the eye object
@@ -2751,7 +3052,20 @@ export class Stage {
     headAt(figure, moves) {
         if (!moves) return {x: 0.5, y: 0.3};
         const at = figure.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(figure.rig.eyes.length);
-        at.applyMatrix4(moves.get("head")).applyMatrix4(TO_GLB).project(this.camera);
+        return this.pictured(at.applyMatrix4(moves.get("head")));
+    }
+
+    // where the free hand grips in the picture, and which way across the picture its side is, 1 to the right
+    handAt(figure, moves) {
+        const side = freeSide(figure.stance);
+        if (!moves) return {x: 0.5 + SIDES[side] * 0.25, y: 0.6, out: SIDES[side]};
+        const grip = new THREE.Vector3(SIDES[side] * HAND.grip, HAND.forward, 0).add(figure.rig.heads.get(`hand_${side}`));
+        return {...this.pictured(grip.applyMatrix4(moves.get(`hand_${side}`))), out: SIDES[side]};
+    }
+
+    // a point of the posed figure as shares of its picture's width from the left and height from the top
+    pictured(point) {
+        const at = point.applyMatrix4(TO_GLB).project(this.camera);
         return {x: (at.x + 1) / 2, y: (1 - at.y) / 2};
     }
 
@@ -2765,10 +3079,10 @@ export class Stage {
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         if (!clip.legs) LEGS[posture]?.over(pose);
-        if (at) lookToward(pose, at, facing);
+        const turned = facing + (at ? lookToward(pose, at, facing) : 0);
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
-        if (eyes) lookAs(pose, eyes, facing);
-        const moves = place(figure, pose, facing, blend);
+        if (eyes) lookAs(pose, eyes, turned);
+        const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;
         if (this.renderer.domElement.width !== size) {
             this.renderer.setSize(size, size, false);
