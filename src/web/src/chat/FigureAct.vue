@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {ACTS, heldPhases, partOf, standingAt} from "../figure/acts.js";
+import {ACTS, heldPhases, hornOpen, partOf, standingAt} from "../figure/acts.js";
 
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
@@ -18,7 +18,7 @@ const props = defineProps({
 
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
 // its top above the feet; and the drawings' sizes and colours, in pixels
-const STANDS = {post_mailbox: {across: 0.25, top: 0.4}, stamp: {across: 0.25, top: 0.32}, pin_note: {across: 0.31, top: 0.56}, file_card: {across: 0.24, top: 0.3}};
+const STANDS = {stamp: {across: 0.25, top: 0.32}, pin_note: {across: 0.31, top: 0.56}, file_card: {across: 0.24, top: 0.3}};
 const COLOURS = {ink: "#272936", paper: "#f6f1e3", red: "#d9413b", green: "#2f9e44", wood: "#8a5a2b", cork: "#c99a5b", note: "#f5d547", gold: "#e8b84a", dove: "#fbfbf7", light: "#fff3a8"};
 const CONFETTI = ["#6366f1", "#e8b84a", "#ef476f", "#06d6a0", "#118ab2"];
 
@@ -50,10 +50,6 @@ const dove = computed(() => {
     return {x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, way: props.u < taken ? -out.value : out.value, wings: Math.sin(props.u * 60), carrying: props.u >= taken};
 });
 
-// the mailbox's flag goes up once the letter is in; the letter goes in behind the box's front
-const flagUp = computed(() => props.u >= act.value.flag);
-const posted = computed(() => props.u >= act.value.posted[1]);
-
 // the stamp's mark on the sheet, popping in as it lands
 const stamped = computed(() => (props.u >= act.value.stamped ? Math.min((props.u - act.value.stamped) / 0.05, 1) : 0));
 
@@ -83,13 +79,17 @@ const drawer = computed(() => partOf(props.u, act.value.opens) * (1 - partOf(pro
 const filed = computed(() => partOf(props.u, act.value.filed));
 
 // confetti bursting from `from` over `burst`: each piece out along its own way, falling as it goes
-function confettiFrom(from, burst, reach, count) {
+// Confetti bursting from `from` over `burst`: `count` pieces fanned `spread` radians about the way `aim` points, each out its own share of
+// `reach`, falling as it goes; every fifth a long streamer
+function confettiFrom(from, burst, reach, count, aim = -Math.PI / 2, spread = 2.4) {
     const k = partOf(props.u, burst);
     if (k <= 0 || k >= 1) return [];
     return Array.from({length: count}, (_, index) => {
-        const way = -Math.PI / 2 + (index / (count - 1) - 0.5) * 2.4;
-        const far = reach * Math.sqrt(k) * (0.6 + 0.4 * ((index * 7) % count) / count);
-        return {x: from.x + Math.cos(way) * far, y: from.y + Math.sin(way) * far + 50 * k * k, spin: 720 * k + index * 40, colour: CONFETTI[index % CONFETTI.length], fade: 1 - k ** 3};
+        const scatter = (index * 0.618034) % 1;
+        const way = aim + (scatter - 0.5) * spread;
+        const far = reach * Math.sqrt(k) * (0.35 + 0.65 * ((index * 0.381966) % 1));
+        const streamer = index % 5 === 0;
+        return {x: from.x + Math.cos(way) * far, y: from.y + Math.sin(way) * far + 50 * k * k, spin: 720 * k + index * 40, colour: CONFETTI[index % CONFETTI.length], fade: 1 - k ** 3, width: streamer ? 1.4 : 3 + 2 * scatter, height: streamer ? 7 : 2 + scatter};
     });
 }
 const cheered = computed(() => (props.name === "cheer" ? confettiFrom({x: head.value.x, y: head.value.y - 30}, act.value.burst, 44, 18) : []));
@@ -97,12 +97,12 @@ const cheered = computed(() => (props.name === "cheer" ? confettiFrom({x: head.v
 // the cannon held up and out in the free hand, its mouth where the confetti comes out of
 const cannon = computed(() => {
     const tip = {x: hand.value.x + out.value * 9, y: hand.value.y - 14};
-    return {tip, confetti: confettiFrom(tip, act.value.burst, 60, 24)};
+    return {tip, confetti: confettiFrom(tip, act.value.burst, 95, 90, -Math.PI / 2 + out.value * 0.5, 1.5)};
 });
 
 // the party horn at the mouth: unrolled with each blow, coiled up between them
 const horn = computed(() => {
-    const blown = Math.max(...act.value.blows.map((blow) => Math.sin(Math.PI * Math.min(Math.max((props.u - blow[0]) / (blow[1] - blow[0]), 0), 1))));
+    const blown = hornOpen(props.u);
     const up = partOf(props.u, act.value.raise) * (1 - partOf(props.u, act.value.lower));
     return {x: head.value.x + out.value * 4, y: head.value.y + 9, length: 4 + 24 * blown, coil: 5 * (1 - blown) + 1, up};
 });
@@ -192,22 +192,6 @@ const flap = computed(() => {
                 </g>
             </template>
 
-            <template v-if="name === 'post_mailbox' && stand">
-                <g v-if="!posted && u > act.reach[0]" :transform="`translate(${hand.x} ${hand.y})`">
-                    <rect x="-6" y="-4" width="12" height="8" rx="1" :fill="COLOURS.paper" />
-                    <path d="M-6 -4 0 0.8 6 -4" fill="none" />
-                </g>
-                <g :transform="growing">
-                    <rect :x="stand.x - 2" :y="stand.top + 12" width="4" :height="floor - stand.top - 12" :fill="COLOURS.wood" />
-                    <rect :x="stand.x - 9" :y="stand.top + 11" width="18" height="3" :fill="COLOURS.wood" />
-                    <path :d="`M${stand.x - 8} ${stand.top + 11}V${stand.top + 5}a8 5 0 0 1 16 0V${stand.top + 11}Z`" :fill="COLOURS.red" />
-                    <path :d="`M${stand.x - 5} ${stand.top + 5}h10`" stroke-width="1.6" />
-                    <g :transform="`rotate(${flagUp ? 0 : 90 * -out} ${stand.x + out * 8} ${stand.top + 9})`">
-                        <path :d="`M${stand.x + out * 8} ${stand.top + 9}V${stand.top - 2}h${out * 5}v4h${-out * 5}`" :fill="COLOURS.gold" />
-                    </g>
-                </g>
-            </template>
-
             <template v-if="name === 'stamp' && stand">
                 <g :transform="growing">
                     <rect :x="stand.x - 2" :y="stand.top + 3" width="4" :height="floor - stand.top - 3" :fill="COLOURS.wood" />
@@ -283,7 +267,7 @@ const flap = computed(() => {
             </template>
 
             <template v-for="(piece, index) in [...cheered, ...(name === 'confetti_cannon' ? cannon.confetti : [])]" :key="index">
-                <rect :x="piece.x - 2.5" :y="piece.y - 1.5" width="5" height="3" :fill="piece.colour" stroke="none" :opacity="piece.fade" :transform="`rotate(${piece.spin} ${piece.x} ${piece.y})`" />
+                <rect :x="piece.x - piece.width / 2" :y="piece.y - piece.height / 2" :width="piece.width" :height="piece.height" :fill="piece.colour" stroke="none" :opacity="piece.fade" :transform="`rotate(${piece.spin} ${piece.x} ${piece.y})`" />
             </template>
 
             <template v-if="name === 'confetti_cannon' && u > act.aim[0] && u < act.lower[1]">

@@ -1,11 +1,9 @@
 // The journal moments and the searches the figure acts out with things the page draws beside it (chat/FigureAct.vue): for each act its
-// length, unless it plays a clip of figure.js's own, and the shares of its clip over which each of its parts plays, read alike by the clip that moves the body (figure.js) and by
-// the page that draws what it holds, so the hand and the thing in it never part.
+// length, unless it plays a clip of figure.js's own, and the shares of its clip over which each of its parts plays, read alike by the clip
+// that moves the body (figure.js) and by the page that draws what it holds, so the hand and the thing in it never part.
 export const ACTS = {
-    // a reply: it holds an envelope up high, a dove flies in, takes it and flies off with it
+    // a message to a worker or another session: it holds an envelope up high, a dove flies in, takes it and flies off with it
     post_dove: {frames: 48, fps: 12, raise: [0, 0.18], comes: [0.2, 0.5], taken: 0.5, goes: [0.5, 0.95], lower: [0.58, 0.8]},
-    // a reply: a red mailbox on a plank grows out of the floor beside it, it posts the letter, the flag goes up and the box sinks again
-    post_mailbox: {frames: 48, fps: 12, grows: [0, 0.18], reach: [0.2, 0.42], posted: [0.42, 0.55], back: [0.6, 0.76], flag: 0.55, sinks: [0.84, 1]},
     // a finished task: a sheet on a stand grows beside it, it lifts a big stamp, brings it down on the sheet, which is stamped green
     stamp: {frames: 42, fps: 12, grows: [0, 0.15], lift: [0.12, 0.36], down: [0.36, 0.46], stamped: 0.45, up: [0.52, 0.7], sinks: [0.86, 1]},
     // a new task: a small board on a post grows beside it and it pins a note to it, then taps it
@@ -22,8 +20,9 @@ export const ACTS = {
     cheer: {burst: [0.35, 0.95]},
     // a celebration: it aims a confetti cannon up and fires it, kicked back a little as the confetti bursts out
     confetti_cannon: {frames: 40, fps: 12, aim: [0, 0.25], fire: 0.4, kick: [0.4, 0.55], burst: [0.4, 0.95], lower: [0.8, 1]},
-    // a celebration: it blows a party horn at its mouth, which unrolls and rolls back up with each blow
-    party_horn: {frames: 44, fps: 12, raise: [0, 0.18], blows: [[0.22, 0.48], [0.52, 0.8]], lower: [0.84, 1]},
+    // a celebration: it blows a party horn at its mouth, its head turned to the side: the horn shoots open at once, stays open over a second
+    // and rolls back up a little slower
+    party_horn: {frames: 40, fps: 12, raise: [0, 0.14], turns: [0.08, 0.2], opens: [0.2, 0.23], rolls: [0.6, 0.74], back: [0.74, 0.86], lower: [0.82, 1], turn: 70},
     // searching: binoculars at its eyes, sweeping slowly left and right
     binoculars: {frames: 80, fps: 10, sweep: 1},
     // searching: a flashlight shone into a dark corner beside it, the beam moving about in it
@@ -48,6 +47,9 @@ const ease = (k) => k * k * (3 - 2 * k);
 
 // how far `u` is through the part `[from, to]` of an act, eased, 0 before it and 1 after
 export const partOf = (u, [from, to]) => ease(span(u, from, to));
+
+// how far the party horn has unrolled at `u`, 0 to 1: shot open at once, held open, and rolled back up
+export const hornOpen = (u) => partOf(u, ACTS.party_horn.opens) * (1 - partOf(u, ACTS.party_horn.rolls));
 
 // how far a thing that grows out of the floor at the start of an act and sinks at its end stands up at `u`, 0 to 1
 export const standingAt = (act, u) => partOf(u, act.grows) * (1 - partOf(u, act.sinks));

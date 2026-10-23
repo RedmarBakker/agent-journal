@@ -11,8 +11,8 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
-const ACTED = ["post_dove", "post_mailbox", "stamp", "pin_note", "ask_sign", "whistle_runner", "scroll", "file_card", "cheer"];
-const NEW = ["fume", "eager", "pack_box", "press", "vacuum", "confetti_cannon", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
+const ACTED = ["post_dove", "stamp", "pin_note", "ask_sign", "whistle_runner", "scroll", "file_card", "cheer"];
+const NEW = ["look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "confetti_cannon", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
     for (const name of [...ACTED, ...NEW]) {
@@ -31,11 +31,11 @@ test("every voice plays every journal moment and every new variant in each postu
     }
 });
 
-const {REACTIONS, VARIANTS, AMBIENT, reactionTo, variantOf, workMoments} = await import("../src/figure/reactions.js");
+const {REACTIONS, VARIANTS, AMBIENT, pastimeFor, reactionTo, variantOf, workMoments} = await import("../src/figure/reactions.js");
 const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 
 const JOURNAL = {
-    replied: ["post_dove", "post_mailbox"],
+    messaged: ["post_dove"],
     task_finished: ["stamp"],
     task_filed: ["pin_note"],
     question_asked: ["ask_sign"],
@@ -67,6 +67,12 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(14, "agent", "thinking it over", {kind: "thought"}, "s"),
         message(15, "agent", "a reply in another session", {}, "other"),
         message(16, "user", "thanks", {}),
+        // a message the agent sends: a worker's next job, a note told it in its session, a message to another session
+        message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: ""}),
+        message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: told a message in its session", {kind: "card", icon: "agents", tone: ""}),
+        message(19, "system", "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),
+        // a message from another session is not one the agent sends
+        message(20, "system", "Drafted: the reader is committed", {kind: "peer", asks: "x", peer: "code-commandments-e1"}),
     ];
     const lead = withSystemCards(agent, messages);
     const beats = [...beatsAfter(lead, 0), ...sayingsAfter(lead, messages, 0)].map((fire) => [fire.beat, fire.card]);
@@ -79,7 +85,9 @@ test("each thing the agent does in the journal is its own moment, read from the 
         ["fact_filed", "messages:6"],
         ["fact_filed", "messages:7"],
         ["check_passed", "messages:8"],
-        ["replied", "messages:12"],
+        ["messaged", "messages:17"],
+        ["messaged", "messages:18"],
+        ["messaged", "messages:19"],
         ["reported", "messages:13"],
     ]);
     // a message seen at the last look is not a moment again
@@ -113,7 +121,9 @@ const picks = (among, pick) => {
 test("every moment the figure acts out has more than one way to play it, picks among them by weight, and never picks one it lacks", () => {
     const has = (name) => Boolean(clipNamed(name));
     // the journal moments, the celebrations and the breaks from the hammering
-    for (const moment of [...Object.keys(JOURNAL), "tests_passed", "committed", "task_finished", "building"]) {
+    // the journal moments but the message, which the user wants as the dove alone (message 40754), the celebrations, the breaks from the
+    // hammering and the glances from standing still
+    for (const moment of [...Object.keys(JOURNAL).filter((each) => each !== "messaged"), "tests_passed", "committed", "building", "standing"]) {
         const reaction = REACTIONS.find((each) => each.moment === moment);
         expect(reaction.among.length, moment).toBeGreaterThan(1);
         const memory = () => new Map();
@@ -146,7 +156,15 @@ const {ACTS, heldPhases, squeezeOf} = await import("../src/figure/acts.js");
 
 test("now and then while idle the figure hops up the bubbles above it very fast, off the top of the screen, and stays gone one to five seconds", () => {
     const pastime = AMBIENT.find((each) => each.flies);
-    expect([pastime.clip, pastime.state, pastime.odds < 1]).toEqual(["hop_up", "idle", true]);
+    expect([pastime.clip, pastime.odds < 1]).toEqual(["hop_up", true]);
+    // played whenever the figure has nothing to do, a wait on a run, a worker or the user as much as idle (messages 40669, 40680)
+    const has = (name) => Boolean(clipNamed(name));
+    for (const state of ["idle", "waiting", "asking"]) {
+        const due = new Map(AMBIENT.filter((each) => !each.flies).map((each) => [each.clip, Infinity]));
+        const scene = {voice: "butler", place: {posture: "stand"}, beats: 0, arriving: false, leaving: false, moving: false};
+        expect(pastimeFor(scene, {state, lasted: pastime.after}, due, 0, () => 0, has), state).toEqual({clip: "hop_up", card: "", flies: true});
+    }
+    expect(pastimeFor({voice: "butler", place: {posture: "stand"}, beats: 0}, {state: "thinking", lasted: 999}, new Map(), 0, () => 0, has)).toBe(null);
     const hops = skywardHops({x: 300, y: 700}, [{x: 340, y: 560}, {x: 260, y: 400}, {x: 330, y: 260}], 0, 112);
     expect(hops.map((hop) => hop.to.y)).toEqual([560, 400, 260, -168]);
     // each hop goes up, and a hop of the figure's height takes well under half a second
@@ -202,32 +220,29 @@ test("while the context compacts the figure is packed into a box that shrinks, s
     expect(squeezeOf("vacuum", 0.5)).toBe(null);
 });
 
-const {EAGER, eagerFor} = await import("../src/figure/reactions.js");
+const {EAGER, eagerFor, secondsLeft} = await import("../src/figure/reactions.js");
 
-test("on a docked bar past its last stretch the figure now and then gets eager, once a bar and only for a slow run, and reacts to how it ends", () => {
+test("eager for a docked bar's end: it starts when the run looks about five seconds from done at its pace, only for a run ten seconds old by then, and is never called off before the end", () => {
     const bar = {};
     const at = (share, ended = "") => ({bar, share, ended, began: 100});
-    // under its last stretch it only watches whether the run is slow: still short of it once the run is EAGER.after seconds old
-    const quick = eagerFor(at(0.5), null, () => 0, 100 + EAGER.after - 1).eager;
-    expect(quick).toEqual({bar, slow: false, rolled: false, on: false});
-    // a run that got past it within its first seconds never makes the figure eager, at any roll
-    expect(eagerFor(at(EAGER.from), quick, () => 0, 100 + EAGER.after + 5).eager).toEqual({bar, slow: false, rolled: true, on: false});
-    const slow = eagerFor(at(0.6), quick, () => 0, 100 + EAGER.after).eager;
-    expect(slow.slow).toBe(true);
-    // a slow run past its last stretch: rolled once, by the odds
-    expect(eagerFor(at(EAGER.from), slow, () => EAGER.odds, 130).eager).toEqual({bar, slow: true, rolled: true, on: false});
-    const eager = eagerFor(at(EAGER.from), slow, () => 0, 130).eager;
-    expect(eager).toEqual({bar, slow: true, rolled: true, on: true});
-    expect(eagerFor(at(0.97), eager, () => 0.99, 131)).toEqual({eager, moment: null});
-    // passed, it celebrates; failed, it is crushed and fumes
-    expect(eagerFor(at(1, "good"), eager, () => 0, 132)).toEqual({eager: {...eager, on: false}, moment: {beat: "bar_done"}});
-    expect(eagerFor(at(1, "bad"), eager, () => 0, 132).moment).toEqual({beat: "bar_failed"});
+    expect(secondsLeft(20, 0.8)).toBeCloseTo(5);
+    // a run 20 seconds in at 70 percent has over 8 seconds left: not yet
+    expect(eagerFor(at(0.7), null, () => 0, 120)).toEqual({eager: null, moment: null});
+    // at 80 percent after 20 seconds it has 5 left: it rolls, once, by the odds
+    expect(eagerFor(at(0.8), null, () => EAGER.odds, 120).eager).toEqual({bar, on: false});
+    const eager = eagerFor(at(0.8), null, () => 0, 120).eager;
+    expect(eager).toEqual({bar, on: true});
+    expect(eagerFor(at(0.95), {bar, on: false}, () => 0, 123).eager.on).toBe(false);
+    // a quick run, under ten seconds old when it nears its end, never makes it eager
+    expect(eagerFor(at(0.6), null, () => 0, 100 + EAGER.after - 4).eager).toEqual({bar, on: false});
+    // started, it is kept to the end whatever the figure does, and then it is cheered or fumed at
+    expect(eagerFor(at(0.97), eager, () => 0.99, 124)).toEqual({eager, moment: null});
+    expect(eagerFor(at(1, "good"), eager, () => 0, 125)).toEqual({eager: {bar, on: false}, moment: {beat: "bar_done"}});
+    expect(eagerFor(at(1, "bad"), eager, () => 0, 125).moment).toEqual({beat: "bar_failed"});
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
     expect(REACTIONS.find((each) => each.moment === "bar_done").among.map((each) => each.clip)).toEqual(["joy", "confetti_cannon", "party_horn"]);
-    // stepping off the bar ends it, with nothing to mark, and stepping back on rolls nothing again
-    const off = eagerFor(null, eager, () => 0, 133);
-    expect(off).toEqual({eager: {...eager, on: false}, moment: null});
-    expect(eagerFor(at(0.97), off.eager, () => 0, 134).eager.on).toBe(false);
+    // only the bar going ends it with nothing to mark
+    expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {bar, on: false}, moment: null});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
 });
 
@@ -258,4 +273,91 @@ test("sitting on a corner the figure sits just inside it, toward the inside of t
     expect(SEAT_INBOARD * 112).toBeLessThan(thigh);
     expect(SEAT_INBOARD * 112).toBeGreaterThan(0.04 * 112);
     expect([right.face, left.face, right.posture]).toEqual([70, 290, "sit"]);
+});
+
+const {TYPING, typingIn, typingSpell} = await import("../src/figure/reactions.js");
+const {hornOpen} = await import("../src/figure/acts.js");
+const {GLANCE, HEAD_TURN, TUMBLE} = await import("../src/figure/figure.js");
+
+// the way the head and the chest face, in degrees toward the viewer's right, of a pose
+const facingsOf = (pose) => {
+    const moves = pose.moves(0);
+    const yaw = (bone) => {
+        const ahead = new THREE.Vector3(0, -1, 0).transformDirection(moves.get(bone));
+        return THREE.MathUtils.radToDeg(Math.atan2(ahead.x, -ahead.y));
+    };
+    return {head: yaw("head"), chest: yaw("chest")};
+};
+const posedAt = (name, voice, t) => {
+    const pose = new Posing(RIG, "stand", 0);
+    clipNamed(name).pose(pose, stanceOf(voice), t);
+    return pose;
+};
+
+test("blown, the party horn shoots open at once, stays open over a second, rolls back up a little slower, the head turned to the side", () => {
+    const {frames, fps, opens, rolls} = ACTS.party_horn;
+    const seconds = (share) => (share * frames) / fps;
+    expect(seconds(opens[1] - opens[0])).toBeLessThan(0.2);
+    expect(seconds(rolls[0] - opens[1])).toBeGreaterThanOrEqual(1);
+    expect(seconds(rolls[0] - opens[1])).toBeLessThanOrEqual(1.5);
+    expect(seconds(rolls[1] - rolls[0])).toBeGreaterThan(seconds(opens[1] - opens[0]));
+    expect(hornOpen((opens[1] + rolls[0]) / 2)).toBe(1);
+    expect([hornOpen(0), hornOpen(1)]).toEqual([0, 0]);
+    for (const voice of Object.keys(stances)) {
+        const {head, chest} = facingsOf(posedAt("party_horn", voice, (opens[1] + rolls[0]) / 2));
+        expect(Math.abs(head - chest), voice).toBeGreaterThan(35);
+    }
+});
+
+test("now and then an edit sets the figure typing for a spell it is plainly seen at, kept while its agent works on, and not again too soon", () => {
+    const spell = typingSpell("writing", null, 100, () => 0);
+    expect(spell.until - spell.began).toBeGreaterThanOrEqual(TYPING.seconds[0]);
+    expect(TYPING.odds).toBeLessThan(1);
+    // the edit is over and the agent thinks or reads: the figure types on; once the agent waits or idles, it stops
+    expect(typingIn({state: "thinking", since: 103}, spell, 105)).toEqual({state: "writing", since: 100});
+    expect(typingIn({state: "reading", since: 103}, spell, 105).state).toBe("writing");
+    expect(typingIn({state: "waiting", since: 103}, spell, 105).state).toBe("waiting");
+    expect(typingIn({state: "thinking", since: 103}, spell, spell.until).state).toBe("thinking");
+    // a lost roll, and the cooldown after a spell, hold the next one back
+    const lost = typingSpell("writing", null, 100, () => 0.99);
+    expect(lost).toEqual({began: 0, until: 0, next: 100 + TYPING.cooldown});
+    expect(typingSpell("writing", lost, 110, () => 0)).toBe(lost);
+    expect(typingSpell("writing", spell, spell.until + 1, () => 0)).toBe(spell);
+    expect(typingSpell("writing", spell, 100 + TYPING.cooldown, () => 0).began).toBe(100 + TYPING.cooldown);
+    expect(typingSpell("thinking", null, 100, () => 0)).toBe(null);
+});
+
+test("standing still, the figure now and then glances left, right or up, its head within HEAD_TURN of its body, the body turning past that", () => {
+    const standing = REACTIONS.find((each) => each.moment === "standing");
+    expect(standing.among.map((each) => each.clip)).toEqual(["look_left", "look_right", "look_up"]);
+    expect([standing.odds < 1, standing.cooldown > 0]).toEqual([true, true]);
+    for (const voice of Object.keys(stances)) {
+        for (const [name, way] of [["look_left", -1], ["look_right", 1]]) {
+            const {head, chest} = facingsOf(posedAt(name, voice, 0.5));
+            expect(Math.abs(head - chest), `${voice} ${name}`).toBeLessThanOrEqual(HEAD_TURN);
+            expect(Math.sign(head), `${voice} ${name}`).toBe(way);
+            expect(Math.abs(head), `${voice} ${name}`).toBeGreaterThan(HEAD_TURN);
+        }
+        const up = posedAt("look_up", voice, 0.5);
+        const ahead = new THREE.Vector3(0, -1, 0).transformDirection(up.moves(0).get("head"));
+        expect(ahead.z, voice).toBeGreaterThan(0.2);
+        expect(GLANCE.frames / GLANCE.fps).toBeLessThanOrEqual(2.5);
+    }
+});
+
+test("very rarely, landing from a launch, the figure trips onto its knees, shakes its head and gets up, never through the floor", () => {
+    const launched = REACTIONS.find((each) => each.moment === "launched");
+    expect([launched.clip, launched.odds <= 0.1, launched.cooldown >= 120]).toEqual(["tumble", true, true]);
+    for (const voice of Object.keys(stances)) {
+        const kneeling = posedAt("tumble", voice, 0.4);
+        const moves = kneeling.moves(0);
+        const at = (name) => kneeling.head(name, moves.get(name));
+        for (const side of ["l", "r"]) expect(at(`shin_${side}`).z, voice).toBeLessThan(0.2);
+        for (let frame = 0; frame < TUMBLE.frames; frame++) {
+            const pose = posedAt("tumble", voice, frame / TUMBLE.frames);
+            const all = pose.moves(0);
+            // the root is the rig's origin, under the body, not a part of it
+            for (const name of RIG.order.filter((bone) => bone !== "root")) expect(pose.head(name, all.get(name)).z, `${voice} ${frame} ${name}`).toBeGreaterThan(-0.12);
+        }
+    }
 });

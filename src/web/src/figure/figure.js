@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, heldPhases, partOf} from "./acts.js";
+import {ACTS, heldPhases, hornOpen, partOf} from "./acts.js";
 import {blendMoves} from "./blend.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
@@ -1948,10 +1948,10 @@ function castle(pose, stance, t) {
 
 // The journal moments and the searches the figure acts out (acts.js ACTS), what it holds and what grows beside it drawn by the page at its
 // free hand and its feet (chat/FigureAct.vue). The wrist places, against the body at rest with the free hand's side outward: held up high,
-// out at the mailbox's slot, the stamp lifted and brought down on the sheet, at the board, the sign held up, the scroll held before it, at
+// the stamp lifted and brought down on the sheet, at the board, the sign held up, the scroll held before it, at
 // the drawer, at the binoculars before the eyes, the flashlight held out, and down at the corner of the floor while it crouches `crouch`
 export const ACTED = {
-    high: [1.0, -0.25, 2.92], slot: [1.32, -0.42, 2.0], stampHigh: [1.1, -0.42, 2.7], stampDown: [1.18, -0.46, 1.72],
+    high: [1.0, -0.25, 2.92], stampHigh: [1.1, -0.42, 2.7], stampDown: [1.18, -0.46, 1.72],
     board: [1.24, -0.36, 2.6], tap: 0.08, sign: [0.5, -0.25, 3.0], signWaggle: 0.1, scroll: [0.3, -0.84, 2.28],
     drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.1, -0.55, 1.88], torchSweep: 0.16,
     corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34, cannon: [1.2, -0.3, 2.45],
@@ -1980,16 +1980,6 @@ function post_dove(pose, stance, t) {
     trunk(pose, {lean: -6 * up, nod: -16 * up});
     actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTED.high);
     eyesAs(pose, "amused", partOf(u, [act.taken, act.taken + 0.1]) * (1 - partOf(u, [0.86, 1])));
-}
-
-// reaches out to the mailbox grown beside it and posts the letter into its slot
-function post_mailbox(pose, stance, t) {
-    const act = ACTS.post_mailbox;
-    const u = onceTime(t, act.frames);
-    const out = partOf(u, act.reach) * (1 - partOf(u, act.back));
-    breathe(pose, 0);
-    trunk(pose, {lean: 6 * out, nod: 8 * out});
-    actHand(pose, stance, out, between3(ACTED.slot, [ACTED.slot[0] + 0.06, ACTED.slot[1], ACTED.slot[2] - 0.08], partOf(u, act.posted)));
 }
 
 // lifts a big stamp, brings it down hard on the sheet beside it, dipping into the blow, and lifts it off again
@@ -2062,13 +2052,14 @@ function confetti_cannon(pose, stance, t) {
     eyesAs(pose, "amused", partOf(u, [act.fire, act.fire + 0.1]));
 }
 
-// blows a party horn held at its mouth, twice, leaning back into each blow
+// blows a party horn held at its mouth, its head turned to the free hand's side, leaning back into the blow
 function party_horn(pose, stance, t) {
     const act = ACTS.party_horn;
     const u = onceTime(t, act.frames);
-    const blowing = Math.max(...act.blows.map((blow) => swell(u, ...blow)));
+    const blowing = hornOpen(u);
+    const aside = partOf(u, act.turns) * (1 - partOf(u, act.back));
     breathe(pose, 0);
-    trunk(pose, {lean: -5 * blowing, nod: -8 * blowing});
+    trunk(pose, {lean: -5 * blowing, nod: -8 * blowing, turn: SIDES[freeSide(stance)] * act.turn * aside});
     actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTING.whistleWrist);
     pose.shutEyes(1 - 0.6 * blowing);
 }
@@ -2163,6 +2154,36 @@ function fume(pose, stance, t) {
     }
     if (crushed > mad) eyesAs(pose, "worried", crushed);
     else eyesAs(pose, "angry", mad);
+}
+
+// A glance from standing still, held a moment and back: to the page's left or right, the head turned up to `head` degrees and the
+// shoulders `body` more after it, so a look further round than HEAD_TURN turns the body too; or up, the head tipped back
+export const GLANCE = {frames: 24, fps: 12, head: 55, body: 20, up: 24};
+
+const glanceAt = (way, up) => (pose, stance, t) => {
+    const u = onceTime(t, GLANCE.frames);
+    const held = rise(u, 0.05, 0.3) * (1 - rise(u, 0.7, 0.95));
+    trunk(pose, {twist: way * GLANCE.body * held, turn: way * GLANCE.head * held, nod: -up * GLANCE.up * held});
+    armsAtRest(pose, stance);
+};
+
+// Landing wrong from a launch: it trips, falls onto its knees, shakes its head, gets up and gives a little hop, arms up, as if nothing
+// happened; the hips drop `drop` to kneel, the shins laid back along the floor
+export const TUMBLE = {frames: 48, fps: 12, trip: [0, 0.3], down: [0.08, 0.26], shake: [0.32, 0.6], shakes: 3, up: [0.62, 0.84], hop: [0.82, 0.98], drop: 0.74};
+
+function tumble(pose, stance, t) {
+    const u = onceTime(t, TUMBLE.frames);
+    const kneel = rise(u, ...TUMBLE.down) * (1 - rise(u, ...TUMBLE.up));
+    const flail = swell(u, ...TUMBLE.trip);
+    const shake = waveOf(span(u, ...TUMBLE.shake), TUMBLE.shakes) * swell(u, ...TUMBLE.shake);
+    const hop = swell(u, ...TUMBLE.hop);
+    pose.lift("root", {z: -TUMBLE.drop * kneel + 0.16 * hop});
+    if (pose.posture === "stand") for (const side of Object.keys(SIDES)) pose.turn(`shin_${side}`, {x: 90 * kneel});
+    trunk(pose, {lean: 12 * kneel + 10 * flail * (1 - kneel), nod: 12 * kneel, turn: 26 * shake});
+    flung(pose, stance, 0, 100 * flail * (1 - kneel) + 60 * hop, 8 * flail);
+    pose.putAway(...IN_HAND);
+    if (hop > 0.1) eyesAs(pose, "amused", hop);
+    else eyesAs(pose, kneel > 0.5 ? "worried" : "startled", Math.max(kneel, flail));
 }
 
 // hops on up from bubble to bubble, arms flung up and legs tucked, very fast
@@ -2341,7 +2362,6 @@ export const CLIPS = [
     {name: "shield_up", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: shield_up},
     {name: "castle", frames: REACTING.frames, fps: REACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: castle},
     {name: "post_dove", frames: ACTS.post_dove.frames, fps: ACTS.post_dove.fps, loops: false, postures: GESTURE, pose: post_dove},
-    {name: "post_mailbox", frames: ACTS.post_mailbox.frames, fps: ACTS.post_mailbox.fps, loops: false, postures: MOVE, pose: post_mailbox},
     {name: "stamp", frames: ACTS.stamp.frames, fps: ACTS.stamp.fps, loops: false, postures: MOVE, pose: stamp},
     {name: "pin_note", frames: ACTS.pin_note.frames, fps: ACTS.pin_note.fps, loops: false, postures: MOVE, pose: pin_note},
     {name: "ask_sign", frames: ACTS.ask_sign.frames, fps: ACTS.ask_sign.fps, loops: false, postures: GESTURE, pose: ask_sign},
@@ -2356,6 +2376,10 @@ export const CLIPS = [
     {name: "vacuum", frames: ACTS.vacuum.intro + ACTS.vacuum.hold + ACTS.vacuum.outro, intro: ACTS.vacuum.intro, outro: ACTS.vacuum.outro, leaves: ACTS.vacuum.hold, fps: ACTS.vacuum.fps, loops: true, postures: MOVE, pose: vacuum},
     {name: "eager", frames: EAGERNESS.intro + EAGERNESS.hold + EAGERNESS.outro, intro: EAGERNESS.intro, outro: EAGERNESS.outro, leaves: EAGERNESS.hold, fps: EAGERNESS.fps, loops: true, postures: MOVE, pose: eager},
     {name: "fume", frames: ACTS.fume.frames, fps: ACTS.fume.fps, loops: false, postures: MOVE, pose: fume},
+    {name: "look_left", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(-1, 0)},
+    {name: "look_right", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(1, 0)},
+    {name: "look_up", frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(0, 1)},
+    {name: "tumble", frames: TUMBLE.frames, fps: TUMBLE.fps, loops: false, postures: MOVE, pose: tumble},
     {name: "hop_up", frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},

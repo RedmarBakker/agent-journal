@@ -109,7 +109,8 @@ export function clipFor(scene, canDraw) {
     if (place.posture === "hang") return {clip: `hang_${place.grip}`, facing: place.face};
     if (scene.watching) return {clip: scene.watching, facing: 0};
     if (scene.eager) return {clip: "eager", facing: 0};
-    if (beat) return {clip: beat.clip, facing: beat.facing, once: true};
+    // a beat to play on its chat mark waits while the figure is on its way there
+    if (beat && !(beat.onto && trip)) return {clip: beat.clip, facing: beat.facing, once: true};
     if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : 0};
 }
@@ -136,12 +137,13 @@ const BEATS = [
     {beat: "task_filed", matches: (card) => card.icon === "inbox" || (card.icon === "todos" && card.label.startsWith("Started task"))},
     {beat: "question_asked", matches: (card) => card.kind === "question"},
     {beat: "worker_sent", matches: (card) => card.icon === "agents" && card.label.includes(": dispatched")},
+    {beat: "messaged", matches: (card) => (card.icon === "agents" && /: (sent|told) /.test(card.label)) || card.sentTo},
     {beat: "fact_filed", matches: (card) => card.icon === "check" && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
     {beat: "check_passed", matches: (card) => card.icon === "check" && card.tone === "good"},
 ];
 
-// the beat for what the agent says in the chat, by the message's kind: a plain reply to the user, or a report
-const SAYINGS = {"": "replied", report: "reported"};
+// the beat for what the agent says in the chat, by the message's kind: a report
+const SAYINGS = {report: "reported"};
 
 // the messages of the agent's session, or of none, as the system's cards and a worker's reports are
 const ofSession = (agent, message) => [undefined, null, "", agent.session].includes(message.session);
@@ -150,8 +152,8 @@ const ofSession = (agent, message) => [undefined, null, "", agent.session].inclu
 export const sayingsAfter = (agent, messages, seenAt) =>
     agent
         ? messages
-              .filter((m) => m.author === "agent" && SAYINGS[m.data?.kind || ""] && ofSession(agent, m) && createdAt(m) > seenAt)
-              .map((m) => ({beat: SAYINGS[m.data?.kind || ""], time: createdAt(m), card: refOf(m)}))
+              .filter((m) => m.author === "agent" && SAYINGS[m.data?.kind] && ofSession(agent, m) && createdAt(m) > seenAt)
+              .map((m) => ({beat: SAYINGS[m.data.kind], time: createdAt(m), card: refOf(m)}))
               .sort((a, b) => a.time - b.time)
         : [];
 
@@ -207,6 +209,7 @@ export const withSystemCards = (agent, messages) =>
                         kind: m.data.kind,
                         label: m.text,
                         process: m.data.card_type === "process",
+                        sentTo: m.data.sent_to || "",
                         active: Boolean(m.data.active),
                         watch: m.data.output ? {figure: m.data.figure || "", ending: m.data.ending || ""} : null,
                     })),

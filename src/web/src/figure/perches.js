@@ -1,6 +1,6 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
 import {holds, readFloors} from "./floors.js";
-import {besidePile, boxAt, buildSpot, clearOf, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
@@ -86,6 +86,23 @@ function spotOn(perch, floor, figure) {
     return {x, y: floor.top, face: perch.face, posture: "hang", grip: perch.grip, on: floor.element};
 }
 
+// how long the figure keeps to the chat mark it went to celebrate on, in seconds
+export const MARK_STAY = 20;
+
+// Where the figure stands on the chat mark `card`, a message's key: on a corner of the bubble it is in, the side with more room first, or
+// at home when it is docked over the compose box; null when it is not on the page or its bubble has no free stand
+export function markSpot(card, figure) {
+    const mark = document.querySelector(`[data-figure-mark="${CSS.escape(card)}"]`);
+    if (!mark) return null;
+    if (groundEdge().element?.contains(mark)) return spotOf(null, figure);
+    const floors = readFloors();
+    const floor = floors.floors.find((each) => each.kind === "bubble" && each.element.contains(mark));
+    if (!floor) return null;
+    const roomier = sideOf(floor, floors.view);
+    const sides = [roomier, roomier === "left" ? "right" : "left"];
+    return sides.map((side) => perchSpot({floor: floor.id, kind: STANDS, side, grip: ""}, floors, figure)).find(Boolean) ?? null;
+}
+
 // The stands a figure with its feet at `from` hops up on its run off the top of the screen (figure/skyward.js): the corner of each bubble
 // in the thread's view above it with a free stand, nearest first, each at least a fifth of its height above the last
 export function climbOf(floors, figure, from) {
@@ -124,6 +141,7 @@ export function stayingAt(stay, figure, near) {
         return spot ? {...spot, view: null} : null;
     }
     if (stay.where === "edge") return spotOf(null, figure, stay.along);
+    if (stay.where === "mark") return markSpot(stay.card, figure);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
     return restOf(figure, near);
 }

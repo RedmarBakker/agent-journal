@@ -131,6 +131,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, icon: "inbox", label: "Filed task 13 from your message"},
         {time: 2, kind: "question", label: "Which one?"},
         {time: 2, icon: "agents", label: "Worker 57, Mr. Muybridge, motion photographer: dispatched on claude opus"},
+        {time: 2, icon: "agents", label: "Worker 57, Mr. Muybridge, motion photographer: sent its next job"},
         {time: 2, icon: "check", tone: "good", label: "Fact 15 recorded"},
         {time: 2, icon: "check", tone: "good", label: "Check Check for sins passed"},
         {time: 2, key: "messages:1", icon: "terminal", watch: {figure: "Tests 100%", ending: "finished"}},
@@ -155,18 +156,20 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             ...cardsAfter(agent, new Set()),
             ...testResultsAfter(agent, new Map()),
             ...facesAfter(faces, 1),
-            ...sayingsAfter({session: "s"}, [said(""), said("report")], 1),
+            ...sayingsAfter({session: "s"}, [said("report")], 1),
             // the figure's own page sees these two: a key pressed in the compose box, and the agent settling after WORKED_SECONDS of work
             {beat: "typing"},
             {beat: "work_done"},
             {beat: "long_walk"},
             {beat: "building"},
+            {beat: "standing"},
+            // the figure's own page sees a launch end, as the docks open under it
+            {beat: "launched"},
             // a slow run's docked bar ending while the figure is eager for it, passed or failed
             ...["good", "bad"].map((ended) => {
                 const bar = {};
-                const slow = eagerFor({bar, share: 0.5, ended: "", began: 0}, null, () => 0, EAGER.after).eager;
-                const eager = eagerFor({bar, share: EAGER.from, ended: "", began: 0}, slow, () => 0, 30).eager;
-                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, 31).moment;
+                const eager = eagerFor({bar, share: 0.9, ended: "", began: 0}, null, () => 0, EAGER.after * 2).eager;
+                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, EAGER.after * 3).moment;
             }),
         ].map((fire) => fire.beat)
     );
@@ -191,16 +194,17 @@ test("a look's clock runs only while its eyes are shown: it waits while the figu
     expect([letsGoFor({posture: "hang", face: 0}), letsGoFor({posture: "sit", face: 300})]).toEqual([false, false]);
 });
 
-test("typing is a moment, and so is the end of a stretch of work long enough, timed from when the work began", () => {
-    expect(workMoments("idle", true, 0, 50)).toEqual({moments: [{beat: "typing", time: 50}], began: 0});
+test("typing is a moment, and so is the end of a stretch of work long enough, timed from when the work began; standing idle is one every look", () => {
+    expect(workMoments("waiting", true, 0, 50)).toEqual({moments: [{beat: "typing", time: 50}], began: 0});
     expect(workMoments("running", false, 0, 50)).toEqual({moments: [], began: 50});
     expect(workMoments("thinking", false, 50, 60).began).toBe(50);
     expect(workMoments("reading", false, 10, 20)).toEqual({moments: [], began: 10});
-    expect(workMoments("idle", false, 50, 50 + WORKED_SECONDS)).toEqual({
+    expect(workMoments("waiting", false, 50, 50 + WORKED_SECONDS)).toEqual({
         moments: [{beat: "work_done", time: 50 + WORKED_SECONDS}],
         began: 0,
     });
-    expect(workMoments("idle", false, 50, 51).moments).toEqual([]);
+    expect(workMoments("waiting", false, 50, 51).moments).toEqual([]);
+    expect(workMoments("idle", false, 0, 51).moments).toEqual([{beat: "standing", time: 51}]);
 });
 
 test("a moment is answered by its egg first, else by its reaction, a beat for the body or a look for the eyes, and a missing clip by nothing", () => {
@@ -208,8 +212,9 @@ test("a moment is answered by its egg first, else by its reaction, a beat for th
     const has = () => true;
     expect(answerTo({beat: "failed", time: 1}, "squire", memory(), 0, () => 0, has)).toEqual({beat: {clip: "squire_chase", card: ""}});
     expect(answerTo({beat: "reacted:\u2764\ufe0f", time: 1}, "butler", memory(), 0, () => 0, has)).toEqual({look: "hearts"});
+    // a passed run is celebrated on its own card: the figure goes onto it first
     expect(answerTo({beat: "tests_passed", time: 1, card: "tests:1"}, "butler", memory(), 0, () => 0, has)).toEqual({
-        beat: {clip: "joy", card: "tests:1"},
+        beat: {clip: "joy", card: "tests:1", onto: true},
     });
     expect(
         answerTo(

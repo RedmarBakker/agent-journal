@@ -43,20 +43,25 @@ export const variantOf = (clip, random, has) => (VARIANTS[clip] ? pick(VARIANTS[
 // The reactions to a moment, by its name; the first whose roll succeeds plays. `moment` is a beat, a card seen to change, or a held state.
 // A clip moves the body once; a look changes only the eyes. Card-directed clips face their source.
 // A reaction with `among` plays one of those clips, picked by its weight, and keeps its cooldown under its moment, so the same moment is
-// not acted out the same way every time.
+// not acted out the same way every time. One that goes `onto` its card plays there: the figure goes to the chat mark that finished, jumps
+// onto it and celebrates on it, so it is plain what it celebrates.
 export const REACTIONS = [
-    {moment: "tests_passed", among: CELEBRATIONS, odds: 0.75, cooldown: 20, toward: "card"},
+    {moment: "tests_passed", among: CELEBRATIONS, odds: 0.75, cooldown: 20, toward: "card", onto: true},
     {moment: "tests_failed", clip: "startled", odds: 0.75, cooldown: 20, toward: "card"},
-    {moment: "committed", among: CELEBRATIONS, odds: 0.6, cooldown: 30},
+    {moment: "committed", among: CELEBRATIONS, odds: 0.6, cooldown: 30, toward: "card", onto: true},
     // what the agent has just done in the journal, acted out now and then, never every time
-    {moment: "replied", among: [{clip: "post_dove", weight: 1}, {clip: "post_mailbox", weight: 1}], odds: 0.3, cooldown: 120},
-    {moment: "task_finished", among: [{clip: "stamp", weight: 4}, ...CELEBRATIONS], odds: 0.5, cooldown: 90},
+    {moment: "messaged", clip: "post_dove", odds: 0.35, cooldown: 120},
+    {moment: "task_finished", among: [{clip: "stamp", weight: 4}, ...CELEBRATIONS], odds: 0.5, cooldown: 90, toward: "card", onto: true},
     {moment: "task_filed", among: [{clip: "pin_note", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 90},
     {moment: "question_asked", among: [{clip: "ask_sign", weight: 3}, {clip: "think", weight: 1}], odds: 0.6, cooldown: 60},
     {moment: "worker_sent", among: [{clip: "whistle_runner", weight: 3}, {clip: "wave", weight: 1}], odds: 0.5, cooldown: 90},
     {moment: "reported", among: [{clip: "scroll", weight: 3}, {clip: "nod", weight: 1}], odds: 0.5, cooldown: 90},
     {moment: "fact_filed", among: [{clip: "file_card", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 120},
-    {moment: "check_passed", among: [{clip: "cheer", weight: 3}, ...CELEBRATIONS], odds: 0.25, cooldown: 120},
+    {moment: "check_passed", among: [{clip: "cheer", weight: 3}, ...CELEBRATIONS], odds: 0.25, cooldown: 120, toward: "card", onto: true},
+    // standing still, it looks about now and then: to one side, the other, or up, so standing still is never the same loop
+    {moment: "standing", among: [{clip: "look_left", weight: 2}, {clip: "look_right", weight: 2}, {clip: "look_up", weight: 1}], odds: 0.15, cooldown: 7},
+    // landing from a launch it very rarely trips and falls to its knees
+    {moment: "launched", clip: "tumble", odds: 0.06, cooldown: 300},
     // a break from the hammering now and then
     // the bar the figure was eager for has ended, as its card says: it jumps and celebrates, or, the more for having been eager, is crushed
     // and then fumes
@@ -127,21 +132,24 @@ export function eyesAt(looking, facing, now) {
 // whether a look makes the figure let go of where it is: it hangs there with its back to the viewer, so it lets go to turn round
 export const letsGoFor = (place) => place.posture === "hang" && !eyesShown(place.face);
 
-// Things it does by itself while it sits at rest: once the state has lasted `after` seconds, every so often (a random number of seconds
+// Things it does by itself while it has nothing to do (FREE): once the state has lasted `after` seconds, every so often (a random number of seconds
 // between the two in `every`), and then with chance `odds`
 export const AMBIENT = [
-    {clip: "look_around", state: "idle", after: 60, every: [25, 60], odds: 0.6},
-    {clip: "stretch", state: "idle", after: 240, every: [90, 180], odds: 0.5},
+    {clip: "look_around", after: 60, every: [25, 60], odds: 0.6},
+    {clip: "stretch", after: 240, every: [90, 180], odds: 0.5},
     // after a long quiet it lies down on its back for a while, whistling, on any floor it stands on
-    {clip: "rest", state: "idle", after: 300, every: [120, 240], odds: 0.6},
-    {clip: "yawn", state: "idle", after: 120, every: [60, 150], odds: 0.4},
+    {clip: "rest", after: 300, every: [120, 240], odds: 0.6},
+    {clip: "yawn", after: 120, every: [60, 150], odds: 0.4},
     // now and then it hops up the bubbles off the top of the screen and comes back down on a parachute (figure/skyward.js)
-    {clip: "hop_up", flies: true, state: "idle", after: 90, every: [150, 360], odds: 0.4},
-    {clip: "polish", voice: "butler", state: "idle", after: 90, every: [60, 150], odds: 0.5},
+    {clip: "hop_up", flies: true, after: 90, every: [150, 360], odds: 0.4},
+    {clip: "polish", voice: "butler", after: 90, every: [60, 150], odds: 0.5},
     ...[
         ["coach", "whistle"], ["colleague", "sip"], ["homie", "headphones"], ["squire", "shield_polish"],
-    ].map(([voice, clip]) => ({voice, clip, state: "idle", after: 90, every: [60, 150], odds: 0.5})),
+    ].map(([voice, clip]) => ({voice, clip, after: 90, every: [60, 150], odds: 0.5})),
 ];
+
+// The states in which the figure has nothing to do, and so plays its pastimes: idle, or waiting, on a run, a worker or the user alike
+export const FREE = new Set(["idle", "waiting", "asking"]);
 
 // the agent has worked for at least this many seconds when it settles, for "work_done" to be a moment
 export const LONG_WALK_SECONDS = 5;
@@ -154,22 +162,42 @@ export function walkingMoment(trip, began, now) {
 
 export const WORKED_SECONDS = 30;
 
-// Standing on a docked bar that has run past `from` of the way, now and then, with chance `odds`, once a bar, the figure gets eager for it
-// to end: it taps its feet fast, then points down at the bar, bouncing, until it ends. Only a slow run counts: one it saw still short of
-// `from` once it had run `after` seconds, so a run that gets there in its first seconds never does.
-export const EAGER = {from: 0.85, odds: 0.4, after: 10};
+// Now and then an edit sets the figure typing at its laptop for a spell of a random number of seconds between the two in `seconds`, kept
+// while its agent works on, so the laptop is seen though an edit lasts a moment: with chance `odds`, and not again within `cooldown`
+// seconds of the last roll
+export const TYPING = {odds: 0.35, cooldown: 45, seconds: [8, 14]};
 
-// The figure's eagerness for the bar under it at `now` seconds, `progress` (places.js progressOf), or null when it stands on none: the bar
-// it knows, whether it saw it run slowly, whether it has rolled for it, and whether it is eager for it; and the moment the bar's end is
-// once it ends while the figure is eager, a pass or a failure. Stepping off the bar ends the eagerness for good.
+// The typing spell after this look at `now`, the agent's state being `state`: the spell in hand while it lasts, else a new one rolled for
+// an edit, {began, until, next}, `next` being when the next may be rolled
+export function typingSpell(state, spell, now, random) {
+    if (spell && now < spell.until) return spell;
+    if (state !== "writing" || now < (spell?.next ?? 0)) return spell;
+    const [least, most] = TYPING.seconds;
+    return random() < TYPING.odds ? {began: now, until: now + least + random() * (most - least), next: now + TYPING.cooldown} : {began: 0, until: 0, next: now + TYPING.cooldown};
+}
+
+// The held state as the figure plays it (figureState.js figureStateOf), writing for the spell while it lasts and its agent works
+export const typingIn = (held, spell, now) => (spell && now < spell.until && WORKING.has(held.state) ? {state: "writing", since: spell.began} : held);
+
+// Once a docked bar's run looks about `lead` seconds from its end at the pace it has gone, now and then, with chance `odds`, once a bar, the
+// figure gets eager for it to end: it hurries onto the bar, taps its feet fast, then points down at it, bouncing, until it ends, and is
+// never called off before. Only a slow run counts, one `after` seconds old by then, so a quick run never does.
+export const EAGER = {lead: 5, odds: 0.4, after: 10};
+
+// the seconds a run `elapsed` seconds old with `share` of it done has left, at the pace it has gone
+export const secondsLeft = (elapsed, share) => (share > 0 ? (elapsed / share) * (1 - share) : Infinity);
+
+// The figure's eagerness at `now` seconds for the bar docked over the compose box, `progress` (places.js progressOf), or null with none:
+// the bar it rolled for and whether it is eager for it; and the moment the bar's end is once it ends while the figure is eager, a pass or
+// a failure. Only the bar's end, or the bar going, ends it.
 export function eagerFor(progress, eager, random, now) {
     const same = Boolean(progress) && progress.bar === eager?.bar;
     if (same && eager.on && progress.ended) return {eager: {...eager, on: false}, moment: {beat: progress.ended === "good" ? "bar_done" : "bar_failed"}};
     if (!progress || progress.ended) return {eager: eager && {...eager, on: false}, moment: null};
-    const known = same ? eager : {bar: progress.bar, slow: false, rolled: false, on: false};
-    if (progress.share < EAGER.from) return {eager: {...known, slow: known.slow || now - progress.began >= EAGER.after}, moment: null};
-    if (known.rolled) return {eager: known, moment: null};
-    return {eager: {...known, rolled: true, on: known.slow && random() < EAGER.odds}, moment: null};
+    if (same) return {eager, moment: null};
+    const elapsed = now - progress.began;
+    if (secondsLeft(elapsed, progress.share) > EAGER.lead) return {eager, moment: null};
+    return {eager: {bar: progress.bar, on: elapsed >= EAGER.after && random() < EAGER.odds}, moment: null};
 }
 
 // A jump of more than this many of the figure's own heights sometimes turns over backwards on the way
@@ -195,7 +223,7 @@ export function reactionTo(moment, memory, now, random, voice = "", has = () => 
 
 // the clip an ambient moment calls for after `held` seconds of `state`, or "": `next` maps a clip's name to when it may next play
 export function ambientFor(state, held, next, now, random, voice = "", has = () => true) {
-    const found = AMBIENT.find((each) => each.state === state && (!each.voice || each.voice === voice) && has(each.clip) && held >= each.after && now >= (next.get(each.clip) ?? 0));
+    const found = AMBIENT.find((each) => FREE.has(state) && (!each.voice || each.voice === voice) && has(each.clip) && held >= each.after && now >= (next.get(each.clip) ?? 0));
     if (!found) return "";
     const [least, most] = found.every;
     next.set(found.clip, now + least + random() * (most - least));
@@ -205,10 +233,14 @@ export function ambientFor(state, held, next, now, random, voice = "", has = () 
 // whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way
 export const flips = (height, size, random) => height > FLIP_OVER * size && random() < FLIP_ODDS;
 
-// The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, building while the figure
-// hammers, and the end of a stretch of work that lasted WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
+// the moment each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle
+const WHILE = {work: "building", idle: "standing"};
+
+// The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, the moment of the held clip
+// (WHILE), and the end of a stretch of work that lasted WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.
 export function workMoments(state, typed, began, now) {
-    const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(HELD[state] === "work" ? [{beat: "building", time: now}] : [])];
+    const held = HELD[state];
+    const moments = [...(typed ? [{beat: "typing", time: now}] : []), ...(WHILE[held] ? [{beat: WHILE[held], time: now}] : [])];
     if (WORKING.has(state)) return {moments, began: began || now};
     if (began && now - began >= WORKED_SECONDS) moments.push({beat: "work_done", time: now});
     return {moments, began: 0};
@@ -226,7 +258,7 @@ export function answerTo(moment, voice, memory, now, random, has) {
     }
     const reaction = reactionTo(moment.beat, memory.reacted, now, random, voice, has);
     if (reaction?.look) return {look: reaction.look};
-    if (reaction && has(reaction.clip)) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : ""}};
+    if (reaction && has(reaction.clip)) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(reaction.onto && moment.card ? {onto: true} : {})}};
     return null;
 }
 
@@ -234,7 +266,7 @@ export function answerTo(moment, voice, memory, now, random, has) {
 // with nothing to play, its hands free and neither coming nor going. `scene` says where things stand; `due` when each pastime may next
 // play, filled in here.
 export function pastimeFor(scene, waited, due, now, random, has) {
-    const calm = waited.state === "idle" && scene.place.posture !== "hang" && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
+    const calm = FREE.has(waited.state) && scene.place.posture !== "hang" && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
     if (!calm) return null;
     const clip = ambientFor(waited.state, waited.lasted, due, now, random, scene.voice, has);
     return clip && has(clip) ? {clip, card: "", flies: Boolean(AMBIENT.find((each) => each.clip === clip).flies)} : null;

@@ -38,14 +38,14 @@ import {
     withSystemCards,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {builds, climbOf, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, eagerFor, eyesAt, lookOf, pastimeFor, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, eagerFor, eyesAt, lookOf, pastimeFor, typingIn, typingSpell, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
 import {visorAt, visorFor} from "../figure/visor.js";
 import {
@@ -142,7 +142,10 @@ const walking = ref(false);
 
 // the agent's row with the system's cards that are its own, which the figure's beats are read from
 const lead = computed(() => withSystemCards(agent.value, rows("messages")));
-const held = computed(() => figureStateOf(agent.value, waitingSince.value, now.value));
+// what the agent does, and what the figure plays of it: writing for the typing spell an edit set it (reactions.js typingSpell)
+const doings = computed(() => figureStateOf(agent.value, waitingSince.value, now.value));
+const spell = ref(null);
+const held = computed(() => typingIn(doings.value, spell.value, now.value));
 // whether the figure belongs in the chat now: its agent is here, in a state Settings shows it in
 const belongs = computed(() => Boolean(agent.value) && shownIn(store.settings?.voices?.avatar_shown, held.value.state));
 // the stay the figure keeps while nothing calls it anywhere, and the box it was last clicked out of, kept clear of it (perches.js)
@@ -215,7 +218,7 @@ function heldClip() {
 function current() {
     if (!body.trip?.moves || body.trip.hopping) beats.value = beats.value.filter((beat) => beat.clip !== "stumble");
     const first = beats.value[0];
-    const beat = first && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2)};
+    const beat = first && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto};
     const scene = {
         mode: modeOf(body),
         leaving: body.leaving,
@@ -566,7 +569,12 @@ function hopOn() {
 const moved = ref("");
 const fall = computed(() => fallOf(voice.value));
 const groundMoved = (motion) => (moved.value = motion);
-const squashed = (event) => event.target === event.currentTarget && (moved.value = "");
+// a launch or a drop has played out; landing from a launch, it very rarely trips (reactions.js "launched")
+function squashed(event) {
+    if (event.target !== event.currentTarget) return;
+    if (moved.value === "launched") react({beat: "launched", time: now.value});
+    moved.value = "";
+}
 
 // The figure hanging by a hand swings about it (pendulum.js): out the way its trip went as it lands, and with the hand as the ground under
 // it carries it sideways
@@ -620,6 +628,7 @@ function look() {
     clearTimeout(lookTimer);
     now.value = Date.now() / 1000;
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
+    spell.value = typingSpell(doings.value.state, spell.value, now.value, Math.random);
     const happened = [
         ...beatsAfter(lead.value, seenAt),
         ...cardsAfter(lead.value, knownCards),
@@ -634,7 +643,8 @@ function look() {
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
-    const eagerness = eagerFor(onDocks() && body.footing?.home ? progressOf(groundEdge().element) : null, eager, Math.random, now.value);
+    const docks = groundEdge();
+    const eagerness = eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value);
     eager = eagerness.eager;
     if (eagerness.moment) react(eagerness.moment);
     const work = workMoments(held.value.state, typed, workBegan, now.value);
@@ -662,8 +672,10 @@ function look() {
     });
     stay = target.stay;
     // while the UFO is here the figure stands watching it, and goes nowhere
-    if (!body.trip && !body.arriving && !body.airborne && !ufo.value && !flight) {
-        moveTo(target.spot, {pace: hurried ? SPRINT : 1, pressing: hurried});
+    // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended
+    const going = eager?.on ? !body.footing?.home && spotOf(null, figureSize()) : target.spot;
+    if (!body.trip && !body.arriving && !body.airborne && !ufo.value && !flight && going) {
+        moveTo(going, {pace: hurried || eager?.on ? SPRINT : 1, pressing: hurried});
         hurried = false;
     }
     if (!document.hidden) lookTimer = setTimeout(look, LOOK_EVERY);
@@ -857,6 +869,11 @@ const onType = (event) => {
 function react(moment) {
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
     if (answer?.beat) beats.value = moment.beat === "long_walk" ? [answer.beat, ...beats.value] : [...beats.value, answer.beat];
+    // a celebration on its chat mark: off to stand on it, when it has a stand free, else played where the figure is
+    if (answer?.beat?.onto && markSpot(answer.beat.card, figureSize())) {
+        stay = {where: "mark", card: answer.beat.card, until: now.value + MARK_STAY};
+        hurried = true;
+    }
     if (!answer?.look) return;
     looking = lookOf(answer.look, performance.now() / 1000);
     stay = stayForLook(stay, body.place);
