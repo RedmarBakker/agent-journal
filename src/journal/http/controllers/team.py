@@ -29,7 +29,7 @@ class TeamController:
     def join(self, request: Request) -> Response:
         body = request.body
         outcome = TeamRequests.reached(lambda: self.joining.join(str(body.get("address", "")).strip().rstrip("/"), str(body.get("code", "")).strip(), str(body.get("password", "")), str(body.get("fingerprint", "")).strip(), str(body.get("name", "")).strip()))
-        return Response.json({"outcome": outcome, "environment": self.account.personal_name(request.environment)}, 201)
+        return Response.json({"outcome": outcome, "environment": request.environment}, 201)
 
     def people(self, request: Request) -> Response:
         answer = TeamRequests.reached(self.link.people)

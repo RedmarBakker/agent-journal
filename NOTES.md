@@ -1387,6 +1387,14 @@ Code commandments judges `src/journal` clean (657 files). Decided on the way:
 
 ## The shared journal
 
+- **Environments are matched by key, never renamed (task 1558, 2026-10-23, Sir Jesse's word).** An environment
+  carries a random key, made with it and never changed, uniquely indexed. Its `name` is a local field
+  (`Model.local_fields`): it never leaves the machine, so joining a team changes no name on this machine and moves no
+  worktree. Its `team_name`, the owner's prefix before the name, is what the team server and other machines know; a
+  pulled environment takes its team name as its local name. A join's download re-owns this machine's environments by
+  key, or makes them anew under their team names. The rename this replaced left a joined journal unable to find the
+  environment its running agent had started in.
+
 Plan 24 builds it on the branch shared-journal, from doc 62 and report 42.
 
 - **What is shared and what stays on one machine.** Every model has `shared`, true by default. Kept on one machine: Entry (the hook and timeline log), Agent (the state stack), Timing, Statistic, CommandOutput, DashboardRow, Secret, Phone, PhoneCode, MigratedRow, Version3Migration, JournalVersion, ReleaseMessage and BrowserSession (a hosted journal's sign-ins), and also Plugin and McpServer: a plugin is a program installed on the machine and an MCP server's command and keys are the machine's own. Alias is shared: the team runs the same project commands.

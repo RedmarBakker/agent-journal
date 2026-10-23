@@ -1,17 +1,12 @@
 # The environment a hook or a journal command works: JOURNAL_ENV when it is set; else, run inside a linked worktree of
-# the project, the environment named after the worktree's folder; else main. On a shared journal a name worked out here
-# carries this machine's person before it, as in jesse-main, from .journal/team-prefix, which the join writes.
+# the project, the environment named after the worktree's folder; else main. A name is this machine's own, on a shared
+# journal too: the team knows the environment by its key, never by the name here.
 journal_environment() {
     if [ -n "$JOURNAL_ENV" ]; then
         printf '%s' "$JOURNAL_ENV"
         return
     fi
-    name=$(journal_local_environment)
-    prefix=$(cat "${JOURNAL_ROOT:-$PWD}/.journal/team-prefix" 2>/dev/null)
-    case "$name" in
-        "$prefix"-*|"") printf '%s' "$name" ;;
-        *) printf '%s' "${prefix:+$prefix-}$name" ;;
-    esac
+    journal_local_environment
 }
 
 journal_local_environment() {

@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.28.0
+
+- Joining a team never renames an environment on your machine. Each environment has a random key, made with it and never changed, and that key is how your machine and the team server match it. Its name stays your own; the team knows it under your name before it, as jesse-main. A colleague's environment arrives under that team name.
+- A journal that runs out of row numbers from the team server asks it for more there and then, and if the server cannot be reached it no longer holds every tool call.
+
 ## 4.27.1
 
 - Merging a worker's work finishes its task before letting the worker go, so the task is never told as open again on the way to done.

@@ -46,6 +46,10 @@ class Schema:
         return tuple(Column.build(field.name, hints[field.name]) for field in fields(model) if field.metadata.get("column", True))
 
     @staticmethod
+    def team_values(model: Model, names: tuple[str, ...] | None) -> dict:
+        return {name: value for name, value in Schema.stored_values(model, names).items() if name not in model.local_fields}
+
+    @staticmethod
     def stored_values(model: Model, names: tuple[str, ...] | None) -> dict:
         return {column.name: column.sql(getattr(model, column.name)) for column in Schema.columns(type(model)) if column.name != "id" and (names is None or column.name in names)}
 

@@ -1,7 +1,7 @@
 from journal.models.id_block import IdBlock
 from journal.repositories.repository import Repository
 from journal.support.actor import Actor
-from journal.support.rejection import Rejection
+from journal.repositories.number_shortage import NumberShortage
 
 RESERVE_SHARE = 5
 
@@ -17,7 +17,7 @@ class IdBlocks(Repository[IdBlock]):
     def next_id(self, table: str) -> int:
         blocks = self.all_matching(row_table=table)
         if not blocks:
-            raise Rejection(f"every row number this machine holds for {table} is used: the journal has to reach the team server for more before it can make another")
+            raise NumberShortage(f"every row number this machine holds for {table} is used, and the team server gave no more")
         block = blocks[0]
         remainder = block.remainder()
         if remainder.spare_count():
@@ -25,6 +25,9 @@ class IdBlocks(Repository[IdBlock]):
         else:
             self.delete(block, Actor.system())
         return block.next_number
+
+    def has_numbers(self, table: str) -> bool:
+        return bool(self.all_matching(row_table=table))
 
     def is_wanted(self, table: str) -> bool:
         blocks = self.all_matching(row_table=table)

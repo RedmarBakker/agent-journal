@@ -463,16 +463,21 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
     from journal.models.release_message import ReleaseMessage
     from journal.repositories.id_blocks import IdBlocks
     from journal.repositories.release_messages import ReleaseMessages
-    from journal.support.rejection import Rejection
+    from journal.repositories.number_shortage import NumberShortage
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.block_supply import BlockSupply
+    from journal.sync.team_server_link import TeamServerLink
     from journal.sync.block_numbers import BlockNumbers
     from journal.sync.team_account import TEAM_FILE, TeamAccount
 
     config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config)))
+    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus))))
     with scope.environment(1):
         assert [tasks.save(Task(environment_id=1, title=title), actor=USER).id for title in "ab"] == [1, 2], "a journal in no team numbers as before"
         config.home.mkdir(parents=True, exist_ok=True)
-        (config.home / TEAM_FILE).write_text("{}")
+        (config.home / TEAM_FILE).write_text(json.dumps({"address": "http://127.0.0.1:9"}))
         blocks.add("tasks", 1001, 1003)
         blocks.add("tasks", 2001, 2010)
         assert [tasks.save(Task(environment_id=1, title=str(n)), actor=USER).id for n in range(4)] == [1001, 1002, 1003, 2001], "past a block's end the next block numbers"
@@ -482,8 +487,9 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
         assert ReleaseMessages(connection, bus).save(ReleaseMessage(version="9.9.9"), USER).id == 1, "a model kept on one machine is numbered by SQLite"
         for _ in range(19):
             tasks.save(Task(environment_id=1, title="more"), actor=USER)
-        with pytest.raises(Rejection):
+        with pytest.raises(NumberShortage):
             tasks.save(Task(environment_id=1, title="one too many"), actor=USER)
+        assert not issubclass(NumberShortage, Rejection), "a shortage is a fault, so a hook lets its event through instead of refusing it"
 
 
 def team_scopes(connection, bus, scope):
@@ -497,6 +503,8 @@ def team_scopes(connection, bus, scope):
 
 def team_journal(tmp_path, name: str, signal=None):
     from journal.config import Config
+    from journal.sync.block_supply import BlockSupply
+    from journal.sync.team_server_link import TeamServerLink
     from journal.db.connection import Connection
     from journal.db.schema import Schema
     from journal.events.bus import Bus
@@ -535,7 +543,7 @@ def team_journal(tmp_path, name: str, signal=None):
     for model in AllModels.MODELS:
         if model.shared:
             blocks.add(model.table(), base + 1, base + 99_999)
-    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config)))
+    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus))))
     bus.listen(Deleted, UnlinkDeleted(Links(connection, bus)))
     return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus), outgoing, Links(connection, bus))
 
@@ -654,6 +662,7 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
     import json
     import time
     from journal.config import Config
+    from journal.sync.block_supply import BlockSupply
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.sync.commit_signal import CommitSignal
     from journal.sync.sync_client import SyncClient
@@ -698,7 +707,7 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
         messages = Messages(tasks.connection, tasks.bus, scope, Reactions(tasks.connection, tasks.bus, scope, links), links, EnvironmentOwners(links, Users(tasks.connection, tasks.bus), Environments(tasks.connection, tasks.bus)))
         rejected = RejectedEdits(SharedTables(tasks.connection, tasks.bus), outgoing, links, MomentCards(messages))
         uploads = PendingUploads(tasks.connection, tasks.bus)
-        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), outgoing, incoming, rejected, signal, SyncStatus(account, outgoing), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus), uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), MomentCards(messages), SyncStatus(account, outgoing)), MomentCards(messages)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus))), JournalCopy(SharedTables(tasks.connection, tasks.bus)))
+        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), outgoing, incoming, rejected, signal, SyncStatus(account, outgoing), uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), MomentCards(messages), SyncStatus(account, outgoing)), MomentCards(messages)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus))), JournalCopy(SharedTables(tasks.connection, tasks.bus)), BlockSupply(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus)))
         client.start()
         return scope, tasks, client, messages
 

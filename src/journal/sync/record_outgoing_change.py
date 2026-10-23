@@ -27,7 +27,10 @@ class RecordOutgoingChange(Listener[ModelEvent]):
         if action is None or not self.is_team_row(event.model) or not self.account.is_joined():
             return
         names = self.names(event, action)
-        fields = Schema.stored_values(event.model, names)
+        model = event.model.team_ready(self.account.prefix())
+        fields = Schema.team_values(model, names if action != CREATED else None)
+        if names is not None and not fields and action != DELETED:
+            return
         updated_at = event.model.updated_at.timestamp()
         self.changes.queued(OutgoingChange(row_table=event.model.table(), row=event.model.row_id, action=action, fields=fields, changed_at={name: updated_at for name in fields}, writer=event.actor.stamp), event.actor)
         self.changes.commit_callback(self.signal.ring)

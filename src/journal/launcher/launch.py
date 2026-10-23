@@ -20,7 +20,7 @@ from journal.support.worktree import Worktree
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.config import Config
-from journal.sync.team_account import PREFIX_FILE, TEAM_FILE
+from journal.sync.team_account import TEAM_FILE
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.support.private_folder import PrivateFolder
@@ -110,8 +110,7 @@ class Launch:
         return (self.root / ".journal" / TEAM_FILE).is_file()
 
     def default_environment(self) -> str:
-        prefix_file = self.root / ".journal" / PREFIX_FILE
-        return f"{prefix_file.read_text().strip()}-main" if prefix_file.is_file() else "main"
+        return "main"
 
     def start_refusal(self, choice: Choice) -> str:
         return next((row.refusal for row in Menu(self.root, self.package / "journal.py").environments() if row.name == choice.environment), "")

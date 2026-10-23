@@ -171,7 +171,9 @@ class Repository(Generic[M]):
             self.dispatched(row, actor)
 
     def pulled_creation(self, id: int, fields: dict, actor: Actor) -> M:
-        row = self.model(**{**self._parsed(fields), "id": id, "updated_at": self._time()})
+        parsed = self._parsed(fields)
+        row = self.model(**{**parsed, "id": id, "updated_at": self._time()})
+        row = row.local_ready() if any(name not in parsed for name in row.local_fields) else row
         with self.connection.transaction():
             self.connection.execute(*self.query().upsert(id=id, **self._column_values(row)))
             self.stored()

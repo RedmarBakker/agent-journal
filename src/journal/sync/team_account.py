@@ -91,9 +91,12 @@ class TeamAccount:
         (self.config.home / PREFIX_FILE).write_text(prefix)
         return prefix
 
-    def personal_name(self, name: str) -> str:
+    def prefix(self) -> str:
         prefix_file = self.config.home / PREFIX_FILE
-        prefix = prefix_file.read_text().strip() if prefix_file.is_file() else ""
+        return prefix_file.read_text().strip() if prefix_file.is_file() else ""
+
+    def personal_name(self, name: str) -> str:
+        prefix = self.prefix()
         return f"{prefix}-{name}" if prefix and not name.startswith(f"{prefix}-") else name
 
     def is_admin(self) -> bool:

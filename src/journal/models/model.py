@@ -16,6 +16,7 @@ class Model:
     text_fields: ClassVar[tuple[str, ...]] = ()
     timeline_visible: ClassVar[bool] = True
     shared: ClassVar[bool] = True
+    local_fields: ClassVar[tuple[str, ...]] = ()
 
     id: int | None = None
     created_at: datetime | None = None
@@ -23,6 +24,12 @@ class Model:
     updated_at: datetime | None = None
     updater: Actor | None = None
     events: tuple = field(default=(), compare=False, metadata={"column": False})
+
+    def local_ready(self) -> "Model":
+        return self
+
+    def team_ready(self, owner_prefix: str) -> "Model":
+        return self
 
     @classmethod
     def table(cls) -> str:
