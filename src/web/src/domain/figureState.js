@@ -305,15 +305,13 @@ export function eggFor(voice, moment, played) {
 }
 
 // What the figure says on the telephone, as the lines of its speech bubble, from the chat mark `card` that set off the call: for a worker sent
-// off its number, and the task it holds by its number and its title cut to CALL_LINE characters, read from the `workers` and `tasks` rows;
-// for a message to another session that session's name; none for any other mark
-export const CALL_LINE = 30;
+// off its number, and the task it holds by its number and its title, read from the `workers` and `tasks` rows; for a message to another
+// session that session's name; none for any other mark. The bubble wraps them and cuts what it cannot hold (figure/comicBubble.js).
 export function callLines(card, workers, tasks) {
     if (card.sentTo) return [`Calling ${card.sentTo}`];
     const [table, id] = String(card.row).split(":");
     if (table !== "workers") return [];
     const held = workers.find((worker) => worker.id === Number(id))?.task?.task_id;
     const title = tasks.find((task) => task.id === held)?.title ?? "";
-    const cut = title.length > CALL_LINE ? `${title.slice(0, CALL_LINE - 1).trimEnd()}…` : title;
-    return [`Worker ${id}`, ...(held ? [`task ${held}${cut ? `: ${cut}` : ""}`] : [])];
+    return [`Worker ${id}`, ...(held ? [`task ${held}${title ? `: ${title}` : ""}`] : [])];
 }

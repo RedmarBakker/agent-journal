@@ -419,7 +419,7 @@ export const callSays = (u) => u >= ACTS.phone_call.talk[0] && u < ACTS.phone_ca
 // The speech bubble the figure says something in beside its head at `head`, a page point, `width` by `height` pixels: up and out to one side
 // of the head, the side where it hides the fewest words, as `hides(box)` counts them, toward the side with more `room` when both hide as
 // many; its box on the page and the side, 1 to the right
-export const BUBBLE = {gap: 10, rise: 14};
+export const BUBBLE = {gap: 10, rise: 14, ear: 0.2};
 export function bubbleSpot(head, width, height, room, hides) {
     const box = (side) => {
         const left = side > 0 ? head.x + BUBBLE.gap : head.x - BUBBLE.gap - width;
@@ -429,6 +429,20 @@ export function bubbleSpot(head, width, height, room, hides) {
     const sides = room.right >= room.left ? [1, -1] : [-1, 1];
     const side = sides.reduce((best, each) => (hides(box(each)) < hides(box(best)) ? each : best));
     return {...box(side), side};
+}
+
+// the room to hand bubbleSpot for the call's bubble `width` wide: the side of the head the handset at `handset` is on, so the tail is short
+// and never crosses the face, when the bubble fits there on the page `page` wide, else the other side
+export function handsetSide(head, handset, width, page) {
+    const toward = handset.x < head.x ? -1 : 1;
+    const side = (toward > 0 ? page - head.x : head.x) - BUBBLE.gap >= width ? toward : -toward;
+    return side > 0 ? {left: 0, right: 1} : {left: 1, right: 0};
+}
+
+// where the tail of a call bubble standing on `side` of the head ends: at the handset when the handset is on that side, else at the head's
+// edge on that side, `ear` of the figure's `size` out from the eyes, so the tail never crosses the face
+export function tailEnd(head, handset, side, size) {
+    return Math.sign(handset.x - head.x) === side ? handset : {x: head.x + side * BUBBLE.ear * size, y: head.y};
 }
 
 // how many words of the chat the box `box` on the page covers, at the points of a grid over it

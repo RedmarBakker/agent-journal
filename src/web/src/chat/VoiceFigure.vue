@@ -46,6 +46,8 @@ import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, buildAim, buildRunAt, isPileLeft, craneAt, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
+import ComicBubble from "./ComicBubble.vue";
+import {bubbleRows, bubbleSize} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, isListening, pastimeFor, queuedFirst, spellFor, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
@@ -69,6 +71,8 @@ import {
     groundEdge,
     progressEdge,
     bubbleSpot,
+    handsetSide,
+    tailEnd,
     callSays,
     wordsUnder,
     watchLook,
@@ -1246,8 +1250,8 @@ const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.va
 const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
 
 // What the figure says on the telephone, while it says it (places.js callSays): the lines of the chat mark that set off the call
-// (figureState.js callLines), in a small bubble beside its head on the side where it hides the fewest words, that side chosen once a call
-const CALL_TYPE = {size: 11, glyph: 6.1, line: 14, pad: 7};
+// (figureState.js callLines), in a comic bubble beside its head on the side where it hides the fewest words, else on the handset's side,
+// that side chosen once a call, its tail to the handset in the free hand, or to the head when the handset is on its other side
 const calling = () => (lead.value?.data?.cards || []).find((card) => card.key === beats.value[0]?.mark);
 let callSide = {mark: "", side: 0};
 const callBubble = computed(() => {
@@ -1255,12 +1259,14 @@ const callBubble = computed(() => {
     const card = calling();
     const lines = card ? callLines(card, rows("workers"), rows("tasks")) : [];
     if (!lines.length) return null;
-    const width = Math.max(...lines.map((line) => line.length)) * CALL_TYPE.glyph + 2 * CALL_TYPE.pad;
-    const height = lines.length * CALL_TYPE.line + 2 * CALL_TYPE.pad;
+    const said = bubbleRows(lines);
+    const {width, height} = bubbleSize(said);
     const head = {x: body.at.x + headAt.value.x * SIZE, y: body.at.y + headAt.value.y * SIZE};
-    if (callSide.mark !== card.key) callSide = {mark: card.key, side: bubbleSpot(head, width, height, room.value, wordsUnder).side};
+    const handset = {x: body.at.x + handAt.value.x * SIZE, y: body.at.y + handAt.value.y * SIZE};
+    if (callSide.mark !== card.key) callSide = {mark: card.key, side: bubbleSpot(head, width, height, handsetSide(head, handset, width, window.innerWidth), wordsUnder).side};
     const spot = bubbleSpot(head, width, height, callSide.side > 0 ? {left: 0, right: 1} : {left: 1, right: 0}, () => 0);
-    return {lines, style: {left: `${spot.left}px`, top: `${spot.top}px`, width: `${width}px`, fontSize: `${CALL_TYPE.size}px`, lineHeight: `${CALL_TYPE.line}px`, padding: `${CALL_TYPE.pad}px`}};
+    const tip = tailEnd(head, handset, callSide.side, SIZE);
+    return {rows: said, left: spot.left, top: spot.top, tip: {x: tip.x - spot.left, y: tip.y - spot.top}};
 });
 
 // the rows the call's words are read from, the worker the call is to and the task it holds, fetched as the call is set off
@@ -1380,11 +1386,7 @@ const style = computed(() => {
         <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />
     </template>
     <template v-if="callBubble">
-        <div class="voice-figure-call" :style="callBubble.style" aria-hidden="true">
-            <template v-for="line in callBubble.lines" :key="line">
-                <span>{{ line }}</span>
-            </template>
-        </div>
+        <ComicBubble :rows="callBubble.rows" :left="callBubble.left" :top="callBubble.top" :tip="callBubble.tip" :frame="shownFrame" />
     </template>
     <template v-if="saucer">
         <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
@@ -1392,26 +1394,6 @@ const style = computed(() => {
 </template>
 
 <style scoped>
-.voice-figure-call {
-    position: fixed;
-    z-index: 40;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-    border: 1px solid var(--tip-edge);
-    border-radius: 10px;
-    background: var(--tip-bg);
-    box-shadow: var(--tip-shadow);
-    color: var(--text);
-    font-family: inherit;
-    white-space: nowrap;
-    pointer-events: none;
-}
-
-.voice-figure-call > span:first-child {
-    font-weight: 600;
-}
-
 .voice-figure-marks {
     position: absolute;
     color: var(--text);

@@ -237,20 +237,18 @@ test("the hand holds the handset from behind: its palm at the back of the grip, 
 });
 
 test("on the telephone it says whom it calls: the worker and the task it holds, or the session messaged, in a bubble while it talks and until the handset is down", async () => {
-    const {CALL_LINE, callLines} = await import("../src/domain/figureState.js");
+    const {callLines} = await import("../src/domain/figureState.js");
     const {answerTo} = await import("../src/figure/reactions.js");
-    const {bubbleSpot, callSays} = await import("../src/figure/places.js");
+    const {bubbleSpot, callSays, handsetSide, tailEnd} = await import("../src/figure/places.js");
     // the call's beat keeps the mark that set it off
     const answer = answerTo({beat: "messaged", time: 1, card: "messages:5"}, "butler", {reacted: new Map(), played: []}, 1000, () => 0, () => true);
     expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
-    // a worker sent off: its number, and the task it holds with its title cut short
+    // a worker sent off: its number, and the task it holds with its whole title, which the bubble wraps and cuts
     const workers = [{id: 57, task: {task_id: 2742}}, {id: 58, task: null}];
     const tasks = [{id: 2742, title: "Finishing a task, the avatar rubs its hands together"}];
     const lines = callLines({row: "workers:57", sentTo: ""}, workers, tasks);
     expect(lines[0]).toBe("Worker 57");
-    expect(lines[1].startsWith("task 2742: Finishing a task")).toBe(true);
-    expect(lines[1].length).toBeLessThanOrEqual(`task 2742: `.length + CALL_LINE);
-    expect(lines[1].endsWith("…")).toBe(true);
+    expect(lines[1]).toBe(`task 2742: ${tasks[0].title}`);
     // a worker that holds no task is named alone; a message to another session names that session; any other mark says nothing
     expect(callLines({row: "workers:58", sentTo: ""}, workers, tasks)).toEqual(["Worker 58"]);
     expect(callLines({row: "", sentTo: "45-mr-faraday"}, workers, tasks)).toEqual(["Calling 45-mr-faraday"]);
@@ -269,6 +267,18 @@ test("on the telephone it says whom it calls: the worker and the task it holds, 
     expect(spot.bottom).toBeLessThan(head.y);
     expect(bubbleSpot(head, 120, 40, {left: 100, right: 600}, () => 0).side).toBe(1);
     expect(bubbleSpot(head, 120, 40, {left: 600, right: 100}, () => 0).side).toBe(-1);
+    // hiding no more words either way, on the handset's side so its tail is short, unless the page has no room for it there
+    for (const way of [1, -1]) {
+        const handset = {x: head.x + way * 20, y: head.y + 10};
+        expect(bubbleSpot(head, 120, 40, handsetSide(head, handset, 120, 1000), () => 0).side, `${way}`).toBe(way);
+    }
+    expect(bubbleSpot(head, 120, 40, handsetSide(head, {x: head.x + 20, y: head.y}, 120, 1000), hides).side).toBe(-1);
+    expect(bubbleSpot({x: 60, y: 400}, 120, 40, handsetSide({x: 60, y: 400}, {x: 40, y: 410}, 120, 1000), () => 0).side).toBe(1);
+    // its tail ends at the handset on its side, else at the head's edge on its own side, never across the face
+    expect(tailEnd(head, {x: 520, y: 410}, 1, 112)).toEqual({x: 520, y: 410});
+    const short = tailEnd(head, {x: 480, y: 410}, 1, 112);
+    expect(short.x).toBeGreaterThan(head.x);
+    expect(short.y).toBe(head.y);
 });
 
 test("drawn after the reference picture: a large cream dial plate fills most of the sloped front, with the dark wheel, its white holes, the marks round it and the label, and the handset has round ends", () => {
