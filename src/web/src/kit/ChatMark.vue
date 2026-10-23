@@ -10,6 +10,8 @@ const props = defineProps({mark: {type: Object, required: true}});
 const attrs = useAttrs();
 const tag = computed(() => (attrs.onClick ? "button" : "span"));
 const shade = computed(() => props.mark.color || (props.mark.tone ? `var(--tone-${props.mark.tone})` : ""));
+// a mark's progress bar is drawn in the mark's own tint, and in the working colour on a mark with none
+const barShade = computed(() => shade.value || "var(--tone-work)");
 const hover = computed(() => [props.mark.title, props.mark.time ? clock(props.mark.time) : ""].filter(Boolean).join(" · "));
 const tint = computed(() => ({
     ...(shade.value ? {"--mark": shade.value} : {}),
@@ -40,7 +42,7 @@ const tint = computed(() => ({
             </template>
         </span>
         <template v-if="mark.figure">
-            <span class="progress" :style="{width: `${Math.round((mark.fraction || 0) * 100)}%`}"></span>
+            <span class="progress" :style="{width: `${Math.round((mark.fraction || 0) * 100)}%`, background: barShade}"></span>
         </template>
         <template v-if="mark.settled">
             <span class="settled">{{ mark.settled }}</span>
@@ -135,7 +137,6 @@ button.mark:hover {
     bottom: 0;
     left: 0;
     height: 2px;
-    background: var(--accent);
     opacity: 0.8;
     transition: width 0.4s ease;
 }
