@@ -146,6 +146,13 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   let the task go with `journal worker release <n>`. `journal worker list` shows every worker, and the subagents you
   started with their state and task.
 - A worker that runs past 60 minutes is stopped and its report says so (setting workers.timeout_minutes, 0 for no limit).
+- On a shared journal, `journal worker dispatch ... --pool` sends the worker to the team's pool: a teammate's machine
+  with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first, and
+  pushes its branch back at clock-out; its clock-in, report and end reach you as from any worker, and you check and
+  merge it the same way. It needs --worktree, a profile the team allows its pool (workers.pool_profiles), no --model,
+  and a job that uses no secrets kept on your machine (--needs-secrets refuses it); one nobody takes in ten minutes,
+  or whose machine goes offline, ends unfinished with the reason, to dispatch again. Your own machine gives the pool
+  workers.pool_slots slots, 0 by default, which the user sets.
 - Related work goes back to the worker that knows it: `journal worker send <n> "<next job>"` gives a worker that
   reported, or was stopped, its next job in its last session, with its memory of the last job, in the same worktree.
   Never dispatch a fresh worker for work one already out has done part of.
