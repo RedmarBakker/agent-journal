@@ -478,3 +478,18 @@ test("the claw slows to a stop just over the stack with no overshoot, hovers, gr
     expect(tugged.chain).toBeCloseTo(reach - CRANE.tug);
     expect(at(CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift * 0.8).chain).toBeLessThan(tugged.chain);
 });
+
+test("the UFO draws the boxes up one by one, the top box first, each faster as it nears, swaying on its own path", async () => {
+    const {boxRisen, boxSway, BEAM_SWAY} = await import("../src/figure/parcels.js");
+    const at = (risen) => [0, 1, 2].map((rank) => boxRisen(risen, rank, 3));
+    expect(at(0.1)[0]).toBeGreaterThan(0);
+    expect(at(0.1)[2], "the lowest box waits its turn").toBe(0);
+    for (const risen of [0.2, 0.5, 0.8]) expect(at(risen)[0]).toBeGreaterThanOrEqual(at(risen)[1]);
+    const climb = [0.6, 0.7, 0.8, 0.9, 1].map((risen) => boxRisen(risen, 0, 3));
+    const steps = climb.slice(1).map((value, index) => value - climb[index]);
+    for (let index = 1; index < steps.length; index++) expect(steps[index], "drawn faster as it nears").toBeGreaterThan(steps[index - 1]);
+    expect(at(1)).toEqual([1, 1, 1]);
+    expect(boxSway(0.3, 1)).not.toBe(boxSway(0.3, 2));
+    expect(Math.abs(boxSway(0.3, 1))).toBeLessThanOrEqual(BEAM_SWAY);
+    expect(boxSway(1, 1)).toBe(0);
+});

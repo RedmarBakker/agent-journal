@@ -225,6 +225,19 @@ export function ufoAt(stops, ms, floor, from, away) {
     return {...still, ...toward(over(stops.at(-1)), away, k * k), stop: stops.length - 1, risen: 1, taken: stops.length, gone: k >= 1};
 }
 
+// How far up the beam the box ranked `rank` of `count` at a stop has been drawn when the stop's lift is `risen` of the way through, 0 to
+// 1: the top box (rank 0) first and the others one after another over the first half of the lift, each pulled faster as it nears the UFO
+export const BEAM_STAGGER = 0.5;
+export function boxRisen(risen, rank, count) {
+    const start = count > 1 ? (rank / count) * BEAM_STAGGER : 0;
+    const k = clamp((risen - start) / (1 - start));
+    return k * k;
+}
+
+// how far a box drawn `k` of the way up the beam sways across it, in pixels, its own sway set by `id`, dying away as it nears the UFO
+export const BEAM_SWAY = 4;
+export const boxSway = (k, id) => (k > 0 ? Math.sin(k * 12 + id * 1.7) * BEAM_SWAY * (1 - k) : 0);
+
 // The claw crane, as an arcade's claw machine: it rolls in along the chat window's top edge, stops over each stack, lowers its claw on a
 // chain, slowing to a stop just over the stack, hovers there a moment, closes it on the stack and lifts it up out of the window, the cable
 // first tugging it `tug` pixels up and holding as it takes the weight over `tugShare` of the lift, then rolls out at the far side. How long

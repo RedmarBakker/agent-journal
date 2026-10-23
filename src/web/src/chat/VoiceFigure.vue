@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, buildAim, buildRunAt, isPileLeft, craneAt, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, buildAim, buildRunAt, isPileLeft, craneAt, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -1000,19 +1000,20 @@ function carry() {
     sky = {shade: 0, back: sky.back, at: performance.now()};
 }
 
-// A frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at rising up the beam
-// to its middle, shrinking, those of the stops it has made gone, and what the figure watches: the UFO, with a hand shading its eyes while
+// A frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at drawn up the beam
+// to its middle one by one, the top one first, swaying and shrinking, those of the stops it has made gone, and what the figure watches: the UFO, with a hand shading its eyes while
 // it is still coming in, and stepped back once it first lifts; true once it is gone
 function flyUfo(ms) {
     const {edge} = composeEdge();
     const at = ufoAt(taking.value.stops, ms, edge.top, taking.value.from, taking.value.away);
     const gone = new Set(taking.value.stops.slice(0, at.taken).flatMap((stop) => stop.ids));
-    const rising = new Set(taking.value.stops[at.stop].ids);
+    const rising = parcels.value.filter((each) => taking.value.stops[at.stop].ids.includes(each.id)).sort((one, other) => other.up - one.up);
     const lifted = (each) => {
-        const k = rising.has(each.id) ? at.risen : 0;
+        const rank = rising.indexOf(each);
+        const k = rank >= 0 ? boxRisen(at.risen, rank, rising.length) : 0;
         const x = parcelX(each);
         const y = edge.top + (at.y + PARCEL.height / 2 + each.up - edge.top) * k;
-        return {id: each.id, x: x + (at.x - x) * k, y, up: each.up, scale: 1 - 0.65 * k, opacity: k > 0.85 ? (1 - k) / 0.15 : 1, lit: each.lit};
+        return {id: each.id, x: x + (at.x - x) * k + boxSway(k, each.id), y, up: each.up, scale: 1 - 0.65 * k, opacity: k > 0.85 ? (1 - k) / 0.15 : 1, lit: each.lit};
     };
     drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
     saucer.value = {x: at.x, y: at.y, beam: at.beam, width: at.width, reach: Math.max(edge.top - at.y, 0)};
