@@ -98,3 +98,17 @@ describe("a one-off act whose mark moves while it plays", () => {
         expect(goesOnFacing({clip: {name: "walk"}, facing: -1}, {clip: {name: "walk"}, facing: 1}, false), "a loop turns as it goes").toBe(false);
     });
 });
+
+describe("what the figure acts on", () => {
+    it("drops an act left waiting in the queue past ten seconds, keeps the one on screen and the ones queued since", async () => {
+        const {FRESH_SECONDS, freshBeats} = await import("../src/figure/reactions.js");
+        const beats = [
+            {clip: "joy", queuedAt: 100},
+            {clip: "phone_call", queuedAt: 100},
+            {clip: "nod", queuedAt: 108},
+            {clip: "ponder", during: "thinking"},
+        ];
+        expect(freshBeats(beats, "joy", 100 + FRESH_SECONDS + 1).map((beat) => beat.clip), "the joy plays on; the late call goes").toEqual(["joy", "nod", "ponder"]);
+        expect(freshBeats(beats, "", 100 + FRESH_SECONDS).map((beat) => beat.clip), "ten seconds is still fresh").toEqual(["joy", "phone_call", "nod", "ponder"]);
+    });
+});

@@ -191,6 +191,14 @@ export function playedFrom(beats, name) {
     return at < 0 ? beats : [...beats.slice(0, at), ...beats.slice(at + 1)];
 }
 
+// how long a moment, or an act waiting in the queue, stays worth acting on, in seconds: the figure acts on what just happened, never late
+export const FRESH_SECONDS = 10;
+
+// The beats still worth playing at `now` (seconds): the one on screen, as `playing` names its clip, and every waiting beat queued within
+// FRESH_SECONDS; a beat with no time it was queued, as one shown during a state, stays
+export const freshBeats = (beats, playing, now) =>
+    beats.filter((beat, index) => (index === 0 && beat.clip === playing) || !beat.queuedAt || now - beat.queuedAt <= FRESH_SECONDS);
+
 // The beat queue as the agent stands in `state`: a beat shown during a state (`during`, as the thinking act is) gone once that state is
 // over, whether it waits or plays; `cut` says whether the beat on screen, playing as the clip `playing`, is one of them, ended at once
 export function stillGoing(beats, state, playing) {

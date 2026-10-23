@@ -54,7 +54,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, faces, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, answerTo, carrierOf, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -763,15 +763,17 @@ function look() {
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
     spell.value = spellFor(doings.value.state, spell.value, now.value, Math.random, memory.tally);
     const ongoing = stillGoing(beats.value, doings.value.state, beatOnScreen());
-    beats.value = ongoing.beats;
+    beats.value = freshBeats(ongoing.beats, beatOnScreen(), now.value);
     cutting ||= ongoing.cut;
+    // only what happened in the last few seconds is acted on
+    const recent = Math.max(seenAt, now.value - FRESH_SECONDS);
     const happened = [
-        ...beatsAfter(lead.value, seenAt),
-        ...cardsAfter(lead.value, knownCards, watchedSince),
+        ...beatsAfter(lead.value, recent),
+        ...cardsAfter(lead.value, knownCards, Math.max(watchedSince, recent)),
         ...testResultsAfter(lead.value, testStates, watchedSince),
-        ...facesAfter(rows("reactions"), seenAt),
-        ...sayingsAfter(lead.value, rows("messages"), seenAt),
-        ...writtenFacesAfter(lead.value, rows("messages"), seenAt),
+        ...facesAfter(rows("reactions"), recent),
+        ...sayingsAfter(lead.value, rows("messages"), recent),
+        ...writtenFacesAfter(lead.value, rows("messages"), recent),
     ];
     const ends = processEndsAfter(lead.value, processStates);
     if (ends.length) parcels.value = parcels.value.map((each) => ({...each, lit: litAfter(each, ends)}));
@@ -1170,7 +1172,8 @@ function react(moment) {
     if (!isListening(eager)) return;
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
     if (answer?.beat && queues(beats.value, answer.beat)) {
-        const queued = FIRST.has(moment.beat) ? queuedFirst(beats.value, answer.beat, beatOnScreen()) : {beats: [...beats.value, answer.beat], cut: false};
+        const beat = {...answer.beat, queuedAt: now.value};
+        const queued = FIRST.has(moment.beat) ? queuedFirst(beats.value, beat, beatOnScreen()) : {beats: [...beats.value, beat], cut: false};
         beats.value = queued.beats;
         cutting ||= queued.cut;
     }
