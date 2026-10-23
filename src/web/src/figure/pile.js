@@ -157,8 +157,8 @@ export const PILE = [
     ...at("eager", {}, [clip("eager", 2, {slow: true}), nothing(3)]),
     // a jump up more than the figure's own height now and then turns over backwards on the way
     ...at("jump", {}, [showpiece(clip("backflip", 7, {high: true})), clip("jump", 13)]),
-    // a climb past three of the figure's heights (climbs.js POGO): now and then on the pogo stick it pulls from behind its back, else
-    // hopping up the bubbles on the way, and on the stick always when there are none to hop on
+    // a climb past one and a half of the figure's heights and within its jump (climbs.js POGO, JUMP): now and then on the pogo stick it
+    // pulls from behind its back, else hopping up the bubbles on the way, and on the stick always when there are none to hop on
     ...at("climb", {}, [showpiece(pick("pogo", 2)), pick("hops", 3, {footholds: true})]),
     // while a run goes, whether the figure builds a server unit now (UNIT)
     ...at("unit", {cooldown: UNIT.every}, [pick("unit", UNIT.weight), nothing(1)]),
