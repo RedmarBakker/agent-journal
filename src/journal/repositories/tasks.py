@@ -169,12 +169,13 @@ class Tasks(ScopedRepository[Task]):
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
         if task.state != TaskState.OPEN:
             raise Rejection(f"task {task.id} is {task.state}: only an open task waits in a worker's queue")
-        self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
+        if not self.links.all_matching(source=worker, target=Ref.build(task), kind=QUEUED_LINK):
+            self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
         return self.save(task.delegated(datetime.now(timezone.utc)), actor)
 
     def queue(self, worker: Ref) -> list[Task]:
         links = sorted(self.links.all_matching(source=worker, kind=QUEUED_LINK), key=lambda link: link.row_id)
-        return [self.find(link.target.id) for link in links]
+        return [self.find(n) for n in dict.fromkeys(link.target.id for link in links)]
 
     def worker_task(self, task_id: int, worker: int) -> Task:
         holdings = self.holder_task_ids(Ref(WORKERS, worker))

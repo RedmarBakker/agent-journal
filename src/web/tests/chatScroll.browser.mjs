@@ -88,9 +88,14 @@ try {
     await page.waitForTimeout(400);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.wheel(0, -900);
-    await page.waitForTimeout(150);
     const wheeled = await page.evaluate(async () => {
         const pane = document.querySelector(".thread-scroll");
+        // the browser animates the wheel's own scroll: wait until the pane has stopped where the wheel takes it
+        let last = -1;
+        while (pane.scrollTop !== last) {
+            last = pane.scrollTop;
+            await new Promise((done) => setTimeout(done, 200));
+        }
         const rows = [...pane.querySelectorAll("[data-ref]")];
         rows.at(-1).appendChild(Object.assign(document.createElement("div"), {style: "height: 300px"}));
         const left = pane.scrollTop;
