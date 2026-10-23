@@ -668,6 +668,23 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     assert settings_b.project(WorkersFeature.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersFeature.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
 
 
+def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is_the_teams(tmp_path):
+    from datetime import datetime, timezone
+    from journal.models.check import Check
+    from journal.repositories.checks import Checks
+
+    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
+    checks_a, checks_b = Checks(tasks_a.connection, tasks_a.bus), Checks(tasks_b.connection, tasks_b.bus)
+    check = checks_a.save(Check(title="lint", command="true", interval=5), USER)
+    sent = len(outgoing_a.waiting())
+    checks_a.save(check.completed(True, "all clean", datetime.now(timezone.utc), 0.1, None, ""), USER)
+    assert len(outgoing_a.waiting()) == sent, "a run's results leave no change for the team, not even its stamps"
+    incoming_b.apply(team_changes(outgoing_a))
+    arrived = checks_b.find(check.row_id)
+    assert arrived.title == "lint" and arrived.last_output == "" and arrived.last_run_at is None, "the check reaches the other journal without the first machine's run"
+
+
 def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_while_it_is_down_arrives_later(tmp_path):
     import json
     import time

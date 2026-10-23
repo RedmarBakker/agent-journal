@@ -11,9 +11,10 @@ from journal.models.model import Model
 
 @dataclass(frozen=True)
 class Check(Model):
-    """A script that passes or fails about the project, run by hand or every so many minutes, and when its failure was last reported to the agent."""
+    """A script that passes or fails about the project, run by hand or every so many minutes, and when its failure was last reported to the agent; how its runs went is each machine's own and never travels through the team."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "brief", "command")
+    local_fields: ClassVar[tuple[str, ...]] = ("last_passed", "last_output", "last_run_at", "last_duration", "last_report", "progress", "last_fault", "failure_reported_at")
     title: str = ""
     brief: str = ""
     command: str = ""

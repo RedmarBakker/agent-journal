@@ -185,7 +185,7 @@ class Repository(Generic[M]):
 
     def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[M]:
         with self.connection.transaction():
-            parsed = self._parsed(fields)
+            parsed = {name: value for name, value in self._parsed(fields).items() if name not in self.model.local_fields}
             if parsed:
                 self.connection.execute(*self.query().filter(id=id).update(**{**parsed, "updated_at": self._time()}))
             self.stored()
