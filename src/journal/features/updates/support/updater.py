@@ -30,7 +30,7 @@ FIRST_CHECK_DELAY_SECONDS = 60
 
 
 class Updater:
-    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a hosted journal restarts by ending its process, which the team image starts again."""
+    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again."""
 
     def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting, link: TeamServerLink) -> None:
         self.account, self.client, self.hosting, self.link = account, client, hosting, link
@@ -178,7 +178,8 @@ class Updater:
         return self.account.is_joined() and not self.is_hosted() and not self.has_newer_pin()
 
     def has_newer_pin(self) -> bool:
-        return any(pinned.is_newer(self.running()) for pinned in Release.lookup([self.account.team_version()]))
+        team_pin = self.link.summary(self.account.address()).version
+        return any(pinned.is_newer(self.running()) for pinned in Release.lookup([team_pin]))
 
     def install_newest(self, actor: Actor) -> None:
         target = self.target()

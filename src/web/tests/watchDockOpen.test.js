@@ -46,7 +46,7 @@ test("a docked output is titled in words, names its command beneath, and opens o
     expect(host.querySelector(".watch-dock-output")).toBeNull();
 });
 
-test("a docked run shows its state as a dot in the card's corner, blue while running, green once passed, red once failed, and no outline", async () => {
+test("a docked run shows its state as a badge on its icon beside the title, blue while running, green once passed, red once failed, and no outline", async () => {
     const states = [];
     for (const data of [{tone: "", ending: ""}, {tone: "good", ending: "finished"}, {tone: "bad", ending: "failed with code 1"}]) {
         const host = document.createElement("div");
@@ -56,7 +56,7 @@ test("a docked run shows its state as a dot in the card's corner, blue while run
         app.mount(host);
         await flush();
         const card = host.querySelector(".chat-dock-card");
-        const dot = card.querySelector(".chat-dock-state");
+        const dot = card.querySelector(".watch-dock-mark .watch-dock-state");
         states.push([dot.dataset.state, dot.style.getPropertyValue("--tone"), [...card.classList].filter((name) => name.startsWith("tone-"))]);
         app.unmount();
         app = null;

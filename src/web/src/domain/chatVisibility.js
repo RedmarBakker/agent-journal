@@ -58,7 +58,7 @@ const MESSAGE_KINDS = {report: "workers"};
 // The kinds the agents-talking choice hides together: the agent's dispatches, sends and the reports and marks that come back.
 const AGENT_TALK = ["subagents", "workers"];
 export const HIDDEN_KEY = "chat_hidden";
-export const DEFAULT_HIDDEN = ["acknowledgements", "sequence_steps"];
+export const DEFAULT_HIDDEN = ["acknowledgements", "sequence_steps", "conflicts"];
 
 export const turnKind = (kind) => TURN_KINDS[kind];
 

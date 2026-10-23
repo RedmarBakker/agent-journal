@@ -10386,7 +10386,9 @@ def test_a_hosted_journal_starts_no_agent_by_any_door(app: App):
     assert all(row["refusal"] == "" for row in json.loads(app.console().run(["environment", "json"], USER).text)), "an ordinary journal refuses none of its own"
 
 
-def test_a_members_journal_behind_its_team_installs_the_teams_version_without_sending_first(app: App, monkeypatch):
+def test_a_members_journal_behind_its_team_installs_the_teams_version_without_sending_first(app: App, monkeypatch, tmp_path):
+    from sync_server.team_server import TeamServer
+    from journal.repositories.id_blocks import IdBlocks
     from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
     from journal.features.updates.support.updater import Updater
@@ -10401,14 +10403,28 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
     monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: steps.append(ref))
     monkeypatch.setattr(SyncClient, "prepare_upgrade", lambda self: steps.append("sent its changes"))
     monkeypatch.setattr(Updater, "restart", lambda self: steps.append("restarted"))
-    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.details.record_version(pinned)
+    server = team.started("127.0.0.1", 0)
+    account = app.container.get(TeamAccount)
+    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
     try:
         updater = app.container.get(Updater)
         updater.read()
         updater.install_newest(Actor.user(1))
         assert steps == [f"v{pinned}", "restarted"], "a journal the team is already ahead of cannot send its changes, so it installs the team's version and sends them after"
+        steps.clear()
+        account.write({**account.contents(), "team_version": VERSION})
+        monkeypatch.setattr(ReleaseSource, "head_commit", lambda self, repository, branch: "abc1234")
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        updater.follow("development", Actor.user(1))
+        updater.read()
+        updater.install_newest(Actor.user(1))
+        assert steps == ["development", "restarted"], "nor can one whose last pull still names the old pin while the team has moved on: it asks the server for the pin before it leads"
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
 
 
 def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_installs_each_release_and_pins_the_team_to_it(app: App, monkeypatch):

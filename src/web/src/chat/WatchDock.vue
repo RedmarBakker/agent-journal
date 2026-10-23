@@ -3,6 +3,7 @@ import {computed, ref, watch} from "vue";
 import ChatDock from "../kit/ChatDock.vue";
 import CloseButton from "../kit/CloseButton.vue";
 import Icon from "../kit/Icon.vue";
+import Dot from "../kit/Dot.vue";
 import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
@@ -14,6 +15,9 @@ const props = defineProps({message: {type: Object, required: true}, folded: Bool
 const scope = useScope();
 const {colleague} = useColleague();
 const card = computed(() => props.message.data);
+// the badge on the dock's icon for the state of its run: running, passed (good) or failed (bad)
+const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad: "var(--tone-bad)"};
+const runState = computed(() => (card.value.ending ? card.value.tone || "good" : "running"));
 const lines = computed(() => (card.value.lines?.length ? card.value.lines : [card.value.detail]).filter(Boolean).slice(-SHOWN_LINES));
 const width = computed(() => `${Math.round((card.value.fraction || 0) * 100)}%`);
 
@@ -38,9 +42,14 @@ watch(
 </script>
 
 <template>
-    <ChatDock label="Watched output" :folded="folded" kind="watch-dock" :state="card.ending ? card.tone : 'running'">
+    <ChatDock label="Watched output" :folded="folded" kind="watch-dock">
         <template #head>
-            <Icon name="terminal" class="watch-dock-icon" />
+            <span class="watch-dock-mark">
+                <Icon name="terminal" class="watch-dock-icon" />
+                <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
+                    <Dot solid :size="7" :kind="runState" :pulsing="runState === 'running'" />
+                </span>
+            </span>
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="opened ? 'Fold the output' : 'Show the whole output'" @click="toggle">{{ message.text }}</button>
             <template v-if="card.ending">
                 <span class="watch-dock-ending">{{ card.ending }}</span>
@@ -75,6 +84,23 @@ watch(
 </template>
 
 <style scoped>
+.watch-dock-mark {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+}
+
+.watch-dock-state {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    display: flex;
+    padding: 1px;
+    border-radius: 50%;
+    background: var(--raised);
+    pointer-events: none;
+}
+
 .watch-dock-elsewhere {
     margin: 0;
     padding: 6px 15px 10px;

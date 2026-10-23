@@ -28,10 +28,11 @@ IDLE_SECONDS = 5
 LONG_POLL_SECONDS = 25
 FIRST_RETRY_SECONDS = 1
 LAST_RETRY_SECONDS = 30
+OFFSET_TOLERANCE_SECONDS = 1.0
 
 
 class SyncClient:
-    """Keeps a joined journal in step with its team: a send loop pushes the queued changes oldest first in batches, woken by every commit that queues one, and a receive loop long-polls for the team's changes and applies them. On a fault both wait 1, 2, 4 seconds and so on up to 30 and try again; a change is removed from the queue only once the server answered for it, and the edits it rejected are put right here; once it has taken a batch it sends every file attached here that the server lacks, before the batch, so no change in it names a file the server has not got, renews the Team chat's lease while this machine holds it, and asks for a block of row numbers for every shared table that holds less than a block and a fifth. Every push carries a pull, so its answer brings the team's changes as the long poll does, and both bring the writes waiting for the environments this journal hosts, which its host desk makes; changes are applied one answer at a time and only past the sequence this journal holds, so the two loops never apply one twice; one batch is sent at a time, so the upgrade's own sends and the send loop never race an older write past a newer one, which the server would reject as an edit lost to a later one. The clock offset is measured from the server's time in each pull answer and sent with each push. Before an upgrade it takes the team's upgrade lease, sends its whole queue and pulls to the server's head; a journal that booted as the upgrader finishes the upgrade before its loops start, and one behind another's upgrade takes the team's copy in place of its shared rows."""
+    """Keeps a joined journal in step with its team: a send loop pushes the queued changes oldest first in batches, woken by every commit that queues one, and a receive loop long-polls for the team's changes and applies them. On a fault both wait 1, 2, 4 seconds and so on up to 30 and try again; a change is removed from the queue only once the server answered for it, and the edits it rejected are put right here; once it has taken a batch it sends every file attached here that the server lacks, before the batch, so no change in it names a file the server has not got, renews the Team chat's lease while this machine holds it, and asks for a block of row numbers for every shared table that holds less than a block and a fifth. Every push carries a pull, so its answer brings the team's changes as the long poll does, and both bring the writes waiting for the environments this journal hosts, which its host desk makes; changes are applied one answer at a time and only past the sequence this journal holds, so the two loops never apply one twice; one batch is sent at a time, so the upgrade's own sends and the send loop never race an older write past a newer one, which the server would reject as an edit lost to a later one. The clock offset is measured from the server's time in each pull answer and sent with each push; it moves only when the measure differs by more than a second, since a measure that jitters by the answer's latency would let two of this journal's writes a few milliseconds apart swap order on the server, which then rejects the newer as lost to the older. Before an upgrade it takes the team's upgrade lease, sends its whole queue and pulls to the server's head; a journal that booted as the upgrader finishes the upgrade before its loops start, and one behind another's upgrade takes the team's copy in place of its shared rows."""
 
     def __init__(self, account: TeamAccount, link: TeamServerLink, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, signal: CommitSignal, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, hosts: Hosts, desk: HostDesk) -> None:
         self.account, self.link, self.outgoing, self.incoming, self.rejected, self.signal, self.status = account, link, outgoing, incoming, rejected, signal, status
@@ -119,7 +120,7 @@ class SyncClient:
 
     def applied(self, answer: PullAnswer) -> int:
         with self.applying:
-            self.clock_offset = answer.server_time - time.time()
+            self.measured(answer.server_time - time.time())
             if answer.copy_needed:
                 self.download_copy()
                 return 0
@@ -128,6 +129,10 @@ class SyncClient:
             self.incoming.apply(changes)
             self.account.record_pull(max(answer.head, sequence), answer.team_version)
             return len(changes)
+
+    def measured(self, offset: float) -> None:
+        if abs(offset - self.clock_offset) > OFFSET_TOLERANCE_SECONDS:
+            self.clock_offset = offset
 
     def download_copy(self) -> None:
         copy = self.link.full_copy()
