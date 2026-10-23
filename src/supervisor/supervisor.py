@@ -27,14 +27,17 @@ RESTART = 75
 REVIVE_WINDOW_SECONDS = 120.0
 REVIVE_DEATHS = 3
 FAULT_PAUSE = 0.5
+OWNER_CHECK_SECONDS = 3.0
 
 
 class Supervisor:
     """One loop: stdin to the agent, the agent to stdout under the band, the inbox's requests answered, the services kept running; a fault in a turn is written to the faults log and never ends it. It exits ENDED when its agent is done, which ends the launcher's loop, and RESTART, or any other code, to be started again."""
 
-    def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull)) -> None:
+    def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull), owner: int = 0) -> None:
         self.terminal, self.inbox, self.services, self.stdin, self.stdout, self.faults, self.launch = terminal, inbox, services, stdin, stdout, faults, launch
         self.source = SourceHash.current()
+        self.owner = owner
+        self._owner_checked_at = time.monotonic()
         self.screen_copy = screen_copy
         """The agent's newest output written where the journal reads it; none in a supervisor with nobody to read it."""
         """stdin is None for a supervisor started by the journal, with nobody at a keyboard."""
@@ -74,6 +77,7 @@ class Supervisor:
         try:
             self.relay_once(0.5)
             self.services.revive_stopped()
+            self.check_owner()
         except Exception:
             self.noted(traceback.format_exc())
             time.sleep(FAULT_PAUSE)
@@ -171,6 +175,24 @@ class Supervisor:
         self._code = ENDED
         if self.band:
             self.band.end()
+
+    def check_owner(self) -> None:
+        if not self.owner or time.monotonic() - self._owner_checked_at < OWNER_CHECK_SECONDS:
+            return
+        self._owner_checked_at = time.monotonic()
+        if not self.is_running(self.owner):
+            self.noted(f"its owner, process {self.owner}, is gone: ending")
+            self.stop()
+
+    @staticmethod
+    def is_running(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
 
     def handle_hangup(self) -> None:
         self.band = None

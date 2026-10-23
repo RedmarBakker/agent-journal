@@ -16,7 +16,7 @@ PROCESS = ("command", "folder", "env")
 
 
 class LaunchFile:
-    """What a supervisor starts from, as the journal wrote it: the agent in front, the services beside it, where its socket, announce file and mirror go, and the band's words."""
+    """What a supervisor starts from, as the journal wrote it: the agent in front, the services beside it, where its socket, announce file and mirror go, the band's words, and the process that owns it, whose end ends it."""
 
     def __init__(self, data: dict, path: Path) -> None:
         self.data, self.path = data, path
@@ -39,4 +39,4 @@ class LaunchFile:
         services = Services(*(Service(s["name"], s["command"], Path(s["folder"]), s["env"], Path(s["log"]), s.get("keep", True)) for s in self.data.get("services", [])))
         band = Band(BandLabels.parsed(self.data["band"])) if self.data.get("band") and os.isatty(1) else None
         screen_copy = ScreenCopy(Path(self.data["screen"])) if self.data.get("screen") else None
-        return Supervisor(Terminal(front["command"], front["folder"], front["env"], tuple(front.get("resume", ()))), Inbox(Path(self.data["socket"]), Path(self.data["announce"])), services, stdin=0 if os.isatty(0) else None, band=band, screen_copy=screen_copy, faults=Path(self.data["announce"]).parents[1] / "supervisor.log", launch=self.path)
+        return Supervisor(Terminal(front["command"], front["folder"], front["env"], tuple(front.get("resume", ()))), Inbox(Path(self.data["socket"]), Path(self.data["announce"])), services, stdin=0 if os.isatty(0) else None, band=band, screen_copy=screen_copy, faults=Path(self.data["announce"]).parents[1] / "supervisor.log", launch=self.path, owner=int(self.data.get("owner", 0)))

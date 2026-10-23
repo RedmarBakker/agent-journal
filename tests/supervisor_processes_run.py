@@ -308,3 +308,45 @@ def test_a_revive_while_a_restart_runs_leaves_one_process_running(tmp_path: Path
         assert running == [journal.described()["pid"]], "the restart's own process is the only one left running"
     finally:
         journal.stop()
+
+
+def test_a_supervisor_and_a_chain_shell_end_within_ten_seconds_of_their_owner_killed(tmp_path: Path, monkeypatch):
+    import signal
+    import subprocess
+    import sys
+
+    from journal.features.shell.support.chain_worker import SHELL_SETUP
+    import supervisor.supervisor as supervising
+
+    monkeypatch.setattr(supervising, "OWNER_CHECK_SECONDS", 0.5)
+    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    terminal = Terminal(["sh", "-c", "sleep 60"], str(tmp_path), {"PATH": os.environ["PATH"]})
+    inbox = Inbox(Path(f"/tmp/journal-{os.getuid()}") / f"owner-{os.getpid()}.sock", tmp_path / "inboxes" / "main")
+    keys, _ = os.pipe()
+    supervisor = Supervisor(terminal, inbox, Services(), stdin=keys, stdout=os.open(os.devnull, os.O_WRONLY), owner=owner.pid)
+    shell = subprocess.Popen(["sh"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    shell.stdin.write((SHELL_SETUP.replace("__JOURNAL_OWNER", str(owner.pid)) + "sleep 120\n").encode())
+    shell.stdin.flush()
+    inbox.open()
+    terminal.start()
+    try:
+        pump(supervisor, 1.0)
+        assert supervisor._code is None and shell.poll() is None, "both run while their owner lives"
+        owner.send_signal(signal.SIGKILL)
+        owner.wait()
+        deadline = time.time() + 10
+        while time.time() < deadline and (supervisor._code is None or shell.poll() is None):
+            supervisor.turn()
+        assert supervisor._code == 0, "the supervisor ends once the command that launched it is gone"
+        assert shell.poll() is not None, "the chain shell and the command it runs end once the server that started it is gone"
+        try:
+            os.killpg(shell.pid, 0)
+            group_left = True
+        except ProcessLookupError:
+            group_left = False
+        assert not group_left, "nothing of its process group is left"
+    finally:
+        supervisor.stop()
+        inbox.close()
+        if shell.poll() is None:
+            os.killpg(shell.pid, signal.SIGKILL)

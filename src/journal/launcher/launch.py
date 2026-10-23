@@ -197,6 +197,7 @@ class Launch:
             "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
             "services": [] if self.journal_off else [journal],
             "socket": str(self.socket(choice.environment)),
+            "owner": os.getpid(),
             "announce": str(self.runtime / "inboxes" / choice.environment),
             "screen": str(self.runtime / "screens" / f"{choice.environment}.out"),
             "band": {"left": "agent-journal", "middle": f"{self.root.name} · {choice.environment}", "right": "journal starting…"},

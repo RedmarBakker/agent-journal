@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from pathlib import Path
@@ -20,6 +21,7 @@ __journal_status() {
     case "$-" in *e*) return 0 ;; *) return "$__journal_code" ;; esac
 }
 __journal_code=0
+(while kill -0 __JOURNAL_OWNER 2>/dev/null && kill -0 $$ 2>/dev/null; do sleep 3; done; kill -0 $$ 2>/dev/null && kill -KILL -- -$$) >/dev/null 2>&1 &
 """
 POLL_SECONDS = 0.02
 # Claude Code's snapshot of a bash setup can carry set -o onecmd, which ends a shell after the command it reads next; turned off on
@@ -28,7 +30,7 @@ ONECMD_RESET = "set +t 2>/dev/null"
 
 
 class ChainWorker:
-    """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever came before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a fresh shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code."""
+    """Runs a chain's parts one by one in one shell process, as the shell would: a part after && is skipped while the part before it failed, a part after ; runs whatever came before, a part before && may fail without ending a shell under set -e, and an exec part ends the chain. A part of the agent's own set-up, outside its command, that ends the shell, as a shell snapshot that execs or exits does, leaves the rest of the chain to a fresh shell. Each of the agent's own parts is recorded as it starts and ends with its status, its time, its output tail and the files it changed; a moved chain's end is recorded too. Output goes to the part's files, or straight through for a read or write of the project's code. The shell is a process group of its own, which a watcher in it ends, with every command it runs, once the server that started it is gone."""
 
     def __init__(self, record: ShellRecord) -> None:
         self.record = record
@@ -59,7 +61,7 @@ class ChainWorker:
         shell = ShellProcess.started(request)
         pump = threading.Thread(target=lambda: self.pump(shell, output_text), name="shell-output", daemon=True)
         pump.start()
-        self.write_part(shell, SHELL_SETUP)
+        self.write_part(shell, SHELL_SETUP.replace("__JOURNAL_OWNER", str(os.getpid())))
         return shell, pump
 
     def part(self, shell: ShellProcess, folder: OutputFiles, i: int, kind: str, code: int, direct: bool, caller: Caller) -> int:
