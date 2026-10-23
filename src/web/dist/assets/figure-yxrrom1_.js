@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-ClBE9EwY.js
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-BzSuYzID.js";import"./tokens-D2Th-Z3L.js";import"./tip-R4RpQc0y.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-Vh5y9yHi.js";import"./tokens-D2Th-Z3L.js";import"./tip-CgWBk4Q1.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 3d567578c (The avatar hammers from a little further back with a longer hammer, every blow still coming down on the box's top, and while it builds, pushes or stacks a box it looks at that box, never at a progress bar):src/web/dist/assets/figure-C-3AvD6S.js
+import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-DIojYI3K.js";import"./tokens-D2Th-Z3L.js";import"./tip-R4RpQc0y.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
