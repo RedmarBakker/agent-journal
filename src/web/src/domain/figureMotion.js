@@ -126,12 +126,12 @@ export function chaseRoom(floors, world, feet, picture, most) {
 // for a fall that comes soon after another, `settled` false, so a fall onto a bubble that then goes from under it never chains on
 export const catches = (settled, random) => draw({moment: "fall", settled}, random).name === "caught";
 
-// A fall from the line a figure rests on at `spot`, in its posture there, starting at `now`: never from below the floor at home, going on
-// to `to` once it lands, and caught by a bubble it falls past when the pile draws so
+// A fall from the line a figure rests on at `spot`, in its posture there and turned the way it faces there, starting at `now`: never from
+// below the floor at home, going on to `to` once it lands, and caught by a bubble it falls past when the pile draws so
 export function fallingFrom(spot, to, floors, now, random, settled) {
     const home = floors.find((floor) => floor.id === "home");
     const y = home ? Math.min(spot.y, home.top) : spot.y;
-    return {x: spot.x, y, posture: spot.posture, speed: 0, at: now, to, catches: catches(settled, random)};
+    return {x: spot.x, y, posture: spot.posture, face: spot.face, speed: 0, at: now, to, catches: catches(settled, random)};
 }
 
 // A parachute's descent from `top`, above the screen, at `x`, starting at `now`: a fall no faster than `most` pixels a second, caught by a
@@ -139,11 +139,11 @@ export function fallingFrom(spot, to, floors, now, random, settled) {
 export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, catches: catches(true, random), most, chute: true});
 
 // One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
-// fell in, where it goes on to and whether it landed on its feet
+// fell in and turned as it was, where it goes on to and whether it landed on its feet
 export function airborneFrame(airborne, floors, now, still = false) {
     const fell = fallFrame(airborne, catching(floors, airborne.catches), (now - airborne.at) / 1000, still);
     if (!fell.landed) return {airborne: {...airborne, ...fell, at: now}, landed: null};
-    const spot = {x: fell.x, y: fell.landed.top, posture: airborne.posture, view: null, on: fell.landed.element ?? null};
+    const spot = {x: fell.x, y: fell.landed.top, posture: airborne.posture, face: airborne.face, view: null, on: fell.landed.element ?? null};
     return {airborne: null, landed: {spot, to: airborne.to, standing: airborne.posture === "stand"}};
 }
 
