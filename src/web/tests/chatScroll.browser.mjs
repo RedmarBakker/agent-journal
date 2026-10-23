@@ -75,6 +75,30 @@ try {
     expect(arriving.after <= arriving.before, `docked marks folded as something arrived at the foot (${arriving.before} folded before, ${arriving.after} after)`);
     expect(arriving.gap <= 24, `the reader at the foot was not carried down to what arrived (gap ${arriving.gap})`);
 
+    // the reader's hand wins: a wheel during the chat's own glide to the foot stops it where the wheel left it
+    await page.reload();
+    await page.waitForSelector(".thread-scroll [data-ref]", {timeout: 20000});
+    await page.waitForTimeout(2000);
+    const box = await page.locator(".thread-scroll").boundingBox();
+    await page.evaluate(() => {
+        const pane = document.querySelector(".thread-scroll");
+        pane.scrollTop = pane.scrollHeight;
+        pane.dispatchEvent(new Event("scroll"));
+    });
+    await page.waitForTimeout(400);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -900);
+    await page.waitForTimeout(150);
+    const wheeled = await page.evaluate(async () => {
+        const pane = document.querySelector(".thread-scroll");
+        const rows = [...pane.querySelectorAll("[data-ref]")];
+        rows.at(-1).appendChild(Object.assign(document.createElement("div"), {style: "height: 300px"}));
+        const left = pane.scrollTop;
+        await new Promise((done) => setTimeout(done, 1200));
+        return {left, now: pane.scrollTop};
+    });
+    expect(Math.abs(wheeled.now - wheeled.left) <= 1, `the chat moved itself from where the reader's wheel left it (${wheeled.left} to ${wheeled.now})`);
+
     // scrolled up within a quarter and left alone: it settles at the foot after five seconds, not before
     await page.reload();
     await page.waitForSelector(".thread-scroll [data-ref]", {timeout: 20000});

@@ -169,15 +169,21 @@ function toBottom(smooth = false) {
     glideTo(smooth);
 }
 
+// the chat taking itself to the foot as something arrives or settles: never while the reader's own hand scrolls, or a moment after
+function followDown(smooth = false) {
+    if (Date.now() - scrolledAt < BY_HAND) return;
+    toBottom(smooth);
+}
+
 watch(
     () => ui.flash.at,
-    () => nextTick(() => away.value || toBottom(settledOnce.value))
+    () => nextTick(() => away.value || followDown(settledOnce.value))
 );
 
 watch(
     () => dumpHere.value || pane.value === "terminal",
     (aside) => {
-        if (!aside && !away.value) nextTick(() => requestAnimationFrame(() => toBottom()));
+        if (!aside && !away.value) nextTick(() => requestAnimationFrame(() => followDown()));
     }
 );
 
@@ -185,7 +191,7 @@ const place = useReadingPlace(scroller);
 
 function settled() {
     if (away.value) place.hold();
-    else if (!store.focus) toBottom(settledOnce.value);
+    else if (!store.focus) followDown(settledOnce.value);
 }
 
 function scrolled() {
@@ -230,8 +236,13 @@ onUnmounted(() => {
 let scrolledAt = 0;
 const BY_HAND = 600;
 
+// the reader's own hand on the pane always wins: a glide the chat started stops where it is, and the chat moves itself no more for
+// a moment (followDown)
 function scrolledByHand() {
     scrolledAt = Date.now();
+    const s = scroller.value;
+    if (s && Date.now() - glidedAt < GLIDE) s.scrollTo({top: s.scrollTop});
+    glidedAt = 0;
 }
 
 function wheeled(e) {
@@ -273,7 +284,7 @@ function holdBottom() {
     const s = scroller.value;
     const dock = s?.querySelector(".chat-docks");
     if (!dock) return;
-    const pin = new ResizeObserver(() => planOpen.value && !away.value && (s.scrollTop = s.scrollHeight));
+    const pin = new ResizeObserver(() => planOpen.value && !away.value && Date.now() - scrolledAt >= BY_HAND && (s.scrollTop = s.scrollHeight));
     pin.observe(dock);
     setTimeout(() => pin.disconnect(), PLAN_MOVE);
 }
@@ -294,8 +305,8 @@ function watchScroll() {
     leftTheBottom(s);
     if (Date.now() - glidedAt < GLIDE) return;
     const far = gap > FAR;
-    if (far && !away.value && !store.focus && Date.now() - scrolledAt > BY_HAND) {
-        toBottom();
+    if (far && !away.value && !store.focus) {
+        followDown();
         return;
     }
     if (far) readingUp();
@@ -360,7 +371,7 @@ async function promised(body, files, idempotency) {
 
 watch(busy, async () => {
     await nextTick();
-    if (!away.value) toBottom(settledOnce.value);
+    if (!away.value) followDown(settledOnce.value);
 });
 
 watch(
