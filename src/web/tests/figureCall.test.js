@@ -34,7 +34,7 @@ test("the dove act is gone, and so is the whistle and runner of a dispatch: a se
     expect(choicesFor({moment: "messaged"}).map((entry) => entry.name)).toEqual(["phone_call"]);
 });
 
-test("a worker's dispatch, its next job, its start again, a message sent it and a message to another session each start the call", () => {
+test("only an agent given work starts the call: a worker's dispatch and its next job, never its start again, a message sent it or a message to another session", () => {
     const card = (id, text, data) => ({table: "messages", id, author: "system", text, data, session: null, created_at: new Date((10 + id) * 1000).toISOString()});
     const messages = [
         card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: ""}),
@@ -46,7 +46,7 @@ test("a worker's dispatch, its next job, its start again, a message sent it and 
         card(6, "Worker 57, Mr. Muybridge, motion photographer: merged", {kind: "card", icon: "agents", tone: ""}),
     ];
     const beats = beatsAfter(withSystemCards({session: "s", data: {}}, messages), 0);
-    expect(beats.map((fire) => [fire.beat, fire.card])).toEqual([1, 2, 3, 4, 5].map((id) => ["messaged", `messages:${id}`]));
+    expect(beats.map((fire) => [fire.beat, fire.card])).toEqual([1, 2].map((id) => ["messaged", `messages:${id}`]));
     // every one of them calls, whatever the roll, but not twice in one burst
     for (const roll of [0, 0.5, 0.99]) expect(reactionTo("messaged", new Map(), 1000, () => roll).clip).toBe("phone_call");
     const memory = new Map();

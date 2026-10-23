@@ -72,8 +72,8 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(14, "agent", "thinking it over", {kind: "thought"}, "s"),
         message(15, "agent", "a reply in another session", {}, "other"),
         message(16, "user", "thanks", {}),
-        // a worker sent off or a message the agent sends: a worker's next job, its start again, a note sent it in its session, a message to
-        // another session
+        // an agent given work: a worker's next job; a note sent it in its session, its start again and a message to another session give it
+        // none
         message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: ""}),
         message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
         message(21, "system", "Worker 48, Mr. Sheraton, joiner of panels: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
@@ -91,9 +91,6 @@ test("each thing the agent does in the journal is its own moment, read from the 
         ["fact_filed", "messages:7"],
         ["check_passed", "messages:8"],
         ["messaged", "messages:17"],
-        ["messaged", "messages:18"],
-        ["messaged", "messages:19"],
-        ["messaged", "messages:21"],
         ["reported", "messages:13"],
     ]);
     // a message seen at the last look is not a moment again

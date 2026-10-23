@@ -141,9 +141,9 @@ function legClip(trip, doing, canDraw) {
 
 export {frameIn, closeAt, canSwitch, stretchedFrame} from "../figure/timeline.js";
 
-// a worker's chat mark of the agent sending it off: its dispatch, its next job, its start again in its last session, or a message to it
-// (features/workers worker_process_card and worker_moment_cards)
-const SENT_OFF = /: (started on|sent its next job|started again in its last session|sent a message in its session)/;
+// a worker's chat mark of the agent giving it work: its dispatch on a task, or its next job; a message to it, its start again and the
+// mark's updates give it none (features/workers worker_process_card and worker_moment_cards)
+const GIVEN_WORK = /: (started on|sent its next job)/;
 
 // One-off beats, each fired by a card the journal wrote on the agent's row and played once before the held state resumes;
 // the first rule a card matches names its beat
@@ -154,7 +154,7 @@ const BEATS = [
     {beat: "answered", matches: (card) => card.icon === "question"},
     {beat: "task_finished", matches: (card) => card.icon === "todos" && card.tone === "good"},
     {beat: "question_asked", matches: (card) => card.kind === "question"},
-    {beat: "messaged", matches: (card) => (card.icon === "agents" && SENT_OFF.test(card.label)) || card.sentTo},
+    {beat: "messaged", matches: (card) => card.icon === "agents" && GIVEN_WORK.test(card.label)},
     {beat: "fact_filed", matches: (card) => card.icon === "check" && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
     {beat: "check_passed", matches: (card) => card.icon === "check" && card.tone === "good"},
 ];
