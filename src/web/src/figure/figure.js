@@ -2,7 +2,7 @@
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
 import {ACTS, heldPhases, hornOpen, partOf} from "./acts.js";
-import {VISOR} from "./visor.js";
+import {VISOR, glowTurn} from "./visor.js";
 import {blendMoves} from "./blend.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
@@ -3188,21 +3188,33 @@ function place(figure, pose, facing, blend) {
 // A look the eyes take on over whatever the body does, `seconds` into a look that lasts `lasts` seconds: taken on at once and let go at the
 // end, the head turned to the viewer meanwhile so the eyes are seen. Hearts beat as a heart does, a strong swell and a weaker one.
 const BEAT_SECONDS = 0.8;
-const LOOK_TURN = 0.8;
 
-function lookAs(pose, {mood, seconds, lasts}, facing) {
-    const strength = span(seconds, 0, 0.15) * (1 - span(seconds, lasts - 0.3, lasts));
-    const sideways = ((facing + 180) % 360) - 180;
-    if (!pose.gaze) {
-        pose.turn("neck", {z: -0.3 * LOOK_TURN * sideways * strength});
-        pose.turn("head", {z: -0.7 * LOOK_TURN * sideways * strength});
-    }
+// how strongly a look holds, 0 to 1, `seconds` into one that lasts `lasts`: taken on at once and let go at the end
+const lookStrength = ({seconds, lasts}) => span(seconds, 0, 0.15) * (1 - span(seconds, lasts - 0.3, lasts));
+
+function lookAs(pose, {mood, seconds, lasts}) {
+    const strength = lookStrength({seconds, lasts});
     if (EYES[mood].hearts) {
         const beat = (seconds % BEAT_SECONDS) / BEAT_SECONDS;
         pose.heartEyes(strength * (1 + 0.28 * swell(beat, 0, 0.3) + 0.14 * swell(beat, 0.3, 0.55)));
     } else {
         eyesAs(pose, mood, strength);
     }
+}
+
+// How far a figure turns toward the viewer so its face is seen, as while its eyes wear a look or its visor glows: its head `share` of the
+// way round from the way the body faces, never quite head on and never further than HEAD_TURN from the body, and its chest leaning in by
+// `lean` of it, so a figure facing sideways or away still turns or leans toward the viewer
+export const TOWARD_VIEWER = {share: 0.8, lean: 0.12};
+
+// the figure turned `facing` degrees turned toward the viewer, `strength` of the way, 0 to 1
+export function turnToViewer(pose, facing, strength) {
+    const sideways = ((((facing + 180) % 360) + 360) % 360) - 180;
+    const lean = TOWARD_VIEWER.lean * sideways;
+    const head = THREE.MathUtils.clamp(TOWARD_VIEWER.share * sideways - lean, -HEAD_TURN, HEAD_TURN);
+    pose.bendAbove("chest", {z: -lean * strength});
+    pose.turn("neck", {z: -0.3 * head * strength});
+    pose.turn("head", {z: -0.7 * head * strength});
 }
 
 // the visor mesh every voice wears, the black screen its eyes are drawn on, and how lit it is before the eyes are gone from it
@@ -3258,7 +3270,10 @@ export class Stage {
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
         // the eyes go out as a lit visor comes on, closing to a line
         if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
-        if (eyes) lookAs(pose, eyes, turned);
+        // with a look in its eyes or its visor aglow, it turns toward the viewer so they are seen
+        const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0);
+        if (toward && !pose.gaze) turnToViewer(pose, turned, toward);
+        if (eyes) lookAs(pose, eyes);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;
         if (this.renderer.domElement.width !== size) {

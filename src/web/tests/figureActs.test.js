@@ -387,3 +387,39 @@ test("the head holds its turn to the side, unmoved, from the party horn's first 
         expect(Math.abs(held[0]), voice).toBeGreaterThan(turn / 2);
     }
 });
+
+const {VISOR, crtAt, glowTurn} = await import("../src/figure/visor.js");
+const {turnToViewer} = await import("../src/figure/figure.js");
+
+test("while the visor glows the figure turns toward the viewer, partly and never head on, held all the glow long, from every facing, for every voice", () => {
+    // the head's way from the viewer, in degrees, for a figure turned `facing` degrees, posed and turned toward the viewer `strength` of the way
+    const fromViewer = (voice, facing, strength) => {
+        const pose = posedAt("idle", voice, 0.3);
+        turnToViewer(pose, facing, strength);
+        const moves = pose.moves(facing);
+        const ahead = new THREE.Vector3(0, -1, 0).transformDirection(moves.get("head"));
+        const chest = new THREE.Vector3(0, -1, 0).transformDirection(moves.get("chest"));
+        const yaw = (way) => THREE.MathUtils.radToDeg(Math.atan2(way.x, -way.y));
+        return {away: Math.abs(yaw(ahead)), apart: Math.abs(((yaw(ahead) - yaw(chest) + 540) % 360) - 180)};
+    };
+    const glow = [];
+    for (let seconds = VISOR.eyesOut; seconds < VISOR.seconds - VISOR.eyesBack; seconds += 0.05) glow.push(glowTurn(crtAt(seconds)));
+    expect(glow.every((strength) => strength === 1)).toBe(true);
+    for (const voice of Object.keys(stances)) {
+        for (const facing of [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]) {
+            const sideways = Math.abs(((facing + 180) % 360) - 180);
+            const unturned = fromViewer(voice, facing, 0).away;
+            const held = glow.map((strength) => fromViewer(voice, facing, strength));
+            const label = `${voice} ${facing}`;
+            // held the same all the glow long
+            expect(Math.max(...held.map((each) => each.away)) - Math.min(...held.map((each) => each.away)), label).toBeLessThan(0.5);
+            const {away, apart} = held[0];
+            // the head within its turn of the body
+            expect(apart, label).toBeLessThanOrEqual(65.5);
+            if (sideways === 0) continue;
+            // turned toward the viewer, at least a little, and never quite head on
+            expect(unturned - away, label).toBeGreaterThan(Math.min(sideways * 0.5, 20));
+            expect(away, label).toBeGreaterThan(1);
+        }
+    }
+});

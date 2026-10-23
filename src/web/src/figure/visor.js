@@ -27,6 +27,10 @@ export function crtAt(seconds) {
     };
 }
 
+// how far the figure turns toward the viewer while its visor is lit, 0 to 1 (figure.js turnToViewer): round as its eyes go out, held all the
+// while it glows, and back as the glow fades and the eyes return
+export const glowTurn = (crt) => Math.max(crt.glow, 1 - crt.eyes);
+
 // The visor as the page draws it `now` seconds, for a glow `lit` ({tone, at}) or none, while the figure is `asleep` or not: its colour
 // with how it stands (crtAt), or null when it shows the eyes
 export function visorAt(lit, now, asleep) {
