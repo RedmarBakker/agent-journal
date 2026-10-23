@@ -7,7 +7,7 @@ from journal.support.rejection import Rejection
 from journal.support.missing_row import MissingRow
 from journal.http.support.file_response import FileResponse
 from journal.http.support.request import Request
-from journal.http.support.stall_watch import StallWatch
+from journal.features.faults.support.stall_watch import StallWatch
 from journal.http.support.stream_response import StreamResponse
 from journal.support.response import Response
 from journal.http.support.route import Answer, Handler, Route

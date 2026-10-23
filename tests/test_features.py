@@ -10781,3 +10781,25 @@ def test_a_plan_whose_reviewers_are_back_holds_writes_after_ten_tool_uses_until_
     assert console.run(["plan", "ready", "1", "--changed", "two gaps filled"], AGENT).code == 0
     app.runtime().deferred.drain()
     assert edit()[0] == 200, "the hold is gone once the plan is ready"
+
+
+def test_the_developer_profile_names_the_function_a_busy_thread_spends_its_time_in(app: App):
+    import threading
+
+    from journal.features.faults.support.thread_sampler import ThreadSampler
+
+    stopping = threading.Event()
+
+    def spinning_for_the_profile():
+        while not stopping.is_set():
+            sum(range(1000))
+
+    worker = threading.Thread(target=spinning_for_the_profile, name="busy", daemon=True)
+    worker.start()
+    try:
+        sample = ThreadSampler().sampled(0.3)
+    finally:
+        stopping.set()
+        worker.join()
+    assert sample.sample_count > 5 and any("spinning_for_the_profile" in place for place in sample.stack_functions), "a thread that works is seen in the function it works in"
+    assert not any(place.startswith("MainThread: ") and "sampled" in place for place in sample.busy_functions), "the sampler never counts itself"

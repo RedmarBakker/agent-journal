@@ -174,14 +174,20 @@ class Repository(Generic[M]):
             self.dispatched(row, actor)
 
     def pulled_creation(self, id: int, fields: dict, actor: Actor) -> M:
-        parsed = self._parsed(fields)
-        row = self.model(**{**parsed, "id": id, "updated_at": self._time()})
-        row = row.local_ready() if any(name not in parsed for name in row.local_fields) else row
+        row = self._team_row(id, fields)
         with self.connection.transaction():
             self.connection.execute(*self.query().upsert(id=id, **self._column_values(row)))
             self.stored()
             self.bus.dispatch(SyncedCreation(model=row, actor=actor))
             return self.dispatched(row.with_events(row.creation_events()), actor)
+
+    def restored(self, id: int, fields: dict) -> None:
+        self.connection.execute(*self.query().upsert(id=id, **self._column_values(self._team_row(id, fields))))
+
+    def _team_row(self, id: int, fields: dict) -> M:
+        parsed = self._parsed(fields)
+        row = self.model(**{**parsed, "id": id, "updated_at": self._time()})
+        return row.local_ready() if any(name not in parsed for name in row.local_fields) else row
 
     def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[M]:
         with self.connection.transaction():

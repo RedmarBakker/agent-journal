@@ -8,7 +8,7 @@ from sync_server.copied_row import CopiedRow
 
 
 class JournalCopy:
-    """This journal's shared rows as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, and at an upgrade of the same team the rows kept on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, kept on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal meanwhile sees it half filled. A setting of one machine or one person is never in the copy either way: this machine's own are kept through it."""
+    """This journal's shared rows as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, and at an upgrade of the same team the rows kept on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, kept on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal meanwhile sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never in the copy either way: this machine's own are kept through it."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes) -> None:
         self.tables, self.scopes = tables, scopes
@@ -36,7 +36,9 @@ class JournalCopy:
             self.tables.rows(table).clear()
         for row in rows:
             if self.tables.has(row.row_table):
-                self.tables.rows(row.row_table).pulled_creation(row.row, {**row.fields, **local.get((row.row_table, row.row), {})}, Actor.system())
+                self.tables.rows(row.row_table).restored(row.row, {**row.fields, **local.get((row.row_table, row.row), {})})
+        for table in self.tables.names():
+            self.tables.rows(table).stored()
         settings = self.tables.rows(Setting.table())
         for setting in self.machine_settings():
             settings.delete(setting, Actor.system())

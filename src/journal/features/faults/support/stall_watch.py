@@ -3,20 +3,26 @@ import threading
 import time
 import traceback
 
+from journal.repositories.setting_rows import SettingRows
+
 STALL_SECONDS = 5.0
 CHECK_SECONDS = 1.0
 
 
 class StallWatch:
-    """The requests under way, by the thread that serves each: one still running after five seconds has every thread's stack written to the log, once a stall, so a stall names what holds it."""
+    """While the Developer setting asks for it, the requests under way, by the thread that serves each: one still running after five seconds has every thread's stack written to the log, once a stall, so a stall names what holds it."""
 
-    def __init__(self) -> None:
+    def __init__(self, settings: SettingRows) -> None:
+        self.settings = settings
         self.running: dict[int, tuple[float, str]] = {}
         self.written: set[int] = set()
         self.lock = threading.Lock()
         self.watcher = threading.Thread(target=self.watch, name="stall-watch", daemon=True)
 
     def begin(self, path: str) -> None:
+        from journal.features.faults.feature import Faults
+        if not self.settings.option(Faults.STALL_STACKS):
+            return
         with self.lock:
             self.running[threading.get_ident()] = (time.monotonic(), path)
             if not self.watcher.is_alive():

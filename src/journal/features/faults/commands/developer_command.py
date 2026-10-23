@@ -3,11 +3,15 @@ from datetime import datetime
 
 from journal.console.command import Command
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
+from journal.features.faults.support.thread_sampler import ThreadSampler
 from journal.http.journal.answer_time import AnswerTime
 from journal.models.timing import Timing
 from journal.support.caller import Caller
 
 TOP = 10
+PROFILE_SECONDS = 20.0
+PROFILE_LIMIT_SECONDS = 25.0
+PROFILE_LINES = 30
 
 
 class DeveloperCommand(Command):
@@ -15,8 +19,8 @@ class DeveloperCommand(Command):
 
     noun = "developer"
 
-    def __init__(self, numbers: DeveloperNumbers) -> None:
-        self.numbers = numbers
+    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler) -> None:
+        self.numbers, self.sampler = numbers, sampler
 
     def arguments(self, verbs) -> None:
         slowest = self.verb(verbs, "slowest", "the slowest requests and hooks of the rolling log, with their path, kind and milliseconds")
@@ -28,6 +32,8 @@ class DeveloperCommand(Command):
         self.verb(verbs, "models", "the records read per kind since the last reset")
         self.verb(verbs, "averages", "the average and slowest time of hooks, requests and each kind of hook")
         self.verb(verbs, "reset", "clear the times, the rolling log and the counts")
+        profile = self.verb(verbs, "profile", "watch every thread of the server for a while and print where its time goes, the busiest functions first")
+        profile.add_argument("seconds", type=float, nargs="?", default=PROFILE_SECONDS, help=f"how long to watch, at most {PROFILE_LIMIT_SECONDS:.0f} seconds")
 
     def slowest(self, args: Namespace, caller: Caller) -> int:
         self.print_lines([f"{t.ms:>6} ms  {t.method:<5} {t.route}" for t in self.slowest_kind(args)], "nothing logged yet")
@@ -52,6 +58,19 @@ class DeveloperCommand(Command):
         rows = {"hooks": self.numbers.hook_time(), "requests": self.numbers.request_time(), **{f"hook {kind}": time for kind, time in self.numbers.hook_averages().items()}}
         self.print_lines([self.average_line(name, time) for name, time in rows.items() if time.count], "nothing measured yet")
         return 0
+
+    def profile(self, args: Namespace, caller: Caller) -> int:
+        sample = self.sampler.sampled(min(args.seconds, PROFILE_LIMIT_SECONDS))
+        print(f"{sample.sample_count} looks at every thread, and the share of them each place was seen working.")
+        print("\nWhere each working thread was:")
+        self.print_lines(self.shares(sample.busy_functions, sample.sample_count), "every thread was waiting")
+        print("\nOn a working stack, with what it calls:")
+        self.print_lines(self.shares(sample.stack_functions, sample.sample_count), "every thread was waiting")
+        return 0
+
+    @staticmethod
+    def shares(places, sample_count: int) -> list[str]:
+        return [f"{100 * count / sample_count:5.1f}%  {place}" for place, count in places.most_common(PROFILE_LINES)]
 
     def reset(self, args: Namespace, caller: Caller) -> int:
         self.numbers.reset(caller.actor)

@@ -379,10 +379,11 @@ def test_an_upgrade_holds_every_other_push_replaces_the_teams_rows_once_and_keep
         assert call("/upgrade", {"rows": [row("migrated")], "highest": {"tasks": 7}, "migration": 4, "base_sequence": head - 1}, ada)[1]["error"].startswith("the team's journal moved on"), "a copy migrated from a stale pull is refused"
         upgraded = call("/upgrade", {"rows": [row("migrated")], "highest": {"tasks": 7}, "migration": 4, "base_sequence": head}, ada, migration=4)
         assert upgraded[0] == 200
-        assert call("/copy", None, bob, migration=4)[1]["rows"][0]["fields"] == {"title": "migrated"}, "the migrated copy is the team's"
         assert call("/team")[1]["migration"] == 4
         behind = call(f"/pull?after={head}&wait=0", None, bob, migration=4)[1]
         assert behind["copy_needed"] and not behind["changes"], "a device behind the upgrade takes the full copy"
+        assert call("/copy", None, bob, migration=4)[1]["rows"][0]["fields"] == {"title": "migrated"}, "the migrated copy is the team's"
+        assert call(f"/pull?after={head}&wait=0", None, bob, migration=4)[1]["copy_needed"] is False, "once it has taken the copy, a pull that still names its older sequence goes on from the copy, never asked to take it again"
         assert call(f"/pull?after={upgraded[1]['head']}&wait=0", None, ada, migration=4)[1]["copy_needed"] is False, "the upgrader goes on from its upload"
         [backup] = (tmp_path / "backups").glob("team-before-upgrade-*.db")
         with sqlite3.connect(backup) as old:
