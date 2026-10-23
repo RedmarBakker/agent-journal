@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import signal
 import time as timing
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -10135,6 +10136,8 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
     pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
     installed, pins = [], []
     monkeypatch.setattr(TeamServerLink, "pin_version", lambda self, version: pins.append(version))
+    ended = []
+    monkeypatch.setattr(os, "kill", lambda pid, number: ended.append((pid, number)))
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
     monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: installed.append(ref))
     monkeypatch.setattr(SyncClient, "prepare_upgrade", lambda self: installed.append("the team's upgrade lease"))
@@ -10150,6 +10153,7 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
         updater.card.clear()
         updater.checked()
         assert installed[-1] == f"v{beyond}" and pins == [beyond], "with it on a hosted journal installs the newest release and pins the team to it"
+        assert ended[-1] == (os.getpid(), signal.SIGTERM), "and ends its own process, which the team image starts again on the new code"
         app.container.get(TeamAccount).record_pull(0, f"{major}.{minor + 3}.0")
         updater.card.clear()
         updater.checked()

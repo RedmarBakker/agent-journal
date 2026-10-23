@@ -1,5 +1,6 @@
 import contextvars
 import os
+import signal
 import subprocess
 import threading
 import time as timing
@@ -29,7 +30,7 @@ FIRST_CHECK_DELAY_SECONDS = 60
 
 
 class Updater:
-    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it."""
+    """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a hosted journal restarts by ending its process, which the team image starts again."""
 
     def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting, link: TeamServerLink) -> None:
         self.account, self.client, self.hosting, self.link = account, client, hosting, link
@@ -201,6 +202,9 @@ class Updater:
             self.problem = f"The team could not be pinned to {version}: {refused}"
 
     def restart(self) -> None:
+        if self.is_hosted():
+            os.kill(os.getpid(), signal.SIGTERM)
+            return
         host = self.supervisor.hosting()
         outputs = self.queue.restart(host, "") if host is not None else []
         if outputs:
