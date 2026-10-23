@@ -110,6 +110,8 @@ const sized = new ResizeObserver(([entry]) => page.value && page.value.style.set
 onMounted(() => bars.value && sized.observe(bars.value));
 onUnmounted(() => sized.disconnect());
 const saveTiming = (row, next) => change(row.timing.target, row.label, next);
+// the Team tab is a form for the whole journal, saved by its own buttons: neither note above the settings is true of it
+const formTab = computed(() => !across.value && tab.value === "team");
 </script>
 
 <template>
@@ -117,10 +119,12 @@ const saveTiming = (row, next) => change(row.timing.target, row.label, next);
         <div ref="bars" class="settings-bars">
             <PageBar>
                 <TabBar :tabs="tabs" :model-value="across ? '' : tab" @update:model-value="openTab" />
-                <span class="settings-scope">
-                    Applies to environment
-                    <span class="settings-env">{{ route.env }}</span>
-                </span>
+                <template v-if="!formTab">
+                    <span class="settings-scope">
+                        Applies to environment
+                        <span class="settings-env">{{ route.env }}</span>
+                    </span>
+                </template>
             </PageBar>
             <PageBar>
                 <TextInput
@@ -136,7 +140,9 @@ const saveTiming = (row, next) => change(row.timing.target, row.label, next);
                 <template v-if="listed">
                     <Segmented :options="filters" :value="filter" :fill="narrow" @pick="filter = $event" />
                 </template>
-                <span class="settings-saved">Changes are saved as you make them</span>
+                <template v-if="!formTab">
+                    <span class="settings-saved">Changes are saved as you make them</span>
+                </template>
             </PageBar>
         </div>
 
