@@ -20,7 +20,7 @@ from journal.sync.team_chat import TeamChat
 from journal.sync.team_upgrade import TeamUpgrade
 from journal.sync.block_supply import BlockSupply
 from journal.sync.host_desk import HostDesk
-from journal.sync.hosts import Hosts
+from journal.sync.pull_queries import PullQueries
 from sync_server.pull_answer import PullAnswer
 
 BATCH_ROWS = 200
@@ -34,10 +34,10 @@ OFFSET_TOLERANCE_SECONDS = 1.0
 class SyncClient:
     """Keeps a joined journal in step with its team: a send loop pushes the queued changes oldest first in batches, woken by every commit that queues one, and a receive loop long-polls for the team's changes and applies them. On a fault both wait 1, 2, 4 seconds and so on up to 30 and try again; a change is removed from the queue only once the server answered for it, and the edits it rejected are put right here; once it has taken a batch it sends every file attached here that the server lacks, before the batch, so no change in it names a file the server has not got, renews the Team chat's lease while this machine holds it, and asks for a block of row numbers for every shared table that holds less than a block and a fifth. Every push carries a pull, so its answer brings the team's changes as the long poll does, and both bring the writes waiting for the environments this journal hosts, which its host desk makes; changes are applied one answer at a time and only past the sequence this journal holds, so the two loops never apply one twice; one batch is sent at a time, so the upgrade's own sends and the send loop never race an older write past a newer one, which the server would reject as an edit lost to a later one. The clock offset is measured from the server's time in each pull answer and sent with each push; it moves only when the measure differs by more than a second, since a measure that jitters by the answer's latency would let two of this journal's writes a few milliseconds apart swap order on the server, which then rejects the newer as lost to the older. Before an upgrade it takes the team's upgrade lease, sends its whole queue and pulls to the server's head; a journal that booted as the upgrader finishes the upgrade before its loops start, and one behind another's upgrade takes the team's copy in place of its shared rows."""
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, signal: CommitSignal, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, hosts: Hosts, desk: HostDesk) -> None:
+    def __init__(self, account: TeamAccount, link: TeamServerLink, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, signal: CommitSignal, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, desk: HostDesk) -> None:
         self.account, self.link, self.outgoing, self.incoming, self.rejected, self.signal, self.status = account, link, outgoing, incoming, rejected, signal, status
         self.uploads, self.attachments, self.chat, self.upgrade, self.copy = uploads, attachments, chat, upgrade, copy
-        self.supply, self.hosts, self.desk = supply, hosts, desk
+        self.supply, self.queries, self.desk = supply, queries, desk
         self.stopping = threading.Event()
         self.applying, self.sending = threading.Lock(), threading.Lock()
         self.clock_offset = 0.0
@@ -86,7 +86,7 @@ class SyncClient:
             return True
 
     def delivered(self, batch: list) -> None:
-        answer = self.link.send_changes([change.payload() for change in batch], self.clock_offset, self.account.sequence(), self.hosts.keys())
+        answer = self.link.send_changes([change.payload() for change in batch], self.clock_offset, self.queries.query(0))
         self.outgoing.sent(batch)
         self.rejected.apply(answer.settlement.rejected)
         self.handle_answer(answer.delivery)
@@ -110,7 +110,7 @@ class SyncClient:
         self.pulled(LONG_POLL_SECONDS)
 
     def pulled(self, wait_seconds: float) -> int:
-        return self.handle_answer(self.link.fetch_changes(self.account.sequence(), wait_seconds, self.hosts.keys()))
+        return self.handle_answer(self.link.fetch_changes(self.queries.query(wait_seconds)))
 
     def handle_answer(self, answer: PullAnswer) -> int:
         count = self.applied(answer)

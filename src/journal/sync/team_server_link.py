@@ -17,6 +17,7 @@ from sync_server.login_answer import LoginAnswer
 from sync_server.login_request import LoginRequest
 from sync_server.people_answer import PeopleAnswer
 from sync_server.pull_answer import PullAnswer
+from sync_server.pull_query import PullQuery
 from sync_server.sync_answer import SyncAnswer
 from sync_server.password_answer import PasswordAnswer
 from sync_server.signin_answer import SigninAnswer
@@ -37,11 +38,13 @@ class TeamServerLink:
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
 
-    def send_changes(self, changes: list[dict], clock_offset: float, sequence: int, environment_keys: tuple[str, ...]) -> SyncAnswer:
-        return SyncAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset, "sequence": sequence, "environment_keys": list(environment_keys)})))
+    def send_changes(self, changes: list[dict], clock_offset: float, query: PullQuery) -> SyncAnswer:
+        query_fields = {"sequence": query.sequence, "environment_keys": list(query.environment_keys), "pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version}
+        return SyncAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset, **query_fields})))
 
-    def fetch_changes(self, sequence: int, wait_seconds: float, environment_keys: tuple[str, ...]) -> PullAnswer:
-        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), f"/pull?after={sequence}&wait={wait_seconds}&keys={','.join(environment_keys)}", None, wait_seconds + REQUEST_SECONDS)))
+    def fetch_changes(self, query: PullQuery) -> PullAnswer:
+        path = f"/pull?after={query.sequence}&wait={query.wait_seconds}&keys={','.join(query.environment_keys)}&slots={query.pool.slots}&free={query.pool.free}&version={query.version}"
+        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), path, None, query.wait_seconds + REQUEST_SECONDS)))
 
     def ask_host(self, environment_key: str, kind: str, body: dict, account_id: int) -> None:
         self.posted("/host-requests", {"environment_key": environment_key, "kind": kind, "body": body, "account_id": account_id})

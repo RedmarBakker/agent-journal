@@ -35,6 +35,14 @@ MIGRATIONS = (
     CREATE TABLE host_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_key TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, account_id INTEGER NOT NULL, created_at REAL NOT NULL, host_id INTEGER NOT NULL DEFAULT 0, finished_at REAL NOT NULL DEFAULT 0);
     CREATE INDEX host_requests_waiting ON host_requests (environment_key, finished_at);
     """,
+    """
+    ALTER TABLE host_requests ADD COLUMN audience TEXT NOT NULL DEFAULT 'host';
+    ALTER TABLE host_requests ADD COLUMN device_id INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE host_requests ADD COLUMN version TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_requests ADD COLUMN claimed_by INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE host_requests ADD COLUMN declined TEXT NOT NULL DEFAULT '[]';
+    CREATE TABLE pool_capacities (device_id INTEGER PRIMARY KEY, slots INTEGER NOT NULL, free INTEGER NOT NULL, version TEXT NOT NULL, reported_at REAL NOT NULL);
+    """,
 )
 
 

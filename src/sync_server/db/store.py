@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -18,6 +19,10 @@ class Store:
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self.lock:
             return self.connection.execute(sql, params)
+
+    def insert(self, table: str, columns: dict[str, object]) -> int:
+        values = tuple(json.dumps(value) if isinstance(value, dict) else value for value in columns.values())
+        return self.execute(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})", values).lastrowid
 
     def script(self, sql: str) -> None:
         with self.lock:

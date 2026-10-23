@@ -10315,7 +10315,9 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         assert json.loads(sent("/journal/people", cookie=ada)[2])["me"] == 1 and json.loads(sent("/journal/people", cookie=bob)[2])["me"] == 2, "each person signed in is me to their own browser"
         assert [sent("/journal/messages", {"text": f"from {who}"}, cookie=cookie)[0] for who, cookie in (("Ada", ada), ("Bob", bob))] == [202, 202], "main is Ada's, so the hosted journal asks her journal, its host, to make each message"
         main = app.container.get(Environments).existing("main")
-        assert [request.account_id for request in team.host_requests.waiting((main.key,))] == [1, 2], "each in the name of the person who posted it"
+        from sync_server.pool_slots import PoolSlots
+        from sync_server.pull_query import PullQuery
+        assert [request.account_id for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))] == [1, 2], "each in the name of the person who posted it"
         assert sent("/sign-out", {}, cookie=bob)[0] == 303 and sent("/journal/people", cookie=bob)[0] == 401, "a signed-out session is gone"
     finally:
         (app.config.home / "hosted").unlink(missing_ok=True)
@@ -10326,6 +10328,8 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
 def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_the_host_and_a_push_brings_its_pull(app: App, tmp_path):
     import sqlite3
 
+    from sync_server.pool_slots import PoolSlots
+    from sync_server.pull_query import PullQuery
     from journal.models.link import Link
     from journal.models.user import User
     from journal.repositories.environment_owners import OWNER
@@ -10365,12 +10369,17 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
         app.container.get(IdBlocks).add("messages", 800000, 800100)
         account.write({"address": address, "token": bob, "device": 2, "account_id": 2})
         assert posted("from bob's journal", "k-1") == 202 and not made("k-1"), "a journal that does not host the environment makes no message; it asks the host"
-        assert [(request.kind, request.account_id, request.body["text"]) for request in team.host_requests.waiting((main.key,))] == [("message", 2, "from bob's journal")], "the request waits on the team server in Bob's name"
+        assert [(request.kind, request.account_id, request.body["text"]) for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))] == [("message", 2, "from bob's journal")], "the request waits on the team server in Bob's name"
         account.write({"address": address, "token": ada, "device": 1, "account_id": 1})
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        app.container.get(SettingRows).set("workers.pool_slots", 2, Actor.user(1))
         client = app.container.get(SyncClient)
         client.pulled(0)
         assert [message.creator.stamp for message in made("k-1")] == ["user:2"], "the host takes the request up with its pull and makes the message as Bob"
-        assert team.host_requests.waiting((main.key,)) == (), "and says it is made"
+        from journal.version import VERSION
+        from sync_server.db.pool_capacity_rows import PoolCapacityRows
+        assert [(capacity.device_id, capacity.slots, capacity.free, capacity.version) for capacity in PoolCapacityRows(team.store).capacities()] == [(1, 2, 2, VERSION)], "the pull names the worker slots this machine gives the pool, how many are free and the version it runs, and the team server keeps them"
+        assert team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), "")) == (), "and says it is made"
         client.pulled(0)
         assert len(made("k-1")) == 1, "a request is made once"
         team.pushes.answer(bob, PushRequest.parsed([{"row_table": "tasks", "row": 900001, "action": "created", "actor": "user:2", "fields": {"title": "bob's task", "brief": "b", "created_at": "2026-10-23T08:00:00+00:00", "creator": "user:2"}, "changed_at": {"title": 3.0, "brief": 3.0, "created_at": 3.0, "creator": 3.0}}]), 3.0)

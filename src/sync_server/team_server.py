@@ -14,6 +14,7 @@ from sync_server.leases import Leases
 from sync_server.signin_links import SigninLinks
 from sync_server.host_requests import HostRequests
 from sync_server.db.host_request_rows import HostRequestRows
+from sync_server.db.pool_capacity_rows import PoolCapacityRows
 from sync_server.db.lease_rows import LeaseRows
 from sync_server.team_details import TeamDetails
 from sync_server.db.team_detail_rows import TeamDetailRows
@@ -62,7 +63,7 @@ class TeamServer:
         self.files = FileStore(data / FILES)
         self.leases = Leases(self.store, LeaseRows(self.store), self.accounts)
         self.signins = SigninLinks(self.devices, self.accounts)
-        self.host_requests = HostRequests(HostRequestRows(self.store), self.devices, self.log)
+        self.host_requests = HostRequests(HostRequestRows(self.store), PoolCapacityRows(self.store), self.devices, self.log)
         self.uploads = UploadHandler(self.store, self.log, self.ranges, self.devices, self.details)
         self.pushes = PushHandler(self.store, self.log, self.devices, PushResults(PushResultRows(self.store)), self.host_requests)
         self.pulls = PullHandler(self.log, self.devices, self.clock, self.details, self.host_requests)

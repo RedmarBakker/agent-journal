@@ -17,6 +17,9 @@ from sync_server.db.id_block_rows import IdBlockRows
 from sync_server.db.row_values import RowValues
 from sync_server.db.server_schema import MIGRATIONS, ServerSchema
 from sync_server.db.store import Store
+from sync_server.db.pool_capacity_rows import PoolCapacityRows
+from sync_server.pool_slots import PoolSlots
+from sync_server.pull_query import PullQuery
 
 PASSWORD = "correct horse battery"
 
@@ -113,7 +116,7 @@ def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_
     _, ada = devices.login("ada@example.com", PASSWORD, "ada's laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "bob's laptop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), devices, log))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log))
 
     def request(action, actor, fields, seconds, clock_offset=0.0):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": action, "actor": actor, "fields": fields, "changed_at": {name: seconds for name in fields}}], clock_offset)
@@ -203,7 +206,7 @@ def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_
     _, ada = devices.login("ada@example.com", PASSWORD, "laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "desktop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), devices, log))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), PoolCapacityRows(store), devices, log))
 
     def request(local_number, actor, title, seconds):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": "updated", "actor": actor, "fields": {"title": title}, "changed_at": {"title": seconds}, "local_number": local_number}])
@@ -403,15 +406,15 @@ def test_the_log_is_trimmed_of_what_every_device_pulled_while_deletions_stay_and
     for change in (LoggedChange("tasks", 7, "created", "user:1", 1, ada_device.id, {"title": "a"}, {"title": 1.0}), LoggedChange("tasks", 8, "created", "user:1", 1, ada_device.id, {"title": "b"}, {"title": 1.0}),
                    LoggedChange("tasks", 8, "deleted", "user:1", 1, ada_device.id), LoggedChange("tasks", 7, "updated", "user:1", 1, ada_device.id, {"title": "c"}, {"title": 2.0})):
         team.log.appended(change)
-    team.pulls.answer(eve, 1, 0, ())
+    team.pulls.answer(eve, PullQuery(1, 0, (), PoolSlots(0, 0), ""))
     team.devices.revoke(eve_device.id, 2.0)
-    team.pulls.answer(ada, 4, 0, ())
-    team.pulls.answer(bob, 3, 0, ())
+    team.pulls.answer(ada, PullQuery(4, 0, (), PoolSlots(0, 0), ""))
+    team.pulls.answer(bob, PullQuery(3, 0, (), PoolSlots(0, 0), ""))
     assert team.log.size() == 1 and team.log.head() == 4, "the changes every device pulled are trimmed, a revoked device not counted and the newest kept"
     assert team.log.is_deleted("tasks", 8), "a deleted row stays on the server as a marker, so a deletion still wins over a later edit"
     _, late = team.devices.login("bob@example.com", PASSWORD, "old laptop", "127.0.0.1", 3.0)
     team.devices.record_pull(team.devices.device(late), 1, 3.0)
-    assert team.pulls.answer(late, 1, 0, ()).copy_needed, "a device older than the trimmed tail takes the full copy again"
+    assert team.pulls.answer(late, PullQuery(1, 0, (), PoolSlots(0, 0), "")).copy_needed, "a device older than the trimmed tail takes the full copy again"
     _, joiner = team.devices.login("bob@example.com", PASSWORD, "new laptop", "127.0.0.1", 4.0)
     assert [(row.row, row.fields) for row in team.copies.answer(joiner).rows] == [(7, {"title": "c"})], "a new device still joins from the full copy"
     team.store.close()
@@ -491,3 +494,38 @@ def test_a_person_changes_their_own_password_and_an_admin_resets_a_members(tmp_p
     fresh = team.admins.password_reset(ada_token, bob.id).password
     assert len(fresh) == 22 and team.devices.login("bob@example.com", fresh, "tablet", "127.0.0.4", 3.0), "an admin's reset gives a new password that signs in"
     team.store.close()
+
+
+def test_a_pool_request_goes_to_one_machine_with_a_free_slot_on_its_version_and_one_nobody_claims_is_answered_back(tmp_path):
+    from sync_server.device_ask_request import DeviceAskRequest
+    from sync_server.pool_ask_request import PoolAskRequest
+    from sync_server.team_server import TeamServer
+
+    team = TeamServer(tmp_path)
+    team.accounts.create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", PASSWORD, MEMBER, 1.0)
+    _, ada = team.devices.login("ada@example.com", PASSWORD, "laptop", "127.0.0.1", 1.0)
+    machines = {name: team.devices.login("bob@example.com", PASSWORD, name, "127.0.0.1", 1.0)[1] for name in ("first", "second", "older", "full")}
+    offers = {"first": (PoolSlots(2, 1), "4.40.0"), "second": (PoolSlots(1, 1), "4.40.0"), "older": (PoolSlots(1, 1), "4.39.0"), "full": (PoolSlots(1, 0), "4.40.0")}
+    pulled = lambda name, keys=(): {request.id: request for request in team.pulls.answer(machines[name], PullQuery(0, 0, keys, *offers[name])).requests}
+    asked = lambda: team.host_requests.pooled(ada, PoolAskRequest("env-1", "pool_worker", {"task": 7}, 0, "4.40.0"), team.clock.time()).requests[0]
+    try:
+        first = asked()
+        seen = {name: first.id in pulled(name) for name in machines}
+        assert seen == {"first": True, "second": True, "older": False, "full": False}, "a pool request is offered to every machine with a free slot on the version it names, never to one that is full or on another version"
+        assert {(capacity.slots, capacity.free, capacity.version) for capacity in PoolCapacityRows(team.store).capacities()} == {(2, 1, "4.40.0"), (1, 1, "4.40.0"), (1, 1, "4.39.0"), (1, 0, "4.40.0")}, "each machine's slots and free count are kept from its pull"
+        assert pulled("first")[first.id].audience == "pool" and pulled("first")[first.id].account_id == 1, "it reaches the machine as a pool request in the name of the person who asked"
+        team.host_requests.claimed(machines["first"], first.id)
+        with pytest.raises(Refusal, match="taken by another machine"):
+            team.host_requests.claimed(machines["second"], first.id)
+        assert first.id not in pulled("second"), "once claimed it is no longer offered"
+        second = asked()
+        team.host_requests.declined(machines["first"], second.id)
+        assert second.id not in pulled("first") and second.id in pulled("second"), "a machine that declines one is not offered it again, and the others still are"
+        word = team.host_requests.addressed(ada, DeviceAskRequest(team.devices.device(machines["second"]).id, "env-1", "pool_word", {"text": "go on"}, 0), team.clock.time()).requests[0]
+        assert word.id in pulled("second") and word.id not in pulled("first"), "a request addressed to one machine reaches that machine alone"
+        team.host_requests.lapse(team.clock.time() + 601)
+        answered_back = [request for request in pulled("first", ("env-1",)).values() if request.kind == "pool_unclaimed"]
+        assert [request.body["request"] for request in answered_back] == [second.id] and second.id not in pulled("second"), "one nobody claimed in ten minutes is answered back to its environment's host and offered no more; a claimed one is left alone"
+    finally:
+        team.store.close()

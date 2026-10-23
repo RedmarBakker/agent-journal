@@ -1,4 +1,3 @@
-import json
 from dataclasses import fields
 from sqlite3 import Row
 
@@ -13,12 +12,7 @@ class ChangeRows:
         self.store = store
 
     def insert(self, change: LoggedChange) -> int:
-        columns = {field.name: self.stored(getattr(change, field.name)) for field in fields(change) if field.name != "sequence"}
-        return self.store.execute(f"INSERT INTO changes ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})", tuple(columns.values())).lastrowid
-
-    @staticmethod
-    def stored(value: object) -> object:
-        return json.dumps(value) if isinstance(value, dict) else value
+        return self.store.insert("changes", {field.name: getattr(change, field.name) for field in fields(change) if field.name != "sequence"})
 
     def newer(self, sequence: int, device_id: int, limit: int) -> list[Row]:
         return self.store.all("SELECT * FROM changes WHERE sequence > ? AND device_id != ? ORDER BY sequence LIMIT ?", (sequence, device_id, limit))
