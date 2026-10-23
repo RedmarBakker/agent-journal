@@ -107,6 +107,7 @@ export class Posing {
         this.eyeTint = null;
         this.hearts = 0;
         this.stars = 0;
+        this.squeezed = 0;
         this.laptop = false;
         this.tablet = false;
         this.cloth = false;
@@ -258,6 +259,11 @@ export class Posing {
     // sparkling stars in place of the eyes, `size` times their own size; 0 leaves the eyes
     starEyes(size) {
         this.stars = size;
+    }
+
+    // the eyes squeezed shut laughing, a kawaii > <, `size` times their own size; 0 leaves the eyes
+    squeezeEyes(size) {
+        this.squeezed = size;
     }
 
     // a laptop open on the lap, its lid toward the face
@@ -2198,6 +2204,26 @@ function hop_up(pose, stance, t) {
     tucked(pose, 0.6 + 0.2 * pump);
 }
 
+// where the hands swat at the tickling pointer, in front of the face, across, forward (toward the viewer is less) and up in the
+// figure's units; how many swats a play of it has, and how much it giggles, shaking
+const SWAT = {at: [0.3, -0.8, 2.45], swats: 4, giggle: 4};
+
+// tickled by the mouse pointer it swats at it with one hand and then the other, giggling, its eyes squeezed shut laughing, a kawaii > <
+function tickle_swat(pose, stance, t) {
+    const swat = t * SWAT.swats;
+    const which = Math.floor(swat) % 2 ? "l" : "r";
+    const out = Math.sin(Math.PI * (swat % 1));
+    breathe(pose, t);
+    trunk(pose, {tilt: SWAT.giggle * Math.sin(2 * Math.PI * swat * 2), nod: -3});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    for (const side of Object.keys(SIDES)) {
+        const [x, y, z] = SWAT.at;
+        handTo(pose, side, side === which ? out : 0.25, new THREE.Vector3(SIDES[side] * x, y, z), new THREE.Vector3(1, -0.4, -0.3));
+    }
+    pose.squeezeEyes(1);
+}
+
 // where the disco dance points its hands, across, forward (toward the viewer is less) and up in the figure's units: one up and out over
 // its shoulder, the other down and out by its hip
 const DISCO = {up: [1.2, -0.3, 2.85], down: [0.95, -0.25, 1.3], sway: 12, bounce: 0.18};
@@ -2399,7 +2425,8 @@ const ON_A_LAP = ["sit"];
 // walk does the moment there is nowhere left to go and a fall the moment its feet meet the ground; a beat, a reaction, a jump or a
 // landing never is. A clip that names `marks` has the page draw its mark drifting up from the head in the frames it names, from one to
 // the next of each pair: the Z of sleep, the notes of a whistled tune. A clip that `cuts` in takes over at once from whatever plays, as the
-// figure stops what it does to watch the UFO.
+// figure stops what it does to watch the UFO or swats at a tickle. A clip with its `ownLook` keeps it, the head never turned away to watch
+// the bar under it or the UFO, as the figure faces the user dancing or laughing.
 
 export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
@@ -2438,7 +2465,8 @@ export const CLIPS = [
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
     {name: "push", frames: 6, fps: 12, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
-    {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, postures: MOVE, pose: disco},
+    {name: "tickle_swat", frames: 24, fps: 16, loops: false, cuts: true, ownLook: true, postures: GESTURE, pose: tickle_swat},
+    {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, ownLook: true, postures: MOVE, pose: disco},
     {name: "bug_shot", frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: GESTURE, pose: bug_shot},
     {name: "pogo", frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
@@ -2725,7 +2753,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const found = [];
     scene.traverse((node) => node.isSkinnedMesh && found.push(node));
     const meshes = (DRESSES[voice] ?? ((each) => each))(found);
-    const eyes = {materials: [], shapes: [], hearts: [], stars: []};
+    const eyes = {materials: [], shapes: [], hearts: [], stars: [], squeezed: []};
     const screens = [];
     const visorHulls = [];
     for (const mesh of meshes) {
@@ -2750,6 +2778,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
             eyes.shapes.push(mesh, hull);
             eyes.hearts.push(shapeOver(mesh, HEART, HEART_COLOUR));
             eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
+            eyes.squeezed.push(Object.assign(shapeOver(mesh, SQUEEZE, SQUEEZE_COLOUR), {userData: {way: mesh.name === "eye_l" ? -1 : 1}}));
         }
     }
     const carried = meshes.filter((mesh) => mesh.visible);
@@ -3270,6 +3299,14 @@ const STAR = (() => {
 })();
 const STAR_SIZE = 0.46;
 const STAR_COLOUR = new THREE.Color(1, 0.86, 0.3);
+// an eye squeezed shut laughing, as a cartoon's kawaii > <: a thick chevron pointing in toward the nose, in the eyes' own ivory, the
+// figure's left eye drawn mirrored so the two point at each other
+const SQUEEZE = (() => {
+    const points = [[-0.4, 0.42], [0.42, 0], [-0.4, -0.42], [-0.4, -0.2], [0.04, 0], [-0.4, 0.2]];
+    return new THREE.ShapeGeometry(new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y))));
+})();
+const SQUEEZE_SIZE = 0.5;
+const SQUEEZE_COLOUR = new THREE.Color(1, 0.94, 0.81);
 
 // a shape over an eye, a heart or a star, carried by the head as the eye is, hidden until the eyes take it on
 function shapeOver(eye, geometry, colour) {
@@ -3339,7 +3376,7 @@ function place(figure, pose, facing, blend) {
     for (const hull of figure.visorHulls) hull.visible = !pose.screen;
     // the eyes go out before a lit visor comes on, a display with nothing on it
     const eyed = crt.eyes > EYES_GONE;
-    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars;
+    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars && !pose.squeezed;
     for (const heart of figure.eyes.hearts) {
         heart.visible = eyed && pose.hearts > 0;
         heart.scale.setScalar(HEART_SIZE * pose.hearts);
@@ -3348,6 +3385,10 @@ function place(figure, pose, facing, blend) {
         star.visible = eyed && pose.stars > 0 && !pose.hearts;
         star.scale.setScalar(STAR_SIZE * pose.stars);
         star.rotation.z = 1.2 * (pose.stars - 1);
+    }
+    for (const squeeze of figure.eyes.squeezed) {
+        squeeze.visible = eyed && pose.squeezed > 0 && !pose.hearts && !pose.stars;
+        squeeze.scale.set(SQUEEZE_SIZE * pose.squeezed * squeeze.userData.way, SQUEEZE_SIZE * pose.squeezed, 1);
     }
     return moves;
 }

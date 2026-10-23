@@ -197,6 +197,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "pick reading ×12 when moment=spell state=reading",
         "pick searching ×12 when moment=spell state=searching",
         "nothing nothing ×4 when moment=spell",
+        "shenanigan clip tickle_swat ×1 when moment=tickled, plays out",
         "clip eager ×2 when moment=eager slow=true, plays out",
         "nothing nothing ×3 when moment=eager",
         "shenanigan clip backflip ×7 when moment=jump high=true, plays out",

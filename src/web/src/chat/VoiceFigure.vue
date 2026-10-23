@@ -49,6 +49,7 @@ import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, spellFor, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
+import {UNTICKLED, movedTo, tickling} from "../figure/tickle.js";
 import {cutsAfter} from "../figure/pile.js";
 import {
     clickedBody,
@@ -945,6 +946,7 @@ function stepForward() {
 // the compose box, so its head follows the edge as it moves: looking down at it standing on the bars, and up at it from the compose box's
 // top under them, hammering there too, but not while it pushes a parcel bent over; null when there is nothing to look at
 function lookedAt(shown) {
+    if (shown.clip.ownLook) return null;
     const near = body.footing?.home || (body.place.stays && shown.clip.name !== "push");
     return saucer.value ?? crane.value?.look ?? (onDocks() && near ? progressEdge(groundEdge().element) : null);
 }
@@ -975,9 +977,26 @@ const onType = (event) => {
 };
 
 // what the figure does about a moment, as reactions.js answerTo decides: a beat the body plays, or a look the eyes take on
+// The mouse pointer over the figure (figure/tickle.js): moved back and forth it tickles the figure, which swats at it each time it may,
+// as the pile draws it; once the pointer leaves, the tickle is over: the swat on screen plays out and no other follows
+let pointer = UNTICKLED;
+function tickledBy(event) {
+    pointer = movedTo(pointer, event.clientX, performance.now());
+    if (tickling(pointer, performance.now()) && !beats.value.some((beat) => beat.clip === "tickle_swat")) react({beat: "tickled", time: now.value});
+}
+
+function untickled() {
+    pointer = UNTICKLED;
+    const swatting = playing.shown?.clip.name === "tickle_swat";
+    beats.value = beats.value.filter((beat, index) => beat.clip !== "tickle_swat" || (index === 0 && swatting));
+}
+
+// the moments answered before any beat already waiting: a stumble on a long walk, and a tickle, which the figure swats at at once
+const FIRST = new Set(["long_walk", "tickled"]);
+
 function react(moment) {
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
-    if (answer?.beat) beats.value = moment.beat === "long_walk" ? [answer.beat, ...beats.value] : [...beats.value, answer.beat];
+    if (answer?.beat) beats.value = FIRST.has(moment.beat) ? [answer.beat, ...beats.value] : [...beats.value, answer.beat];
     // a celebration on its chat mark: off to stand on it, when it has a stand free, else played where the figure is
     if (answer?.beat?.onto && markSpot(answer.beat.card, figureSize())) {
         stay = {where: "mark", card: answer.beat.card, until: now.value + MARK_STAY};
@@ -1156,7 +1175,7 @@ const style = computed(() => {
         :data-trip="body.trip ? (body.trip.started ? 'walking' : 'waiting to set off') : body.arriving ? 'arriving' : ''"
         :data-clip="shownClip?.name"
     >
-        <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" />
+        <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" @mousemove="tickledBy" @mouseleave="untickled" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
             <canvas ref="canvas" class="voice-figure-canvas" :style="passing || hidesBelowFloor(acting?.name) ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
             <template v-if="halo">

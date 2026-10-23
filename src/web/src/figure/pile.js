@@ -143,6 +143,8 @@ export const PILE = [
     // the work's own acts, each only while that work goes on and then weighted heavily, a spell keeping it up a while so it is seen though
     // the tool lasts a moment: the laptop while the agent edits, the book while it reads, the searching while it searches
     ...at("spell", {}, [pick("writing", 12, {state: "writing"}), pick("reading", 12, {state: "reading"}), pick("searching", 12, {state: "searching"}), nothing(4)]),
+    // the mouse pointer tickling it (tickle.js): it swats at the pointer every time, as often as it is tickled
+    ...at("tickled", {}, [showpiece(clip("tickle_swat", 1))]),
     // a slow docked bar near its end: the figure gets eager for it now and then
     ...at("eager", {}, [clip("eager", 2, {slow: true}), nothing(3)]),
     // a jump up more than the figure's own height now and then turns over backwards on the way
