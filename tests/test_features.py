@@ -2472,6 +2472,27 @@ def test_a_message_read_through_a_pipe_is_refused(app: App):
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "grep 'journal message read 3' notes.md | head -2"})[0] == 200, "the words quoted inside another command are not a read"
 
 
+def test_every_sample_of_the_hydration_corpus_fills_the_chat_it_should(tmp_path):
+    """tests/hydration_corpus.jsonl holds about a thousand pieces of real Claude Code and Codex transcripts from many sessions, every word swapped for another, their markers kept: injected instructions and context, task notifications, journal and plugin lines, marker and reply tags, tool calls, thinking and the users' own prompts; each with the chat it fills, only the users' words, the agents' replies and the tool summaries."""
+    from journal.features.hydration.support.transcript_chat import TranscriptChat
+    from journal.providers.claude import Claude
+    from journal.providers.codex import Codex
+    programs = {"claude": Claude(), "codex": Codex()}
+    samples = [json.loads(line) for line in (Path(__file__).parent / "hydration_corpus.jsonl").read_text().splitlines()]
+    assert len(samples) > 900
+    path = tmp_path / "piece.jsonl"
+    wrong = []
+    for number, sample in enumerate(samples):
+        path.write_text("".join(json.dumps(row) + "\n" for row in sample["rows"]))
+        chat = [[str(row.message.author), row.message.text] for row in TranscriptChat("s").read(programs[sample["program"]].turns(path))]
+        if chat != sample["chat"]:
+            wrong.append(number)
+    assert wrong == [], f"samples filling another chat than their own: {wrong[:20]}"
+    said = [(author, text) for sample in samples for author, text in sample["chat"]]
+    assert not [text for author, text in said if author == "user" and text.lstrip().startswith(("[journal]", "[plugin ", "<", "# AGENTS.md"))], "no injected line is taken for the user's"
+    assert not [text for author, text in said if author == "agent" and any(line.startswith("[!") for line in text.splitlines())], "no marker or reply tag is left in the agent's chat"
+
+
 def test_every_line_of_the_shell_corpus_is_cut_into_its_parts():
     """tests/shell_corpus.jsonl holds over 4,000 commands in many styles with the parts each is cut into; one marked shell is cut differently by a real shell, and is kept whole here, which runs the same."""
     from journal.support.chain import Chain
