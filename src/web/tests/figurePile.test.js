@@ -305,3 +305,13 @@ test("a finished task never brings the stamp: no stamp in the pile or among the 
 test("every celebrated moment draws the jump for joy", () => {
     for (const moment of ["tests_passed", "tests_fixed", "committed", "task_finished", "check_passed", "bar_done"]) expect(choicesFor({moment}).some((entry) => entry.name === "joy"), moment).toBe(true);
 });
+
+test("one worker sent its job is one phone call: the marks the send writes in the same moments, and another send soon after, call no more", () => {
+    const memory = new Map();
+    const call = (now) => draw({moment: "messaged", memory, now}, () => 0.1)?.name || "";
+    // the send's two messages and its worker card's update land in the same second, and the card updates again a few seconds on
+    expect([call(100), call(100), call(100.5), call(104)]).toEqual(["phone_call", "", "", ""]);
+    // another worker sent off within the cooldown brings no call either; one after it does
+    expect(call(150)).toBe("");
+    expect(call(100 + 2 * 90)).toBe("phone_call");
+});
