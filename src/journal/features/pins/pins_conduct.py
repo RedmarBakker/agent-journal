@@ -11,7 +11,7 @@ from journal.support.timeout import Timeout
 
 LINK = re.compile(r"https?://[^\s<>()\[\]\"'`]+")
 LOCAL_ADDRESS_PATTERN = re.compile(r"^https?://(?:localhost|127\.0\.0\.1)[:/]")
-PIN_CLAIM = re.compile(r"\b(pinned|pin it|pinned it)\b", re.IGNORECASE)
+PIN_CLAIM = re.compile(r"\b(pinned (?:above|at the top|for you)|(?:i've|i have|i) pinned|(?:it's|it is|now) pinned)\b", re.IGNORECASE)
 CLAIM_WINDOW_SECONDS = 60
 
 

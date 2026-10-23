@@ -546,6 +546,10 @@ def test_telling_the_user_a_link_is_pinned_with_no_pin_made_is_pointed_out(app: 
         app.runtime().deferred.drain()
         return replied + " ".join(keystrokes)
     assert "no pin was made in the last minute" in told(), "a pin claimed with none made is pointed out"
+    keystrokes.clear()
+    talk = json.dumps(hook(app, "MessageDisplay", message="Saying a link is pinned without pinning one is now pointed out.")[1])
+    app.runtime().deferred.drain()
+    assert "no pin was made" not in talk + " ".join(keystrokes), "words about pinning that tell the user nothing is pinned are not a claim"
     app.console().run(["notice", "create", "The design", "--link", "https://example.com/design", "--label", "Open the design"], AGENT)
     assert "no pin was made" not in told(), "just after a pin is made, the claim stands"
 
