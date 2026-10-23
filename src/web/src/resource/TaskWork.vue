@@ -16,7 +16,7 @@ const shown = computed(() => work.value.proofs.length > 0 || work.value.todos.le
             <h4>Points</h4>
             <WorkerPoints :task="work" :worker="task.worker_id || 0" :api="api" />
             <template v-if="work.todos.length">
-                <h4>The worker's to-do list</h4>
+                <h4>The worker's tasks</h4>
                 <WorkerTodos :todos="work.todos" />
             </template>
         </section>

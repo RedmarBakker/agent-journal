@@ -10975,6 +10975,10 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         assert git("rev-parse", "HEAD", cwd=folder).stdout == git("rev-parse", "main").stdout, "its worktree is cut from the base fetched from origin"
         assert team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION)) == (), "once taken up it is offered to no other machine"
         assert app.container.get(PullQueries).query(0).pool.free == 0, "the slot it took is no longer free"
+        from journal.features.workers.support.pool_overview import PoolOverview
+        overview = app.container.get(PoolOverview)
+        assert [(line.name, line.task) for line in overview.lent()] == [("Lady Lovelace", "the parser")] and overview.slots() == 1, "the Team page lists the worker this machine runs for the pool, with its task"
+        assert [line.name for line in overview.team()] == ["Lady Lovelace"], "and among the team's pool workers"
         with app.container.get(Scope).environment(MAIN):
             workers = app.container.get(Workers)
             workers.save(workers.find(worker.id).with_(token_hash="h", session="w-1").ready(1.0), Actor.system())

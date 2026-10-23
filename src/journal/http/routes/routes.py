@@ -106,6 +106,8 @@ class Routes:
         router.post(f"{API}/team/password", get(TeamController).password)
         router.post(f"{API}/team/people/{{id}}/password", get(TeamController).password_reset)
         router.get(f"{API}/team/people", get(TeamController).people)
+        router.get(f"{API}/team/pool", get(TeamController).pool)
+        router.post(f"{API}/team/pool/{{id}}/stop", get(TeamController).pool_stop)
         router.get(f"{API}/team/devices", get(TeamController).devices)
         router.post(f"{API}/team/devices/{{id}}/revoke", get(TeamController).revoke)
         router.get(f"{API}/people", get(PeopleController).show)

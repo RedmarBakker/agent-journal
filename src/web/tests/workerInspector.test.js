@@ -101,7 +101,7 @@ test("each point is a row with its proof, a sent-back point shows its reason, an
     expect(api.act).toHaveBeenCalledWith("workers", 3, "check", {point: 2});
 });
 
-test("a worker still at work has no check to offer, and its to-do list marks what is done", async () => {
+test("a worker still at work has no check to offer, and its tasks mark what is done", async () => {
     const host = mount(WorkerPoints, {task, worker: 3, api: {act: vi.fn()}});
     await flush();
     expect(host.querySelectorAll("button").length).toBe(0);
@@ -134,12 +134,12 @@ test("a transcript reads as who said what, each with the steps it took in words 
     ]);
 });
 
-test("the worker page shows its points, its readable transcript and its to-do list side by side, with no empty pane", async () => {
+test("the worker page shows its points, its readable transcript and its tasks side by side, with no empty pane", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: turns.length, first: 1, turns}))};
     const host = mount(WorkerPage, {resource: worker("clocked in")}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await new Promise((resolve) => setTimeout(resolve, 20));
     await flush();
-    expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "To-do list"]);
+    expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "Tasks"]);
     expect(host.textContent).toContain("1 of 4 checked");
     expect(host.textContent).toContain("1 of 2 done");
     expect(host.querySelector(".tx").textContent).toContain("pytest -k parser");

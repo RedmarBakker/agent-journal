@@ -1,7 +1,9 @@
 import time
+from dataclasses import asdict
 
 from journal.features.team.support.repository_identity import RepositoryIdentity
 from journal.features.team.support.team_join import TeamJoin
+from journal.features.workers.support.pool_overview import PoolOverview
 from journal.sync.team_url import TeamUrl
 from journal.http.support.request import Request
 from journal.repositories.environment_owners import EnvironmentOwners
@@ -17,11 +19,11 @@ ONLINE_SECONDS = 120
 
 
 class TeamController:
-    """The viewer's Team tab: how this journal stands with its team, the join a journal in no team makes from it by a team URL, the email git knows filled in, as journal team join does, the team's people with their environments and when they were last seen, and for an admin the invitation, answered with the line the person joins with, and the devices, one of which can be revoked."""
+    """The viewer's Team tab: how this journal stands with its team, the join a journal in no team makes from it by a team URL, the email git knows filled in, as journal team join does, the team's people with their environments and when they were last seen, the worker pool, the slots this machine gives and the pool workers it runs, a stop of one of them, this journal's pool workers elsewhere and the team's, and for an admin the invitation, answered with the line the person joins with, and the devices, one of which can be revoked."""
 
-    def __init__(self, account: TeamAccount, joining: TeamJoin, link: TeamServerLink, status: SyncStatus, environments: Environments, owners: EnvironmentOwners, identity: RepositoryIdentity) -> None:
+    def __init__(self, account: TeamAccount, joining: TeamJoin, link: TeamServerLink, status: SyncStatus, environments: Environments, owners: EnvironmentOwners, identity: RepositoryIdentity, pool_overview: PoolOverview) -> None:
         self.account, self.joining, self.link, self.status, self.identity = account, joining, link, status, identity
-        self.environments, self.owners = environments, owners
+        self.environments, self.owners, self.pool_overview = environments, owners, pool_overview
 
     def show(self, request: Request) -> Response:
         if not self.account.is_joined():
@@ -32,6 +34,15 @@ class TeamController:
         body = request.body
         outcome = TeamRequests.reached(lambda: self.joining.join(TeamUrl.parse(str(body.get("url", ""))), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
         return Response.json({"outcome": outcome, "environment": request.environment}, 201)
+
+    def pool(self, request: Request) -> Response:
+        lent = self.pool_overview.lent()
+        slots = self.pool_overview.slots()
+        return Response.json({"slots": slots, "free": max(slots - len(lent), 0), "lent": [asdict(line) for line in lent], "elsewhere": [asdict(line) for line in self.pool_overview.remote_runs()], "team": [asdict(line) for line in self.pool_overview.team()]})
+
+    def pool_stop(self, request: Request) -> Response:
+        self.pool_overview.stop(request.number("id"), request.actor)
+        return self.pool(request)
 
     def people(self, request: Request) -> Response:
         answer = TeamRequests.reached(self.link.people)

@@ -15,6 +15,7 @@ import "./team.css";
 const standing = ref(null);
 const people = ref([]);
 const devices = ref([]);
+const pool = ref({slots: 0, free: 0, lent: [], elsewhere: [], team: []});
 const failure = ref("");
 const outcome = ref("");
 const opening = ref(false);
@@ -34,6 +35,7 @@ async function load() {
         if (!standing.value.joined) return;
         people.value = (await api.teamPeople()).people;
         if (standing.value.admin) devices.value = (await api.teamDevices()).devices;
+        pool.value = await api.teamPool();
     } catch (e) {
         failure.value = e.message;
     }
@@ -85,10 +87,10 @@ onMounted(load);
                 </div>
             </template>
             <template v-else-if="standing && hosted">
-                <TeamHosted :standing="standing" :people="people" :devices="devices" />
+                <TeamHosted :standing="standing" :people="people" :devices="devices" :pool="pool" />
             </template>
             <template v-else-if="standing">
-                <TeamLocal :standing="standing" :people="people" :devices="devices" />
+                <TeamLocal :standing="standing" :people="people" :devices="devices" :pool="pool" @pool="pool = $event" />
             </template>
         </div>
     </section>

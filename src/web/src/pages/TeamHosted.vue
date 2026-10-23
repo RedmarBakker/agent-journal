@@ -8,14 +8,14 @@ import TeamServer from "./TeamServer.vue";
 import TeamSummary from "./TeamSummary.vue";
 import TeamVersion from "./TeamVersion.vue";
 
-defineProps({standing: {type: Object, required: true}, people: {type: Array, required: true}, devices: {type: Array, default: () => []}});
+defineProps({standing: {type: Object, required: true}, people: {type: Array, required: true}, devices: {type: Array, default: () => []}, pool: {type: Object, required: true}});
 </script>
 
 <template>
     <div class="team-column">
         <TeamSummary :standing="standing" :people="people" />
         <template v-if="narrow">
-            <TeamPoolRunning />
+            <TeamPoolRunning :pool="pool" />
             <TeamVersion :standing="standing" />
             <TeamMachines :devices="devices" :admin="standing.admin" />
             <TeamChatBox hosted />
@@ -25,7 +25,7 @@ defineProps({standing: {type: Object, required: true}, people: {type: Array, req
         <template v-else>
             <div class="team-grid hosted">
                 <div class="team-column">
-                    <TeamPoolRunning />
+                    <TeamPoolRunning :pool="pool" />
                     <TeamMachines :devices="devices" :admin="standing.admin" />
                 </div>
                 <div class="team-column">

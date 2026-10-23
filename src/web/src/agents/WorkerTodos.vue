@@ -15,7 +15,7 @@ defineProps({todos: {type: Array, required: true}});
                 <span>{{ item.text }}</span>
             </div>
         </template>
-        <p class="foot-note">The worker keeps this list with journal todo; it is not the task's points.</p>
+        <p class="foot-note">The worker's own steps, kept with journal todo; they are not the points of the task it works on.</p>
     </div>
 </template>
 

@@ -384,6 +384,16 @@ export class ApiClient {
         return this.get("/team/people");
     }
 
+    // the worker pool: the slots this machine gives, the pool workers it runs for teammates, this journal's on other machines, and the team's
+    teamPool() {
+        return this.get("/team/pool");
+    }
+
+    // stops a pool worker this machine runs for a teammate, answered with the pool as it then stands
+    stopPoolWorker(request) {
+        return this.post(`/team/pool/${encoded(request)}/stop`, {});
+    }
+
     // the team's devices, for an admin
     teamDevices() {
         return this.get("/team/devices");

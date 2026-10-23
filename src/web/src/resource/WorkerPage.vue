@@ -90,7 +90,7 @@ const tab = ref("points");
 const tabs = computed(() => [
     {key: "points", label: "Points", count: `${checked.value} of ${task.value.points.length}`},
     {key: "transcript", label: "Transcript"},
-    {key: "todos", label: "To-do list", count: `${done.value} of ${task.value.todos.length}`},
+    {key: "todos", label: "Tasks", count: `${done.value} of ${task.value.todos.length}`},
 ]);
 
 const message = ref("");
@@ -137,7 +137,7 @@ async function send() {
                 </InspectorColumn>
             </template>
             <template v-if="hasTask && (!narrow || tab === 'todos')">
-                <InspectorColumn :title="narrow ? '' : 'To-do list'" :count="`${done} of ${task.todos.length} done`">
+                <InspectorColumn :title="narrow ? '' : 'Tasks'" :count="`${done} of ${task.todos.length} done`">
                     <WorkerTodos :todos="task.todos" />
                 </InspectorColumn>
             </template>

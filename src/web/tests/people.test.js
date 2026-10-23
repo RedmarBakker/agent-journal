@@ -99,7 +99,9 @@ test("the Team page lists each person with their environments and opens a collea
     const tab = readFileSync(resolve(__dirname, "../src/pages/SettingsTeam.vue"), "utf8");
     expect(tab).toMatch(/<TeamConnect :email="standing\.email" @joined="joined" \/>/);
     const local = readFileSync(resolve(__dirname, "../src/pages/TeamLocal.vue"), "utf8");
-    expect(local).toMatch(/<template v-if="standing\.admin">\s*<TeamInvite \/>\s*<TeamDevices \/>/);
+    expect(local).toMatch(/<template v-if="standing\.admin">\s*<TeamAdmin \/>/);
+    const admin = readFileSync(resolve(__dirname, "../src/pages/TeamAdmin.vue"), "utf8");
+    expect(admin).toMatch(/<TeamInvite \/>\s*<TeamDevices \/>/);
 });
 
 test("the join form asks only for the team URL, the email git knows and a password it can generate", async () => {
