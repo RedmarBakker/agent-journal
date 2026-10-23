@@ -8,10 +8,13 @@ import {WORKING, clipOf, eggFor} from "../domain/figureState.js";
 export const VOICE_FACES = {
     butler: {"🎩": "hat_tip", "🧐": "monocle", "🥂": "toast"},
     homie: {"🤙": "shaka", "😎": "shades", "🔥": "fire"},
-    colleague: {"👍": "thumbs_up", "👀": "peer", "🙏": "thanks"},
+    colleague: {"👍": "thumbs_up", "👀": "peer"},
     coach: {"🎉": "party_popper", "💪": "flex", "🏆": "trophy"},
     squire: {"⚔️": "sword", "🛡️": "shield_up", "🏰": "castle"},
 };
+
+// The clip every voice plays when the agent puts one of these faces on a message, beside its own
+export const EVERY_VOICE_FACES = {"🙏": "thanks"};
 
 // The reactions to a moment, by its name; the first whose roll succeeds plays. `moment` is a beat, a card seen to change, or a held state.
 // A clip moves the body once; a look changes only the eyes. Card-directed clips face their source.
@@ -54,6 +57,7 @@ export const REACTIONS = [
     ...Object.entries(VOICE_FACES).flatMap(([voice, faces]) =>
         Object.entries(faces).map(([face, clip]) => ({moment: `agent_reacted:${face}`, voice, clip, odds: 1, cooldown: 0}))
     ),
+    ...Object.entries(EVERY_VOICE_FACES).map(([face, clip]) => ({moment: `agent_reacted:${face}`, clip, odds: 1, cooldown: 0})),
 ];
 
 // how long the eyes keep a look, counted only while they are shown
@@ -91,6 +95,8 @@ export const WORK_VARIANTS = [["type", 0.7]];
 export const AMBIENT = [
     {clip: "look_around", state: "idle", after: 60, every: [25, 60], odds: 0.6},
     {clip: "stretch", state: "idle", after: 240, every: [90, 180], odds: 0.5},
+    // after a long quiet it lies down on its back for a while, whistling, on any floor it stands on
+    {clip: "rest", state: "idle", after: 300, every: [120, 240], odds: 0.6},
     {clip: "polish", voice: "butler", state: "idle", after: 90, every: [60, 150], odds: 0.5},
     ...[
         ["coach", "whistle"], ["colleague", "sip"], ["homie", "headphones"], ["squire", "shield_polish"],

@@ -63,9 +63,9 @@ const SIZE = 112;
 // how often the figure looks again at what the agent does and where things are, in milliseconds
 const LOOK_EVERY = 1000;
 const COMPOSE_TURN = 30;
-const SLEEP_GLYPHS = 3;
-const SLEEP_DRIFT_SECONDS = 3;
-const SLEEP_HEAD_OFFSET = 0.1;
+const MARK_COUNT = 3;
+const MARK_DRIFT_SECONDS = 3;
+const MARK_HEAD_OFFSET = 0.1;
 
 const props = defineProps({voice: {type: String, required: true}});
 
@@ -126,6 +126,8 @@ const headAt = ref({x: 0.5, y: 0.3});
 const clipNamed = (name) => clips.find((clip) => clip.name === name) || clips.find((clip) => clip.name === "idle");
 const hasClip = (name) => clips.some((clip) => clip.name === name);
 const canDraw = (name, posture) => clipNamed(name).postures.includes(posture);
+// a clip the figure has and can draw in the posture it rests in, as a pastime must be
+const drawnHere = (name) => hasClip(name) && canDraw(name, body.place.posture);
 const figureSize = () => ({size: SIZE, below: below.value});
 
 // the clip the figure's body shows for the stretch it is in
@@ -518,7 +520,7 @@ function look() {
     [...happened, ...work.moments].forEach(react);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const egg = answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
-    const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, hasClip);
+    const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere);
     const after = [egg, pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
     if (coveredSince() && !body.airborne) stepOutOf(boxAt(body.place, figureSize(), drawn));
@@ -664,11 +666,15 @@ onUnmounted(() => {
     window.removeEventListener("resize", look);
 });
 
-const sleeping = computed(() => shownClip.value?.name === "sleep" && shownFrame.value >= shownClip.value.intro);
-const sleepStyle = computed(() => ({
+// the mark the clip on screen draws drifting up from the head in this frame (figure.js CLIPS marks), or ""
+const mark = computed(() => {
+    const marks = shownClip.value?.marks;
+    return marks?.frames.some(([from, to]) => shownFrame.value >= from && shownFrame.value < to) ? marks.mark : "";
+});
+const markStyle = computed(() => ({
     left: `${headAt.value.x * 100}%`,
-    top: `${(headAt.value.y - SLEEP_HEAD_OFFSET) * 100}%`,
-    "--sleep-seconds": `${SLEEP_DRIFT_SECONDS}s`,
+    top: `${(headAt.value.y - MARK_HEAD_OFFSET) * 100}%`,
+    "--mark-seconds": `${MARK_DRIFT_SECONDS}s`,
 }));
 
 const chasing = computed(() => shownClip.value?.name === "squire_chase");
@@ -717,10 +723,10 @@ const style = computed(() => ({
         <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
             <canvas ref="canvas" class="voice-figure-canvas" :style="passing ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
-            <template v-if="sleeping">
-                <span class="voice-figure-sleep" :style="sleepStyle">
-                    <template v-for="index in SLEEP_GLYPHS" :key="index">
-                        <span :style="{animationDelay: `${(-(index - 1) * SLEEP_DRIFT_SECONDS) / SLEEP_GLYPHS}s`}">Z</span>
+            <template v-if="mark">
+                <span class="voice-figure-marks" :style="markStyle">
+                    <template v-for="index in MARK_COUNT" :key="index">
+                        <span :style="{animationDelay: `${(-(index - 1) * MARK_DRIFT_SECONDS) / MARK_COUNT}s`}">{{ mark }}</span>
                     </template>
                 </span>
             </template>
@@ -735,7 +741,7 @@ const style = computed(() => ({
 </template>
 
 <style scoped>
-.voice-figure-sleep {
+.voice-figure-marks {
     position: absolute;
     color: var(--text);
     pointer-events: none;
@@ -745,13 +751,13 @@ const style = computed(() => ({
     line-height: 1;
 }
 
-.voice-figure-sleep > span {
+.voice-figure-marks > span {
     position: absolute;
     opacity: 0;
-    animation: voice-figure-sleep var(--sleep-seconds) linear infinite;
+    animation: voice-figure-marks var(--mark-seconds) linear infinite;
 }
 
-@keyframes voice-figure-sleep {
+@keyframes voice-figure-marks {
     0% {
         transform: translate(0, 0) scale(0.65);
         opacity: 0;
@@ -766,10 +772,10 @@ const style = computed(() => ({
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .voice-figure-sleep > span {
+    .voice-figure-marks > span {
         animation: none;
     }
-    .voice-figure-sleep > span:first-child {
+    .voice-figure-marks > span:first-child {
         opacity: 0.5;
     }
 }

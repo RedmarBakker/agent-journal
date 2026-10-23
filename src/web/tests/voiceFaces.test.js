@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing} from "../src/figure/figure.js";
-import {REACTIONS, VOICE_FACES, answerTo} from "../src/figure/reactions.js";
+import {EVERY_VOICE_FACES, REACTIONS, VOICE_FACES, answerTo} from "../src/figure/reactions.js";
 import {facesAfter} from "../src/domain/figureState.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
@@ -39,7 +39,7 @@ test("every face of every built-in voice has a clip of that voice's own, which t
     expect(Object.keys(BUILT_IN).sort()).toEqual(["butler", "coach", "colleague", "homie", "squire"]);
     for (const [voice, faces] of Object.entries(BUILT_IN)) {
         expect(faces.length, voice).toBe(3);
-        for (const face of faces) {
+        for (const face of faces.filter((each) => !EVERY_VOICE_FACES[each])) {
             const clip = clipNamed(VOICE_FACES[voice][face]);
             expect(clip, `${voice} ${face}`).toBeDefined();
             expect(clip.voices, `${voice} ${face}`).toEqual([voice]);
@@ -47,13 +47,33 @@ test("every face of every built-in voice has a clip of that voice's own, which t
         }
     }
     const clips = Object.values(VOICE_FACES).flatMap((faces) => Object.values(faces));
-    expect(new Set(clips).size).toBe(15);
+    expect(new Set(clips).size).toBe(14);
+});
+
+test("the agent's 🙏 on a message plays the thanks for every voice: the hands pressed together before the chest, fingers up", () => {
+    const thanks = clipNamed("thanks");
+    expect(thanks.voices).toBeUndefined();
+    for (const voice of Object.keys(BUILT_IN)) {
+        const has = (name) => clipNamed(name) && (!clipNamed(name).voices || clipNamed(name).voices.includes(voice));
+        expect(answerTo({beat: "agent_reacted:🙏", time: 1}, voice, {reacted: new Map(), played: []}, 200, () => 0.99, has), voice).toEqual({beat: {clip: "thanks", card: ""}});
+        const pose = posed(thanks, voice, 0.5);
+        const moves = pose.moves(0);
+        const [left, right] = ["l", "r"].map((side) => pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`)));
+        expect(left.distanceTo(right), voice).toBeLessThan(0.3);
+        const chest = pose.head("chest", moves.get("chest"));
+        expect(left.z, voice).toBeGreaterThan(chest.z - 0.4);
+        expect(left.y, voice).toBeLessThan(chest.y - 0.3);
+        for (const side of ["l", "r"]) {
+            const fingers = RIG.along.get(`hand_${side}`).clone().transformDirection(moves.get(`hand_${side}`));
+            expect(fingers.z, `${voice} ${side}`).toBeGreaterThan(0.8);
+        }
+    }
 });
 
 test("each face's clip poses on every frame in every posture it is drawn in, and starts and ends at rest with nothing in hand", () => {
     for (const [voice, faces] of Object.entries(VOICE_FACES)) {
         const rest = movesOf(posed(clipNamed("idle"), voice, 0));
-        for (const name of Object.values(faces)) {
+        for (const name of Object.values({...faces, ...EVERY_VOICE_FACES})) {
             const clip = clipNamed(name);
             const steps = clip.frames * 5;
             for (const posture of clip.postures) {
