@@ -2,6 +2,13 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.32.0
+
+- The worker and subagent inspector, as designed: a worker's points each with its proof and whether it is checked or sent back, its own to-do list, its state, brief, report and moves, and a transcript that says what each step did.
+- The figure pushes each finished code parcel onto a pile at the right of the floor; a commit sends a UFO whose beam lifts the whole pile, while the figure shades its eyes, steps back and watches it go. Standing on a docked card with a progress bar, it watches the bar fill.
+- A worker's merge that clashes only in folders built from the sources (Settings: Folders built from the sources) takes the project's side and builds them again, instead of stopping.
+- A reaction's emoji is called emoji throughout.
+
 ## 4.31.5
 
 - The chat orders messages by when they were written, so a teammate's or the hosted page's message lands at the bottom instead of far up the history, and the hosted page no longer shows its own message as waiting.
