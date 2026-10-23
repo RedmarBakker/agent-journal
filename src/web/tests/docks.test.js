@@ -17,9 +17,19 @@ const docked = (id, seconds, row, docked = true, heading = `Row ${id}`) => ({
 });
 
 describe("rows docked above the chat", () => {
-    test("are the messages whose data says docked, newest first", () => {
+    test("are the messages whose data says docked, in the order each docked, the newest at the bottom", () => {
         const rows = dockedRows([docked(1, 10, "tasks:1"), docked(2, 30, "reports:2", false), docked(3, 20, "docs:3"), {id: 4, data: {}}]);
-        expect(rows.map((m) => m.id)).toEqual([3, 1]);
+        expect(rows.map((m) => m.id)).toEqual([1, 3]);
+    });
+
+    test("keep their places as they update: a card updated after a newer one docked never moves above or below it", () => {
+        const first = docked(1, 10, "tasks:1");
+        const second = docked(2, 20, "docs:2");
+        const third = docked(3, 30, "reports:3");
+        expect(dockedRows([third, first, second]).map((m) => m.id)).toEqual([1, 2, 3]);
+        const updated = (m, seconds) => ({...m, updated_at: at(seconds)});
+        expect(dockedRows([updated(first, 40), second, third]).map((m) => m.id)).toEqual([1, 2, 3]);
+        expect(dockedRows([first, updated(second, 50), updated(third, 45)]).map((m) => m.id)).toEqual([1, 2, 3]);
     });
 
     test("name the row's table and number from its ref", () => {

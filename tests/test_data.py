@@ -792,6 +792,26 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
         assert eventually(lambda: tasks_b.find(task.id).title == "a's later title", 3.0) and tasks_a.find(task.id).title == "a's later title", "two edits of one title at once keep the later on both"
         with scope_b.environment(1):
             assert eventually(lambda: any("was kept over yours" in str(message) for message in messages_b.scoped()), 1.0), "the journal whose edit lost shows a card naming whose edit was kept"
+        # an answer that waits to be applied, as under load, still measures the clock offset as it arrived, so this journal's later
+        # edits never go out stamped before its own earlier ones and are rejected against them
+        import threading
+        holding = threading.Thread(target=lambda: (client_a.applying.acquire(), time.sleep(1.5), client_a.applying.release()))
+        holding.start()
+        time.sleep(0.05)
+        client_a.pulled(0)
+        holding.join()
+        assert abs(client_a.clock_offset) < 1.0, f"the offset was measured after the wait to apply, {client_a.clock_offset:.2f} s off"
+        # a full copy taken while a change of this journal is going out waits for it, so the copy never wipes a change sent meanwhile
+        from sync_server.pull_answer import PullAnswer
+        copied = threading.Event()
+        with client_a.sending:
+            taking = threading.Thread(target=lambda: (client_a.applied(PullAnswer((), 0, time.time(), "", True, ())), copied.set()))
+            taking.start()
+            assert not copied.wait(0.3), "the full copy went ahead while a send was under way"
+        assert copied.wait(5.0), "and goes ahead once the send is done"
+        taking.join()
+        with scope_a.environment(1):
+            assert tasks_a.find(task.id).title == "a's later title", "the copy kept this journal's rows"
         team.close(server)
         with scope_a.environment(1):
             tasks_a.save(tasks_a.find(task.id).with_(brief="written while the server was down"), actor=USER)

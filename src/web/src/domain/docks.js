@@ -1,4 +1,4 @@
-import {createdAt, updatedAt} from "./row.js";
+import {createdAt} from "./row.js";
 
 // The newest dump stays above the chat once it is filed, until the user puts it away.
 export function dockedDump(dumps) {
@@ -10,9 +10,10 @@ export function dockedDump(dumps) {
 // lingers after its run's end has passed.
 export const isDocked = (m, now) => m.data?.docked === true && !(m.data.undock_at && now >= m.data.undock_at);
 
-// Every row docked above the chat, newest first: a system message whose data carries docked and the row's card.
+// Every row docked above the chat, in the order each docked: a system message whose data carries docked and the row's card. The
+// newest sits at the bottom, nearest the composer, pushing the earlier ones up, and none changes place as it updates.
 export function dockedRows(messages, now = Date.now() / 1000) {
-    return messages.filter((m) => isDocked(m, now)).sort((a, b) => updatedAt(b) - updatedAt(a) || b.id - a.id);
+    return messages.filter((m) => isDocked(m, now)).sort((a, b) => createdAt(a) - createdAt(b) || a.id - b.id);
 }
 
 // The messages the chat draws in its stream: every one stays at its place, a docked one marked docked so it is drawn faded

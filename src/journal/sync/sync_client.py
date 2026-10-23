@@ -39,7 +39,7 @@ class SyncClient:
         self.uploads, self.attachments, self.chat, self.upgrade, self.copy = uploads, attachments, chat, upgrade, copy
         self.supply, self.queries, self.desk = supply, queries, desk
         self.stopping = threading.Event()
-        self.applying, self.sending = threading.Lock(), threading.Lock()
+        self.applying, self.sending = threading.Lock(), threading.RLock()
         self.clock_offset = 0.0
         self.sender = threading.Thread()
 
@@ -87,6 +87,7 @@ class SyncClient:
 
     def delivered(self, batch: list) -> None:
         answer = self.link.send_changes([change.payload() for change in batch], self.clock_offset, self.queries.query(0))
+        self.measured(answer.delivery.server_time - time.time())
         self.outgoing.sent(batch)
         self.rejected.apply(answer.settlement.rejected)
         self.handle_answer(answer.delivery)
@@ -110,7 +111,9 @@ class SyncClient:
         self.pulled(LONG_POLL_SECONDS)
 
     def pulled(self, wait_seconds: float) -> int:
-        return self.handle_answer(self.link.fetch_changes(self.queries.query(wait_seconds)))
+        answer = self.link.fetch_changes(self.queries.query(wait_seconds))
+        self.measured(answer.server_time - time.time())
+        return self.handle_answer(answer)
 
     def handle_answer(self, answer: PullAnswer) -> int:
         count = self.applied(answer)
@@ -119,11 +122,13 @@ class SyncClient:
         return count
 
     def applied(self, answer: PullAnswer) -> int:
-        with self.applying:
-            self.measured(answer.server_time - time.time())
-            if answer.copy_needed:
+        if answer.copy_needed:
+            # nothing of this journal's goes out between the team's copy being taken and laid in place of its rows, or the copy would
+            # wipe a change sent meanwhile, which no pull sends back, as a journal is never sent its own changes
+            with self.sending, self.applying:
                 self.download_copy()
-                return 0
+            return 0
+        with self.applying:
             sequence = self.account.sequence()
             changes = [TeamChange.logged(change) for change in answer.changes if change.sequence > sequence]
             self.incoming.apply(changes)
