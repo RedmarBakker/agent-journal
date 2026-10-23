@@ -127,6 +127,9 @@ class Worker(Scoped):
     def is_mid_shift(self) -> bool:
         return bool(self.token_hash) and self.is_running()
 
+    def is_closed(self) -> bool:
+        return self.state in (WorkerState.STOPPED, WorkerState.MERGED, WorkerState.RELEASED, WorkerState.UNFINISHED)
+
     def is_idle(self) -> bool:
         return self.state == WorkerState.REPORTED and not self.adopted
 

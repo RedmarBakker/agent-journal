@@ -11092,6 +11092,9 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         assert merged.code == 0, merged.error
         assert (root / "parser.py").exists(), "the merge fetches the worker's pool branch from origin and takes it into the dispatcher's checkout, with no worktree of its own"
         assert "journal/pool/" not in git("ls-remote", "origin").stdout, "and both pool branches are deleted from origin"
+        cleared = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if each.kind == "worker_cleanup"]
+        assert [each.body["worker_id"] for each in cleared] == [worker.id], "and the machine that ran it is told to drop its worktree and branch"
+        team.host_requests.finished(ada, cleared[0].id, team.clock.time())
         app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
         printer = console.run(["task", "create", "the printer", "--brief", "the printer prints"], AGENT).text.split()[1]
         app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
@@ -11195,6 +11198,15 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
         with app.container.get(Scope).environment(MAIN):
             babbage = [each for each in app.container.get(Workers).all() if each.name == "Mr. Babbage"][0]
         assert babbage.state == WorkerState.UNFINISHED and "has not reached the team server for ten minutes" in babbage.run_end, "and the dispatcher is told its machine went quiet"
+        from sync_server.host_ask_request import HostAskRequest
+        with app.container.get(Scope).environment(MAIN):
+            babbage = app.container.get(Workers).save(babbage.with_(device=str(team.devices.device(bob).id)), Actor.system())
+        late = team.host_requests.created(bob, HostAskRequest(app.container.get(Environments).existing("main").key, "worker_delivered", {"worker_id": babbage.id, "report": "done after all"}, 2), team.clock.time()).requests
+        app.container.get(HostDesk).handle(late)
+        with app.container.get(Scope).environment(MAIN):
+            assert app.container.get(Workers).find(babbage.id).state == WorkerState.UNFINISHED, "a machine back from offline cannot clock out a worker already marked lost"
+        cleanup = [each for each in team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if each.kind == "worker_cleanup"]
+        assert [each.body["worker_id"] for each in cleanup] == [babbage.id], "it is told to stop that run and drop its worktree, so only the worker sent again holds the task"
         app.container.get(HostDesk).handle(tuple(team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION))) + (answered[0].__class__(id=0, environment_key="k", kind="from a later version", body={}, account_id=1, created_at=0.0),))
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)

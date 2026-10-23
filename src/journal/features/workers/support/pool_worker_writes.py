@@ -1,7 +1,7 @@
 import time
 from typing import Callable
 
-from journal.features.workers.support.pool_worker_moves import DELIVERED, ENDED, OFFLINE_MACHINE, READY, STOPPED, UNCLAIMED
+from journal.features.workers.support.pool_worker_moves import CLEANUP, DELIVERED, ENDED, OFFLINE_MACHINE, READY, STOPPED, UNCLAIMED, PoolWorkerMoves
 from journal.features.workers.support.worker_end import WorkerEnd
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -21,10 +21,10 @@ OFFLINE_LINE = "{device}, the machine running it, has not reached the team serve
 
 
 class PoolWorkerWrites(HostWriter):
-    """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, its run's end, a stop by the member whose machine runs it, and a pool request nobody took up or whose machine went quiet, which end the worker."""
+    """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, its run's end, a stop by the member whose machine runs it, each refused for a worker already closed here, whose machine is told to drop it, so a machine back from offline never adds to a worker sent again, and a pool request nobody took up or whose machine went quiet, which end the worker."""
 
-    def __init__(self, workers: Workers, reports: WorkerReports, runner: WorkerRunner, environments: Environments, scope: Scope) -> None:
-        self.workers, self.reports, self.runner, self.environments, self.scope = workers, reports, runner, environments, scope
+    def __init__(self, workers: Workers, reports: WorkerReports, runner: WorkerRunner, environments: Environments, scope: Scope, moves: PoolWorkerMoves) -> None:
+        self.workers, self.reports, self.runner, self.environments, self.scope, self.moves = workers, reports, runner, environments, scope, moves
 
     def makers(self) -> dict[str, Callable[[HostRequest], None]]:
         return {READY: self.ready, DELIVERED: self.delivered, ENDED: self.ended, UNCLAIMED: self.unclaimed, STOPPED: self.stopped, OFFLINE_MACHINE: self.offline_machine}
@@ -61,4 +61,10 @@ class PoolWorkerWrites(HostWriter):
     def scoped(self, request: HostRequest, worker_id: int, change: Callable[[Worker, Actor], None]) -> None:
         for environment in self.environments.keyed(request.environment_key):
             with self.scope.environment(environment.row_id):
-                change(self.workers.find(worker_id), Actor.worker(worker_id))
+                self.current(self.workers.find(worker_id), change)
+
+    def current(self, worker: Worker, change: Callable[[Worker, Actor], None]) -> None:
+        if worker.pool_request and worker.is_closed():
+            self.moves.ask_runner(worker, CLEANUP, {})
+            return
+        change(worker, Actor.worker(worker.id))

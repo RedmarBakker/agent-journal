@@ -120,8 +120,7 @@ class WorkerActions:
         self.tasks.release(Ref.build(worker), actor)
         self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
-        if worker.pool_request:
-            self.branch.clear_pool(worker)
+        self.moves.cleared(worker)
         return MergeOutcome(closed, self.branch.dropped(self.workers.find(worker.id)))
 
     def merge_gate(self, event: WorkerMerging) -> None:
@@ -150,6 +149,7 @@ class WorkerActions:
             if worker.is_running():
                 raise Rejection(f"worker {worker.id}, {worker.name}, is still out: stop it first with journal worker stop {worker.id}")
             self.tasks.release(Ref.build(worker), actor)
+            self.moves.cleared(worker)
             return self.workers.save(worker.released(datetime.now(timezone.utc).timestamp()), actor)
 
     def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str) -> Worker:
@@ -215,6 +215,7 @@ class WorkerActions:
                 return self.pool_stop(worker, reason, actor)
             worker = self.workers.save(worker.stopped(datetime.now(timezone.utc).timestamp(), reason), actor)
             self.runner.stop(worker)
+            self.moves.cleared(worker)
             return worker
 
     def pool_stop(self, worker: Worker, reason: str, actor: Actor) -> Worker:
@@ -228,4 +229,5 @@ class WorkerActions:
             worker = self.workers.save(self.local(n).finished(datetime.now(timezone.utc).timestamp(), reason), actor)
             self.runner.stop(worker)
             self.tasks.release(Ref.build(worker), actor)
+            self.moves.cleared(worker)
         return worker, self.branch.dropped(worker)
