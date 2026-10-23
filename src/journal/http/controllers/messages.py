@@ -13,20 +13,23 @@ from journal.support.response import Response
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.agents import Agents
+from journal.repositories.environments import Environments
+from journal.sync.host_desk import HostDesk
+from journal.sync.hosts import Hosts
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
 from journal.models.agent_role import AgentRole
 
 class MessageController(Controller[Message]):
-    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user."""
+    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user, or asked of the environment's host when this journal is not it."""
 
     is_timeline = True
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents) -> None:
-        self.agents = agents
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts) -> None:
+        self.agents, self.environments, self.hosts = agents, environments, hosts
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def listed(self, listing: Listing) -> RowList:
@@ -59,12 +62,12 @@ class MessageController(Controller[Message]):
                  "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in Mentions.found(m.text)]} for m in rows]
 
     def store(self, request: Request) -> Response:
-        key = request.body.get("idempotency", "")
-        prior_items = self.repository.sent_with(key) if key else []
-        if prior_items:
-            return Response.json(self.shown(prior_items[0]), 201)
-        message = Message(author=Author.USER, text=request.body.get("text", ""), reply_target=request.body.get("reply_target"), idempotency=key).arrived()
-        return Response.json(self.shown(self.repository.save(message, request.actor)), 201)
+        message = Message(author=Author.USER, text=request.body.get("text", ""), reply_target=request.body.get("reply_target"), idempotency=request.body.get("idempotency", ""))
+        environment = self.environments.find(self.repository.scope.id)
+        if not self.hosts.is_host(environment):
+            self.hosts.ask(environment, HostDesk.MESSAGE, message.host_fields(), request.actor)
+            return Response.json({"idempotency": message.idempotency}, 202)
+        return Response.json(self.shown(self.repository.posted(message, request.actor)), 201)
 
     def side_thread(self, request: Request) -> Response:
         return Response.json([self.shown(message) for message in self.repository.side_thread()])

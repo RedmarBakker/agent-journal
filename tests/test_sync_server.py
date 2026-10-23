@@ -100,6 +100,8 @@ def test_number_blocks_never_overlap_and_start_above_a_shared_journals_numbers(s
 
 def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_and_rejects_the_older(store):
     from sync_server.push_handler import PushHandler
+    from sync_server.host_requests import HostRequests
+    from sync_server.db.host_request_rows import HostRequestRows
     from sync_server.push_results import PushResults
     from sync_server.db.push_result_rows import PushResultRows
     from sync_server.push_request import PushRequest
@@ -111,7 +113,7 @@ def test_a_push_keeps_the_later_edit_of_a_field_puts_times_on_the_servers_clock_
     _, ada = devices.login("ada@example.com", PASSWORD, "ada's laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "bob's laptop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), devices, log))
 
     def request(action, actor, fields, seconds, clock_offset=0.0):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": action, "actor": actor, "fields": fields, "changed_at": {name: seconds for name in fields}}], clock_offset)
@@ -159,7 +161,7 @@ def test_over_http_a_pull_waits_and_wakes_on_a_push_while_other_requests_go_on_a
         bob = call("/login", {"email": "bob@example.com", "password": PASSWORD, "device_name": "desktop"})[1]["token"]
         assert call("/pull?after=0", token="made up")[0] == 403 and call("/nothing")[0] == 404
         task = {"row_table": "tasks", "row": 7, "action": "created", "actor": "user:1", "fields": {"title": "first"}, "changed_at": {"title": 1.0}}
-        assert call("/push", {"changes": [task]}, ada)[1]["sequences"] == [1]
+        assert call("/push", {"changes": [task]}, ada)[1]["settlement"]["sequences"] == [1]
         first = call("/pull?after=0", token=bob)[1]
         assert [change["row"] for change in first["changes"]] == [7] and first["head"] == 1 and first["server_time"] > 0
         assert call("/pull?after=0", token=ada)[1]["changes"] == [], "a device never pulls its own changes"
@@ -190,6 +192,8 @@ def test_over_http_a_pull_waits_and_wakes_on_a_push_while_other_requests_go_on_a
 def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_first_time(store):
     from sync_server.db.push_result_rows import PushResultRows
     from sync_server.push_handler import PushHandler
+    from sync_server.host_requests import HostRequests
+    from sync_server.db.host_request_rows import HostRequestRows
     from sync_server.push_request import PushRequest
     from sync_server.push_results import PushResults
 
@@ -199,7 +203,7 @@ def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_
     _, ada = devices.login("ada@example.com", PASSWORD, "laptop", "10.0.0.1", 2.0)
     _, bob = devices.login("bob@example.com", PASSWORD, "desktop", "10.0.0.2", 2.0)
     log = ChangeLog(store, ChangeRows(store), RowValues(store))
-    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)))
+    push = PushHandler(store, log, devices, PushResults(PushResultRows(store)), HostRequests(HostRequestRows(store), devices, log))
 
     def request(local_number, actor, title, seconds):
         return PushRequest.parsed([{"row_table": "tasks", "row": 7, "action": "updated", "actor": actor, "fields": {"title": title}, "changed_at": {"title": seconds}, "local_number": local_number}])
@@ -398,15 +402,15 @@ def test_the_log_is_trimmed_of_what_every_device_pulled_while_deletions_stay_and
     for change in (LoggedChange("tasks", 7, "created", "user:1", 1, ada_device.id, {"title": "a"}, {"title": 1.0}), LoggedChange("tasks", 8, "created", "user:1", 1, ada_device.id, {"title": "b"}, {"title": 1.0}),
                    LoggedChange("tasks", 8, "deleted", "user:1", 1, ada_device.id), LoggedChange("tasks", 7, "updated", "user:1", 1, ada_device.id, {"title": "c"}, {"title": 2.0})):
         team.log.appended(change)
-    team.pulls.answer(eve, 1, 0)
+    team.pulls.answer(eve, 1, 0, ())
     team.devices.revoke(eve_device.id, 2.0)
-    team.pulls.answer(ada, 4, 0)
-    team.pulls.answer(bob, 3, 0)
+    team.pulls.answer(ada, 4, 0, ())
+    team.pulls.answer(bob, 3, 0, ())
     assert team.log.size() == 1 and team.log.head() == 4, "the changes every device pulled are trimmed, a revoked device not counted and the newest kept"
     assert team.log.is_deleted("tasks", 8), "a deleted row stays on the server as a marker, so a deletion still wins over a later edit"
     _, late = team.devices.login("bob@example.com", PASSWORD, "old laptop", "127.0.0.1", 3.0)
     team.devices.record_pull(team.devices.device(late), 1, 3.0)
-    assert team.pulls.answer(late, 1, 0).copy_needed, "a device older than the trimmed tail takes the full copy again"
+    assert team.pulls.answer(late, 1, 0, ()).copy_needed, "a device older than the trimmed tail takes the full copy again"
     _, joiner = team.devices.login("bob@example.com", PASSWORD, "new laptop", "127.0.0.1", 4.0)
     assert [(row.row, row.fields) for row in team.copies.answer(joiner).rows] == [(7, {"title": "c"})], "a new device still joins from the full copy"
     team.store.close()

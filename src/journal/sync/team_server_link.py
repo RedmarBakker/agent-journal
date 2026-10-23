@@ -17,7 +17,7 @@ from sync_server.login_answer import LoginAnswer
 from sync_server.login_request import LoginRequest
 from sync_server.people_answer import PeopleAnswer
 from sync_server.pull_answer import PullAnswer
-from sync_server.push_answer import PushAnswer
+from sync_server.sync_answer import SyncAnswer
 from sync_server.password_answer import PasswordAnswer
 from sync_server.signin_answer import SigninAnswer
 from sync_server.team_summary import TeamSummary
@@ -32,16 +32,22 @@ ROOT_CERTIFICATE = "/root.crt"
 
 
 class TeamServerLink:
-    """The one way the journal reaches its team server, each request with the device's token: a push of queued changes, a pull past a sequence, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join kept. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
+    """The one way the journal reaches its team server, each request with the device's token: a push of queued changes, answered with a pull, a pull past a sequence, each naming the environments this journal hosts so the writes asked of it come back with it, a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join kept. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
 
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
 
-    def send_changes(self, changes: list[dict], clock_offset: float) -> PushAnswer:
-        return PushAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset})))
+    def send_changes(self, changes: list[dict], clock_offset: float, sequence: int, environment_keys: tuple[str, ...]) -> SyncAnswer:
+        return SyncAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset, "sequence": sequence, "environment_keys": list(environment_keys)})))
 
-    def fetch_changes(self, sequence: int, wait_seconds: float) -> PullAnswer:
-        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), f"/pull?after={sequence}&wait={wait_seconds}", None, wait_seconds + REQUEST_SECONDS)))
+    def fetch_changes(self, sequence: int, wait_seconds: float, environment_keys: tuple[str, ...]) -> PullAnswer:
+        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), f"/pull?after={sequence}&wait={wait_seconds}&keys={','.join(environment_keys)}", None, wait_seconds + REQUEST_SECONDS)))
+
+    def ask_host(self, environment_key: str, kind: str, body: dict, account_id: int) -> None:
+        self.posted("/host-requests", {"environment_key": environment_key, "kind": kind, "body": body, "account_id": account_id})
+
+    def finish_host_request(self, id: int) -> None:
+        self.posted("/host-requests/done", {"id": id})
 
     def fetch_blocks(self, tables: list[str]) -> BlocksAnswer:
         return BlocksAnswer.parsed(**json.loads(self.posted("/blocks", {"tables": tables})))

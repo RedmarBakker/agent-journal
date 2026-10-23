@@ -31,6 +31,10 @@ MIGRATIONS = (
     """
     ALTER TABLE devices ADD COLUMN pulled_at REAL NOT NULL DEFAULT 0;
     """,
+    """
+    CREATE TABLE host_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_key TEXT NOT NULL, kind TEXT NOT NULL, body TEXT NOT NULL, account_id INTEGER NOT NULL, created_at REAL NOT NULL, host_id INTEGER NOT NULL DEFAULT 0, finished_at REAL NOT NULL DEFAULT 0);
+    CREATE INDEX host_requests_waiting ON host_requests (environment_key, finished_at);
+    """,
 )
 
 

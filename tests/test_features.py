@@ -9922,7 +9922,13 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         attached(a, f"dumps/{dump['id']}/files", "notes.txt", b"dumped notes")
         assert eventually(lambda: file_on(b, f"messages/{picture_message['id']}/files/pic.png") == b"\x89PNG picture"), "a picture attached on Ada's machine opens on Bob's"
         assert eventually(lambda: file_on(b, f"dumps/{dump['id']}/files/notes.txt") == b"dumped notes"), "and so does a file dropped in a dump"
-        assert journal_call(b, "messages", json.dumps({"text": "from Bob's viewer"}).encode())["author"] == "colleague", "a message posted from a colleague's viewer is a colleague's comment too"
+        journal_call(b, "messages", json.dumps({"text": "from Bob's viewer", "idempotency": "bob-1"}).encode())
+
+        def from_bobs_viewer():
+            with a.container.get(Scope).environment(ada_main.row_id):
+                return [message.author for message in a.container.get(Messages).sent_with("bob-1")]
+
+        assert eventually(lambda: from_bobs_viewer() == [Author.COLLEAGUE]), "a message posted from a colleague's viewer is made by the environment's host, Ada's journal, as a colleague's comment too"
         assert file_on(b, f"messages/{early.id}/files/before.txt") == b"attached before the team", "a file attached before the journal became shared opens on a journal that joined"
         with b.container.get(Scope).environment(bob_main.row_id):
             comment_with_picture = b.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="look at this"), Actor.user(2))
@@ -10211,13 +10217,16 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
     from journal.repositories.messages import Messages
     from journal.repositories.setting_rows import SettingRows
     from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from sync_server.account import ADMIN, MEMBER
+    from journal.repositories.environments import Environments
+    from sync_server.account import ADMIN, MEMBER, RELAY
     from sync_server.team_server import TeamServer
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
     team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
     team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
+    _, relay = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
     server = team.started("127.0.0.1", 0)
     journal = f"http://127.0.0.1:{app.server().port}"
 
@@ -10247,7 +10256,7 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         assert status == 303 and headers["Location"] == "/", body
         return headers["Set-Cookie"].split(";")[0]
 
-    app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": "t", "device": 9, "account_id": 9})
+    app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": relay, "device": 1, "account_id": 3})
     try:
         app.container.get(IdBlocks).add("messages", 800000, 800100)
         app.container.get(IdBlocks).add("settings", 800000, 800100)
@@ -10263,12 +10272,72 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         assert sent("/sign-in", form={"email": "ada@example.com", "password": "wrong"})[0] == 401, "a wrong password opens no session"
         ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
         assert json.loads(sent("/journal/people", cookie=ada)[2])["me"] == 1 and json.loads(sent("/journal/people", cookie=bob)[2])["me"] == 2, "each person signed in is me to their own browser"
-        posted = [json.loads(sent("/journal/messages", {"text": f"from {who}"}, cookie=cookie)[2])["id"] for who, cookie in (("Ada", ada), ("Bob", bob))]
-        stamps = [app.container.get(Messages).find(n).creator.stamp for n in posted]
-        assert stamps == ["user:1", "user:2"], "a message each person posts is stamped as theirs"
+        assert [sent("/journal/messages", {"text": f"from {who}"}, cookie=cookie)[0] for who, cookie in (("Ada", ada), ("Bob", bob))] == [202, 202], "main is Ada's, so the hosted journal asks her journal, its host, to make each message"
+        main = app.container.get(Environments).existing("main")
+        assert [request.account_id for request in team.host_requests.waiting((main.key,))] == [1, 2], "each in the name of the person who posted it"
         assert sent("/sign-out", {}, cookie=bob)[0] == 303 and sent("/journal/people", cookie=bob)[0] == 401, "a signed-out session is gone"
     finally:
         (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
+
+
+def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_the_host_and_a_push_brings_its_pull(app: App, tmp_path):
+    import sqlite3
+
+    from journal.models.link import Link
+    from journal.models.user import User
+    from journal.repositories.environment_owners import OWNER
+    from journal.repositories.environments import Environments
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.models.support.ref import Ref
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.account import ADMIN, MEMBER
+    from sync_server.push_request import PushRequest
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    account, scope, messages = app.container.get(TeamAccount), app.container.get(Scope), app.container.get(Messages)
+    main = app.container.get(Environments).existing("main")
+
+    def posted(text, key):
+        body = json.dumps({"text": text, "idempotency": key}).encode()
+        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", data=body, headers={"X-Journal-Env": "main", "Content-Type": "application/json"}, method="POST"), timeout=10) as answer:
+            return answer.status
+
+    def made(key):
+        with scope.environment(main.row_id):
+            return messages.sent_with(key)
+
+    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), kind=OWNER), Actor.system())
+    try:
+        app.container.get(IdBlocks).add("messages", 800000, 800100)
+        account.write({"address": address, "token": bob, "device": 2, "account_id": 2})
+        assert posted("from bob's journal", "k-1") == 202 and not made("k-1"), "a journal that does not host the environment makes no message; it asks the host"
+        assert [(request.kind, request.account_id, request.body["text"]) for request in team.host_requests.waiting((main.key,))] == [("message", 2, "from bob's journal")], "the request waits on the team server in Bob's name"
+        account.write({"address": address, "token": ada, "device": 1, "account_id": 1})
+        client = app.container.get(SyncClient)
+        client.pulled(0)
+        assert [message.creator.stamp for message in made("k-1")] == ["user:2"], "the host takes the request up with its pull and makes the message as Bob"
+        assert team.host_requests.waiting((main.key,)) == (), "and says it is made"
+        client.pulled(0)
+        assert len(made("k-1")) == 1, "a request is made once"
+        team.pushes.answer(bob, PushRequest.parsed([{"row_table": "tasks", "row": 900001, "action": "created", "actor": "user:2", "fields": {"title": "bob's task", "brief": "b", "created_at": "2026-10-23T08:00:00+00:00", "creator": "user:2"}, "changed_at": {"title": 3.0, "brief": 3.0, "created_at": 3.0, "creator": 3.0}}]), 3.0)
+        client.send()
+        assert team.log.row("messages", made("k-1")[0].id) is not None, "the host sends the message it made in Bob's name, which the server lets through"
+        with sqlite3.connect(app.config.database) as rows:
+            assert rows.execute("SELECT title FROM tasks WHERE id = 900001").fetchall() == [("bob's task",)], "the push's answer brings the team's changes, with no pull of its own"
+    finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
 

@@ -7,6 +7,8 @@ from urllib.parse import parse_qsl, urlsplit
 from sync_server.accept_request import AcceptRequest
 from sync_server.account import Account
 from sync_server.install_request import InstallRequest
+from sync_server.host_ask_request import HostAskRequest
+from sync_server.host_receipt import HostReceipt
 from sync_server.password_request import PasswordRequest
 from sync_server.signin_answer import SigninAnswer
 from sync_server.signin_request import SigninRequest
@@ -19,6 +21,7 @@ from sync_server.leases import UPGRADE_LEASE
 from sync_server.login_request import LoginRequest
 from sync_server.protocol import MIGRATION_HEADER, PROTOCOL, PROTOCOL_HEADER, UNVERSIONED, VERSION_HEADER
 from sync_server.push_request import PushRequest
+from sync_server.sync_answer import SyncAnswer
 from sync_server.refusal import Refusal
 from sync_server.upgrade_request import UpgradeRequest
 from sync_server.upload_request import UploadRequest
@@ -29,7 +32,7 @@ FORWARDED_HEADER = "X-Forwarded-For"
 
 
 class TeamRequestHandler(BaseHTTPRequestHandler):
-    """One request to the team server, answered in JSON: POST /login, /accept, /install (the first connection to a server with no account, which makes its admin), /signin-links (a member's journal asking for a one-time link to open the hosted journal signed in) and /signin-links/redeem (the hosted journal taking one up), /push, /blocks, /invite, /devices/revoke, /people/remove, /people/password (an admin resetting a person's password), /password (a person changing their own), /team/version, /team/versions, /upload and /upgrade, GET /pull?after=<sequence>&wait=<seconds>, /copy, /devices, /people and /team, which alone needs no token; /files/<table>/<row>/<name>, read with GET and written with POST of its bytes, and /leases?name=<name>, which POST /leases/take and /leases/release change; a refusal is a 403 with its line, an unknown path a 404. Every request names the protocol its journal speaks and every answer the server's: a journal on an older protocol is answered 426 with the line to upgrade it, and a push or pull from a journal on an older migration than the team's, or on another version than the pinned one while the team requires it, is refused with it; the device holding the upgrade lease is let through on its old version to send and pull before it upgrades."""
+    """One request to the team server, answered in JSON: POST /login, /accept, /install (the first connection to a server with no account, which makes its admin), /signin-links (a member's journal asking for a one-time link to open the hosted journal signed in) and /signin-links/redeem (the hosted journal taking one up), /host-requests and /host-requests/done (a write asked of an environment's host, and the host saying it is made), /push, answered with the pull it carries, /blocks, /invite, /devices/revoke, /people/remove, /people/password (an admin resetting a person's password), /password (a person changing their own), /team/version, /team/versions, /upload and /upgrade, GET /pull?after=<sequence>&wait=<seconds>&keys=<environment keys, comma separated>, which brings the writes waiting for those environments' host too, /copy, /devices, /people and /team, which alone needs no token; /files/<table>/<row>/<name>, read with GET and written with POST of its bytes, and /leases?name=<name>, which POST /leases/take and /leases/release change; a refusal is a 403 with its line, an unknown path a 404. Every request names the protocol its journal speaks and every answer the server's: a journal on an older protocol is answered 426 with the line to upgrade it, and a push or pull from a journal on an older migration than the team's, or on another version than the pinned one while the team requires it, is refused with it; the device holding the upgrade lease is let through on its old version to send and pull before it upgrades."""
 
     def do_GET(self) -> None:
         if self.is_outdated_client():
@@ -40,7 +43,7 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             return
         query = dict(parse_qsl(url.query))
         team = self.server.team
-        routes = {"/pull": lambda: self.current(lambda: team.pulls.answer(self.token(), int(query.get("after", "0")), float(query.get("wait", "0")))), "/copy": lambda: team.copies.answer(self.token()), "/devices": lambda: team.admins.listed(self.token()), "/team": lambda: team.details.answer(), "/people": lambda: team.people.answer(self.token()), "/leases": lambda: self.lease_state(query.get("name", ""))}
+        routes = {"/pull": lambda: self.current(lambda: team.pulls.answer(self.token(), int(query.get("after", "0")), float(query.get("wait", "0")), self.environment_keys(query.get("keys", "")))), "/copy": lambda: team.copies.answer(self.token()), "/devices": lambda: team.admins.listed(self.token()), "/team": lambda: team.details.answer(), "/people": lambda: team.people.answer(self.token()), "/leases": lambda: self.lease_state(query.get("name", ""))}
         self.answered(routes.get(url.path))
 
     def do_POST(self) -> None:
@@ -55,6 +58,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             "/accept": lambda: team.logins.accepted(self.typed(AcceptRequest), self.address()),
             "/install": lambda: team.logins.installed(self.typed(InstallRequest), self.address()),
             "/signin-links": lambda: SigninAnswer(code=team.signins.issue(self.token(), team.clock.time())),
+            "/host-requests": lambda: team.host_requests.created(self.token(), self.typed(HostAskRequest), team.clock.time()),
+            "/host-requests/done": lambda: team.host_requests.finished(self.token(), self.typed(HostReceipt).id, team.clock.time()),
             "/signin-links/redeem": lambda: self.signin_answer(team.signins.redeemed(self.token(), self.typed(SigninRequest).code, team.clock.time())),
             "/push": lambda: self.current(lambda: self.push_reply(team)),
             "/upgrade": lambda: team.upgrades.answer(self.token(), self.typed(UpgradeRequest.parsed)),
@@ -79,9 +84,11 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         self.sent(426, {"error": f"this journal speaks protocol {client_protocol} and the team server {PROTOCOL}: upgrade the journal with journal update apply"})
         return True
 
-    def push_reply(self, team):
+    def push_reply(self, team) -> SyncAnswer:
         team.leases.require_free(UPGRADE_LEASE, team.devices.device(self.token()), team.clock.time())
-        return team.pushes.answer(self.token(), self.push_request(), team.clock.time())
+        request = self.push_request()
+        pushed = team.pushes.answer(self.token(), request, team.clock.time())
+        return SyncAnswer(pushed, team.pulls.answer(self.token(), request.sequence, 0, request.environment_keys))
 
     def current(self, route):
         team = self.server.team
@@ -96,6 +103,10 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
 
     def login(self, request: LoginRequest):
         return self.server.team.logins.answer(request, self.address())
+
+    @staticmethod
+    def environment_keys(text: str) -> tuple[str, ...]:
+        return tuple(key for key in text.split(",") if key)
 
     def password_changed(self, request: PasswordRequest) -> SigninAnswer:
         team = self.server.team

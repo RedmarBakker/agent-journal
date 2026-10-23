@@ -4,6 +4,7 @@ from sync_server.account import Account
 from sync_server.change_log import ChangeLog
 from sync_server.db.store import Store
 from sync_server.devices import Devices
+from sync_server.host_requests import HostRequests
 from sync_server.logged_change import LoggedChange
 from sync_server.push_answer import PushAnswer
 from sync_server.push_request import PushRequest
@@ -18,10 +19,10 @@ USER_PREFIX = "user:"
 
 
 class PushHandler:
-    """Takes one device's queued changes in order: each is stamped with the person whose device sent it, never with what the request says, its times put on the server's clock by the device's offset, and its fields settled against the row as the server holds it. A change that names another person as its writer refuses the whole push before anything is kept; a change the device sent before, known by its local number, is answered as it was the first time and kept once."""
+    """Takes one device's queued changes in order: each is stamped with the person whose device sent it, never with what the request says, its times put on the server's clock by the device's offset, and its fields settled against the row as the server holds it. A change that names another person as its writer refuses the whole push before anything is kept, unless the device is the hosted journal or the host that made a write that person asked of it; a change the device sent before, known by its local number, is answered as it was the first time and kept once."""
 
-    def __init__(self, store: Store, log: ChangeLog, devices: Devices, results: PushResults) -> None:
-        self.store, self.log, self.devices, self.results = store, log, devices, results
+    def __init__(self, store: Store, log: ChangeLog, devices: Devices, results: PushResults, requests: HostRequests) -> None:
+        self.store, self.log, self.devices, self.results, self.requests = store, log, devices, results, requests
 
     def answer(self, token: str, request: PushRequest, received_at: float) -> PushAnswer:
         device, person = self.devices.device(token), self.devices.person(token)
@@ -34,9 +35,11 @@ class PushHandler:
             raise Refusal(f"a change names {change.actor} as its writer, but this device is {person.name}'s: a person sends only their own writes")
         return change.logged_change(person.id, device_id, clock_offset)
 
-    @staticmethod
-    def may_send(change: PushedChange, person: Account) -> bool:
-        return person.is_relay() or not change.actor.startswith(USER_PREFIX) or change.actor == f"{USER_PREFIX}{person.id}"
+    def may_send(self, change: PushedChange, person: Account) -> bool:
+        if person.is_relay() or not change.actor.startswith(USER_PREFIX):
+            return True
+        writer = int(change.actor.removeprefix(USER_PREFIX))
+        return writer == person.id or self.requests.is_vouched(person.id, writer)
 
     def outcome(self, device_id: int, local_number: int, change: LoggedChange) -> Settlement:
         with self.store.transaction():

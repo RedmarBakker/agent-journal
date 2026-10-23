@@ -80,6 +80,10 @@ class Messages(ScopedRepository[Message]):
     def sent_with(self, key: str) -> list[Message]:
         return self.selected(self.query().filter(idempotency=key).order("id").limit(1))
 
+    def posted(self, message: Message, actor: Actor) -> Message:
+        prior_items = self.sent_with(message.idempotency) if message.idempotency else []
+        return prior_items[0] if prior_items else self.save(message.arrived(), actor)
+
     def window(self, chat: Query, last: int, previous: int = 0, following: int = 0) -> list[Message]:
         query = chat
         if following:

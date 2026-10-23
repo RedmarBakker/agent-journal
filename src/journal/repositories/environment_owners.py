@@ -13,7 +13,7 @@ OWNER = "owner"
 
 
 class EnvironmentOwners:
-    """Who owns each environment, by the owner link from a user to it, whether a person is a colleague there, a user who is not its owner in an environment that has one, and so what that person may not write there: any shared row but a message and the links it brings; this machine's own records, such as the hook log, are no colleague's."""
+    """Who owns each environment, by the owner link from a user to it, the environments a person owns and those nobody does, whether a person is a colleague there, a user who is not its owner in an environment that has one, and so what that person may not write there: any shared row but a message and the links it brings; this machine's own records, such as the hook log, are no colleague's."""
 
     def __init__(self, links: Links, users: Users, environments: Environments) -> None:
         self.links, self.users, self.environments = links, users, environments
@@ -21,6 +21,12 @@ class EnvironmentOwners:
     def owner_number(self, environment_id: int) -> int:
         owners = self.links.typed_sources(Environment(id=environment_id), OWNER, User.table())
         return owners[0].id if owners else 0
+
+    def owned(self, account_id: int) -> list[Environment]:
+        return self.environments.numbered([ref.id for ref in self.links.targets(User(id=account_id), OWNER) if ref.type == Environment.table()])
+
+    def unowned(self) -> list[Environment]:
+        return [environment for environment in self.environments.working() if not self.owner_number(environment.row_id)]
 
     def is_team_chat(self, environment_id: int) -> bool:
         return any(environment.is_team_chat for environment in self.environments.matching(id=environment_id))
