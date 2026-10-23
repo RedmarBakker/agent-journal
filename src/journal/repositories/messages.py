@@ -165,6 +165,9 @@ class Messages(ScopedRepository[Message]):
     def recent_voice(self, last: int) -> list[Message]:
         return list(reversed(self.selected(self.main_voice().order_descending("id").limit(last))))
 
+    def new_hydrations(self) -> list[Message]:
+        return self.selected(self.query().filter_json("data->kind", Message.HYDRATION).filter_json("data->reading_request", False).order("id"))
+
     def thoughts(self, session: str, last: int = 60) -> list[Message]:
         rows = self.selected(self.query().filter(creator=Actor.agent(session)).filter_json("data->kind", Message.THOUGHT).order_descending("id").limit(last))
         return list(reversed(rows))

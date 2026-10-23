@@ -26,6 +26,7 @@ from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from tests.replay import PROVIDERS, TOOLS, Replay, hook_as, pass_time, played, tick_after
 from tests.test_features import AGENT, MAIN, USER, context
+from tests.main_journal import main_journal
 
 
 @pytest.fixture(params=PROVIDERS)
@@ -33,7 +34,7 @@ def journal(tmp_path: Path, monkeypatch, request):
     """One fresh journal and the provider whose agent the steps play; it starts and stops with the test."""
     monkeypatch.setattr(Config, "status_home", property(lambda self: self.root / "status"))
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    app = App(Config(tmp_path / "journal", port=0))
+    app = main_journal(Config(tmp_path / "journal", port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     with app.container.get(Scope).environment(MAIN):

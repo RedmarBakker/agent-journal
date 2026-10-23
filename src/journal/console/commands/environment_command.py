@@ -61,7 +61,7 @@ class EnvironmentCommand(Command):
 
     def rows(self) -> list[EnvironmentRow]:
         rows = []
-        for environment in self.environments.all() or [self.environments.lookup("main")]:
+        for environment in self.environments.all():
             with self.scope.environment(environment.row_id):
                 agents = self.agents.scoped()
             last = max(agents, key=lambda item: item.update_time) if agents else None

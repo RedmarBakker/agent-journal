@@ -18,12 +18,13 @@ from journal.support.actor import Actor
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
+from tests.main_journal import main_journal
 
 
 @pytest.fixture(scope="module")
 def boot():
     def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
-        app = App(Config(root, port=0))
+        app = main_journal(Config(root, port=0))
         app.runtime().boot()
         app.server().start()
         return app
@@ -108,7 +109,7 @@ def test_a_project_files_bytes_are_served_with_their_media_type_and_nothing_outs
 
 def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tmp_path: Path):
     """A request's time and loads are written by the deferred worker after its reply, so the runtime is started, not only booted."""
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -144,7 +145,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
 
 
 def test_a_documents_saves_fold_into_its_open_revision_keep_closes_it_and_the_next_edit_opens_the_next(tmp_path: Path):
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().boot()
     server = app.server()
     server.start()
@@ -227,8 +228,8 @@ def free_pair() -> int:
 
 def test_a_taken_port_sends_the_next_journal_to_the_next_one(tmp_path: Path):
     first = free_pair()
-    single = App(Config(tmp_path / "one", port=first, span=3))
-    two = App(Config(tmp_path / "two", port=first, span=3))
+    single = main_journal(Config(tmp_path / "one", port=first, span=3))
+    two = main_journal(Config(tmp_path / "two", port=first, span=3))
     single.server().start()
     two.server().start()
     try:
@@ -242,7 +243,7 @@ def test_a_taken_port_sends_the_next_journal_to_the_next_one(tmp_path: Path):
 def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -269,7 +270,7 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
 
 def test_the_subagents_are_listed_as_their_rows_stand_a_resumed_one_running_again(tmp_path: Path):
     """A background subagent that ended and was sent a message is running again in the list the viewer's dropdown reads, and counted open."""
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -300,7 +301,7 @@ def test_the_subagents_are_listed_as_their_rows_stand_a_resumed_one_running_agai
 
 def test_a_subagent_whose_dispatch_entries_were_trimmed_runs_again_when_it_is_sent_a_message(tmp_path: Path):
     """The entries are trimmed to the newest, so a subagent dispatched long ago has no dispatch entry left; a message to it still sets it running, and its stop settles it."""
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -360,7 +361,7 @@ def test_the_main_chat_and_a_workers_chat_each_page_their_own_rows(app: App, ser
 
 def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_kept(tmp_path: Path):
     """The Terminal pane reads a Bash call as it was recorded: each part a line, with the output the journal's shell kept of the parts it ran, once the call has finished."""
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -388,7 +389,7 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
 
 def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_hand(tmp_path: Path):
     """The figure builds a parcel only for a test run or a build: the agent row's tool_work names the shell part in hand by its label when it is testing or building, and is the line's own work word otherwise."""
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -413,7 +414,7 @@ def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_han
 
 def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: Path):
     """While a chained shell call runs, the agent's doing is the text of the part running now, then the next; another tool is its verb; once nothing runs it is neither."""
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -489,7 +490,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
     """Settings answer with the whole tree, a read message is read and not closed, a running plan is active, a check carries its last run, a sequence its steps, the hub its counts, the Code page its files."""
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -529,7 +530,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
 
 def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_postpones_it_with_the_plan(tmp_path: Path):
     from journal.engine.state_machine import StateMachine
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -553,7 +554,7 @@ def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_post
 
 
 def test_a_started_plans_phase_shown_advances_when_its_tasks_are_all_done(tmp_path: Path):
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -583,7 +584,7 @@ def test_a_started_plans_phase_shown_advances_when_its_tasks_are_all_done(tmp_pa
 def test_the_status_line_knows_what_the_agent_waits_for(tmp_path: Path):
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -607,7 +608,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
     from journal.supervisor_link import SupervisorLink
     keystrokes = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -646,7 +647,7 @@ def test_the_activity_rail_the_edits_pane_and_the_documents_read_true(tmp_path: 
 def test_the_remaining_pages_act_through_the_viewer(tmp_path: Path):
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -691,7 +692,7 @@ def test_a_file_attached_to_a_message_is_stored_and_served(server):
 
 
 def test_a_viewer_polling_from_an_id_ahead_of_a_reset_record_is_brought_back_in_step(tmp_path: Path):
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -709,7 +710,7 @@ def test_the_agent_bars_pickers_type_the_providers_command_and_a_reply_names_wha
     from journal.supervisor_link import SupervisorLink
     keystrokes = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: keystrokes.append({"verb": verb, **fields}["line"]))
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -731,7 +732,7 @@ def test_the_agent_bars_pickers_type_the_providers_command_and_a_reply_names_wha
 def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_path: Path):
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -753,7 +754,7 @@ def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_car
     from journal.support.card_kind import CardKind
     from journal.models.setting import Setting
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
     server = app.server()
@@ -792,7 +793,7 @@ def test_a_comment_written_under_a_task_in_the_viewer_is_the_users_message_linke
 def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_it(tmp_path: Path):
     from journal.features.tasks.feature import Tasks
     from journal.repositories.setting_rows import SettingRows
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -818,7 +819,7 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
 
 def test_a_read_of_an_unknown_environment_is_not_found_and_makes_none(tmp_path: Path):
     from journal.repositories.environments import Environments
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -939,7 +940,7 @@ def test_the_transcript_of_an_agent_and_of_its_subagent_are_read_from_the_provid
 def test_a_kept_version_3_journal_is_offered_put_off_and_brought_across_with_a_report(tmp_path: Path):
     import time
     from journal.repositories.reports import Reports
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().boot()
     server = app.server()
     server.start()
@@ -962,7 +963,7 @@ def test_a_kept_version_3_journal_is_offered_put_off_and_brought_across_with_a_r
 @pytest.fixture
 def sharing(journal_root: Path):
     """The server and the share server beside it, as a running journal has them."""
-    app = App(Config(journal_root, port=0))
+    app = main_journal(Config(journal_root, port=0))
     runtime = app.runtime()
     runtime.boot()
     server = app.server()
@@ -1186,7 +1187,7 @@ def test_a_slow_answer_is_asked_once_given_from_memory_and_asked_again_once_drop
 def test_an_output_is_read_by_its_id(tmp_path: Path):
     from journal.models.command_output import CommandOutput
     from journal.repositories.command_outputs import CommandOutputs
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -1331,7 +1332,7 @@ def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(
     import socket
     from journal.support.instance_guard import InstanceGuard
     first = free_pair()
-    single = App(Config(tmp_path / "one", port=first, span=3))
+    single = main_journal(Config(tmp_path / "one", port=first, span=3))
     reserve = InstanceGuard(Config(tmp_path / "one", port=first, span=3))
     reserve.parent = -1
     assert reserve.other_address() == "", "no port file, no other journal"
@@ -1353,7 +1354,7 @@ def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(
         sibling = InstanceGuard(Config(tmp_path / "one", port=first, span=3))
         sibling.stop = stopped.append
         assert sibling.other_address() == f"http://127.0.0.1:{first}" and len(stopped) == 2, "one started by the same supervisor is a stray left by a restart: it is stopped, and the launch takes its port"
-        App(Config(tmp_path / "one", port=first, span=3)).server()
+        main_journal(Config(tmp_path / "one", port=first, span=3)).server()
         with socket.socket() as probe:
             assert probe.connect_ex(("127.0.0.1", first + 1)) != 0, "a journal built to stand by holds no port until it starts"
     finally:
@@ -1372,7 +1373,7 @@ def test_a_comment_is_deleted_from_its_column(server):
 
 def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_is_talk(tmp_path: Path):
     from journal.support.caller import Caller
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -1395,7 +1396,7 @@ def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_i
 def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_streams_what_the_agent_sees(tmp_path: Path):
     """The one test with a real shell: a short line, so it stays fast."""
     import os
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -1434,7 +1435,7 @@ def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_str
 
 def test_the_viewer_undocks_a_docked_row_by_an_act_on_its_message(journal_root: Path):
     from journal.chat.docking import Docking
-    app = App(Config(journal_root, port=0))
+    app = main_journal(Config(journal_root, port=0))
     app.runtime().boot()
     server = app.server()
     server.start()
@@ -1480,7 +1481,7 @@ def test_a_doc_or_a_report_downloads_as_a_word_file_made_from_its_html_page(serv
 
 def test_a_comment_on_a_documents_passage_names_the_section_and_lines_it_sits_on(tmp_path: Path):
     from journal.support.caller import Caller
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().boot()
     server = app.server()
     server.start()
@@ -1546,7 +1547,7 @@ def test_the_change_stream_starts_after_the_entry_the_page_names(tmp_path: Path)
     import urllib.request
     from journal.models.entry import Entry
     from journal.repositories.entries import Entries
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()
@@ -1584,7 +1585,7 @@ def test_a_critique_asked_from_the_plan_page_puts_a_ready_plan_in_review(tmp_pat
     from journal.models.plan import Plan
     from journal.models.plan_state import PlanState
     from journal.repositories.plans import Plans
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     unowed(app)
     server = app.server()

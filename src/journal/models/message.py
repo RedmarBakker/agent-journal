@@ -25,6 +25,8 @@ class Message(Scoped):
     TEAMMATE = "teammate"
     RECIPIENT_KEY = "sent_to"
     ASKS_KEY = "asks"
+    HYDRATION = "hydration"
+    TOOL_SUMMARY = "tool_summary"
 
     author: Author = Author.USER
     session: str | None = None
@@ -59,6 +61,13 @@ class Message(Scoped):
     def folded(self, label: str, detail: str) -> "Message":
         labels = [*self.data.get("covers", [self.text]), f"{label}: {detail}" if detail else label]
         return self.with_(text=f"{labels[0]}, and {len(labels) - 1} more like it").with_merged("data", {"covers": labels, "detail": f"{len(labels)} in all", "lines": labels})
+
+    @classmethod
+    def hydration(cls, provider: str, session: str, text: str) -> "Message":
+        return cls(author=Author.SYSTEM, text=text, data={"kind": cls.HYDRATION, "provider": provider, "session": session, "reading_request": False})
+
+    def with_reading_request(self) -> "Message":
+        return self.with_merged("data", {"reading_request": True})
 
     @classmethod
     def answer(cls, target: "Message", text: str) -> "Message":

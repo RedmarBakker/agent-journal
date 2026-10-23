@@ -45,6 +45,7 @@ from journal.repositories.subagents import Subagents
 from tests.old_columns import old_columns
 from tests.replay import catch_typed, drive_the_clock, tick_after
 from tests.in_process import posted
+from tests.main_journal import main_journal
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -74,7 +75,7 @@ def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     """A journal started on a free port; no worker process starts, since a dispatched worker would run its provider headless and file what it printed, or that it could not start, beside the test's own report."""
     patch.setattr(Config, "status_home", property(lambda self: root / "status"))
     patch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    app = App(Config(root, port=0))
+    app = main_journal(Config(root, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
@@ -762,7 +763,7 @@ def test_a_large_result_is_named(app: App):
 @pytest.fixture
 def skilled(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
     for key in ("skills.session_start", "skills.after_compaction"):
         app.container.get(SettingRows).set(key, ["journal"], Actor.user(1))
@@ -3390,7 +3391,7 @@ def test_an_agent_data_in_a_pause_it_owed_is_unwrapped_at_boot_with_the_fact_set
     import json
     import sqlite3
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
-    first = App(Config(tmp_path, port=0))
+    first = main_journal(Config(tmp_path, port=0))
     first.runtime().start()
     hook(first, "SessionStart")
     first.console().run(["environment", "overview"], AGENT)
@@ -3404,7 +3405,7 @@ def test_an_agent_data_in_a_pause_it_owed_is_unwrapped_at_boot_with_the_fact_set
     db.execute("DELETE FROM migrations")
     db.commit()
     db.close()
-    second = App(Config(tmp_path, port=0))
+    second = main_journal(Config(tmp_path, port=0))
     second.runtime().start()
     try:
         from journal.features.skills.support.requirements import Requirements
@@ -3421,7 +3422,7 @@ def test_an_agent_data_in_a_pause_it_owed_is_unwrapped_at_boot_with_the_fact_set
 def test_an_agent_in_the_old_running_sequence_state_is_unwrapped_at_boot_with_the_run_on_its_row(tmp_path: Path, monkeypatch):
     import sqlite3
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
-    first = App(Config(tmp_path, port=0))
+    first = main_journal(Config(tmp_path, port=0))
     first.runtime().start()
     hook(first, "SessionStart")
     first.console().run(["environment", "overview"], AGENT)
@@ -3436,7 +3437,7 @@ def test_an_agent_in_the_old_running_sequence_state_is_unwrapped_at_boot_with_th
     db.execute("DELETE FROM migrations")
     db.commit()
     db.close()
-    second = App(Config(tmp_path, port=0))
+    second = main_journal(Config(tmp_path, port=0))
     second.runtime().start()
     try:
         from journal.repositories.agents import Agents
@@ -3711,7 +3712,7 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     from journal.repositories.agents import Agents
     from journal.repositories.links import Links
     monkeypatch.setattr(Config, "status_home", property(lambda self: tmp_path / "status"))
-    first = App(Config(tmp_path, port=0))
+    first = main_journal(Config(tmp_path, port=0))
     first.runtime().start()
     first.runtime().stop()
     db = sqlite3.connect(first.config.database)
@@ -3722,7 +3723,7 @@ def test_a_skill_owed_as_a_link_moves_onto_the_agent_at_boot(tmp_path: Path, mon
     db.execute("DELETE FROM migrations WHERE number >= 7")
     db.commit()
     db.close()
-    second = App(Config(tmp_path, port=0))
+    second = main_journal(Config(tmp_path, port=0))
     second.runtime().start()
     try:
         assert second.container.get(Agents).find(agent).skills_due == ("journal",), "the owed skill is a fact on the agent's row"
@@ -4229,7 +4230,7 @@ def test_a_plugin_that_needs_a_newer_journal_is_refused_by_that_before_any_key_i
 def test_plugins_come_back_when_the_journal_starts_again(app: App):
     app.console().run(["plugin", "install", str(Path(__file__).parent / "plugins" / "echo"), "--yes"], USER)
     (app.config.home / "plugin-data" / "echo" / "kept.txt").write_text("kept")
-    repeat = App(Config(app.config.root, port=0))
+    repeat = main_journal(Config(app.config.root, port=0))
     repeat.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     repeat.runtime().start()
     try:
@@ -5526,7 +5527,7 @@ def test_an_update_never_overwrites_a_setting_the_user_set(app: App):
     settings = app.container.get(SettingRows)
     settings.save(Setting(environment_id=0, key="shell.command_characters", value=500), Actor.user(1))
     settings.save(Setting(environment_id=0, key="tasks.auto", value=False), Actor.user(1))
-    updated = App(Config(app.config.root, port=0))
+    updated = main_journal(Config(app.config.root, port=0))
     updated.runtime().boot()
     stored = updated.container.get(SettingRows)
     assert stored.project("shell.command_characters") == 500 and stored.project("tasks.auto") is False, "booting the new code, as an update does, keeps what the user set"
@@ -11660,3 +11661,60 @@ def test_a_memory_command_waits_until_the_memory_skill_is_read(skilled):
     read_skill(app, "journal-memory")
     app.runtime().deferred.drain()
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal reminder create 'tag it'"})[0] == 200, "read, the command goes through"
+
+
+def test_a_new_environment_is_filled_from_a_kept_claude_session_and_its_first_agent_is_asked_once_to_read_it(app: App, tmp_path, monkeypatch):
+    import json
+    import re
+    from urllib.error import HTTPError
+
+    from journal.models.message import Message
+    from journal.repositories.agents import Agents
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+
+    config = tmp_path / "claude-config"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    folder = config / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(app.config.root.resolve()))
+    folder.mkdir(parents=True)
+    rows = [
+        {"type": "user", "message": {"content": "Fix the login page"}, "timestamp": "2026-10-01T10:00:00Z"},
+        {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "where is it"}, {"type": "text", "text": "Looking at it."}, {"type": "tool_use", "name": "Read", "id": "t1", "input": {"file_path": "a.py"}}]}, "timestamp": "2026-10-01T10:00:05Z"},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": "x"}]}, "timestamp": "2026-10-01T10:00:06Z"},
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Edit", "id": "t2", "input": {}}]}, "timestamp": "2026-10-01T10:00:20Z"},
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Edit", "id": "t3", "input": {}}]}, "timestamp": "2026-10-01T10:00:30Z"},
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": "Fixed the login page."}]}, "timestamp": "2026-10-01T10:01:00Z"},
+    ]
+    (folder / "old-session.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+    def call(method, path, body=None, environment="main"):
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", "X-Journal-Env": environment})
+        try:
+            with urlopen(request, timeout=5) as reply:
+                return reply.status, json.loads(reply.read())
+        except HTTPError as refused:
+            return refused.code, json.loads(refused.read())
+
+    def started():
+        return call("POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "old-session"}, "login")[1]["hookSpecificOutput"]["additionalContext"]
+    status, listed = call("GET", "/journal/environments/sessions")
+    assert status == 200 and [(row["provider"], row["session"], row["first_prompt"], row["line_count"]) for row in listed] == [("claude", "old-session", "Fix the login page", 6)], "the form lists the project's kept sessions with their first prompt and length"
+    assert call("POST", "/journal/environments", {"name": "login", "provider": "claude", "session": "old-session"})[0] == 201
+    login = app.container.get(Environments).existing("login")
+    with app.container.get(Scope).environment(login.row_id):
+        chat = app.container.get(Messages).scoped()
+        assert [(m.author.value, m.text, m.created_at.isoformat()[:19]) for m in chat] == [
+            ("user", "Fix the login page", "2026-10-01T10:00:00"),
+            ("agent", "Looking at it.", "2026-10-01T10:00:05"),
+            ("system", "Tool calls: Edit 2, Read 1", "2026-10-01T10:00:05"),
+            ("agent", "Fixed the login page.", "2026-10-01T10:01:00"),
+            ("system", "This chat was filled from Claude Code session old-sess: 4 messages.", "2026-10-01T10:01:00"),
+        ], "prompts and replies at their own times, the tool calls between them in one line, the thinking left out, and a line saying where the chat came from"
+        assert all(m.read_at for m in chat if m.author.value == "user"), "no prompt reaches the agent as a new message"
+        assert [(a.session, a.state) for a in app.container.get(Agents).scoped()] == [("old-session", "ended")], "the session is the environment's ended agent, so its first launch carries it on"
+    assert call("POST", "/journal/environments", {"name": "login", "provider": "claude", "session": "old-session"})[0] == 409, "an environment that exists is never filled again"
+    first = started()
+    assert "this environment's chat was filled from the earlier conversation old-sess" in first, "the first session there is asked to read the chat"
+    app.runtime().deferred.drain()
+    assert "filled from the earlier conversation" not in started(), "and only once"
+    assert call("GET", "/journal/environments/sessions")[1][0]["environment"] == "login", "the form names the environment a session went into"

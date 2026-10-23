@@ -18,6 +18,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from tests.replay import Replay, hook_as, played
 from tests.test_features import AGENT, MAIN, USER
+from tests.main_journal import main_journal
 
 ECHO = Path(__file__).parent / "plugins" / "echo"
 
@@ -27,7 +28,7 @@ def journal(tmp_path: Path, monkeypatch):
     """A fresh journal the echo plugin is installed in, its steps compared to the record; the plugin is given two seconds to answer, since a program started fresh on a busy machine misses the shipped window."""
     monkeypatch.setattr(Config, "status_home", property(lambda self: self.root / "status"))
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
-    app = App(Config(tmp_path / "anew", port=0))
+    app = main_journal(Config(tmp_path / "anew", port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).set(PluginsFeature.PLUGIN_ANSWER_WINDOW.key, 2000, Actor.user(1))
     with app.container.get(Scope).environment(MAIN):

@@ -1,9 +1,10 @@
 <script setup>
 import {onPhone} from "../platform/phone.js";
 import {agentRunningIn} from "../composables/settings.js";
-import {computed, reactive, ref} from "vue";
+import {computed, onMounted, reactive, ref} from "vue";
 import EnvStart from "./EnvStart.vue";
 import NewEnvironment from "./NewEnvironment.vue";
+import {api} from "../api/client.js";
 import {narrow} from "../platform/view.js";
 import FoldGroup from "../kit/FoldGroup.vue";
 import Icon from "../kit/Icon.vue";
@@ -21,6 +22,7 @@ const pages = computed(() => pluginPages(rows("plugins")));
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
 const release = computed(() => store.spec.version || "");
 const creating = ref(false);
+onMounted(async () => (creating.value = !(await api.list("environments")).rows.length));
 const folded = reactive({});
 const fold = (key) => {
     folded[key] = !folded[key];

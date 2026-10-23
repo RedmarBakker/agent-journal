@@ -1,3 +1,4 @@
+from journal.providers.support.agent_tool_input import AgentToolInput
 import shutil
 import json
 import os
@@ -39,6 +40,7 @@ SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"
 class Claude(Provider):
     user_line_key = "systemMessage"
     name = "claude"
+    title = "Claude Code"
     program = "claude"
     prompt_flags = ("--dangerously-skip-permissions",)
     home = ".claude"
@@ -78,7 +80,7 @@ class Claude(Provider):
     }
 
     @staticmethod
-    def subagent(input: dict) -> SubagentDispatch:
+    def subagent(input: AgentToolInput) -> SubagentDispatch:
         return SubagentDispatch(str(input.get("subagent_type", "")), str(input.get("model", "")), str(input.get("description", "")), str(input.get("prompt", "")), bool(input.get("run_in_background")))
 
     @staticmethod
@@ -107,6 +109,13 @@ class Claude(Provider):
         folder = self.config_folder() / "projects" / self.folder_name(project)
         saved = [path for path in folder.glob("*.jsonl") if path.stat().st_mtime >= start] if folder.is_dir() else []
         return max(saved, key=lambda path: path.stat().st_mtime).stem if saved else ""
+
+    def session_files(self, project: Path) -> list[Path]:
+        folder = self.config_folder() / "projects" / self.folder_name(project)
+        return list(folder.glob("*.jsonl")) if folder.is_dir() else []
+
+    def session_name(self, path: Path) -> str:
+        return path.stem
 
     def subagent_transcript(self, project: Path, parent: str, agent_id: str) -> Path | None:
         path = self.config_folder() / "projects" / self.folder_name(project) / parent / "subagents" / f"agent-{agent_id}.jsonl"

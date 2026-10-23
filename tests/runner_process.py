@@ -14,6 +14,7 @@ from journal.models.setting import Setting
 from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
+from tests.main_journal import main_journal
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 
@@ -27,7 +28,7 @@ def test_the_runner_runs_a_chain_part_by_part_and_moves_a_long_one_to_the_backgr
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     (tmp_path / ".journal").mkdir()
     (tmp_path / ".journal" / "src").symlink_to(SRC)
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     settings = app.container.get(SettingRows)
     settings.save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.runtime().start()
@@ -146,7 +147,7 @@ def test_the_runner_agrees_with_the_shell_on_every_line_of_the_corpus(tmp_path: 
     """Each line run whole by zsh and run in parts by the runner prints the same and ends with the same code."""
     (tmp_path / ".journal").mkdir()
     (tmp_path / ".journal" / "src").symlink_to(SRC)
-    app = App(Config(tmp_path, port=0))
+    app = main_journal(Config(tmp_path, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     for key in ("shell.command_characters", "shell.read_characters"):
         app.container.get(SettingRows).save(Setting(environment_id=0, key=key, value=10 ** 9), Actor.system())
