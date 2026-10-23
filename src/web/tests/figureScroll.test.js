@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, Posing} from "../src/figure/figure.js";
+import {CLIPS, Posing, REPORT_SCROLL, reportScrollOf} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import FigureAct from "../src/chat/FigureAct.vue";
 
@@ -27,12 +27,33 @@ function posed(u) {
     return {top: at("hand_r"), bottom: at("hand_l"), eyes, looks, turn};
 }
 
-// FigureAct drawing the scroll at `u` with the free hand's grip at `hand` and the other's at `other`, in shares of a 100 pixel picture
-function drawn(u, hand, other) {
+// FigureAct drawing the scroll act at `u`, on a 100 pixel picture
+function drawn(u) {
     const root = document.createElement("div");
-    createApp({render: () => h(FigureAct, {name: "scroll", u, hand: {...hand, out: -1, other}, head: {x: 0.5, y: 0.3}, feet: 0.9, size: 100, room: {left: 0, right: 0}})}).mount(root);
-    const roller = (which) => Number(root.querySelector(`[data-scroll-roller="${which}"]`).getAttribute("y")) + 1.7;
-    return {root, top: roller("top"), bottom: roller("bottom"), parchment: root.querySelector("[data-scroll-parchment]")};
+    createApp({render: () => h(FigureAct, {name: "scroll", u, hand: {x: 0.5, y: 0.4, out: -1, other: {x: 0.5, y: 0.6}}, head: {x: 0.5, y: 0.3}, feet: 0.9, size: 100, room: {left: 0, right: 0}})}).mount(root);
+    return root;
+}
+
+// the scroll as the pose holds it at `u`, and where each hand grips, in the figure's own axes
+function held(u) {
+    const pose = new Posing(RIG, "stand", 0);
+    clip.pose(pose, stanceOf("butler"), u);
+    const moves = pose.moves(0);
+    const grip = (side) => pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
+    const scroll = pose.props.get("report_scroll");
+    const middle = scroll && scroll.at.clone().applyMatrix4(moves.get("root"));
+    return {scroll, middle, free: grip("r"), other: grip("l")};
+}
+
+// the 3D scroll built and shaped as the pose holds it at `u`, with its parts by name
+function modelled(u) {
+    const root = new THREE.Group();
+    root.name = "report_scroll";
+    reportScrollOf(root);
+    root.userData.shape(held(u).scroll);
+    root.updateMatrixWorld(true);
+    const part = (name) => root.getObjectByName(`report_scroll_${name}`) ?? root.getObjectByName(name);
+    return {root, part};
 }
 
 describe("the report scroll, read by the figure itself", () => {
@@ -78,13 +99,52 @@ describe("the report scroll, read by the figure itself", () => {
         expect(reading.at(-1).eyes.z).toBeLessThan(reading[0].eyes.z);
     });
 
-    it("draws the top roller in the free hand and the bottom one in the other, the parchment's plain aged back between them to the viewer", () => {
-        const opened = drawn(open, {x: 0.5, y: 0.4}, {x: 0.5, y: 0.6});
-        expect([opened.top, opened.bottom]).toEqual([40, 60]);
-        expect(opened.root.querySelectorAll("path").length, "the parchment alone, no lines on the face toward the viewer").toBe(1);
-        expect(opened.root.querySelectorAll("text").length).toBe(0);
-        expect(opened.parchment.getAttribute("fill"), "aged darker than fresh paper").toBe("#dcc79c");
-        const coming = drawn(act.raise[1] / 2, {x: 0.3, y: 0.7}, {x: 0.7, y: 0.7});
-        expect(coming.bottom - coming.top, "rolled in the free hand while the hands come up").toBeCloseTo(3.4);
+    it("holds the 3D scroll's top roller at the free hand and its bottom roller at the other, moving with the hands as they open and close it", () => {
+        for (const u of [open, act.unrolls[0] + 0.05, act.rolls[0] + 0.05]) {
+            const {scroll, middle, free, other} = held(u);
+            const top = middle.clone().add(scroll.top);
+            const bottom = middle.clone().add(scroll.bottom);
+            expect(top.z, `${u} top at the free hand's height`).toBeCloseTo(free.z, 5);
+            expect(bottom.z, `${u} bottom at the other's`).toBeCloseTo(other.z, 5);
+            expect(Math.abs(top.y - free.y), `${u} in the free hand`).toBeLessThan(0.01);
+            expect(Math.abs(top.x - (free.x + other.x) / 2), `${u} centred between the hands`).toBeLessThan(0.01);
+            expect(top.distanceTo(free), `${u} the hand on its roller`).toBeLessThan(REPORT_SCROLL.length / 2);
+        }
+        const coming = held(act.raise[1] / 2);
+        expect(coming.scroll.top.z - coming.scroll.bottom.z, "rolled up in the free hand while the hands come up").toBeCloseTo(REPORT_SCROLL.rolled, 5);
+        expect(held(0).scroll, "not before it is raised").toBeUndefined();
+        expect(held(rolledUp).scroll.open).toBeCloseTo(0, 3);
+        expect(held(open).scroll.open).toBe(1);
+    });
+
+    it("models two shaded wooden rollers with knobbed ends and a shaded curved parchment, its aged back toward the viewer, rolling round the rollers", () => {
+        const {part} = modelled(open);
+        for (const which of ["top", "bottom"]) {
+            const roller = part(`${which}`);
+            for (const name of [`report_scroll_${which}_roller`, `report_scroll_${which}_knob_l`, `report_scroll_${which}_knob_r`, `report_scroll_${which}_wound`]) {
+                const mesh = roller.getObjectByName(name);
+                expect(mesh, name).toBeDefined();
+                expect(mesh.material.type, `${name} shaded as the figure is`).toBe("ShaderMaterial");
+                expect(mesh.children.some((child) => child.isMesh), `${name} outlined`).toBe(true);
+            }
+        }
+        const parchment = part("parchment");
+        expect(parchment.material.type).toBe("ShaderMaterial");
+        expect(new THREE.Color(...parchment.material.uniforms.colour.value.toArray()).getHex(), "aged back").toBe(REPORT_SCROLL.colours.back);
+        const position = parchment.geometry.attributes.position;
+        const depths = Array.from({length: position.count}, (_, index) => position.getZ(index));
+        expect(Math.max(...depths) - Math.min(...depths), "curved, not flat").toBeGreaterThan(REPORT_SCROLL.bow);
+        const {columns} = REPORT_SCROLL;
+        const edge = position.getZ(Math.floor(REPORT_SCROLL.rows / 2) * (columns + 1));
+        const centre = position.getZ(Math.floor(REPORT_SCROLL.rows / 2) * (columns + 1) + columns / 2);
+        expect(centre - edge, "its side edges curled back").toBeGreaterThan(REPORT_SCROLL.curl / 2);
+        expect(parchment.visible).toBe(true);
+        const rolled = modelled(act.raise[1]);
+        expect(rolled.part("parchment").visible, "wound up on the rollers while it is rolled").toBe(false);
+        const sleeve = (state) => state.part("top").getObjectByName("report_scroll_top_wound").scale.x;
+        expect(sleeve(rolled), "the paper wound thick round the roller while rolled").toBeGreaterThan(sleeve(modelled(open)));
+        const turned = (state) => state.part("top").getObjectByName("report_scroll_top_roller").rotation.x;
+        expect(turned(modelled(open)), "the rollers turn as it unrolls").not.toBeCloseTo(turned(rolled), 2);
+        expect(drawn(open).querySelector("svg").children[0].children.length, "never drawn flat on the page").toBe(0);
     });
 });

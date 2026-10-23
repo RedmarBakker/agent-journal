@@ -122,21 +122,6 @@ const waggle = computed(() => {
     return 14 * Math.sin(2 * Math.PI * act.value.waggles * k) * Math.sin(Math.PI * k);
 });
 
-// The scroll between the hands, `half` its width either side of a roller's middle: rolled in the free hand while the hands come up and go
-// down, and once both hold it, its top roller in the free hand and its bottom roller in the other, the parchment between them turned
-// with its written side to the figure, so the viewer sees only its plain back, aged darker than fresh paper
-const SCROLL_HALF = 0.09;
-const ROLLER = 3.4;
-const PARCHMENT_BACK = "#dcc79c";
-const scrollHeld = computed(() => {
-    const top = hand.value;
-    const held = partOf(props.u, act.value.raise) * (1 - partOf(props.u, act.value.lower)) === 1;
-    const bottom = held ? {x: px(props.hand.other.x), y: px(props.hand.other.y)} : {x: top.x, y: top.y + ROLLER};
-    const half = px(SCROLL_HALF);
-    const parchment = `M${top.x - half + 1} ${top.y}L${top.x + half - 1} ${top.y}L${bottom.x + half - 1} ${bottom.y}L${bottom.x - half + 1} ${bottom.y}Z`;
-    return {top, bottom, half, parchment};
-});
-
 // The thought cloud over the thinking figure's head, out toward its free hand: three puffs rising from beside the head one after another
 // into a small cloud, `across` and `above` the eyes as shares of the picture, `wide` across, holding three dots that pulse one after
 // another, each its turn of the act's pulse; all of it fading as the bulb lights
@@ -252,11 +237,6 @@ const flap = computed(() => {
                     <rect x="-12" y="-40" width="24" height="20" rx="2" :fill="COLOURS.paper" stroke-width="1.4" />
                     <text x="0" y="-24.5" text-anchor="middle" class="figure-act-mark" :fill="COLOURS.ink" stroke="none">?</text>
                 </g>
-            </template>
-
-            <template v-if="name === 'scroll' && u > act.raise[0] && u < act.lower[1]">
-                <path :d="scrollHeld.parchment" :fill="PARCHMENT_BACK" stroke-width="0.8" data-scroll-parchment />
-                <rect v-for="(roller, index) in [scrollHeld.top, scrollHeld.bottom]" :key="`roller${index}`" :x="roller.x - scrollHeld.half - 1" :y="roller.y - ROLLER / 2" :width="2 * scrollHeld.half + 2" :height="ROLLER" :rx="ROLLER / 2" :fill="COLOURS.wood" :data-scroll-roller="index ? 'bottom' : 'top'" />
             </template>
 
             <template v-if="name === 'ponder' && cloud">

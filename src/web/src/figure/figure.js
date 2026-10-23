@@ -2364,7 +2364,7 @@ function ask_sign(pose, stance, t) {
 // top edge, each hand `across` from the middle toward its own side, the rollers `closed` apart in height while it is rolled and `apart`
 // once it is open; and the head reading it, nodded `nod` degrees down into it and `lineNod` more for each line below, turned slowly from
 // `scan` degrees to its own left to as far to its right over the first `sweep` of a line, and back for the next
-export const SCROLL = {at: [0, -0.74, 2.02], across: 0.22, closed: 0.08, apart: 0.6, elbow: [1, 0.4, -0.6], nod: 16, lineNod: 4, scan: 12, sweep: 0.6};
+export const SCROLL = {at: [0, -0.74, 2.02], across: 0.4, closed: 0.08, apart: 0.6, elbow: [1, 0.4, -0.6], nod: 16, lineNod: 4, scan: 12, sweep: 0.6};
 
 // brings the rolled scroll up before its chest, pulls its two rollers apart between its hands, the free hand's above, reads it down line
 // by line with its head going slowly along each, and rolls it closed between its hands again
@@ -2390,6 +2390,21 @@ function scroll(pose, stance, t) {
     const turn = SCROLL.scan * (1 - 2 * partOf(along, [0, SCROLL.sweep]) + 2 * partOf(along, [SCROLL.sweep, 1]));
     pose.face("head", {x: (SCROLL.nod + SCROLL.lineNod * line) * open, z: turn * open});
     eyesAs(pose, "reading", open);
+    if (ready) holdScroll(pose, top, ready === 1 ? (top === "l" ? "r" : "l") : null, open);
+}
+
+// The report scroll (REPORT_SCROLL) in the hands as they are posed: its top roller gripped toward one end by the hand on `top`, its bottom
+// roller toward the other end by the hand on `bottom`, the scroll centred between the two hands; or rolled up just under the top one in
+// that hand alone while `bottom` is none; unrolled `open` of the way
+function holdScroll(pose, top, bottom, open) {
+    const grip = (side) => pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${side}`));
+    const upper = grip(top);
+    const lower = bottom ? grip(bottom) : upper.clone().add(new THREE.Vector3(0, 0, -REPORT_SCROLL.rolled));
+    const middle = upper.clone().add(lower).multiplyScalar(0.5);
+    if (bottom) upper.x = lower.x = middle.x;
+    const root = pose.matrix("root").clone().invert();
+    pose.standProp("report_scroll", middle.clone().applyMatrix4(root).toArray());
+    Object.assign(pose.props.get("report_scroll"), {top: upper.sub(middle), bottom: lower.sub(middle), open});
 }
 
 // reaches down to the drawer slid out of the cabinet beside it and drops a card into it
@@ -3448,7 +3463,62 @@ function propsOf() {
     reactionPropsOf(group, part);
     telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"), group("telephone_poof"));
     lightBulbOf(group("light_bulb"));
+    reportScrollOf(group("report_scroll"));
     return props;
+}
+
+// The report scroll the figure reads (scroll), in the figure's own style: two wooden rollers `roller` round and `length` long, across, a
+// knob `knob` round on each end, and on each a sleeve of the parchment wound round it, `wound` round while the scroll is rolled up and
+// `unwound` once it is open, the rollers turning as it unrolls; between them the parchment `width` wide, its plain aged back to the
+// viewer, bowed `bow` toward it in the middle and its side edges curled `curl` back, in `rows` by `columns` facets so it catches the
+// light. Rolled up in one hand its rollers lie `rolled` apart. Every number of it is here, in the figure's units.
+export const REPORT_SCROLL = {
+    roller: 0.045, length: 1.25, knob: 0.075, wound: 0.11, unwound: 0.06, turns: 1.5, width: 1, bow: 0.06, curl: 0.08, rows: 10, columns: 16,
+    rolled: 0.22,
+    colours: {wood: 0x8a5a2b, knob: 0x6b4220, back: 0xdcc79c, wound: 0xe6d6ae},
+};
+
+// the scroll's parts in its own axes, its middle at the root; its `shape` puts its rollers at `top` and `bottom` (from its middle, in the
+// figure's own axes, z up) and stretches the parchment between them, unrolled `open` of the way, 0 to 1
+export function reportScrollOf(root) {
+    const {roller, length, knob, wound, unwound, turns, width, bow, curl, rows, columns, colours} = REPORT_SCROLL;
+    const rollers = ["top", "bottom"].map((which) => {
+        const group = new THREE.Group();
+        group.name = `${root.name}_${which}`;
+        root.add(group);
+        const rod = shadedPart(group, "roller", new THREE.CylinderGeometry(roller, roller, length, 14), colours.wood);
+        rod.rotation.z = Math.PI / 2;
+        for (const end of [-1, 1]) shadedPart(group, `knob_${end > 0 ? "l" : "r"}`, new THREE.SphereGeometry(knob, 14, 10), colours.knob, [(end * length) / 2, 0, 0]);
+        const sleeve = shadedPart(group, "wound", new THREE.CylinderGeometry(1, 1, width, 18), colours.wound);
+        sleeve.rotation.z = Math.PI / 2;
+        return {group, sleeve, rod};
+    });
+    const sheet = new THREE.PlaneGeometry(width, 1, columns, rows);
+    const parchment = shadedPart(root, "parchment", sheet, colours.back);
+    const glb = (point) => new THREE.Vector3(point.x, point.z, -point.y);
+    root.userData.shape = ({top, bottom, open}) => {
+        const [upper, lower] = [glb(top), glb(bottom)];
+        const radius = mix(wound, unwound, open);
+        rollers.forEach(({group, sleeve, rod}, index) => {
+            group.position.copy(index ? lower : upper);
+            sleeve.scale.set(radius, 1, radius);
+            rod.rotation.x = (index ? -1 : 1) * turns * 2 * Math.PI * open;
+        });
+        parchment.visible = open > 0.02;
+        const position = sheet.attributes.position;
+        for (let row = 0; row <= rows; row++) {
+            const along = row / rows;
+            const middle = upper.clone().lerp(lower, along);
+            for (let column = 0; column <= columns; column++) {
+                const across = column / columns - 0.5;
+                const out = bow * Math.sin(Math.PI * along) * open - curl * (2 * across) ** 4;
+                position.setXYZ(row * (columns + 1) + column, middle.x + across * width, middle.y, middle.z + radius + out);
+            }
+        }
+        position.needsUpdate = true;
+        sheet.computeVertexNormals();
+        sheet.setAttribute("hullNormal", sheet.attributes.normal.clone());
+    };
 }
 
 // The light bulb over the head at the end of the thinking act, in the figure's own style, standing `at` (across toward the hand raised
