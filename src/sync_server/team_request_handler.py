@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qsl, urlsplit
 
 from sync_server.accept_request import AcceptRequest
+from sync_server.agent_view_post import AgentViewPost
 from sync_server.account import Account
 from sync_server.install_request import InstallRequest
 from sync_server.host_ask_request import HostAskRequest
@@ -47,7 +48,7 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             return
         query = dict(parse_qsl(url.query))
         team = self.server.team
-        routes = {"/pull": lambda: self.current(lambda: team.pulls.answer(self.token(), PullQuery.parsed(query))), "/copy": lambda: team.copies.answer(self.token()), "/devices": lambda: team.admins.listed(self.token()), "/team": lambda: team.details.answer(), "/people": lambda: team.people.answer(self.token()), "/leases": lambda: self.lease_state(query.get("name", ""))}
+        routes = {"/pull": lambda: self.current(lambda: team.pulls.answer(self.token(), PullQuery.parsed(query))), "/copy": lambda: team.copies.answer(self.token()), "/devices": lambda: team.admins.listed(self.token()), "/team": lambda: team.details.answer(), "/people": lambda: team.people.answer(self.token()), "/leases": lambda: self.lease_state(query.get("name", "")), "/agent-views": lambda: team.agent_views.listed(self.token(), [key for key in query.get("keys", "").split(",") if key], team.clock.time())}
         self.answered(routes.get(url.path))
 
     def do_POST(self) -> None:
@@ -70,6 +71,7 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             "/device-requests": lambda: team.host_requests.addressed(self.token(), self.typed(DeviceAskRequest), team.clock.time()),
             "/signin-links/redeem": lambda: self.signin_answer(team.signins.redeemed(self.token(), self.typed(SigninRequest).code, team.clock.time())),
             "/push": lambda: self.current(lambda: self.push_reply(team)),
+            "/agent-views": lambda: team.agent_views.posted(self.token(), self.typed(AgentViewPost), team.clock.time()),
             "/upgrade": lambda: team.upgrades.answer(self.token(), self.typed(UpgradeRequest.parsed)),
             "/blocks": lambda: team.blocks.answer(self.token(), self.typed(BlocksRequest).tables),
             "/invite": lambda: team.admins.invite(self.token(), self.typed(AdminRequest).email),

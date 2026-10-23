@@ -37,6 +37,9 @@ from journal.sync.pulled_files import PulledFiles
 from journal.sync.record_purge import RecordPurge
 from journal.sync.sync_client import SyncClient
 from journal.sync.host_desk import HostDesk
+from journal.http.agents.agent_view_sender import AgentViewSender
+from journal.http.agents.agent_bar_writes import AgentBarWrites
+from journal.support.host_writer import HostWriter
 from journal.sync.team_account import TeamAccount
 from journal.events.models.purged import Purged
 
@@ -76,8 +79,8 @@ class Runtime:
             for seed in feature.seeds:
                 self.container.get(seed).run()
             for host_writer in feature.host_writers:
-                for kind, writer in self.container.get(host_writer).makers().items():
-                    self.container.get(HostDesk).register(kind, writer)
+                self.registered(host_writer)
+        self.registered(AgentBarWrites)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
         from journal.repositories.environments import Environments
@@ -106,6 +109,7 @@ class Runtime:
         self.jobs.start()
         self.server.start()
         self.container.get(SyncClient).start()
+        self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()
         gc.freeze()
 
@@ -131,8 +135,13 @@ class Runtime:
             self.server._thread.join(1.0)
         self.stop()
 
+    def registered(self, host_writer: type[HostWriter]) -> None:
+        for kind, writer in self.container.get(host_writer).makers().items():
+            self.container.get(HostDesk).register(kind, writer)
+
     def stop(self) -> None:
         self.container.get(SyncClient).stop()
+        self.container.get(AgentViewSender).stop()
         self.server.stop()
         self.share_server.stop()
         self.jobs.stop()

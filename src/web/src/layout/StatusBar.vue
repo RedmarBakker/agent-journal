@@ -30,6 +30,7 @@ import {useEveryWorker, useWorkers} from "../composables/workers.js";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
 import {runPlan, setAuto} from "../actions/work.js";
+import {useColleague} from "../composables/colleague.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
 const hosted = computed(() => Boolean(store.people && store.people.hosted));
@@ -79,6 +80,7 @@ async function pickMode(key) {
     }
 }
 
+const {colleague} = useColleague();
 async function pauseOrResume() {
     const next = !paused.value;
     wanted.value = next;
@@ -160,7 +162,7 @@ async function runBar(p) {
                 </template>
             </component>
         </span>
-        <template v-if="running">
+        <template v-if="running && !colleague">
             <Btn
                 kind="icon"
                 :class="['statusbar-pause', {paused}]"

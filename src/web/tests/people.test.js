@@ -32,7 +32,10 @@ test("a colleague's environment opens with a box to comment as yourself and no c
     const thread = readFileSync(resolve(__dirname, "../src/chat/Thread.vue"), "utf8");
     expect(thread).toMatch(/:placeholder="colleague \? `Comment as \$\{me\}` : 'Message the agent'"/);
     const bar = readFileSync(resolve(__dirname, "../src/chat/AgentBar.vue"), "utf8");
-    expect(bar).toMatch(/<template v-else-if="colleague">\s*<div class="agent-bar agent-bar-colleague">\{\{ colleague \}\}'s environment: the agent's status there is not known on this machine<\/div>/);
+    expect(bar).toMatch(/<template v-else-if="colleague && data">\s*<div class="agent-bar agent-bar-read-only">\s*<AgentFacts :data="data" open="" @toggle="\(\) => \{\}" \/>\s*<span class="agent-bar-owner">\{\{ colleague \}\}'s agent, read only<\/span>/);
+    expect(bar).toMatch(/<div class="agent-bar agent-bar-colleague">\{\{ colleague \}\}'s environment: no agent is running there<\/div>/);
+    const status = readFileSync(resolve(__dirname, "../src/layout/StatusBar.vue"), "utf8");
+    expect(status).toMatch(/<template v-if="running && !colleague">/);
 });
 
 test("a colleague's comment is drawn as theirs, named, and never as yours", async () => {

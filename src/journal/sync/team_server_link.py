@@ -7,6 +7,7 @@ import urllib.request
 from journal.db.schema import Schema
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
+from sync_server.agent_view_list import AgentViewList
 from sync_server.blocks_answer import BlocksAnswer
 from sync_server.copied_row import CopiedRow
 from sync_server.device import Device
@@ -49,6 +50,12 @@ class TeamServerLink:
     def fetch_changes(self, query: PullQuery) -> PullAnswer:
         path = f"/pull?after={query.sequence}&wait={query.wait_seconds}&keys={','.join(query.environment_keys)}&slots={query.pool.slots}&free={query.pool.free}&version={query.version}"
         return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), path, None, query.wait_seconds + REQUEST_SECONDS)))
+
+    def send_agent_views(self, views: dict[str, list[dict]]) -> None:
+        self.posted("/agent-views", {"views": views})
+
+    def agent_views(self, keys: list[str]) -> dict[str, list[dict]]:
+        return AgentViewList(**json.loads(self.sent(self.account.address(), f"/agent-views?keys={','.join(keys)}", None, REQUEST_SECONDS))).views
 
     def ask_host(self, environment_key: str, kind: str, body: dict, account_id: int) -> None:
         self.posted("/host-requests", {"environment_key": environment_key, "kind": kind, "body": body, "account_id": account_id})

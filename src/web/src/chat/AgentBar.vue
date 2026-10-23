@@ -65,8 +65,14 @@ const {colleague, teamChat} = useColleague();
     <template v-if="teamChat">
         <TeamChatBar />
     </template>
+    <template v-else-if="colleague && data">
+        <div class="agent-bar agent-bar-read-only">
+            <AgentFacts :data="data" open="" @toggle="() => {}" />
+            <span class="agent-bar-owner">{{ colleague }}'s agent, read only</span>
+        </div>
+    </template>
     <template v-else-if="colleague">
-        <div class="agent-bar agent-bar-colleague">{{ colleague }}'s environment: the agent's status there is not known on this machine</div>
+        <div class="agent-bar agent-bar-colleague">{{ colleague }}'s environment: no agent is running there</div>
     </template>
     <template v-else>
         <div class="agent-bar">
@@ -115,6 +121,18 @@ const {colleague, teamChat} = useColleague();
 </template>
 
 <style scoped>
+.agent-bar-read-only {
+    cursor: default;
+}
+
+.agent-bar-owner {
+    margin-left: auto;
+    padding-right: 12px;
+    color: var(--text-3);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 .agent-bar-colleague {
     color: var(--text-3);
 }

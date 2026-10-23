@@ -3,6 +3,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from sync_server.accounts import Accounts
+from sync_server.agent_views import AgentViews
 from sync_server.admin_handler import AdminHandler
 from sync_server.blocks_handler import BlocksHandler
 from sync_server.db.invitation_rows import InvitationRows
@@ -68,6 +69,7 @@ class TeamServer:
         self.pushes = PushHandler(self.store, self.log, self.devices, PushResults(PushResultRows(self.store)), self.host_requests)
         self.pulls = PullHandler(self.log, self.devices, self.clock, self.details, self.host_requests)
         self.people = PeopleHandler(self.accounts, self.devices)
+        self.agent_views = AgentViews(self.devices)
         self.copies = CopyHandler(self.store, self.log, self.devices, self.clock)
         self.upgrades = UpgradeHandler(self.store, self.log, self.ranges, self.devices, self.leases, self.details, self.clock, data / BACKUPS)
 

@@ -11251,3 +11251,91 @@ def test_a_session_start_after_a_restart_names_the_background_runs_it_cut_off(ap
     status, body = hook(app, "SessionStart")
     told = body["hookSpecificOutput"]["additionalContext"]
     assert f"the journal restarted and cut off these background runs: output {run.id}, python3 -m pytest -q" in told, "the new session hears at its start which runs the restart ended, so none is taken for still running"
+
+
+def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_colleague_only_sees_it(app: App, tmp_path):
+    import json
+    import time as clock
+    from urllib.error import HTTPError
+    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
+
+    from journal.models.agent import Agent
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.models.user import User
+    from journal.repositories.agents import Agents
+    from journal.repositories.environment_owners import OWNER
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.http.agents.agent_view_sender import AgentViewSender
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.account import ADMIN, MEMBER, RELAY
+    from sync_server.host_ask_request import HostAskRequest
+    from sync_server.pool_slots import PoolSlots
+    from sync_server.pull_query import PullQuery
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
+    _, ada_device = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, bob_device = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
+    _, relay = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    journal = f"http://127.0.0.1:{app.server().port}"
+    account, scope, agents = app.container.get(TeamAccount), app.container.get(Scope), app.container.get(Agents)
+    main = app.container.get(Environments).existing("main")
+    app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), kind=OWNER), Actor.system())
+
+    class Kept(HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    opener = build_opener(Kept)
+
+    def sent(path, body=None, cookie=""):
+        headers = {"X-Journal-Env": "main", "Cookie": cookie, "Content-Type": "application/json"}
+        data = None if body is None else json.dumps(body).encode()
+        try:
+            with opener.open(HttpRequest(journal + path, data=data, headers=headers, method="POST" if data is not None else "GET"), timeout=10) as answer:
+                return answer.status, answer.read()
+        except HTTPError as refused:
+            return refused.code, refused.read()
+
+    def signed_in(email):
+        form = f"--b\r\nContent-Disposition: form-data; name=\"email\"\r\n\r\n{email}\r\n--b\r\nContent-Disposition: form-data; name=\"password\"\r\n\r\ncorrect horse battery\r\n--b--\r\n"
+        with pytest.raises(HTTPError) as redirected:
+            opener.open(HttpRequest(journal + "/sign-in", data=form.encode(), headers={"Content-Type": "multipart/form-data; boundary=b"}, method="POST"), timeout=10)
+        return redirected.value.headers["Set-Cookie"].split(";")[0]
+
+    def waiting():
+        return [(request.kind, request.account_id) for request in team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), ""))]
+
+    with scope.environment(main.row_id):
+        agent = agents.save(Agent(environment_id=main.row_id, session="ada-session", provider="claude", state="working"), Actor.system())
+    try:
+        account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})
+        app.container.get(AgentViewSender).send(clock.time())
+        assert [row["session"] for row in team.agent_views.listed(bob_device, [main.key], clock.time()).views[main.key]] == ["ada-session"], "Ada's journal sends the team server what its agent bar shows for her environment"
+        account.write({"address": address, "token": relay, "device": 3, "account_id": 3})
+        (app.config.home / "hosted").touch()
+        ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
+        status, body = sent("/journal/agents", cookie=ada)
+        assert status == 200 and [(row["session"], row["remote"]) for row in json.loads(body)["rows"]] == [("ada-session", True)], "on the hosted journal Ada sees her agent as her own journal shows it"
+        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=bob)[0] == 409 and waiting() == [], "Bob sees it but cannot change it"
+        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=ada) == (200, b'{"asked": true}') and waiting() == [("agent_pause", 1)], "Ada's pause is asked of her journal, where the agent runs"
+        team.host_requests.created(relay, HostAskRequest(main.key, "agent_resume", {"agent_id": agent.id}, 2), clock.time())
+        (app.config.home / "hosted").unlink()
+        account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})
+        app.container.get(SyncClient).pulled(0)
+        with scope.environment(main.row_id):
+            assert agents.find(agent.id).state == "paused", "her journal pauses the agent, and refuses the resume asked in Bob's name, since main is not his"
+        assert waiting() == [], "both requests are taken up"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
