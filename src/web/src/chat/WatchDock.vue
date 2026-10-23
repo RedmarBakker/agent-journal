@@ -44,12 +44,7 @@ watch(
 <template>
     <ChatDock label="Watched output" :folded="folded" kind="watch-dock">
         <template #head>
-            <span class="watch-dock-mark">
-                <Icon name="terminal" class="watch-dock-icon" />
-                <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
-                    <Dot solid :size="7" :kind="runState" :pulsing="runState === 'running'" />
-                </span>
-            </span>
+            <Icon name="terminal" class="watch-dock-icon" />
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="opened ? 'Fold the output' : 'Show the whole output'" @click="toggle">{{ message.text }}</button>
             <template v-if="card.ending">
                 <span class="watch-dock-ending">{{ card.ending }}</span>
@@ -59,9 +54,14 @@ watch(
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
-        <template v-if="card.line">
-            <code class="watch-dock-command">{{ card.line }}</code>
-        </template>
+        <div class="watch-dock-run">
+            <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
+                <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
+            </span>
+            <template v-if="card.line">
+                <code class="watch-dock-command">{{ card.line }}</code>
+            </template>
+        </div>
         <template v-if="opened && colleague">
             <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
         </template>
@@ -84,21 +84,16 @@ watch(
 </template>
 
 <style scoped>
-.watch-dock-mark {
-    position: relative;
-    display: inline-flex;
-    flex: none;
+.watch-dock-run {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 
 .watch-dock-state {
-    position: absolute;
-    top: -3px;
-    left: -4px;
     display: flex;
-    padding: 1px;
-    border-radius: 50%;
-    background: var(--raised);
-    pointer-events: none;
+    flex: none;
 }
 
 .watch-dock-elsewhere {

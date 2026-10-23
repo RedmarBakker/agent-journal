@@ -1,6 +1,7 @@
 import os
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -19,6 +20,7 @@ class Service:
         self._last_start = 0.0
         self._deaths: list[float] = []
         self._restarts = 0
+        self._moving = threading.RLock()
 
     def start(self) -> None:
         self.log.parent.mkdir(parents=True, exist_ok=True)
@@ -31,8 +33,9 @@ class Service:
                 self._deaths = [death for death in self._deaths if self._last_start - death < WINDOW_SECONDS] + [self._last_start]
 
     def restart(self) -> None:
-        self.stop()
-        self.start()
+        with self._moving:
+            self.stop()
+            self.start()
 
     def is_active(self) -> bool:
         return self._process is not None and self._process.poll() is None
@@ -60,17 +63,20 @@ class Service:
         return {"name": self.name, "pid": self._process.pid if self.is_active() else 0, "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts}
 
     def stop(self) -> None:
-        if self.is_active():
-            self.signal_group(signal.SIGTERM)
-            deadline = time.time() + STOP_GRACE
-            while self.is_active() and time.time() < deadline:
-                time.sleep(0.05)
-            self.signal_group(signal.SIGKILL)
-            self._process.wait()
-        self._process = None
+        with self._moving:
+            process = self._process
+            if process is not None and process.poll() is None:
+                self.signal_group(process, signal.SIGTERM)
+                deadline = time.time() + STOP_GRACE
+                while process.poll() is None and time.time() < deadline:
+                    time.sleep(0.05)
+                self.signal_group(process, signal.SIGKILL)
+                process.wait()
+            self._process = None
 
-    def signal_group(self, signal_kind: signal.Signals) -> None:
+    @staticmethod
+    def signal_group(process: subprocess.Popen, signal_kind: signal.Signals) -> None:
         try:
-            os.killpg(self._process.pid, signal_kind)
+            os.killpg(process.pid, signal_kind)
         except (ProcessLookupError, PermissionError):
             return

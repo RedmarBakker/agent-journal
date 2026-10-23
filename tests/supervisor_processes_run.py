@@ -114,7 +114,11 @@ def test_the_inbox_answers_each_request_and_a_stop_ends_the_supervisor_and_takes
         assert "heard:hello" in (tmp_path / "echo.log").read_text(), "send carries text to a process's input"
         pid = listed["sleeper"]["pid"]
         ask(supervisor, verb="restart", name="sleeper")
-        assert {p["name"]: p for p in ask(supervisor, verb="list")["processes"]}["sleeper"]["pid"] not in (0, pid)
+        sleeper_pid = lambda: {p["name"]: p for p in ask(supervisor, verb="list")["processes"]}["sleeper"]["pid"]
+        began = time.time()
+        while sleeper_pid() in (0, pid) and time.time() - began < 5:
+            time.sleep(0.05)
+        assert sleeper_pid() not in (0, pid), "a restart, done on a thread of its own, starts the service anew"
         assert ask(supervisor, verb="stop", name="sleeper") == {"ok": True}
         assert "sleeper" not in {p["name"] for p in ask(supervisor, verb="list")["processes"]}
         assert ask(supervisor, verb="restart", name="nobody") == {"ok": False, "error": "no process is named 'nobody'"}
@@ -260,3 +264,27 @@ def test_the_launcher_starts_the_supervisor_again_whenever_it_exits_and_exits_wh
     finished = subprocess.run(["sh", str(script), str(python), "launch.json"], cwd=tmp_path, timeout=10)
     assert finished.returncode == 0 and runs.read_text().split() == ["launch.json"] * 3, "a restart and a fault each start it again; its exit with 0 ends the loop"
     assert len(script.read_text().splitlines()) <= 10
+
+
+def test_two_restarts_of_one_service_at_once_take_turns_and_raise_nothing(tmp_path: Path):
+    import threading
+
+    journal = Service("journal", ["sh", "-c", "sleep 30"], tmp_path, {"PATH": os.environ["PATH"]}, tmp_path / "server.log")
+    journal.start()
+    faults = []
+
+    def restarted():
+        try:
+            journal.restart()
+        except Exception as fault:
+            faults.append(fault)
+
+    threads = [threading.Thread(target=restarted) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=20)
+    try:
+        assert faults == [] and journal.is_active(), "the second restart waits for the first, and the service ends up running"
+    finally:
+        journal.stop()
