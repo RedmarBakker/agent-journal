@@ -10,6 +10,12 @@ await import("../src/text/all.js");
 const context = {env: "main"};
 
 describe("a file the agent names", () => {
+    test("stays a line of text in text drawn in a line, as an output card's last line, never a card inside it", () => {
+        const html = render("/data/team/backups/team-20261023-053536.db", {env: "main", inline: true});
+        expect(html).not.toContain("file-card");
+        expect(html).toContain("/data/team/backups/team-20261023-053536.db");
+    });
+
     test("shows the picture of an attachment named on a line of its own", () => {
         const html = render("Here is the screen:\nmessage 17785 IMG_1201.png\nIt is cut off.", context);
         expect(html).toContain('<img class="file-card-image" src="');

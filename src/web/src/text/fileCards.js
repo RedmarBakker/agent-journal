@@ -27,8 +27,10 @@ function path(text) {
     return {at: found.index, length: found[0].length, html: `<a class="file-card" href="#" data-file="${file}"><span class="file-card-name">${escape(file.split("/").pop())}</span><span class="file-card-line">${file}</span></a>`};
 }
 
+// a file card is a block of its own, so text drawn in a line, as a chat mark's detail, keeps a path as text
 register(
     (text, context) => {
+        if (context.inline) return null;
         const found = attachment(text, context) || path(text);
         if (!found) return null;
         return [

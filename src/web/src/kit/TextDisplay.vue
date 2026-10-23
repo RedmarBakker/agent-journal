@@ -15,7 +15,7 @@ const html = computed(() => {
               .split("\n")
               .find((line) => line.trim()) || ""
         : props.text;
-    const made = render(said, {env: route.value.env, rowNames: props.rowNames});
+    const made = render(said, {env: route.value.env, rowNames: props.rowNames, inline: props.inline});
     return props.inline ? made.replace(/^<p>|<\/p>\s*$/g, "") : made;
 });
 </script>
