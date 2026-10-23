@@ -276,7 +276,7 @@ test("sitting on a corner the figure sits just inside it, toward the inside of t
 });
 
 const {TYPING, typingIn, typingSpell} = await import("../src/figure/reactions.js");
-const {hornOpen} = await import("../src/figure/acts.js");
+const {hornOpen, partOf} = await import("../src/figure/acts.js");
 const {GLANCE, HEAD_TURN, TUMBLE} = await import("../src/figure/figure.js");
 
 // the way the head and the chest face, in degrees toward the viewer's right, of a pose
@@ -369,4 +369,22 @@ test("falls are snappy: the tumble drops to its knees in a quarter of a second w
     expect(TUMBLE.bounce[0]).toBe(TUMBLE.down[1]);
     const land = clipNamed("land");
     expect(land.frames / land.fps).toBeLessThanOrEqual(0.35);
+});
+
+test("the head holds its turn to the side, unmoved, from the party horn's first frame up to its last, for every voice, the horn being flat", () => {
+    const {frames, raise, lower, turn} = ACTS.party_horn;
+    // the page draws the horn while it is raised and not yet lowered (chat/FigureAct.vue horn.up)
+    const shown = (u) => partOf(u, raise) * (1 - partOf(u, lower)) > 0;
+    for (const voice of Object.keys(stances)) {
+        const held = [];
+        for (let step = 0; step <= frames * 4; step++) {
+            const u = step / (frames * 4);
+            if (!shown(u)) continue;
+            const {head, chest} = facingsOf(posedAt("party_horn", voice, u * (frames - 1) / frames));
+            held.push(head - chest);
+        }
+        expect(held.length, voice).toBeGreaterThan(frames);
+        expect(Math.max(...held) - Math.min(...held), voice).toBeLessThan(0.5);
+        expect(Math.abs(held[0]), voice).toBeGreaterThan(turn / 2);
+    }
 });

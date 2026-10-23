@@ -2041,14 +2041,14 @@ function file_card(pose, stance, t) {
     actHand(pose, stance, out, [x, y, z - ACTED.drop * partOf(u, act.filed)]);
 }
 
-// blows a party horn held at its mouth, its head turned to the free hand's side, leaning back into the blow
+// blows a party horn held at its mouth, its head turned to the free hand's side and held so all the while the horn is up
 function party_horn(pose, stance, t) {
     const act = ACTS.party_horn;
     const u = onceTime(t, act.frames);
     const blowing = hornOpen(u);
     const aside = partOf(u, act.turns) * (1 - partOf(u, act.back));
     breathe(pose, 0);
-    trunk(pose, {lean: -5 * blowing, nod: -8 * blowing, turn: SIDES[freeSide(stance)] * act.turn * aside});
+    trunk(pose, {turn: SIDES[freeSide(stance)] * act.turn * aside});
     actHand(pose, stance, partOf(u, act.raise) * (1 - partOf(u, act.lower)), ACTING.whistleWrist);
     pose.shutEyes(1 - 0.6 * blowing);
 }

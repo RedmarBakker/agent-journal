@@ -16,9 +16,9 @@ export const ACTS = {
     scroll: {frames: 48, fps: 12, raise: [0, 0.16], unrolls: [0.16, 0.4], rolls: [0.8, 0.94], lower: [0.9, 1]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
-    // a celebration: it blows a party horn at its mouth, its head turned to the side: the horn shoots open at once, stays open over a second
-    // and rolls back up a little slower
-    party_horn: {frames: 40, fps: 12, raise: [0, 0.14], turns: [0.08, 0.2], opens: [0.2, 0.23], rolls: [0.6, 0.74], back: [0.74, 0.86], lower: [0.82, 1], turn: 70},
+    // a celebration: it turns its head to the side, then blows a party horn at its mouth, which shoots open at once, stays open over a second
+    // and rolls back up a little slower; the horn is flat, so the head keeps its turn from the horn coming up to its going away
+    party_horn: {frames: 40, fps: 12, turns: [0, 0.12], raise: [0.12, 0.2], opens: [0.22, 0.25], rolls: [0.6, 0.74], lower: [0.74, 0.84], back: [0.84, 0.97], turn: 70},
     // searching: binoculars at its eyes, sweeping slowly left and right
     binoculars: {frames: 80, fps: 10, sweep: 1},
     // searching: a flashlight shone into a dark corner beside it, the beam moving about in it
