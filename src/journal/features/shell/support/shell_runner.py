@@ -28,29 +28,36 @@ from journal.features.shell.support.shell_request import ShellRequest
 from journal.support.chain import Chain
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
+from journal.support.stage_times import StageTimes
+from journal.features.faults.support.slow_requests import SlowRequests
 
 EXIT = "__journal_exit"
+SHELL = "SHELL"
+SETUP_ROUTE = "/shell/setup"
 TICK_SECONDS = 0.2
 LIMIT_READ_TICKS = 10
 VARIED_RUNS = 3
 
 
 class ShellRunner:
-    """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output kept under its number or forgotten. A read or write of the project's code streams straight through, nothing kept. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
+    """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output kept under its number or forgotten. A read or write of the project's code streams straight through, nothing kept. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, card: OutputProcessCard, readers: Readers, supervisor: SupervisorLink, entries: Entries) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, card: OutputProcessCard, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests) -> None:
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
         self.aliases, self.outputs, self.card, self.readers, self.supervisor, self.entries = aliases, outputs, card, readers, supervisor, entries
+        self.stages, self.slow = stages, slow
         self.wrappers_told: set[str] = set()
 
     def run(self, posted: ShellRequest, caller: Caller, environment: int) -> Iterator[bytes]:
+        began = time.perf_counter()
         request = replace(posted, line=self.aliases.expanded(posted.line))
-        with self.scope.environment(environment):
+        with self.scope.environment(environment), self.stages.timed("shell setup"):
             cap = self.caps.build(request.line)
             folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")
             folder.split(request.line, Chain.parts(request.line))
             if not cap.is_whole() and not cap.is_direct():
                 folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller))
+        self.slow.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
         output_text: queue.Queue = queue.Queue()
         ended: list[int] = []
         faults: list[Exception] = []
