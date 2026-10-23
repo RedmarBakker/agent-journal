@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-WhrXPCY-.js
-import{A as xe,p as Fd,a as Bd,b as Xe,h as yl,s as kd,g as zd,P as Xi,L as Hd,c as Vd,V as Gd}from"./main-CTJqAXui.js";import"./tokens-nXp686mH.js";import"./tip-CICcXxQo.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as xe,p as Fd,a as Bd,b as Xe,h as yl,s as kd,g as zd,P as Xi,L as Hd,c as Vd,V as Gd}from"./main-BvMtJAn6.js";import"./tokens-nXp686mH.js";import"./tip-CICcXxQo.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> ea7c2cd8d (The avatar holds the telephone's handset from behind, its palm at the back of the grip and its hand running up along it, the earpiece at the ear, from taking it off the cradle to setting it back down):src/web/dist/assets/figure-D_LmBZLk.js
+import{A as xe,p as Fd,a as Bd,b as Xe,h as yl,s as kd,g as zd,P as Xi,L as Hd,c as Vd,V as Gd}from"./main-WBBYKIzG.js";import"./tokens-nXp686mH.js";import"./tip-CICcXxQo.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
