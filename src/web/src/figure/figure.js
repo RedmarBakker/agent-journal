@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
+import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
@@ -316,10 +316,10 @@ export class Posing {
         this.props.set(name, {bone: `hand_${side}`, frame: "root", at: this.grip(side, offset), turn});
     }
 
-    // a prop standing on the floor at `at` in the figure's units, turned as the figure is and then by `turn`; a crouch lowers the root, so
-    // `at` is given raised by as much for the prop to stay on the floor
-    standProp(name, at, turn = {}) {
-        this.props.set(name, {bone: "root", frame: "root", at: new THREE.Vector3(...at), turn});
+    // a prop standing on the floor at `at` in the figure's units, turned as the figure is and then by `turn`, at `size` of its own size; a
+    // crouch lowers the root, so `at` is given raised by as much for the prop to stay on the floor
+    standProp(name, at, turn = {}, size = 1) {
+        this.props.set(name, {bone: "root", frame: "root", at: new THREE.Vector3(...at), turn, size});
     }
 
     // the light bulb over the head (LIGHT_BULB) toward `way`, 1 the figure's left, grown in `size` of the way and lit `lit` of the way,
@@ -2754,6 +2754,38 @@ function flashlight(pose, stance, t) {
     eyesAs(pose, "reading");
 }
 
+// Rummaging (acts.js rummage): how deep it crouches and how far it leans in, in the figure's units and degrees; where its hands dig in the
+// opening, across, forward and up, each `dig` up and down as it digs, the elbows the way `elbow` says; how far it turns side-on to the
+// opening; and where it holds up the key it found, as a hand raised high
+export const RUMMAGE = {crouch: 0.3, lean: 48, nod: 12, hands: [0.3, -1.45, 1.75], dig: 0.3, elbow: [1, -0.4, -0.6], turn: 90, wiggle: 6};
+
+function rummage(pose, stance, t) {
+    const act = ACTS.rummage;
+    const side = freeSide(stance);
+    const into = partOf(t, act.leans) * (1 - partOf(t, act.pops));
+    const holding = partOf(t, act.pops) * (1 - partOf(t, act.lowers));
+    const digging = waveOf(t, act.digs);
+    crouch(pose, RUMMAGE.crouch * into);
+    breathe(pose, 0);
+    trunk(pose, {nod: RUMMAGE.nod * into, tilt: RUMMAGE.wiggle * digging * into});
+    pose.bendAbove("spine", {x: (RUMMAGE.lean + RUMMAGE.wiggle * digging) * into});
+    if (holding) {
+        actHand(pose, stance, holding, ACTED.high);
+        pose.holdUpright("rummage_key", side);
+    } else armsAtRest(pose, stance, into ? ["l", "r"] : []);
+    const [x, y, z] = RUMMAGE.hands;
+    for (const [hand, way] of into ? [["l", 1], ["r", -1]] : []) {
+        const dug = pose.carried(new THREE.Vector3(SIDES[hand] * x, y, z + way * RUMMAGE.dig * digging));
+        handTo(pose, hand, into, pose.withinReach(hand, dug, 0.97), new THREE.Vector3(...RUMMAGE.elbow));
+    }
+    RUMMAGED.forEach((name, index) => {
+        const flung = flungAt(index, t);
+        if (flung) pose.standProp(name, [flung.at[0], flung.at[1], flung.at[2] + RUMMAGE.crouch * into], {x: flung.turn, z: flung.turn / 3}, 1 - flung.landed);
+    });
+    if (pose.posture === "stand") pose.revolve(SIDES[side] * RUMMAGE.turn * into);
+    pose.shiftAll([-SIDES[side] * act.back * FRAMED_HEIGHT * holding, 0, 0]);
+}
+
 // crouches, lifts a corner of the floor beside it with the free hand and peeks under it, then lets it down and stands
 function peek_under(pose, stance, t) {
     const act = ACTS.peek_under;
@@ -2927,6 +2959,7 @@ export const CLIPS = [
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
     {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
     {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
+    {name: "rummage", frames: ACTS.rummage.frames, fps: ACTS.rummage.fps, loops: true, postures: MOVE, ownLook: true, pose: rummage},
     {name: "type_ponder", frames: ACTS.type_ponder.frames, fps: ACTS.type_ponder.fps, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, ownLook: true, postures: ON_A_LAP, pose: type_ponder},
     {name: "wipe_brow", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
     {name: "wave_up", frames: 12, fps: 12, loops: true, cuts: true, postures: ["stand", "sit"], pose: wave_up},
@@ -3531,7 +3564,60 @@ function propsOf() {
     telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"), group("telephone_poof"));
     lightBulbOf(group("light_bulb"));
     reportScrollOf(group("report_scroll"));
+    rummagedOf(group);
     return props;
+}
+
+// The things the figure flings over its shoulder rummaging (rummage) and the key it finds, in its own shaded style, in the figure's units:
+// a few loose `papers` fanned apart; a `boot` of a shaft, a foot and a sole; a fish's `bone`, its spine, ribs, head and tail; a closed
+// `book`, its cover and pages; and the `key`, its ring, shaft and bit. Each is drawn at the size the pose gives it, so it can shrink away.
+export const RUMMAGE_THINGS = {
+    papers: {sheet: [0.9, 0.02, 0.66], count: 3, fan: 18},
+    boot: {shaft: [0.4, 0.72, 0.45], foot: [0.4, 0.3, 0.84], sole: 0.07},
+    bone: {spine: 1.1, ribs: 5, rib: 0.5, head: [0.24, 0.18, 0.08], tail: [0.2, 0.26], thick: 0.035},
+    book: {cover: [0.75, 0.15, 0.56], pages: [0.7, 0.12, 0.53]},
+    key: {ring: [0.14, 0.045], shaft: 0.55, bit: [0.11, 0.13, 0.04]},
+    colours: {paper: 0xf6f1e3, leather: 0x6b4426, sole: 0x2a2420, bone: 0xece4d2, cover: 0xa8323a, pages: 0xf3ead2, gold: 0xe8b84a},
+};
+
+function rummagedOf(group) {
+    const {papers, boot, bone, book, key, colours} = RUMMAGE_THINGS;
+    const sized = (name) => {
+        const root = group(name);
+        const body = new THREE.Group();
+        body.name = name;
+        root.add(body);
+        root.userData.shape = ({size = 1}) => body.scale.setScalar(Math.max(size, 0.001));
+        return body;
+    };
+    const sheets = sized("rummage_papers");
+    for (let index = 0; index < papers.count; index++) {
+        const sheet = shadedPart(sheets, `sheet_${index}`, new THREE.BoxGeometry(...papers.sheet), colours.paper, [0, index * papers.sheet[1] * 2, 0]);
+        sheet.rotation.y = radians(papers.fan * (index - (papers.count - 1) / 2));
+    }
+    const shoe = sized("rummage_boot");
+    shadedPart(shoe, "shaft", new THREE.BoxGeometry(...boot.shaft), colours.leather, [0, boot.foot[1] + boot.shaft[1] / 2, 0]);
+    shadedPart(shoe, "foot", new THREE.BoxGeometry(...boot.foot), colours.leather, [0, boot.foot[1] / 2, (boot.foot[2] - boot.shaft[2]) / 2]);
+    shadedPart(shoe, "sole", new THREE.BoxGeometry(boot.foot[0] * 1.05, boot.sole, boot.foot[2] * 1.04), colours.sole, [0, 0, (boot.foot[2] - boot.shaft[2]) / 2]);
+    const fish = sized("rummage_bone");
+    const spine = shadedPart(fish, "spine", new THREE.CylinderGeometry(bone.thick, bone.thick, bone.spine, 6), colours.bone);
+    spine.rotation.z = Math.PI / 2;
+    for (let index = 0; index < bone.ribs; index++) {
+        const across = (index / (bone.ribs - 1) - 0.5) * bone.spine * 0.7;
+        const length = bone.rib * (1 - Math.abs(across) / bone.spine);
+        shadedPart(fish, `rib_${index}`, new THREE.CylinderGeometry(bone.thick * 0.7, bone.thick * 0.7, length, 5), colours.bone, [across, 0, 0]);
+    }
+    const head = shadedPart(fish, "head", new THREE.SphereGeometry(1, 14, 10), colours.bone, [bone.spine / 2 + bone.head[0] * 0.8, 0, 0]);
+    head.scale.set(...bone.head);
+    const tail = shadedPart(fish, "tail", new THREE.ConeGeometry(bone.tail[0], bone.tail[1], 3), colours.bone, [-bone.spine / 2 - bone.tail[1] / 2, 0, 0]);
+    tail.rotation.z = -Math.PI / 2;
+    const tome = sized("rummage_book");
+    shadedPart(tome, "cover", new THREE.BoxGeometry(...book.cover), colours.cover);
+    shadedPart(tome, "pages", new THREE.BoxGeometry(...book.pages), colours.pages, [(book.cover[0] - book.pages[0]) / 2 + 0.03, 0, 0]);
+    const found = sized("rummage_key");
+    shadedPart(found, "ring", new THREE.TorusGeometry(...key.ring, 8, 20), colours.gold, [0, key.shaft + key.ring[0], 0]);
+    shadedPart(found, "shaft", new THREE.CylinderGeometry(key.ring[1] * 0.8, key.ring[1] * 0.8, key.shaft, 8), colours.gold, [0, key.shaft / 2, 0]);
+    for (const [index, up] of [0.08, 0.22].entries()) shadedPart(found, `bit_${index}`, new THREE.BoxGeometry(...key.bit), colours.gold, [key.bit[0] / 2, up, 0]);
 }
 
 // The report scroll the figure reads (scroll), in the figure's own style: two wooden rollers `roller` round and `length` long, across, a

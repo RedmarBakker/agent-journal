@@ -44,7 +44,7 @@ class Chain:
     @classmethod
     def work(cls, line: str) -> str:
         owned = [part for part in cls.parts(line) if part.recorded]
-        if not owned or not all(part.is_read() for part in owned):
+        if not owned or not all(part.is_read() or part.is_search() for part in owned):
             return "running"
         return "searching" if any(part.is_search() for part in owned) else "reading"
 

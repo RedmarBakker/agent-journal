@@ -52,8 +52,10 @@ test("the figure does what the tool in flight says the agent does, and thinks be
     expect(stateAt({tool: "Bash", since: NOW - 30})).toBe("thinking");
     expect(stateAt({running: true, tool: "Bash", tool_work: "testing"})).toBe("testing");
     expect(stateAt({running: true, tool: "Bash", tool_work: "building"})).toBe("building");
-    // any other command, reading, searching, moving files or git through the shell, is plain running
-    for (const work of ["running", "reading", "searching"]) expect(stateAt({running: true, tool: "Bash", tool_work: work}), work).toBe("running");
+    // a search through the shell, a grep, a find or the journal's own, is searching as the search tools are
+    expect(stateAt({running: true, tool: "Bash", tool_work: "searching"})).toBe("searching");
+    // any other command, reading, moving files or git through the shell, is plain running
+    for (const work of ["running", "reading"]) expect(stateAt({running: true, tool: "Bash", tool_work: work}), work).toBe("running");
 });
 
 test("the figure builds a parcel only for a test run or a build, types at its laptop for an edit, and plays neither for any other command", () => {

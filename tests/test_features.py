@@ -7073,6 +7073,7 @@ def test_a_shell_line_says_whether_it_reads_searches_or_runs():
     wrapped = lambda line: f"source /s 2>/dev/null || true && eval '{line}' < /dev/null && pwd -P >| /tmp/cwd"
     assert Chain.work(wrapped("sed -n 1,20p src/a.py")) == "reading", "a read through the shell is reading, so the figure shows its book"
     assert Chain.work(wrapped("grep -rn foo src && cat b.py")) == "searching", "a line that only reads, with a search in it, is searching"
+    assert Chain.work(wrapped("journal search find hammer")) == "searching", "the journal's own search is searching, as a grep is"
     assert Chain.work(wrapped("npm run build")) == "running", "anything else runs"
 
 

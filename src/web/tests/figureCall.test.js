@@ -185,7 +185,7 @@ test("the telephone comes whole, never growing or fading in: out of a poof a lit
     expect(first.puff).toBeGreaterThan(0);
     const {pose} = posed(0);
     expect(pose.props.get("telephone")).toMatchObject({squash: 0});
-    expect(pose.props.get("telephone").size).toBeUndefined();
+    expect(pose.props.get("telephone").size).toBe(1);
     expect(pose.props.get("telephone_poof")).toBeTruthy();
     // its body at full size as it arrives: the shape it is drawn with leaves it unscaled
     const {set} = telephone();

@@ -140,11 +140,11 @@ export const PILE = [
         showpiece(clip("disco", 2, {ball: "bubble"})),
         nothing(560),
     ]),
-    // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner or
-    // under a lifted corner of the floor; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
+    // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner,
+    // under a lifted corner of the floor or, now and then, rummaging in an opening and flinging things over its shoulder; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
     // waving up at it; and while the context compacts, packed into a box that shrinks, squashed under a press, vacuuming up words, or
     // squaring a stack of papers
-    ...at("held:search", {}, [clip("search", 3), clip("binoculars", 2), clip("flashlight", 2), clip("peek_under", 1)]),
+    ...at("held:search", {}, [clip("search", 3), clip("binoculars", 2), clip("flashlight", 2), clip("peek_under", 1), clip("rummage", 1)]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),

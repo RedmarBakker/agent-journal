@@ -74,7 +74,7 @@ class Part:
         return len(tokens) == 2 and tokens[0] == "cd" and self.is_project_file(tokens[1])
 
     def is_search(self) -> bool:
-        return self.program() in SEARCHERS or self.program() == "git" and self.tokens()[1:2] == ["grep"]
+        return self.program() in SEARCHERS or self.program() == "git" and self.tokens()[1:2] == ["grep"] or self.program() == "journal" and self.tokens()[1:2] == ["search"]
 
     def edits_files(self) -> bool:
         return self.program() in INPLACE_EDITORS and any(w.startswith(("-i", "-pi")) for w in self.tokens()[1:])

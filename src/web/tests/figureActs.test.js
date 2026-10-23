@@ -12,7 +12,7 @@ const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).ma
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
 const ACTED = ["phone_call", "ask_sign", "scroll", "file_card", "hand_rub"];
-const NEW = ["inspect", "ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
+const NEW = ["inspect", "ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "binoculars", "flashlight", "peek_under", "rummage", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
     for (const name of [...ACTED, ...NEW]) {
@@ -133,7 +133,7 @@ test("every moment the figure acts out has more than one way to play it, picks a
     }
     expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}]);
     // searching, typing and watching the UFO, each picked again for each stretch
-    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "flashlight", "peek_under"]);
+    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "flashlight", "peek_under", "rummage"]);
     for (const clip of ["search", "type", "watch", "compacting"]) {
         const among = of(`held:${clip}`);
         expect(among.length, clip).toBeGreaterThan(1);

@@ -41,6 +41,17 @@ export const ACTS = {
     flashlight: {frames: 80, fps: 10},
     // searching: it crouches, lifts a corner of the floor it stands on and peeks under it, then lets it down
     peek_under: {frames: 80, fps: 10, lift: [0.08, 0.3], peek: [0.3, 0.75], down: [0.75, 0.92], open: 42},
+    // searching, now and then: like a cartoon character hunting through a closet, it rummages in an opening at the edge beside it. The
+    // opening comes over `opens`, from `lip` of the picture out from the figure's middle to the picture's edge and `height` of it up from
+    // the floor; the figure turns side-on to it and leans in, head and shoulders buried in it, over `leans`, digging about `digs` times;
+    // it flings what it pulls out over its shoulder, one thing over each of `throws` (rummage_things), each from `from` up over `over` and
+    // down behind it at `to` (the figure's units, across, forward and up, before it turns side-on), tumbling `spins` turns, and shrinking
+    // away to nothing over `shrinks` once it lands; it pops out over `pops`, stepping `back` of the picture away from the opening, which
+    // shuts behind it over `closes`, and holds up the key it found until it lowers it over `lowers`
+    rummage: {
+        frames: 132, fps: 12, opens: [0, 0.07], leans: [0.05, 0.14], digs: 7, pops: [0.74, 0.8], closes: [0.78, 0.86], lowers: [0.92, 1], back: 0.06, lip: 0.2, height: 0.72,
+        throws: [[0.16, 0.32], [0.28, 0.44], [0.4, 0.56], [0.52, 0.68]], from: [0, -1.5, 1.5], over: 3.9, to: [0, 1.9, 0.2], spins: [1.5, -2, 1.25, -1.75], shrinks: 0.05,
+    },
     // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
     fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
     // a rope swing tied under a bubble: its two ropes `rope` of the figure's height long from the middle of the bubble's bottom edge, `ties`
@@ -80,6 +91,22 @@ const ease = (k) => k * k * (3 - 2 * k);
 
 // how far `u` is through the part `[from, to]` of an act, eased, 0 before it and 1 after
 export const partOf = (u, [from, to]) => ease(span(u, from, to));
+
+// the things the figure flings over its shoulder rummaging (rummage), in the order it pulls them out
+export const RUMMAGED = ["rummage_papers", "rummage_boot", "rummage_bone", "rummage_book"];
+
+// Where thing `index` of RUMMAGED is `u` of the way through the rummage, as {at, turn, landed}: in flight along its arc from the
+// opening up over the figure's shoulder and down behind it, `at` in the figure's units before it turns side-on, `turn` how far it has
+// tumbled in degrees, and `landed` how far it has shrunk away once down, 0 to 1; null before it is pulled out and once it is gone
+export function flungAt(index, u) {
+    const act = ACTS.rummage;
+    const [out, down] = act.throws[index];
+    if (u < out || u >= down + act.shrinks) return null;
+    const s = span(u, out, down);
+    const at = act.from.map((from, axis) => from + (act.to[axis] - from) * s);
+    at[2] += 4 * (act.over - (act.from[2] + act.to[2]) / 2) * s * (1 - s);
+    return {at, turn: 360 * act.spins[index] * s, landed: span(u, down, down + act.shrinks)};
+}
 
 // Where a run of hops on the pogo stick is `share` of the way through its time, as {index, s, height}: hop `index` of `heights`, `s` of
 // the way through it, and how high above its foot it is then. One gravity times them all: a hop lasts as the square root of its height,

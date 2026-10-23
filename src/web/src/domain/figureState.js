@@ -42,9 +42,10 @@ const TOOL_STATES = {
     Bash: "running",
 };
 
-// What a shell line says it does (the agent row's tool_work): a test run or a build is built as a parcel; any other command, moving files,
-// reading or git alike, is plain running, which plays neither the parcel nor the laptop
-const SHELL_STATES = {testing: "testing", building: "building"};
+// What a shell line says it does (the agent row's tool_work): a test run or a build is built as a parcel; a search, a grep, a find or the
+// journal's own, is searching as the search tools are; any other command, moving files, reading or git alike, is plain running, which
+// plays neither the parcel nor the laptop
+const SHELL_STATES = {testing: "testing", building: "building", searching: "searching"};
 
 const BAR_STATES = {paused: "paused", stopped: "stopped", compacting: "compacting", waiting: "waiting", running: "waiting"};
 

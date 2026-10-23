@@ -221,6 +221,17 @@ const steam = computed(() => {
 });
 
 // the corner of the floor lifted beside the figure, hinged at its far end
+// Rummaging: the opening at the edge beside the figure on its free side, dark inside, from `lip` out from its middle to the picture's edge
+// and `height` up from the floor, swung open and shut as a door; what of the figure is in it is in the dark
+const opening = computed(() => {
+    const {opens, closes, lip, height} = ACTS.rummage;
+    const open = partOf(props.u, opens) * (1 - partOf(props.u, closes));
+    const near = middle.value + out.value * px(lip);
+    const width = px(0.5 - lip) * open;
+    const top = floor.value - px(height);
+    return {open, left: out.value > 0 ? near : near - width, near, top, width, height: floor.value - top, door: near + out.value * width};
+});
+
 const flap = computed(() => {
     const {lift, down, open} = act.value;
     const lifted = partOf(props.u, lift) * (1 - partOf(props.u, down));
@@ -399,6 +410,11 @@ const flap = computed(() => {
                 <text v-for="(word, index) in vacuumed.words" :key="index" :x="word.x" :y="word.y" :font-size="7 * word.size" text-anchor="middle" class="figure-act-word" stroke="none" :fill="COLOURS.paper">{{ word.word }}</text>
             </template>
 
+            <template v-if="name === 'rummage' && opening.open > 0">
+                <rect class="figure-act-opening" :x="opening.left" :y="opening.top" :width="opening.width" :height="opening.height" rx="3" fill="#0b0c10" />
+                <path :d="`M${opening.near} ${floor}V${opening.top}`" stroke-width="2.2" stroke-linecap="round" />
+                <path :d="`M${opening.door} ${floor}V${opening.top}l${out * 6 * opening.open} ${-4 * opening.open}V${floor - 3 * opening.open}Z`" :fill="COLOURS.wood" />
+            </template>
             <template v-if="name === 'peek_under' && flap.lifted > 0">
                 <rect :x="Math.min(flap.hinge, flap.hinge - out * flap.length)" :y="floor" :width="flap.length" height="7" fill="#0b0c10" stroke="none" />
                 <path :d="`M${flap.hinge} ${floor}L${flap.end.x} ${flap.end.y}`" class="figure-act-floor" stroke-width="3.4" stroke-linecap="round" />

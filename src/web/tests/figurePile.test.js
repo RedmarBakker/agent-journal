@@ -181,6 +181,7 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip binoculars ×2 when moment=held:search, plays out",
         "clip flashlight ×2 when moment=held:search, plays out",
         "clip peek_under ×1 when moment=held:search, plays out",
+        "clip rummage ×1 when moment=held:search, plays out",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
         "clip watch ×2 when moment=held:watch, plays out",
