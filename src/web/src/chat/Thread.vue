@@ -475,10 +475,10 @@ const {colleague, me} = useColleague();
                                 <TransitionGroup name="dock">
                                     <template v-for="docked in rowDocks" :key="docked.id">
                                         <template v-if="docked.data.output">
-                                            <WatchDock :message="docked" :folded="short || !planOpen" />
+                                            <WatchDock :message="docked" :folded="short || !planOpen" :data-figure-closing="docked.data.undock_at ? '' : null" />
                                         </template>
                                         <template v-else>
-                                            <RowDock :message="docked" :folded="short || !planOpen" />
+                                            <RowDock :message="docked" :folded="short || !planOpen" :data-figure-closing="docked.data.undock_at ? '' : null" />
                                         </template>
                                     </template>
                                 </TransitionGroup>

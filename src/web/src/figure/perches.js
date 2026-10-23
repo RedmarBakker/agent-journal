@@ -1,7 +1,7 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, jumpMost} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
-import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, homeCloses, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
 import {PILE, draw} from "./pile.js";
 
@@ -175,8 +175,12 @@ export function targetFor({state, counts, stay, now, near, figure, hands, work =
     const building = (work.x != null || builds(state)) && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally});
-    return {...target, spot: besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure)};
+    return {...target, spot: unlessClosing(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), near)};
 }
+
+// the spot, or null when it is on a docked card about to close by itself and the figure at `near` is not on it already: it never sets out
+// for one, and one already on it may stay
+const unlessClosing = (spot, near) => (spot?.on && spot.on !== near.on && spot.on === groundEdge().element && homeCloses() ? null : spot);
 
 // whether the figure builds in `state`: its clip there is the hammering
 export const builds = (state) => clipOf(state) === "work";

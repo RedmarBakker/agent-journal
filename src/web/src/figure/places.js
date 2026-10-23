@@ -319,6 +319,14 @@ export function groundEdge() {
     return {element: bars, docked: true, edge: {left: box.left, width: box.width, top: box.top}};
 }
 
+// A docked card that has finished and closes by itself soon is marked for the figure; while the top one of the bars docked over the compose
+// box, the one the figure would stand on, is such a card, the ground at home is about to go
+export const CLOSING = "[data-figure-closing]";
+export function homeCloses() {
+    const {element, docked} = groundEdge();
+    return docked && Boolean(element.firstElementChild?.matches(CLOSING));
+}
+
 // a progress bar's fill marked for the figure, which it watches while it runs
 export const PROGRESS = "[data-figure-progress]";
 

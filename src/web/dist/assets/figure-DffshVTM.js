@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-DffshVTM.js
 import{A as Le,p as Ke,h as il,g as ud,a as hd,P as Oi,L as fd,b as dd,V as pd}from"./main-hwxapDa3.js";import"./tokens-D2Th-Z3L.js";import"./tip-CwpU0l2_.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{A as Le,p as Ke,h as il,g as ud,a as hd,P as Oi,L as fd,b as dd,V as pd}from"./main-DP1GH-lP.js";import"./tokens-D2Th-Z3L.js";import"./tip-0I85NWvL.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 1f8d34a7a (The figure never sets out for a docked card that has finished and closes by itself soon: such a card is marked for the figure, and while the top one docked over the compose box is one, a place on it is no place to go for a figure standing elsewhere; one already on it stays until it closes):src/web/dist/assets/figure-D89VxmP7.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
