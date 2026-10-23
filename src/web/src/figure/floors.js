@@ -87,11 +87,13 @@ const CARRIED_WITHIN = 5;
 const floorNamed = (floors, id) => floors.find((floor) => floor.id === id) ?? null;
 
 // What a figure resting on a spot keeps of it: the floor it rests on by id, the spot's place from that floor's left end and top, the
-// posture it rests in there, whether it rests at home, which is then whatever is the ground at home as bars dock over the compose box
-// and go, unless the spot `stays` on its own element, as where the figure builds; null when it rests on no floor on the page
+// posture it rests in there, and whether it rests at home on the bars docked over the compose box, which it then rides on as they grow
+// and shrink, unless the spot `stays` on its own element, as where the figure builds. A figure on the compose box keeps to the compose box,
+// so a bar that docks over it slides in past it and never lifts it; null when it rests on no floor on the page
 export function footingOn(spot, floors = readFloors().floors) {
     const home = floorNamed(floors, "home");
-    const id = !spot.on ? null : spot.on === home?.element && !spot.stays ? "home" : floorOf(spot.on);
+    const docked = home?.kind === "dock";
+    const id = !spot.on ? null : spot.on === home?.element && docked && !spot.stays ? "home" : floorOf(spot.on);
     const floor = id && floorNamed(floors, id);
     if (!floor) return null;
     return {id, dx: spot.x - floor.left, dy: spot.y - floor.top, posture: spot.posture, home: id === "home"};

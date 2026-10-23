@@ -187,7 +187,7 @@ test("a figure keeps its place on the floor it rests on as that moves, and loses
     const box = {left: 300, top: 600, width: 400, height: 120};
     page(box);
     const seat = restOf(FIGURE, {x: 700, y: 600});
-    expect(footingOn(seat, floorsNow())).toEqual({id: "home", dx: seat.x - 300, dy: 0, posture: "stand", home: true});
+    expect(footingOn(seat, floorsNow())).toEqual({id: floorOf(seat.on), dx: seat.x - 300, dy: 0, posture: "stand", home: false});
     expect(footingOn({...seat, on: null}, floorsNow())).toBe(null);
     const moved = {getBoundingClientRect: () => ({...box, left: 320, top: 580})};
     const kept = {id: floorOf(moved), dx: 10, dy: 0, posture: "stand", home: false};
@@ -204,35 +204,47 @@ test("a figure keeps its place on the floor it rests on as that moves, and loses
     expect(footingNow({...hanging, id: floorOf(low)}, FIGURE, floorsNow(low))).toBe(null);
 });
 
-test("at home the figure is carried while the ground stays within five pixels of its feet, falls when it drops further and is launched when it rises further", () => {
+test("on the compose box the figure keeps to it as bars dock over it and go, never lifted; on the docked bars it rides them, carried, launched or dropped", () => {
+    // one compose box all along, and the bars docked over it while there are any
     const box = {left: 300, top: 600, width: 400, height: 120};
-    page(box);
+    let docked = null;
+    const bars = {isConnected: true, getBoundingClientRect: () => docked};
+    const thread = {getBoundingClientRect: () => CHAT, querySelector: (selector) => (selector === "[data-figure-docked-bars]" && docked ? bars : null)};
+    const home = {isConnected: true, getBoundingClientRect: () => box, closest: (selector) => (selector === ".thread" ? thread : null)};
+    globalThis.window = {innerWidth: 1280, innerHeight: 800};
+    globalThis.CSS = {escape: (text) => text};
+    globalThis.document = {querySelector: (selector) => (selector === "[data-figure-home]" ? home : null), querySelectorAll: () => []};
+    const dock = (top) => (docked = {left: 300, top, width: 400, height: box.top - top});
     const spot = spotOf(null, FIGURE, {x: 640, y: 600});
-    let now = {spot, footing: footingOn(spot, floorsNow())};
-    const frame = () => (now = groundUnder(now.footing, now.spot, FIGURE, floorsNow()));
-    // the compose box drifts up four pixels, and carries it
+    let now = {spot, footing: footingOn(spot, readFloors().floors)};
+    const frame = () => (now = groundUnder(now.footing, now.spot, FIGURE, readFloors().floors));
+    // on the compose box: carried as the box drifts, and left on it as a bar docks over it, slowly or all at once, and goes
+    expect(now.footing.home).toBe(false);
     box.top = 596;
     expect(frame()).toMatchObject({spot: {x: spot.x, y: 596}, motion: "carried"});
-    // a docked card grows three pixels a frame, and carries it all the way
-    for (const top of [593, 590, 587]) {
-        page(box, {left: 300, top, width: 400, height: 596 - top});
-        expect(frame()).toMatchObject({spot: {y: top}, motion: "carried"});
+    for (const top of [593, 590, 587, 530]) {
+        dock(top);
+        expect(frame(), String(top)).toMatchObject({spot: {y: 596}, motion: "carried"});
     }
-    // the box rises six pixels in one frame, and it is thrown up onto it
-    page(box, {left: 300, top: 581, width: 400, height: 15});
-    expect(frame()).toMatchObject({spot: {y: 581}, motion: "launched"});
-    // a whole bar docks in one frame, and it is thrown up onto it
-    page(box, {left: 300, top: 530, width: 400, height: 66});
-    expect(frame()).toMatchObject({spot: {y: 530}, motion: "launched"});
-    // the ground drops six pixels in one frame, and it falls from where it stood
-    page(box, {left: 300, top: 536, width: 400, height: 60});
+    docked = null;
+    expect(frame()).toMatchObject({spot: {y: 596}, motion: "carried"});
+    // standing on a docked bar, it jumps onto it from the compose box, it rides it: grown a little, it is carried up with it
+    dock(530);
+    const onDock = spotOf(null, FIGURE, {x: 640, y: 530});
+    expect(onDock).toMatchObject({y: 530, on: bars});
+    now = {spot: onDock, footing: footingOn(onDock, readFloors().floors)};
+    expect(now.footing.home).toBe(true);
+    dock(527);
+    expect(frame()).toMatchObject({spot: {y: 527}, motion: "carried"});
+    // a second bar docks under it all at once, and it is thrown up with them
+    dock(483);
+    expect(frame()).toMatchObject({spot: {y: 483}, motion: "launched"});
+    // a bar goes, and it drops with them; the bars go, and it falls to the compose box
+    dock(527);
     expect(frame()).toMatchObject({motion: "dropping"});
-    // the bar goes in one frame, and it falls to the compose box
-    page(box);
-    expect(frame()).toMatchObject({spot: {x: spot.x, y: 596}, motion: "dropping"});
-    // carried out of its world, its ground is gone
-    box.top = 2000;
-    expect(frame()).toBe(null);
+    docked = null;
+    now = {spot: {...now.spot, y: 527}, footing: now.footing};
+    expect(frame()).toMatchObject({motion: "dropping"});
 });
 
 test("a figure stepping out of the way takes the first free spot on the right of where it was, and one on its left only then", () => {

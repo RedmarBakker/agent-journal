@@ -52,7 +52,10 @@ test("where the figure builds it keeps to the compose box's top, as bars dock ov
     const building = {x: 400, y: 600, posture: "stand", on: home, stays: true};
     const footing = footingOn(building);
     expect(footing).toMatchObject({home: false, dx: 100, dy: 0});
-    expect(footingOn({...building, stays: false})).toMatchObject({id: "home", home: true});
+    // standing on the compose box it keeps to the compose box's own floor, as bars dock over it and go
+    const standing = footingOn({...building, stays: false});
+    expect(standing).toMatchObject({home: false, dx: 100, dy: 0});
+    expect(readFloors().floors.find((floor) => floor.id === standing.id)).toMatchObject({kind: "build", top: 600});
     const docked = page({docked: {left: 300, right: 700, top: 556, bottom: 600}});
     const floors = readFloors().floors;
     const under = footingOn({...building, on: docked}, floors);
