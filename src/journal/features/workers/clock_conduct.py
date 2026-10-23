@@ -50,7 +50,7 @@ class ClockConduct(Conduct):
 
     def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
         holdings = event.data.part(Tasks).agent_tasks
-        return self.push(Working(task_id=holdings[0])) if holdings else self.none()
+        return self.push(Working(task_id=holdings[0], logged_at=event.time)) if holdings else self.none()
 
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
         return self.pop()

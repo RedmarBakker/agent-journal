@@ -1525,7 +1525,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
     from journal.features.workers.states.soloing import Soloing
     from journal.models.open_task import OpenTask
-    settings = lambda mode: SettingsValue({Workers.MODE.key: mode, TasksFeature.AUTO.key: True, TasksFeature.LOG_AGE_LIMIT.key: 10})
+    settings = lambda mode: SettingsValue({Workers.MODE.key: mode, TasksFeature.AUTO.key: True, TasksFeature.LOG_AGE_LIMIT.key: 10, TasksFeature.FIRST_DELAY.key: 25})
     tasks = TasksData(current_task=0, last_log_line="", suspended=(), suspension_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_suspension_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_summary="task 3 (the footer), task 4 (the margin)")
     started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda plan: FeatureData({"plans": PlansData((), plan, 0, 0), "tasks": tasks})
@@ -1640,7 +1640,7 @@ def test_a_stop_with_the_tasks_log_older_than_the_set_minutes_asks_for_the_log_l
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
     data = FeatureData({"plans": PlansData((), None, 0, 0), "tasks": TasksData(current_task=7, last_log_line="", suspended=(), suspension_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_suspension_reason="", next_open=None, last_commands=())})
-    settings = lambda minutes: SettingsValue({TasksFeature.AUTO.key: True, TasksFeature.LOG_AGE_LIMIT.key: minutes, WorkersFeature.MODE.key: "builder"})
+    settings = lambda minutes: SettingsValue({TasksFeature.AUTO.key: True, TasksFeature.LOG_AGE_LIMIT.key: minutes, TasksFeature.FIRST_DELAY.key: 25, WorkersFeature.MODE.key: "builder"})
     working = Working(task_id=7, logged_at=0.0)
     assert working.respond(Stop(time=5 * 60.0).with_data(data), settings(10)).refusal.key == "tasks.carry_on", "within the minutes a stop is told to carry on"
     assert working.respond(Stop(time=11 * 60.0).with_data(data), settings(10)).refusal.key == "tasks.log_first_at_stop", "past them the log line comes first"
@@ -1751,3 +1751,34 @@ def test_a_subagents_prompt_the_message_sent_to_it_and_its_turns_are_messages_of
         chat = [(m.author, m.text) for m in messages.all() if m.agent_role == AgentRole.SUBAGENT and m.session == "a9"]
         assert chat == [("user", "map the hooks read the hooks"), ("agent", "the hooks are in hooks/"), ("user", "and the receiver?"), ("agent", "the receiver is hooks/receiver.py")]
         assert not [m for m in messages.selected(messages.main_chat()) if m.session == "a9"], "none of it is in the main chat"
+
+
+def test_the_log_reminder_comes_once_after_so_many_edits_or_minutes_since_the_last_log_whichever_is_first():
+    from dataclasses import replace
+
+    from journal.features.tasks.states.working import Working
+
+    settings = SettingsValue({"tasks.first_nudge_after": 3, "tasks.log_old_after_minutes": 10, "tasks.log_after": 50, "tasks.name_every": 25})
+    written = {"file_path": "a.py", "content": "x"}
+    write = ToolStarting(call=ToolCall.decoded("Write", written, Claude().operation("Write", written), ()))
+    read = ToolStarting(call=ToolCall.decoded("Read", {"file_path": "a.py"}, Claude().operation("Read", {"file_path": "a.py"}), ()))
+
+    def at(event, time):
+        return replace(event, time=time)
+
+    def said(answer):
+        return [n.name for n in answer.nudges]
+
+    working, told = Working(task_id=1, logged_at=0.0), []
+    for second in (1.0, 2.0, 3.0, 4.0):
+        answer = working.respond(at(write, second), settings)
+        working, told = answer.target or working, told + said(answer)
+    assert told.count("log_where_it_stands") == 1, "after three edits with no log the log is asked for, and once"
+    quiet = Working(task_id=1, logged_at=0.0, edits=1)
+    assert said(quiet.respond(at(read, 300.0), settings)) == [], "five minutes and one edit: not yet"
+    late = quiet.respond(at(read, 601.0), settings)
+    assert said(late) == ["log_where_it_stands"], "ten minutes with few edits ask for it too, on any tool use"
+    fresh = late.target.logged(602.0)
+    assert said(fresh.respond(at(write, 603.0), settings)) == [] and not fresh.log_requested, "right after a log nothing is asked"
+    assert fresh.respond(at(Stop(), 700.0), settings).refusal.name == "carry_on", "a stop inside the span carries on"
+    assert late.target.respond(at(Stop(), 700.0), settings).refusal.name == "log_first_at_stop", "a stop past the span asks for the log first"

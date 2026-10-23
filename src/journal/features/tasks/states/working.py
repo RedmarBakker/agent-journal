@@ -13,6 +13,7 @@ from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_logged import TaskLogged
 from journal.events.feature_data import FeatureData
 from journal.support.permission import Permission
+from journal.support.moment import Moment
 from journal.support.timeout import Timeout
 
 OPEN_TASK_LIMIT_SECONDS = 900.0
@@ -21,7 +22,7 @@ COMPACT = "compact"
 
 @dataclass(frozen=True)
 class Working(BaseState):
-    """On one task. Writes are counted since the last log line: after the first N the log is asked for, every M the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is told to carry on, with the log line first when it is old, ; a session resumed with it is told where it stands; a quiet quarter hour is told it is still open. Pushed by journal task start, popped by done and park."""
+    """On one task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is told to carry on, with the log line first once the same span has passed; a session resumed with it is told where it stands; a quiet quarter hour is told it is still open. Pushed by journal task start, popped by done and park."""
 
     name = "working"
     title = "Working"
@@ -31,6 +32,7 @@ class Working(BaseState):
     logged_at: float = 0.0
     edits: int = 0
     active_at: float = 0.0
+    log_requested: bool = False
 
     def label(self) -> str:
         if self.task_id and self.focus:
@@ -38,7 +40,14 @@ class Working(BaseState):
         return f"task {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
 
     def logged(self, time: float) -> "Working":
-        return replace(self, logged_at=time, edits=0)
+        return replace(self, logged_at=time, edits=0, log_requested=False)
+
+    def log_span(self, settings: Settings) -> Timeout:
+        from journal.features.tasks.feature import Tasks
+        return Timeout.edits(settings.integer(Tasks.FIRST_DELAY)).combined(Timeout.minutes(settings.integer(Tasks.LOG_AGE_LIMIT))).reset(Moment(seconds=self.logged_at))
+
+    def is_log_due(self, time: float, settings: Settings) -> bool:
+        return self.log_span(settings).has_passed(Moment(seconds=time, edits=self.edits))
 
     def log_command(self) -> str:
         return f"journal task log {self.task_id}" if self.task_id else "journal task log"
@@ -54,21 +63,27 @@ class Working(BaseState):
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
         active = replace(self, active_at=event.time)
-        if not event.call.writes or event.subagent:
+        if event.subagent:
             return self.swap(active)
+        if not event.call.writes:
+            return self.log_request(active, event.time, settings)
         if Timeout.edits(settings.integer(Tasks.LOG_LIMIT)).is_elapsed(self.edits):
             return self.refuse(Tasks.LOG_EDIT_BLOCK.create(edits=self.edits, name=self.label(), log=self.log_command()))
         counted = replace(active, edits=self.edits + 1)
-        lines = []
-        if self.edits == settings.integer(Tasks.FIRST_DELAY):
-            lines.append(Tasks.LOG_REQUEST.create(edits=self.edits, name=self.label(), log=self.log_command()))
         if self.edits and self.edits % settings.integer(Tasks.TASK_REMINDER_INTERVAL) == 0:
-            lines.append(Tasks.CURRENT_TASK_REMINDER.create(name=self.label(), edits=self.edits))
-        return self.swap(counted, *lines)
+            return self.log_request(counted, event.time, settings, Tasks.CURRENT_TASK_REMINDER.create(name=self.label(), edits=self.edits))
+        return self.log_request(counted, event.time, settings)
+
+    def log_request(self, working: "Working", time: float, settings: Settings, *lines: Nudge) -> Transition:
+        from journal.features.tasks.feature import Tasks
+        if self.log_requested or not self.is_log_due(time, settings):
+            return self.swap(working, *lines)
+        request = Tasks.LOG_REQUEST.create(edits=self.edits, name=self.label(), log=self.log_command())
+        return self.swap(replace(working, log_requested=True), request, *lines)
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         from journal.features.tasks.feature import Tasks
-        if Timeout.minutes(settings.integer(Tasks.LOG_AGE_LIMIT)).started(self.logged_at).is_elapsed(event.time):
+        if self.is_log_due(event.time, settings):
             return self.refuse(Tasks.STOP_LOG_REQUEST.create(name=self.label(), logged=self.logged_words(event.time), log_command=self.log_command()))
         return self.refuse(self.continue_nudge(event.time))
 
