@@ -10,6 +10,7 @@ from journal.config import Config
 from journal.support.actor import Actor
 from journal.support.caller import LOCAL_USER
 from journal.support.release import Release
+from journal.sync.team_url import TeamUrl
 from sync_server.account import ADMIN
 
 TEAM_FILE = "team.json"
@@ -76,9 +77,8 @@ class TeamAccount:
         root = self.root_path()
         return hashlib.sha256(ssl.PEM_cert_to_DER_cert(root.read_text())).hexdigest() if root.is_file() else ""
 
-    def join_line(self, code: str) -> str:
-        fingerprint = self.fingerprint()
-        return f"journal team join {self.address()} --code {code}{f' --fingerprint {fingerprint}' if fingerprint else ''}"
+    def invitation_url(self, code: str) -> str:
+        return TeamUrl(self.address()).invitation(code, self.fingerprint())
 
     def device_name(self) -> str:
         return socket.gethostname()

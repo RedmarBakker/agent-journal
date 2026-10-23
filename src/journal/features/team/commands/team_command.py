@@ -2,6 +2,7 @@ from argparse import Namespace
 
 from journal.console.command import Command
 from journal.features.team.support.team_join import TeamJoin
+from journal.sync.team_url import TeamUrl
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 from journal.sync.sync_status import SyncStatus
@@ -24,11 +25,10 @@ class TeamCommand(Command):
         self.account, self.link, self.joining, self.sync_status, self.team_chat, self.starts = account, link, joining, sync_status, team_chat, starts
 
     def arguments(self, verbs) -> None:
-        join = self.verb(verbs, "join", "join a team's server with the line its setup or an invitation printed: a team with no journal yet takes this one whole, else this machine downloads the team's")
-        join.add_argument("address")
-        join.add_argument("--code", required=True)
-        join.add_argument("--fingerprint", default="", help="the certificate authority a server on a bare address serves, from the join line")
-        join.add_argument("--name", default="", help="your name, for a new account; git's user.name when left out")
+        join = self.verb(verbs, "join", "join a team by its URL: a new team server's bare URL makes you its admin, an invitation URL an admin shared makes you a member; a team with no journal yet takes this one whole, else this machine downloads the team's")
+        join.add_argument("url", help="the team server's URL, or the invitation URL an admin shared")
+        join.add_argument("--email", default="", help="your email, the account's user name; git's user.email when left out")
+        join.add_argument("--name", default="", help="the name the team sees beside your writing; git's user.name when left out")
         join.add_argument("--password", default="", help="filled in by the journal command's own prompt; never type it on a command line")
         join.add_argument("--replace-mine", action="store_true", help="take the team's journal in place of this one, which holds tasks or messages of its own; this one is kept in a backup file beside it")
         login = self.verb(verbs, "login", "log this machine in again, as after its device was revoked")
@@ -49,7 +49,7 @@ class TeamCommand(Command):
         if not args.password:
             raise Rejection(PASSWORD_PROMPT.format(verb="join"))
         joining = self.joining.join_replacing if args.replace_mine else self.joining.join
-        print(TeamRequests.reached(lambda: joining(args.address.rstrip("/"), args.code, args.password, args.fingerprint, args.name)))
+        print(TeamRequests.reached(lambda: joining(TeamUrl.parse(args.url), args.email, args.password, args.name)))
         return 0
 
     def login(self, args: Namespace, caller: Caller) -> int:
@@ -64,7 +64,7 @@ class TeamCommand(Command):
     def invite(self, args: Namespace, caller: Caller) -> int:
         self.joined()
         answer = TeamRequests.reached(lambda: self.link.invite(args.email))
-        print(f"{answer.email} joins with this line until {answer.expires_at:.0f}:\n\n    {self.account.join_line(answer.code)}")
+        print(f"{answer.email} joins with this URL until {answer.expires_at:.0f}:\n\n    {self.account.invitation_url(answer.code)}")
         return 0
 
     def status(self, args: Namespace, caller: Caller) -> int:
@@ -117,5 +117,5 @@ class TeamCommand(Command):
 
     def joined(self) -> None:
         if not self.account.is_joined():
-            raise Rejection("this journal has joined no team: journal team join <address> --code <code> joins one")
+            raise Rejection("this journal has joined no team: journal team join <team URL> joins one")
 

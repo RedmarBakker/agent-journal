@@ -7,24 +7,15 @@ from pathlib import Path
 
 from sync_server.db.store import Store
 from sync_server.hosted_invitation import HostedInvitation
-from sync_server.refusal import Refusal
-from sync_server.setup_answers import SetupAnswers
 from sync_server.team_server import BACKUPS, DATABASE, TeamServer
-from sync_server.team_setup import TeamSetup
 
 
 
 def serve(arguments: argparse.Namespace) -> None:
-    TeamServer(arguments.data).http(arguments.host, arguments.port).serve_forever()
-
-
-def setup(arguments: argparse.Namespace) -> None:
-    answers = SetupAnswers(**json.loads(sys.stdin.read()))
-    try:
-        print(TeamSetup(TeamServer(arguments.data)).create(answers.name, answers.email, answers.password, answers.password_repeat, time.time()))
-    except Refusal as refused:
-        print(refused, file=sys.stderr)
-        sys.exit(1)
+    team = TeamServer(arguments.data)
+    if team.accounts.is_empty():
+        print("this team server has no admin yet: the first journal to connect to its URL becomes its admin", flush=True)
+    team.http(arguments.host, arguments.port).serve_forever()
 
 
 def backup(arguments: argparse.Namespace) -> None:
@@ -46,7 +37,7 @@ def hosted(arguments: argparse.Namespace) -> None:
     print(json.dumps(asdict(HostedInvitation(arguments.data).issued())))
 
 
-VERBS = {"serve": serve, "setup": setup, "backup": backup, "restore": restore, "hosted": hosted}
+VERBS = {"serve": serve, "backup": backup, "restore": restore, "hosted": hosted}
 
 
 def main() -> None:
@@ -55,7 +46,6 @@ def main() -> None:
     serving = verbs.add_parser("serve", help="answer the team's journals; its own migrations run first, so a new image upgrades the database at its first start")
     serving.add_argument("--host", default="127.0.0.1")
     serving.add_argument("--port", type=int, default=8470)
-    verbs.add_parser("setup", help="make the admin's account and print a join code; the answers come as JSON on standard input, so the password is never on a command line")
     backing = verbs.add_parser("backup", help="copy the database while the server runs, with SQLite's online backup, into the data folder's backups or --to")
     backing.add_argument("--to", type=Path)
     restoring = verbs.add_parser("restore", help="put a backup in place of the database; run it while no server runs on the data folder")

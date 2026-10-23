@@ -1,9 +1,8 @@
-from sync_server.account import Account
+from sync_server.account import ADMIN, Account
 from sync_server.db.account_rows import AccountRows
 from sync_server.password import Password
+from sync_server.password_strength import PasswordStrength
 from sync_server.refusal import Refusal
-
-MINIMUM_PASSWORD_CHARACTERS = 10
 
 
 class Accounts:
@@ -13,11 +12,15 @@ class Accounts:
         self.rows = rows
 
     def create(self, email: str, name: str, password: str, role: str, created_at: float) -> Account:
-        if len(password) < MINIMUM_PASSWORD_CHARACTERS:
-            raise Refusal(f"a password has at least {MINIMUM_PASSWORD_CHARACTERS} characters")
+        PasswordStrength.check(password, email)
         if self.rows.with_email(email.lower()):
             raise Refusal(f"{email} already has an account")
         return self.find(self.rows.insert(email.lower(), name, role, Password.hashed(password), created_at))
+
+    def first_admin(self, email: str, name: str, password: str, created_at: float) -> Account:
+        if not self.is_empty():
+            raise Refusal("this team server has its admin already: join it with the invitation URL an admin shares from the Team tab")
+        return self.create(email, name, password, ADMIN, created_at)
 
     def find(self, id: int) -> Account:
         row = self.rows.numbered(id)

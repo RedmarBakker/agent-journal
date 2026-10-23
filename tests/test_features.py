@@ -9665,7 +9665,6 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
     from journal.sync.team_account import TeamAccount
     from journal.repositories.environments import Environments
     from journal.repositories.workers import Workers
-    from sync_server.account import ADMIN
     from sync_server.team_server import TeamServer
     from conftest import copied
 
@@ -9679,8 +9678,6 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
     git("-C", str(tmp_path / "c"), "-c", "user.name=Eve", "-c", "user.email=eve@example.com", "commit", "-q", "--allow-empty", "-m", "another")
     (tmp_path / "server").mkdir()
     team = TeamServer(tmp_path / "server")
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    admin_code = team.invitations.issue("ada@example.com", timing.time())[0]
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc"]
@@ -9709,8 +9706,10 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             early = a.container.get(Messages).save(Message(environment_id=MAIN, author=Author.USER, text="a file from before the team"), Actor.user(1))
         a.container.get(Attachments).store("messages", early.id, "before.txt", b"attached before the team")
         Worktree(tmp_path / "a", "main").created()
-        assert a.console().run(["team", "join", address, "--code", admin_code], USER).error.startswith("run journal team join yourself in a terminal")
-        joined = a.console().run(["team", "join", address, "--code", admin_code, "--password", "correct horse battery"], USER)
+        assert a.console().run(["team", "join", address], USER).error.startswith("run journal team join yourself in a terminal")
+        assert "at least 12 characters" in a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "short"], USER).error, "a weak password is refused"
+        joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert team.accounts.find(1).email == "ada@example.com" and team.accounts.find(1).is_admin(), "the first journal to connect to a new team server by its bare URL makes its admin"
         assert joined.code == 0 and "this journal is now the team's" in joined.text and "1 files uploaded" in joined.text, joined.text + joined.error
         assert a.container.get(Workers).find(worker.id).device == str(a.container.get(TeamAccount).device()), "the first journal's workers are its device's"
         assert (tmp_path / "a" / ".claude" / "worktrees" / "main").is_dir() and not (tmp_path / "a" / ".claude" / "worktrees" / "ada-main").exists(), "joining moves no worktree"
@@ -9718,8 +9717,9 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         assert ada_here.team_name == "ada-main" and len(ada_here.key) == 32, "the environment keeps its name on this machine; the team knows it as ada-main, matched by its key"
         assert a.container.get(EnvironmentNames).resolved("main").name == "main", "a session started before the team works in the environment it started in"
         invitation = a.console().run(["team", "invite", "bob@example.com"], USER).text
-        bob_code = re.search(r"--code (\S+)", invitation).group(1)
-        assert c.console().run(["team", "join", address, "--code", bob_code, "--password", "correct horse battery"], USER).error.startswith("the team's journal belongs to the repository"), "a checkout of another repository is refused"
+        bob_url = re.search(r"(http\S+/join\?code=\S+)", invitation).group(1)
+        assert "has its admin already" in b.console().run(["team", "join", address, "--name", "Bob", "--password", "correct horse battery"], USER).error, "a bare URL to a team with an admin is refused, naming the invitation URL"
+        assert c.console().run(["team", "join", bob_url, "--password", "correct horse battery"], USER).error.startswith("the team's journal belongs to the repository"), "a checkout of another repository is refused"
         with b.container.get(Scope).environment(MAIN):
             b.container.get(Tasks).save(Task(environment_id=MAIN, title="b's own, before joining"), Actor.user(1))
         b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
@@ -9727,13 +9727,13 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         major, minor, patch = (int(n) for n in VERSION.split("."))
         for other in (f"{major}.{minor}.{patch + 1}", f"{major}.{minor - 1}.0"):
             monkeypatch.setattr("journal.features.team.support.team_join.VERSION", other)
-            refused_join = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery"], USER)
+            refused_join = b.console().run(["team", "join", bob_url, "--name", "Bob", "--password", "correct horse battery"], USER)
             assert refused_join.error.startswith(f"the team runs journal version {VERSION} and this journal {other}: install {VERSION} first with curl -fsSL"), "a join from a newer or an older journal is refused with the line to install the team's version"
         monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
         assert [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()] == before_refusal and not b.container.get(TeamAccount).is_joined(), "a refused join leaves every environment as it was"
-        kept = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery"], USER)
+        kept = b.console().run(["team", "join", bob_url, "--name", "Bob", "--password", "correct horse battery"], USER)
         assert "this journal holds 1 tasks and" in kept.error and "--replace-mine" in kept.error and not b.container.get(TeamAccount).is_joined(), "a journal with its own history is never replaced by the team's unless it asks"
-        joined_b = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        joined_b = b.console().run(["team", "join", bob_url, "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
         assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
         assert [row.title for row in b.container.get(Tasks).global_matching()] == [row.title for row in a.container.get(Tasks).global_matching()], "the joining journal holds exactly the team's tasks, its own replaced"
         bob_names = {row.name: row for row in b.container.get(Environments).rows()}
@@ -10194,18 +10194,15 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
 
 def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_line(app: App, tmp_path):
     import json
-    import time as timing
     from urllib.error import HTTPError
     from urllib.request import Request as HttpRequest, urlopen
 
     from journal.sync.sync_client import SyncClient
     from journal.sync.team_account import TEAM_FILE
     from sync_server.team_server import TeamServer
-    from sync_server.team_setup import TeamSetup
 
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
-    code = TeamSetup(team).create("Ada", "ada@example.com", "correct horse battery", "correct horse battery", timing.time()).split("--code ")[-1].split()[0]
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
 
@@ -10226,10 +10223,10 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
         return fetched("/team")
 
     try:
-        assert standing() == {"joined": False}, "a journal in no team says so, and the page shows the form"
-        refused = posted("/team/join", {"address": address, "code": "0000", "password": "correct horse battery"})
-        assert refused[0] == 409 and "invitation code is not known" in refused[1]["error"], "a refusal comes back as the line the page shows"
-        joined = posted("/team/join", {"address": address + "/", "code": code, "password": "correct horse battery"})
+        assert standing()["joined"] is False and "email" in standing(), "a journal in no team says so, with the email git knows, and the page shows the form"
+        refused = posted("/team/join", {"url": address, "email": "ada@example.com", "name": "Ada", "password": "weak"})
+        assert refused[0] == 409 and "at least 12 characters" in refused[1]["error"], "a refusal comes back as the line the page shows"
+        joined = posted("/team/join", {"url": address + "/", "email": "ada@example.com", "name": "Ada", "password": "correct horse battery"})
         assert joined[0] == 201 and joined[1]["outcome"].startswith("this journal is now the team's"), "the page's join makes the first journal the team's"
         joined_standing = standing()
         assert joined_standing["joined"] and joined_standing["address"] == address and joined_standing["version"], "and the page shows the team's server, its sync and its version"
@@ -10240,6 +10237,8 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
         assert device["this"], "an admin sees the team's devices, this one marked"
         chat = fetched("/team-chat")
         assert chat["line"] == "No one holds the Team chat" and chat["claimable"] and not chat["mine"], "the Team chat answer says who holds it and whether anyone may claim it"
+        invited = posted("/team/invite", {"email": "bob@example.com"})
+        assert invited[0] in (200, 201) and invited[1]["url"].startswith(f"{address}/join?code="), "an admin makes a colleague's invitation URL from the Team tab"
     finally:
         app.container.get(SyncClient).stop()
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)

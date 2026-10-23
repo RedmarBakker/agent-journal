@@ -39,7 +39,7 @@ onMounted(load);
             <EmptyState loading />
         </template>
         <template v-else-if="!standing.joined">
-            <TeamConnect @joined="joined" />
+            <TeamConnect :email="standing.email" @joined="joined" />
         </template>
         <template v-else>
             <template v-if="outcome">

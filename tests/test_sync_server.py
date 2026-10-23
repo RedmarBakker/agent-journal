@@ -47,6 +47,11 @@ def test_a_person_logs_in_a_device_which_can_be_revoked_and_a_wrong_password_is_
     assert admin.is_admin() and admin.email == "ada@example.com" and not accounts.is_empty()
     with pytest.raises(Refusal, match="at least"):
         accounts.create("bob@example.com", "Bob", "short", MEMBER, 1.0)
+    with pytest.raises(Refusal, match="has no upper case and no digits and no symbols"):
+        accounts.create("bob@example.com", "Bob", "lowercaseonly", MEMBER, 1.0)
+    with pytest.raises(Refusal, match="never holds the name of its email"):
+        accounts.create("bob@example.com", "Bob", "Bob-Strong-2026", MEMBER, 1.0)
+    assert accounts.create("carol@example.com", "Carol", "Tr1cky-pass!", MEMBER, 1.0).email == "carol@example.com", "twelve characters of three kinds is enough"
     with pytest.raises(Refusal, match="already has an account"):
         accounts.create("ada@example.com", "Ada again", PASSWORD, MEMBER, 1.0)
     device, token = devices.login("ada@example.com", PASSWORD, "laptop", "10.0.0.1", 2.0)
@@ -233,9 +238,9 @@ def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_an
             assert call(path, {})[0] == 403, f"{path} refuses a request with no token"
         ada = call("/login", {"email": "ada@example.com", "password": PASSWORD, "device_name": "laptop"})[1]["token"]
         upload = {"rows": [{"row_table": "tasks", "row": 1450, "fields": {"title": "from before"}, "changed_at": {"title": 1.0}}], "highest": {"tasks": 1450}, "repository": "", "version": "4.20.0", "migration": 3}
-        assert call("/team") == (200, {"repository": "", "has_rows": False, "version": "", "migration": 0, "versions": "exact"}), "anyone may ask what the team holds before joining"
+        assert call("/team") == (200, {"repository": "", "has_rows": False, "version": "", "migration": 0, "versions": "exact", "has_admin": True}), "anyone may ask what the team holds before joining, and whether it has its admin"
         assert call("/upload", {**upload, "repository": "abc123"}, ada) == (200, {"rows": 1, "head": 1})
-        assert call("/team") == (200, {"repository": "abc123", "has_rows": True, "version": "4.20.0", "migration": 3, "versions": "exact"}), "the first copy pins the team to its journal's version"
+        assert call("/team") == (200, {"repository": "abc123", "has_rows": True, "version": "4.20.0", "migration": 3, "versions": "exact", "has_admin": True}), "the first copy pins the team to its journal's version"
         assert call("/upload", upload, ada)[1]["error"].startswith("the team's journal already holds rows"), "a full copy is taken once"
         assert call("/blocks", {"tables": ["tasks", "messages"]}, ada)[1]["blocks"] == [{"row_table": "tasks", "first": 1451, "last": 1950}, {"row_table": "messages", "first": 1, "last": 5000}], "blocks start above the copy's numbers and messages get a bigger one"
         invitation = call("/invite", {"email": "Bob@Example.com"}, ada)[1]

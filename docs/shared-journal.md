@@ -10,10 +10,13 @@ The team server is one Docker container. On a machine with Docker, run:
 
     curl -fsSL https://github.com/jessegall/agent-journal/releases/latest/download/install.sh | sh
 
-It asks for the project's name, the admin's name and email, a password (twice) and the address the team reaches
-the server at. A domain gets an HTTPS certificate of its own; a bare IP address gets the server's own
-certificate, whose fingerprint the join line carries. Everything the server keeps lives in one Docker volume.
-At the end it prints the line the admin joins with.
+It asks for the project's name and the address the team reaches the server at. A domain gets an HTTPS
+certificate of its own; a bare IP address gets the server's own certificate, whose fingerprint every invitation
+URL carries. Everything the server keeps lives in one Docker volume. At the end it prints the server's URL.
+
+Connect to that URL first, before anyone else: the first journal to connect to a new team server becomes its
+admin, with no code. Give the URL, your email and a password in Settings, Team, or run
+`journal team join <URL>`.
 
 Opening the server's address in a browser shows the team's journal: sign in with your team account and you work in it as yourself, every write named as yours. No agent runs there; agents run on each person's own journal, and the hosted journal always runs the team's version.
 
@@ -22,17 +25,23 @@ Back up a running server with `docker exec agent-journal-<project> python -m syn
 ## Joining
 
 Join from a clone of the project's repository: a journal belongs to one repository, and a checkout of another
-is refused. Run the line the setup or an invitation printed, in a terminal of your own, since it asks your
+is refused. An admin sends you an invitation URL; paste it in Settings, Team, with your email (filled in from
+git) and a password, which Generate can make for you. Or run, in a terminal of your own, since it asks your
 password:
 
-    journal team join <address> --code <code>
+    journal team join <invitation URL>
+
+A password has at least 12 characters mixing three of lower case, upper case, digits and symbols, or 20
+characters or more, and never holds the name of your email.
 
 The first journal to join becomes the team's: its rows and files are uploaded, and an environment named team is
 made, the Team chat. Every journal after it downloads the team's copy; what it held before is kept in a backup
-file beside it. A journal must run the team's version to join; if it does not, the refusal prints the line that
+file beside it. A journal that holds tasks or messages of its own is refused, since the team's copy would take
+its place; `--replace-mine` takes the team's on purpose. A journal must run the team's version to join; if it does not, the refusal prints the line that
 installs it.
 
-The admin invites a person with `journal team invite <email>`, which prints their join line. `journal team
+The admin invites a person in Settings, Team, or with `journal team invite <email>`, which gives their
+invitation URL to send them. `journal team
 status` says how the sync stands, `journal team devices` lists the team's devices, and `journal team revoke <n>`
 shuts a device out.
 

@@ -1,6 +1,8 @@
 import time
 
+from journal.features.team.support.repository_identity import RepositoryIdentity
 from journal.features.team.support.team_join import TeamJoin
+from journal.sync.team_url import TeamUrl
 from journal.http.support.request import Request
 from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.environments import Environments
@@ -15,20 +17,20 @@ ONLINE_SECONDS = 120
 
 
 class TeamController:
-    """The viewer's Team tab: how this journal stands with its team, the join a journal in no team makes from it, as journal team join does, the team's people with their environments and when they were last seen, and for an admin the invitation, answered with the line the person joins with, and the devices, one of which can be revoked."""
+    """The viewer's Team tab: how this journal stands with its team, the join a journal in no team makes from it by a team URL, the email git knows filled in, as journal team join does, the team's people with their environments and when they were last seen, and for an admin the invitation, answered with the line the person joins with, and the devices, one of which can be revoked."""
 
-    def __init__(self, account: TeamAccount, joining: TeamJoin, link: TeamServerLink, status: SyncStatus, environments: Environments, owners: EnvironmentOwners) -> None:
-        self.account, self.joining, self.link, self.status = account, joining, link, status
+    def __init__(self, account: TeamAccount, joining: TeamJoin, link: TeamServerLink, status: SyncStatus, environments: Environments, owners: EnvironmentOwners, identity: RepositoryIdentity) -> None:
+        self.account, self.joining, self.link, self.status, self.identity = account, joining, link, status, identity
         self.environments, self.owners = environments, owners
 
     def show(self, request: Request) -> Response:
         if not self.account.is_joined():
-            return Response.json({"joined": False})
+            return Response.json({"joined": False, "email": self.identity.person_email()})
         return Response.json({"joined": True, "address": self.account.address(), "line": self.status.line(), "state": self.status.state(), "version": self.account.team_version(), "running": VERSION, "waiting": self.status.waiting(), "admin": self.account.is_admin(), "device": self.account.device()})
 
     def join(self, request: Request) -> Response:
         body = request.body
-        outcome = TeamRequests.reached(lambda: self.joining.join(str(body.get("address", "")).strip().rstrip("/"), str(body.get("code", "")).strip(), str(body.get("password", "")), str(body.get("fingerprint", "")).strip(), str(body.get("name", "")).strip()))
+        outcome = TeamRequests.reached(lambda: self.joining.join(TeamUrl.parse(str(body.get("url", ""))), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
         return Response.json({"outcome": outcome, "environment": request.environment}, 201)
 
     def people(self, request: Request) -> Response:
@@ -39,7 +41,7 @@ class TeamController:
 
     def invite(self, request: Request) -> Response:
         answer = TeamRequests.reached(lambda: self.link.invite(str(request.body.get("email", "")).strip()))
-        return Response.json({"email": answer.email, "line": self.account.join_line(answer.code)})
+        return Response.json({"email": answer.email, "url": self.account.invitation_url(answer.code)})
 
     def devices(self, request: Request) -> Response:
         names = {person.id: person.name for person in TeamRequests.reached(self.link.people).people}

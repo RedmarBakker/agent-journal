@@ -424,7 +424,6 @@ const {colleague, me} = useColleague();
                         :submit="colleague ? 'Comment' : 'Send'"
                         :send="post"
                         :waiting="waitingNow"
-                        @waiting-list="toggleWaiting"
                         :quote="quote.text"
                         quote-label="Replying to"
                         @unquote="quote = {text: '', ref: ''}"
@@ -508,7 +507,12 @@ const {colleague, me} = useColleague();
                                 <div class="thread-turn busy" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
                                     <div class="thread-meta">
                                         <Dot kind="queued" solid :size="6" />
-                                        <span>{{ waitingNow ? "waiting" : "idle" }}</span>
+                                        <template v-if="waitingNow">
+                                            <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
+                                        </template>
+                                        <template v-else>
+                                            <span>idle</span>
+                                        </template>
                                     </div>
                                 </div>
                             </template>
@@ -609,6 +613,20 @@ const {colleague, me} = useColleague();
     padding: 0 3px;
     font-size: 11px;
     color: var(--text-3);
+}
+
+.thread-waiting {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.thread-waiting:hover {
+    color: var(--text);
+    text-decoration: underline;
 }
 
 .thread-meta-on.thought {

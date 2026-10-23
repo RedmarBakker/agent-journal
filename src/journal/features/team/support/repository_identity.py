@@ -17,5 +17,8 @@ class RepositoryIdentity:
     def person_name(self) -> str:
         return self.git("config", "user.name")
 
+    def person_email(self) -> str:
+        return self.git("config", "user.email")
+
     def git(self, *arguments: str) -> str:
         return subprocess.run(["git", "-C", str(self.config.root), *arguments], capture_output=True, text=True, timeout=GIT_SECONDS).stdout.strip()

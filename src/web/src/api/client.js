@@ -357,7 +357,7 @@ export class ApiClient {
         return this.get("/team");
     }
 
-    // joins a team server with the line its setup or an invitation printed, as journal team join does
+    // joins a team by its URL: a new server's makes this person its admin, an invitation URL a member; as journal team join does
     joinTeam(fields) {
         return this.post("/team/join", fields, LONG_WAIT_MS);
     }

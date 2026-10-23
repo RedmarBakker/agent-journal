@@ -28,7 +28,7 @@ const props = defineProps({
     waiting: {type: Object, default: null},
     figureHome: {type: Boolean, default: false},
 });
-const emit = defineEmits(["unquote", "typing", "waiting-list"]);
+const emit = defineEmits(["unquote", "typing"]);
 // the words typed survive the box being redrawn or taken off the page: they live in the ui state, by what the box is for
 const draftKey = computed(() => `${route.value.env || ""}:${props.placeholder}`);
 const draft = reactive({text: ui.drafts[draftKey.value] || "", files: [], error: "", over: false});
@@ -292,7 +292,7 @@ async function use(tool) {
                 </div>
             </div>
         </Transition>
-        <WaitEdge :waiting="waiting" @list="emit('waiting-list', $event)">
+        <WaitEdge :waiting="waiting">
             <div class="compose-box floating" :data-figure-home="figureHome ? '' : null" @mousedown="focusText">
                 <template v-if="draft.files.length">
                     <div class="compose-files">

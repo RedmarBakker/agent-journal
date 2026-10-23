@@ -44,10 +44,10 @@ async function invite() {
                 <p class="team-failure">{{ failure }}</p>
             </template>
             <template v-if="invitation">
-                <FormField :label="`Join line for ${invitation.email}`" :help="`${who} runs it in a terminal, in a clone of this repository. The code works once.`">
+                <FormField :label="`Invitation URL for ${invitation.email}`" :help="`${who} pastes it in Settings, Team, with their email and a password. It works once.`">
                     <div class="team-command">
-                        <code>{{ invitation.line }}</code>
-                        <CopyButton :text="invitation.line" label="Copy" />
+                        <code>{{ invitation.url }}</code>
+                        <CopyButton :text="invitation.url" label="Copy" />
                     </div>
                 </FormField>
             </template>

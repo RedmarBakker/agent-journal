@@ -30,6 +30,8 @@ from journal.support.rejection import Rejection
 from journal.sync.sync_client import SyncClient
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_server_link import TeamServerLink
+from journal.sync.team_url import TeamUrl
+from sync_server.login_answer import LoginAnswer
 from sync_server.file_place import FilePlace
 from journal.sync.attachments import FOLDERS
 from journal.sync.hosting import Hosting
@@ -53,26 +55,26 @@ class TeamJoin:
         self.backups, self.config, self.environments, self.agents, self.entries = backups, config, environments, agents, entries
         self.owners, self.links, self.copy, self.schema, self.hosting = owners, links, copy, schema, hosting
 
-    def join(self, address: str, code: str, password: str, fingerprint: str, name: str) -> str:
-        return self.joined(address, code, password, fingerprint, name, self.history_refusal)
+    def join(self, url: TeamUrl, email: str, password: str, name: str) -> str:
+        return self.joined(url, email, password, name, self.history_refusal)
 
-    def join_replacing(self, address: str, code: str, password: str, fingerprint: str, name: str) -> str:
-        return self.joined(address, code, password, fingerprint, name, lambda summary, address: "")
+    def join_replacing(self, url: TeamUrl, email: str, password: str, name: str) -> str:
+        return self.joined(url, email, password, name, lambda summary, address: "")
 
-    def joined(self, address: str, code: str, password: str, fingerprint: str, name: str, guard: Callable[[TeamSummary, str], str]) -> str:
+    def joined(self, url: TeamUrl, email: str, password: str, name: str, guard: Callable[[TeamSummary, str], str]) -> str:
         if self.account.is_joined():
             raise Rejection(f"this journal has joined the team at {self.account.address()} already: journal team status says how it stands")
-        if fingerprint:
-            self.trust(address, fingerprint)
-        summary = self.link.summary(address)
+        self.trusted(url)
+        summary = self.link.summary(url.address)
         repository = self.identity.first_commit()
         if self.repository_refusal(summary, repository):
             raise Rejection(self.repository_refusal(summary, repository))
         if self.version_refusal(summary):
             raise Rejection(self.version_refusal(summary))
-        if guard(summary, address):
-            raise Rejection(guard(summary, address))
-        login = self.link.accept(address, code, name or self.identity.person_name(), password, socket.gethostname())
+        if guard(summary, url.address):
+            raise Rejection(guard(summary, url.address))
+        login = self.login(url, summary, email or self.identity.person_email(), name or self.identity.person_name(), password)
+        address = url.address
         prefix = self.account.write_prefix(login.name)
         if not summary.has_rows:
             self.claim_environments(prefix, login.account_id)
@@ -102,6 +104,19 @@ class TeamJoin:
             return ""
         return (f"this journal holds {tasks} tasks and {messages} messages of its own, and the team at {address} holds a journal already, which a join would put in place of this one: "
                 "join from a fresh clone of the repository, or take the team's journal in place of this one with journal team join --replace-mine, this journal kept in a backup file beside it")
+
+    def trusted(self, url: TeamUrl) -> None:
+        if url.fingerprint:
+            self.trust(url.address, url.fingerprint)
+        elif url.is_https_ip():
+            self.account.root_path().write_text(self.link.root_certificate(url.address))
+
+    def login(self, url: TeamUrl, summary: TeamSummary, email: str, name: str, password: str) -> LoginAnswer:
+        if not summary.has_admin:
+            return self.link.install(url.address, email, name, password, socket.gethostname())
+        if not url.is_invitation():
+            raise Rejection(f"the team server at {url.address} has its admin already: join with the invitation URL an admin shares from the Team tab")
+        return self.link.accept(url.address, url.code, name, password, socket.gethostname())
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)

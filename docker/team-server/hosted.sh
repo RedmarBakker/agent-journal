@@ -23,6 +23,6 @@ if [ ! -f .journal/team.json ]; then
         cp /app/install.sh /tmp/install.sh
         AGENT_JOURNAL_YES=1 AGENT_JOURNAL_REF="v$version" sh /tmp/install.sh >/dev/null
     fi
-    journal team join http://127.0.0.1:8470 --code "$(field code)" --name "$(field name)" --password "$(field password)"
+    journal team join "http://127.0.0.1:8470/join?code=$(field code)" --name "$(field name)" --password "$(field password)"
 fi
 exec python .journal/src/journal.py serve

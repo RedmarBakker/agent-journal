@@ -2,6 +2,13 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.30.0
+
+- One team URL joins. A new team server's URL makes the first journal to connect its admin, with no setup step and no code; after that an admin hands out an invitation URL from Settings, Team (or journal team invite), which carries the code and the certificate. The join asks only for the URL, your email, filled in from git, and a password, which a Generate button can make.
+- The team server refuses a weak password: at least 12 characters mixing three of lower case, upper case, digits and symbols, or 20 characters or more, never holding your email's name.
+- The figure hammers the code parcel for ten seconds on the compose box; the parcel pops in, and once the work is committed a UFO beams it up. The waiting figure keeps both arms down.
+- The Waiting badge on the compose box is gone; the waiting line above it opens the waiting list.
+
 ## 4.29.5
 
 - Joining a team that already holds a journal is refused when this journal has tasks or messages of its own, since the join would put the team's journal in its place; journal team join --replace-mine takes the team's on purpose, this one kept in a backup.

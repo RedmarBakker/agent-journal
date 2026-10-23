@@ -80,6 +80,10 @@ class TeamServerLink:
         body = json.dumps({"code": code, "name": name, "password": password, "password_repeat": password, "device_name": device_name}).encode()
         return LoginAnswer(**json.loads(self.sent(address, "/accept", body, REQUEST_SECONDS)))
 
+    def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
+        body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
+        return LoginAnswer(**json.loads(self.sent(address, "/install", body, REQUEST_SECONDS)))
+
     def login(self, address: str, request: LoginRequest) -> LoginAnswer:
         return LoginAnswer(**json.loads(self.sent(address, "/login", json.dumps(request.__dict__).encode(), REQUEST_SECONDS)))
 
