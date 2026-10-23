@@ -115,6 +115,7 @@ export class Posing {
         this.posture = posture;
         this.sway = 0;
         this.stride = stride;
+        this.sky = null;
     }
 
     standing(name) {
@@ -1413,6 +1414,44 @@ function work(pose, stance, t) {
     if (pose.posture === "stand") pose.revolve(SIDES[side] * WORK.turn);
 }
 
+// The figure stands still watching something in the sky, as the page says in `pose.sky`: its head toward `at`, a point in its picture as
+// shares of the picture's width from the left and its height from the top; the free hand shading its eyes by `shade`, 0 to 1, as when
+// what it watches is far off, the hand at the side of the visor and pointing out over it like a cap's peak; and stepped back by `back`,
+// 0 to 1, with a small hop as it steps, leaning back to look up
+export const SKY = {step: 0.6, hop: 0.12, lean: 8, depth: -1.2, shadeWrist: [1.18, -0.5, 2.72], shadeHand: [-0.35, -1, 0.2]};
+
+// a point in the figure's picture, as shares of its width and height, where it stands at the depth of SKY.depth in front of the figure
+const pictureAt = ({x, y}) => new THREE.Vector3((x - 0.5) * FRAMED_HEIGHT, SKY.depth, FRAMED_MIDDLE + (0.5 - y) * FRAMED_HEIGHT);
+
+function watch(pose, stance, t) {
+    const {at, shade, back} = pose.sky ?? {at: null, shade: 0, back: 0};
+    pose.lift("root", {y: SKY.step * back, z: SKY.hop * Math.sin(Math.PI * back)});
+    breathe(pose, t);
+    trunk(pose, {lean: -SKY.lean * back});
+    const side = freeSide(stance);
+    armsAtRest(pose, stance, shade ? [side] : []);
+    if (shade) {
+        propHand(pose, side, shade, SKY.shadeWrist);
+        const [across, forward, up] = SKY.shadeHand;
+        const hand = `hand_${side}`;
+        const now = pose.rig.along.get(hand).clone().transformDirection(pose.matrix(hand));
+        pose.aim(hand, now.lerp(new THREE.Vector3(SIDES[side] * across, forward, up), shade));
+        pose.putAway(...IN_HAND);
+    }
+    if (at) eyesToward(pose, pictureAt(at));
+}
+
+// leans into a parcel in front of it, both hands out low on it, pushing it along as it walks
+export const SHOVE = {lean: 22, nod: 6, wrist: [0.3, -0.7, 1.6]};
+
+function push(pose, stance, t) {
+    breathe(pose, 0);
+    trunk(pose, {lean: SHOVE.lean, nod: SHOVE.nod});
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    for (const side of Object.keys(SIDES)) propHand(pose, side, 1, SHOVE.wrist);
+    pose.putAway(...IN_HAND);
+}
+
 // points up at what waits for the user, looking at it, the arm bobbing a little
 function point(pose, stance, t) {
     const side = freeSide(stance);
@@ -1878,7 +1917,8 @@ const ON_A_LAP = ["sit"];
 // its cycle or of the stretch it names as `leaves`. An `interruptible` clip gives way the moment something else is wanted instead, as the
 // walk does the moment there is nowhere left to go and a fall the moment its feet meet the ground; a beat, a reaction, a jump or a
 // landing never is. A clip that names `marks` has the page draw its mark drifting up from the head in the frames it names, from one to
-// the next of each pair: the Z of sleep, the notes of a whistled tune.
+// the next of each pair: the Z of sleep, the notes of a whistled tune. A clip that `cuts` in takes over at once from whatever plays, as the
+// figure stops what it does to watch the UFO.
 
 export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
@@ -1915,6 +1955,8 @@ export const CLIPS = [
     {name: "glance", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: glance},
     {name: "work", frames: WORK.blows * WORK.blowFrames, fps: WORK.fps, loops: true, postures: ["stand", "sit"], pose: work},
     {name: "point", frames: 12, fps: 8, loops: true, postures: GESTURE, pose: point},
+    {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
+    {name: "push", frames: 6, fps: 12, loops: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
@@ -2696,10 +2738,11 @@ export class Stage {
     }
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
-    // on the move, `stride` is how far through its step the walk is, and during a change `blend` eases from the moves drawn before it. It
-    // returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null} = {}) {
+    // on the move, `stride` is how far through its step the walk is, `sky` is what a figure watching the sky watches (watch), and during a
+    // change `blend` eases from the moves drawn before it. It returns the moves it drew.
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
+        pose.sky = sky;
         LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         LEGS[posture]?.over(pose);

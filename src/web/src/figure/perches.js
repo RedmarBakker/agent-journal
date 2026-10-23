@@ -118,13 +118,14 @@ export function stayingAt(stay, figure, near) {
     return restOf(figure, near);
 }
 
-// Where the figure goes now and the stay it keeps: down onto the compose box's top to build while its agent runs a command, beside the
-// `parcel` it builds when one stands there (places.js buildSpot); resting at home while its agent cannot act; to the tab of what waits on
-// the user when something does and that tab has a spot inside the figure's world; otherwise where its stay is, drawing the next stay when
-// this one is over or its place is gone. `near` is where it is, `counts` the views' badge counts and `state` what the agent does. The spot
-// is kept clear of the box the figure stepped aside from while that box is `cleared` (keptClear), except where it builds.
-export function targetFor({state, counts, stay, now, near, figure, hands, parcel = null, cleared = {until: 0}, random = Math.random}) {
-    const building = builds(state) && buildSpot(figure, near, parcel);
+// Where the figure goes now and the stay it keeps: onto the compose box's top to push a parcel it built onto the pile, where `work.x`
+// says, or to build while its agent runs a command, beside the parcel it builds there or else clear of the pile (places.js buildSpot);
+// resting at home while its agent cannot act; to the tab of what waits on the user when something does and that tab has a spot inside
+// the figure's world; otherwise where its stay is, drawing the next stay when this one is over or its place is gone. `near` is where it
+// is, `counts` the views' badge counts and `state` what the agent does. The spot is kept clear of the box the figure stepped aside from
+// while that box is `cleared` (keptClear), except where it builds.
+export function targetFor({state, counts, stay, now, near, figure, hands, work = {}, cleared = {until: 0}, random = Math.random}) {
+    const building = (work.x != null || builds(state)) && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random});
     return {...target, spot: keptClear(target.spot, {state, now, near, figure, cleared})};

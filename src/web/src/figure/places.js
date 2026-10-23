@@ -1,4 +1,5 @@
 import {flips} from "./reactions.js";
+import {PARCEL} from "./parcels.js";
 
 // Where the figure can stand, read from the page as it is laid out at this moment and never stored: the top edge of the main
 // chat's compose box is home, and each of Home's tabs is a place it can go to point at what waits there.
@@ -284,13 +285,19 @@ export function composeEdge() {
     return {element, edge: {left: box.left, width: box.width, top: box.top}};
 }
 
-// Where the figure stands to build: on its feet on the compose box's top edge, whatever is docked over it, and kept there as bars dock
-// and go (`stays`, floors.js footingOn); beside the parcel when one stands there, `parcel.x` on the page and `parcel.beside` pixels from
-// the figure's feet, else at a free place along the edge
-export function buildSpot(figure, near, parcel) {
+// Where the figure stands to build or to push what it built: on its feet on the compose box's top edge, whatever is docked over it, and
+// kept there as bars dock and go (`stays`, floors.js footingOn); at `x` on the page when given, beside the parcel it builds or behind one
+// it pushes, else at a free place along the edge whose parcel, `beside` pixels from its feet, stands clear of the pile from `before` on
+export function buildSpot(figure, near, {x = null, beside = 0, before = Infinity} = {}) {
     const {element, edge} = composeEdge();
-    const spot = parcel ? insideWorld({x: parcel.x - parcel.beside, y: edge.top, posture: "stand"}, figure) : freeSpot(homeStands(edge, figure), figure, near);
+    const spot = x === null ? freeBuildSpot(edge, figure, near, beside, before) : insideWorld({x, y: edge.top, posture: "stand"}, figure);
     return spot && {...spot, view: null, on: element, stays: true};
+}
+
+function freeBuildSpot(edge, figure, near, beside, before) {
+    const stands = homeStands(edge, figure);
+    const clear = stands.filter((spot) => spot.x + beside + PARCEL.width < before);
+    return freeSpot(clear.length ? clear : stands, figure, near);
 }
 
 // The trip of a figure resting at `place` to `spot` (tripBetween), from its picture in the posture it travels in where it is to its picture

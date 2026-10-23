@@ -35,7 +35,9 @@ import {
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
 import {builds, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
+import {PARCEL, PILE, PUSH, UFO, behind, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
+import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, eyesAt, lookOf, pastimeFor, stretchClip, walkingMoment, workMoments} from "../figure/reactions.js";
 import {
     clickedBody,
@@ -45,6 +47,7 @@ import {
     SPRINT,
     boxAt,
     composeEdge,
+    worldBox,
     drawnIn,
     facingToward,
     gripIn,
@@ -62,8 +65,10 @@ import {store} from "../state/store.js";
 
 // The figure is this many pixels square, as the chat's flat figure is
 const SIZE = 112;
-// how far inside either end of the compose box's top the parcel stands at least, in pixels
-const PARCEL_INSIDE = 14;
+// how far the UFO comes in from beyond its world's right and goes off beyond its left, and how high above the world's top, in pixels
+const UFO_OFF = {right: 40, left: 60, above: -30};
+// how long the figure takes to step back once the UFO starts lifting, in milliseconds
+const STEP_BACK_MS = 400;
 // how often the figure looks again at what the agent does and where things are, in milliseconds
 const LOOK_EVERY = 1000;
 const COMPOSE_TURN = 30;
@@ -123,12 +128,19 @@ let rolled = {stretch: "", clip: ""};
 let typed = false;
 let workBegan = 0;
 let walkBegan = 0;
-// The parcel of code the figure builds: none until it first hammers where it builds, then standing on the compose box's top `along`
-// pixels from its left end, at `at` on the page now, until the work is committed and it is `taken`; `beside` is how far the blows land
-// from the figure's feet, in pixels toward the viewer's right
-const parcel = ref(null);
-const parcelAt = ref({x: 0, y: 0});
+// The parcels of code the figure has built (figure/parcels.js), oldest first, each {id, along, up, state}: on the compose box's top `along`
+// pixels from its left end and `up` pixels up the pile; "building" while the figure hammers it, "built" once it has stopped, until it is
+// pushed onto the pile, and then "piled". `beside` is how far the blows land from the figure's feet, in pixels toward the viewer's right.
+const parcels = ref([]);
+let made = 0;
 let beside = 0;
+// The UFO once the work is committed, or null: when it set off, the stops it makes for the parcels it takes (parcels.js stopsOf), and
+// where it comes from and goes off to; and what is drawn of it and of the parcels this frame
+const ufo = ref(null);
+const saucer = ref(null);
+const drawnParcels = ref([]);
+// what the figure watching the UFO watches this frame (figure.js watch), or null
+let sky = null;
 const shownFrame = ref(0);
 const headAt = ref({x: 0.5, y: 0.3});
 
@@ -140,11 +152,12 @@ const canDraw = (name, posture) => clipNamed(name).postures.includes(posture);
 const drawnHere = (name) => hasClip(name) && canDraw(name, body.place.posture);
 const figureSize = () => ({size: SIZE, below: below.value});
 
-// the clip the figure's body shows for the stretch it is in
-// the clip the figure's body shows for the stretch it is in; while its agent runs a command and it has yet to get to where it builds, it
-// only stands by, so it never hammers on the way there
+// the clip the figure's body shows for the stretch it is in: pushing a parcel it built while it stands behind it, standing by on its way
+// round behind it, and while its agent runs a command and it has yet to get to where it builds, so it never hammers on the way there
 function doing() {
     rolled = stretchClip(held.value.state, rolled, Math.random);
+    const pushing = parcels.value.find((each) => each.state === "built");
+    if (pushing) return behind(parcelX(pushing), feetX()) ? "push" : "idle";
     return builds(held.value.state) && !body.place.stays ? "idle" : rolled.shows;
 }
 
@@ -163,6 +176,7 @@ function current() {
         beat,
         state: held.value.state,
         doing: doing(),
+        watching: Boolean(ufo.value),
         composeFacing: composeFacing(),
     };
     const wanted = clipFor(scene, canDraw);
@@ -204,7 +218,8 @@ function step() {
     }
     if (playing.closing !== null && wanted.clip.name === playing.shown.clip.name && frameOf(playing.shown) < playing.closing)
         playing.closing = null;
-    const finished = playedOut();
+    // a clip that cuts in, as watching the UFO, takes over at once from whatever plays
+    const finished = playedOut() || (wanted.clip.cuts && playing.shown?.clip.name !== wanted.clip.name);
     const continuing = keyOf(wanted) === playing.name && playing.closing === null;
     const shown = continuing || finished ? wanted : playing.shown;
     const key = keyOf(shown);
@@ -232,6 +247,7 @@ function step() {
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
     drawn = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
     if (!body.trip?.started && !body.airborne) rest();
+    flyUfo();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
     looking = look.looking;
     const pace = shown.pace ?? 1;
@@ -242,9 +258,10 @@ function step() {
         posture: drawn,
         eyes: look.eyes,
         stride,
+        sky: shown.clip.name === "watch" ? sky : null,
     });
     headAt.value = player.headAt();
-    keepParcel(shown);
+    keepParcels(shown);
     frameTimer = requestAnimationFrame(step);
 }
 
@@ -524,7 +541,7 @@ function look() {
         ...facesAfter(rows("reactions"), seenAt),
     ];
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
-    if (parcel.value && committed(happened)) parcel.value = {...parcel.value, taken: true};
+    if (committed(happened)) sendUfo();
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
@@ -547,10 +564,11 @@ function look() {
         figure: figureSize(),
         hands,
         cleared,
-        parcel: parcel.value && !parcel.value.taken ? {x: parcelAt.value.x, beside} : null,
+        work: workOf(),
     });
     stay = target.stay;
-    if (!body.trip && !body.arriving && !body.airborne) {
+    // while the UFO is here the figure stands watching it, and goes nowhere
+    if (!body.trip && !body.arriving && !body.airborne && !ufo.value) {
         moveTo(target.spot, {pace: hurried ? SPRINT : 1});
         hurried = false;
     }
@@ -591,19 +609,97 @@ const bodyStyle = computed(() => {
     };
 });
 
-// The parcel pops in the first frame the figure hammers where it builds, where its blows land, kept inside the compose box's top; it
-// stays on that floor as the box moves, until it is taken and gone
-function keepParcel(shown) {
+// where the figure's feet are now, and a parcel's middle and the pile's places, on the page
+const feetX = () => body.at.x + SIZE / 2;
+const parcelX = (parcel) => composeEdge().edge.left + parcel.along;
+const piled = () => parcels.value.filter((each) => each.state === "piled").length;
+const slotX = (index) => {
     const {edge} = composeEdge();
-    if (!parcel.value && shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip) {
-        const at = body.at.x + SIZE / 2 + beside - edge.left;
-        parcel.value = {along: Math.min(Math.max(at, PARCEL_INSIDE), edge.width - PARCEL_INSIDE), taken: false};
-    }
-    if (parcel.value) parcelAt.value = {x: edge.left + parcel.value.along, y: edge.top};
+    return edge.left + edge.width + pileSlot(index).left;
+};
+
+// Where the figure goes to work on the parcels (perches.js targetFor): round behind a parcel it built and on along to the pile with it,
+// beside the parcel it builds, or for a new one, a place whose parcel stands clear of the pile
+function workOf() {
+    const pushing = parcels.value.find((each) => each.state === "built");
+    if (pushing) return {x: pushStand(parcelX(pushing), slotX(piled()), body.place.x)};
+    const building = parcels.value.find((each) => each.state === "building");
+    if (building) return {x: parcelX(building) - beside};
+    return {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2};
 }
 
-// the work is committed: the UFO comes for the parcel
+// Each frame: a parcel pops in the first frame the figure hammers where it builds, where its blows land, kept inside the compose box's
+// top; it is built once the figure has stopped hammering and its agent runs no command; a built one is pushed along in front of the
+// figure as it walks behind it, and once it meets the pile it is piled, hopping up onto it. They stay on that floor as the box moves.
+function keepParcels(shown) {
+    const {edge} = composeEdge();
+    const list = parcels.value;
+    const hammers = shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip;
+    if (hammers && !list.some((each) => each.state !== "piled")) {
+        const along = Math.min(Math.max(feetX() + beside - edge.left, PARCEL.inside), edge.width - PARCEL.inside);
+        parcels.value = [...list, {id: ++made, along, up: 0, state: "building"}];
+    }
+    const building = list.find((each) => each.state === "building");
+    if (building && shown.clip.name !== "work" && !builds(held.value.state) && !ufo.value) building.state = "built";
+    const pushing = list.find((each) => each.state === "built");
+    if (pushing && !ufo.value) {
+        const to = slotX(piled());
+        if (body.trip?.moves) pushing.along = pushedTo(parcelX(pushing), feetX(), to, body.way) - edge.left;
+        if (Math.abs(parcelX(pushing) - to) < PUSH.room) Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
+    }
+    if (!ufo.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1}));
+}
+
+// the work is committed: the UFO comes for every parcel that is built, on the pile or not
 const committed = (happened) => happened.some((fire) => fire.beat === "committed");
+
+function sendUfo() {
+    const taken = parcels.value.filter((each) => each.state !== "building");
+    if (ufo.value || !taken.length) return;
+    if (keptStill()) {
+        parcels.value = parcels.value.filter((each) => !taken.includes(each));
+        return;
+    }
+    const world = worldBox();
+    const stops = stopsOf(taken.map((each) => ({id: each.id, x: parcelX(each)})));
+    ufo.value = {
+        began: performance.now(),
+        stops,
+        from: {x: world.right + UFO_OFF.right, y: world.top + UFO_OFF.above},
+        away: {x: world.left - UFO_OFF.left, y: world.top + UFO_OFF.above},
+    };
+}
+
+// Each frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at rising up the beam
+// to its middle, shrinking, those of the stops it has made gone, and what the figure watches: the UFO, with a hand shading its eyes while
+// it is still coming in, and stepped back once it first lifts
+function flyUfo() {
+    if (!ufo.value) return void (sky = null);
+    const {edge} = composeEdge();
+    const ms = performance.now() - ufo.value.began;
+    const at = ufoAt(ufo.value.stops, ms, edge.top, ufo.value.from, ufo.value.away);
+    const gone = new Set(ufo.value.stops.slice(0, at.taken).flatMap((stop) => stop.ids));
+    const rising = new Set(ufo.value.stops[at.stop].ids);
+    const lifted = (each) => {
+        const k = rising.has(each.id) ? at.risen : 0;
+        const x = parcelX(each);
+        const y = edge.top + (at.y + PARCEL.height / 2 + each.up - edge.top) * k;
+        return {id: each.id, x: x + (at.x - x) * k, y, up: each.up, scale: 1 - 0.65 * k, opacity: k > 0.85 ? (1 - k) / 0.15 : 1};
+    };
+    drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
+    saucer.value = {x: at.x, y: at.y, beam: at.beam, width: at.width, reach: Math.max(edge.top - at.y, 0)};
+    const lifting = ms - UFO.enter - UFO.beamOn;
+    sky = {
+        at: {x: (at.x - body.at.x) / SIZE, y: (at.y - body.at.y) / SIZE},
+        shade: at.coming ? Math.min(ms / STEP_BACK_MS, 1 - ms / UFO.enter) : 0,
+        back: Math.min(Math.max(lifting / STEP_BACK_MS, 0), 1),
+    };
+    if (!at.gone) return;
+    parcels.value = parcels.value.filter((each) => !ufo.value.stops.some((stop) => stop.ids.includes(each.id)));
+    ufo.value = null;
+    saucer.value = null;
+    sky = null;
+}
 
 const onType = (event) => {
     if (event.target.closest?.(HOME)) typed = true;
@@ -770,8 +866,11 @@ const style = computed(() => ({
             </template>
         </div>
     </div>
-    <template v-if="parcel">
-        <CodeParcel :x="parcelAt.x" :y="parcelAt.y" :taken="parcel.taken" @gone="parcel = null" />
+    <template v-for="drawing in drawnParcels" :key="drawing.id">
+        <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" />
+    </template>
+    <template v-if="saucer">
+        <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
     </template>
 </template>
 

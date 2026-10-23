@@ -197,6 +197,11 @@ test("while its agent runs a command the figure goes down onto the compose box's
     // a box the figure was clicked out of does not move it from where it builds
     const cleared = {box: boxAt(spot, FIGURE), until: 200};
     expect(targetFor({...running, cleared}).spot).toEqual(spot);
-    expect(targetFor({...running, parcel: {x: 500, beside: -28}}).spot).toMatchObject({x: 528, y: 700, stays: true});
+    expect(targetFor({...running, work: {x: 528, beside: -28}}).spot).toMatchObject({x: 528, y: 700, stays: true});
+    // a parcel left to push takes the figure onto the compose box's top whatever its agent does
+    expect(targetFor({...running, state: "thinking", work: {x: 610}}).spot).toMatchObject({x: 610, y: 700, stays: true});
+    // a new parcel is built clear of the pile at the floor's right end
+    const clear = targetFor({...running, work: {beside: 28, before: 700}}).spot;
+    expect(clear.x + 28 + 24).toBeLessThan(700);
     expect(targetFor({...running, state: "thinking"}).spot.stays).toBeUndefined();
 });

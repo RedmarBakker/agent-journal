@@ -71,7 +71,8 @@ export const clipOf = (state) => HELD[state] || HELD.idle;
 export const waitingSinceAt = (counts, since, now) => (counts.question + counts.waiting + counts.suggestion > 0 ? since || now : 0);
 
 // What the figure plays now, by clip name, with the way it faces: its entrance or exit, the landing, the leg of a trip it is on, its hang
-// while it hangs, a beat until it is done, pointing once it stands at a tab while the agent waits on the user, else what its body is doing,
+// while it hangs, watching the UFO while it is `watching`, a beat until it is done, pointing once it stands at a tab while the agent waits
+// on the user, else what its body is doing,
 // drawn in its place. `scene` says where things stand, `doing` being the clip of the stretch it is in; `canDraw(name, posture)` whether a
 // clip is drawn in a posture. A beat comes with the way it faces.
 // A trip has `started` once the figure stands ready to travel and `moves` while a leg carries it; the hop of a leg or the walk is named
@@ -97,6 +98,7 @@ export function clipFor(scene, canDraw) {
     if (trip?.started) return {...legClip(trip, doing, canDraw), ...(trip.moves ? {} : {startsLeg: true})};
     // a hanging figure holds on until it is let go; a beat waits until it has dropped
     if (place.posture === "hang") return {clip: `hang_${place.grip}`, facing: place.face};
+    if (scene.watching) return {clip: "watch", facing: 0};
     if (beat) return {clip: beat.clip, facing: beat.facing, once: true};
     if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : 0};
