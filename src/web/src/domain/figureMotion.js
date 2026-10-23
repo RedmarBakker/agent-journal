@@ -98,18 +98,21 @@ export function pogoFall(leg, from) {
     return [spring[1], spring[1] + (spring[1] - spring[0]) * Math.sqrt(past / rise)];
 }
 
-// One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last: it lands on that
-// floor the moment it touches, with the floor it landed on, and falls to the window's foot when nothing else is under it; with motion
-// kept `still`, it is on that floor at once
+// One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last, against the floors
+// as they are this frame: it lands on that floor the moment it touches, with the floor it landed on, and falls to the window's foot when
+// nothing else is under it; with motion kept `still`, it is on that floor at once. The floor it falls onto is kept by id, `onto`, so when
+// the chat moves during the fall it lands on that floor where it is now: one that came up past its feet meets it at once, on its top,
+// and one that went down is met later, never fallen through.
 export function fallFrame(body, floors, seconds, still = false) {
     const peak = peakFrame(body, floors);
     if (peak) return peak;
+    const aimed = body.onto ? floors.find((floor) => floor.id === body.onto && holds(floor, body.x)) : null;
+    if (aimed && aimed.top <= body.y) return {x: body.x, y: aimed.top, speed: 0, onto: aimed.id, landed: aimed};
     const floor = floorBelow(floors, body.x, body.y, 0);
-    if (!floor) return {...body, landed: null};
-    if (floor.top < body.y) return {x: body.x, y: floor.top, speed: 0, landed: floor};
-    if (still) return {x: body.x, y: floor.top, speed: 0, landed: floor};
+    if (!floor) return {...body, onto: null, landed: null};
+    if (still) return {x: body.x, y: floor.top, speed: 0, onto: floor.id, landed: floor};
     const step = fallStep({y: body.y, speed: body.speed}, floor.top, seconds, body.most);
-    return {x: body.x, y: step.y, speed: step.speed, landed: step.landed ? floor : null};
+    return {x: body.x, y: step.y, speed: step.speed, onto: floor.id, landed: step.landed ? floor : null};
 }
 
 // The floor just above a figure's feet at the top of its jump: one whose top is SNAP_WITHIN pixels above them at most
