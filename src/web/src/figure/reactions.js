@@ -102,9 +102,10 @@ export function reactionTo(moment, memory, now, random, voice = "", has = () => 
 }
 
 // The act drawn for `held` seconds of `state`, as its entry, or null: the idle acts while the figure has nothing to do, and the
-// shenanigans in any state; `memory` holds when each act last played and `tally` the acts since the last shenanigan, filled in here
-export const pastimeOf = (state, held, memory, now, random, voice = "", has = () => true, tally = null) =>
-    draw({moment: "pastime", free: FREE.has(state), lasted: held, voice, has, memory, now, tally}, random);
+// shenanigans in any state; `memory` holds when each act last played and `tally` the acts since the last shenanigan, filled in here, and
+// `ball` where a disco ball may hang over the figure (perches.js discoBall), "" with no room
+export const pastimeOf = (state, held, memory, now, random, voice = "", has = () => true, tally = null, ball = "") =>
+    draw({moment: "pastime", free: FREE.has(state), lasted: held, voice, has, memory, now, tally, ball}, random);
 
 // whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way, as the pile draws it; `memory` holds when the
 // salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES)
@@ -146,6 +147,6 @@ export function answerTo(moment, voice, memory, now, random, has) {
 export function pastimeFor(scene, waited, memory, now, random, has, tally = null) {
     const calm = scene.place.posture !== "hang" && !scene.place.swings && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
     if (!calm) return null;
-    const drawn = pastimeOf(waited.state, waited.lasted, memory, now, random, scene.voice, has, tally);
+    const drawn = pastimeOf(waited.state, waited.lasted, memory, now, random, scene.voice, has, tally, scene.ball);
     return drawn && {clip: drawn.name, card: "", flies: Boolean(drawn.flies)};
 }

@@ -40,3 +40,14 @@ export function visorAt(lit, now, asleep) {
 
 // The glow a process card ending lights, from `ends` (figureState.js processEndsAfter), the newest of them, or `lit` as it was
 export const visorFor = (ends, lit, now) => (ends.length ? {tone: ends.at(-1).tone, at: now} : lit);
+
+// The visor through a disco dance `u` of the way through it (acts.js disco): lit as a screen all the dance long, its colour stepping round
+// the colour wheel each beat, the eyes out but at the dance's first and last few frames
+export function discoScreen(u, beats) {
+    const step = Math.floor(u * beats * 2);
+    const hue = ((step * 137) % 360) / 360;
+    const k = (n) => (n + hue * 12) % 12;
+    const part = (n) => 0.5 - 0.5 * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+    const shown = Math.min(u / 0.06, (1 - u) / 0.06, 1);
+    return {colour: [part(0), part(8), part(4)], eyes: 1 - shown, across: shown, open: shown, flash: 0, glow: shown};
+}

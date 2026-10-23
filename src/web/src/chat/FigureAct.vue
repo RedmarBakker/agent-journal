@@ -6,7 +6,8 @@ import {POSTURES} from "../figure/places.js";
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
 // way across the picture the free hand's side is, 1 to the right); the picture `size` pixels square; and `room`, the pixels from its left
-// and right sides to the screen's edges, which a runner runs off past.
+// and right sides to the screen's edges, which a runner runs off past; and `ball`, where the disco ball hangs over the feet while it
+// dances (perches.js discoBall).
 const props = defineProps({
     name: {type: String, required: true},
     u: {type: Number, required: true},
@@ -15,6 +16,7 @@ const props = defineProps({
     feet: {type: Number, required: true},
     size: {type: Number, required: true},
     room: {type: Object, required: true},
+    ball: {type: Object, default: null},
 });
 
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
@@ -53,6 +55,22 @@ const bug = computed(() => {
         firing,
         drops: props.u >= splat ? LENS_DROPS.map((drop) => ({x: middle.value + drop.at[0] * props.size, y: px(0.5) + drop.at[1] * props.size, r: drop.size * props.size, run: dripped * dripped * props.size * 1.2, fade: 1 - dripped})) : [],
     };
+});
+
+// The disco ball over the dancing figure: its string from where it is tied down to the ball, the ball's mirror tiles turning as it
+// spins, and flecks of its light going round the figure in the colours
+const disco = computed(() => {
+    if (!props.ball) return null;
+    const r = (ACTS.disco.ball * props.size) / 2;
+    const y = floor.value - props.ball.hangs;
+    const turn = props.u * 40;
+    const tiles = [];
+    for (let row = -2; row <= 2; row++) for (let column = -3; column <= 3; column++) tiles.push({x: middle.value + column * r * 0.42 + ((turn * r * 0.42) % (r * 0.42)) - r * 0.21, y: y + row * r * 0.42, light: (row + column + Math.floor(turn)) % 3 === 0});
+    const flecks = Array.from({length: 9}, (_, index) => {
+        const way = index * 0.7 + props.u * 9;
+        return {x: middle.value + Math.cos(way) * props.size * (0.55 + 0.1 * (index % 3)), y: y + 10 + Math.abs(Math.sin(way * 1.3)) * props.size * 0.75, colour: `hsl(${(index * 40 + props.u * 1400) % 360} 95% 65%)`};
+    });
+    return {x: middle.value, y, r, top: floor.value - props.ball.above, tiles, flecks};
 });
 
 // the pogo stick, upright under the hands with its foot below the figure's feet: drawn out from behind the back, held, and let go to fall
@@ -334,6 +352,23 @@ const flap = computed(() => {
                         <circle :cx="drop.x" :cy="drop.y" :r="drop.r" fill="#9bd34a" opacity="0.85" />
                         <circle :cx="drop.x - drop.r * 0.3" :cy="drop.y - drop.r * 0.3" :r="drop.r * 0.25" fill="#e8ffd0" opacity="0.8" />
                     </g>
+                </template>
+            </template>
+
+            <template v-if="name === 'disco' && disco">
+                <line :x1="disco.x" :y1="disco.top" :x2="disco.x" :y2="disco.y - disco.r" :stroke="COLOURS.silver" stroke-width="1" />
+                <clipPath id="figure-act-ball">
+                    <circle :cx="disco.x" :cy="disco.y" :r="disco.r" />
+                </clipPath>
+                <circle :cx="disco.x" :cy="disco.y" :r="disco.r" fill="#8d93a3" />
+                <g clip-path="url(#figure-act-ball)">
+                    <template v-for="(tile, index) in disco.tiles" :key="index">
+                        <rect :x="tile.x - disco.r * 0.18" :y="tile.y - disco.r * 0.18" :width="disco.r * 0.36" :height="disco.r * 0.36" :fill="tile.light ? '#f4f6fb' : '#b9bfcc'" />
+                    </template>
+                </g>
+                <circle :cx="disco.x" :cy="disco.y" :r="disco.r" fill="none" :stroke="COLOURS.ink" stroke-width="0.8" />
+                <template v-for="(fleck, index) in disco.flecks" :key="`fleck${index}`">
+                    <circle :cx="fleck.x" :cy="fleck.y" r="2.2" :fill="fleck.colour" opacity="0.85" />
                 </template>
             </template>
 

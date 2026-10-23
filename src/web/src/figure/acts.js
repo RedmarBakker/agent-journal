@@ -40,6 +40,11 @@ export const ACTS = {
     // degrees, the bug splatters at `splat`, and a few drops of the splatter land on the screen, as on a camera's lens, and run down and
     // fade over `drops`
     bug_shot: {frames: 72, fps: 12, crawl: [0, 0.3], draw: [0.2, 0.38], shots: [0.4, 0.56], count: 3, kick: 8, splat: 0.56, drops: [0.58, 1], away: 0.85},
+    // a disco dance under a disco ball: the classic move, one arm pointing up and the other down, switching sides `beats` times, the hips
+    // swaying and the knees bouncing, the visor flashing through the colours; the ball `ball` of the picture across, turning, hung `clear`
+    // of it over the hat, on a string at least `tie` of it long from the bottom of a bubble no further than `far` of the figure's height
+    // above the hat, or `string` of it long from out of sight above
+    disco: {frames: 96, fps: 12, beats: 8, ball: 0.24, clear: 0.08, tie: 0.1, string: 0.35, far: 2.2},
     // coming down on a parachute, swaying a little under it
     chute: {frames: 24, fps: 8, sway: 8},
     // compacting: a box appears, it hops into it and the box shrinks with it inside; once the compaction is over the box grows back and

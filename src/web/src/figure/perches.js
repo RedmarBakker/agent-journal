@@ -1,5 +1,5 @@
 import {RESTS, clipOf} from "../domain/figureState.js";
-import {climbStops, jumpMost, pogoClimb} from "./climbs.js";
+import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, homeCloses, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf, worldBox} from "./places.js";
@@ -115,6 +115,24 @@ export function swingSpot(floor, figure, floors = readFloors()) {
     const home = floors.floors.find((each) => each.id === "home");
     if (home && boxAt(spot, figure).bottom > home.top) return null;
     return holds(spot, figure, floors.floors) && !hiddenAt(spot, figure) ? spot : null;
+}
+
+// Where a disco ball hangs over a figure standing at `spot`, as {kind, above, hangs}: "bubble" when it stands on a bubble with another above
+// it near enough, the ball's string tied to that one's bottom edge, else "room" when there is room over its hat for the ball to hang down
+// from out of sight; `above` is how far over the feet the string is tied and `hangs` how far the ball's middle is, in pixels; null with no
+// room for the ball
+export function discoBall(spot, figure, floors = readFloors()) {
+    if (spot.posture !== "stand") return null;
+    const {ball, clear, tie, string, far} = ACTS.disco;
+    const hat = spot.y - heightOf(figure);
+    const hangs = heightOf(figure) + (clear + ball / 2) * figure.size;
+    const needed = (clear + ball + string) * figure.size;
+    const over = floors.floors.filter((floor) => floor.kind === "bubble" && floor.bottom < spot.y && floor.left < spot.x && floor.right > spot.x);
+    const tied = over.filter((floor) => floor.bottom <= hat - (clear + ball + tie) * figure.size).sort((a, b) => b.bottom - a.bottom)[0];
+    const onBubble = floors.floors.some((floor) => floor.kind === "bubble" && floor.element === spot.on);
+    if (onBubble && tied && hat - tied.bottom <= far * heightOf(figure)) return {kind: "bubble", above: spot.y - tied.bottom, hangs};
+    if (over.some((floor) => floor.bottom > hat - needed) || hat - needed < worldBox().top) return null;
+    return {kind: "room", above: hangs + (ball / 2 + string) * figure.size, hangs};
 }
 
 // the bubbles in the thread's view a rope swing can hang under (swingSpot)

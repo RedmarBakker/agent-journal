@@ -2198,6 +2198,31 @@ function hop_up(pose, stance, t) {
     tucked(pose, 0.6 + 0.2 * pump);
 }
 
+// where the disco dance points its hands, across, forward (toward the viewer is less) and up in the figure's units: one up and out over
+// its shoulder, the other down and out by its hip
+const DISCO = {up: [1.2, -0.3, 2.85], down: [0.95, -0.25, 1.3], sway: 12, bounce: 0.18};
+
+// dances the classic disco move under the disco ball (acts.js disco): one arm pointing up and the other down, switching sides each beat,
+// the hips swaying toward the arm pointing down and the knees bouncing on every beat
+function disco(pose, stance, t) {
+    const {beats} = ACTS.disco;
+    const beat = t * beats;
+    const which = Math.floor(beat) % 2 ? 1 : -1;
+    const swing = Math.sin(Math.PI * Math.min((beat % 1) * 3, 1) * 0.5);
+    const into = partOf(t, [0, 0.06]) * (1 - partOf(t, [0.94, 1]));
+    breathe(pose, t);
+    trunk(pose, {tilt: which * DISCO.sway * swing * into, nod: -4});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    for (const side of Object.keys(SIDES)) {
+        const sign = SIDES[side];
+        const [x, y, z] = sign === which ? DISCO.up : DISCO.down;
+        handTo(pose, side, into, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(1, -0.3, sign === which ? 0.2 : -0.6));
+    }
+    fold(pose, DISCO.bounce * Math.abs(Math.sin(Math.PI * beat)) * into);
+    eyesAs(pose, "amused", into);
+}
+
 // where the hands hold the rifle for the bug shot, across toward the free hand's side, forward (toward the viewer is less) and up in the
 // figure's units: the trigger hand at the stock, the other forward on it near the middle, and the trigger hand reaching behind the back
 const RIFLE = {trigger: [0.5, -0.4, 1.7], fore: [0.12, -0.45, 1.85], behind: [0.45, 0.45, 1.45]};
@@ -2413,6 +2438,7 @@ export const CLIPS = [
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
     {name: "push", frames: 6, fps: 12, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
+    {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, postures: MOVE, pose: disco},
     {name: "bug_shot", frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: GESTURE, pose: bug_shot},
     {name: "pogo", frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},

@@ -38,7 +38,7 @@ import {
     withSystemCards,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, lightsAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
@@ -48,7 +48,7 @@ import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, spellFor, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
-import {VISOR, visorAt, visorFor} from "../figure/visor.js";
+import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
 import {cutsAfter} from "../figure/pile.js";
 import {
     clickedBody,
@@ -329,7 +329,8 @@ function step() {
     if (!body.trip?.started && !body.airborne && !flight) rest();
     carry();
     const look = eyesAt(looking, shown.facing, performance.now() / 1000);
-    const lit = visorAt(visor, performance.now() / 1000, asleep());
+    // dancing the disco its visor flashes through the colours, else it lights as a run's end says
+    const lit = shown.clip.name === "disco" ? discoScreen(frameOf(shown) / shown.clip.frames, ACTS.disco.beats) : visorAt(visor, performance.now() / 1000, asleep());
     halo.value = lit && {colour: lit.colour, strength: VISOR.halo * lit.glow * lit.open};
     looking = look.looking;
     const pace = shown.pace ?? 1;
@@ -619,6 +620,8 @@ function squashed(event) {
 // The figure hanging by a hand swings about it (pendulum.js): out the way its trip went as it lands, and with the hand as the ground under
 // it carries it sideways
 const tilt = ref(0);
+// where the disco ball hangs over the figure while it dances (perches.js discoBall)
+const ball = ref(null);
 let swing = STILL;
 let swungAt = 0;
 let swungFrom = null;
@@ -697,7 +700,9 @@ function look() {
     visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const egg = answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
-    const pastime = pastimeFor(scene(), waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
+    const over = body.trip ? null : discoBall(body.place, figureSize(), latestFloors());
+    const pastime = pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
+    if (pastime?.clip === "disco") ball.value = over;
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
@@ -1165,7 +1170,7 @@ const style = computed(() => {
                 </span>
             </template>
             <template v-if="acting">
-                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" />
+                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" />
             </template>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">
