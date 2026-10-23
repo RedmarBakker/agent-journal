@@ -1,7 +1,7 @@
 import {inject} from "vue";
 import {api} from "../api/client.js";
 import {isClosed} from "../domain/row.js";
-import {PAGE, earlier, hasLoaded, holding, rows} from "../sync/rows.js";
+import {earlier, hasLoaded, holding, pageOf, rows} from "../sync/rows.js";
 import {store} from "../state/store.js";
 
 const HERE = {env: "", api, rows, loaded: hasLoaded, holding, earlier};
@@ -19,7 +19,7 @@ export function scopeOfChat(session, send = null) {
     async function earlierOf(...tables) {
         if (!tables.includes("messages") || !more) return;
         const before = chatRows().reduce((low, r) => Math.min(low, r.id), Infinity);
-        const got = await api.chat(session, {limit: PAGE, before: Number.isFinite(before) ? before : 0});
+        const got = await api.chat(session, {limit: pageOf("messages"), before: Number.isFinite(before) ? before : 0});
         keep(got);
         more = !got.is_last_page;
     }
@@ -30,7 +30,7 @@ export function scopeOfChat(session, send = null) {
         loaded: (table) => (table === "messages" ? key in store.elsewhere : hasLoaded(table)),
         holding: (table, ids) => (table === "messages" ? Promise.resolve() : holding(table, ids)),
         earlier: earlierOf,
-        chat: {session, send, refresh: async () => keep(await api.chat(session, {limit: PAGE}))},
+        chat: {session, send, refresh: async () => keep(await api.chat(session, {limit: pageOf("messages")}))},
     };
 }
 
@@ -53,7 +53,7 @@ export function scopeIn(env) {
                     const held = rowsThere(table);
                     const closed = held.filter(isClosed);
                     const before = (closed.length ? closed : held).reduce((low, r) => Math.min(low, r.id), Infinity);
-                    const got = await there.list(table, {limit: PAGE, before: Number.isFinite(before) ? before : 0});
+                    const got = await there.list(table, {limit: pageOf(table), before: Number.isFinite(before) ? before : 0});
                     keep(table, got);
                     more[table] = !got.is_last_page;
                 })

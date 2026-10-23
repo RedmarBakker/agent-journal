@@ -439,9 +439,9 @@ test("the disco dance plays only standing on a bubble with another above it to h
     expect(weight("bubble")).toBeGreaterThan(0);
     expect(weight("bubble") / choices("bubble").reduce((sum, each) => sum + each.weight, 0)).toBeLessThan(1 / 50);
     const memory = new Map([["pastime/disco", 0]]);
-    expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: 15 * 60 - 1}).some((each) => each.name === "disco")).toBe(false);
+    expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: 2 * 60 * 60 - 1}).some((each) => each.name === "disco")).toBe(false);
     expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: SHOWPIECES.disco}).some((each) => each.name === "disco")).toBe(true);
-    expect(SHOWPIECES.disco).toBe(15 * 60);
+    expect(SHOWPIECES.disco).toBe(2 * 60 * 60);
 });
 
 test("on a bubble the figure keeps 20 pixels inside the chat's sides, so a side never cuts its frame; a corner against a side is no perch", async () => {
