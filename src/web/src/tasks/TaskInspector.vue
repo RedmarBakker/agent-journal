@@ -14,6 +14,9 @@ import {ago} from "../format/time.js";
 import TaskChain from "./TaskChain.vue";
 import TaskFact from "./TaskFact.vue";
 import TaskState from "./TaskState.vue";
+import Segmented from "../kit/Segmented.vue";
+import {useScope} from "../composables/scope.js";
+import {NORMAL_PRIORITY, PRIORITY_LEVELS} from "../domain/taskPriority.js";
 
 const props = defineProps({
     task: {type: Object, required: true},
@@ -23,6 +26,8 @@ const props = defineProps({
 });
 const emit = defineEmits(["close", "step", "act", "status", "more", "select", "answer"]);
 const status = computed(() => statusOf(props.task));
+const scope = useScope();
+const setPriority = (priority) => scope.api.change("tasks", props.task.id, {priority});
 const next = computed(() => nextAct(props.task));
 const others = computed(() => otherActs(props.task));
 const plan = computed(() => planOf(props.task));
@@ -80,6 +85,9 @@ watch(
                     <template v-if="task.state === 'started' && task.held_by">
                         <TaskFact label="Held by">{{ task.held_by }}</TaskFact>
                     </template>
+                    <TaskFact class="wide" label="Priority">
+                        <Segmented :options="PRIORITY_LEVELS" :value="task.priority ?? NORMAL_PRIORITY" @pick="setPriority" />
+                    </TaskFact>
                 </div>
                 <template v-if="status !== 'blocked'">
                     <TaskChain :task="task" :tasks="tasks" @select="emit('select', $event)" @answer="emit('answer', $event)" />

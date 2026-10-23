@@ -84,7 +84,7 @@ class Tasks(ScopedRepository[Task]):
         return ", ".join(part for part in (*matched, row.waiting_reason()) if part)
 
     def unclosed_tasks(self) -> list[Task]:
-        return [task for task in self.scoped() if not task.is_closed()]
+        return [task for task in self.selected(self.query().order_descending("priority").order("id")) if not task.is_closed()]
 
     def unfinished_ids(self, numbers: list[int]) -> list[int]:
         return [number for number in numbers if self.matching(id=number, state=TaskState.OPEN) or self.matching(id=number, state=TaskState.STARTED) or self.matching(id=number, state=TaskState.DELEGATED)]
@@ -108,7 +108,7 @@ class Tasks(ScopedRepository[Task]):
         return self.free_tasks(state, UNAPPROVED_PLAN_STATES)
 
     def free_tasks(self, state: TaskState, plan_states: tuple[str, ...]) -> list[Task]:
-        tasks = self.with_state(state)
+        tasks = self.selected(self.query().filter(state=state).order_descending("priority").order("id"))
         plan_refs = {str(Ref(Plan.table(), row["id"])) for row in self.connection.all(*Query.build(Plan).filter_listed("state", list(plan_states)).select())}
         plan_task_ids = {link.source.id for link in self.links.model_links("source", tasks, PLAN_LINK) if str(link.target) in plan_refs}
         return [task for task in tasks if task.row_id not in plan_task_ids]
@@ -179,9 +179,9 @@ class Tasks(ScopedRepository[Task]):
         return {link.target.id: link.source.id for link in self.links.all_matching(kind=CURRENT_TASK_LINK) if link.source.type == WORKERS}
 
     def earlier_tasks(self) -> dict[int, int]:
-        held = {worker: task for task, worker in self.worker_holdings().items()}
-        worked = sorted(self.links.all_matching(kind=WORKED_LINK), key=lambda link: link.row_id)
-        return {link.source.id: link.target.id for link in worked if link.source.type == WORKERS and held.get(link.source.id) != link.target.id}
+        worker_tasks = {worker: task for task, worker in self.worker_holdings().items()}
+        work_links = sorted(self.links.all_matching(kind=WORKED_LINK), key=lambda link: link.row_id)
+        return {link.source.id: link.target.id for link in work_links if link.source.type == WORKERS and worker_tasks.get(link.source.id) != link.target.id}
 
     def unfinished_count(self) -> int:
         planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query())

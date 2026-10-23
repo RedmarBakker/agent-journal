@@ -12,6 +12,7 @@ from journal.events.rows.task_wait_ended import TaskWaitEnded
 from journal.events.rows.task_delegated import TaskDelegated
 from journal.events.rows.task_started import TaskStarted
 from journal.models.scoped import Scoped
+from journal.support.task_priority import NORMAL
 from journal.models.task_state import TaskState
 from journal.support.rejection import Rejection
 
@@ -26,6 +27,7 @@ class Task(Scoped):
 
     title: str = ""
     brief: str = ""
+    priority: int = NORMAL
     state: TaskState = TaskState.OPEN
     started_at: datetime | None = None
     finished_at: datetime | None = None

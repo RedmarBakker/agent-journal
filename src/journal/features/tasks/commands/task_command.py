@@ -14,6 +14,7 @@ from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.support.task_priority import NORMAL, TaskPriority
 from journal.models.task_log import TaskLog
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
@@ -44,10 +45,12 @@ class TaskCommand(Command):
         edit.add_argument("n", type=int)
         edit.add_argument("--title", default="")
         edit.add_argument("--brief", default="", help="the whole brief, which replaces the old one")
+        edit.add_argument("--priority", default="", help="low, normal, high, critical or a number")
         brief = self.verb(verbs, "brief", "a task's brief written anew, when what done looks like has changed")
         brief.add_argument("n", type=int)
         brief.add_argument("brief")
         creation.add_argument("--brief", default="")
+        creation.add_argument("--priority", default="normal", help="low, normal, high, critical or a number")
         creation.add_argument("--start", action="store_true", help="start it at once")
         creation.add_argument("--from", dest="message", type=int, default=0, help="the user's message it was filed from")
         self.verb(verbs, "start", "take a task in hand").add_argument("n", type=int)
@@ -71,7 +74,7 @@ class TaskCommand(Command):
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.save(Task(title=args.title, brief=args.brief), caller.actor)
+        task = self.tasks.save(Task(title=args.title, brief=args.brief, priority=TaskPriority.parsed(args.priority)), caller.actor)
         if args.message:
             self.links.save(Link(source=Ref.build(self.messages.find(args.message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
         if args.start:
@@ -93,12 +96,13 @@ class TaskCommand(Command):
         return 0
 
     def edit(self, args: Namespace, caller: Caller) -> int:
-        if not args.title and not args.brief:
-            raise Rejection("name what changes: --title \"<title>\", --brief \"<the whole brief>\" or both")
+        if not args.title and not args.brief and not args.priority:
+            raise Rejection("name what changes: --title \"<title>\", --brief \"<the whole brief>\", --priority <level>, or several")
         task = self.tasks.find(args.n)
         retitled = task.with_(title=args.title) if args.title else task
-        self.tasks.save(retitled.briefed(args.brief, self.clock.time()) if args.brief else retitled, caller.actor)
-        print(f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief)) if value)} written anew")
+        ranked = retitled.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else retitled
+        self.tasks.save(ranked.briefed(args.brief, self.clock.time()) if args.brief else ranked, caller.actor)
+        print(f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew")
         return 0
 
     def log(self, args: Namespace, caller: Caller) -> int:
@@ -175,7 +179,7 @@ state: {task.state}
         tasks = self.tasks.scoped()
         shown = tasks if args.all else self.tasks.unclosed_tasks()
         for task in shown:
-            print(f"{task.id:>4}  {task.state:<8} {task.title}")
+            print(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]"))
         if len(shown) < len(tasks):
             print(f"and {len(tasks) - len(shown)} done or cancelled: journal task list --all")
         return 0

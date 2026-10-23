@@ -11398,3 +11398,22 @@ def test_a_job_the_agent_schedules_is_listed_on_its_row_until_it_cancels_it(app:
     hook(app, "PostToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_response="Cancelled job 200ed8b1.", tool_use_id="c2")
     app.runtime().deferred.drain()
     assert jobs() == [], "a cancelled job is no longer listed"
+
+
+def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_task_follow_it(app: App):
+    from journal.repositories.plans import Plans
+    from journal.repositories.tasks import Tasks
+    with app.container.get(Scope).environment(MAIN):
+        app.console().run(["task", "create", "the docs"], USER)
+        app.console().run(["task", "create", "the outage", "--priority", "critical"], USER)
+        app.console().run(["task", "create", "the tidy up", "--priority", "low"], USER)
+        app.console().run(["task", "create", "the odd one", "--priority", "120"], USER)
+        tasks = app.container.get(Tasks)
+        outage = next(t for t in tasks.scoped() if t.title == "the outage")
+        listed = app.console().run(["task", "list"], USER).text.splitlines()
+        assert [line.split("  ")[-1] if "[" in line else "" for line in listed[:4]] == ["[critical]", "[120]", "", "[low]"], listed
+        assert app.container.get(Plans).offers()[0].id == outage.id, "the next task is the most urgent one"
+        refused = app.console().run(["task", "edit", str(outage.id), "--priority", "soon"], USER)
+        assert "no such priority: soon" in refused.error
+        app.console().run(["task", "edit", str(outage.id), "--priority", "normal"], USER)
+        assert tasks.find(outage.id).priority == 100
