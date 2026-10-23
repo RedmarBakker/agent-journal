@@ -28,10 +28,10 @@ class Sequences(Feature[SequencesData]):
     conduct = (SequencesConduct,)
     seeds = (BuiltinSequences,)
 
-    PENDING_STEP = Nudge(name, "step_to_follow", "sequence {{n}}, step {{step}}: {{text}}", "`journal sequence follow` to take it up, `journal sequence next` when it is done", repeat_interval=0)
+    PENDING_STEP = Nudge(name, "step_to_follow", "sequence {{n}}, step {{step}}: {{text}}", "`journal sequence follow`, then `journal sequence next` when it is done", repeat_interval=0)
     CURRENT_STEP = Nudge(name, "following_the_step", "following sequence {{n}}, step {{step}}: {{text}}", "`journal sequence next` when it is done", repeat_interval=0)
-    STEP_EDIT_BLOCK = Nudge(name, "write_held_for_the_step", "a write waits for sequence {{n}}, step {{step}}: {{text}}", "`journal sequence follow` takes it up; `journal sequence suspend --why \"<why>\"` sets the run aside", repeat_interval=0)
-    STALE_STEP = Nudge(name, "step_stale_move_it_on", "{{writes}} writes since sequence {{n}}, step {{step}} was taken up: {{text}}", "`journal sequence next` if it is done, `journal sequence follow` to carry on with it, or `journal sequence suspend --why \"<why>\"`", repeat_interval=0)
+    STEP_EDIT_BLOCK = Nudge(name, "write_held_for_the_step", "a write waits for sequence {{n}}, step {{step}}: {{text}}", "`journal sequence follow`, or `journal sequence suspend --why \"<why>\"`", repeat_interval=0)
+    STALE_STEP = Nudge(name, "step_stale_move_it_on", "{{writes}} writes since sequence {{n}}, step {{step}} was taken up: {{text}}", "`journal sequence next` if it is done, `journal sequence follow` to carry on, or `journal sequence suspend --why \"<why>\"`", repeat_interval=0)
     SEQUENCE_SUSPENDED = Nudge(name, "sequence_parked", "sequence {{n}} is parked at step {{step}}: {{why}}", "`journal sequence follow` resumes it", repeat_interval=0)
     SEQUENCE_ENDED = Nudge(name, "sequence_ended", "sequence {{n}} ran its last step", repeat_interval=0)
     SEQUENCE_ABANDONED = Nudge(name, "sequence_abandoned", "sequence {{n}} abandoned", repeat_interval=0)

@@ -19,7 +19,7 @@
     {
       "name": "a write before the step is taken up",
       "answer": {
-        "error": "a write waits for sequence 5, step 1: tag it. `journal sequence follow` takes it up; `journal sequence suspend --why \"<why>\"` sets the run aside"
+        "error": "a write waits for sequence 5, step 1: tag it. `journal sequence follow`, or `journal sequence suspend --why \"<why>\"`"
       },
       "typed": [],
       "nudges": [
@@ -33,7 +33,7 @@
       "name": "a stop at step one",
       "answer": {
         "decision": "block",
-        "reason": "sequence 5, step 1: tag it. `journal sequence follow` to take it up, `journal sequence next` when it is done"
+        "reason": "sequence 5, step 1: tag it. `journal sequence follow`, then `journal sequence next` when it is done"
       },
       "typed": [],
       "nudges": [
@@ -56,7 +56,7 @@
       "name": "a stop at step two",
       "answer": {
         "decision": "block",
-        "reason": "sequence 5, step 2: push. `journal sequence follow` to take it up, `journal sequence next` when it is done"
+        "reason": "sequence 5, step 2: push. `journal sequence follow`, then `journal sequence next` when it is done"
       },
       "typed": [],
       "nudges": [

@@ -82,7 +82,7 @@
         "reason": "task 1 is in hand, last logged just now: carry on"
       },
       "typed": [
-        "[journal] question 1 is answered. `journal question show 1` reads it whole, with the messages linked to it; act on the answer"
+        "[journal] question 1 is answered. `journal question show 1`, then act on it"
       ],
       "nudges": [
         "questions.question_answered",
@@ -108,7 +108,7 @@
       "name": "the report releases the wait",
       "answer": {
         "decision": "block",
-        "reason": "task 1 is in hand, last logged just now: carry on\nworker 1 (Lady Lovelace) reported and you have not acted on it yet. read its report, then give it its next job, stop it, or mark it done once its work is merged or used"
+        "reason": "task 1 is in hand, last logged just now: carry on\nworker 1 (Lady Lovelace) reported and you have not acted on it. give it its next job, stop it, or mark it done"
       },
       "typed": [
         "[journal] the wait for worker 1 is over: worker 1, Lady Lovelace, reported",

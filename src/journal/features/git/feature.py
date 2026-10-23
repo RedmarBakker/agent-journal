@@ -18,6 +18,6 @@ class Git(Feature[GitData]):
     data = (GitDataReader, BranchEnvironmentsReader)
     conduct = (GitConduct,)
 
-    WORKER_TASK_REFUSAL = Nudge(name, "worker_task_refusal", "task {{task}} is worker {{worker}}'s, so the commit leaves it open", "take the worker's work in with journal worker merge {{worker}} once its proofs are checked", repeat_interval=0)
-    BRANCH_CONFLICT = Nudge(name, "branch_in_use", "the branch {{branch}} is in use by the environment {{environment}}, whose agent is running on it", "work on another branch, or in a worktree of its own: no two environments are on one branch at once", repeat_interval=0)
+    WORKER_TASK_REFUSAL = Nudge(name, "worker_task_refusal", "task {{task}} is worker {{worker}}'s, so the commit leaves it open", "journal worker merge {{worker}} once its proofs are checked", repeat_interval=0)
+    BRANCH_CONFLICT = Nudge(name, "branch_in_use", "the branch {{branch}} is in use by the environment {{environment}}, whose agent runs on it", "work on another branch or in a worktree of its own", repeat_interval=0)
     nudges = (WORKER_TASK_REFUSAL, BRANCH_CONFLICT)

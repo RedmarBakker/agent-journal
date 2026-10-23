@@ -22,7 +22,7 @@
       "name": "the first reports",
       "answer": {
         "decision": "block",
-        "reason": "worker 1 (Lady Lovelace) reported and you have not acted on it yet. read its report, then give it its next job, stop it, or mark it done once its work is merged or used"
+        "reason": "worker 1 (Lady Lovelace) reported and you have not acted on it. give it its next job, stop it, or mark it done"
       },
       "typed": [
         "[journal] worker 1, Lady Lovelace, reported in the chat"

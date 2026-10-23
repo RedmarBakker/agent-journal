@@ -6,14 +6,15 @@
       "answer": null,
       "typed": [],
       "nudges": [
-        "briefing.look_before_the_first_write",
         "briefing.journal_ready",
         "briefing.handle_the_journal_quietly",
         "briefing.the_laws_apply",
+        "briefing.look_before_the_first_write",
         "voices.how_to_talk_to_the_user"
       ],
-      "counts": {},
-      "read": []
+      "stack": [
+        "idle"
+      ]
     },
     {
       "name": "a forbidden read",
@@ -22,11 +23,8 @@
       },
       "typed": [],
       "nudges": [],
-      "counts": {},
-      "read": [
-        {
-          "130": 0
-        }
+      "stack": [
+        "idle"
       ]
     },
     {
@@ -39,16 +37,20 @@
       },
       "typed": [],
       "nudges": [],
-      "counts": {},
-      "read": []
+      "stack": [
+        "idle"
+      ]
     },
     {
       "name": "a task is made",
       "answer": null,
       "typed": [],
-      "nudges": [],
-      "counts": {},
-      "read": []
+      "nudges": [
+        "tasks.task_opened"
+      ],
+      "stack": [
+        "idle"
+      ]
     }
   ]
 }

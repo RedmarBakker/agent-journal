@@ -12,7 +12,7 @@ class Laws(Feature):
     conduct = (LawsConduct,)
 
     MISSING_MODEL = Nudge(name, "name_the_model", "the dispatch names no model", "name the least expensive model that reliably fits the work")
-    MISSING_PROFILE = Nudge(name, "name_a_profile", "the dispatch names no profile of this project: {{asked}}", "a subagent is one of the project's profiles, never a generic agent: {{profiles}}")
+    MISSING_PROFILE = Nudge(name, "name_a_profile", "the dispatch names no profile of this project: {{asked}}", "use one of: {{profiles}}")
     UNBOUND_DISPATCH = Nudge(name, "bind_the_job", "the dispatch binds the agent to no concrete job", "give it a description and a bounded prompt")
-    LONG_OUTPUT = Nudge(name, "cap_the_output", "that result was {{lines}} lines, and every line stays in the context", "cap output with grep, head or tail next time")
+    LONG_OUTPUT = Nudge(name, "cap_the_output", "that result was {{lines}} lines", "cap output with grep, head or tail")
     nudges = (MISSING_MODEL, MISSING_PROFILE, UNBOUND_DISPATCH, LONG_OUTPUT)

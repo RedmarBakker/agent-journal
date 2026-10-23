@@ -21,5 +21,5 @@ class TeamFeature(Feature[TeamData]):
     data = (TeamDataReader,)
     conduct = (TeamConduct,)
 
-    UPGRADE_NEEDED = Nudge(name, "journal_behind_the_team", "this journal is behind its team: {{line}}", "once the team's rows are migrated the team server takes none of its changes until it is upgraded, and they wait here; tell your user once, and go on with the work", repeat_interval=0)
+    UPGRADE_NEEDED = Nudge(name, "journal_behind_the_team", "this journal is behind its team: {{line}}", "its changes wait here until it is upgraded; tell your user once and go on", repeat_interval=0)
     nudges = (UPGRADE_NEEDED,)

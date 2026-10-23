@@ -35,7 +35,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "tool uses left before your writes wait for message 2: 3"
+          "additionalContext": "read due, message 2: 3"
         }
       },
       "typed": [],

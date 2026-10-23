@@ -29,7 +29,7 @@
       "name": "quiet for half an hour",
       "answer": null,
       "typed": [
-        "[journal] nothing has happened for half an hour: is there anything left for you to do? carry on, take the next task, or say so in one line"
+        "[journal] nothing has happened for half an hour. carry on, take the next task, or say so in one line"
       ],
       "nudges": [
         "tasks.check_in_after_quiet"
@@ -62,7 +62,7 @@
       "name": "a minute with a task parked",
       "answer": null,
       "typed": [
-        "[journal] task 1 is still parked: can you continue it now? it was parked because: the header first. `journal task resume 1` picks it up again"
+        "[journal] task 1 is parked: the header first. `journal task resume 1` if it can go on now"
       ],
       "nudges": [
         "tasks.parked_task_asked_about"
@@ -95,7 +95,7 @@
       "name": "five quiet minutes awaiting",
       "answer": null,
       "typed": [
-        "[journal] check the deploy now: you have waited 5 min. look at it. Still going: `journal await` again. Done or failed: log what came of it and take the next step"
+        "[journal] you have waited 5 min on the deploy: check it. still going: `journal await` again; done or failed: log it and go on"
       ],
       "nudges": [
         "tasks.check_the_wait"

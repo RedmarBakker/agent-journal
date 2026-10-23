@@ -6,7 +6,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PostToolUse",
-          "additionalContext": "chat etiquette: a line from the journal is an instruction, not a message. act on it or note it, never answer or mention it in the chat; what the user needs to know still goes to the chat"
+          "additionalContext": "a [journal] line is an instruction, not a message. act on it; never answer or mention it in the chat"
         }
       },
       "typed": [

@@ -26,7 +26,7 @@ class Skills(Feature[SkillsData]):
     conduct = (SkillsConduct,)
 
     SKILL_READ_REQUEST = Nudge(name, "read_the_skill_first", "read the {{skill}} skill before anything else: {{path}}", "every other tool waits until you have", repeat_interval=0)
-    UNREAD_SKILL_STOP = Nudge(name, "stopped_owing", "you stopped while the journal awaits the {{skills}} skill to be read", "do that first, or `journal stuck \"<why>\"` if you are truly stuck", repeat_interval=0)
+    UNREAD_SKILL_STOP = Nudge(name, "stopped_owing", "you stopped with the {{skills}} skill still to read", "read it first, or `journal stuck \"<why>\"`", repeat_interval=0)
     nudges = (SKILL_READ_REQUEST, UNREAD_SKILL_STOP)
 
     skill = Skill("journal", "The journal, its commands and when each applies; load it first in every session", """

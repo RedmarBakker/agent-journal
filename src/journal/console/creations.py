@@ -5,17 +5,21 @@ from journal.events.listener import Listener
 from journal.support.actor_kind import ActorKind
 from journal.models.command_output import CommandOutput
 from journal.models.entry import Entry
+from journal.models.link import Link
 from journal.models.model import Model
+from journal.models.outgoing_change import OutgoingChange
+from journal.models.task_log import TaskLog
 
+RECORD_ROWS = (Entry, CommandOutput, OutgoingChange, Link, TaskLog)
 RUN: ContextVar[list | None] = ContextVar("creations", default=None)
 
 
 class Creations(Listener[Created]):
-    """Every row made while a command runs, by the command or by what its events caused, so the agent is told each one's name and number."""
+    """Every row made while a command runs, by the command or by what its events caused, so the agent is told the name and number of each it may address next; the record's own rows, a link, a queued change, a log line, are left out."""
 
     def handle(self, event: Created) -> None:
         produced = RUN.get()
-        if produced is not None and event.actor.kind != ActorKind.SYSTEM and not isinstance(event.model, (Entry, CommandOutput)):
+        if produced is not None and event.actor.kind != ActorKind.SYSTEM and not isinstance(event.model, RECORD_ROWS):
             produced.append(event.model)
 
     @staticmethod

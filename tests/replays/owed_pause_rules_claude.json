@@ -25,7 +25,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "context 80% full: decide what to keep from it. `journal fact create \"<what is true here>\"`, `journal rule create \"<Always/Never ...>\"`, or `journal memory skip \"<why>\"`; writes wait until you do"
+          "additionalContext": "context 80% full: decide what to keep. `journal fact create \"<what is true here>\"`, `journal rule create \"<Always/Never ...>\"` or `journal memory skip \"<why>\"`; writes wait until you do"
         }
       },
       "typed": [],
@@ -40,7 +40,7 @@
       "name": "a stop under the mark",
       "answer": {
         "decision": "block",
-        "reason": "you stopped while the journal awaits a decision at the context mark, 80% full. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"` first, or `journal stuck \"<why>\"` if you are truly stuck"
+        "reason": "you stopped with a decision due at the context mark, 80% full. `journal fact create`, `journal rule create` or `journal memory skip \"<why>\"` first"
       },
       "typed": [],
       "nudges": [

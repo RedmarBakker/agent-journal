@@ -9,6 +9,6 @@ class Mcp(Feature):
     title = "MCP"
     help = "Integrations are MCP servers: suggested ones are installed from the viewer, let in with a key kept outside the project or by signing in, and the agents are restarted so they apply at once."
     commands = (McpCommand,)
-    SERVER_LOGIN = Nudge(name, "sign_in_to_the_server", "sign in to {{title}}", "call its authenticate tool, mcp__{{name}}__authenticate, and when the browser has returned finish with complete_authentication; then say in the chat that {{title}} is signed in", repeat_interval=0, chat_answerable=True)
+    SERVER_LOGIN = Nudge(name, "sign_in_to_the_server", "sign in to {{title}}", "call mcp__{{name}}__authenticate, then complete_authentication once the browser has returned, and say in the chat that {{title}} is signed in", repeat_interval=0, chat_answerable=True)
     nudges = (SERVER_LOGIN,)
     listeners = (PendingRestart,)

@@ -35,7 +35,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "tool uses left before your tools wait for your answer to message 2: 1"
+          "additionalContext": "reply due, message 2: 1"
         }
       },
       "typed": [],
@@ -52,7 +52,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "your next tool call waits for your answer to message 2. answer or react to it now"
+          "additionalContext": "reply due, message 2: 0. your next tool call waits for it"
         }
       },
       "typed": [],
@@ -127,7 +127,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "task 1 in hand, 2 edits. if this is not what you are doing, finish it or park it and start the work you are on"
+          "additionalContext": "task 1 in hand, 2 edits"
         }
       },
       "typed": [],
@@ -161,7 +161,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "task 1 in hand, 4 edits. if this is not what you are doing, finish it or park it and start the work you are on"
+          "additionalContext": "task 1 in hand, 4 edits"
         }
       },
       "typed": [],
@@ -186,7 +186,7 @@
     {
       "name": "write 7",
       "answer": {
-        "error": "6 edits since you logged task 1. journal task log 1 \"<what was decided or done, and why>\" before any other write"
+        "error": "6 edits since you logged task 1. journal task log 1 \"<what was decided or done>\" before any other write"
       },
       "typed": [],
       "nudges": [

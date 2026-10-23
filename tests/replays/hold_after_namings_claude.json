@@ -6,7 +6,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "tool uses left before your writes wait for message 2: 3"
+          "additionalContext": "read due, message 2: 3"
         }
       },
       "typed": [
@@ -31,7 +31,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "tool uses left before your writes wait for message 2: 2"
+          "additionalContext": "read due, message 2: 2"
         }
       },
       "typed": [],
@@ -48,7 +48,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "tool uses left before your writes wait for message 2: 1"
+          "additionalContext": "read due, message 2: 1"
         }
       },
       "typed": [],
@@ -65,7 +65,7 @@
       "answer": {
         "hookSpecificOutput": {
           "hookEventName": "PreToolUse",
-          "additionalContext": "your next write waits for message 2. read it now with `journal message unread`"
+          "additionalContext": "read due, message 2: 0. your next write waits for it"
         }
       },
       "typed": [],

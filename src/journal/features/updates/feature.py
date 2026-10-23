@@ -21,7 +21,7 @@ class Updates(Feature[ReleaseNotes]):
     AUTO = Option("updates.auto", "Install new releases on its own", "When a newer release of this major version is out, or a newer commit of the followed branch, install it and restart the journal; a new major version is never installed on its own; once a new version runs, every plugin installed from a release moves to its newest release that runs on it", False, kind="switch", scope=OptionScope.MACHINE, setter=USER)
     CHECK_INTERVAL = Option("updates.check_minutes", "Check for a new release every", "Minutes between two looks at GitHub for a newer release or a newer commit of the followed branch", 60, unit="minutes", scope=OptionScope.MACHINE)
     name = "updates"
-    RELEASE_MESSAGES = Nudge(name, "release_messages", "the journal was updated and has release messages for you, {{count}} unread", "read them with `journal update messages` and do what they ask", repeat_interval=0)
+    RELEASE_MESSAGES = Nudge(name, "release_messages", "{{count}} unread release messages", "`journal update messages`, and do what they ask", repeat_interval=0)
     title = "Updates"
     help = "Finds the newest release of this version of the journal on GitHub, as often as you set, and installs it when you say so or, if you switch that on, by itself."
     options = (REPOSITORY, BRANCH, AUTO, CHECK_INTERVAL)
