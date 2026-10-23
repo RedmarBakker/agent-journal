@@ -1,5 +1,6 @@
 <script setup>
 import {computed} from "vue";
+import {CLAW, prongsOf} from "../figure/parcels.js";
 
 // The claw crane that now and then takes the server units away in the UFO's place (figure/parcels.js craneAt), drawn inside the chat
 // window `box` (its left, top, right and bottom on the page), so a stack lifted past its top is out of the window: its rail along the
@@ -12,18 +13,17 @@ const props = defineProps({
     open: {type: Number, required: true},
 });
 
-// the trolley's drawing and where the chain leaves it, the claw's hub and the length and spread of its prongs, in pixels
+// the trolley's drawing and where the chain leaves it, in pixels
 const TROLLEY = {width: 30, height: 9, wheel: 2.2};
-const CLAW = {hub: 5, prong: 9, wide: 34, shut: 8};
 
 const style = computed(() => ({left: `${props.box.left}px`, top: `${props.box.top}px`, width: `${props.box.right - props.box.left}px`, height: `${props.box.bottom - props.box.top}px`}));
 const across = computed(() => props.x - props.box.left);
 const hangs = computed(() => TROLLEY.height + props.chain);
-// each prong turned out from straight down, the more the wider the claw is open
-const prongs = computed(() => {
-    const turn = CLAW.shut + (CLAW.wide - CLAW.shut) * props.open;
-    return [-1, 1].map((side) => side * turn);
-});
+// each prong out from the hub along its bar and down beside the box, its tip out wide while the claw is open and in flat on the box's side
+// once it is shut, turned in under a hook (parcels.js prongsOf)
+const prongs = computed(() =>
+    prongsOf(props.open).map(({way, top, tip, reach}) => `M${way * CLAW.hub} 0H${top}L${tip} ${reach}l${-way * CLAW.hook} ${CLAW.hook}`)
+);
 </script>
 
 <template>
@@ -33,8 +33,8 @@ const prongs = computed(() => {
             <g :transform="`translate(${across} 0)`">
                 <line class="claw-crane-chain" x1="0" :y1="TROLLEY.height" x2="0" :y2="hangs" />
                 <g :transform="`translate(0 ${hangs})`">
-                    <template v-for="turn in prongs" :key="turn">
-                        <path class="claw-crane-prong" :transform="`rotate(${turn})`" :d="`M-1.2 0V${CLAW.prong}l${turn > 0 ? -3 : 3} 3`" />
+                    <template v-for="(prong, index) in prongs" :key="index">
+                        <path class="claw-crane-prong" :d="prong" />
                     </template>
                     <rect class="claw-crane-hub" :x="-CLAW.hub" y="-3" :width="CLAW.hub * 2" height="5" rx="1.5" />
                 </g>

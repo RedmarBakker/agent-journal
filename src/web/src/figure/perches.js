@@ -2,7 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {besidePile, boxAt, buildSpot, clearOf, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, cornerAt, restOf, seatOf, standRise, spotOf, worldBox} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw} from "./pile.js";
 
@@ -87,7 +87,7 @@ export const LEDGE_WIDTH = 1.6;
 export const LEDGE_ALONG = PILE.filter((entry) => entry.when.moment === "ledge_at").map((entry) => entry.along);
 
 // Where the figure sits on the edge of the floor it stands at, `near`, a bubble or the dock, facing the viewer with its legs over the edge,
-// or on the composer, where it lounges on the top instead, its legs out toward the viewer, never by the chat's sides: `along` of the way across it, or, where a figure sitting there would hide words or be outside its world, the next of LEDGE_ALONG
+// or on the composer, where it lounges on the top instead, its legs out toward the viewer, never by the chat's sides: `along` of the way across it, or, where a figure sitting there would hide words, be outside its world or in front of the pile, the next of LEDGE_ALONG
 // that would not, never by an end; null when it stands on no such floor, the floor is too narrow, or no place along it is free
 export function ledgeSpot(along, figure, near) {
     const floors = readFloors();
@@ -97,7 +97,7 @@ export function ledgeSpot(along, figure, near) {
     const spots = [along, ...LEDGE_ALONG.filter((each) => each !== along)].map((share) => ({
         x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: 0, posture, leans: posture === "sit", on: floor.element,
     }));
-    return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure)) ?? null;
+    return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) && clearOfPile(spot, figure)) ?? null;
 }
 
 // The seat of a rope swing under the bubble `floor`, the figure sitting on it facing the viewer: the rope's length (acts.js rope_swing)

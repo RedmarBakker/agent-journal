@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
+import {LAYER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -208,15 +208,26 @@ const canDraw = (name, posture) => clipNamed(name).postures.includes(posture);
 const drawnHere = (name) => hasClip(name) && canDraw(name, body.place.posture);
 const figureSize = () => ({size: SIZE, below: below.value});
 
-// the clip the figure's body shows for what its agent does: pushing a parcel it built while it stands behind it, standing by on its way
+// the clip the figure's body shows for what its agent does: pushing a parcel it built while it stands behind it facing it, standing by on its way
 // round behind it, and while its agent runs a command with no unit to build or it has yet to get to where it builds, so it never hammers
 // on the way there or with nothing to build
 function doing() {
     const pushing = parcels.value.find((each) => each.state === "built");
-    if (pushing) return behind(parcelX(pushing), feetX()) ? "push" : "idle";
+    if (pushing) return facesToPush(pushing) ? "push" : "idle";
     if (parcels.value.some((each) => each.state === "building")) return "work";
     if (builds(held.value.state)) return making && body.place.stays ? heldClip() : "idle";
     return heldClip();
+}
+
+// whether the figure is set to push `parcel`: behind it, and standing or on its way toward it, never walking away from it round behind it,
+// so it never leans in before it faces the parcel
+const facesToPush = (parcel) => behind(parcelX(parcel), feetX()) && (!body.trip || body.trip.way === Math.sign(parcelX(parcel) - feetX()));
+
+// the way the figure faces for what its body does: toward the parcel it pushes, else the viewer
+function pushFacing() {
+    const pushing = parcels.value.find((each) => each.state === "built");
+    if (!pushing || !facesToPush(pushing)) return 0;
+    return parcelX(pushing) > feetX() ? 90 : 270;
 }
 
 // whether the figure sleeps, as it does while its agent is asleep or stopped
@@ -247,6 +258,7 @@ function current() {
         beat,
         state: held.value.state,
         doing: doing(),
+        doingFacing: pushFacing(),
         watching: taking.value ? watching : "",
         flying: flying.value,
         eager: Boolean(eager?.on),
@@ -845,7 +857,7 @@ function keepParcels(shown) {
             making = false;
         }
     }
-    if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows, lit: each.lit}));
+    if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows, lit: each.lit, state: each.state}));
 }
 
 // the process card of the run going on now, the last one started, whose end lights a parcel made now; "" with none
@@ -1184,6 +1196,7 @@ const style = computed(() => {
     return {
         width: `${SIZE}px`,
         height: `${SIZE}px`,
+        zIndex: LAYER.figure,
         transform: `translate(${x}px, ${y}px)`,
         clipPath: `inset(${world.top - y}px ${x + SIZE - world.right}px ${y + SIZE - world.bottom}px ${world.left - x}px)`,
     };
@@ -1226,7 +1239,18 @@ const style = computed(() => {
         </div>
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
-        <CodeParcel v-if="blocks" :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :block="blocks[drawing.lit]" />
+        <CodeParcel
+            v-if="blocks"
+            :x="drawing.x"
+            :y="drawing.y"
+            :up="drawing.up"
+            :scale="drawing.scale"
+            :opacity="drawing.opacity"
+            :blows="drawing.blows ?? 0"
+            :block="blocks[drawing.lit]"
+            :ahead="drawing.state === 'built'"
+            :piled="drawing.state === 'piled'"
+        />
     </template>
     <template v-if="crane">
         <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />
@@ -1280,7 +1304,6 @@ const style = computed(() => {
     position: fixed;
     top: 0;
     left: 0;
-    z-index: 40;
     pointer-events: none;
 }
 

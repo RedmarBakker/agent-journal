@@ -1,7 +1,7 @@
 import {createApp, h, nextTick} from "vue";
 import {expect, test} from "vitest";
 import CodeParcel from "../src/chat/CodeParcel.vue";
-import {BLINK, LIGHT_COLOURS, phasesOf} from "../src/figure/parcels.js";
+import {BLINK, LAYER, LIGHT_COLOURS, phasesOf} from "../src/figure/parcels.js";
 import {VISOR} from "../src/figure/visor.js";
 
 test("a unit's lights shine in amber while the run goes and in the visor's own green and red once it ends", () => {
@@ -26,4 +26,18 @@ test("a block is drawn from its pictures, one for each step of its lights' blink
         expect(steps.every((step) => step.classList.contains("blinks")), lights).toBe(lights === "amber");
         if (lights === "amber") expect(steps.map((step) => step.style.animationDelay)).toEqual([4, 3, 2, 1].map((step) => `${-step * BLINK.ms}ms`));
     }
+});
+
+test("the box the figure pushes is drawn over the figure leaning into it, the others behind it, and a box on the pile is marked as the pile's", async () => {
+    const drawn = async (props) => {
+        const host = document.createElement("div");
+        createApp({render: () => h(CodeParcel, {x: 0, y: 0, block: {pictures: ["data:,"], width: 27, height: 30, below: 1}, ...props})}).mount(host);
+        await nextTick();
+        return host;
+    };
+    const layer = async (props) => Number((await drawn(props)).querySelector(".code-parcel").style.zIndex);
+    expect(await layer({ahead: true})).toBeGreaterThan(LAYER.figure);
+    expect(await layer({})).toBeLessThan(LAYER.figure);
+    expect((await drawn({piled: true})).querySelector("[data-figure-pile]")).not.toBe(null);
+    expect((await drawn({})).querySelector("[data-figure-pile]")).toBe(null);
 });

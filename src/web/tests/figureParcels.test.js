@@ -2,9 +2,10 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
-import {BLINK, CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
-import {clipFor} from "../src/domain/figureState.js";
+import {CLIPS, HEAD_TURN, Posing, SHOVE, leanOf, lookToward} from "../src/figure/figure.js";
+import {BLINK, CLAW, CRANE, DIGITS, HAMMER, LAYER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {GROUNDED, clipFor} from "../src/domain/figureState.js";
+import {CHANGE_SECONDS} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
 import {PILE as ANIMATIONS} from "../src/figure/pile.js";
 
@@ -130,7 +131,7 @@ test("pushing a parcel the figure leans into it, its back angled well forward, b
         for (const [posture, steps] of [["walk", 12], ["stand", 1]]) {
             for (let step = 0; step < steps; step++) {
                 const pose = new Posing(RIG, posture, step / steps);
-                push.pose(pose, stanceOf(voice), 0);
+                push.pose(pose, stanceOf(voice), (SHOVE.intro + 1) / push.frames);
                 const moves = pose.moves(0);
                 const at = (name) => pose.head(name, moves.get(name));
                 const label = `${voice} ${posture} ${step}`;
@@ -138,8 +139,8 @@ test("pushing a parcel the figure leans into it, its back angled well forward, b
                     const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
                     expect(grip.z, label).toBeLessThan(top * 0.8);
                     expect(grip.z, label).toBeGreaterThan(top * 0.25);
-                    expect(-grip.y, label).toBeGreaterThan(near - 0.25);
-                    expect(-grip.y, label).toBeLessThan(near + 0.35);
+                    // flat on the parcel's near side, as the parcel is drawn ahead of the figure, over its hands' backs
+                    expect(Math.abs(-grip.y - near), label).toBeLessThan(0.12);
                 }
                 // the back bent well forward, and no foot under the floor
                 const back = at("neck").sub(at("hips")).normalize();
@@ -288,4 +289,42 @@ test("the claw crane rolls in along the window's top, lowers its claw onto the s
     expect(floor - previous - stops[0].high).toBeLessThan(top);
     // and it rolls on out at the far side, gone once its visit is over
     expect(visit(craneMs(1))).toMatchObject({x: 1300, taken: 1, gone: true});
+});
+
+test("about to push, the figure first turns to face the parcel, upright, and only then leans in", () => {
+    // upright through the frames the turn takes, which last at least as long as the change of facing eases, then leaning in to the full
+    const push = CLIPS.find((clip) => clip.name === "push");
+    expect(push.intro).toBe(SHOVE.intro);
+    expect(SHOVE.turn / SHOVE.fps).toBeGreaterThanOrEqual(CHANGE_SECONDS);
+    for (let frame = 0; frame <= SHOVE.turn; frame++) expect(leanOf(frame / push.frames), String(frame)).toBe(0);
+    expect(leanOf((SHOVE.intro - 1) / push.frames)).toBeGreaterThan(0);
+    expect(leanOf(SHOVE.intro / push.frames)).toBe(1);
+    // standing behind the parcel it pushes, the figure faces it, never the viewer
+    const scene = {mode: GROUNDED, place: {posture: "stand"}, state: "idle", doing: "push"};
+    expect(clipFor({...scene, doingFacing: 90}, () => true)).toMatchObject({clip: "push", facing: 90});
+    expect(clipFor({...scene, doingFacing: 270}, () => true)).toMatchObject({clip: "push", facing: 270});
+});
+
+test("the crane's claw comes down around the box, its hub on the stack's top, and shuts its prongs on the box's sides, the box hanging from it as it lifts", () => {
+    const half = PARCEL.width / 2;
+    // wide open, the tips stand clear outside the box's sides; shut, they lie on them, a pixel or two out, down past half the box's front
+    for (const prong of prongsOf(1)) expect(Math.abs(prong.tip) - half).toBeGreaterThan(5);
+    for (const prong of prongsOf(0)) {
+        expect(Math.abs(prong.tip) - half).toBeGreaterThan(0);
+        expect(Math.abs(prong.tip) - half).toBeLessThanOrEqual(2);
+        expect(Math.abs(prong.top)).toBe(Math.abs(prong.tip));
+        expect(prong.reach).toBeGreaterThan((PARCEL.height - PARCEL.top) / 2);
+    }
+    expect(prongsOf(0).map((prong) => prong.way)).toEqual([-1, 1]);
+    // at the stop the chain lowers the hub onto the stack's top, the claw shuts there, and the stack lifts with the chain
+    const stops = [{x: 600, high: 2 * (PARCEL.height - PARCEL.top) + PARCEL.top, ids: [1, 2]}];
+    const floor = 700;
+    const top = 100;
+    const shut = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.grab, floor, top, 300, 900);
+    expect(shut.open).toBe(0);
+    expect(top + shut.chain).toBeCloseTo(floor - stops[0].high, 5);
+    const lifting = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.grab + CRANE.lift / 2, floor, top, 300, 900);
+    expect(lifting.open).toBe(0);
+    expect(lifting.lifted).toBeCloseTo(shut.chain - lifting.chain, 5);
+    expect(CLAW.reach).toBeLessThan(PARCEL.height);
 });

@@ -1,12 +1,13 @@
 <script setup>
 import {computed, ref, watch} from "vue";
-import {BLINK, PARCEL, digitsOf} from "../figure/parcels.js";
+import {BLINK, LAYER, PARCEL, digitsOf} from "../figure/parcels.js";
 
 // A parcel the figure built, a block of server units drawn in 3D by the figure's own renderer (figure.js Stage.drawBlock), standing on the
 // page with its base's middle at `x`, `y`, in pixels, `up` pixels higher on the pile it sits on, `scale` times its size and as opaque as
 // `opacity`; it pops in as it appears, and hops up when it is pushed onto the pile. Its `block` is its pictures, one for each step of its
 // lights' blink, their size and how far of them lies below the floor. Each time `blows` goes up, a blow has landed on it: a cartoon cloud
-// of dust puffs around it, and a spray of 0 and 1 digits flies out of it, each its own way and pace, fading as it goes.
+// of dust puffs around it, and a spray of 0 and 1 digits flies out of it, each its own way and pace, fading as it goes. The one the figure
+// pushes is drawn `ahead` of it (parcels.js LAYER), and one on the pile is marked `piled` for the figure to keep clear of.
 const props = defineProps({
     x: {type: Number, required: true},
     y: {type: Number, required: true},
@@ -15,6 +16,8 @@ const props = defineProps({
     opacity: {type: Number, default: 1},
     blows: {type: Number, default: 0},
     block: {type: Object, required: true},
+    ahead: {type: Boolean, default: false},
+    piled: {type: Boolean, default: false},
 });
 
 // The dust of a blow: puffs of cloud around the unit, each its place from the unit's base's middle and its size, in pixels
@@ -61,7 +64,7 @@ const digitStyle = (digit) => ({
     "--fade-ms": `${digit.fadeMs}ms`,
 });
 
-const style = computed(() => ({left: `${props.x}px`, top: `${props.y}px`}));
+const style = computed(() => ({left: `${props.x}px`, top: `${props.y}px`, zIndex: props.ahead ? LAYER.ahead : LAYER.behind}));
 const placed = computed(() => ({transform: `translateY(${-props.up}px)`}));
 const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: props.opacity}));
 // the block's pictures, laid over each other, each shown for its step of the blink in turn
@@ -78,7 +81,7 @@ const stepStyle = (index) => ({animationDelay: `${-(props.block.pictures.length 
     <div class="code-parcel" :style="style" aria-hidden="true">
         <div class="code-parcel-placed" :style="placed">
             <div class="code-parcel-sized" :style="sized">
-                <div class="code-parcel-box" :style="pictured">
+                <div class="code-parcel-box" :style="pictured" :data-figure-pile="piled ? '' : null">
                     <template v-for="(picture, index) in block.pictures" :key="index">
                         <img :class="['code-parcel-step', {blinks: block.pictures.length > 1}]" :src="picture" :style="stepStyle(index)" alt="" />
                     </template>
@@ -101,7 +104,6 @@ const stepStyle = (index) => ({animationDelay: `${-(props.block.pictures.length 
 <style scoped>
 .code-parcel {
     position: fixed;
-    z-index: 39;
     width: 0;
     height: 0;
     pointer-events: none;

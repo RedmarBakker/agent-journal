@@ -1,7 +1,7 @@
 import {GRAVITY} from "../domain/falls.js";
 import {ACTS} from "./acts.js";
 import {flips} from "./reactions.js";
-import {PARCEL} from "./parcels.js";
+import {PARCEL, PILED} from "./parcels.js";
 
 // Where the figure can stand, read from the page as it is laid out at this moment and never stored: the top edge of the main
 // chat's compose box is home, and each of Home's tabs is a place it can go to point at what waits there.
@@ -262,10 +262,10 @@ export function seatAt(box, side, {size}) {
     return {x: box.left + box.width * (side === "right" ? 1 : 0) + inboard * SEAT_INBOARD * size, y: box.top, face: 0, posture: "lounge"};
 }
 
-// Where the figure sits at home: on a corner of the edge it stands on whose seat is inside its world and hides nothing, the one nearest
-// `near`; null when neither corner holds a seat
+// Where the figure sits at home: on a corner of the edge it stands on, beside the pile (freeEdge), whose seat is inside its world and hides
+// nothing, the one nearest `near`; null when neither corner holds a seat
 export function seatOf(figure, near) {
-    const {element, edge} = groundEdge();
+    const {element, edge} = freeEdge();
     const seats = ["left", "right"]
         .map((side) => seatAt(edge, side, figure))
         .filter((seat) => element && inWorld(seat, figure) && !hiddenAt(seat, figure));
@@ -284,6 +284,35 @@ export function besidePile(spot, pile, {size}) {
 
 // how far beside the pile a figure stands, in pixels, past its body, enough to keep its hands off the parcels
 const PILE_GAP = 7;
+
+// The box the boxes on the pile take on the page (parcels.js PILED, marked by chat/CodeParcel.vue), or null with none piled
+export function pileBox() {
+    const boxes = [...document.querySelectorAll(PILED)].map((each) => each.getBoundingClientRect()).filter((box) => box.width && box.height);
+    if (!boxes.length) return null;
+    return {left: Math.min(...boxes.map((box) => box.left)), right: Math.max(...boxes.map((box) => box.right)), top: Math.min(...boxes.map((box) => box.top)), bottom: Math.max(...boxes.map((box) => box.bottom))};
+}
+
+// whether a figure at `spot` keeps clear of the pile, the part of its picture its body is drawn in (BODY) overlapping none of the boxes on it
+export function clearOfPile(spot, figure) {
+    const pile = pileBox();
+    if (!pile) return true;
+    const box = boxAt(spot, figure);
+    const width = box.right - box.left;
+    return !overlaps({left: box.left + BODY.left * width, right: box.left + BODY.right * width, top: box.top + BODY.top * width, bottom: box.bottom}, pile);
+}
+
+// how far from the edge at home the pile's foot may be and still stand on it, in pixels, as the boxes' pictures reach a little below it
+const PILE_FOOT = 4;
+
+// The edge at home the figure rests, sits and strolls on (groundEdge), with the pile's corner cut off when the pile stands on it: the free
+// part of it beside the pile, PILE_GAP clear of the boxes, as the corner is the pile's
+export function freeEdge() {
+    const ground = groundEdge();
+    const pile = pileBox();
+    const {left, width, top} = ground.edge;
+    if (!pile || Math.abs(pile.bottom - top) > PILE_FOOT || pile.left > left + width || pile.right < left) return ground;
+    return {...ground, edge: {...ground.edge, width: Math.max(pile.left - PILE_GAP - left, 0)}};
+}
 
 // the pixels of a figure standing on an edge above it
 export const standRise = ({size, below}) => (1 - below) * size;
@@ -304,9 +333,10 @@ function insideWorld(spot, {size, below}) {
 const homeCorners = (edge, figure) => Object.keys(CORNER_SIDES).map((side) => insideWorld(cornerAt(edge, side, figure), figure));
 const homeStands = (edge, figure) => alongTop(edge, HOME_ALONG).map((spot) => insideWorld(spot, figure));
 
-// Where the figure rests at home: on a corner of the edge it stands on, on its feet; with nothing there, on the foot of its world
+// Where the figure rests at home: on a corner of the edge it stands on, beside the pile (freeEdge), on its feet; with nothing there, on the
+// foot of its world
 export function restOf(figure, near) {
-    const {element, edge} = groundEdge();
+    const {element, edge} = freeEdge();
     return {...freeSpot(homeCorners(edge, figure), figure, near), view: null, on: element};
 }
 
@@ -314,7 +344,7 @@ export function restOf(figure, near) {
 // rests, else a corner or a place along the edge. The first free one on the right of the box is taken, free being that it hides nothing,
 // else the one on either side that hides least; null when none at home is clear of the box.
 export function clearOf(box, figure, near, resting) {
-    const {element, edge} = groundEdge();
+    const {element, edge} = freeEdge();
     const spots = (resting ? homeCorners(edge, figure) : [...homeCorners(edge, figure), ...homeStands(edge, figure)]).filter(
         (each) => !overlaps(boxAt(each, figure), box)
     );
@@ -425,6 +455,6 @@ export function spotOf(view, figure, near) {
         const spot = tab && freeSpot(tabSpots(tab), figure, near);
         return spot ? {...spot, view, on: tab} : null;
     }
-    const {element, edge} = groundEdge();
+    const {element, edge} = freeEdge();
     return {...freeSpot(homeStands(edge, figure), figure, near), view: null, on: element};
 }

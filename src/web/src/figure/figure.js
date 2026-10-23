@@ -1513,16 +1513,25 @@ function watch(pose, stance, t) {
 // Pushes a parcel along in front of it, which stands far lower than its hands: the knees bent to lower the hips by `drop` and the back
 // leaning into the parcel it pushes: the body angled forward, the back `lean` degrees from upright, the knees
 // giving by `drop`, the feet stepping `behind` the hips, and both hands out against the parcel's near side at `hands` from where its feet
-// stand, about half way up it
-export const SHOVE = {lean: 60, nod: -12, drop: 0.3, behind: 0.25, hands: [0.4, -0.25, 0.8]};
+// stand, about half way up it. It turns to face the parcel before it leans in: the clip's first `turn` frames it stands upright while it turns, as long as the change of
+// facing eases at its pace (places.js CHANGE_SECONDS), and over the rest of its `intro` it leans in; then it pushes, a stride a `stride`
+// frames
+export const SHOVE = {lean: 60, nod: -12, drop: 0.3, behind: 0.25, hands: [0.4, -0.25, 0.8], turn: 4, intro: 9, stride: 6, fps: 12};
+
+// how far into the lean the push is at `t` of its frames, 0 upright while it turns and 1 leaning in
+export function leanOf(t) {
+    const frame = t * (SHOVE.intro + SHOVE.stride);
+    return frame >= SHOVE.intro ? 1 : ease((frame - SHOVE.turn) / (SHOVE.intro - SHOVE.turn));
+}
 
 function push(pose, stance, t) {
-    stride(pose, stance, pose.stride, pose.posture === "walk" ? 1 : 0, {lean: 0, drop: SHOVE.drop, behind: SHOVE.behind, bend: {nod: SHOVE.nod}});
-    pose.bendAbove("spine", {x: SHOVE.lean});
+    const k = leanOf(t);
+    stride(pose, stance, pose.stride, pose.posture === "walk" ? 1 : 0, {lean: 0, drop: SHOVE.drop * k, behind: SHOVE.behind * k, bend: {nod: SHOVE.nod * k}});
+    pose.bendAbove("spine", {x: SHOVE.lean * k});
     const [across, forward, up] = SHOVE.hands;
     for (const [side, sign] of Object.entries(SIDES)) {
-        handTo(pose, side, 1, new THREE.Vector3(sign * across, forward, up), new THREE.Vector3(...ACTING.elbow));
-        pose.face(`hand_${side}`, {z: -sign * 90});
+        handTo(pose, side, k, pose.withinReach(side, new THREE.Vector3(sign * across, forward, up), 0.97), new THREE.Vector3(...ACTING.elbow));
+        pose.face(`hand_${side}`, {z: -sign * 90 * k});
     }
     pose.putAway(...IN_HAND);
 }
@@ -2497,7 +2506,7 @@ export const CLIPS = [
     {name: "work", frames: WORK.blows * WORK.blowFrames, fps: WORK.fps, loops: true, postures: ["stand", "sit"], pose: work},
     {name: "point", frames: 12, fps: 8, loops: true, postures: GESTURE, pose: point},
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
-    {name: "push", frames: 6, fps: 12, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
+    {name: "push", frames: SHOVE.intro + SHOVE.stride, intro: SHOVE.intro, fps: SHOVE.fps, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "tickle_swat", frames: 24, fps: 16, loops: false, cuts: true, ownLook: true, postures: GESTURE, pose: tickle_swat},
     {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, ownLook: true, postures: MOVE, pose: disco},

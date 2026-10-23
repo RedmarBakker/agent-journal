@@ -10,6 +10,11 @@ import {VISOR} from "./visor.js";
 // far inside either end of the floor one stands at least
 export const PARCEL = {width: 24, height: 27, top: 3, units: 2, inside: 14};
 
+// How the parcels and the figure stack on the page, as CSS z-indexes: a parcel behind the figure, but the one it pushes ahead of it, drawn
+// over the figure that leans into it, and the boxes on the pile, which the figure keeps clear of, marked for it to read
+export const LAYER = {behind: 39, figure: 40, ahead: 41};
+export const PILED = "[data-figure-pile]";
+
 // The colours the status lights shine in: amber while the run goes, and the visor's green and red once it has ended
 export const LIGHT_COLOURS = {amber: [1, 0.69, 0.125], good: VISOR.colours.good, bad: VISOR.colours.bad};
 
@@ -85,7 +90,7 @@ export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAM
 export const blowsLanded = (frames, blowFrames, lands) => Math.max(Math.floor(frames / blowFrames - lands) + 1, 0);
 
 // how far in front of its feet a pushing figure's hands meet the parcel's middle, and the room it leaves behind a parcel before pushing
-export const PUSH = {reach: 22, room: 6};
+export const PUSH = {reach: 24, room: 6};
 
 // whether a figure with its feet at `feet` stands behind a parcel at `parcel`, on its left, so walking right pushes it
 export const behind = (parcel, feet) => feet <= parcel - PUSH.reach + 2;
@@ -161,6 +166,16 @@ const CRANE_STOP_MS = CRANE.lower + CRANE.grab + CRANE.lift;
 
 // how long a crane's visit to `stops` stops lasts
 export const craneMs = (stops) => CRANE.enter + (stops - 1) * CRANE.move + stops * CRANE_STOP_MS + CRANE.leave;
+
+// The crane's claw (chat/ClawCrane.vue), in pixels from its hub, which comes down onto the top of the stack: its two prongs come out to
+// `side` beside the box's sides and down `reach` of them, their tips `spread` further out while the claw is wide open, so they come down
+// around the box, and shut on its sides, each tip turned in under a `hook`
+export const CLAW = {hub: 5, side: PARCEL.width / 2 + 1.5, reach: Math.round((PARCEL.height - PARCEL.top) * 0.75), spread: 9, hook: 3};
+
+// the claw's prongs `open` of the way, 1 wide open and 0 shut: each the way it goes, -1 left and 1 right, where it leaves the hub's bar
+// across, and where its tip is across and down
+export const prongsOf = (open) =>
+    [-1, 1].map((way) => ({way, top: way * (CLAW.side + CLAW.spread * open * 0.3), tip: way * (CLAW.side + CLAW.spread * open), reach: CLAW.reach}));
 
 // the chain a claw at the window's `top` needs to reach down onto `stop`'s stack, standing on the floor at `floor`, in pixels
 const reachOf = (stop, floor, top) => floor - top - stop.high;

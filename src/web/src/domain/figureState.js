@@ -81,8 +81,9 @@ export const waitingSinceAt = (counts, since, now) => (counts.question + counts.
 // bubbles while it is `flying`, its entrance or exit, the landing, the leg of a trip it is on, its hang
 // while it hangs, the clip it watches the UFO with while it is `watching` one, its eagerness for the bar under it to end while it is `eager`, a beat until it is done, pointing once it stands at a tab while the agent waits
 // on the user, else what its body is doing,
-// drawn in its place. `scene` says where things stand, `doing` being the clip of the stretch it is in; `canDraw(name, posture)` whether a
-// clip is drawn in a posture. A beat comes with the way it faces.
+// drawn in its place. `scene` says where things stand, `doing` being the clip of the stretch it is in and `doingFacing` the way it faces for
+// it, as toward a parcel it pushes, else the viewer; `canDraw(name, posture)` whether a clip is drawn in a posture. A beat comes with the way
+// it faces.
 // A trip has `started` once the figure stands ready to travel and `moves` while a leg carries it; the hop of a leg or the walk is named
 // only then, so the walk is never drawn on the spot. The clip of a leg that waits is marked `startsLeg`: the leg sets off the moment it is on screen.
 // The body's mode, highest first: in the air, landing, on its way, or resting on its floor
@@ -93,7 +94,7 @@ export const GROUNDED = "grounded";
 export const modeOf = ({airborne, landing, trip}) => (airborne ? AIRBORNE : landing ? LANDING : trip?.started ? TRAVELLING : GROUNDED);
 
 export function clipFor(scene, canDraw) {
-    const {mode, leaving, arriving, trip, landing, place, beat, state, doing} = scene;
+    const {mode, leaving, arriving, trip, landing, place, beat, state, doing, doingFacing = 0} = scene;
     // a figure in the air on its feet falls before anything else, leaving included: it lands first, and then goes; one dropping with its
     // seat stays seated
     if (mode === AIRBORNE && place.posture === "stand") return {clip: scene.chute ? "chute" : "fall", facing: 0};
@@ -115,7 +116,7 @@ export function clipFor(scene, canDraw) {
     // standing at the tab of what waits on the user it points up at it; anywhere else it waits turned toward the compose box
     if (place.view && state === "asking") return {clip: "point", facing: 0};
     if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
-    return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : 0};
+    return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : doingFacing};
 }
 
 // the clip of a leg: its hop, or the walk, walked on with what the body is doing where that can be drawn on the move, its steps as much
