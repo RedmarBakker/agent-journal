@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.29.1
+
+- A journal that has left its team, or was never in one, runs every worker it holds again; a worker started while it was joined is no longer refused as another machine's.
+
 ## 4.29.0
 
 - The journal checks for a new release as often as you set it to, on the Settings page beside the auto-update switch, every 60 minutes by default.

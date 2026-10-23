@@ -121,7 +121,7 @@ class WorkerActions:
 
     def local(self, n: int) -> Worker:
         worker = self.workers.find(n)
-        if not worker.is_device(self.account.device()):
+        if self.account.is_joined() and not worker.is_device(self.account.device()):
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team ({worker.device}): only that machine starts, stops, messages, checks or merges it")
         return worker
 

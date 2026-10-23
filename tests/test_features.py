@@ -9576,6 +9576,8 @@ def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_mer
     with pytest.raises(Rejection, match="runs on another machine of the team"):
         actions.merge(7, Actor.user(1))
     assert workers.find(7) == pulled
+    (app.config.home / TEAM_FILE).unlink()
+    assert actions.local(7).id == 7, "a journal in no team runs every worker it holds, whichever machine started it"
 
 
 def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_account_number(app: App):
