@@ -530,7 +530,7 @@ def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(
         tests_mark = app.container.get(ProcessCards).show("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True)
         build_mark = app.container.get(MomentCards).show(MAIN, None, "Build the viewer", "terminal", shows=CardKind.COMMANDS)
         upload_mark = app.container.get(MomentCards).show(MAIN, None, "Upload the files", "terminal", shows=CardKind.COMMANDS)
-    guesses = lambda mark: (mark.data["guess_is_test"], mark.data["guess_is_build"], mark.data["guess_is_upload"])
+    guesses = lambda mark: (mark.data["is_test"], mark.data["is_build"], mark.data["is_upload"])
     assert (guesses(tests_mark), guesses(build_mark), guesses(upload_mark)) == ((True, False, False), (False, True, False), (False, False, True)), "each mark carries what its title says it is, guessed once"
 
 

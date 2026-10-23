@@ -770,7 +770,7 @@ def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_car
         card = rows[-1]
         assert card["creator"] == "system"
         assert card["session"] == "s1"
-        assert card["data"] == {"kind": "card", "icon": "check", "tone": "good", "detail": "all clean", "row": "checks:3", "command": "", "key": "", "shows": "checks", "card_type": "moment"}
+        assert card["data"] == {"kind": "card", "icon": "check", "tone": "good", "detail": "all clean", "row": "checks:3", "command": "", "key": "", "shows": "checks", "card_type": "moment", "is_test": False, "is_build": False, "is_upload": False}
     finally:
         app.runtime().stop()
 

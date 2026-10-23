@@ -201,7 +201,7 @@ export function writtenFacesAfter(agent, messages, seenAt) {
 }
 
 // A test run is a chat mark the server guessed is one
-const isTestRun = (card) => new ChatMark(card).guessIsTest();
+const isTestRun = (card) => new ChatMark(card).isTest();
 
 // A test run's ending: its watch card's, or a process card's tone once it is no longer active
 const endingOf = (card) => card.watch?.ending || (card.process && !card.active && {good: "finished", bad: "failed"}[card.tone]) || "";
@@ -255,7 +255,7 @@ export const withSystemCards = (agent, messages) =>
                         sentTo: m.data.sent_to || "",
                         active: Boolean(m.data.active),
                         watch: m.data.output ? {figure: m.data.figure || "", ending: m.data.ending || ""} : null,
-                        guesses: {test: Boolean(m.data.guess_is_test), build: Boolean(m.data.guess_is_build), upload: Boolean(m.data.guess_is_upload)},
+                        guesses: {test: Boolean(m.data.is_test), build: Boolean(m.data.is_build), upload: Boolean(m.data.is_upload)},
                     })),
             ],
         },

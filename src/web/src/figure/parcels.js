@@ -88,7 +88,7 @@ export const BUILD = {after: 5};
 
 // the running chat marks among `cards` that are test runs, whatever the language or tool: a process or watch card still active whose title
 // holds the word test, in any case
-export const testRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && new ChatMark(card).guessIsTest());
+export const testRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && new ChatMark(card).isTest());
 
 // The run the figure builds for at `now`, in seconds, its card and when it began: the oldest running test mark among `cards`, else `shell`,
 // a shell command read as a test run or a build; null with none, or while it has gone on less than BUILD.after

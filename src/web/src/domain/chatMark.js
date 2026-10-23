@@ -4,15 +4,15 @@ export class ChatMark {
         this.card = card;
     }
 
-    guessIsTest() {
+    isTest() {
         return Boolean(this.card.guesses?.test);
     }
 
-    guessIsBuild() {
+    isBuild() {
         return Boolean(this.card.guesses?.build);
     }
 
-    guessIsUpload() {
+    isUpload() {
         return Boolean(this.card.guesses?.upload);
     }
 }
