@@ -42,10 +42,10 @@ const received = computed(() => Boolean(props.turn.data?.peer || props.turn.data
 const fromMain = computed(() => sent.value || received.value);
 const opening = computed(() => Boolean(props.turn.data?.opening));
 const mine = computed(() => props.turn.who === "user");
-const faces = computed(() => {
+const reactions = computed(() => {
     const seen = {};
-    for (const r of rowsOf("reactions").filter((r) => r.message_id === props.turn.id)) (seen[r.face] ||= []).push(r.author);
-    return Object.entries(seen).map(([face, who]) => ({face, n: who.length, mine: who.includes("user"), title: who.join(", ")}));
+    for (const r of rowsOf("reactions").filter((r) => r.message_id === props.turn.id)) (seen[r.emoji] ||= []).push(r.author);
+    return Object.entries(seen).map(([emoji, who]) => ({emoji, n: who.length, mine: who.includes("user"), title: who.join(", ")}));
 });
 
 const bubbled = computed(() => Boolean(words.value.text || quoteText.value || files.value.length || filed.value.length || resourceComment.value || props.turn.kind !== "message"));
@@ -82,10 +82,10 @@ const filed = computed(() => (props.turn.filed || []).map((id) => ({id, word: `t
 const files = computed(() => props.turn.files || []);
 useTurnShape(bubble, {sources: [html, laidOut], holdsCard: () => files.value.length > 0 || props.turn.kind === "question"});
 
-async function react(face) {
+async function react(emoji) {
     picking.value = false;
-    const reacting = () => scope.api.act("messages", props.turn.id, "react", {face});
-    await (scope.env ? reacting() : optimistic("reactions", pendingRow("reactions", {face, message_id: props.turn.id}, {author: "user"}), reacting));
+    const reacting = () => scope.api.act("messages", props.turn.id, "react", {emoji});
+    await (scope.env ? reacting() : optimistic("reactions", pendingRow("reactions", {emoji, message_id: props.turn.id}, {author: "user"}), reacting));
 }
 
 async function drop() {
@@ -147,8 +147,8 @@ async function drop() {
             @delete="drop"
             @react="react"
         />
-        <template v-if="faces.length">
-            <TurnReactions :faces="faces" @react="react" />
+        <template v-if="reactions.length">
+            <TurnReactions :reactions="reactions" @react="react" />
         </template>
         <TurnHeader :turn="turn" />
     </div>

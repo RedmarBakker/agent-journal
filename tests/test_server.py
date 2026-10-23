@@ -248,9 +248,9 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
         status, message = call(server, "POST", "/journal/messages", {"text": "hello", "idempotency": "k1"})
         assert status == 201
         n = message["id"]
-        call(server, "POST", f"/journal/messages/{n}/react", {"face": "👍"})
-        assert [(r["face"], r["message_id"]) for r in call(server, "GET", "/journal/reactions")[1]["rows"]] == [("👍", n)]
-        call(server, "POST", f"/journal/messages/{n}/react", {"face": "👍"})
+        call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
+        assert [(r["emoji"], r["message_id"]) for r in call(server, "GET", "/journal/reactions")[1]["rows"]] == [("👍", n)]
+        call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
         assert call(server, "GET", "/journal/reactions")[1]["rows"] == [], "the same face again takes it off"
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
         for kind, extra in (("SessionStart", {}), ("PreToolUse", {"tool_name": "Agent", "tool_input": {"description": "review the login", "prompt": "read the login flow and report", "subagent_type": "journal-plan-reviewer", "model": "sonnet"}}), ("PostToolUse", {"tool_name": "Agent", "tool_input": {}, "tool_response": "fine"})):
@@ -473,7 +473,7 @@ def test_the_viewers_pages_read_the_shapes_they_expect(tmp_path: Path):
         call(server, "POST", f"/journal/messages/{n}/read", {})
         row = call(server, "GET", f"/journal/messages/{n}")[1]
         assert row["read_at"] and row["answered"] is False, "read, and not answered"
-        call(server, "POST", f"/journal/messages/{n}/react", {"face": "👍"})
+        call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
         app.console().run(["message", "react", str(n), "🎉"], Caller.agent("main", "s1", "claude"))
         assert call(server, "GET", f"/journal/messages/{n}")[1]["answered"] is True, "a face from the agent answers it"
         app.console().run(["plan", "create", "p"], Caller.user("main"))

@@ -9,12 +9,12 @@ from journal.models.scoped import Scoped
 
 @dataclass(frozen=True)
 class Reaction(Scoped):
-    """One face by one side on one message; the message it sits on is a link of kind reacts."""
+    """One emoji by one side on one message; the message it sits on is a link of kind reacts."""
 
-    face: str = ""
+    emoji: str = ""
     author: Author = Author.USER
 
     def reacted_message(self, message: Message) -> "Reaction":
         if message.agent_role != AgentRole.MAIN:
             return self
-        return self.with_event(ReactionAdded(environment_id=self.environment_id, face=self.face, message_id=message.row_id, user_origin=self.author == Author.USER))
+        return self.with_event(ReactionAdded(environment_id=self.environment_id, emoji=self.emoji, message_id=message.row_id, user_origin=self.author == Author.USER))

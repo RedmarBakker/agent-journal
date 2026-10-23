@@ -6,7 +6,7 @@ import {workerName, workerState} from "./workers.js";
 // The agents grid: each environment's live agent, each worker, and the subagents of the agent here, as one kind of entry.
 const STATES = {
     working: {word: "Working", dot: "running"},
-    waiting: {word: "Waits for input", dot: "you"},
+    waiting: {word: "Waiting", dot: "you"},
     stuck: {word: "Stuck", dot: "failed"},
     stopped: {word: "Stopped", dot: ""},
     idle: {word: "Idle", dot: "queued"},

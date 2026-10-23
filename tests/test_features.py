@@ -1537,7 +1537,7 @@ def test_every_built_in_voice_can_put_each_of_its_own_faces_on_a_message(app: Ap
     assert len(faces) == 15
     for face in faces:
         assert console.run(["message", "react", "1", face], AGENT).text.startswith(f"{face} on message 1"), face
-    assert sorted(r.face for r in app.container.get(Reactions).reactions(app.container.get(Messages).find(1))) == sorted(faces)
+    assert sorted(r.emoji for r in app.container.get(Reactions).reactions(app.container.get(Messages).find(1))) == sorted(faces)
 
 
 def test_reactions_go_both_ways_and_a_face_alone_is_not_posted(app: App, monkeypatch):
@@ -1551,7 +1551,7 @@ def test_reactions_go_both_ways_and_a_face_alone_is_not_posted(app: App, monkeyp
     assert console.run(["message", "react", "1", "👍"], AGENT).text.startswith("👍 on message 1")
     messages, reactions = app.container.get(Messages), app.container.get(Reactions)
     assert messages.find(1).read_at is not None, "a face from the agent answers the message"
-    assert [r.face for r in reactions.reactions(messages.find(1))] == ["👍"]
+    assert [r.emoji for r in reactions.reactions(messages.find(1))] == ["👍"]
     assert console.run(["message", "react", "1", "👍"], AGENT).text.startswith("👍 off message 1") and reactions.reactions(messages.find(1)) == []
     assert console.run(["message", "react", "1", "🍕"], AGENT).code == 1
     hook(app, "MessageDisplay", message="Done.")
@@ -5145,7 +5145,7 @@ def test_version_3_comments_and_reactions_come_across_on_their_rows(app: App):
         links = app.container.get(Links)
         assert links.targets(comment, Messages.COMMENT_LINK) == [Ref.build(shipped)], "the comment sits under its message"
         reaction = app.container.get(Reactions).rows()[-1]
-        assert reaction.face == "🎉" and links.targets(reaction, "reacts") == [Ref.build(shipped)]
+        assert reaction.emoji == "🎉" and links.targets(reaction, "reacts") == [Ref.build(shipped)]
         assert not any(m.text == "on a task that stayed" for m in messages.rows()), "a comment whose row stayed behind stays too"
 
 
@@ -8331,7 +8331,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
         assert [(m.text, m.creator.kind.value) for m in chat] == [("the lexer too", "agent"), ("and the tests", "user")] and len(messages.unread()) == unread, "both are messages of the worker's chat, each by its sender, and neither reaches the main agent's inbox"
         from journal.models.reaction import Reaction
         main = messages.recent(1)[-1]
-        assert not Reaction(environment_id=1, face="👍").reacted_message(chat[0]).events and Reaction(environment_id=1, face="👍").reacted_message(main).events, "a face on a worker's message raises nothing for the main agent; one on the main chat's does"
+        assert not Reaction(environment_id=1, emoji="👍").reacted_message(chat[0]).events and Reaction(environment_id=1, emoji="👍").reacted_message(main).events, "a face on a worker's message raises nothing for the main agent; one on the main chat's does"
         workers.save(workers.find(1).with_(provider="codex"), Actor.system())
         assert "runs Codex, which takes no message while it runs" in console.run(["worker", "notify", "1", "x"], AGENT).error
         workers.save(workers.find(1).with_(provider="claude"), Actor.system())
@@ -9832,7 +9832,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             assert ada_task, "Ada's task is on Bob's machine"
             for refused_write in (
                 lambda: b.container.get(Tasks).save(ada_task[0].with_(title="renamed by Bob"), Actor.user(2)),
-                lambda: b.container.get(Reactions).save(Reaction(environment_id=ada_main.row_id, face="👍"), Actor.user(2)),
+                lambda: b.container.get(Reactions).save(Reaction(environment_id=ada_main.row_id, emoji="👍"), Actor.user(2)),
                 lambda: b.container.get(Questions).save(Question(environment_id=ada_main.row_id, text="Bob asks?"), Actor.user(2)),
                 lambda: b.container.get(Environments).save(b.container.get(Environments).existing("ada-main").with_(name="bob-took-it"), Actor.user(2)),
             ):

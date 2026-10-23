@@ -1,24 +1,13 @@
 // @vitest-environment node
 import {expect, test} from "vitest";
+import {CHAT, VIEW, boxed, page} from "./support/figurePage.js";
 
 const {floorOf, footingOn, groundUnder, readFloors} = await import("../src/figure/floors.js");
 const {stayingAt} = await import("../src/figure/perches.js");
 
 const FIGURE = {size: 112, below: 0.05};
-const CHAT = {left: 200, top: 100, right: 900, bottom: 800};
-const VIEW = {left: 200, top: 100, right: 900, bottom: 540};
 
-const boxed = (box) => ({getBoundingClientRect: () => ({width: box.right - box.left, height: box.bottom - box.top, ...box})});
 
-// a page whose one bubble's top the test moves, with no frame of the figure's loop run between the moves, as the chat glides to its foot
-function page(bubble) {
-    globalThis.window = {innerWidth: 1280, innerHeight: 800};
-    globalThis.CSS = {escape: (text) => text};
-    const scroll = {...boxed(VIEW), querySelectorAll: () => [bubble]};
-    const thread = {...boxed(CHAT), querySelector: (selector) => (selector === ".thread-scroll" ? scroll : null)};
-    const home = {...boxed({left: 300, right: 700, top: 600, bottom: 720}), closest: () => thread};
-    globalThis.document = {querySelector: (selector) => (selector === "[data-figure-home]" ? home : null), querySelectorAll: () => []};
-}
 
 test("a figure perched on a bubble that moved since the last frame stands on its top, and stays on it as it moves on, never sinking into it", () => {
     let top = 400;

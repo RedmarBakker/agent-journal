@@ -45,7 +45,7 @@ class MessagesConduct(Conduct):
         return self.none(messages_feature().COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))
 
     def on_reaction_added(self, event: ReactionAdded, settings: Settings) -> Transition:
-        return self.none(messages_feature().USER_REACTION.create(face=event.face, n=event.message_id)) if event.user_origin else self.none()
+        return self.none(messages_feature().USER_REACTION.create(emoji=event.emoji, n=event.message_id)) if event.user_origin else self.none()
 
 
 def messages_feature():

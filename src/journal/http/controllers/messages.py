@@ -89,7 +89,7 @@ class MessageController(Controller[Message]):
         return Response.json(self.shown(self.repository.save(message, request.actor)), 201)
 
     def react(self, request: Request) -> Response:
-        produced = self.reactions.toggle(self.repository.find(request.number("id")), request.body.get("face", ""), Author.USER, request.actor)
+        produced = self.reactions.toggle(self.repository.find(request.number("id")), request.body.get("emoji", ""), Author.USER, request.actor)
         return Response.json(produced or {})
 
     def press(self, request: Request) -> Response:

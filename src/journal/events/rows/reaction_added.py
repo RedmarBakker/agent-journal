@@ -5,8 +5,8 @@ from journal.events.rows.row_event import RowEvent
 
 @dataclass(frozen=True, kw_only=True)
 class ReactionAdded(RowEvent):
-    """A face was put on a message, by the user or by the agent."""
+    """An emoji was put on a message, by the user or by the agent."""
 
-    face: str
+    emoji: str
     message_id: int
     user_origin: bool

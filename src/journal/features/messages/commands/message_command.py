@@ -7,7 +7,7 @@ from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.config import Config
-from journal.features.messages.support.faces import Faces
+from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.support.missing_row import MissingRow
 from journal.repositories.agents import Agents
 from journal.repositories.docs import Docs
@@ -40,9 +40,9 @@ class MessageCommand(Command):
         tag.add_argument("n", type=int)
         tag.add_argument("name")
         tag.add_argument("caption")
-        react = self.verb(verbs, "react", "put a face on a message, or take it off again")
+        react = self.verb(verbs, "react", "put an emoji on a message, or take it off again")
         react.add_argument("n", type=int)
-        react.add_argument("face")
+        react.add_argument("emoji")
 
     def send(self, args: Namespace, caller: Caller) -> int:
         author = Author.build(caller.actor)
@@ -91,15 +91,15 @@ class MessageCommand(Command):
         return 0
 
     def react(self, args: Namespace, caller: Caller) -> int:
-        if args.face not in Faces.ALL:
-            print(f"a reaction is one of {' '.join(Faces.ALL)}")
+        if args.emoji not in ReactionEmoji.ALL:
+            print(f"a reaction is one of {' '.join(ReactionEmoji.ALL)}")
             return 1
         author = Author.build(caller.actor)
         message = self.messages.find(args.n)
-        reaction = self.reactions.toggle(message, args.face, author, caller.actor)
+        reaction = self.reactions.toggle(message, args.emoji, author, caller.actor)
         if reaction and author == Author.AGENT:
             self.messages.read(message, caller.actor, self._tool_use(caller))
-        print(f"{args.face} {'on' if reaction else 'off'} message {args.n}")
+        print(f"{args.emoji} {'on' if reaction else 'off'} message {args.n}")
         return 0
 
     def tag(self, args: Namespace, caller: Caller) -> int:

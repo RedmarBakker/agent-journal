@@ -1,15 +1,15 @@
 <script setup>
-defineProps({faces: {type: Array, required: true}});
+defineProps({reactions: {type: Array, required: true}});
 const emit = defineEmits(["react"]);
 </script>
 
 <template>
     <div class="thread-faces">
-        <template v-for="f in faces" :key="f.face">
-            <button type="button" :class="['thread-face', {mine: f.mine}]" :title="f.title" @click.stop="emit('react', f.face)">
-                {{ f.face }}
-                <template v-if="f.n > 1">
-                    <span class="thread-face-n">{{ f.n }}</span>
+        <template v-for="reaction in reactions" :key="reaction.emoji">
+            <button type="button" :class="['thread-face', {mine: reaction.mine}]" :title="reaction.title" @click.stop="emit('react', reaction.emoji)">
+                {{ reaction.emoji }}
+                <template v-if="reaction.n > 1">
+                    <span class="thread-face-n">{{ reaction.n }}</span>
                 </template>
             </button>
         </template>

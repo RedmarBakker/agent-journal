@@ -3,7 +3,7 @@ import threading
 
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.events.agent_listener import AgentListener
-from journal.features.messages.support.faces import Faces
+from journal.features.messages.support.reaction_emoji import ReactionEmoji
 from journal.features.messages.support.tags import Tags
 from journal.features.messages.support.word_overlap import WordOverlap
 from journal.features.registry import Registry
@@ -39,8 +39,8 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         from journal.features.messages.feature import Messages as MessagesFeature
         if not event.final or not event.text.strip():
             return
-        if Faces.is_face(event.text):
-            self.supervisor.type(event.environment_id, MessagesFeature.EMOJI_REPLY.create(face=event.text.strip()).rendered())
+        if ReactionEmoji.is_emoji(event.text):
+            self.supervisor.type(event.environment_id, MessagesFeature.EMOJI_REPLY.create(emoji=event.text.strip()).rendered())
             return
         with self.recording:
             self._record(event)
