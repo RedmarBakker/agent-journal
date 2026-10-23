@@ -173,12 +173,11 @@ test("with something waiting on the user the figure keeps its stay rather than g
         stay: edge,
     };
     expect(targetFor(at)).toMatchObject({stay: edge, spot: {posture: "stand", view: null, y: 800}});
-    // a tab inside it higher than even the pogo stick takes it is one it points at from where it is
-    tab.getBoundingClientRect = () => ({left: 600, right: 640, width: 40, top: 200, bottom: 230});
-    expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 800, view: null}});
-    // one past its jump but within the stick's reach it goes to, on the stick
-    tab.getBoundingClientRect = () => ({left: 600, right: 640, width: 40, top: 400, bottom: 430});
-    expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 400, view: "question"}});
+    // a tab inside it past its jump is one it points at from where it is, as the pogo stick goes only onto a bubble's top
+    for (const top of [200, 400]) {
+        tab.getBoundingClientRect = () => ({left: 600, right: 640, width: 40, top, bottom: top + 30});
+        expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 800, view: null}});
+    }
     tab.getBoundingClientRect = () => ({left: 600, right: 640, width: 40, top: 640, bottom: 670});
     expect(targetFor(at)).toMatchObject({stay: edge, spot: {y: 640, view: "question", on: tab}});
 });
@@ -356,7 +355,7 @@ test("now and then the figure swings on a rope tied under a bubble near the midd
     expect(offers({swings: true, memory, now: 900})).toBe(true);
 });
 
-test("a climb past three of its heights goes now and then on a pogo stick, the one jump that goes past the plain limit, and always when no bubble is on the way", () => {
+test("a climb past three of its heights onto a bubble's top goes now and then on a pogo stick, the one jump that goes past the plain limit, and always when no bubble is on the way", () => {
     const tall = heightOf(FIGURE);
     const from = {x: 400, y: 700};
     // only a climb past three heights and within six is one for the stick; the plain jump stops at two and a half
@@ -364,30 +363,52 @@ test("a climb past three of its heights goes now and then on a pogo stick, the o
     expect(pogoClimb(FIGURE, 3.1 * tall)).toBe(true);
     expect(pogoClimb(FIGURE, POGO.most * tall + 1)).toBe(false);
     expect(JUMP.most).toBeLessThan(POGO.over);
-    // with no bubble on the way: a climb within the plain jump is one hop, one past three heights is on the stick, one between can't be made
-    const bare = floorsOf();
-    expect(wayUp(bare, FIGURE, from, from.y - 2 * tall, {}, () => 0)).toEqual({via: [], pogo: false});
-    expect(wayUp(bare, FIGURE, from, from.y - 2.8 * tall, {}, () => 0)).toBe(null);
-    expect(wayUp(bare, FIGURE, from, from.y - 4 * tall, {}, () => 0.99)).toEqual({via: [], pogo: true});
+    // the bubble it climbs onto, its top `up` of its heights over the feet, and the spot standing on it
+    const goal = (up) => at(700 - up * tall, 330, 470);
+    const onTop = (floor) => ({x: 400, y: floor.top, posture: "stand", on: floor.element});
+    // with no other bubble on the way: a climb within the plain jump is one hop, one past three heights is on the stick, one between can't be made
+    const [low, mid, high] = [goal(2), goal(2.8), goal(4)];
+    expect(wayUp(floorsOf(low), FIGURE, from, onTop(low), {}, () => 0)).toEqual({via: [], pogo: false});
+    expect(wayUp(floorsOf(mid), FIGURE, from, onTop(mid), {}, () => 0)).toBe(null);
+    expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {}, () => 0.99)).toEqual({via: [], pogo: true});
     // with bubbles to hop up on, the roll picks the stick or the hops
-    const steps = floorsOf(at(700 - 1.6 * tall, 330, 470), at(700 - 3.2 * tall, 330, 470));
-    expect(wayUp(steps, FIGURE, from, from.y - 4 * tall, {}, () => 0).pogo).toBe(true);
-    expect(wayUp(steps, FIGURE, from, from.y - 4 * tall, {}, () => 0.99).pogo).toBe(false);
+    const steps = floorsOf(at(700 - 1.6 * tall, 330, 470), at(700 - 3.2 * tall, 330, 470), high);
+    expect(wayUp(steps, FIGURE, from, onTop(high), {}, () => 0).pogo).toBe(true);
+    expect(wayUp(steps, FIGURE, from, onTop(high), {}, () => 0.99).pogo).toBe(false);
     // the stick waits its cooldown: inside it, the hops, or no way up with none to hop on
     const memory = new Map();
-    expect(wayUp(bare, FIGURE, from, from.y - 4 * tall, {memory, now: 0}, () => 0).pogo).toBe(true);
-    expect(wayUp(bare, FIGURE, from, from.y - 4 * tall, {memory, now: 60}, () => 0)).toBe(null);
-    expect(wayUp(steps, FIGURE, from, from.y - 4 * tall, {memory, now: 60}, () => 0).pogo).toBe(false);
+    expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {memory, now: 0}, () => 0).pogo).toBe(true);
+    expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {memory, now: 60}, () => 0)).toBe(null);
+    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 60}, () => 0).pogo).toBe(false);
     // on the stick it bounces on the spot, higher each time, then springs up the whole way in one, past the plain jump's limit
     const legs = tripTo({x: 400, y: 700, posture: "stand"}, {x: 400, y: 700 - 4 * tall, posture: "stand"}, FIGURE, {pogo: true}).legs;
     const leg = legs.find((each) => each.pogo);
     expect(leg).toMatchObject({hopping: true, clip: "pogo"});
     const start = {x: legs[0].x, y: legs[0].y};
     const heights = Array.from({length: 61}, (_, step) => start.y - legAt(leg, start, (leg.ms * step) / 60).y);
-    expect(Math.max(...heights.slice(0, 40))).toBeGreaterThan(0);
-    expect(Math.max(...heights.slice(0, 40))).toBeLessThan(jumpMost(FIGURE));
+    expect(Math.max(...heights.slice(0, 36))).toBeGreaterThan(0);
+    expect(Math.max(...heights.slice(0, 36))).toBeLessThan(jumpMost(FIGURE));
     expect(start.y - leg.y).toBeGreaterThan(jumpMost(FIGURE));
     expect(legAt(leg, start, leg.ms)).toEqual({x: leg.x, y: leg.y});
+});
+
+test("the pogo stick is only ever the way up onto a bubble's top, where the figure lands standing: never to a hang from a bubble, a seat on it or a tab", () => {
+    const tall = heightOf(FIGURE);
+    const from = {x: 400, y: 700};
+    const high = at(700 - 4 * tall, 330, 470);
+    const floors = floorsOf(high);
+    const spot = {x: 400, y: high.top, on: high.element};
+    // standing on its top, the stick; with every roll, as the pile has no footholds to offer instead
+    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand"}, {}, () => roll)).toEqual({via: [], pogo: true});
+    // a hang from its side, a seat on it or the composed sit there: no stick, and with nothing to hop on no way up at all
+    for (const posture of ["hang", "lounge", "sit", "composed"]) {
+        for (const roll of [0, 0.5, 0.99]) expect(wayUp(floors, FIGURE, from, {...spot, posture}, {}, () => roll), posture).toBe(null);
+    }
+    // nor standing anywhere that is not a bubble, as a tab
+    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand", on: {rect: {}}}, {}, () => 0)).toBe(null);
+    // and with bubbles to hop up on, a hang goes by the hops, every roll
+    const steps = floorsOf(at(700 - 1.6 * tall, 330, 470), at(700 - 3.2 * tall, 330, 470), high);
+    for (const roll of [0, 0.5, 0.99]) expect(wayUp(steps, FIGURE, from, {...spot, posture: "hang"}, {}, () => roll).pogo).toBe(false);
 });
 
 test("the disco dance plays only standing on a bubble with another above it to hang the ball from, and then only on a rare occasion", () => {

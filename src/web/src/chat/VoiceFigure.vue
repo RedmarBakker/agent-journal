@@ -430,7 +430,7 @@ async function moveTo(spot, {straight = false, pace = 1, pressing = false} = {})
 function setOff() {
     const {to, straight, pace, footing: held} = body.trip;
     const there = landingOn(to, held, figureSize());
-    const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there.y, {memory: memory.reacted, now: now.value}, Math.random);
+    const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there, {memory: memory.reacted, now: now.value}, Math.random);
     // grown out of its reach since the look sent it, it stays where it is until the next look sends it elsewhere
     if (!way) {
         body.trip = null;

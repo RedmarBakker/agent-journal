@@ -2328,11 +2328,11 @@ const POGO_GRIP = [0.42, -0.55, 1.55];
 const POGO_BEHIND = [0.45, 0.45, 1.45];
 
 // up a high place on a pogo stick (acts.js pogo): reaches behind its back and brings the stick round, holds both handles and bounces,
-// the knees giving at the foot of each bounce, springs up and lets the stick go
+// the knees giving at the foot of each bounce, springs up and lets the stick go at the top of the throw
 function pogo(pose, stance, t) {
     const act = ACTS.pogo;
     const reach = partOf(t, [act.draw[0], act.draw[1] * 0.5]) * (1 - partOf(t, [act.draw[1] * 0.5, act.draw[1]]));
-    const held = partOf(t, [act.draw[1] * 0.6, act.draw[1]]) * (1 - partOf(t, act.drop));
+    const held = partOf(t, [act.draw[1] * 0.6, act.draw[1]]) * (1 - partOf(t, act.release));
     const hop = pogoHop(pogoBounces(), (t - act.bounces[0]) / (act.bounces[1] - act.bounces[0]));
     const give = t > act.bounces[0] && t < act.bounces[1] ? 1 - Math.sin(Math.PI * hop.s) : 0;
     breathe(pose, t);

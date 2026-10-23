@@ -72,27 +72,30 @@ export function legAt(leg, from, elapsed, still = false) {
 }
 
 // Where a leg up on the pogo stick (acts.js pogo) has carried the picture `elapsed` milliseconds after it set off from `from`, its picture
-// `leg.size` pixels tall: still while the stick is drawn, bouncing on the spot higher each time, then springing up in one throw past the
-// leg's end by `over` of its height and falling back onto it, settling there in small hops, and staying while the stick falls away; one
-// gravity times every hop and the throw (acts.js pogoHop), so it slows to each top and falls faster each time
+// `leg.size` pixels tall: still while the stick is drawn, bouncing on the spot higher each time, then springing up in one throw to its top
+// past the leg's end by `over` of its height, where it lets the stick go, and falling from there onto the leg's end on its own feet, staying
+// there; one gravity times every hop, the rise and the fall (acts.js pogoHop), so it slows to each top and falls faster each time
 export function pogoAt(leg, from, elapsed) {
-    const {bounces, spring, over, settle, settling} = ACTS.pogo;
+    const {bounces, spring, over} = ACTS.pogo;
     const u = Math.min(Math.max(elapsed / leg.ms, 0), 1);
     const span = (range) => Math.min(Math.max((u - range[0]) / (range[1] - range[0]), 0), 1);
     if (u < spring[0]) return {x: from.x, y: from.y - pogoHop(pogoBounces(), span(bounces)).height * leg.size};
-    const k = span(spring);
-    const landed = 1 - settling;
-    if (k >= landed) return {x: leg.x, y: leg.y - pogoHop(settle, (k - landed) / settling).height * leg.size};
-    return {x: from.x + (leg.x - from.x) * (k / landed), y: thrownTo(from.y, leg.y, over * leg.size, k / landed)};
+    const past = over * leg.size;
+    const rise = Math.max(from.y - leg.y, 0) + past;
+    const peak = leg.y - past;
+    const falls = pogoFall(leg, from);
+    const across = from.x + (leg.x - from.x) * span([spring[0], falls[1]]);
+    if (u < spring[1]) return {x: across, y: peak + rise * (1 - span(spring)) ** 2};
+    return {x: across, y: peak + past * span(falls) ** 2};
 }
 
-// The height of a throw from `low` up past `high` by `past` pixels and back down onto it, `k` of the way through its time: one parabola,
-// its top past `high` where the rise of `low - high + past` and the fall of `past` take times as their square roots, as under one gravity
-function thrownTo(low, high, past, k) {
-    const rise = Math.max(low - high, 0) + past;
-    const top = 1 / (1 + Math.sqrt(past / rise));
-    const peak = high - past;
-    return peak + (rise / (top * top)) * (k - top) * (k - top);
+// the share of a pogo leg's act (acts.js pogo) its fall from the throw's top onto the leg's end takes, from where it lets the stick go
+// until it lands: as long against the rise as the square root of its height against the rise's, as under one gravity
+export function pogoFall(leg, from) {
+    const {spring, over} = ACTS.pogo;
+    const past = over * leg.size;
+    const rise = Math.max(from.y - leg.y, 0) + past;
+    return [spring[1], spring[1] + (spring[1] - spring[0]) * Math.sqrt(past / rise)];
 }
 
 // One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last: it lands on that
