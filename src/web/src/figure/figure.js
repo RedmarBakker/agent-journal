@@ -1162,6 +1162,10 @@ function exit(pose, stance, t) {
 
 // What the figure does while the agent works, and the moments it marks; each pose starts and ends on idle's first frame unless it loops
 const SEARCH_CROUCH = 0.2;
+// The magnifying glass over the ground as the figure searches: its lens's middle at `lens` (across to the free hand's side, forward and up
+// from the feet), swept `sweep` across as it looks, tipped `tip` degrees so it faces down at the ground, rolled `roll` and turned `slant`
+// so its rim is skewed from the viewer, drawn `size` times its size
+export const SEARCHING = {lens: [1.0, -1.2, 0.85], sweep: 0.35, tip: 58, roll: 15, slant: 30, size: 1.3};
 const CHASE_REACH = 1.4;
 const TAP_LIFT = 0.13;
 
@@ -1170,16 +1174,19 @@ function glanceOf(t) {
     return rise(t, 0, 0.22) - 2 * rise(t, 0.32, 0.62) + rise(t, 0.7, 0.85);
 }
 
-// rummages through a pile in front of it with the free hand, looking down and slowly from side to side
+// rummages about the ground ahead with the magnifying glass, crouched and leaning in, the glass held out slanted over the ground
+// (SEARCHING), sweeping it along as it looks, the ground's surface magnified behind its lens
 function search(pose, stance, t) {
     const side = freeSide(stance);
+    const sign = SIDES[side];
     const sweep = glanceOf(t);
     crouch(pose, SEARCH_CROUCH);
     breathe(pose, 0);
-    trunk(pose, {lean: 26, nod: 20, turn: -SIDES[side] * 28 * sweep, twist: -SIDES[side] * 10 * sweep});
+    trunk(pose, {lean: 26, nod: 20, turn: -sign * 28 * sweep, twist: -sign * 10 * sweep});
     armsAtRest(pose, stance, [side]);
-    armTo(pose, side, 1, {y: 30, z: -60 + 25 * sweep, bend: 80});
-    pose.holdUpright("magnifying_glass", side, [0, 0, 0], {x: GLASS_LEAN});
+    const [across, forward, up] = SEARCHING.lens;
+    const lens = new THREE.Vector3(sign * (across + SEARCHING.sweep * sweep), forward, up);
+    glassOver(pose, side, 1, lens, 0, {tip: SEARCHING.tip, roll: sign * SEARCHING.roll, slant: -sign * SEARCHING.slant, size: SEARCHING.size, shows: "ground"});
     eyesAs(pose, "reading");
 }
 
@@ -1615,13 +1622,16 @@ function work(pose, stance, t) {
 // magnifying glass out over `out`, bends `bend` and leans `lean` degrees in toward the box, its head nodded `nod` degrees down at it, and
 // holds the glass up between its eyes and the box as the viewer sees them, the lens `between` of the way from the eyes to the box's top at
 // `box` (across, forward and up from the feet as it hammers, WORK landsAt) and the handle pointing back from it toward the eyes, as one
-// looks through a magnifying glass; held `front` before the figure toward the viewer, as the box is drawn on the page behind it, the lens
-// turned to the viewer, drawn `size` times its own size and showing the box magnified behind it (glassOf). It sweeps the glass slowly
+// looks through a magnifying glass; held `front` before the figure toward the viewer, as the box is drawn on the page behind it, and
+// slanted, tipped `tip` and turned `slant` degrees from the viewer so its rim is skewed (glassOver), the turn against the roll that points
+// the handle back at the eyes so the two add rather than undo each other, drawn `size` times its own size and
+// showing the box magnified behind it (glassOf). It sweeps the glass slowly
 // `sweep` along the box and back over `along`, pauses over `pause` with a small nod `nodded` degrees deeper, and puts the glass away over
 // `away`
 export const INSPECTING = {
     frames: 30, fps: 12, out: [0, 0.15], along: [0.15, 0.7], pause: [0.7, 0.84], away: [0.86, 1],
-    turn: 65, bend: 0.35, lean: 34, nod: 22, nodded: 10, box: [0.72, -1.81, 1.2], between: 0.62, front: -0.9, sweep: 0.2, size: 1.45,
+    turn: 65, bend: 0.35, lean: 34, nod: 22, nodded: 10, box: [0.72, -1.81, 1.2], between: 0.5, front: -1.2, sweep: 0.4, size: 1.45,
+    tip: 35, slant: -35,
 };
 
 // the top of the box the figure hammers, as the viewer sees the figure turned as it hammers (WORK turn), in the figure's units
@@ -1631,13 +1641,28 @@ export function boxSeen(sign) {
 }
 
 // The glass held over the box, as the viewer sees the figure, its eyes at `eyes`, swept `along` of its sweep: the middle of its lens,
-// `between` of the way across and down from the eyes to the box's top and held `front` toward the viewer; its grip, back from the lens
-// toward the eyes by the glass's own length; and the way from the grip to the lens, across and up, which the glass is rolled to
+// `between` of the way across and down from the eyes to the box's top and held `front` toward the viewer; and the way from the eyes to
+// the box, across and up, which the glass is rolled to, its handle back toward the eyes
 export function glassSeen(eyes, sign, along) {
     const box = boxSeen(sign);
     const way = new THREE.Vector3(box.x - eyes.x, 0, box.z - eyes.z).normalize();
     const lens = new THREE.Vector3(mix(eyes.x, box.x, INSPECTING.between) + INSPECTING.sweep * along, INSPECTING.front, mix(eyes.z, box.z, INSPECTING.between));
-    return {lens, grip: lens.clone().addScaledVector(way, -(GLASS.handle / 2 + GLASS.radius) * INSPECTING.size), way};
+    return {lens, way};
+}
+
+// The magnifying glass held out over what the figure inspects (inspect, search), `k` of the way up from the hand hanging: its lens's middle
+// at `lens` as the viewer sees the figure, the figure turned `turned` radians round from it; held slanted, so its rim is skewed from the
+// viewer and it reads as a magnifying glass, tipped `tip` degrees about the figure's across axis, rolled `roll` in the viewer's plane and
+// turned `slant` round about the up axis; the hand on `side` gripping its handle as far back from the lens as the glass is long; the
+// glass drawn `size` times its size, showing `shows`, the box or the ground, magnified behind its lens (glassOf)
+function glassOver(pose, side, k, lens, turned, {tip, roll, slant, size, shows}) {
+    const up = new THREE.Vector3(0, 0, 1).applyMatrix4(euler(tip, roll, slant));
+    const grip = lens.clone().addScaledVector(up, -(GLASS.handle / 2 + GLASS.radius) * size).applyAxisAngle(new THREE.Vector3(0, 0, 1), -turned);
+    handTo(pose, side, k, pose.withinReach(side, pose.carried(grip), 0.97), new THREE.Vector3(...ACTING.elbow));
+    pose.putAway(...IN_HAND);
+    if (k <= 0.3) return;
+    pose.holdUpright("magnifying_glass", side, [0, 0, 0], {x: tip, y: roll, z: slant - THREE.MathUtils.radToDeg(turned)});
+    Object.assign(pose.props.get("magnifying_glass"), {magnifies: k, size, roll, shows});
 }
 
 function inspect(pose, stance, t) {
@@ -1653,14 +1678,9 @@ function inspect(pose, stance, t) {
     trunk(pose, {lean: INSPECTING.lean * ready, nod: (INSPECTING.nod + INSPECTING.nodded * nodded) * ready});
     armsAtRest(pose, stance, [side]);
     const eyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length).applyMatrix4(pose.matrix("head"));
-    const {grip, way} = glassSeen(eyes.applyAxisAngle(up, turned), sign, along);
-    handTo(pose, side, ready, pose.withinReach(side, pose.carried(grip.applyAxisAngle(up, -turned)), 0.97), new THREE.Vector3(...ACTING.elbow));
-    pose.putAway(...IN_HAND);
-    if (ready > 0.3) {
-        const roll = THREE.MathUtils.radToDeg(Math.atan2(way.x, way.z));
-        pose.holdUpright("magnifying_glass", side, [0, 0, 0], {y: roll, z: -sign * INSPECTING.turn});
-        Object.assign(pose.props.get("magnifying_glass"), {magnifies: ready, size: INSPECTING.size, roll});
-    }
+    const {lens, way} = glassSeen(eyes.applyAxisAngle(up, turned), sign, along);
+    const roll = THREE.MathUtils.radToDeg(Math.atan2(way.x, way.z));
+    glassOver(pose, side, ready, lens, turned, {tip: INSPECTING.tip, roll, slant: sign * INSPECTING.slant, size: INSPECTING.size, shows: "box"});
     eyesAs(pose, "reading", ready);
     if (pose.posture === "stand") pose.revolve(sign * INSPECTING.turn);
 }
@@ -3368,8 +3388,6 @@ function lightBlock(block, lit, phase) {
 // middle, where the hand closes on it, at the origin, its lens in the plane of x and y above the handle
 export const GLASS = {radius: 0.52, rim: 0.08, handle: 0.5, grip: 0.07};
 const GLASS_COLOURS = {rim: 0x2b2e38, lens: 0xcfe6ff, handle: 0x474a52, edge: 0xa9adb8, glint: 0xffffff};
-// how far the handle leans forward of upright, held out in front of the body
-const GLASS_LEAN = 40;
 
 function glassOf(glass) {
     const {radius, rim, handle, grip} = GLASS;
@@ -3392,16 +3410,42 @@ function glassOf(glass) {
     glint.position.set(0, handle / 2 + radius, 0.008);
     const shaft = flat(new THREE.CylinderGeometry(grip, grip * 1.2, handle, 16), GLASS_COLOURS.handle);
     held.add(shaft, ring, lens, close, glint);
-    // over the box it inspects, the glass is drawn larger and its lens shows the box's front magnified behind it (inspect), upright and its
-    // glint at the top left however far the glass is rolled, `roll` degrees
-    glass.userData.shape = ({magnifies = 0, size = 1, roll = 0}) => {
+    // over what it inspects, the glass is drawn larger and its lens shows that, `shows`, magnified behind it (glassOver), the box or the
+    // ground, upright and its glint at the top left however far the glass is rolled, `roll` degrees
+    const magnified = {box: magnifiedBoxOf, ground: magnifiedGroundOf};
+    const drawn = {};
+    glass.userData.shape = ({magnifies = 0, size = 1, roll = 0, shows = "box"}) => {
         held.scale.setScalar(magnifies ? size : 1);
         close.rotation.z = glint.rotation.z = radians(roll);
         close.visible = magnifies > 0;
-        if (close.visible && !close.material.map) close.material.map = magnifiedBoxOf();
+        if (close.visible) close.material.map = drawn[shows] ??= magnified[shows]();
         close.material.opacity = magnifies;
         close.material.transparent = magnifies < 1;
     };
+}
+
+// The ground the figure stands on, a chat bubble or the compose box, as the magnifying glass shows it, much larger than life: its light
+// surface with a few words of its text, the letters big, under glass that lightens toward its rim, drawn once on a small canvas
+function magnifiedGroundOf() {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 128;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#fbf8f1";
+    context.fillRect(0, 0, 128, 128);
+    context.fillStyle = "#3b3e4a";
+    context.font = "bold 34px system-ui, sans-serif";
+    context.fillText("the", 6, 52);
+    context.fillText("work", 40, 94);
+    context.fillStyle = "#c9c4b8";
+    context.fillRect(0, 108, 128, 3);
+    const glass = context.createRadialGradient(64, 64, 30, 64, 64, 64);
+    glass.addColorStop(0, "rgba(207, 230, 255, 0.1)");
+    glass.addColorStop(1, "rgba(207, 230, 255, 0.7)");
+    context.fillStyle = glass;
+    context.fillRect(0, 0, 128, 128);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
 }
 
 // The front of a box the figure builds (serverBlockOf) as the magnifying glass shows it, much larger than life: two units' fronts with a
