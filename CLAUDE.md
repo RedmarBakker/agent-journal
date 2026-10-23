@@ -37,11 +37,11 @@ checks and logging live in the funnel, never at a call site.
 request and a command know theirs. Nothing is written anonymously, so a shared journal with
 many users needs no change to the base.
 
-**The state is the truth.** What an agent is doing is a stack of states on its row, `Idle` at the
+**The state is the source of truth.** What an agent is doing is a stack of states on its row, `Idle` at the
 floor and the state in hand on top. A pause is a state pushed over the work and popped when what
-it waits for comes, so going back is a pop, never a value that says where to go. What the agent
-owes the journal, a skill to read, the look at what is in flight, a decision at a context mark, is
-a fact beside the stack on the same row, never a state over it, save one: after a compaction the overview is the state ReadingOverview, pushed over the work so nothing but it and the skills owed goes through until it has run. A state is a class with a listener
+it waits for arrives, so returning is a pop, never a stored value that says where to return to. What the agent
+must do for the journal (a skill to read, the overview of what is in progress, a decision at a context mark) is
+a fact beside the stack on the same row, never a state above it, save one: after a compaction the overview is the state ReadingOverview, pushed over the work so nothing but it and the skills still to read goes through until it has run. A state is a class with a listener
 per moment: a method named `on_<moment>`, bound by the event type it annotates,
 `on_question_answered(self, event: QuestionAnswered, settings)`. Only `on_` methods are listeners.
 Every listener whose type matches the event runs, the state's own first, and their answers merge:
@@ -49,7 +49,7 @@ nudges in order, the first refusal wins, one push or pop per event and a second 
 answers `none`, `swap`, `push`, `pop`, `forward` or `refuse`, and nothing else moves the agent. No
 `if state ==`, no `if event.kind ==`: dispatch is by class and by type. One `BaseState` is the
 parent of every state and every feature's state extends it directly. Only the top of the stack
-hears an event; a state beneath catches up in `on_resume(data, settings)`, which may pop it.
+hears an event; a state beneath is brought up to date in `on_resume(data, settings)`, which may pop it.
 The lifecycle hooks `on_push`, `on_pause`, `on_resume` and `on_pop` answer nudges, and `on_push`
 may refuse the push. Every push and pop is an entry in the trail, shown under the
 diagram on the Home page. Counts and times a state keeps are its fields and go with it when it is

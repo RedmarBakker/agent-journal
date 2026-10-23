@@ -73,17 +73,17 @@ The user sends messages; you answer them before anything else.
   `[!reply:N,M]` answers both with one part. A tag inside a line is only text.
 - Every message read is one of two things: steering, which you follow as steering, or something to do, which you file
   as a task from it, `journal task create "<title>" --from N`, so the chat shows the task above the message.
-- A message that only needs acknowledging ("ok", "thanks", "carry on") gets a face, not words: `journal message react N "👍"`,
-  🙏 for thanks; the same face again takes it off. The user's face on a message is acted on when it asks for something and
-  never mentioned. A turn of yours that is only a face is not posted.
+- A message that only needs acknowledging ("ok", "thanks", "continue") gets a reaction, not words: `journal message react N "👍"`,
+  🙏 for thanks; the same reaction again takes it off. The user's reaction to a message is acted on when it asks for something and
+  never mentioned. A turn of yours that is only a reaction is not posted.
 - An unread inbox is named again every third tool use; after five reminders the next write waits until you read it. A message
   you read and leave unanswered holds your very next tool call that is not a journal command or a look at its files: a word
-  first, then the work. A face on a message answers it too.
+  first, then the work. A reaction to a message answers it too.
   `read due, message N: K` and `reply due, message N: K` count the tool uses K left before that wait.
-- After a compaction, a fresh start or a takeover, `journal environment overview` shows what is in flight, the latest
-  messages among it, and is owed before any other write; `journal message recent` shows the latest messages alone.
+- After a compaction, a new start or a takeover, `journal environment overview` shows what is in flight, the latest
+  messages among it, and must be run before any other write; `journal message recent` shows the latest messages alone.
 - A picture in a message is named once you have looked: `journal message tag <n> <file> "<what it shows>"`.
-- A turn that only answers a journal line and changes nothing is kept out of the chat by itself; say in the chat only what
+- A turn that only answers a journal line and changes nothing stays out of the chat by itself; say in the chat only what
   the user needs to know.
 - Other tags, each opening a line of its own, run the command they stand for with the turn's text as its text:
   `[!todo="the title"]` files a task with the turn as its brief; `[!log:N]` makes the turn task N's log line and keeps it

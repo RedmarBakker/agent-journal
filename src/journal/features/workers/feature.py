@@ -153,15 +153,15 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first, and
   pushes its branch back at clock-out; its clock-in, report and end reach you as from any worker, and you check and
   merge it the same way. It needs --worktree, a profile the team allows its pool (workers.pool_profiles), no --model,
-  and a job that uses no secrets kept on your machine (--needs-secrets refuses it); one nobody takes in ten minutes,
+  and a job that uses no secrets stored on your machine (--needs-secrets refuses it); one nobody takes in ten minutes,
   or whose machine goes offline, ends unfinished with the reason, to dispatch again. Your own machine gives the pool
   workers.pool_slots slots, 0 by default, which the user sets.
 - Related work goes back to the worker that knows it: `journal worker send <n> "<next job>"` gives a worker that
   reported, or was stopped, its next job in its last session, with its memory of the last job, in the same worktree.
-  Never dispatch a fresh worker for work one already out has done part of.
+  Never dispatch a new worker for work one already out has done part of.
 - Open tasks a busy worker is to take after its current one go in its queue: `journal worker queue <n> <task> [<task>...]`.
   Each is delegated to that worker at once, so it is never offered to you, nor blocked or paused; when its work is merged
-  you are told the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
+  you are given the next in its queue with the line that sends it. Releasing the worker opens its queued tasks again.
 - A worker still running takes a word in its live session: `journal worker notify <n> "<text>"`. Only a Claude
   worker has a session inbox; a Codex worker, and one that reported or was stopped, are refused with what to use instead.
 - A dispatch whose brief names files an idle worker touched is refused, naming that worker and its send line; add

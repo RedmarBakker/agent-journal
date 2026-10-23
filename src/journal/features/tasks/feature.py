@@ -83,7 +83,7 @@ needs no task; file one for work that is an item of its own, that waits, or that
   sets a started task aside for something else first; `journal task resume <n>` picks it up. Pause for choice, never for being stuck.
 - A task that waits on something outside your hands, a decision, an answer, a dependency, is blocked:
   `journal task block <n> "<what it waits on>"`. Blocked is neither offered nor nudged, only listed with its reason;
-  `journal task unblock <n>` opens it again when what it waited on came. `journal task block <n> --on question:12`
+  `journal task unblock <n>` opens it again when what it waited on has arrived. `journal task block <n> --on question:12`
   (or `--on task:7`) opens it by itself once that row is answered or closed; `--until "<command>"` runs the command
   every two minutes, such as a check that a pull request is merged, and opens it once the command passes; quote it in
   single quotes, so your shell keeps a `$(...)` in it to run each time instead of expanding it once. Unblocking a task or a
@@ -100,5 +100,5 @@ needs no task; file one for work that is an item of its own, that waits, or that
 - Auto mode (the setting tasks.auto, on by default) means you work the list: a stop with tasks open is answered with the next
   one, and only the user stops you. A stop with paused tasks names them, in auto mode or not: paused is still open.
 - Work you put off in words is work lost: file it as a task instead.
-- Stopping with a task in hand is told to carry on. Truly stuck: `journal stuck "<why>"`.
+- Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`.
 """, keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'))
