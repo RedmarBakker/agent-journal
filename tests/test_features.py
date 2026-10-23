@@ -11540,3 +11540,54 @@ def test_a_block_on_work_going_on_here_or_a_batch_of_blocks_is_refused_and_a_rea
     assert third.code != 0 and "2 tasks were blocked in the last 5 minutes" in third.error, "a third block in the stretch is clearing the list, and refused"
     app.container.get(SettingRows).set("tasks.block_batch_seconds", 0, Actor.user(1))
     assert console.run(["task", "block", "5", "the vendor's second key"], AGENT).code == 0, "once the stretch is over, a block passes again"
+
+
+def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when_single_use(app: App, monkeypatch):
+    from journal.repositories.facts import Facts
+    from journal.repositories.reminders import Reminders
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    none_left = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "delegated"]}, "is": 0})
+    assert made(console.run(["reminder", "create", "release 4.48.0", "--on", "task_completed", "--when", none_left, "--once"], USER)) == 1
+    assert made(console.run(["fact", "create", "the changelog is written per task", "--on", "task_completed"], USER)) == 1
+    console.run(["task", "create", "the parser"], USER)
+    console.run(["task", "create", "the printer"], USER)
+    console.run(["task", "complete", "1"], AGENT)
+    told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
+    app.runtime().deferred.drain()
+    assert "reminder 1 is for this moment" not in told, "a task still open keeps the reminder quiet"
+    assert "fact 1 is for this moment: journal fact read 1" in told, "a row with no condition is told at its moment"
+    keystrokes.clear()
+    console.run(["task", "complete", "2"], AGENT)
+    told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
+    app.runtime().deferred.drain()
+    assert "reminder 1 is for this moment: journal reminder read 1" in told, "with no task left the reminder is told"
+    assert "fact 1 is for this moment" in told and app.container.get(Facts).find(1), "a row for many uses is told again and kept"
+    assert not app.container.get(Reminders).matching(id=1), "a single-use reminder is struck once told"
+
+
+def test_a_moment_with_a_bad_condition_is_refused_with_its_reason(app: App):
+    console = app.console()
+    assert "no table is named 'chores'" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "chores", "is": 0}'], USER).error
+    assert "colour" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"colour": "red"}, "is": 0}'], USER).error
+    assert "tasks state is never suspended" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks", "where": {"state": ["open", "suspended"]}, "is": 0}'], USER).error
+    assert "a condition is" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", '{"count": "tasks"}'], USER).error
+    assert "--when is not JSON" in console.run(["reminder", "create", "x", "--on", "task_completed", "--when", "{tasks"], USER).error
+    assert "--when and --once go with --on" in console.run(["reminder", "create", "x", "--once"], USER).error
+    assert console.run(["reminder", "create", "x", "--on", "task_finished"], USER).code != 0, "an unknown moment is refused"
+
+
+def test_a_memory_command_waits_until_the_memory_skill_is_read(skilled):
+    app = skilled
+    hook(app, "SessionStart")
+    read_skill(app, "journal")
+    app.console().run(["environment", "overview"], AGENT)
+    held = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal reminder create 'tag it'"})
+    assert held[0] == 409 and "read the memory skill before anything else" in held[1]["error"], "a reminder command waits for the memory skill"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "another journal command goes through"
+    read_skill(app, "journal-memory")
+    app.runtime().deferred.drain()
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal reminder create 'tag it'"})[0] == 200, "read, the command goes through"

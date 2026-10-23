@@ -22,6 +22,7 @@ import ResourceEdit from "./ResourceEdit.vue";
 import ResourceFiles from "./ResourceFiles.vue";
 import ResourceHead from "./ResourceHead.vue";
 import ResourceKeywords from "./ResourceKeywords.vue";
+import ResourceMoment from "./ResourceMoment.vue";
 import ResourceMadeFor from "./ResourceMadeFor.vue";
 import ResourceOutcome from "./ResourceOutcome.vue";
 import ResourceWaits from "./ResourceWaits.vue";
@@ -45,6 +46,7 @@ const kind = computed(() => meta(table.value));
 const body = computed(() => bodyOf(props.resource));
 const sections = computed(() => sectionsOf(props.resource.body));
 const SHOWN_APART = ["triggers", "sequences", "messages", "questions"];
+const MEMORY_TABLES = ["facts", "rules", "reminders"];
 const edits = computed(() => editsOf(props.resource));
 const editing = ref(false);
 const draft = reactive({fields: {}, error: ""});
@@ -112,6 +114,9 @@ async function follow() {
         </template>
         <template v-if="resource.keywords && !readOnly">
             <ResourceKeywords :resource="resource" />
+        </template>
+        <template v-if="MEMORY_TABLES.includes(table) && resource.trigger">
+            <ResourceMoment :resource="resource" />
         </template>
         <template v-if="table === 'sequences'">
             <SequenceSteps :resource="resource" />

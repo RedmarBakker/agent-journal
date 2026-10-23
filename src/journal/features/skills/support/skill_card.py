@@ -3,10 +3,11 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SkillCard:
-    """One of the journal's skills as the feature data carries it: its name, where its file is from the project's root, the hash of its text, the words that call for it and the states that require it."""
+    """One of the journal's skills as the feature data carries it: its name, where its file is from the project's root, the hash of its text, the words that call for it, the states that require it and the journal command nouns it must be read before."""
 
     name: str
     path: str
     digest: str
     keywords: tuple[str, ...]
     required_states: tuple[str, ...]
+    commands: tuple[str, ...] = ()

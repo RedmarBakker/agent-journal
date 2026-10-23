@@ -1,8 +1,12 @@
+import json
 from argparse import Namespace
 
 from journal.console.command import Command
 from journal.features.memory.support.threshold_decisions import ThresholdDecisions
 from journal.features.memory.support.memory_context import MemoryContext
+from journal.features.memory.support.row_condition import RowCondition
+from journal.models.memory_trigger import MemoryTrigger
+from journal.support.rejection import Rejection
 from journal.support.caller import Caller
 from journal.repositories.repository import Repository
 
@@ -20,6 +24,9 @@ class MemoryCommand(Command):
         creation.add_argument("text")
         creation.add_argument("--reason", default="")
         creation.add_argument("--keywords", default="", help="words that bring it back when you write one, comma-separated")
+        creation.add_argument("--on", default="", choices=[trigger.value for trigger in MemoryTrigger], help="a moment that brings it back too")
+        creation.add_argument("--when", default="", help='a condition the moment must meet, as JSON: {"count": "tasks", "where": {"state": ["open", "started"]}, "is": 0}')
+        creation.add_argument("--once", action="store_true", help="struck once it has been brought back by its moment")
         self.creation_arguments(creation)
         self.verb(verbs, "list", f"every {self.noun} here")
         self.verb(verbs, "read", f"a {self.noun} whole, which puts it in your context window").add_argument("n", type=int)
@@ -29,7 +36,7 @@ class MemoryCommand(Command):
         return None
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        row = self.repository.save(self.with_keywords(self.new(args), caller), caller.actor)
+        row = self.repository.save(self.with_trigger(self.with_keywords(self.new(args), caller), args), caller.actor)
         self.decisions.decided(caller)
         print(f"{self.noun} {row.id}: {row.text}")
         return 0
@@ -55,6 +62,25 @@ class MemoryCommand(Command):
 
     def with_keywords(self, row, caller: Caller):
         return row
+
+    @staticmethod
+    def with_trigger(row, args: Namespace):
+        if (args.when or args.once) and not args.on:
+            raise Rejection("--when and --once go with --on, the moment that brings it back")
+        if not args.on:
+            return row
+        return row.with_(trigger=args.on, condition=MemoryCommand.condition(args.when), is_single_use=args.once)
+
+    @staticmethod
+    def condition(text: str) -> dict:
+        if not text:
+            return {}
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as fault:
+            raise Rejection(f"--when is not JSON: {fault}") from fault
+        RowCondition.read(payload)
+        return payload
 
     def new(self, args: Namespace):
         return self.repository.model(text=args.text, keywords=self.keywords(args))

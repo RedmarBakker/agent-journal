@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar
 
 from journal.events.rows.rule_created import RuleCreated
@@ -14,6 +14,9 @@ class Rule(Model):
     text: str = ""
     reason: str = ""
     keywords: tuple[str, ...] = ()
+    trigger: str = ""
+    condition: dict = field(default_factory=dict)
+    is_single_use: bool = False
     presence: bool = False
 
     def created(self, agent_index: bool) -> "Rule":

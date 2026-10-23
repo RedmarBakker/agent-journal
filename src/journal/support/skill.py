@@ -3,13 +3,14 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Skill:
-    """A feature's teaching: what the agent must know to use it, written to the agent's skills folder and required at the moments the feature names."""
+    """A feature's teaching: what the agent must know to use it, written to the agent's skills folder and required at the moments the feature names, and before any journal command of the nouns it names."""
 
     name: str
     description: str
     body: str
     keywords: tuple[str, ...] = ()
     required_states: tuple[str, ...] = ()
+    commands: tuple[str, ...] = ()
 
     @property
     def folder(self) -> str:

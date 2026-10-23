@@ -7,13 +7,16 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.rule_created import RuleCreated
+from journal.events.rows.task_closed import TaskClosed
+from journal.events.rows.task_started import TaskStarted
+from journal.models.memory_trigger import MemoryTrigger
 
 
 COMPACT = "compact"
 
 
 class MemoryConduct(Conduct):
-    """The memory feature's conduct in every state: at a context mark not taken yet the agent is told to decide what to keep, a write and a stop are held until it has, a fact, rule or reminder whose keyword comes up in what it writes or runs is typed back to it, a rule the agent made is questioned once, and a reminder set for a moment is told once its moment has come, at the first event after it or at the next session start."""
+    """The memory feature's conduct in every state: at a context mark not taken yet the agent is told to decide what to keep, a write and a stop are held until it has, a fact, rule or reminder whose keyword comes up in what it writes or runs is typed back to it, a rule the agent made is questioned once, a reminder set for a moment is told once its moment has come, at the first event after it or at the next session start, and one with a trigger is told when its trigger fires while its condition holds."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         from journal.features.memory.feature import Memory
@@ -36,9 +39,20 @@ class MemoryConduct(Conduct):
     def on_agent_event(self, event: AgentEvent, settings: Settings) -> Transition:
         return Transition.merged(self, [hint_check(self, event, settings), threshold_check(self, event, settings), self.none(*due_lines(event))])
 
+    def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
+        return self.none(*triggered_lines(event, MemoryTrigger.TASK_COMPLETED)) if event.outcome == "done" else self.none()
+
+    def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
+        return self.none(*triggered_lines(event, MemoryTrigger.TASK_STARTED))
+
     def on_rule_created(self, event: RuleCreated, settings: Settings) -> Transition:
         feature = memory_feature()
         return self.none(feature.RULE_SCOPE_QUESTION.create(n=event.row_id)) if event.agent_origin else self.none()
+
+
+def triggered_lines(event, trigger: MemoryTrigger) -> list:
+    feature = memory_feature()
+    return [feature.MEMORY_TRIGGERED.create(noun=row.noun, n=row.id, single_use=int(row.is_single_use)) for row in event.data.part(feature).trigger_rows(trigger)]
 
 
 def due_lines(event: AgentEvent) -> list:

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import ClassVar
 
@@ -14,6 +14,9 @@ class Reminder(Scoped):
 
     text: str = ""
     keywords: tuple[str, ...] = ()
+    trigger: str = ""
+    condition: dict = field(default_factory=dict)
+    is_single_use: bool = False
     presence: bool = False
     due_at: datetime | None = None
 

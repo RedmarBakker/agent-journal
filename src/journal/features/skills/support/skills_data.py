@@ -22,5 +22,8 @@ class SkillsData:
     def unread(self, cards: list[SkillCard]) -> list[SkillCard]:
         return [card for card in cards if self.loaded.get(card.name) != card.digest]
 
+    def command_debts(self, nouns: set[str]) -> list[SkillCard]:
+        return self.unread([card for card in self.skills if nouns & set(card.commands)])
+
     def debt_cards(self) -> list[SkillCard]:
         return [card for card in self.skills if card.name in self.skills_due]

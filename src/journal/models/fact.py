@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar
 
 from journal.models.scoped import Scoped
@@ -10,6 +10,9 @@ class Fact(Scoped):
 
     text: str = ""
     keywords: tuple[str, ...] = ()
+    trigger: str = ""
+    condition: dict = field(default_factory=dict)
+    is_single_use: bool = False
     presence: bool = False
 
     def summary_line(self) -> str:
