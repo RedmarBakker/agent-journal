@@ -1433,14 +1433,17 @@ def test_a_part_knows_whether_it_reads_an_output_and_the_shape_of_that_read():
     assert not shell("journal output read 3").parts[0].reads_output, "a plain read of a summary is no read by hand"
 
 
-def test_the_engine_builds_its_listener_tables_once_and_the_container_one_instance_per_class(app: App):
+def test_the_engine_indexes_its_listeners_once_at_boot_and_the_container_builds_one_instance_per_class(app: App):
     from journal.events.agent.stop import Stop
     from journal.features.messages.messages_conduct import MessagesConduct
     from journal.repositories.agents import Agents
-    assert Working.listeners() is Working.listeners(), "a state's listener table is built once per class"
-    assert Working.event_listeners(ToolStarting) is Working.event_listeners(ToolStarting) and Working.event_listeners(Stop) is Working.event_listeners(Stop), "the pick per event type is cached"
-    previous = Working.event_listeners(ToolStarting)
-    assert Working.event_listeners(ToolStarting, (MessagesConduct,)) is not previous, "the conducts a state hears are part of what its listeners are kept by"
+    from journal.models.agent_role import AgentRole
+    machine = app.container.get(StateMachine)
+    index, conducts = machine.listener_index, machine.features.conducts(AgentRole.MAIN)
+    state = next(iter(machine.states.classes()))
+    assert index.state_listeners(state, conducts, ToolStarting) == state.event_listeners(ToolStarting, conducts), "the boot's index holds what a registered state's listeners for an event are, worked out once"
+    assert index.state_listeners(state, conducts, Stop) is index.state_listeners(state, conducts, Stop), "and hands the same answer every time"
+    assert Working.event_listeners(ToolStarting, (MessagesConduct,)) != Working.event_listeners(ToolStarting), "the conducts a state hears are part of what its listeners are"
     assert app.container.get(StateMachine) is app.container.get(StateMachine) and app.container.get(Agents) is app.container.get(Agents), "the container builds a class once"
 
 

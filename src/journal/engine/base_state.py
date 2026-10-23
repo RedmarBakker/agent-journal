@@ -1,6 +1,5 @@
 import json
 from dataclasses import asdict, dataclass, fields
-from functools import cache
 from inspect import getmembers, isfunction
 from typing import TYPE_CHECKING, Callable, ClassVar, get_type_hints
 
@@ -32,17 +31,18 @@ class BaseState:
     allows: ClassVar[frozenset[Permission]] = frozenset()
 
     def respond(self, event: Event, settings: Settings, conducts: tuple[type["Conduct"], ...] = ()) -> Transition:
+        return self.answered(event, settings, self.event_listeners(type(event), conducts))
+
+    def answered(self, event: Event, settings: Settings, listeners: tuple[Callable, ...]) -> Transition:
         answers: list[Transition] = []
-        kind: type = type(event)
         event.propagation.reset()
-        for listener in self.event_listeners(kind, conducts):
+        for listener in listeners:
             answers.append(listener(self, event, settings))
             if not event.propagation.ongoing:
                 break
         return Transition.merged(self, answers)
 
     @classmethod
-    @cache
     def listeners(cls, conducts: tuple[type["Conduct"], ...] = ()) -> tuple[tuple[type, Callable], ...]:
         owned = [(get_type_hints(method)["event"], method, method.__name__ not in cls.__dict__) for name, method in getmembers(cls, isfunction) if cls.is_listener(name, method)]
         folded = [(get_type_hints(method)["event"], method, 2) for conduct in conducts for name, method in getmembers(conduct, isfunction) if cls.is_listener(name, method) and getattr(BaseState, name, None) is not method]
@@ -54,7 +54,6 @@ class BaseState:
         return name.startswith(LISTENER) and "event" in get_type_hints(method)
 
     @classmethod
-    @cache
     def event_listeners(cls, event: type, conducts: tuple[type["Conduct"], ...] = ()) -> tuple[Callable, ...]:
         return tuple(method for event_kind, method in cls.listeners(conducts) if issubclass(event, event_kind))
 

@@ -17,6 +17,7 @@
         "PlainViewerPageTextDetector",
         "LongAnswerWaitDetector",
         "HandWrittenIntervalDetector",
+        "EngineIndexOnUseDetector",
         "SentenceLabelDetector",
         "SentenceLabelScriptDetector",
         "SearchMarkLabelDetector",

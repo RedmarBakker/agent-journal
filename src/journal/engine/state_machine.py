@@ -28,6 +28,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.entries import Entries
 from journal.engine.support.stack_history import StackHistory
+from journal.engine.listener_index import ListenerIndex
 from journal.engine.support.session_agents import SessionAgents
 
 
@@ -38,6 +39,7 @@ class StateMachine:
 
     def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents) -> None:
         self.agents, self.states, self.nudger, self.bus = agents, states, nudger, bus
+        self.listener_index = ListenerIndex({})
         self.settings, self.features, self.scope, self.entries, self.readers, self.sessions = settings, features, scope, entries, readers, sessions
 
     def worker_decision(self, agent_id: int, decision: Decision, event: AgentEvent) -> Decision:
@@ -50,12 +52,8 @@ class StateMachine:
         return Decision(decision.allowed, decision.reason)
 
     def index_listeners(self) -> None:
-        kinds = self.event_kinds(Event)
         conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER)]
-        for state in self.states.classes():
-            for conducts in conduct_sets:
-                for kind in kinds:
-                    state.event_listeners(kind, conducts)
+        self.listener_index = ListenerIndex.built(list(self.states.classes()), conduct_sets, self.event_kinds(Event))
 
     @classmethod
     def event_kinds(cls, kind: type) -> list[type]:
@@ -88,7 +86,7 @@ class StateMachine:
         stack = self.states.floor(stored_stack, settings, agent.role)
         mode_change = self.mode_change(stored_stack, stack)
         event = event.with_data(self.readers.agent_data(agent))
-        transition = stack.top().respond(event, settings, self.features.conducts(agent.role))
+        transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.features.conducts(agent.role), type(event)))
         machine_answer = self.hook_machine(stack, self.moved(self.placed(stack, transition.target), transition), settings, event.data)
         if transition.dropped:
             self.entries.save(StackHistory.entry(agent, list(agent.stack), event.key, Actor.system(), dropped=list(transition.dropped)), Actor.system())
