@@ -277,6 +277,18 @@ export function groundEdge() {
     return {element: bars, docked: true, edge: {left: box.left, width: box.width, top: box.top}};
 }
 
+// a progress bar's fill marked for the figure, which it watches while it runs
+export const PROGRESS = "[data-figure-progress]";
+
+// The leading edge of the progress bar running on `element`, as bars docked over the compose box, as the point on the page where its fill
+// ends, half way down it; null when none runs there
+export function progressEdge(element) {
+    const fill = element.querySelector(PROGRESS);
+    if (!fill) return null;
+    const box = fill.getBoundingClientRect();
+    return {x: box.right, y: box.top + box.height / 2};
+}
+
 // The main chat's compose box and its top edge, whatever is docked over it, else the foot of the window: the floor the figure builds on
 export function composeEdge() {
     const element = document.querySelector(HOME);

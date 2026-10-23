@@ -51,6 +51,8 @@ import {
     drawnIn,
     facingToward,
     gripIn,
+    groundEdge,
+    progressEdge,
     hiddenAt,
     spotOf,
     tripTo,
@@ -139,7 +141,7 @@ let beside = 0;
 const ufo = ref(null);
 const saucer = ref(null);
 const drawnParcels = ref([]);
-// what the figure watching the UFO watches this frame (figure.js watch), or null
+// how the figure watching the UFO stands this frame (figure.js watch), or null
 let sky = null;
 const shownFrame = ref(0);
 const headAt = ref({x: 0.5, y: 0.3});
@@ -259,6 +261,7 @@ function step() {
         eyes: look.eyes,
         stride,
         sky: shown.clip.name === "watch" ? sky : null,
+        at: lookingAt(),
     });
     headAt.value = player.headAt();
     keepParcels(shown);
@@ -690,7 +693,6 @@ function flyUfo() {
     saucer.value = {x: at.x, y: at.y, beam: at.beam, width: at.width, reach: Math.max(edge.top - at.y, 0)};
     const lifting = ms - UFO.enter - UFO.beamOn;
     sky = {
-        at: {x: (at.x - body.at.x) / SIZE, y: (at.y - body.at.y) / SIZE},
         shade: at.coming ? Math.min(ms / STEP_BACK_MS, 1 - ms / UFO.enter) : 0,
         back: Math.min(Math.max(lifting / STEP_BACK_MS, 0), 1),
     };
@@ -699,6 +701,14 @@ function flyUfo() {
     ufo.value = null;
     saucer.value = null;
     sky = null;
+}
+
+// Where in its picture the figure looks this frame: at the UFO while it flies, else, standing on the bars docked over the compose box,
+// at the leading edge of a progress bar on them while it runs, so its head follows the edge as it moves; null to look as its clip does
+function lookingAt() {
+    const docks = groundEdge();
+    const point = saucer.value ?? (docks.docked && body.footing?.home && !body.trip ? progressEdge(docks.element) : null);
+    return point && {x: (point.x - body.at.x) / SIZE, y: (point.y - body.at.y) / SIZE};
 }
 
 const onType = (event) => {

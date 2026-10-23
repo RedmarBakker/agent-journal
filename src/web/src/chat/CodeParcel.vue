@@ -11,12 +11,12 @@ const props = defineProps({
     opacity: {type: Number, default: 1},
 });
 
-// the lines of code on the parcel's front, each its indent and length in the drawing's units, from the top down
+// the lines of code on the parcel's front, each its row from the top and its indent and length in the drawing's units
 const LINES = [
-    [0, 9],
-    [3, 8],
-    [3, 6],
-    [0, 5],
+    {row: 0, indent: 0, length: 9},
+    {row: 1, indent: 3, length: 8},
+    {row: 2, indent: 3, length: 6},
+    {row: 3, indent: 0, length: 5},
 ];
 
 const style = computed(() => ({left: `${props.x}px`, top: `${props.y}px`}));
@@ -33,12 +33,12 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
                     <path class="code-parcel-side" d="M19 5l4-4v13l-4 4Z" />
                     <rect class="code-parcel-front" x="1" y="5" width="18" height="13" />
                     <path class="code-parcel-tape" d="M8 5 12 1h3l-4 4Z" />
-                    <template v-for="([indent, length], index) in LINES" :key="index">
+                    <template v-for="line in LINES" :key="line.row">
                         <rect
-                            :class="index % 2 ? 'code-parcel-accent' : 'code-parcel-ink'"
-                            :x="4 + indent"
-                            :y="7.5 + index * 2.4"
-                            :width="length"
+                            :class="line.row % 2 ? 'code-parcel-accent' : 'code-parcel-ink'"
+                            :x="4 + line.indent"
+                            :y="7.5 + line.row * 2.4"
+                            :width="line.length"
                             height="1.2"
                             rx="0.6"
                         />

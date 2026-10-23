@@ -67,7 +67,7 @@ watch(
         </template>
         <template v-if="card.count">
             <div class="watch-dock-bar">
-                <div class="watch-dock-fill" :style="{width}"></div>
+                <div class="watch-dock-fill" :style="{width}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>
         </template>
     </ChatDock>

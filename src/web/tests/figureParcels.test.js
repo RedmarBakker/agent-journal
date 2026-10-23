@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, Posing} from "../src/figure/figure.js";
+import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
 import {PARCEL, PILE, PUSH, UFO, behind, flightMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
 
@@ -91,10 +91,11 @@ test("while the UFO is here the figure stops whatever it does to watch it: its h
     expect(clipFor({place, state: "running", doing: "work", watching: true}, () => true).clip).toBe("watch");
     expect(clipFor({place, state: "running", doing: "work", watching: false}, () => true).clip).toBe("work");
     for (const voice of Object.keys(stances)) {
-        const posed = (sky) => {
+        const posed = ({at, ...sky}) => {
             const pose = new Posing(RIG, "stand", 0);
             pose.sky = sky;
             watch.pose(pose, stanceOf(voice), 0);
+            lookToward(pose, at);
             return pose.moves(0);
         };
         const forward = (moves) => new THREE.Vector3(0, -1, 0).transformDirection(moves.get("head"));

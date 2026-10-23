@@ -30,9 +30,9 @@ export class FigurePlayer {
     }
 
     // the clip's frame `index` in `posture`, turned `facing` degrees, onto the canvas, the eyes wearing the look `eyes` if one is given,
-    // the legs `stride` through a step on the move, and a figure watching the sky watching `sky` (figure.js watch); nothing is drawn when
-    // that frame is already there and nothing eases
-    show(clip, index, facing, {posture, eyes = null, stride = null, sky = null}) {
+    // the legs `stride` through a step on the move, a figure watching the sky standing as `sky` says (figure.js watch), and the head
+    // looking at `at` in the picture when given (figure.js lookToward); nothing is drawn when that frame is already there and nothing eases
+    show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, at = null}) {
         const shape = `${clip.name}/${posture}/${facing}`;
         if (shape !== this.shape && this.moves) this.blend = {from: this.moves, began: performance.now()};
         this.shape = shape;
@@ -40,9 +40,9 @@ export class FigurePlayer {
         const blend = this.blend ? {from: this.blend.from, previous: this.moves, k: smooth(k), settled: false} : null;
         const key = `${clip.name}/${index}/${facing}/${posture}/${stride}/${this.canvas.width}/${eyes ? `${eyes.mood}@${eyes.seconds}` : ""}`;
         if (key === this.shown && !blend) return;
-        const live = eyes || stride !== null || sky || blend || !Number.isInteger(index);
+        const live = eyes || stride !== null || sky || at || blend || !Number.isInteger(index);
         const {frame, moves} = live
-            ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky})
+            ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky, at})
             : this.frameOf(clip, index, facing, posture);
         const context = this.canvas.getContext("2d");
         context.clearRect(0, 0, this.canvas.width, this.canvas.height);

@@ -1414,17 +1414,23 @@ function work(pose, stance, t) {
     if (pose.posture === "stand") pose.revolve(SIDES[side] * WORK.turn);
 }
 
-// The figure stands still watching something in the sky, as the page says in `pose.sky`: its head toward `at`, a point in its picture as
-// shares of the picture's width from the left and its height from the top; the free hand shading its eyes by `shade`, 0 to 1, as when
-// what it watches is far off, the hand at the side of the visor and pointing out over it like a cap's peak; and stepped back by `back`,
-// 0 to 1, with a small hop as it steps, leaning back to look up
-export const SKY = {step: 0.6, hop: 0.12, lean: 8, depth: -1.2, shadeWrist: [1.18, -0.5, 2.72], shadeHand: [-0.35, -1, 0.2]};
+// The figure stands still watching something in the sky, as the page says in `pose.sky`, its head turned to it by the look the page gives
+// (lookToward): the free hand shading its eyes by `shade`, 0 to 1, as when what it watches is far off, the hand at the side of the visor
+// and pointing out over it like a cap's peak; and stepped back by `back`, 0 to 1, with a small hop as it steps, leaning back to look up
+export const SKY = {step: 0.6, hop: 0.12, lean: 8, shadeWrist: [1.18, -0.5, 2.72], shadeHand: [-0.35, -1, 0.2]};
 
-// a point in the figure's picture, as shares of its width and height, where it stands at the depth of SKY.depth in front of the figure
-const pictureAt = ({x, y}) => new THREE.Vector3((x - 0.5) * FRAMED_HEIGHT, SKY.depth, FRAMED_MIDDLE + (0.5 - y) * FRAMED_HEIGHT);
+// how far in front of the figure what it looks at in its picture is taken to be
+const LOOK_DEPTH = -1.2;
+
+// The head turned to look at `at`, a point in the figure's picture as shares of its width from the left and its height from the top, as
+// the UFO it watches or the leading edge of a progress bar under its feet, the figure turned `facing` degrees
+export function lookToward(pose, at, facing = 0) {
+    const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
+    eyesToward(pose, point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing)));
+}
 
 function watch(pose, stance, t) {
-    const {at, shade, back} = pose.sky ?? {at: null, shade: 0, back: 0};
+    const {shade, back} = pose.sky ?? {shade: 0, back: 0};
     pose.lift("root", {y: SKY.step * back, z: SKY.hop * Math.sin(Math.PI * back)});
     breathe(pose, t);
     trunk(pose, {lean: -SKY.lean * back});
@@ -1438,7 +1444,6 @@ function watch(pose, stance, t) {
         pose.aim(hand, now.lerp(new THREE.Vector3(SIDES[side] * across, forward, up), shade));
         pose.putAway(...IN_HAND);
     }
-    if (at) eyesToward(pose, pictureAt(at));
 }
 
 // leans into a parcel in front of it, both hands out low on it, pushing it along as it walks
@@ -2738,14 +2743,15 @@ export class Stage {
     }
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
-    // on the move, `stride` is how far through its step the walk is, `sky` is what a figure watching the sky watches (watch), and during a
-    // change `blend` eases from the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null} = {}) {
+    // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `at` is where
+    // in its picture it looks (lookToward), and during a change `blend` eases from the moves drawn before it. It returns the moves it drew.
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         LEGS[posture]?.over(pose);
+        if (at) lookToward(pose, at, facing);
         if (eyes) lookAs(pose, eyes, facing);
         const moves = place(figure, pose, facing, blend);
         const size = canvas.width * SUPERSAMPLE;
