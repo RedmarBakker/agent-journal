@@ -623,7 +623,7 @@ function look() {
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
-    const eagerness = eagerFor(onDocks() && body.footing?.home ? progressOf(groundEdge().element) : null, eager, Math.random);
+    const eagerness = eagerFor(onDocks() && body.footing?.home ? progressOf(groundEdge().element) : null, eager, Math.random, now.value);
     eager = eagerness.eager;
     if (eagerness.moment) react(eagerness.moment);
     const work = workMoments(held.value.state, typed, workBegan, now.value);

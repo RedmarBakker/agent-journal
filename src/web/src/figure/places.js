@@ -335,12 +335,13 @@ export function progressEdge(element) {
 export const BAR = "[data-figure-bar]";
 
 // How the progress bar on `element` stands, as the bars docked over the compose box: the bar itself, how far its fill has run, 0 to 1,
-// and how it ended, "" while it runs; null when there is none
+// how it ended, "" while it runs, and when its run began, in seconds; null when there is none
 export function progressOf(element) {
     const bar = element.querySelector(BAR);
     const fill = bar?.firstElementChild;
     if (!fill) return null;
-    return {bar, share: fill.getBoundingClientRect().width / Math.max(bar.getBoundingClientRect().width, 1), ended: bar.dataset.figureBar};
+    const share = fill.getBoundingClientRect().width / Math.max(bar.getBoundingClientRect().width, 1);
+    return {bar, share, ended: bar.dataset.figureBar, began: Number(bar.dataset.figureBegan)};
 }
 
 // The main chat's compose box and its top edge, whatever is docked over it, else the foot of the window: the floor the figure builds on

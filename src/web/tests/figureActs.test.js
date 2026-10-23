@@ -204,24 +204,30 @@ test("while the context compacts the figure is packed into a box that shrinks, s
 
 const {EAGER, eagerFor} = await import("../src/figure/reactions.js");
 
-test("on a docked bar past its last stretch the figure now and then gets eager, once a bar, and celebrates when it ends well", () => {
+test("on a docked bar past its last stretch the figure now and then gets eager, once a bar and only for a slow run, and reacts to how it ends", () => {
     const bar = {};
-    const at = (share, ended = "") => ({bar, share, ended});
-    // short of the last stretch it rolls nothing; past it, once, by the odds
-    expect(eagerFor(at(EAGER.from - 0.01), null, () => 0)).toEqual({eager: null, moment: null});
-    expect(eagerFor(at(EAGER.from), null, () => EAGER.odds)).toEqual({eager: {bar, on: false}, moment: null});
-    expect(eagerFor(at(0.95), {bar, on: false}, () => 0).eager).toEqual({bar, on: false});
-    const eager = eagerFor(at(EAGER.from), null, () => 0).eager;
-    expect(eager).toEqual({bar, on: true});
-    expect(eagerFor(at(0.97), eager, () => 0.99)).toEqual({eager, moment: null});
-    expect(eagerFor(at(1, "good"), eager, () => 0)).toEqual({eager: {bar, on: false}, moment: {beat: "bar_done"}});
-    expect(eagerFor(at(1, "bad"), eager, () => 0).moment).toEqual({beat: "bar_failed"});
+    const at = (share, ended = "") => ({bar, share, ended, began: 100});
+    // under its last stretch it only watches whether the run is slow: still short of it once the run is EAGER.after seconds old
+    const quick = eagerFor(at(0.5), null, () => 0, 100 + EAGER.after - 1).eager;
+    expect(quick).toEqual({bar, slow: false, rolled: false, on: false});
+    // a run that got past it within its first seconds never makes the figure eager, at any roll
+    expect(eagerFor(at(EAGER.from), quick, () => 0, 100 + EAGER.after + 5).eager).toEqual({bar, slow: false, rolled: true, on: false});
+    const slow = eagerFor(at(0.6), quick, () => 0, 100 + EAGER.after).eager;
+    expect(slow.slow).toBe(true);
+    // a slow run past its last stretch: rolled once, by the odds
+    expect(eagerFor(at(EAGER.from), slow, () => EAGER.odds, 130).eager).toEqual({bar, slow: true, rolled: true, on: false});
+    const eager = eagerFor(at(EAGER.from), slow, () => 0, 130).eager;
+    expect(eager).toEqual({bar, slow: true, rolled: true, on: true});
+    expect(eagerFor(at(0.97), eager, () => 0.99, 131)).toEqual({eager, moment: null});
+    // passed, it celebrates; failed, it is crushed and fumes
+    expect(eagerFor(at(1, "good"), eager, () => 0, 132)).toEqual({eager: {...eager, on: false}, moment: {beat: "bar_done"}});
+    expect(eagerFor(at(1, "bad"), eager, () => 0, 132).moment).toEqual({beat: "bar_failed"});
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
-    // stepping off the bar ends it, with nothing to mark, and stepping back on rolls nothing again
-    const off = eagerFor(null, eager, () => 0);
-    expect(off).toEqual({eager: {bar, on: false}, moment: null});
-    expect(eagerFor(at(0.97), off.eager, () => 0).eager).toEqual({bar, on: false});
     expect(REACTIONS.find((each) => each.moment === "bar_done").among.map((each) => each.clip)).toEqual(["joy", "confetti_cannon", "party_horn"]);
+    // stepping off the bar ends it, with nothing to mark, and stepping back on rolls nothing again
+    const off = eagerFor(null, eager, () => 0, 133);
+    expect(off).toEqual({eager: {...eager, on: false}, moment: null});
+    expect(eagerFor(at(0.97), off.eager, () => 0, 134).eager.on).toBe(false);
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
 });
 

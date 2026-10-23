@@ -155,16 +155,21 @@ export function walkingMoment(trip, began, now) {
 export const WORKED_SECONDS = 30;
 
 // Standing on a docked bar that has run past `from` of the way, now and then, with chance `odds`, once a bar, the figure gets eager for it
-// to end: it taps its feet fast, then points down at the bar, bouncing, until it ends
-export const EAGER = {from: 0.85, odds: 0.4};
+// to end: it taps its feet fast, then points down at the bar, bouncing, until it ends. Only a slow run counts: one it saw still short of
+// `from` once it had run `after` seconds, so a run that gets there in its first seconds never does.
+export const EAGER = {from: 0.85, odds: 0.4, after: 10};
 
-// The figure's eagerness for the bar under it, `progress` (places.js progressOf), or null when it stands on none: the bar it last rolled
-// for and whether it is eager for it, and the moment the bar's end is once it ends while the figure is eager, a pass or a failure
-export function eagerFor(progress, eager, random) {
+// The figure's eagerness for the bar under it at `now` seconds, `progress` (places.js progressOf), or null when it stands on none: the bar
+// it knows, whether it saw it run slowly, whether it has rolled for it, and whether it is eager for it; and the moment the bar's end is
+// once it ends while the figure is eager, a pass or a failure. Stepping off the bar ends the eagerness for good.
+export function eagerFor(progress, eager, random, now) {
     const same = Boolean(progress) && progress.bar === eager?.bar;
     if (same && eager.on && progress.ended) return {eager: {...eager, on: false}, moment: {beat: progress.ended === "good" ? "bar_done" : "bar_failed"}};
-    if (same || !progress || progress.ended || progress.share < EAGER.from) return {eager: eager && {...eager, on: same && eager.on}, moment: null};
-    return {eager: {bar: progress.bar, on: random() < EAGER.odds}, moment: null};
+    if (!progress || progress.ended) return {eager: eager && {...eager, on: false}, moment: null};
+    const known = same ? eager : {bar: progress.bar, slow: false, rolled: false, on: false};
+    if (progress.share < EAGER.from) return {eager: {...known, slow: known.slow || now - progress.began >= EAGER.after}, moment: null};
+    if (known.rolled) return {eager: known, moment: null};
+    return {eager: {...known, rolled: true, on: known.slow && random() < EAGER.odds}, moment: null};
 }
 
 // A jump of more than this many of the figure's own heights sometimes turns over backwards on the way

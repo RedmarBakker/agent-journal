@@ -6,6 +6,7 @@ import Icon from "../kit/Icon.vue";
 import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
+import {createdAt} from "../domain/row.js";
 
 const SHOWN_LINES = 6;
 
@@ -66,7 +67,7 @@ watch(
             </ul>
         </template>
         <template v-if="card.count">
-            <div class="watch-dock-bar" :data-figure-bar="card.ending ? card.tone || 'ended' : ''">
+            <div class="watch-dock-bar" :data-figure-bar="card.ending ? card.tone || 'ended' : ''" :data-figure-began="createdAt(message)">
                 <div class="watch-dock-fill" :style="{width}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>
         </template>
