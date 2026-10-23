@@ -170,6 +170,13 @@ export function fallingFrom(spot, to, floors, now, random, settled) {
 // bubble it comes down past when `random()` says so
 export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, catches: catches(true, random), most, chute: true});
 
+// A launch from the feet at `spot` off a bubble flung up by a fast scroll, starting at `now`: the figure thrown up standing at `speed`
+// pixels a second (up is less than 0), its momentum carrying it up until it falls back home, past every bubble
+export const launchFrom = (spot, speed, now) => ({x: spot.x, y: spot.y, posture: "stand", face: spot.face, speed, at: now, to: null, catches: false, peak: 0});
+
+// whether a figure in the air has gone up past `top`, the top of its world, off the screen, to come back down on its parachute
+export const goneUp = (airborne, top) => airborne.y <= top;
+
 // One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
 // fell in and turned as it was, where it goes on to and whether it landed on its feet
 export function airborneFrame(airborne, floors, now, still = false) {

@@ -12,6 +12,8 @@ import {
     chuteFrom,
     fallingFrom,
     floorAt,
+    goneUp,
+    launchFrom,
     legAt,
     legEnded,
     liftedLegs,
@@ -587,6 +589,7 @@ function watchFooting() {
     sway();
     const ground = groundUnder(body.footing, body.place, figureSize());
     if (!ground) return uprooted();
+    if (ground.motion === "flung") return flung(ground.speed);
     body.footing = ground.footing;
     // the bars under it drop: it falls, unless it landed a moment ago, when it goes down with them rather than play the fall again, as
     // the bars docked over the compose box go down in steps when a card closes and goes
@@ -655,8 +658,13 @@ let landedAt = -Infinity;
 const SETTLED_MS = 1500;
 
 function fallFrom(spot, to) {
+    airborneFrom(fallingFrom(spot, to, latestFloors().floors, performance.now(), Math.random, performance.now() - landedAt >= SETTLED_MS));
+}
+
+// the figure in the air from this frame, as `airborne` has it
+function airborneFrom(airborne) {
     endSlide();
-    body.airborne = fallingFrom(spot, to, latestFloors().floors, performance.now(), Math.random, performance.now() - landedAt >= SETTLED_MS);
+    body.airborne = airborne;
     body.trip = null;
     body.footing = null;
     body.at = placed(body.airborne, body.airborne.posture);
@@ -665,6 +673,7 @@ function fallFrom(spot, to) {
 
 function fallOn() {
     const {airborne, landed} = airborneFrame(body.airborne, latestFloors().floors, performance.now(), keptStill());
+    if (airborne && goneUp(airborne, worldBox().top)) return goneOff();
     body.at = placed(airborne ?? landed.spot, (airborne ?? landed.spot).posture);
     body.airborne = airborne;
     if (!landed) return;
@@ -741,12 +750,31 @@ const grip = computed(() => {
     return /^hang_[lr]$/.test(name) ? gripIn(name.slice(-1), shownFacing.value, below.value) : null;
 });
 
-// The floor under a resting figure went, so it falls from where it is and, once it lands, goes on to a stay at home
-function uprooted() {
+// The figure lets go of where it rested, the stay there and whatever it was playing, for a stay at home
+function letGo() {
     stay = stayAtHome(stay);
     playing = {name: "", started: 0, shown: null, index: 0, closing: null};
     beats.value = [];
     body.landing = false;
+}
+
+// The bubble the figure rides or hangs from is flung up by a fast scroll (floors.js FLUNG): it is thrown off it from its feet, up into the
+// air at `speed`, and falls back home, or past the top of the screen it comes back on its parachute (goneOff)
+function flung(speed) {
+    letGo();
+    groundMoved("launched");
+    airborneFrom(launchFrom({...feetOf(body.at), face: body.place.face}, speed, performance.now()));
+}
+
+// thrown up off the top of the screen: out of sight a while, then down on its parachute as after the run up the bubbles (flyOn)
+function goneOff() {
+    body.airborne = null;
+    flight = {began: performance.now(), hops: [], back: 0};
+}
+
+// The floor under a resting figure went, so it falls from where it is and, once it lands, goes on to a stay at home
+function uprooted() {
+    letGo();
     const spot = stayingAt(stay, figureSize(), body.place);
     const clear = {state: held.value.state, now: Date.now() / 1000, near: body.place, figure: figureSize(), cleared};
     fallFrom({...feetOf(body.at), posture: "stand"}, keptClear(spot, clear));

@@ -15,7 +15,7 @@ export function skywardHops(from, up, top) {
 }
 
 // Where the run is `ms` into its `hops`: its feet, arcing above the higher end of the hop it is on, the way it goes across (1 to the
-// right), and whether it has gone off the top
+// right), and whether it has gone off the top, as a run of no hops has at once, as when the figure is thrown off the top
 export function skywardAt(hops, ms, size) {
     let left = ms;
     for (const hop of hops) {
@@ -26,7 +26,7 @@ export function skywardAt(hops, ms, size) {
         }
         left -= hop.ms;
     }
-    return {...hops.at(-1).to, way: 0, gone: true};
+    return {...hops.at(-1)?.to, way: 0, gone: true};
 }
 
 // how long a run of `hops` takes

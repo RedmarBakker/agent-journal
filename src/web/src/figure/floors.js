@@ -84,6 +84,11 @@ export function stopFloors() {
 // where it stood, further up and it is thrown up onto it
 const CARRIED_WITHIN = 5;
 
+// How fast a bubble the figure rides or hangs from must rise, flung up by a fast scroll down the chat, to throw the figure off into the
+// air, in pixels a second, and the share of the bubble's speed it is thrown up at, so a fast scroll throws it up a little way to fall back
+// and a faster one off the top of the screen; a slower one carries it along
+export const FLUNG = {speed: 1500, carry: 0.6};
+
 const floorNamed = (floors, id) => floors.find((floor) => floor.id === id) ?? null;
 
 // What a figure resting on a spot keeps of it: the floor it rests on by id, the spot's place from that floor's left end and top, the
@@ -118,13 +123,17 @@ export function holds(spot, figure, floors = latestFloors().floors) {
 }
 
 // Where a figure resting at `spot` by `footing` is now, with the footing it keeps and how it got there, or null once its ground has gone from
-// under it. Anywhere but home it is carried along with its floor. At home it stays where it stood along the ground, at its height above
+// under it. Anywhere but home it is carried along with its floor, or "flung" off it when the floor rises at FLUNG.speed or faster, unless
+// it swings on a rope under it, thrown up at `speed`, FLUNG.carry of the floor's. At home it stays where it stood along the ground, at its height above
 // whatever is home now, measured every frame: carried while home is within CARRIED_WITHIN pixels of its feet, "dropping" when home fell
 // further, as when a bar goes, and "launched" when it rose further, as when a bar docks over the compose box.
 export function groundUnder(footing, spot, figure, floors = latestFloors().floors) {
     const now = footingNow(footing, figure, floors);
     if (!now) return null;
-    if (!footing.home) return {spot: {...spot, ...now}, footing, motion: "carried"};
+    if (!footing.home) {
+        const {vy} = floorNamed(floors, footing.id);
+        return {spot: {...spot, ...now}, footing, motion: vy <= -FLUNG.speed && !spot.swings ? "flung" : "carried", speed: vy * FLUNG.carry};
+    }
     const home = floorNamed(floors, "home");
     const shift = now.y - spot.y;
     const motion = Math.abs(shift) <= CARRIED_WITHIN ? "carried" : shift > 0 ? "dropping" : "launched";
