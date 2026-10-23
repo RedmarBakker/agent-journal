@@ -7,6 +7,7 @@ from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.tasks import Tasks
+from journal.features.workers.support.pool_worker_moves import READY, PoolWorkerMoves
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
@@ -19,8 +20,8 @@ class ArrivalCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks) -> None:
-        self.workers, self.tasks = workers, tasks
+    def __init__(self, workers: Workers, tasks: Tasks, moves: PoolWorkerMoves) -> None:
+        self.workers, self.tasks, self.moves = workers, tasks, moves
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "record", "say you are ready: your task is started under you")
@@ -37,6 +38,9 @@ class ArrivalCommand(Command):
         moment, task = datetime.now(timezone.utc), self.tasks.find(holdings[0])
         if task.state != TaskState.DELEGATED:
             self.tasks.save(task.delegated(moment), caller.actor)
-        self.workers.save(worker.ready(moment.timestamp()), caller.actor)
+        if self.moves.is_remote(worker):
+            self.moves.ask(worker, READY, {}, caller.actor)
+        else:
+            self.workers.save(worker.ready(moment.timestamp()), caller.actor)
         print(f"worker {worker.id} clocked in on task {task.id}: {task.title}")
         return 0

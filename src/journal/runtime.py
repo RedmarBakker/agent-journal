@@ -36,6 +36,7 @@ from journal.sync.pulled_settings import PulledSettings
 from journal.sync.pulled_files import PulledFiles
 from journal.sync.record_purge import RecordPurge
 from journal.sync.sync_client import SyncClient
+from journal.sync.host_desk import HostDesk
 from journal.sync.team_account import TeamAccount
 from journal.events.models.purged import Purged
 
@@ -74,6 +75,9 @@ class Runtime:
                 self.bus.listen(listener.kind(), Switches(feature, self.container.get(listener), self.registry, self.scope))
             for seed in feature.seeds:
                 self.container.get(seed).run()
+            for host_writer in feature.host_writers:
+                for kind, writer in self.container.get(host_writer).makers().items():
+                    self.container.get(HostDesk).register(kind, writer)
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
         from journal.repositories.environments import Environments

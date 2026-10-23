@@ -10960,3 +10960,90 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
+
+
+def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_journal(app: App, tmp_path, monkeypatch):
+    import subprocess
+
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.link import Link
+    from journal.models.user import User
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.environment_owners import OWNER
+    from journal.repositories.environments import Environments
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.workers import Workers
+    from journal.models.support.ref import Ref
+    from journal.sync.host_desk import HostDesk
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.version import VERSION
+    from sync_server.account import ADMIN, MEMBER
+    from sync_server.pool_slots import PoolSlots
+    from sync_server.pull_query import PullQuery
+    from sync_server.team_server import TeamServer
+
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "--bare", str(tmp_path / "origin.git"), cwd=tmp_path)
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
+    main = app.container.get(Environments).existing("main")
+    links = app.container.get(Links)
+    for link in links.all_matching(kind=OWNER):
+        links.delete(link, Actor.system())
+    links.save(Link(source=Ref(User.table(), 2), target=Ref.build(main), kind=OWNER), Actor.system())
+    hosted_requests = lambda: team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), VERSION))
+    try:
+        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
+            app.container.get(IdBlocks).add(table, 800000, 800100)
+        address = f"http://127.0.0.1:{server.server_address[1]}"
+        app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
+        assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
+        app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
+        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+        app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
+        app.container.get(SyncClient).pulled(0)
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            workers = app.container.get(Workers)
+            worker = workers.save(workers.all()[0].with_(token_hash="h", session="w-1"), Actor.system())
+        lovelace = Caller.worker("main", worker.id, "w-1", "claude")
+        assert console.run(["clock-in"], lovelace).code == 0
+        with app.container.get(Scope).environment(MAIN):
+            assert workers.find(worker.id).state == WorkerState.DISPATCHED, "this machine does not host the worker's environment, so it makes none of its moves"
+        asked = hosted_requests()
+        assert [request.kind for request in asked] == ["worker_ready"], "it asks the environment's host to make the clock-in"
+        app.container.get(HostDesk).handle(asked)
+        with app.container.get(Scope).environment(MAIN):
+            assert workers.find(worker.id).state == WorkerState.READY, "the host makes it, so its events fire where the dispatcher waits"
+        folder = app.container.get(WorkerBranch).folder(worker)
+        (folder / "parser.py").write_text("rules = []\n")
+        git("add", "parser.py", cwd=folder)
+        git("commit", "-q", "-m", "the parser", cwd=folder)
+        assert console.run(["proof", "1", "parser.py:1, test_reads passes"], lovelace).code == 0
+        out = console.run(["clock-out", "the parser is done"], lovelace)
+        assert out.code == 0, out.error
+        asked = hosted_requests()
+        assert [(request.kind, request.body["report"]) for request in asked] == [("worker_delivered", "the parser is done")], "the clock-out and its report are asked of the host too"
+        app.container.get(HostDesk).handle(asked)
+        with app.container.get(Scope).environment(MAIN):
+            assert workers.find(worker.id).state == WorkerState.DELIVERED and any("the parser is done" in message.text for message in app.container.get(Messages).all()), "the host clocks the worker out and posts its report in the dispatcher's chat"
+        assert hosted_requests() == (), "each request is made once and finished"
+    finally:
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)

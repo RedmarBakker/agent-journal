@@ -383,7 +383,7 @@ function slideOn() {
 // a trip that is `pressing`, as one out of the way of a new message, sets off at once, breaking off whatever clip plays
 async function moveTo(spot, {straight = false, pace = 1, pressing = false} = {}) {
     if (!tripTo(body.place, spot, figureSize(), {straight, pace})) return restOn(spot);
-    body.trip = {to: spot, straight, pace, pressing, footing: footingOn(spot)};
+    body.trip = {to: spot, straight, pace, pressing, footing: footingOn(spot), legs: []};
     // read back, since the ref hands out its reactive copy, never the object it was given
     const trip = body.trip;
     step();

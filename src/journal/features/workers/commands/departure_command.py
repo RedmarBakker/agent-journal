@@ -5,6 +5,7 @@ from journal.console.command import WORKER_KINDS, Command
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.actor import Actor
 from journal.features.workers.support.pool_dispatch import PoolDispatch
+from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
 from journal.models.pool_job_state import PoolJobState
 from journal.repositories.pool_jobs import PoolJobs
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -26,8 +27,8 @@ class DepartureCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, jobs: PoolJobs) -> None:
-        self.workers, self.tasks, self.proofs, self.reports, self.branch, self.jobs = workers, tasks, proofs, reports, branch, jobs
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, jobs: PoolJobs, moves: PoolWorkerMoves) -> None:
+        self.workers, self.tasks, self.proofs, self.reports, self.branch, self.jobs, self.moves = workers, tasks, proofs, reports, branch, jobs, moves
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof").add_argument("report")
@@ -48,10 +49,16 @@ class DepartureCommand(Command):
             raise Rejection(f"your worktree has uncommitted files, which would be lost: {', '.join(uncommitted)}; commit them first")
         if worker.pool_request:
             self.push_branch(worker)
-        self.reports.posted(worker, args.report, caller.actor)
-        self.workers.save(self.workers.find(worker.id).delivered(datetime.now(timezone.utc).timestamp()), caller.actor)
+        if self.moves.is_remote(worker):
+            self.moves.ask(worker, DELIVERED, {"report": args.report}, caller.actor)
+        else:
+            self.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
+
+    def delivered(self, worker: Worker, report: str, actor: Actor) -> None:
+        self.reports.posted(worker, report, actor)
+        self.workers.save(self.workers.find(worker.id).delivered(datetime.now(timezone.utc).timestamp()), actor)
 
     def push_branch(self, worker: Worker) -> None:
         outcome = self.branch.git("push", "origin", f"{self.branch.name(worker)}:refs/heads/{PoolDispatch.branch(worker)}", cwd=self.branch.folder(worker))

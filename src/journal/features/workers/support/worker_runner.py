@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import Callable
 import json
 import os
@@ -11,6 +12,8 @@ from journal.config import Config
 from journal.support.caller import ACTOR, AGENT_SHELL, WORKER, WORKER_ACTOR, WORKER_TOKEN
 from journal.support.worker_token import WorkerToken
 from journal.features.workers.support.worker_branch import WorkerBranch
+from journal.features.workers.support.pool_worker_moves import ENDED, PoolWorkerMoves
+from journal.features.workers.support.worker_end import WorkerEnd
 from journal.features.workers.support.worker_chat import WorkerChat
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.support.actor import Actor
@@ -44,10 +47,10 @@ EXCLUDED_VARIABLES = ("JOURNAL_SESSION", "JOURNAL_LAUNCH")
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves) -> None:
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
-        self.account = account
+        self.account, self.moves = account, moves
         self._locks: dict[int, threading.Lock] = {}
         self._locks_lock = threading.Lock()
 
@@ -149,15 +152,24 @@ class WorkerRunner:
         outcome = ENDINGS.get(code, f"failed with code {code}: {{report}}").format(report=report, minutes=self.minutes()) if code else report
         current = self.workers.find(worker.row_id)
         current = current.with_(resume=resume or current.resume)
-        if current.token_hash and current.is_running():
-            self.workers.save(current.unfinished(time.time(), outcome), actor)
+        if self.moves.is_remote(current):
+            self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
             return
-        if current.state != WorkerState.DISPATCHED:
-            self.workers.save(current, actor)
+        if not self.awaits_report(current):
+            self.close(current, outcome, actor)
             return
         current = current.with_(touched_paths=self.branch.touched(current))
-        branch = self.branch.summary(current)
-        self.reports.file(current, f"{outcome}\n\n{branch}" if branch else outcome, actor)
+        self.reported(current, outcome, self.branch.summary(current), actor)
+
+    @staticmethod
+    def awaits_report(current: Worker) -> bool:
+        return not current.is_mid_shift() and current.state == WorkerState.DISPATCHED
+
+    def close(self, current: Worker, outcome: str, actor: Actor) -> None:
+        self.workers.save(current.unfinished(time.time(), outcome) if current.is_mid_shift() else current, actor)
+
+    def reported(self, current: Worker, outcome: str, summary: str, actor: Actor) -> None:
+        self.reports.file(current, f"{outcome}\n\n{summary}" if summary else outcome, actor)
 
     def session_ended(self, worker: Worker) -> None:
         unended = self.agents.active_session_agents(worker.session)

@@ -14,10 +14,11 @@ from journal.support.option import Option
 from journal.features.seed import Seed
 from journal.features.support.service import Service
 from journal.support.skill import Skill
+from journal.support.host_writer import HostWriter
 
 
 class Feature[D](DataSource[D]):
-    """One switchable subject. It brings its states, its work modes if it has them, its nudges, its state-free listeners, its jobs, its live chat marks and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
+    """One switchable subject. It brings its states, its work modes if it has them, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
@@ -34,6 +35,7 @@ class Feature[D](DataSource[D]):
     seeds: ClassVar[tuple[type[Seed], ...]] = ()
     jobs: ClassVar[tuple[type[Job], ...]] = ()
     process_cards: ClassVar[tuple[type[ProcessCard], ...]] = ()
+    host_writers: ClassVar[tuple[type[HostWriter], ...]] = ()
     skill: ClassVar[Skill | None] = None
     services: ClassVar[tuple[Service, ...]] = ()
     default: ClassVar[bool] = True
