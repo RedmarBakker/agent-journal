@@ -5,6 +5,7 @@ import {ACTS, heldPhases, hornOpen, partOf} from "./acts.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
+import {dressButler} from "./butler.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
 
@@ -2609,13 +2610,17 @@ export async function loadFigure(url, wardrobe, voice) {
     return figureOf(bytes, voice, DECODER, (mesh) => !covered.has(mesh.name) && !(bare && mesh.userData.item));
 }
 
+// the voices dressed over their glb, each by what dresses it (butler.js)
+const DRESSES = {butler: dressButler};
+
 // The figure in a glb's bytes, posed by the clips: every mesh `shows` keeps is drawn, shaded and outlined; `decoder` is where Draco's decoder is served
 export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const gltf = await new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath(decoder)).parseAsync(bytes, "");
     const scene = gltf.scene;
     scene.updateMatrixWorld(true);
-    const meshes = [];
-    scene.traverse((node) => node.isSkinnedMesh && meshes.push(node));
+    const found = [];
+    scene.traverse((node) => node.isSkinnedMesh && found.push(node));
+    const meshes = (DRESSES[voice] ?? ((each) => each))(found);
     const eyes = {materials: [], shapes: [], hearts: [], stars: []};
     const screens = [];
     const visorHulls = [];
