@@ -53,9 +53,10 @@ class Menu:
         rows, previous = self.environments(), self.remembered.read()
         asking = not confirmed
         selection = environment or (self._environment(agent, rows) if asking else "main")
+        session_choice = self._session_question(agent, selection) if asking and selection not in {row.name for row in rows} else ""
         rows = self.environment_rows(selection, rows)
         last = next((row.last_session(agent) for row in rows if row.name == selection), "")
-        resume = "" if new or not last else self._continuation(agent, selection, last, asking)
+        resume = session_choice or ("" if new or not last else self._continuation(agent, selection, last, asking))
         prompt_flags = omit or confirmed or self._prompts(agent)
         asking = asking and not resume
         stashed_hooks = stashed or (self._hooks(ForeignHooks(self.root, Providers().lookup(agent)).foreign(), previous.stashed_hooks) if asking else previous.stashed_hooks)
@@ -74,23 +75,23 @@ class Menu:
             return self._environment(agent, self.environments())
         if selected < len(rows):
             return rows[selected].name
-        name = self.screen.ask("Name:") or "main"
-        self._session_question(name)
-        return name
+        return self.screen.ask("Name:") or "main"
 
     def past_sessions(self) -> list[PastSessionRow]:
         return self.listed(PastSessionRow, "environment", "sessions")
 
-    def _session_question(self, name: str) -> None:
-        sessions = [session for session in self.past_sessions() if session.is_free()][:SESSIONS_SHOWN]
+    def _session_question(self, agent: str, name: str) -> str:
+        sessions = [session for session in self.past_sessions() if session.is_free() and session.provider == agent][:SESSIONS_SHOWN]
         if not sessions:
-            return
-        options = [Option("Start fresh"), *(Option(session.label(), session.badges()) for session in sessions)]
+            return ""
+        options = [Option("Start fresh"), *(Option(session.label(), session.badges(), separate=index == 0) for index, session in enumerate(sessions))]
         notes = ["Its chat is filled from the conversation you pick, and the agent carries it on.", "Conversations already in an environment are not listed."]
         index = self.screen.pick(f"Carry on from a past conversation in {name}?", notes, options, 0)
-        if index > 0:
-            session = sessions[index - 1]
-            self.journal("environment", "create", name, "--session", session.session, "--provider", session.provider)
+        if index == 0:
+            return ""
+        session = sessions[index - 1]
+        self.journal("environment", "create", name, "--session", session.session, "--provider", session.provider)
+        return session.session
 
     def _delete(self, row: EnvironmentRow) -> None:
         if row.working:

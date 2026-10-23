@@ -11777,3 +11777,16 @@ def test_a_new_environment_is_filled_from_a_kept_claude_session_and_its_first_ag
     app.runtime().deferred.drain()
     assert "filled from the earlier conversation" not in started(), "and only once"
     assert call("GET", "/journal/environments/sessions")[1][0]["environment"] == "login", "the form names the environment a session went into"
+
+
+def test_a_kept_sessions_first_prompt_is_its_users_own_words_past_the_injected_lines(tmp_path):
+    from journal.providers.claude import Claude
+    path = tmp_path / "kept.jsonl"
+    rows = [
+        {"type": "user", "message": {"content": "[journal] introduce yourself to the user in the chat. one or two lines"}, "timestamp": "2026-10-01T10:00:00Z"},
+        {"type": "user", "message": {"content": "<task-notification> <task-id>abc</task-id> </task-notification>"}, "timestamp": "2026-10-01T10:00:01Z"},
+        {"type": "user", "message": {"content": "# AGENTS.md instructions for /home/me/project\\n\\nread this first"}, "timestamp": "2026-10-01T10:00:02Z"},
+        {"type": "user", "message": {"content": "Fix the login page\\nand the footer too"}, "timestamp": "2026-10-01T10:00:03Z"},
+    ]
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    assert Claude().past_session(path).first_prompt.startswith("Fix the login page"), "the journal's lines, a notice and injected instructions are not the user's prompt"

@@ -23,7 +23,8 @@ class PastSessionRow:
         return not self.environment
 
     def label(self) -> str:
-        return self.first_prompt[:PROMPT_CHARACTERS] or "(no prompt)"
+        first_line = self.first_prompt.strip().split("\n", 1)[0]
+        return first_line[:PROMPT_CHARACTERS] or "(no prompt of yours)"
 
     def badges(self) -> tuple[str, ...]:
         return self.title, f"{self.line_count} lines"

@@ -48,12 +48,21 @@ def test_the_menu_defaults_and_answers_and_remembers(tmp_path: Path, monkeypatch
 
 def test_a_new_environment_in_the_menu_may_carry_on_from_a_past_conversation_or_start_fresh(tmp_path: Path, monkeypatch):
     calls = []
-    kept = [{"provider": "claude", "session": "old-1", "updated_at": 2.0, "first_prompt": "fix the login page", "line_count": 40, "title": "Claude Code", "environment": ""},
-            {"provider": "codex", "session": "old-2", "updated_at": 1.0, "first_prompt": "already used", "line_count": 9, "title": "Codex", "environment": "spike"}]
+    kept = [{"provider": "claude", "session": "old-1", "updated_at": 2.0, "first_prompt": "fix the login page\nand the footer", "line_count": 40, "title": "Claude Code", "environment": ""},
+            {"provider": "codex", "session": "old-3", "updated_at": 1.5, "first_prompt": "a codex conversation", "line_count": 12, "title": "Codex", "environment": ""},
+            {"provider": "claude", "session": "old-2", "updated_at": 1.0, "first_prompt": "already used", "line_count": 9, "title": "Claude Code", "environment": "spike"}]
+    shown = []
     menu = menu_answering(tmp_path, monkeypatch, ["3", "login", "2", "1", "2"])
     menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
-    assert menu.choose("claude").environment == "login"
+    real_pick = menu.screen.pick
+    menu.screen.pick = lambda heading, notes, options, default: shown.append((heading, options)) or real_pick(heading, notes, options, default)
+    choice = menu.choose("claude")
+    assert choice.environment == "login" and choice.resume == "old-1", "the picked conversation is carried on, with no second question"
     assert ("environment", "create", "login", "--session", "old-1", "--provider", "claude") in calls, "the picked conversation fills the new environment"
+    options = next(options for heading, options in shown if heading.startswith("Carry on from a past conversation"))
+    assert [option.label for option in options] == ["Start fresh", "fix the login page"], "only the launched program's free sessions, each by its first line"
+    assert options[1].separate, "Start fresh stands apart from the conversations"
+    assert not [heading for heading, _ in shown if heading == "Carry on from the last session"], "picking a conversation is the carry-on choice"
     calls.clear()
     menu = menu_answering(tmp_path, monkeypatch, ["3", "fresh", "1", "1", "2"])
     menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")

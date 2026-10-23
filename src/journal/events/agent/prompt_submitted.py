@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from journal.support.prompt_origin import PromptOrigin
 from journal.support.typed_lines import JOURNAL_PREFIX
 from journal.events.agent.agent_event import AgentEvent
 
@@ -14,7 +15,7 @@ class PromptSubmitted(AgentEvent):
 
     @property
     def is_users(self) -> bool:
-        return not self.prompt.lstrip().startswith(("[journal]", "[plugin ", "<", "[Cross-session "))
+        return PromptOrigin.is_users(self.prompt)
 
     def users_words(self) -> str:
         return self.prompt if self.is_users else ""

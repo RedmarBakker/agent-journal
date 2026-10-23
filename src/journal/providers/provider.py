@@ -34,6 +34,7 @@ from journal.providers.support.capability import Capability
 from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
+from journal.support.prompt_origin import PromptOrigin
 
 CONTEXT_HOOKS = (HookKind.SESSION_START, HookKind.USER_PROMPT, HookKind.PRE_TOOL_USE, HookKind.POST_TOOL_USE)
 
@@ -95,7 +96,7 @@ class Provider(ABC):
     def past_session(self, path: Path) -> PastSession:
         with path.open("rb") as file:
             head = file.read(HEAD_BYTES).decode(errors="replace")
-        prompts = [turn.text for turn in self.turn_rows(self.rows(head[: head.rfind("\n") + 1], 0)) if turn.kind == "human" and turn.text.strip()]
+        prompts = [turn.text for turn in self.turn_rows(self.rows(head[: head.rfind("\n") + 1], 0)) if turn.kind == "human" and turn.text.strip() and PromptOrigin.is_users(turn.text)]
         return PastSession(self.name, self.session_name(path), path.stat().st_mtime, prompts[0].strip()[:PROMPT_CHARACTERS] if prompts else "", self.line_count(path))
 
     @staticmethod
