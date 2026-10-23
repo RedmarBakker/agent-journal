@@ -58,5 +58,5 @@ test("only a newly seen card produces an arrival glance", () => {
     expect(cardsAfter(row, known)).toEqual([{beat: "card_arrived", card: "card:1", time: 10}]);
     row.data.cards[0].time = 20;
     expect(cardsAfter(row, known)).toEqual([]);
-    for (const voice of VOICES) expect(answerTo({beat: "card_arrived", card: "card:1"}, voice, memory(), 10, () => 0, has(voice)).beat).toEqual({clip: "glance", card: "card:1"});
+    for (const voice of VOICES) expect(answerTo({beat: "card_arrived", card: "card:1"}, voice, memory(), 10, () => 0, has(voice)).beat).toEqual({clip: "glance", card: "card:1", mark: "card:1"});
 });

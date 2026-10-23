@@ -235,3 +235,38 @@ test("the hand holds the handset from behind: its palm at the back of the grip, 
         expect(checked, voice).toBeGreaterThan(50);
     }
 });
+
+test("on the telephone it says whom it calls: the worker and the task it holds, or the session messaged, in a bubble while it talks and until the handset is down", async () => {
+    const {CALL_LINE, callLines} = await import("../src/domain/figureState.js");
+    const {answerTo} = await import("../src/figure/reactions.js");
+    const {bubbleSpot, callSays} = await import("../src/figure/places.js");
+    // the call's beat keeps the mark that set it off
+    const answer = answerTo({beat: "messaged", time: 1, card: "messages:5"}, "butler", {reacted: new Map(), played: []}, 1000, () => 0, () => true);
+    expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
+    // a worker sent off: its number, and the task it holds with its title cut short
+    const workers = [{id: 57, task: {task_id: 2742}}, {id: 58, task: null}];
+    const tasks = [{id: 2742, title: "Finishing a task, the avatar rubs its hands together"}];
+    const lines = callLines({row: "workers:57", sentTo: ""}, workers, tasks);
+    expect(lines[0]).toBe("Worker 57");
+    expect(lines[1].startsWith("task 2742: Finishing a task")).toBe(true);
+    expect(lines[1].length).toBeLessThanOrEqual(`task 2742: `.length + CALL_LINE);
+    expect(lines[1].endsWith("…")).toBe(true);
+    // a worker that holds no task is named alone; a message to another session names that session; any other mark says nothing
+    expect(callLines({row: "workers:58", sentTo: ""}, workers, tasks)).toEqual(["Worker 58"]);
+    expect(callLines({row: "", sentTo: "45-mr-faraday"}, workers, tasks)).toEqual(["Calling 45-mr-faraday"]);
+    expect(callLines({row: "tasks:3", sentTo: ""}, workers, tasks)).toEqual([]);
+    // said from the talk's start until the handset is down, never before or after
+    expect(callSays(act.talk[0] - 0.01)).toBe(false);
+    for (const u of [act.talk[0], (act.talk[0] + act.talk[1]) / 2, act.hang[0], act.hang[1] - 0.001]) expect(callSays(u), `${u}`).toBe(true);
+    expect(callSays(act.hang[1])).toBe(false);
+    // the bubble stands up beside the head, on the side where it hides fewer of the chat's words, else toward the more room
+    const head = {x: 500, y: 400};
+    const text = {left: 520, right: 800, top: 300, bottom: 400};
+    const hides = (box) => (box.left < text.right && text.left < box.right && box.top < text.bottom && text.top < box.bottom ? 5 : 0);
+    const spot = bubbleSpot(head, 120, 40, {left: 100, right: 600}, hides);
+    expect(spot.side).toBe(-1);
+    expect(spot.right).toBeLessThan(head.x);
+    expect(spot.bottom).toBeLessThan(head.y);
+    expect(bubbleSpot(head, 120, 40, {left: 100, right: 600}, () => 0).side).toBe(1);
+    expect(bubbleSpot(head, 120, 40, {left: 600, right: 100}, () => 0).side).toBe(-1);
+});

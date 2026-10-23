@@ -220,7 +220,7 @@ test("a moment is answered by its egg first, else by its reaction, a beat for th
     expect(answerTo({beat: "reacted:\u2764\ufe0f", time: 1}, "butler", memory(), 0, () => 0, has)).toEqual({look: "hearts"});
     // a passed run is celebrated on its own card: the figure goes onto it first
     expect(answerTo({beat: "tests_passed", time: 1, card: "tests:1"}, "butler", memory(), 0, () => 0, has)).toEqual({
-        beat: {clip: "joy", card: "tests:1", onto: true},
+        beat: {clip: "joy", card: "tests:1", mark: "tests:1", onto: true},
     });
     expect(
         answerTo(

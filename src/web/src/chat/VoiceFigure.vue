@@ -37,6 +37,7 @@ import {
     testResultsAfter,
     waitingSinceAt,
     withSystemCards,
+    callLines,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, eagerSpot, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
@@ -67,6 +68,9 @@ import {
     gripIn,
     groundEdge,
     progressEdge,
+    bubbleSpot,
+    callSays,
+    wordsUnder,
     watchLook,
     progressOf,
     hiddenAt,
@@ -78,7 +82,7 @@ import {
 } from "../figure/places.js";
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
-import {rows} from "../sync/rows.js";
+import {holding, rows} from "../sync/rows.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -1243,6 +1247,36 @@ const markStyle = computed(() => ({
 // the act on screen, with how far through it the figure is, which the page draws what it holds for (figure/acts.js), or null
 const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.value.name, u: shownFrame.value / shownClip.value.frames} : null));
 const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
+
+// What the figure says on the telephone, while it says it (places.js callSays): the lines of the chat mark that set off the call
+// (figureState.js callLines), in a small bubble beside its head on the side where it hides the fewest words, that side chosen once a call
+const CALL_TYPE = {size: 11, glyph: 6.1, line: 14, pad: 7};
+const calling = () => (lead.value?.data?.cards || []).find((card) => card.key === beats.value[0]?.mark);
+let callSide = {mark: "", side: 0};
+const callBubble = computed(() => {
+    if (shownClip.value?.name !== "phone_call" || !callSays(shownFrame.value / shownClip.value.frames)) return null;
+    const card = calling();
+    const lines = card ? callLines(card, rows("workers"), rows("tasks")) : [];
+    if (!lines.length) return null;
+    const width = Math.max(...lines.map((line) => line.length)) * CALL_TYPE.glyph + 2 * CALL_TYPE.pad;
+    const height = lines.length * CALL_TYPE.line + 2 * CALL_TYPE.pad;
+    const head = {x: body.at.x + headAt.value.x * SIZE, y: body.at.y + headAt.value.y * SIZE};
+    if (callSide.mark !== card.key) callSide = {mark: card.key, side: bubbleSpot(head, width, height, room.value, wordsUnder).side};
+    const spot = bubbleSpot(head, width, height, callSide.side > 0 ? {left: 0, right: 1} : {left: 1, right: 0}, () => 0);
+    return {lines, style: {left: `${spot.left}px`, top: `${spot.top}px`, width: `${width}px`, fontSize: `${CALL_TYPE.size}px`, lineHeight: `${CALL_TYPE.line}px`, padding: `${CALL_TYPE.pad}px`}};
+});
+
+// the rows the call's words are read from, the worker the call is to and the task it holds, fetched as the call is set off
+watch(
+    () => beats.value[0]?.mark,
+    async () => {
+        const [table, id] = String(calling()?.row ?? "").split(":");
+        if (table !== "workers") return;
+        await holding("workers", [Number(id)]);
+        const held = rows("workers").find((worker) => worker.id === Number(id))?.task?.task_id;
+        if (held) await holding("tasks", [held]);
+    },
+);
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
 const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
 
@@ -1348,12 +1382,39 @@ const style = computed(() => {
     <template v-if="crane">
         <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />
     </template>
+    <template v-if="callBubble">
+        <div class="voice-figure-call" :style="callBubble.style" aria-hidden="true">
+            <template v-for="line in callBubble.lines" :key="line">
+                <span>{{ line }}</span>
+            </template>
+        </div>
+    </template>
     <template v-if="saucer">
         <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
     </template>
 </template>
 
 <style scoped>
+.voice-figure-call {
+    position: fixed;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    border: 1px solid var(--tip-edge);
+    border-radius: 10px;
+    background: var(--tip-bg);
+    box-shadow: var(--tip-shadow);
+    color: var(--text);
+    font-family: inherit;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.voice-figure-call > span:first-child {
+    font-weight: 600;
+}
+
 .voice-figure-marks {
     position: absolute;
     color: var(--text);

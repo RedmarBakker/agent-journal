@@ -129,7 +129,8 @@ export function workMoments(state, typed, began, now, was = state) {
 }
 
 // What the figure does about a moment: the egg of `voice` that belongs to it, else its reaction when the roll says so, as a beat the body
-// plays once ({beat: {clip, card}}), `card` being the chat mark it turns to, or a look its eyes take on ({look: mood}); null for nothing.
+// plays once ({beat: {clip, card, mark}}), `card` being the chat mark it turns to and `mark` the one that set it off, as the call says whom
+// it calls (figureState.js callLines), or a look its eyes take on ({look: mood}); null for nothing.
 // `memory` holds when each reaction last played (`reacted`), the eggs played so far (`played`) and the acts since the last shenanigan
 // (`tally`), and is filled in here; `has(clip)`
 // says whether the figure has a clip.
@@ -141,7 +142,7 @@ export function answerTo(moment, voice, memory, now, random, has) {
     }
     const reaction = reactionTo(moment.beat, memory.reacted, now, random, voice, has, memory.tally);
     if (reaction?.look) return {look: reaction.look};
-    if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(reaction.onto && moment.card ? {onto: true} : {})}};
+    if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(moment.card ? {mark: moment.card} : {}), ...(reaction.onto && moment.card ? {onto: true} : {})}};
     return null;
 }
 

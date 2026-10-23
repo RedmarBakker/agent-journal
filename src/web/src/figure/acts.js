@@ -10,6 +10,7 @@ export const ACTS = {
     // resting on the cradle a moment; it bends to the handset over `reach` and lifts it to its ear over `lift`; it bends to the dial and
     // puts a finger in it over `finger`, turns it `turn` degrees round to the stop over `dial`, and the dial springs back over `back`; it
     // talks over `talk`, nodding `nods` times; it bends to put the handset back on the cradle over `hang`, stands back from it a moment, and the telephone goes in a poof over `goes`
+    // While it talks and until the handset is down it says whom it calls in a speech bubble beside its head (figure/places.js callSays)
     phone_call: {frames: 108, fps: 12, poof: [0, 0.06], above: 0.7, drop: [0.015, 0.055], settle: [0.055, 0.12], squash: 0.24, wobbles: 3, reach: [0.13, 0.2], lift: [0.2, 0.28], finger: [0.28, 0.33], dial: [0.33, 0.42], turn: 250, back: [0.42, 0.5], talk: [0.5, 0.72], nods: 3, hang: [0.72, 0.84], goes: [0.92, 1]},
     // a question asked: it raises a sign with a question mark on a stick over its head and waggles it
     ask_sign: {frames: 42, fps: 12, raise: [0, 0.22], waggle: [0.22, 0.78], waggles: 3, lower: [0.78, 1]},

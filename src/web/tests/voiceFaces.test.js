@@ -101,7 +101,7 @@ test("the agent's face plays its voice's clip once, the user's same face only ch
     const answer = (moment) => answerTo(moment, "butler", memory, 200, () => 0.99, (clip) => Boolean(clipNamed(clip)));
     const seen = facesAfter(rows, 99);
     expect(seen.map((moment) => moment.beat)).toEqual(["agent_reacted:🎩", "reacted:🎩"]);
-    expect(seen.map(answer)).toEqual([{beat: {clip: "hat_tip", card: ""}}, {look: "amused"}]);
+    expect(seen.map(answer)).toEqual([{beat: {clip: "hat_tip", card: "", mark: seen[0].card}}, {look: "amused"}]);
     // the next look starts from the newest face seen, so the face is not played twice
     expect(facesAfter(rows, Math.max(...seen.map((moment) => moment.time)))).toEqual([]);
     // a figure that mounts after the face was put on, as after a reload, starts its looks from then and so never sees it

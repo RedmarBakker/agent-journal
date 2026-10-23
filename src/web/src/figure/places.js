@@ -413,6 +413,27 @@ export function progressEdge(element) {
     return {x: box.right, y: box.top + box.height / 2};
 }
 
+// whether the figure says whom it calls at `u` of its call (acts.js phone_call): from the talk's start until the handset is down
+export const callSays = (u) => u >= ACTS.phone_call.talk[0] && u < ACTS.phone_call.hang[1];
+
+// The speech bubble the figure says something in beside its head at `head`, a page point, `width` by `height` pixels: up and out to one side
+// of the head, the side where it hides the fewest words, as `hides(box)` counts them, toward the side with more `room` when both hide as
+// many; its box on the page and the side, 1 to the right
+export const BUBBLE = {gap: 10, rise: 14};
+export function bubbleSpot(head, width, height, room, hides) {
+    const box = (side) => {
+        const left = side > 0 ? head.x + BUBBLE.gap : head.x - BUBBLE.gap - width;
+        const top = head.y - BUBBLE.rise - height;
+        return {left, right: left + width, top, bottom: top + height};
+    };
+    const sides = room.right >= room.left ? [1, -1] : [-1, 1];
+    const side = sides.reduce((best, each) => (hides(box(each)) < hides(box(best)) ? each : best));
+    return {...box(side), side};
+}
+
+// how many words of the chat the box `box` on the page covers, at the points of a grid over it
+export const wordsUnder = (box) => bodyPoints(box).filter(([x, y]) => onWord(x, y)).length;
+
 // a progress bar marked for the figure, its value how it ended, as the card's tone, and empty while it runs
 export const BAR = "[data-figure-bar]";
 
