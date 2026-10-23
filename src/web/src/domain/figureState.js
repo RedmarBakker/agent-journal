@@ -9,6 +9,7 @@ export const HELD = {
     idle: "idle",
     asleep: "sleep",
     thinking: "idle",
+    quiet: "idle",
     searching: "search",
     reading: "read",
     writing: "type",
@@ -26,7 +27,7 @@ export const HELD = {
 export const RESTS = new Set(["asleep", "compacting", "paused", "stopped"]);
 
 // The states in which the agent is at work
-export const WORKING = new Set(["thinking", "searching", "reading", "writing", "testing", "building", "running"]);
+export const WORKING = new Set(["thinking", "quiet", "searching", "reading", "writing", "testing", "building", "running"]);
 
 // A tool in flight says what the agent is doing with it; the providers report their own tools under these names.
 const TOOL_STATES = {
@@ -70,7 +71,8 @@ export function figureStateOf(agent, waitingSince, now = Date.now() / 1000) {
     const tool = agent?.tool;
     const doing = agent.tool_work ? (SHELL_STATES[agent.tool_work] ?? "running") : TOOL_STATES[tool];
     const inFlight = Boolean(tool) && (agent.tool_running || now - since < TOOL_LINGERS) && doing;
-    return {state: inFlight || "thinking", since};
+    // between tools the agent is quiet, standing as it does idle, until the server says it is thinking (agent_activity thinking_at)
+    return {state: inFlight || (agent.thinking_at ? "thinking" : "quiet"), since};
 }
 
 export const clipOf = (state) => HELD[state] || HELD.idle;

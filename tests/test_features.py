@@ -11879,3 +11879,29 @@ def test_filling_an_environment_reports_how_far_it_has_come(app: App, tmp_path, 
     hydration.created("long", "claude", "long-session", Actor.user(1))
     assert steps[0] == 0 and steps[-1] == 100 and steps == sorted(steps) and len(set(steps)) > 10, "the percentage climbs from 0 to 100 as the chat fills"
     assert hydration.filled_percent("long") == 0, "and is back to nothing once the environment is filled"
+
+
+def test_the_agent_is_marked_thinking_after_a_quiet_spell_at_work_and_no_longer_once_a_tool_starts(app: App):
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.features.thinking.support.thinking_window import THINKING_SILENCE_SECONDS
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    reading = {"tool_name": "Read", "tool_input": {"file_path": "a.py"}}
+    hook(app, "PreToolUse", **reading)
+    hook(app, "PostToolUse", **reading, tool_response={"content": "x"})
+    app.runtime().deferred.drain()
+    agent = lambda: app.container.get(Agents).session_agent("s1")
+    tick = lambda after: (app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=timing.time() + after, silence_seconds=after)), app.runtime().deferred.drain())
+    with app.container.get(Scope).environment(MAIN):
+        tick(1)
+        assert not agent().is_thinking(), "a moment after a tool came back the agent is not thinking yet"
+        tick(THINKING_SILENCE_SECONDS + 1)
+        assert agent().is_thinking(), "quiet long enough at work, it is thinking"
+    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls"})
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert not agent().is_thinking(), "a tool starting ends the thinking at once"

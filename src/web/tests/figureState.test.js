@@ -49,7 +49,8 @@ test("the figure does what the tool in flight says the agent does, and thinks be
     expect(stateAt({running: true, tool: "Grep"})).toBe("searching");
     expect(stateAt({running: true, tool: "Edit"})).toBe("writing");
     expect(stateAt({running: true, tool: "Bash", since: NOW - 120})).toBe("running");
-    expect(stateAt({tool: "Bash", since: NOW - 30})).toBe("thinking");
+    expect(stateAt({tool: "Bash", since: NOW - 30})).toBe("quiet");
+    expect(stateAt({tool: "Bash", since: NOW - 30, thinking_at: NOW - 20}), "thinking only once the server says so").toBe("thinking");
     expect(stateAt({running: true, tool: "Bash", tool_work: "testing"})).toBe("testing");
     expect(stateAt({running: true, tool: "Bash", tool_work: "building"})).toBe("building");
     // a search through the shell, a grep, a find or the journal's own, is searching as the search tools are
@@ -89,7 +90,7 @@ test("something waiting on the user is the asking state, timed from when it arri
 
 test("while the agent works the figure shows the work, as the bar says Working, even with something waiting on the user", () => {
     expect(stateAt({running: true, tool: "Grep"}, NOW - 30)).toBe("searching");
-    expect(stateAt({tool: "Grep", since: NOW - 30}, NOW - 30)).toBe("thinking");
+    expect(stateAt({tool: "Grep", since: NOW - 30}, NOW - 30)).toBe("quiet");
 });
 
 test("a beat fires only for what reached the row after it was last seen, oldest first", () => {
@@ -265,7 +266,7 @@ test("reads have their own working state; search tools and search-only shells ke
     for (const tool of ["Grep", "Glob", "WebSearch", "WebFetch"]) {
         expect(stateAt({running: true, tool}), tool).toBe("searching");
     }
-    expect(stateAt({tool: "Read", since: NOW - 30})).toBe("thinking");
+    expect(stateAt({tool: "Read", since: NOW - 30})).toBe("quiet");
 });
 
 test("a book opens once, keeps reading across loops, and closes only when asked to finish", () => {

@@ -28,9 +28,10 @@ describe("the chat's status line", () => {
 
     test("shows another tool by its verb, a helper's job while one works, and the word thinking alone while it thinks, never the thought", () => {
         expect(busyLine(agent({tool_running: true, doing: "reading a file", thinking: "Read the router"})).doing).toBe("reading a file");
-        expect(busyLine(agent({thinking: "Read the router"}))).toEqual({doing: "thinking"});
+        expect(busyLine(agent({thinking: "Read the router", thinking_at: 100}))).toEqual({doing: "thinking"});
         expect(busyLine(agent(), {task: "map the hooks"}).doing).toBe("Waiting: map the hooks");
-        expect(busyLine(agent()).doing).toBe("thinking");
+        expect(busyLine(agent({thinking_at: 100})).doing).toBe("thinking");
+        expect(busyLine(agent({doing: "ran pytest"})).doing, "until the server says it thinks, what it last did").toBe("ran pytest");
         expect(busyLine(agent({status: "compacting", tool_running: true, doing: "git status"})).doing).toBe("compacting");
     });
 

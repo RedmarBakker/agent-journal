@@ -2,6 +2,8 @@ from typing import ClassVar
 from dataclasses import dataclass, field
 
 from journal.events.rows.user_paused import UserPaused
+from journal.events.rows.agent_thinking import AgentThinking
+from journal.events.rows.agent_thinking_ended import AgentThinkingEnded
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.session_retired import SessionRetired
 from journal.events.rows.overview_read import OverviewRead
@@ -12,6 +14,7 @@ from journal.models.scoped import Scoped
 
 
 @dataclass(frozen=True)
+
 class Agent(Scoped):
     shared: ClassVar[bool] = False
 
@@ -20,6 +23,7 @@ class Agent(Scoped):
     provider: str = ""
     state: str = "idle"
     data: dict = field(default_factory=dict)
+    thinking_at: float = 0.0
     stack: tuple = ()
     skills_loaded: dict = field(default_factory=dict)
     context_threshold: int = 0
@@ -38,6 +42,15 @@ class Agent(Scoped):
 
     def user_paused(self, time: float) -> "Agent":
         return self.with_event(UserPaused(environment_id=self.environment_id, time=time, agent_session=self.session))
+
+    def thinking_started(self, time: float) -> "Agent":
+        return self.with_(thinking_at=time).with_event(AgentThinking(environment_id=self.environment_id, time=time, agent_session=self.session))
+
+    def thinking_ended(self, time: float) -> "Agent":
+        return self.with_(thinking_at=0.0).with_event(AgentThinkingEnded(environment_id=self.environment_id, time=time, agent_session=self.session))
+
+    def is_thinking(self) -> bool:
+        return self.thinking_at > 0
 
     def user_resumed(self, time: float) -> "Agent":
         return self.with_event(UserResumed(environment_id=self.environment_id, time=time, agent_session=self.session))

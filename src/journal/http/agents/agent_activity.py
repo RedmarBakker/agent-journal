@@ -31,9 +31,9 @@ from journal.support.skill_load import SkillLoad
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
 from journal.support.command_text import CommandText
+from journal.features.thinking.support.thinking_window import WORKING_STATES
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
-WORKING = frozenset({"working", "following_plan", "delegating", "orchestrating_plan"})
 ENTRY_COUNT = 400
 HISTORY_ENTRIES = 5
 OPERATION_VERBS = {FileRead.kind: "reading a file", FileEdit.kind: "editing files", FileWrite.kind: "writing a file", SubagentDispatch.kind: "waiting for a subagent", SkillLoad.kind: "reading a skill", AgentMessage.kind: "messaging an agent", UserQuestion.kind: "asking you"}
@@ -80,6 +80,7 @@ class AgentActivity:
             "question_id": agent.data.get("question_id", 0) if agent.state == "waiting" else 0,
             "doing": self.activity(state, [e for e in entries if e.kind in ("ToolStarting", "ToolFinished", PART_START, PART_END)]),
             "thinking": self.thinking(agent.session, hooks) if agent.state != ENDED else "",
+            "thinking_at": agent.thinking_at if agent.state != ENDED else 0.0,
             "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.kind == "TurnDisplayed"), ""),
             "stuck": agent.data.get("why", "") if agent.state == "stuck" else "",
             "sequence": self.sequence(agent),
@@ -95,7 +96,7 @@ class AgentActivity:
 
     @staticmethod
     def status(state: str, reported: str) -> str:
-        return "working" if state in WORKING and reported == "busy" else reported
+        return "working" if state in WORKING_STATES and reported == "busy" else reported
 
     def thinking(self, session: str, hooks) -> str:
         thoughts = self.messages.thoughts(session, 1)
