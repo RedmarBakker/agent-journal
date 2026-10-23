@@ -461,7 +461,7 @@ test("the claw slows to a stop just over the stack with no overshoot, hovers, gr
     const floor = 600;
     const top = 0;
     const reach = floor - top - stops[0].high - CLAW_CLEARANCE;
-    expect(CLAW_CLEARANCE, "the hub stops clear of the box's top").toBeGreaterThan(2);
+    expect(CLAW_CLEARANCE, "the hub stops clear of the box's top").toBeGreaterThan(8);
     const at = (ms) => craneAt(stops, CRANE.enter + ms, floor, top, 0, 900);
     const lowering = Array.from({length: 23}, (_, step) => at((CRANE.lower * step) / 22).chain);
     expect(Math.max(...lowering)).toBeLessThanOrEqual(reach + 1e-9);

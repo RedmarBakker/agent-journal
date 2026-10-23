@@ -270,7 +270,7 @@ export const prongsOf = (open) =>
     [-1, 1].map((way) => ({way, top: way * (CLAW.side + CLAW.spread * open * 0.3), tip: way * (CLAW.side + CLAW.spread * open), reach: CLAW.reach}));
 
 // how far above the stack's top the claw's hub stops, in pixels, so the hub stays clear of the box and only the prongs come down round it
-export const CLAW_CLEARANCE = 4;
+export const CLAW_CLEARANCE = 9;
 
 // the chain a claw at the window's `top` needs to reach down to just over `stop`'s stack, standing on the floor at `floor`, in pixels
 const reachOf = (stop, floor, top) => floor - top - stop.high - CLAW_CLEARANCE;
