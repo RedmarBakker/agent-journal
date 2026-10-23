@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-BHYl8gY7.js
-import{A as Me,p as Be,h as qc,a as sd}from"./main-CTQ4nBbO.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as Ae,p as He,h as Kc,a as sd}from"./main-Ca2yxkrS.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 0998c2787 (Every fall drops at a real fall's speed and lands with a quick bounce, the tumble onto the knees included; the visor lights as an old CRT powers up, the eyes out, a bright line across the middle widening and opening out to fill it, the colour, and the eyes back; and the confetti cannon and the confetti cheer are gone):src/web/dist/assets/figure-DMNAtozX.js
+import{A as Ae,p as He,h as Kc,a as sd}from"./main-C1Orgg3N.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
