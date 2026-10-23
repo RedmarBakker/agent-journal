@@ -10829,3 +10829,29 @@ def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alia
     assert runner.alias_wrapper_lines(suite) == [], "once"
     assert len(runner.line_wrapper_lines("timeout 600 npm test")) == 1 and runner.line_wrapper_lines("timeout 300 npm test") == [], "a plain line likewise, once for its command"
     assert runner.line_wrapper_lines("python3 -m pytest -q") == [] and runner.alias_wrapper_lines(Alias(name="plain", line="make")) == [], "a run without a wrapper is told nothing"
+
+
+def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a_worker_holds(app: App, monkeypatch):
+    from journal.models.worker import Worker
+    from journal.repositories.plans import Plans
+    from journal.repositories.workers import Workers
+
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "an older loose job", "--brief", "b"], AGENT)
+    console.run(["task", "create", "another loose job", "--brief", "b"], AGENT)
+    console.run(["plan", "create", "release", "--brief", "ship"], USER)
+    for title in ("write the notes", "tag it"):
+        console.run(["plan", "add", "1", title], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    assert [task.id for task in app.container.get(Plans).offers()][:2] == [4, 1], "the started plan's next open task comes before the older loose ones"
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    with app.container.get(Scope).environment(MAIN):
+        worker = app.container.get(Workers).save(Worker(name="Mr. Babbage", brief="tag it"), Actor.system())
+        tasks = app.container.get(Tasks)
+        tasks.handover(tasks.find(4), Ref.build(worker), Actor.system())
+    assert 4 not in [task.id for task in app.container.get(Plans).offers()], "a task a worker holds is never offered"

@@ -25,7 +25,7 @@ class TasksDataReader:
         blocked_without_wait = self.tasks.blocked_without_wait()
         broken = [(task, check) for task, check in self.tasks.broken_waits()]
         commands = [command for e in self.entries.tool_starts(agent.session, HISTORY_TOOL_STARTS) if (command := e.recorded_call().command)]
-        free = self.plans.free()
+        free = self.plans.offers()
         open_tasks = self.tasks.open_tasks()
         return TasksData(
             current_task=current_task.row_id if current_task else 0,

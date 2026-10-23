@@ -7,7 +7,7 @@ from journal.repositories.tasks import Tasks
 
 
 class NextOpenTask:
-    """What a task's close leaves open next, closed by command or by a commit: the task the plan it moves took in hand at the close or that plan's next open task, else the first free open task; nothing when the plan keeps an older task in hand, the closer has another task in hand or a task is parked."""
+    """What a task's close leaves open next, closed by command or by a commit: the task the plan it moves took in hand at the close or that plan's next open task, else a started plan's next open task, else the first free open task, never one a worker holds; nothing when the plan keeps an older task in hand, the closer has another task in hand or a task is parked."""
 
     def __init__(self, tasks: Tasks, plans: Plans) -> None:
         self.tasks, self.plans = tasks, plans
@@ -19,8 +19,11 @@ class NextOpenTask:
         holder = self.tasks.holder(closed)
         if (holder is not None and self.tasks.holder_task(holder) is not None) or self.tasks.with_state(TaskState.SUSPENDED):
             return None
-        free = self.plans.free()
-        return OpenTask(free[0].row_id, free[0].title, free[0].brief, 0) if free else None
+        active_plans = self.plans.running_plans()
+        if active_plans:
+            return self.plan_next(active_plans[0], closed)
+        loose_tasks = self.plans.free()
+        return OpenTask(loose_tasks[0].row_id, loose_tasks[0].title, loose_tasks[0].brief, 0) if loose_tasks else None
 
     def is_planned(self, closed: Task) -> bool:
         return bool(self.plans.started_plans(closed))

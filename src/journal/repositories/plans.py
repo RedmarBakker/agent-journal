@@ -129,6 +129,10 @@ class Plans(ScopedRepository[Plan]):
     def unapproved(self, task: Task) -> list[Plan]:
         return [plan for ref in self.links.targets(task, PLAN_LINK) if (plan := self.find(ref.id)).state.is_unapproved()]
 
+    def offers(self) -> list[Task]:
+        planned = [task for plan in self.running_plans() if (task := self.next_task(plan)) is not None]
+        return [*planned, *self.free()]
+
     def free(self) -> list[Task]:
         open_tasks = self.tasks.open_tasks()
         planned = {link.source.id for link in self.links.model_links("source", open_tasks, PLAN_LINK)}
