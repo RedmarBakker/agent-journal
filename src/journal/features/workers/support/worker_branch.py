@@ -192,6 +192,17 @@ class WorkerBranch:
         overlap = sorted(repository.path(path) for path in touched & set(self.status_files(checkout)))
         return f"you have uncommitted changes to files they change: {', '.join(overlap)}" if overlap else ""
 
+    # Moves the worker's worktree up to the branch its work merges into, in each repository, by the same rebase a merge makes: after a
+    # merge its own commits are in the branch already and drop out; before a job it carries them over what others merged meanwhile.
+    def rebased_onto_branch(self, worker: Worker) -> str:
+        if not worker.worktree or not self.folder(worker).is_dir():
+            return ""
+        for repository in self.repositories(worker):
+            clashing = self.rebased(repository, worker)
+            if clashing:
+                return f"rebased onto the branch of {repository.label()} there is a conflict in {clashing}"
+        return ""
+
     def rebased(self, repository: WorkerRepository, worker: Worker) -> str:
         head = self.git("rev-parse", "HEAD", cwd=repository.checkout).stdout.strip()
         if self.git("merge-base", "--is-ancestor", head, self.tip(repository, worker), cwd=repository.checkout).returncode == 0:

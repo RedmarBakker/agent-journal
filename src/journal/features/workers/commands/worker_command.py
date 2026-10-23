@@ -236,9 +236,8 @@ class WorkerCommand(Command):
     def merge(self, args: Namespace, caller: Caller) -> int:
         outcome = self.actions.merge(args.n, caller.actor)
         print(f"task {outcome.task.id} done: {outcome.task.outcome}; {outcome.worktree or 'it had no worktree'}")
-        waiting = self.tasks.queue(Ref.build(self.workers.find(args.n)))
-        if waiting:
-            print(f"next in worker {args.n}'s queue: task {waiting[0].id}, {waiting[0].title}: journal worker send {args.n} \"<the job>\" --task {waiting[0].id}")
+        if outcome.next_task:
+            print(outcome.next_task)
         return 0
 
     def queue(self, args: Namespace, caller: Caller) -> int:

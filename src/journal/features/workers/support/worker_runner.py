@@ -237,6 +237,9 @@ class WorkerRunner:
         names = tuple(dict.fromkeys((*worker.repositories, *self.branch.brief_folders(brief))))
         if not self.branch.folder(worker).is_dir():
             return self.prepared(worker, names, self.worktree_restoration)
+        clashing = self.branch.rebased_onto_branch(worker)
+        if clashing:
+            raise WorktreeFailure(f"its worktree was not moved up to this branch, since {clashing}")
         if not self.settings.option(Feature.WORKTREE_STEP):
             return worker.repositories
         return self.inner_worktrees(worker, names)

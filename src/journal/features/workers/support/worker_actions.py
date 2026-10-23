@@ -121,7 +121,27 @@ class WorkerActions:
         self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
         self.moves.cleared(worker)
-        return MergeOutcome(closed, self.branch.dropped(self.workers.find(worker.id)))
+        return MergeOutcome(closed, self.merged_worktree_line(self.workers.find(worker.id)), self.next_job(worker.id, actor))
+
+    def next_job(self, n: int, actor: Actor) -> str:
+        queued = self.tasks.queue(Ref.build(self.workers.find(n)))
+        if not queued:
+            return ""
+        task = queued[0]
+        try:
+            worker = self.send(n, f"Your next task, {task.id}: {task.title}. {task.brief}", None, actor)
+        except Rejection as refused:
+            return f"its next queued task {task.id} was not sent, since {refused}"
+        self.tasks.handover(task, Ref.build(worker), actor)
+        return f"it went straight on to task {task.id} from its queue, in its own session and worktree"
+
+    def merged_worktree_line(self, worker: Worker) -> str:
+        if not worker.worktree:
+            return ""
+        clashing = self.branch.rebased_onto_branch(worker)
+        if clashing:
+            return f"its worktree stays as it was, since {clashing}"
+        return f"its worktree {self.branch.folder(worker)} stays, moved up to this branch, for its next job"
 
     def merge_gate(self, event: WorkerMerging) -> None:
         refusals = self.events.worker_merging(event)

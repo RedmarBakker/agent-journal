@@ -7819,7 +7819,9 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     with app.container.get(Scope).environment(MAIN):
         done = tasks.find(1)
         assert done.state == TaskState.FINISHED and tip[:9] in done.outcome and "not done: point 2 (names need a table first)" in done.outcome, "the merge takes what the worktree has checked out, on a branch of the worker's own making too, and closes the task with the branch tip, naming the point checked as not done"
-        assert workers.find(1).state == WorkerState.MERGED and tasks.holder(done) is None and not folder.exists(), "the hold is released and the worktree retired"
+        assert workers.find(1).state == WorkerState.MERGED and tasks.holder(done) is None and folder.exists(), "the hold is released and the worktree stays for the worker's next job"
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=app.config.root, capture_output=True, text=True, timeout=30).stdout.strip()
+        assert subprocess.run(["git", "rev-parse", "HEAD"], cwd=folder, capture_output=True, text=True, timeout=30).stdout.strip() == head, "moved up to the branch it was merged into"
         assert (workers.find(1).branch, workers.find(2).branch) == ("worker/1-Lady-Lovelace", ""), "a worker in a worktree keeps the branch it commits on; one in the project has none of its own"
         assert tasks.earlier_tasks() == {1: 1}, "a merged worker keeps the task it worked on, while one still holding its task has none before it"
         assert [move for move, _ in workers.find(1).moves.steps][-1] == "merged"
@@ -7874,10 +7876,14 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)
     console.run(["worker", "check", "1", "1"], AGENT)
+    from journal.features.workers.support.worker_actions import WorkerActions
+    monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
     merged = console.run(["worker", "merge", "1"], AGENT)
-    assert merged.code == 0 and "next in worker 1's queue: task 2, the docs: journal worker send 1" in merged.text and "--task 2" in merged.text, merged.error or merged.text
+    assert merged.code == 0 and "it went straight on to task 2 from its queue" in merged.text, merged.error or merged.text
     with app.container.get(Scope).environment(MAIN):
-        assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED], "the merge keeps the queue: the tasks wait for the worker still"
+        assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).state == TaskState.DELEGATED, "the merge sends the worker its next queued task by itself; the one after waits"
+    with app.container.get(Scope).environment(MAIN):
+        workers.save(workers.find(1).with_(state=WorkerState.STOPPED), Actor.system())
     assert console.run(["worker", "release", "1"], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (2, 3)] == [TaskState.OPEN, TaskState.OPEN], "a worker let go gives its queued tasks back, open again"
