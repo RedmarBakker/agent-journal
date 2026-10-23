@@ -1,5 +1,6 @@
 import {stateOf} from "./agentState.js";
 import {createdAt, refOf, seconds} from "./row.js";
+import {EVERY_VOICE_FACES, VOICE_FACES} from "../figure/pile.js";
 
 // What the figure does, read from the same agent row and work rows as the status bar, so the two never disagree.
 // Each held state names the clip the figure loops while it is true; a state with no clip of its own idles. The walk is never held: it plays only while the figure moves.
@@ -167,6 +168,21 @@ export function facesAfter(reactions, seenAt) {
     return reactions
         .filter((row) => FACE_MOMENTS[row.author] && createdAt(row) > seenAt)
         .map((row) => ({beat: `${FACE_MOMENTS[row.author]}:${row.emoji}`, time: createdAt(row), card: `messages:${row.message_id}`}))
+        .sort((a, b) => a.time - b.time);
+}
+
+// every face an agent's act answers, its voice's own and the ones every voice plays (figure/pile.js)
+const ACTED_FACES = [...new Set([...Object.values(VOICE_FACES).flatMap((faces) => Object.keys(faces)), ...Object.keys(EVERY_VOICE_FACES)])];
+
+// The beats for faces the agent wrote in its own messages since `seenAt` (seconds), oldest first: a face written counts as one the agent put
+// on a message, so it plays the same act; the first acted face in a message is the one played. The card is the message it is in.
+export function writtenFacesAfter(agent, messages, seenAt) {
+    if (!agent) return [];
+    return messages
+        .filter((m) => m.author === "agent" && !m.data?.kind && ofSession(agent, m) && createdAt(m) > seenAt)
+        .map((m) => ({m, face: ACTED_FACES.map((face) => [face, m.text.indexOf(face)]).filter(([, at]) => at >= 0).sort((a, b) => a[1] - b[1])[0]?.[0]}))
+        .filter(({face}) => face)
+        .map(({m, face}) => ({beat: `agent_reacted:${face}`, time: createdAt(m), card: refOf(m)}))
         .sort((a, b) => a.time - b.time);
 }
 

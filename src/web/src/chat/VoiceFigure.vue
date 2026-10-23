@@ -33,6 +33,7 @@ import {
     frameIn,
     processEndsAfter,
     sayingsAfter,
+    writtenFacesAfter,
     testResultsAfter,
     waitingSinceAt,
     withSystemCards,
@@ -686,6 +687,7 @@ function look() {
         ...testResultsAfter(lead.value, testStates),
         ...facesAfter(rows("reactions"), seenAt),
         ...sayingsAfter(lead.value, rows("messages"), seenAt),
+        ...writtenFacesAfter(lead.value, rows("messages"), seenAt),
     ];
     const ends = processEndsAfter(lead.value, processStates);
     if (ends.length) parcels.value = parcels.value.map((each) => ({...each, lit: litAfter(each, ends)}));
