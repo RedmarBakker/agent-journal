@@ -554,8 +554,10 @@ export function supportsClip(name, stance) {
 
 // A figure sitting on an edge: the root lifted onto the seat before any clip poses it, and after it the thighs forward and the knees bent
 // over the edge, swinging as the clip says. Every clip but those that move the whole body is drawn seated this way as well as standing.
+// seated, the body lifted onto the seat, sitting on whatever hangs behind it, as the butler's tails, out of sight under it
 function seat(pose) {
     pose.lift("root", {z: SEAT_LIFT});
+    pose.putAway(...BUTLER.satOn);
 }
 
 // Lounging on a floor's top (places.js POSTURES lounge): sat on it with the legs straight out toward the viewer, the feet up, leaning
@@ -2408,19 +2410,19 @@ function tumble(pose, stance, t) {
     else eyesAs(pose, kneel > 0.5 ? "worried" : "startled", Math.max(kneel, flail));
 }
 
-// Sitting on the edge of a floor facing the viewer, legs over the edge, leaning back a little on both hands planted on the edge beside
-// its hips, the free hands only, a carried thing kept in hand; it breathes and its legs swing gently. `hands` is where each wrist rests,
-// against the body at rest, the free hand's side outward, before the seat lifts it
-export const LEDGE = {hands: [0.8, 0.18, 1.42], lean: -7, nod: -3};
+// Sitting on the edge of a floor facing the viewer, legs over the edge, leaning back a little on both hands laid flat on the edge beside
+// its hips, palms down and fingers out, the free hands only, a carried thing kept in hand; it breathes and its legs swing gently. `hands`
+// is where each wrist rests, across and forward, on the floor line the seat sits on (LOUNGE floor), the free hand's side outward
+export const LEDGE = {hands: [0.8, 0.18], lean: -7, nod: -3};
 
 function ledge_sit(pose, stance, t) {
     breathe(pose, t);
     trunk(pose, {lean: LEDGE.lean, nod: LEDGE.nod + 2 * waveOf(t)});
-    const [x, y, z] = LEDGE.hands;
+    const [x, y] = LEDGE.hands;
     armsAtRest(pose, stance, [...stance.free]);
     for (const side of stance.free) {
-        handTo(pose, side, 1, pose.carried(new THREE.Vector3(SIDES[side] * x, y, z)), new THREE.Vector3(1, 0.6, 0.2));
-        pose.face(`hand_${side}`, {z: -SIDES[side] * 90, x: -70});
+        handTo(pose, side, 1, pose.withinReach(side, new THREE.Vector3(SIDES[side] * x, y, LOUNGE.floor), 0.97), new THREE.Vector3(1, 0.6, 0.2));
+        pose.face(`hand_${side}`, {x: -80});
     }
     if (stance.free.size) emptyHand(pose);
     pose.swing(0.6 * waveOf(t));
@@ -2665,6 +2667,8 @@ const GESTURE = ["stand", "sit", "lounge", "composed", "walk"];
 const MOVE = ["stand"];
 const HANGING = ["hang"];
 const ON_A_LAP = ["sit", "lounge"];
+// a gesture whose hands are both up off the floor, so never drawn lounging or sitting composed, where both hands lean on it
+const HANDS_UP = ["stand", "sit", "walk"];
 // the seconds the figure types at its laptop, once it has started, before anything else may take it off it
 export const TYPING_SECONDS = 5;
 
@@ -2764,7 +2768,7 @@ export const CLIPS = [
     {name: "hop_up", frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
     {name: "rope_swing", frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ON_A_LAP, pose: rope_swing},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
-    {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},
+    {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
     {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
     {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
     {name: "type_ponder", frames: 24, fps: 6, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, postures: ON_A_LAP, pose: type_ponder},

@@ -11,6 +11,9 @@ export const BUTLER = {
     tails: {side: [[-0.3, 1.78], [-0.47, 1.78], [-0.68, 0.72], [-0.58, 0.72]], across: [0.04, 0.36]},
     satin: [0.15, 0.15, 0.24],
     removed: ["butler_bowler_hat", "butler_tailcoat__tail_l", "butler_tailcoat__tail_r"],
+    // the tails, sat on and out of sight under it whenever it sits: bound to the waist alone they cannot fold, and would hang through the
+    // seat
+    satOn: ["butler_tail_l", "butler_tail_r"],
 };
 
 // A mesh of the dress: `geometry` in the glb's world as it is bound, drawn in `colour` and moved with the bone the part `on` is bound to

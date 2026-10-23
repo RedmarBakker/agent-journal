@@ -152,3 +152,38 @@ test("a seated figure never turns where it sits: every change of facing from a s
         }
     }
 });
+
+test("wherever it sits and leans on a hand, on an edge, lounging or sitting composed, the hand lies flat and level at the seat's surface, and the butler sits on his tails", async () => {
+    const {BUTLER} = await import("../src/figure/butler.js");
+    // the hands each seated posture leans on, as each clip drawn in it has them: on an edge the free hands at idle's lean back, lounging
+    // and composed both hands in every clip
+    const leaning = {sit: [CLIPS.find((clip) => clip.name === "ledge_sit")], lounge: CLIPS.filter((clip) => clip.postures.includes("lounge")), composed: CLIPS.filter((clip) => clip.postures.includes("composed"))};
+    for (const [posture, clips] of Object.entries(leaning)) {
+        for (const voice of Object.keys(stances)) {
+            const stance = stanceOf(voice);
+            const hands = posture === "sit" ? [...stance.free] : ["l", "r"];
+            for (const clip of clips) {
+                const pose = new Posing(RIG, posture, 0);
+                LEGS[posture].under(pose);
+                clip.pose(pose, stance, 0.25);
+                LEGS[posture].over(pose);
+                const moves = pose.moves(0);
+                const at = (name) => pose.head(name, moves.get(name));
+                const tip = (name) => RIG.heads.get(name).clone().add(RIG.along.get(name)).applyMatrix4(moves.get(name));
+                // the surface, carried up with the whole body by a clip that lifts it, as a startle does
+                const surface = LOUNGE.floor + at("hips").z - 1.55;
+                for (const side of hands) {
+                    const label = `${posture} ${voice} ${clip.name} ${side}`;
+                    const [wrist, fingers] = [at(`hand_${side}`), tip(`hand_${side}`)];
+                    for (const point of [wrist, fingers]) {
+                        expect(point.z - surface, label).toBeGreaterThan(-0.05);
+                        expect(point.z - surface, label).toBeLessThan(0.18);
+                    }
+                    expect(Math.abs(fingers.z - wrist.z), `${label} level`).toBeLessThan(0.05);
+                }
+                // seated in any way, the tails hanging behind are sat on, never through the seat
+                for (const tail of BUTLER.satOn) expect(pose.stowed.has(tail), `${posture} ${clip.name} ${tail}`).toBe(true);
+            }
+        }
+    }
+});
