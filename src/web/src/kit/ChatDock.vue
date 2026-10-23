@@ -73,11 +73,26 @@ defineExpose({card});
     overflow: hidden;
 }
 
-.chat-dock.dock-enter-active,
-.chat-dock.dock-leave-active {
+/* a dock comes in two steps, the chat easing up to make room and then the card sliding in, and goes in the same two the other way, the
+   card sliding out and then the chat easing down into its space; the whole of each lasts DOCK_MOTION_MS (kit/dockMotion.js) */
+.chat-dock.dock-enter-active {
+    transition: grid-template-rows 0.4s ease-in-out;
+}
+
+.chat-dock.dock-enter-active .chat-dock-card {
     transition:
-        grid-template-rows 0.32s var(--ease),
-        opacity 0.24s ease;
+        transform 0.32s var(--ease) 0.36s,
+        opacity 0.28s ease 0.36s;
+}
+
+.chat-dock.dock-leave-active {
+    transition: grid-template-rows 0.42s ease-in-out 0.26s;
+}
+
+.chat-dock.dock-leave-active .chat-dock-card {
+    transition:
+        transform 0.26s ease-in,
+        opacity 0.22s ease-in;
 }
 
 .chat-dock.dock-enter-active .chat-dock-fold,
@@ -88,6 +103,11 @@ defineExpose({card});
 .chat-dock.dock-enter-from,
 .chat-dock.dock-leave-to {
     grid-template-rows: 0fr;
+}
+
+.chat-dock.dock-enter-from .chat-dock-card,
+.chat-dock.dock-leave-to .chat-dock-card {
+    transform: translateY(14px);
     opacity: 0;
 }
 
@@ -104,6 +124,8 @@ defineExpose({card});
 @media (prefers-reduced-motion: reduce) {
     .chat-dock.dock-enter-active,
     .chat-dock.dock-leave-active,
+    .chat-dock.dock-enter-active .chat-dock-card,
+    .chat-dock.dock-leave-active .chat-dock-card,
     .chat-dock-body {
         transition: none;
     }

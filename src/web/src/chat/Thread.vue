@@ -35,6 +35,7 @@ import DumpDock from "./DumpDock.vue";
 import {dockedDump, dockedRows, streamRows} from "../domain/docks.js";
 import RowDock from "./RowDock.vue";
 import WatchDock from "./WatchDock.vue";
+import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
 import UpdateOverlay from "./UpdateOverlay.vue";
 import FileFeed from "./FileFeed.vue";
@@ -472,7 +473,7 @@ const {colleague, me} = useColleague();
                         </TransitionGroup>
                         <div :class="['chat-foot', {docked: dockCount}]">
                             <div class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
-                                <TransitionGroup name="dock">
+                                <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
                                     <template v-for="docked in rowDocks" :key="docked.id">
                                         <template v-if="docked.data.output">
                                             <WatchDock :message="docked" :folded="short || !planOpen" :data-figure-closing="docked.data.undock_at ? '' : null" />
@@ -482,10 +483,10 @@ const {colleague, me} = useColleague();
                                         </template>
                                     </template>
                                 </TransitionGroup>
-                                <Transition name="dock">
+                                <Transition name="dock" :duration="DOCK_MOTION_MS">
                                     <DumpDock v-if="dumpDock" :key="dumpDock.id" :dump="dumpDock" :folded="short || !planOpen" />
                                 </Transition>
-                                <Transition name="dock">
+                                <Transition name="dock" :duration="DOCK_MOTION_MS">
                                     <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
                                 </Transition>
                             </div>
