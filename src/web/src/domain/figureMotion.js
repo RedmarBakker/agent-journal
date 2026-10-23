@@ -1,4 +1,4 @@
-import {ACTS} from "../figure/acts.js";
+import {ACTS, pogoBounces, pogoHop} from "../figure/acts.js";
 import {draw} from "../figure/pile.js";
 import {fallStep} from "./falls.js";
 
@@ -72,20 +72,27 @@ export function legAt(leg, from, elapsed, still = false) {
 }
 
 // Where a leg up on the pogo stick (acts.js pogo) has carried the picture `elapsed` milliseconds after it set off from `from`, its picture
-// `leg.size` pixels tall: still while the stick is drawn, bouncing on the spot higher each time, then springing up in an arc onto the leg's
-// end, where it stays while the stick falls away
+// `leg.size` pixels tall: still while the stick is drawn, bouncing on the spot higher each time, then springing up in one throw past the
+// leg's end by `over` of its height and falling back onto it, settling there in small hops, and staying while the stick falls away; one
+// gravity times every hop and the throw (acts.js pogoHop), so it slows to each top and falls faster each time
 export function pogoAt(leg, from, elapsed) {
-    const {bounces, count, bounce, spring, arc} = ACTS.pogo;
+    const {bounces, spring, over, settle, settling} = ACTS.pogo;
     const u = Math.min(Math.max(elapsed / leg.ms, 0), 1);
     const span = (range) => Math.min(Math.max((u - range[0]) / (range[1] - range[0]), 0), 1);
-    if (u < spring[0]) {
-        const k = span(bounces) * count;
-        const hop = Math.floor(Math.min(k, count - 1e-9));
-        const up = k > 0 ? bounce * leg.size * ((hop + 1) / count) * Math.sin(Math.PI * (k - hop)) : 0;
-        return {x: from.x, y: from.y - up};
-    }
+    if (u < spring[0]) return {x: from.x, y: from.y - pogoHop(pogoBounces(), span(bounces)).height * leg.size};
     const k = span(spring);
-    return {x: from.x + (leg.x - from.x) * k, y: from.y + (leg.y - from.y) * k - arc * leg.size * 4 * k * (1 - k)};
+    const landed = 1 - settling;
+    if (k >= landed) return {x: leg.x, y: leg.y - pogoHop(settle, (k - landed) / settling).height * leg.size};
+    return {x: from.x + (leg.x - from.x) * (k / landed), y: thrownTo(from.y, leg.y, over * leg.size, k / landed)};
+}
+
+// The height of a throw from `low` up past `high` by `past` pixels and back down onto it, `k` of the way through its time: one parabola,
+// its top past `high` where the rise of `low - high + past` and the fall of `past` take times as their square roots, as under one gravity
+function thrownTo(low, high, past, k) {
+    const rise = Math.max(low - high, 0) + past;
+    const top = 1 / (1 + Math.sqrt(past / rise));
+    const peak = high - past;
+    return peak + (rise / (top * top)) * (k - top) * (k - top);
 }
 
 // One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last: it lands on that

@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, heldPhases, hornOpen, partOf, swingAngle} from "./acts.js";
+import {ACTS, heldPhases, hornOpen, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -2280,8 +2280,8 @@ function pogo(pose, stance, t) {
     const act = ACTS.pogo;
     const reach = partOf(t, [act.draw[0], act.draw[1] * 0.5]) * (1 - partOf(t, [act.draw[1] * 0.5, act.draw[1]]));
     const held = partOf(t, [act.draw[1] * 0.6, act.draw[1]]) * (1 - partOf(t, act.drop));
-    const bouncing = Math.min(Math.max((t - act.bounces[0]) / (act.bounces[1] - act.bounces[0]), 0), 1) * act.count;
-    const give = t > act.bounces[0] && t < act.bounces[1] ? 1 - Math.sin(Math.PI * (bouncing % 1)) : 0;
+    const hop = pogoHop(pogoBounces(), (t - act.bounces[0]) / (act.bounces[1] - act.bounces[0]));
+    const give = t > act.bounces[0] && t < act.bounces[1] ? 1 - Math.sin(Math.PI * hop.s) : 0;
     breathe(pose, t);
     trunk(pose, {lean: 6 * held, nod: -6 * held});
     pose.putAway(...IN_HAND);

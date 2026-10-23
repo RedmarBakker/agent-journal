@@ -30,11 +30,12 @@ export const ACTS = {
     // while it swings, `swings` swings each way of `sway` degrees, the legs pumping with them; and an outro, the ropes pulled up. The knots
     // stand at least `room` of the figure's height in from either side of the chat, so it swings clear of them.
     rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.42, seat: 0.5, sway: 9, room: 0.85},
-    // a pogo stick up to a high place: it reaches behind its back and pulls the stick out over `draw`, bounces `count` times over
-    // `bounces`, each higher than the last up to `bounce` of its height, springs up onto the place over `spring`, arcing `arc` of its height
-    // above the straight way, and lets the stick go over `drop`, which falls away; the stick `stick` of its height long, its handles where
-    // the hands hold it
-    pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.68], count: 3, bounce: 0.45, spring: [0.68, 0.86], arc: 0.35, drop: [0.86, 1], stick: 0.62},
+    // a pogo stick up to a high place: it reaches behind its back and pulls the stick out over `draw`, bounces `count` times on the spot
+    // over `bounces`, each higher than the last up to `bounce` of its height, springs up over `spring` past the place's edge by `over` of
+    // its height and falls back onto it, settling there in the hops `settle` of its height over the last `settling` of the spring, and
+    // lets the stick go over `drop`, which falls away; every hop is timed by one gravity (pogoHop); the stick `stick` of its height long,
+    // its handles where the hands hold it
+    pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.62], count: 3, bounce: 0.45, spring: [0.62, 0.9], over: 0.3, settle: [0.12, 0.04], settling: 0.3, drop: [0.9, 1], stick: 0.62},
     // a passing test run's bug: a small bug crawls in along the floor over `crawl` to `away` of the figure's height out on its free hand's
     // side; it pulls a rifle from behind its back over `draw`, shoots `count` times over `shots`, each shot kicking the rifle back `kick`
     // degrees, the bug splatters at `splat`, and a few drops of the splatter land on the screen, as on a camera's lens, and run down and
@@ -61,6 +62,26 @@ const ease = (k) => k * k * (3 - 2 * k);
 
 // how far `u` is through the part `[from, to]` of an act, eased, 0 before it and 1 after
 export const partOf = (u, [from, to]) => ease(span(u, from, to));
+
+// Where a run of hops on the pogo stick is `share` of the way through its time, as {index, s, height}: hop `index` of `heights`, `s` of
+// the way through it, and how high above its foot it is then. One gravity times them all: a hop lasts as the square root of its height,
+// so a higher one takes longer, and its height goes as 4s(1 - s), rising fast off the ground, slowing to the top and falling faster
+export function pogoHop(heights, share) {
+    const lengths = heights.map((height) => Math.sqrt(height));
+    const whole = lengths.reduce((sum, each) => sum + each, 0);
+    let left = Math.min(Math.max(share, 0), 1) * whole;
+    for (const [index, length] of lengths.entries()) {
+        if (left <= length || index === lengths.length - 1) {
+            const s = length > 0 ? Math.min(left / length, 1) : 1;
+            return {index, s, height: heights[index] * 4 * s * (1 - s)};
+        }
+        left -= length;
+    }
+    return {index: 0, s: 1, height: 0};
+}
+
+// the pogo stick's bounces on the spot, in the figure's heights, each higher than the last
+export const pogoBounces = () => Array.from({length: ACTS.pogo.count}, (_, hop) => (ACTS.pogo.bounce * (hop + 1)) / ACTS.pogo.count);
 
 // how far the party horn has unrolled at `u`, 0 to 1: shot open at once, held open, and rolled back up
 export const hornOpen = (u) => partOf(u, ACTS.party_horn.opens) * (1 - partOf(u, ACTS.party_horn.rolls));
