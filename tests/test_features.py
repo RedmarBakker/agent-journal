@@ -6822,6 +6822,13 @@ def test_a_command_is_known_by_its_shape_and_five_runs_of_one_long_run_bring_a_r
     assert "you ran php artisan test" in told[2] and "--reader phpunit" in told[2], "so the third such run is asked to become an alias read by the reader the tests already have, never one for cd"
 
 
+def test_a_command_is_shown_without_its_variables_on_its_first_line_and_cut_short():
+    from journal.support.command_text import SHOWN_CHARACTERS, CommandText
+    heredoc = "COMMANDMENTS_PLAIN_PROGRESS=1 cat > src/a.js <<'EOF'\nimport {x} from 'y';\nEOF"
+    assert CommandText.shown(heredoc) == "cat > src/a.js <<'EOF'", "a heredoc shows its command, not its text, and no variable set before it"
+    shown = CommandText.shown("pytest " + "tests/a.py " * 40)
+    assert len(shown) == SHOWN_CHARACTERS and shown.endswith("…"), "a long command is cut to the set length"
+
 def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_command_is_named_by_what_it_wraps(app: App):
     """A reader that puts a line of code on the user's card is named to the agent to tighten, once for its output; a time-limiting wrapper is looked through when a card or the line names what the command does."""
     from journal.features.shell.support.activity_label import ActivityLabel
@@ -6830,6 +6837,8 @@ def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_com
     assert ActivityLabel.build("perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q") == "testing" and ActivityLabel.build("timeout 60 npm test") == "testing"
     from journal.support.command_shape import CommandShape
     assert CommandShape.build("REPLAY_FREEZE=1 perl -e 'alarm 200; exec @ARGV' python3 -m pytest -q") == "python3 -m pytest", "variables set before a command are looked through, as the time-limit wrappers are"
+    assert CommandShape.build("A=1 B='two words' pytest -q") == CommandShape.build("pytest -k chat") == "pytest", "two commands that differ only in the variables set before them are one shape"
+
     assert CommandShape.build("docker compose exec -T server php artisan test --compact") == "php artisan test" and CommandShape.build("docker exec -it -u root app pytest -q") == "pytest", "a run inside a container is known by the command it runs there"
     from journal.features.shell.support.output_files import OutputFiles
     styled = app.config.root / "styled"

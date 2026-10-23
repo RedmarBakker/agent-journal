@@ -18,6 +18,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
+from journal.support.command_text import CommandText
 
 HEADLINE_CHARACTERS = 60
 ENDED_DOCK_SECONDS = 5
@@ -34,7 +35,7 @@ class OutputProcessCard(ProcessCard):
 
     def show(self, output: CommandOutput) -> OutputView:
         view = self.views.view(output)
-        part = self.watched_part(output)
+        part = CommandText.shown(self.watched_part(output))
         data = {"kind": "card", "icon": "terminal", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.dock_state(output)}
         self.cards.show(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardKind.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
         return view

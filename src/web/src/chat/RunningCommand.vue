@@ -89,6 +89,15 @@ watch(runningLine, (now) => {
     opacity: 0.75;
 }
 
+.running-idle {
+    display: inline-block;
+    max-width: 44ch;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+}
+
 .running-text {
     position: relative;
     flex: 0 1 auto;

@@ -30,6 +30,7 @@ from journal.support.undecoded_tool import UndecodedTool
 from journal.support.skill_load import SkillLoad
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
+from journal.support.command_text import CommandText
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
 WORKING = frozenset({"working", "following_plan", "delegating", "orchestrating_plan"})
@@ -114,12 +115,12 @@ class AgentActivity:
     def activity(self, state, hooks) -> str:
         last = hooks[-1] if hooks else None
         if last and last.kind in (PART_START, PART_END):
-            return last.data["part"]
+            return CommandText.shown(last.data["part"])
         if last and last.kind == "ToolStarting":
             return self.tool_activity(last.recorded_call())
         part = self.unended_part(hooks)
         if part is not None:
-            return part.data["part"]
+            return CommandText.shown(part.data["part"])
         return self.described(state) or ("at work" if hooks else "")
 
     @staticmethod

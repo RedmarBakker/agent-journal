@@ -1,6 +1,7 @@
 from dataclasses import dataclass, replace
 
 from journal.support.command_shape import SETUP_COMMANDS
+from journal.support.command_text import CommandText
 from journal.features.shell.support.shell_record import PART_END, PART_START
 from journal.models.entry import Entry
 
@@ -45,7 +46,7 @@ class BarRow:
     def part_row(cls, entry: Entry) -> "BarRow":
         changed = entry.data.get("changed", [])
         files = tuple((c["path"], c["added"], c["removed"]) for c in changed)
-        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], entry.data["part"], entry.data["time"], entry.kind == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
+        return cls(f"{entry.data['chain']} {entry.data['part']}", entry.data["doing"], CommandText.shown(entry.data["part"]), entry.data["time"], entry.kind == PART_END, sum(c["added"] for c in changed), sum(c["removed"] for c in changed), files)
 
     @classmethod
     def tool_row(cls, entry: Entry) -> "BarRow":
