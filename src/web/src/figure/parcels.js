@@ -35,18 +35,32 @@ export function litAfter(unit, ends) {
 // every kind of light a unit shows, each drawn once (chat/VoiceFigure.vue)
 export const LIGHT_KINDS = Object.keys(LIGHT_COLOURS);
 
-// The 0 and 1 digits a blow's dust lets out, which drift in toward the unit as if bits were built into it: how many at least and at most,
-// and how far from the unit's middle they start, in pixels, all above the floor
-export const DIGITS = {least: 2, most: 4, from: [16, 28]};
+// The 0 and 1 digits a blow's dust sprays out, as particles: how many at least and at most; how far from the cloud's middle, `middle`
+// pixels over the unit's base, each starts, in pixels; how far it flies out, how long it takes to slow to a stop and how long it takes to
+// fade, each drawn anew for every digit between the two, in pixels and milliseconds; and the spread of its way round the cloud, in
+// radians either side of straight up
+export const DIGITS = {least: 14, most: 20, middle: -10, start: [3, 9], reach: [26, 64], moveMs: [600, 1500], fadeMs: [500, 1400], spread: 1.75};
 
-// the digits of one blow at the roll `random()` gives, each its text and where it starts against the unit's base's middle; each drifts
-// to the unit's front
+const between = ([least, most], random) => least + random() * (most - least);
+
+// the digits of one blow at the rolls `random()` gives, each its text, where it starts and how far it flies against the unit's base's
+// middle, and how long it moves and fades; each flies its own way out of the cloud, never down through the floor
 export function digitsOf(random) {
     const count = DIGITS.least + Math.floor(random() * (DIGITS.most - DIGITS.least + 1));
     return Array.from({length: Math.min(count, DIGITS.most)}, () => {
-        const way = -Math.PI / 2 + (random() - 0.5) * 2.4;
-        const far = DIGITS.from[0] + random() * (DIGITS.from[1] - DIGITS.from[0]);
-        return {text: draw({moment: "digit"}, random).name, x: Math.cos(way) * far, y: Math.min(Math.sin(way) * far, -4)};
+        const way = -Math.PI / 2 + (random() * 2 - 1) * DIGITS.spread;
+        const [across, up] = [Math.cos(way), Math.min(Math.sin(way), -0.1)];
+        const start = between(DIGITS.start, random);
+        const reach = between(DIGITS.reach, random);
+        return {
+            text: draw({moment: "digit"}, random).name,
+            x: across * start,
+            y: DIGITS.middle + up * start,
+            dx: across * reach,
+            dy: up * reach,
+            moveMs: Math.round(between(DIGITS.moveMs, random)),
+            fadeMs: Math.round(between(DIGITS.fadeMs, random)),
+        };
     });
 }
 

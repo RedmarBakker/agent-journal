@@ -6,7 +6,7 @@ import {BLINK, PARCEL, digitsOf} from "../figure/parcels.js";
 // page with its base's middle at `x`, `y`, in pixels, `up` pixels higher on the pile it sits on, `scale` times its size and as opaque as
 // `opacity`; it pops in as it appears, and hops up when it is pushed onto the pile. Its `block` is its pictures, one for each step of its
 // lights' blink, their size and how far of them lies below the floor. Each time `blows` goes up, a blow has landed on it: a cartoon cloud
-// of dust puffs around it, and a few 0 and 1 digits come out of it and drift in to the unit.
+// of dust puffs around it, and a spray of 0 and 1 digits flies out of it, each its own way and pace, fading as it goes.
 const props = defineProps({
     x: {type: Number, required: true},
     y: {type: Number, required: true},
@@ -33,13 +33,13 @@ const puffs = ref([]);
 let puffed = 0;
 const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// a puff is gone once the last of its digits has stopped and faded, its clouds long gone by then
 function puff() {
     const id = ++puffed;
-    puffs.value = [...puffs.value, {id, digits: digitsOf(Math.random).map((digit, index) => ({...digit, id: `${id}-${index}`}))}];
+    const digits = digitsOf(Math.random).map((digit, index) => ({...digit, id: `${id}-${index}`}));
+    puffs.value = [...puffs.value, {id, digits}];
+    setTimeout(() => (puffs.value = puffs.value.filter((each) => each.id !== id)), Math.max(...digits.map((digit) => Math.max(digit.moveMs, digit.fadeMs))));
 }
-
-// a puff is gone once its first cloud has faded, as they all fade together
-const settled = (id) => (puffs.value = puffs.value.filter((each) => each.id !== id));
 
 watch(
     () => props.blows,
@@ -52,7 +52,14 @@ const cloudStyle = (cloud) => ({
     width: `${cloud.size}px`,
     height: `${cloud.size}px`,
 });
-const digitStyle = (digit) => ({"--from-x": `${digit.x}px`, "--from-y": `${digit.y}px`, "--to-y": `${-PARCEL.height / 2}px`});
+const digitStyle = (digit) => ({
+    "--from-x": `${digit.x}px`,
+    "--from-y": `${digit.y}px`,
+    "--to-x": `${digit.x + digit.dx}px`,
+    "--to-y": `${digit.y + digit.dy}px`,
+    "--move-ms": `${digit.moveMs}ms`,
+    "--fade-ms": `${digit.fadeMs}ms`,
+});
 
 const style = computed(() => ({left: `${props.x}px`, top: `${props.y}px`}));
 const placed = computed(() => ({transform: `translateY(${-props.up}px)`}));
@@ -79,7 +86,7 @@ const stepStyle = (index) => ({animationDelay: `${-(props.block.pictures.length 
             </div>
         </div>
         <template v-for="each in puffs" :key="each.id">
-            <div class="code-parcel-dust" @animationend.once="settled(each.id)">
+            <div class="code-parcel-dust">
                 <template v-for="cloud in CLOUDS" :key="`${cloud.x}/${cloud.y}`">
                     <span class="code-parcel-cloud" :style="cloudStyle(cloud)" />
                 </template>
@@ -204,30 +211,40 @@ const stepStyle = (index) => ({animationDelay: `${-(props.block.pictures.length 
     }
 }
 
-/* the digits come out of the dust where they start and drift in to the unit's front, shrinking into it */
+/* the digits fly out of the dust, each its own way, slowing to a stop, and fade at their own pace */
 .code-parcel-digit {
     position: absolute;
     left: -2.5px;
     top: -4px;
-    font: 800 8px/1 var(--mono, monospace);
+    font: 800 9px/1 var(--mono, monospace);
     color: #8eeaff;
     text-shadow: 0 0 2px #1c1e25;
-    animation: code-parcel-drift 620ms cubic-bezier(0.4, 0, 0.7, 1) both;
+    animation:
+        code-parcel-fly var(--move-ms) cubic-bezier(0.15, 0.6, 0.35, 1) both,
+        code-parcel-fade var(--fade-ms) ease-in both;
 }
 
-@keyframes code-parcel-drift {
-    0% {
-        opacity: 0;
-        transform: translate(var(--from-x), var(--from-y)) scale(1);
+@keyframes code-parcel-fly {
+    from {
+        transform: translate(var(--from-x), var(--from-y));
     }
 
-    25% {
+    to {
+        transform: translate(var(--to-x), var(--to-y));
+    }
+}
+
+@keyframes code-parcel-fade {
+    0% {
+        opacity: 0;
+    }
+
+    12% {
         opacity: 1;
     }
 
     100% {
-        opacity: 0.2;
-        transform: translate(0, var(--to-y)) scale(0.4);
+        opacity: 0;
     }
 }
 

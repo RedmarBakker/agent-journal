@@ -225,21 +225,33 @@ test("each unit keeps the lights of its own run: amber while that run goes, then
     expect(litAfter({lit: "amber", run: "messages:5"}, [])).toBe("amber");
 });
 
-test("each blow lets a few 0 and 1 digits out of the dust, starting about the unit and drifting in to it", () => {
+test("each blow sprays many 0 and 1 digits out of the dust, each its own way, flying out at its own pace and fading at its own", () => {
     let seed = 0.13;
     const random = () => (seed = (seed * 9301 + 0.49297) % 1);
+    const all = [];
     for (let blow = 0; blow < 40; blow++) {
         const digits = digitsOf(random);
         expect(digits.length).toBeGreaterThanOrEqual(DIGITS.least);
         expect(digits.length).toBeLessThanOrEqual(DIGITS.most);
-        for (const digit of digits) {
-            expect(["0", "1"]).toContain(digit.text);
-            expect(Math.hypot(digit.x, digit.y)).toBeGreaterThan(PARCEL.height / 2);
-            expect(digit.y).toBeLessThan(0);
-        }
+        all.push(...digits);
     }
+    expect(DIGITS.least).toBeGreaterThanOrEqual(12);
+    for (const digit of all) {
+        expect(["0", "1"]).toContain(digit.text);
+        // it flies away from the cloud's middle, never down through the floor
+        const out = Math.hypot(digit.x + digit.dx, digit.y + digit.dy - DIGITS.middle);
+        expect(out).toBeGreaterThan(Math.hypot(digit.x, digit.y - DIGITS.middle));
+        expect(digit.y + digit.dy).toBeLessThan(0);
+    }
+    // the ways spread to both sides, and the reach, the move and the fade differ from digit to digit
+    const spread = (values) => Math.max(...values) - Math.min(...values);
+    expect(all.some((digit) => digit.dx < -10) && all.some((digit) => digit.dx > 10)).toBe(true);
+    expect(spread(all.map((digit) => Math.hypot(digit.dx, digit.dy)))).toBeGreaterThan(20);
+    expect(spread(all.map((digit) => digit.moveMs))).toBeGreaterThan(500);
+    expect(spread(all.map((digit) => digit.fadeMs))).toBeGreaterThan(500);
+    // a digit's fade is drawn apart from its move, so most of them fade well before or after they stop
+    expect(all.filter((digit) => Math.abs(digit.moveMs - digit.fadeMs) > 100).length).toBeGreaterThan(all.length * 0.7);
 });
-
 
 test("the UFO takes the work away three times in four and the claw crane the fourth, picked by weight from one list", () => {
     expect(ANIMATIONS.filter((entry) => entry.when.moment === "carrier").map((entry) => [entry.name, entry.weight])).toEqual([["ufo", 3], ["crane", 1]]);
