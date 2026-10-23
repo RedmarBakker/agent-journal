@@ -1,6 +1,7 @@
 import {computed, ref} from "vue";
 import {api} from "../api/client.js";
 import {store} from "../state/store.js";
+import {agent} from "./leadAgent.js";
 
 // The voices the agent can talk in, each with a sample in the words it calls the user by, and the one chosen.
 export const voices = ref([]);
@@ -14,8 +15,9 @@ export const person = computed(() => `${store.settings?.voices?.title}|${store.s
 
 export const avatarOn = computed(() => Boolean(store.settings) && store.settings.voices?.avatar !== false);
 
-// the voice whose figure stands on the chat, or none while the avatar is off
-export const figureVoice = computed(() => (avatarOn.value && voiceInUse.value?.name) || "");
+// the voice whose figure stands on the chat, or none while the avatar is off: on the hosted journal the one the environment's owner chose
+// on their own journal, which comes with the agent's row, so everyone sees the owner's figure; else the one chosen here
+export const figureVoice = computed(() => (avatarOn.value && (agent.value?.voice || voiceInUse.value?.name)) || "");
 
 export const voiceTitle = (voice) => voice.name.charAt(0).toUpperCase() + voice.name.slice(1);
 

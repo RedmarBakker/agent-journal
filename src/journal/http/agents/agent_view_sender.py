@@ -2,6 +2,7 @@ import json
 import threading
 import time
 
+from journal.features.voices.support.voice_choice import VoiceChoice
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.support.json_out import JsonOut
@@ -19,10 +20,11 @@ TERMINAL_LINE_COUNT = 50
 
 
 class AgentViewSender:
-    """Sends the team server the agent bar rows of each environment this journal hosts, each with its agent's newest terminal lines, other than the Team chat, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
+    """Sends the team server the agent bar rows of each environment this journal hosts, each with its agent's newest terminal lines and the voice its owner chose here, whose figure the hosted journal shows, other than the Team chat, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
 
-    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink) -> None:
+    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink, voices: VoiceChoice) -> None:
         self.account, self.hosts, self.agents, self.activity, self.terminal, self.scope, self.link = account, hosts, agents, activity, terminal, scope, link
+        self.voices = voices
         self.last_views: dict[str, list[dict]] = {}
         self.last_send_at = 0.0
         self.stopping = threading.Event()
@@ -60,4 +62,5 @@ class AgentViewSender:
     def rows(self, environment_id: int) -> list[dict]:
         with self.scope.environment(environment_id):
             agent = self.agents.current()
-            return json.loads(JsonOut.encoded([{**row, "terminal": self.terminal.lines(agent, 0.0)[-TERMINAL_LINE_COUNT:]} for row in self.activity.page([agent])])) if agent else []
+            voice = self.voices.voice().name
+            return json.loads(JsonOut.encoded([{**row, "terminal": self.terminal.lines(agent, 0.0)[-TERMINAL_LINE_COUNT:], "voice": voice} for row in self.activity.page([agent])])) if agent else []

@@ -11294,6 +11294,8 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
     account, scope, agents = app.container.get(TeamAccount), app.container.get(Scope), app.container.get(Agents)
     main = app.container.get(Environments).existing("main")
     app.container.get(Links).save(Link(source=Ref(User.table(), 1), target=Ref.build(main), kind=OWNER), Actor.system())
+    from journal.repositories.setting_rows import SettingRows
+    app.container.get(SettingRows).set("voices.profile", "squire", Actor.user(1))
 
     class Kept(HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
@@ -11336,6 +11338,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
         ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
         status, body = sent("/journal/agents", cookie=ada)
         assert status == 200 and [(row["session"], row["remote"]) for row in json.loads(body)["rows"]] == [("ada-session", True)], "on the hosted journal Ada sees her agent as her own journal shows it"
+        assert json.loads(body)["rows"][0]["voice"] == "squire", "with the voice Ada chose on her own journal, so the hosted journal shows everyone her figure"
         assert "terminal" not in json.loads(body)["rows"][0] and [line["command"] for line in json.loads(sent(f"/journal/agents/{agent.id}/terminal", cookie=ada)[1])] == ["git status"], "its terminal lines come with the view, read by the pane alone"
         assert sent(f"/journal/agents/{agent.id}/shell", {"command": "ls"}, cookie=bob)[0] == 409 and sent(f"/journal/agents/{agent.id}/shell", {"command": "ls"}, cookie=ada) == (200, b'{"asked": true}'), "a line typed into it is asked of her journal for her alone"
         assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=bob)[0] == 409 and waiting() == [("agent_shell", 1)], "Bob sees it but cannot change it"
