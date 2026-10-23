@@ -128,7 +128,7 @@ export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAM
 
 // Now and then, about one box in `chance`, the figure stops hammering to inspect the box with a magnifying glass for `ms`, starting between
 // `at` of the way through its hammering; `done` of the times it decides the box is done there and builds it at the inspection's end
-export const INSPECT = {chance: 0.25, at: [0.25, 0.6], ms: 1800, done: 0.3};
+export const INSPECT = {chance: 0.25, at: [0.25, 0.6], ms: 2500, done: 0.3};
 
 // The hammering of a box begun at `now`, in milliseconds: when it began, when it is built, and its inspection, if it has one, as when it
 // starts and ends after the box was begun; all inside the hammering's own time (HAMMER)
