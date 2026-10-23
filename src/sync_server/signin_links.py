@@ -31,5 +31,5 @@ class SigninLinks:
         with self.guard:
             link = self.waiting.pop(code, None)
         if link is None or link.expires_at < redeemed_at:
-            raise Refusal("this sign-in link was used already or has expired: open the shared journal again from your own journal's Team tab")
+            raise Refusal("this sign-in link was used already or has expired: open the shared journal again from your own journal's Team page")
         return self.accounts.find(link.account_id)

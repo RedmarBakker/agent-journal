@@ -10317,7 +10317,11 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         style = next(name for name in built if name.endswith(".css"))
         assert "javascript" in sent(f"/assets/{script}")[1]["Content-Type"], "the sign-in page loads its scripts before anyone signs in"
         assert "text/css" in sent(f"/assets/{style}")[1]["Content-Type"], "and its styles"
-        assert sent("/sign-in", form={"email": "ada@example.com", "password": "wrong"})[0] == 401, "a wrong password opens no session"
+        page = sent("/sign-in")[2].decode()
+        assert "127.0.0.1" in page and "Use the email and password your own journal joined the team with" in page, "the form names the team's address and which email and password to use"
+        status, _, refused = sent("/sign-in", form={"email": "ada@example.com", "password": "wrong"})
+        assert status == 401, "a wrong password opens no session"
+        assert 'value="ada@example.com"' in refused.decode() and 'class="wrong"' in refused.decode() and 'class="refusal"' in refused.decode(), "and the form comes back with the email kept, the password field edged as wrong and the reason shown"
         ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
         assert json.loads(sent("/journal/people", cookie=ada)[2])["me"] == 1 and json.loads(sent("/journal/people", cookie=bob)[2])["me"] == 2, "each person signed in is me to their own browser"
         assert [sent("/journal/messages", {"text": f"from {who}"}, cookie=cookie)[0] for who, cookie in (("Ada", ada), ("Bob", bob))] == [202, 202], "main is Ada's, so the hosted journal asks her journal, its host, to make each message"

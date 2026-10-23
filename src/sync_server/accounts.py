@@ -19,7 +19,7 @@ class Accounts:
 
     def first_admin(self, email: str, name: str, password: str, created_at: float) -> Account:
         if not self.is_empty():
-            raise Refusal("this team server has its admin already: join it with the invitation URL an admin shares from the Team tab")
+            raise Refusal("this team server has its admin already: join it with the invitation URL an admin shares from the Team page")
         return self.create(email, name, password, ADMIN, created_at)
 
     def password_changed(self, account: Account, old: str, new: str) -> Account:

@@ -52,6 +52,10 @@ class Request:
         return self.headers.get("cookie", "")
 
     @property
+    def host(self) -> str:
+        return self.headers.get("host", "")
+
+    @property
     def protocol(self) -> str:
         return self.headers.get("x-forwarded-proto", "")
 
