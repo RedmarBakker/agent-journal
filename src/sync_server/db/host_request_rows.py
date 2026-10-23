@@ -34,9 +34,9 @@ class HostRequestRows:
     def unclaimed_pool(self, deadline_at: float) -> list[Row]:
         return self.store.all(f"SELECT {COLUMNS} FROM host_requests WHERE audience = ? AND claimed_by = 0 AND finished_at = 0 AND created_at < ? ORDER BY id", (RequestAudience.POOL, deadline_at))
 
-    def claimed_by_quiet_devices(self, pulled_before: float) -> list[Row]:
-        columns = ", ".join(f"host_requests.{column.strip()}" for column in COLUMNS.split(","))
-        return self.store.all(f"SELECT {columns} FROM host_requests JOIN devices ON devices.id = host_requests.claimed_by WHERE host_requests.audience = ? AND host_requests.finished_at = 0 AND devices.pulled_at < ? ORDER BY host_requests.id", (RequestAudience.POOL, pulled_before))
+    def offline_claims(self, cutoff_at: float) -> list[Row]:
+        selected = ", ".join(f"host_requests.{name.strip()}" for name in COLUMNS.split(","))
+        return self.store.all(f"SELECT {selected} FROM host_requests JOIN devices ON devices.id = host_requests.claimed_by WHERE host_requests.audience = ? AND host_requests.finished_at = 0 AND devices.pulled_at < ? ORDER BY host_requests.id", (RequestAudience.POOL, cutoff_at))
 
     def finish(self, id: int, host_id: int, finished_at: float) -> None:
         self.store.execute("UPDATE host_requests SET host_id = ?, finished_at = ? WHERE id = ?", (host_id, finished_at, id))

@@ -35,8 +35,8 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 
 
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
-SENT = "sent a job"
-SENT_BACK = "sent back"
+JOB_MOVE = "sent a job"
+REDO_MOVE = "sent back"
 
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, a word told while it runs, a stop, a retire."""
@@ -47,18 +47,18 @@ class WorkerActions:
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            return self.sent(self.local(n), brief, dispatcher, actor, SENT)
+            return self.relaunch(self.local(n), brief, dispatcher, actor, JOB_MOVE)
 
-    def send_back(self, n: int, brief: str, actor: Actor) -> Worker:
+    def redo(self, n: int, brief: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            return self.sent(self.local(n), brief, None, actor, SENT_BACK)
+            return self.relaunch(self.local(n), brief, None, actor, REDO_MOVE)
 
     def peer_send(self, n: int, brief: str, sender: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
             worker = self.peer(n, sender)
             if worker.is_running():
                 raise Rejection(f"worker {worker.id}, {worker.name}, is out on a job: tell it with `journal worker notify {worker.id} \"<text>\"`, or send it the job once it reports")
-            return self.sent(worker, brief, None, actor, SENT)
+            return self.relaunch(worker, brief, None, actor, JOB_MOVE)
 
     def peer_notify(self, n: int, text: str, sender: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -143,7 +143,7 @@ class WorkerActions:
             self.tasks.release(Ref.build(worker), actor)
             return self.workers.save(worker.released(datetime.now(timezone.utc).timestamp()), actor)
 
-    def sent(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str) -> Worker:
+    def relaunch(self, worker: Worker, brief: str, dispatcher: str | None, actor: Actor, move: str) -> Worker:
         revival = worker.state == WorkerState.STOPPED or self.runner.is_ended(worker)
         if self.runner.is_ended(worker):
             worker = self.runner.recorded_end(worker, actor)
@@ -173,7 +173,7 @@ class WorkerActions:
             worker = self.local(n)
             if worker.is_running():
                 return self.notified(worker, text, "the user", actor)
-            return self.sent(worker, text, None, actor, SENT)
+            return self.relaunch(worker, text, None, actor, JOB_MOVE)
 
     def notify(self, n: int, text: str, actor: Actor) -> Worker:
         with self.runner.lock(n):

@@ -60,14 +60,14 @@ class HostRequests:
 
     def lapse(self, moment: float) -> None:
         unclaimed = [HostRequest.stored(row) for row in self.rows.unclaimed_pool(moment - POOL_WAIT_SECONDS)]
-        quiet = [HostRequest.stored(row) for row in self.rows.claimed_by_quiet_devices(moment - POOL_WAIT_SECONDS)]
-        for kind, requests in ((UNCLAIMED, unclaimed), (OFFLINE_MACHINE, quiet)):
+        offline = [HostRequest.stored(row) for row in self.rows.offline_claims(moment - POOL_WAIT_SECONDS)]
+        for kind, requests in ((UNCLAIMED, unclaimed), (OFFLINE_MACHINE, offline)):
             for request in requests:
-                self.answered_back(request, kind, moment)
-        if unclaimed or quiet:
+                self.host_reply(request, kind, moment)
+        if unclaimed or offline:
             self.log.wake()
 
-    def answered_back(self, request: HostRequest, kind: str, moment: float) -> None:
+    def host_reply(self, request: HostRequest, kind: str, moment: float) -> None:
         self.rows.finish(request.id, 0, moment)
         self.rows.insert(HostRequestDraft(request.environment_key, kind, {"request": request.id, "kind": request.kind, "body": request.body}, request.account_id, moment))
 
