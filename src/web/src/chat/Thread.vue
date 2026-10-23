@@ -122,7 +122,7 @@ const helping = computed(() =>
         .filter((sub) => sub.running)
         .at(-1)
 );
-const line = computed(() => (owner.value ? busyLine(owner.value, helping.value) : {thinking: "", doing: "working"}));
+const line = computed(() => (owner.value ? busyLine(owner.value, helping.value) : {doing: "working"}));
 const planOpen = ref(true);
 let lastTop = 0;
 let lastScroll = 0;
@@ -491,16 +491,10 @@ const {colleague, me} = useColleague();
                                 </Transition>
                             </div>
                             <template v-if="busy && !waitingNow">
-                                <div :class="['thread-turn', 'busy', {faded: away}]" :aria-label="`The agent is ${line.doing || 'thinking'}`">
+                                <div :class="['thread-turn', 'busy', {faded: away}]" :aria-label="`The agent is ${line.doing}`">
                                     <div class="thread-meta">
                                         <Dot kind="started" solid :size="6" />
-                                        <template v-if="line.thinking">
-                                            <span>thinking</span>
-                                            <span class="thread-meta-on thought">{{ line.thinking }}</span>
-                                        </template>
-                                        <template v-else>
-                                            <RunningCommand :idle="line.doing" />
-                                        </template>
+                                        <RunningCommand :idle="line.doing" />
                                     </div>
                                 </div>
                             </template>
@@ -629,11 +623,6 @@ const {colleague, me} = useColleague();
 .thread-waiting:hover {
     color: var(--text);
     text-decoration: underline;
-}
-
-.thread-meta-on.thought {
-    font-family: inherit;
-    font-style: italic;
 }
 
 .thread-meta-on {

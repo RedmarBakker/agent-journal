@@ -98,12 +98,12 @@ export function lineOf(agent, task, auto = false, workers = []) {
     return ["working", "busy"].includes(state) ? busyWording(agent) : phrase("bearings");
 }
 
-// What the chat's status line says while the agent works: the part or tool running now, its thought only when nothing runs.
+// What the chat's status line says while the agent works: the part or tool running now, else the helper it waits on, else
+// thinking, the word alone, since its thoughts have bubbles of their own in the chat.
 export function busyLine(agent, helping = null) {
-    if (agent.status === "compacting") return {thinking: "", doing: "compacting"};
-    if (agent.tool_running) return {thinking: "", doing: agent.doing || "working"};
-    if (agent.thinking) return {thinking: agent.thinking, doing: ""};
-    return {thinking: "", doing: helping ? `Waiting: ${helping.task}` : "thinking"};
+    if (agent.status === "compacting") return {doing: "compacting"};
+    if (agent.tool_running) return {doing: agent.doing || "working"};
+    return {doing: helping ? `Waiting: ${helping.task}` : "thinking"};
 }
 
 const PHRASES = {
