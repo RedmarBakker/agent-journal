@@ -2,7 +2,8 @@
 import {readFileSync} from "node:fs";
 import {expect, test} from "vitest";
 import * as THREE from "three";
-import {CLIPS, Posing, WORK, blowsLandAt} from "../src/figure/figure.js";
+import {CLIPS, Posing, TOOLS, WORK, blowsLandAt} from "../src/figure/figure.js";
+import {PARCEL, workLook} from "../src/figure/parcels.js";
 import {canSwitch} from "../src/figure/timeline.js";
 
 // a rig whose every bone stands at rest, the arms straight out to the sides as Blender's rig holds them, z up; it has no
@@ -68,4 +69,48 @@ test("on its feet the figure hammers side-on, its face toward the side its blows
             expect([...pose.props.keys()], `${voice} ${step}`).toEqual(["work_hammer"]);
         }
     }
+});
+
+// where the hammer's head is in the figure's units, its prop held as figure.js heldPropOf places it: on the bone that carries it, turned as
+// the hand is and then as the prop is, the head the handle's length past the grip
+function hammerHead(pose, moves) {
+    const held = pose.props.get("work_hammer");
+    const radians = (degrees) => (degrees * Math.PI) / 180;
+    const turned = new THREE.Matrix4().extractRotation(moves.get(held.frame)).multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(radians(held.turn.x || 0), radians(held.turn.y || 0), radians(held.turn.z || 0), "ZYX")));
+    return held.at.clone().applyMatrix4(moves.get(held.bone)).add(new THREE.Vector3(0, 0, TOOLS.hammer.handleLength - TOOLS.hammer.gripFrom).applyMatrix4(turned));
+}
+
+test("the figure hammers from a little further back than it did, and every blow still comes down on the box's top where the page sets it", () => {
+    const work = CLIPS.find((each) => each.name === "work");
+    // the box's top in the figure's units over its feet, at the chat's 112-pixel picture of 5.4 units
+    const top = (PARCEL.height * 5.4) / 112;
+    for (const voice of Object.keys(stances)) {
+        const lands = blowsLandAt(stanceOf(voice));
+        // further from the feet than the 0.256 of the picture it stood at before, some five pixels more at the chat's size
+        expect(Math.abs(lands) * 112, voice).toBeGreaterThan(0.256 * 112 + 4);
+        // the hammer's head comes down through the box's top within the box's width, where the page stands it
+        const heads = Array.from({length: 65}, (_, step) => {
+            const pose = new Posing(REAL, "stand", 0);
+            work.pose(pose, stanceOf(voice), step / 64);
+            return hammerHead(pose, pose.moves(0));
+        });
+        const crossing = heads.find((head, step) => step && head.z <= top && heads[step - 1].z > top);
+        expect(crossing, voice).toBeTruthy();
+        expect(Math.abs(crossing.x - lands * 5.4), voice).toBeLessThan((PARCEL.width / 2) * (5.4 / 112));
+    }
+});
+
+test("while it builds, pushes or stacks a box the figure looks at that box, and never at a progress bar", () => {
+    const xOf = (box) => 300 + box.along;
+    // hammering, pushing and hopping it up onto the pile: the top of the box in hand, where it is now
+    for (const state of ["building", "built"]) {
+        for (const up of [0, 24]) {
+            const parcels = [{along: 40, state: "piled", up: 0}, {along: 120, state, up}];
+            expect(workLook(parcels, true, xOf, 600), `${state} ${up}`).toEqual({at: {x: 420, y: 600 - up - PARCEL.height}});
+        }
+    }
+    // setting out to build one, before it is begun: no look at all, so nothing turns its head to a bar
+    expect(workLook([{along: 40, state: "piled", up: 0}], true, xOf, 600)).toEqual({at: null});
+    // with no box in hand and none to build the work holds no look, and the bar may have it
+    expect(workLook([{along: 40, state: "piled", up: 0}], false, xOf, 600)).toBe(null);
 });

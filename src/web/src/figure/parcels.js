@@ -107,6 +107,15 @@ export function unitsAfter(units, run, memory, now, random) {
     return same && units.granted ? units : {card: run.card, granted: unitGranted(memory, now, random)};
 }
 
+// What the figure looks at while it works on the boxes, `parcels` as they are and `making` one: the top of the box it builds, pushes or
+// stacks, at `xOf(box)` across the page over the floor's top `floor`, or nothing at all while it sets out to build one, so its head is on
+// its work and never on a progress bar; null while it does neither, so it may look elsewhere
+export function workLook(parcels, making, xOf, floor) {
+    const box = parcels.find((each) => each.state !== "piled");
+    if (box) return {at: {x: xOf(box), y: floor - box.up - PARCEL.height}};
+    return making ? {at: null} : null;
+}
+
 // how long the figure hammers each parcel, a random number of milliseconds between the two
 export const HAMMER = {least: 3000, most: 8000};
 export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAMMER.least);

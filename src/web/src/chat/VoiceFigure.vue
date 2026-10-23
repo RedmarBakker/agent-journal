@@ -42,7 +42,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, buildRunAt, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -1014,14 +1014,18 @@ function stepForward() {
     sky = back ? {shade: 0, back, at: now} : null;
 }
 
-// What the figure looks at on the page: the UFO while it flies, or the crane's claw, else the leading edge of a progress bar running on the bars docked over
-// the compose box, so its head follows the edge as it moves: looking down at it standing on the bars, and up at it from the compose box's
-// top under them, hammering there too, but not while it pushes a parcel bent over; null when there is nothing to look at
+// What the figure looks at on the page: the UFO while it flies, or the crane's claw, else the box it builds, pushes or stacks while it works
+// (parcels.js workLook), else the leading edge of a progress bar running on the bars docked over the compose box, so its head follows the
+// edge as it moves: looking down at it standing on the bars, and up at it from the compose box's top under them; null when there is
+// nothing to look at
 function lookedAt(shown) {
     if (shown.clip.name === "tickle_swat") return pointerAt;
     if (shown.clip.ownLook) return null;
-    const near = body.footing?.home || (body.place.stays && shown.clip.name !== "push");
-    return saucer.value ?? crane.value?.look ?? (onDocks() && near ? progressEdge(groundEdge().element) : null);
+    const flying = saucer.value ?? crane.value?.look;
+    if (flying) return flying;
+    const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top);
+    if (work) return work.at;
+    return onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(groundEdge().element) : null;
 }
 
 // whether the figure is at rest by the bars docked over the compose box
