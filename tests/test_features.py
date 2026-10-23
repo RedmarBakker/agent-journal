@@ -10885,8 +10885,13 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
     assert 4 not in [task.id for task in app.container.get(Plans).offers()], "a task a worker holds is never offered"
 
 
-def test_a_pool_dispatch_pushes_the_base_to_origin_and_asks_the_team_servers_pool(app: App, tmp_path):
+def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
     import subprocess
+
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.sync.pull_queries import PullQueries
+    from journal.sync.sync_client import SyncClient
 
     from journal.repositories.id_blocks import IdBlocks
     from journal.repositories.tasks import Tasks
@@ -10917,7 +10922,7 @@ def test_a_pool_dispatch_pushes_the_base_to_origin_and_asks_the_team_servers_poo
     dispatch = lambda *extra: console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", *extra], AGENT)
     try:
         assert "joined no team" in dispatch("--profile", "journal-medior", "--worktree", "--no-libraries").error, "the pool is the team's"
-        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages"):
+        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
             app.container.get(IdBlocks).add(table, 800000, 800100)
         app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": ada, "device": 1, "account_id": 1})
         assert "add --worktree" in dispatch("--profile", "journal-medior").error, "a pool worker works in a worktree"
@@ -10930,6 +10935,28 @@ def test_a_pool_dispatch_pushes_the_base_to_origin_and_asks_the_team_servers_poo
         assert [(request.kind, request.body["worker"], request.body["task"], request.body["profile"]) for request in offered] == [("pool_worker", "Lady Lovelace", 1, "journal-medior")], "the pool is asked with the worker's name, task and profile, offered to a teammate's machine with a free slot"
         worker = app.container.get(Workers).all()[0]
         assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).state == "delegated", "the worker keeps the request's number and holds its task, though nothing runs here"
+        started = []
+        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+        app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
+        app.container.get(SyncClient).pulled(0)
+        app.runtime().deferred.drain()
+        assert [(each.name, each.model) for each in started] == [("Lady Lovelace", "sonnet")], "a machine giving the pool a slot takes the worker up and runs it on the model its profile names there"
+        folder = app.container.get(WorkerBranch).folder(worker)
+        assert git("rev-parse", "HEAD", cwd=folder).stdout == git("rev-parse", "main").stdout, "its worktree is cut from the base fetched from origin"
+        assert team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION)) == (), "once taken up it is offered to no other machine"
+        assert app.container.get(PullQueries).query(0).pool.free == 0, "the slot it took is no longer free"
+        with app.container.get(Scope).environment(MAIN):
+            workers = app.container.get(Workers)
+            workers.save(workers.find(worker.id).with_(token_hash="h", session="w-1").ready(1.0), Actor.system())
+        (folder / "parser.py").write_text("rules = []\n")
+        git("add", "parser.py", cwd=folder)
+        git("commit", "-q", "-m", "the parser", cwd=folder)
+        lovelace = Caller.worker("main", worker.id, "w-1", "claude")
+        assert console.run(["proof", "1", "parser.py:1, test_reads passes"], lovelace).code == 0
+        out = console.run(["clock-out", "the parser is done"], lovelace)
+        assert out.code == 0, out.error
+        assert f"refs/heads/journal/pool/{worker.id}-Lady-Lovelace\n" in git("ls-remote", "origin").stdout, "at clock-out the worker's branch is pushed to origin for the dispatcher to check and merge"
+        assert app.container.get(PullQueries).query(0).pool.free == 1, "and its slot is free again"
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)

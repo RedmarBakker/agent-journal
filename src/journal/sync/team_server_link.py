@@ -56,6 +56,12 @@ class TeamServerLink:
         answer = json.loads(self.posted("/pool-requests", asdict(request)))
         return int(answer["requests"][0]["id"])
 
+    def claim_request(self, id: int) -> None:
+        self.posted("/host-requests/claim", {"id": id})
+
+    def decline_request(self, id: int, reason: str) -> None:
+        self.posted("/host-requests/decline", {"id": id, "reason": reason})
+
     def finish_host_request(self, id: int) -> None:
         self.posted("/host-requests/done", {"id": id})
 

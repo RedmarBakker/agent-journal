@@ -3,6 +3,10 @@ from datetime import datetime, timezone
 
 from journal.console.command import WORKER_KINDS, Command
 from journal.features.workers.support.worker_branch import WorkerBranch
+from journal.support.actor import Actor
+from journal.features.workers.support.pool_dispatch import PoolDispatch
+from journal.models.pool_job_state import PoolJobState
+from journal.repositories.pool_jobs import PoolJobs
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.proof_state import ProofState
 from journal.models.support.ref import Ref
@@ -22,8 +26,8 @@ class DepartureCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch) -> None:
-        self.workers, self.tasks, self.proofs, self.reports, self.branch = workers, tasks, proofs, reports, branch
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, jobs: PoolJobs) -> None:
+        self.workers, self.tasks, self.proofs, self.reports, self.branch, self.jobs = workers, tasks, proofs, reports, branch, jobs
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof").add_argument("report")
@@ -42,10 +46,19 @@ class DepartureCommand(Command):
         uncommitted = self.uncommitted(worker)
         if uncommitted:
             raise Rejection(f"your worktree has uncommitted files, which would be lost: {', '.join(uncommitted)}; commit them first")
+        if worker.pool_request:
+            self.push_branch(worker)
         self.reports.posted(worker, args.report, caller.actor)
         self.workers.save(self.workers.find(worker.id).delivered(datetime.now(timezone.utc).timestamp()), caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
+
+    def push_branch(self, worker: Worker) -> None:
+        outcome = self.branch.git("push", "origin", f"{self.branch.name(worker)}:refs/heads/{PoolDispatch.branch(worker)}", cwd=self.branch.folder(worker))
+        if outcome.returncode != 0:
+            raise Rejection(f"your branch could not be pushed to origin for the agent that sent you: {outcome.stderr.strip()}; fix it and clock out again")
+        for job in self.jobs.all_matching(worker_id=worker.id, state=PoolJobState.STARTED):
+            self.jobs.save(job.finished(), Actor.system())
 
     def unproved(self, task: Task) -> list[int]:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}

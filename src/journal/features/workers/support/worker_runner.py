@@ -231,7 +231,7 @@ class WorkerRunner:
         return repositories or tuple(name for name in names if (folder / name / ".git").exists())
 
     def worktree_creation(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:
-        self.added(worker, "-b", self.branch.name(worker), str(self.branch.folder(worker)), "HEAD")
+        self.added(worker, "-b", self.branch.name(worker), str(self.branch.folder(worker)), f"origin/{worker.base}" if worker.base else "HEAD")
         return self.inner_worktrees(worker, names)
 
     def worktree_restoration(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:

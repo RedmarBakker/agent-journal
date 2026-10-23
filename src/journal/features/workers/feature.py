@@ -2,6 +2,7 @@ from journal.features.feature import Feature
 from journal.features.workers.clock_conduct import ClockConduct
 from journal.features.workers.listeners.shortfall_return import ShortfallReturn
 from journal.features.workers.listeners.task_touch import TaskTouch
+from journal.features.workers.listeners.pool_job_intake import PoolJobIntake
 from journal.features.workers.listeners.worker_task_changes import WorkerTaskChanges
 from journal.features.workers.commands.arrival_command import ArrivalCommand
 from journal.features.workers.commands.todo_command import TodoCommand
@@ -65,7 +66,7 @@ class Workers(Feature[WorkersData]):
     seeds = (WorkersSeed, SubagentsSeed)
     jobs = (WorkerWatch,)
     process_cards = (WorkerProcessCard, SubagentProcessCard)
-    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, DispatchRefusalCards, SilentWorkerRecord, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord)
+    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, DispatchRefusalCards, SilentWorkerRecord, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)

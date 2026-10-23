@@ -3,12 +3,11 @@ from journal.models.task import Task
 from journal.models.worker import Worker
 from journal.repositories.environments import Environments
 from journal.support.rejection import Rejection
+from journal.sync.host_desk import HostDesk
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_server_link import TeamServerLink
 from journal.version import VERSION
 from sync_server.pool_ask_request import PoolAskRequest
-
-POOL_WORKER = "pool_worker"
 
 
 class PoolDispatch:
@@ -19,13 +18,17 @@ class PoolDispatch:
 
     @staticmethod
     def base(worker: Worker) -> str:
-        return f"journal/pool/{worker.id}-{worker.name}-base".replace(" ", "-")
+        return f"{PoolDispatch.branch(worker)}-base"
+
+    @staticmethod
+    def branch(worker: Worker) -> str:
+        return f"journal/pool/{worker.id}-{worker.name}".replace(" ", "-")
 
     def send(self, worker: Worker, task: Task) -> int:
         base = self.base(worker)
         pushed = self.branch.git("push", "origin", f"HEAD:refs/heads/{base}", cwd=self.branch.checkout(worker))
         if pushed.returncode != 0:
             raise Rejection(f"worker {worker.name} was not sent to the pool: its base could not be pushed to origin: {pushed.stderr.strip()}")
-        body = {"worker": worker.name, "task": task.id, "title": task.title, "profile": worker.profile, "provider": worker.provider, "brief": worker.brief, "base": base, "libraries": list(worker.library_links), "copies": list(worker.library_copies)}
+        body = {"worker_id": worker.id, "worker": worker.name, "task": task.id, "title": task.title, "profile": worker.profile, "provider": worker.provider, "brief": worker.brief, "base": base, "libraries": list(worker.library_links), "copies": list(worker.library_copies)}
         environment = self.environments.find(worker.environment_id)
-        return self.link.ask_pool(PoolAskRequest(environment.key, POOL_WORKER, body, self.account.user_number(), VERSION))
+        return self.link.ask_pool(PoolAskRequest(environment.key, HostDesk.POOL_WORKER, body, self.account.user_number(), VERSION))
