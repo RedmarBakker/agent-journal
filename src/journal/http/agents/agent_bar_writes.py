@@ -16,17 +16,18 @@ from sync_server.host_request import HostRequest
 AGENT_CONTROL = "agent_control"
 AGENT_PAUSE = "agent_pause"
 AGENT_RESUME = "agent_resume"
+AGENT_SHELL = "agent_shell"
 
 
 class AgentBarWrites(HostWriter):
-    """What the agent bar changes on a live agent, its model or effort, its pause and its resume, made here for this journal's own agent and, asked by the environment's owner from another journal of the team, made here as the host; a request from anyone but the owner is refused here, where the agent runs."""
+    """What the agent bar changes on a live agent, its model or effort, its pause and its resume, a line typed into its terminal, made here for this journal's own agent and, asked by the environment's owner from another journal of the team, made here as the host; a request from anyone but the owner is refused here, where the agent runs."""
 
     def __init__(self, agents: Agents, providers: Providers, supervisor: SupervisorLink, pausing: AgentPause, environments: Environments, owners: EnvironmentOwners, scope: Scope) -> None:
         self.agents, self.providers, self.supervisor, self.pausing = agents, providers, supervisor, pausing
         self.environments, self.owners, self.scope = environments, owners, scope
 
     def makers(self) -> dict[str, Callable[[HostRequest], None]]:
-        return {AGENT_CONTROL: self.remote_control, AGENT_PAUSE: self.remote_pause, AGENT_RESUME: self.remote_resume}
+        return {AGENT_CONTROL: self.remote_control, AGENT_PAUSE: self.remote_pause, AGENT_RESUME: self.remote_resume, AGENT_SHELL: self.remote_shell}
 
     def control(self, agent: Agent, action: str, value: str) -> None:
         provider = self.providers.lookup(agent.provider)
@@ -34,6 +35,12 @@ class AgentBarWrites(HostWriter):
         if choice is None:
             raise Rejection(f"{action} {value} is not a choice the agent bar offers")
         self.supervisor.choose(agent.environment_id, choice["command"])
+
+    def shell(self, agent: Agent, command: str) -> None:
+        self.supervisor.type_raw(agent.environment_id, command)
+
+    def remote_shell(self, request: HostRequest) -> None:
+        self.owner_changes(request, lambda agent: self.shell(agent, request.body["command"]))
 
     def remote_control(self, request: HostRequest) -> None:
         self.owner_changes(request, lambda agent: self.control(agent, request.body["action"], request.body["value"]))

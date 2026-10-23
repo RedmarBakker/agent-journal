@@ -11317,7 +11317,13 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
 
     with scope.environment(main.row_id):
         agent = agents.save(Agent(environment_id=main.row_id, session="ada-session", provider="claude", state="working"), Actor.system())
+    def hook(kind, **extra):
+        body = json.dumps({"hook_event_name": kind, "session_id": "ada-session", **extra}).encode()
+        opener.open(HttpRequest(journal + "/hooks/claude", data=body, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}, method="POST"), timeout=10).read()
+
     try:
+        hook("PreToolUse", tool_name="Bash", tool_input={"command": "git status"}, tool_use_id="t-1")
+        hook("PostToolUse", tool_name="Bash", tool_input={"command": "git status"}, tool_response={"stdout": "clean"}, tool_use_id="t-1")
         account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})
         app.container.get(AgentViewSender).send(clock.time())
         assert [row["session"] for row in team.agent_views.listed(bob_device, [main.key], clock.time()).views[main.key]] == ["ada-session"], "Ada's journal sends the team server what its agent bar shows for her environment"
@@ -11326,9 +11332,10 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
         ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
         status, body = sent("/journal/agents", cookie=ada)
         assert status == 200 and [(row["session"], row["remote"]) for row in json.loads(body)["rows"]] == [("ada-session", True)], "on the hosted journal Ada sees her agent as her own journal shows it"
-        assert sent(f"/journal/agents/{agent.id}/terminal", cookie=ada) == (200, b"[]"), "its terminal stays on her machine, so the pane shows nothing rather than a fault"
-        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=bob)[0] == 409 and waiting() == [], "Bob sees it but cannot change it"
-        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=ada) == (200, b'{"asked": true}') and waiting() == [("agent_pause", 1)], "Ada's pause is asked of her journal, where the agent runs"
+        assert "terminal" not in json.loads(body)["rows"][0] and [line["command"] for line in json.loads(sent(f"/journal/agents/{agent.id}/terminal", cookie=ada)[1])] == ["git status"], "its terminal lines come with the view, read by the pane alone"
+        assert sent(f"/journal/agents/{agent.id}/shell", {"command": "ls"}, cookie=bob)[0] == 409 and sent(f"/journal/agents/{agent.id}/shell", {"command": "ls"}, cookie=ada) == (200, b'{"asked": true}'), "a line typed into it is asked of her journal for her alone"
+        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=bob)[0] == 409 and waiting() == [("agent_shell", 1)], "Bob sees it but cannot change it"
+        assert sent(f"/journal/agents/{agent.id}/pause", {}, cookie=ada) == (200, b'{"asked": true}') and waiting() == [("agent_shell", 1), ("agent_pause", 1)], "Ada's pause is asked of her journal, where the agent runs, after her typed line"
         team.host_requests.created(relay, HostAskRequest(main.key, "agent_resume", {"agent_id": agent.id}, 2), clock.time())
         (app.config.home / "hosted").unlink()
         account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})

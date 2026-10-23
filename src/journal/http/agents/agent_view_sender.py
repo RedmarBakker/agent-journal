@@ -3,6 +3,7 @@ import threading
 import time
 
 from journal.http.agents.agent_activity import AgentActivity
+from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.support.json_out import JsonOut
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
@@ -14,13 +15,14 @@ from journal.sync.team_server_link import TeamServerLink
 CHECK_SECONDS = 2
 RESEND_SECONDS = 30
 FAULT_SECONDS = 60
+TERMINAL_LINE_COUNT = 50
 
 
 class AgentViewSender:
-    """Sends the team server the agent bar rows of each environment this journal hosts, other than the Team chat, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
+    """Sends the team server the agent bar rows of each environment this journal hosts, each with its agent's newest terminal lines, other than the Team chat, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
 
-    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, scope: Scope, link: TeamServerLink) -> None:
-        self.account, self.hosts, self.agents, self.activity, self.scope, self.link = account, hosts, agents, activity, scope, link
+    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink) -> None:
+        self.account, self.hosts, self.agents, self.activity, self.terminal, self.scope, self.link = account, hosts, agents, activity, terminal, scope, link
         self.last_views: dict[str, list[dict]] = {}
         self.last_send_at = 0.0
         self.stopping = threading.Event()
@@ -58,4 +60,4 @@ class AgentViewSender:
     def rows(self, environment_id: int) -> list[dict]:
         with self.scope.environment(environment_id):
             agent = self.agents.current()
-            return json.loads(JsonOut.encoded(self.activity.page([agent]))) if agent else []
+            return json.loads(JsonOut.encoded([{**row, "terminal": self.terminal.lines(agent, 0.0)[-TERMINAL_LINE_COUNT:]} for row in self.activity.page([agent])])) if agent else []

@@ -4,7 +4,7 @@ from journal.config import Config
 from journal.features.pausing.agent_pause import AgentPause
 from journal.features.sequences.support.run_tracker import RunTracker
 from journal.http.agents.agent_activity import AgentActivity
-from journal.http.agents.agent_bar_writes import AGENT_CONTROL, AGENT_PAUSE, AGENT_RESUME, AgentBarWrites
+from journal.http.agents.agent_bar_writes import AGENT_CONTROL, AGENT_PAUSE, AGENT_RESUME, AGENT_SHELL, AgentBarWrites
 from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
@@ -69,9 +69,11 @@ class AgentController(Controller[Agent]):
         return Response.json({})
 
     def shell(self, request: Request) -> Response:
-        agent, command = self.repository.find(request.number("id")), request.body.get("command", "").strip()
+        command = request.body.get("command", "").strip()
+        if command and not self.hosts.is_host(self.environment()):
+            return self.host_request(request, AGENT_SHELL, {"command": command})
         if command:
-            self.supervisor.type_raw(agent.environment_id, command)
+            self.writes.shell(self.repository.find(request.number("id")), command)
         return Response.json({"queued": bool(command)})
 
     def controls(self, request: Request) -> Response:
@@ -107,7 +109,7 @@ class AgentController(Controller[Agent]):
 
     def terminal(self, request: Request) -> Response:
         if not self.hosts.is_host(self.environment()):
-            return Response.json([])
+            return Response.json(self.remote.terminal(self.environment(), request.number("id"), request.queried("after"), timing.time()))
         return Response.json(self.terminal_lines.lines(self.repository.find(request.number("id")), request.queried("after")))
 
     def pause(self, request: Request) -> Response:
