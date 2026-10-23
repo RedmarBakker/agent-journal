@@ -2239,13 +2239,14 @@ function ask_sign(pose, stance, t) {
     eyesAs(pose, "worried", up);
 }
 
-// Where the scroll is held, against the body at rest: the rollers' middle `at` before the chin, each hand `across` from the middle toward
-// its own side, the rollers `closed` apart in height while it is rolled and `apart` once it is open; and the head reading it, nodded
-// `nod` degrees down to its first line and `lineNod` more for each line below, turned `scan` degrees either side along a line
-export const SCROLL = {at: [0, -0.74, 2.42], across: 0.22, closed: 0.08, apart: 0.9, elbow: [1, 0.4, -0.6], nod: 10, lineNod: 6, scan: 14};
+// Where the scroll is held, against the body at rest: the rollers' middle `at` before the chest, low enough for the eyes to show over its
+// top edge, each hand `across` from the middle toward its own side, the rollers `closed` apart in height while it is rolled and `apart`
+// once it is open; and the head reading it, nodded `nod` degrees down into it and `lineNod` more for each line below, turned slowly from
+// `scan` degrees to its own left to as far to its right over the first `sweep` of a line, and back for the next
+export const SCROLL = {at: [0, -0.74, 2.02], across: 0.22, closed: 0.08, apart: 0.6, elbow: [1, 0.4, -0.6], nod: 16, lineNod: 4, scan: 12, sweep: 0.6};
 
-// brings the rolled scroll up before its face, pulls its two rollers apart between its hands, the free hand's above, reads it down line
-// by line with its head going along each, and rolls it closed between its hands again
+// brings the rolled scroll up before its chest, pulls its two rollers apart between its hands, the free hand's above, reads it down line
+// by line with its head going slowly along each, and rolls it closed between its hands again
 function scroll(pose, stance, t) {
     const act = ACTS.scroll;
     const u = onceTime(t, act.frames);
@@ -2265,7 +2266,8 @@ function scroll(pose, stance, t) {
     }
     const line = Math.min(Math.floor(read * act.lines), act.lines - 1);
     const along = read * act.lines - line;
-    pose.face("head", {x: (SCROLL.nod + SCROLL.lineNod * line) * open, z: mix(SCROLL.scan, -SCROLL.scan, along) * open});
+    const turn = SCROLL.scan * (1 - 2 * partOf(along, [0, SCROLL.sweep]) + 2 * partOf(along, [SCROLL.sweep, 1]));
+    pose.face("head", {x: (SCROLL.nod + SCROLL.lineNod * line) * open, z: turn * open});
     eyesAs(pose, "reading", open);
 }
 
