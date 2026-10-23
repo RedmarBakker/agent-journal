@@ -41,7 +41,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {PARCEL, PILE, PUSH, UFO, behind, phasesOf, blowsLanded, craneAt, hammerMs, lightsAfter, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../figure/parcels.js";
+import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, lightsAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -208,12 +208,14 @@ const drawnHere = (name) => hasClip(name) && canDraw(name, body.place.posture);
 const figureSize = () => ({size: SIZE, below: below.value});
 
 // the clip the figure's body shows for what its agent does: pushing a parcel it built while it stands behind it, standing by on its way
-// round behind it, and while its agent runs a command and it has yet to get to where it builds, so it never hammers on the way there
+// round behind it, and while its agent runs a command with no unit to build or it has yet to get to where it builds, so it never hammers
+// on the way there or with nothing to build
 function doing() {
     const pushing = parcels.value.find((each) => each.state === "built");
     if (pushing) return behind(parcelX(pushing), feetX()) ? "push" : "idle";
     if (parcels.value.some((each) => each.state === "building")) return "work";
-    return builds(held.value.state) && !body.place.stays ? "idle" : heldClip();
+    if (builds(held.value.state)) return making && body.place.stays ? heldClip() : "idle";
+    return heldClip();
 }
 
 // whether the figure sleeps, as it does while its agent is asleep or stopped
@@ -406,7 +408,7 @@ function setOff() {
         body.trip = null;
         return step();
     }
-    const trip = tripTo(body.place, there, figureSize(), {straight, pace, via});
+    const trip = tripTo(body.place, there, figureSize(), {straight, pace, via, memory: memory.reacted, now: now.value});
     body.way = Math.sign(there.x - body.place.x);
     stopSwinging();
     if (trip) {
@@ -698,6 +700,7 @@ function look() {
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
     if (coveredSince() && !body.airborne && !body.place.stays) stepOutOf(boxAt(body.place, figureSize(), drawn));
+    grantUnit();
     const target = targetFor({
         state: held.value.state,
         counts: counts.value,
@@ -778,7 +781,17 @@ function workOf() {
     if (pushing) return {x: pushStand(parcelX(pushing), slotX(piled()), body.place.x)};
     const building = parcels.value.find((each) => each.state === "building");
     if (building) return {x: parcelX(building) - beside};
-    return {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2};
+    return making ? {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2} : null;
+}
+
+// whether the figure builds a server unit in the run going on, as the pile grants one (parcels.js unitGranted), until it is piled
+let making = false;
+
+// at a look: a run going on with no unit in hand is granted one now and then; with no run, a unit not yet begun is given up
+function grantUnit() {
+    const inHand = parcels.value.some((each) => each.state !== "piled");
+    if (builds(held.value.state) && !making && !inHand) making = unitGranted(memory.reacted, now.value, Math.random);
+    if (!builds(held.value.state) && !inHand) making = false;
 }
 
 // Each frame: a parcel pops in the first frame the figure hammers where it builds, where its blows land, kept inside the compose box's
@@ -799,7 +812,10 @@ function keepParcels(shown) {
     if (pushing && !taking.value) {
         const to = slotX(piled());
         if (body.trip?.moves) pushing.along = pushedTo(parcelX(pushing), feetX(), to, body.way) - edge.left;
-        if (Math.abs(parcelX(pushing) - to) < PUSH.room) Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
+        if (Math.abs(parcelX(pushing) - to) < PUSH.room) {
+            Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
+            making = false;
+        }
     }
     if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows}));
 }

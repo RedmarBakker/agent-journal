@@ -106,8 +106,9 @@ export function reactionTo(moment, memory, now, random, voice = "", has = () => 
 export const pastimeOf = (state, held, memory, now, random, voice = "", has = () => true, tally = null) =>
     draw({moment: "pastime", free: FREE.has(state), lasted: held, voice, has, memory, now, tally}, random);
 
-// whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way, as the pile draws it
-export const flips = (height, size, random) => draw({moment: "jump", high: height > FLIP_OVER * size}, random).name === "backflip";
+// whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way, as the pile draws it; `memory` holds when the
+// salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES)
+export const flips = (height, size, random, memory, now) => draw({moment: "jump", high: height > FLIP_OVER * size, memory, now}, random).name === "backflip";
 
 // the moment each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle or thinks
 const WHILE = {work: "building", idle: "standing", think: "standing"};

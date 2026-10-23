@@ -1,7 +1,9 @@
 // @vitest-environment node
 import {expect, test} from "vitest";
-import {CUT, PILE, SHENANIGAN, choicesFor, cutsAfter, draw, lineOf} from "../src/figure/pile.js";
+import {CUT, PILE, SHENANIGAN, SHOWPIECES, UNIT, choicesFor, cutsAfter, draw, lineOf} from "../src/figure/pile.js";
 import {CLIPS} from "../src/figure/figure.js";
+import {unitGranted} from "../src/figure/parcels.js";
+import {carrierOf, flips} from "../src/figure/reactions.js";
 
 const names = (entries) => entries.map((entry) => entry.name);
 // a roll that lands at `share` of the way through the tickets
@@ -196,6 +198,8 @@ test("every animation in the pile, with its weight and the condition it plays un
         "nothing nothing ×3 when moment=eager",
         "shenanigan clip backflip ×7 when moment=jump high=true, plays out",
         "clip jump ×13 when moment=jump, plays out",
+        "pick unit ×19 when moment=unit",
+        "nothing nothing ×1 when moment=unit",
         "pick ufo ×3 when moment=carrier",
         "pick crane ×1 when moment=carrier",
         "pick left ×1 when moment=crane_from",
@@ -219,4 +223,52 @@ test("every animation in the pile, with its weight and the condition it plays un
     // every clip of the pile is one the figure has
     const clips = new Set(CLIPS.map((clip) => clip.name));
     for (const entry of PILE.filter((each) => each.kind === "clip")) expect(clips.has(entry.name), entry.name).toBe(true);
+});
+
+test("each showpiece waits its own cooldown, listed in one place: the parachute 20 minutes, the disco and the rope swing 15, the salto, the pogo stick and the bug shot 5 to 8, the tickle swats none", () => {
+    expect(SHOWPIECES.hop_up).toBe(20 * 60);
+    expect([SHOWPIECES.disco, SHOWPIECES.rope_swing]).toEqual([15 * 60, 15 * 60]);
+    for (const name of ["backflip", "pogo", "bug_shot"]) expect(SHOWPIECES[name] >= 5 * 60 && SHOWPIECES[name] <= 8 * 60, name).toBe(true);
+    expect(SHOWPIECES.tickle_swat).toBe(0);
+    // every showpiece in the pile takes its cooldown from the list, kept apart from the other acts of its moment
+    const showpieces = PILE.filter((entry) => entry.name in SHOWPIECES);
+    expect(showpieces.length).toBeGreaterThan(0);
+    for (const entry of showpieces) expect([entry.name, entry.cooldown, entry.apart]).toEqual([entry.name, SHOWPIECES[entry.name], true]);
+});
+
+test("a showpiece is out of the draw while its cooldown lasts and back in at its own weight once it is over", () => {
+    const memory = new Map();
+    const idle = (now) => ({moment: "pastime", free: true, lasted: 1000, voice: "butler", memory, now});
+    const hopUp = (now) => choicesFor(idle(now)).find((entry) => entry.name === "hop_up");
+    const weight = hopUp(0).weight;
+    // the run to the parachute drawn, it is not drawn again for twenty minutes, whatever the roll
+    const tickets = choicesFor(idle(0));
+    const at = tickets.slice(0, tickets.findIndex((entry) => entry.name === "hop_up")).reduce((sum, entry) => sum + entry.weight, 0);
+    expect(draw(idle(0), () => (at + 0.5) / tickets.reduce((sum, entry) => sum + entry.weight, 0)).name).toBe("hop_up");
+    for (const now of [1, 60, 600, SHOWPIECES.hop_up - 1]) expect(hopUp(now), String(now)).toBeUndefined();
+    expect(hopUp(SHOWPIECES.hop_up).weight).toBe(weight);
+    // the salto on a jump up turns now and then, then waits its cooldown before it turns again
+    const jumps = new Map();
+    expect(flips(400, 112, () => 0, jumps, 0)).toBe(true);
+    expect(flips(400, 112, () => 0, jumps, SHOWPIECES.backflip - 1)).toBe(false);
+    expect(flips(400, 112, () => 0, jumps, SHOWPIECES.backflip)).toBe(true);
+});
+
+test("a running test run builds a server unit nearly every time it may, but never two within three minutes", () => {
+    const memory = new Map();
+    let seed = 7;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    // a look every second for an hour, each unit built and piled in the next half minute
+    const granted = [];
+    for (let now = 0; now < 3600; now++) if (!granted.length || now - granted.at(-1) >= 30) unitGranted(memory, now, random) && granted.push(now);
+    const gaps = granted.slice(1).map((at, index) => at - granted[index]);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(UNIT.every);
+    // once it may, it builds one at once most of the time
+    expect(gaps.filter((gap) => gap === UNIT.every).length / gaps.length).toBeGreaterThan(0.8);
+    expect(granted.length).toBeGreaterThanOrEqual(Math.floor(3600 / UNIT.every) - 2);
+});
+
+test("a commit with units always brings the UFO or the crane to take them, with no cooldown between", () => {
+    expect(PILE.filter((entry) => entry.when.moment === "carrier").every((entry) => !entry.cooldown && entry.kind === "pick")).toBe(true);
+    for (let share = 0; share < 1; share += 0.01) expect(["ufo", "crane"]).toContain(carrierOf(() => share));
 });

@@ -51,6 +51,10 @@ export function pileSlot(index) {
     return {left: -(PARCEL.inside + PARCEL.width / 2 + column * (PARCEL.width + PILE.gap)), up: (index % PILE.high) * (PARCEL.height - PARCEL.top)};
 }
 
+// whether a run going on now builds a server unit, as the pile draws it (pile.js UNIT): nearly always, but one at most every few minutes,
+// `memory` holding when the last was granted, at `now` in seconds
+export const unitGranted = (memory, now, random) => draw({moment: "unit", memory, now}, random) !== null;
+
 // how long the figure hammers each parcel, a random number of milliseconds between the two
 export const HAMMER = {least: 3000, most: 8000};
 export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAMMER.least);

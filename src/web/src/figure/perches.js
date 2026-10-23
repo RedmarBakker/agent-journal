@@ -166,13 +166,14 @@ export function stayingAt(stay, figure, near) {
 }
 
 // Where the figure goes now and the stay it keeps: onto the compose box's top to push a parcel it built onto the pile, where `work.x`
-// says, or to build while its agent runs a command, beside the parcel it builds there or else clear of the pile (places.js buildSpot);
+// says, or to build a unit the run was granted (parcels.js unitGranted), beside the parcel it builds there or else clear of the pile
+// (places.js buildSpot), `work` being null with none of these in hand;
 // resting at home while its agent cannot act; to the tab of what waits on the user when something does and that tab has a spot inside
 // the figure's world; otherwise where its stay is, drawing the next stay when this one is over or its place is gone. `near` is where it
 // is, `counts` the views' badge counts and `state` what the agent does. The spot is kept clear of the box the figure stepped aside from
 // while that box is `cleared` (keptClear), except where it builds; resting by the parcel `pile`, it stands beside it (places.js besidePile).
-export function targetFor({state, counts, stay, now, near, figure, hands, work = {}, pile = null, cleared = {until: 0}, random = Math.random, tally = null}) {
-    const building = (work.x != null || builds(state)) && buildSpot(figure, near, work);
+export function targetFor({state, counts, stay, now, near, figure, hands, work = null, pile = null, cleared = {until: 0}, random = Math.random, tally = null}) {
+    const building = work && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally});
     return {...target, spot: unlessClosing(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), near)};

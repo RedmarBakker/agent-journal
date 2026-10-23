@@ -14,6 +14,16 @@
 // draw that may be one is one.
 export const SHENANIGAN = {after: 3};
 
+// The showpiece acts and how long each waits before it may play again once it has, in seconds, so they stay special: the run up to the
+// parachute at most every 20 minutes, the disco dance and the rope swing about every 15, the salto on a jump up, the pogo stick and the bug
+// shot about every 6; the tickle swats come as often as the user tickles. A cooldown only takes an act out of the draw while it lasts;
+// its weight is its own.
+export const SHOWPIECES = {hop_up: 20 * 60, disco: 15 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, tickle_swat: 0};
+
+// While a test run, a build or a check runs, building a server unit is drawn far above doing nothing, but one unit at most every `every`
+// seconds
+export const UNIT = {weight: 19, every: 3 * 60};
+
 // The clip each voice plays when the agent puts one of the voice's own faces on a message, by voice and then by face
 export const VOICE_FACES = {
     butler: {"🎩": "hat_tip", "🧐": "monocle", "🥂": "toast"},
@@ -57,8 +67,8 @@ const celebrations = () => [clip("joy", 2), clip("party_horn", 1)];
 // weighted against nothing that one is played about every half minute, looked for every second
 const pastime = (name, weight, lasted, cooldown, more = {}) => ({...clip(name, weight, {free: true, lasted, ...more.when}), cooldown, apart: true});
 
-// a shenanigan among the acts, in any state, apart from the others
-const shenanigan = (name, weight, cooldown, more = {}) => ({...clip(name, weight), cooldown, apart: true, shenanigan: true, ...more});
+// a showpiece among the acts, a shenanigan in any state, apart from the others, waiting its own cooldown (SHOWPIECES)
+const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name], apart: true, shenanigan: true});
 
 export const PILE = [
     // a test run's end: celebrated on its card, or a start at a failure, now and then
@@ -113,7 +123,7 @@ export const PILE = [
         pastime("shield_polish", 4, 45, 60, {when: {voices: ["squire"]}}),
         // the shenanigan: it hops up the bubbles off the top of the chat and comes back down on a parachute (figure/skyward.js); it turns
         // a salto only now and then on a high jump up onto a bubble (the jump moment), never where it stands
-        shenanigan("hop_up", 2, 150, {flies: true}),
+        {...showpiece(clip("hop_up", 2)), flies: true},
         nothing(560),
     ]),
     // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner or
@@ -130,8 +140,11 @@ export const PILE = [
     // a slow docked bar near its end: the figure gets eager for it now and then
     ...at("eager", {}, [clip("eager", 2, {slow: true}), nothing(3)]),
     // a jump up more than the figure's own height now and then turns over backwards on the way
-    ...at("jump", {}, [{...clip("backflip", 7, {high: true}), shenanigan: true}, clip("jump", 13)]),
-    // what takes the work away once it is committed, and the side the crane rolls in from
+    ...at("jump", {}, [showpiece(clip("backflip", 7, {high: true})), clip("jump", 13)]),
+    // while a run goes, whether the figure builds a server unit now (UNIT)
+    ...at("unit", {cooldown: UNIT.every}, [pick("unit", UNIT.weight), nothing(1)]),
+    // what takes the work away once it is committed, the UFO or the crane, one of them every time with no cooldown, and the side the crane
+    // rolls in from
     ...at("carrier", {}, [pick("ufo", 3), pick("crane", 1)]),
     ...at("crane_from", {}, [pick("left", 1), pick("right", 1)]),
     // a perch on a bubble: a hang from its corner by a free hand, or a stand on its corner
