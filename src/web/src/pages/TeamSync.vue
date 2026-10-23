@@ -2,7 +2,7 @@
 import {computed, ref} from "vue";
 import {runUpdate} from "../composables/updates.js";
 import Btn from "../kit/Btn.vue";
-import CopyButton from "../kit/CopyButton.vue";
+import TeamAddressFact from "./TeamAddressFact.vue";
 import ListBox from "../kit/ListBox.vue";
 import StateDot from "../kit/StateDot.vue";
 import "./team.css";
@@ -38,13 +38,7 @@ async function update() {
                 </template>
             </template>
             <dl class="team-facts">
-                <div class="wide">
-                    <dt>Team server</dt>
-                    <dd>
-                        <span>{{ standing.address }}</span>
-                        <CopyButton :text="standing.address" />
-                    </dd>
-                </div>
+                <TeamAddressFact label="Team server" :address="standing.address" />
                 <div>
                     <dt>Team version</dt>
                     <dd>{{ standing.version || "Not known yet" }}</dd>

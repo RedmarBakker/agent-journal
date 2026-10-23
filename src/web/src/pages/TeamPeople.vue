@@ -2,7 +2,7 @@
 import {ref} from "vue";
 import {api} from "../api/client.js";
 import {agentRunningIn} from "../composables/settings.js";
-import {initial, isOnline, machinesOf, onlineCount, presence, ROLES} from "../domain/team.js";
+import {isOnline, machinesOf, onlineCount, presence, ROLES} from "../domain/team.js";
 import Btn from "../kit/Btn.vue";
 import CopyButton from "../kit/CopyButton.vue";
 import Icon from "../kit/Icon.vue";
@@ -11,6 +11,7 @@ import StateDot from "../kit/StateDot.vue";
 import {href} from "../route.js";
 import {choose} from "../state/environment.js";
 import TeamFailure from "./TeamFailure.vue";
+import TeamPersonName from "./TeamPersonName.vue";
 import "./team.css";
 
 const props = defineProps({people: {type: Array, required: true}, devices: {type: Array, default: () => []}, admin: Boolean});
@@ -36,16 +37,7 @@ async function reset(person) {
         <template v-for="person in people" :key="person.id">
             <div class="team-person">
                 <div class="team-person-head">
-                    <span class="team-initial">{{ initial(person.name) }}</span>
-                    <div class="team-row-main">
-                        <b>
-                            {{ person.name }}
-                            <template v-if="person.me">
-                                <span class="team-tag">You</span>
-                            </template>
-                        </b>
-                        <span class="team-row-sub">{{ ROLES[person.role] || person.role }}</span>
-                    </div>
+                    <TeamPersonName :person="person" :sub="ROLES[person.role] || person.role" />
                     <template v-if="admin && !person.me && person.role !== 'relay'">
                         <Btn small @click="reset(person)">Reset password</Btn>
                     </template>

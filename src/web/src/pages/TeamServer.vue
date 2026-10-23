@@ -1,5 +1,5 @@
 <script setup>
-import CopyButton from "../kit/CopyButton.vue";
+import TeamAddressFact from "./TeamAddressFact.vue";
 import ListBox from "../kit/ListBox.vue";
 import StateDot from "../kit/StateDot.vue";
 import "./team.css";
@@ -11,13 +11,7 @@ defineProps({standing: {type: Object, required: true}});
     <ListBox title="Team server">
         <div class="team-block">
             <dl class="team-facts">
-                <div class="wide">
-                    <dt>Address</dt>
-                    <dd>
-                        <span>{{ standing.address }}</span>
-                        <CopyButton :text="standing.address" />
-                    </dd>
-                </div>
+                <TeamAddressFact label="Address" :address="standing.address" />
                 <div>
                     <dt>State</dt>
                     <dd><StateDot state="done" />Running</dd>
