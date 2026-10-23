@@ -96,7 +96,7 @@ watch(
 
 .watch-dock-command {
     display: block;
-    padding: 0 15px 4px 41px;
+    padding: 0 15px 4px;
     overflow: hidden;
     color: var(--text-3);
     font-size: 9.5px;
