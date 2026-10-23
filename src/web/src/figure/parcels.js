@@ -23,9 +23,17 @@ export const brightness = (lit, phase, index) => (lit !== "amber" || (phase + in
 // the steps of the blink a unit's lights `lit` show, one for lights that stay on
 export const phasesOf = (lit) => (lit === "amber" ? BLINK.phases : 1);
 
-// The status lights on a unit's front after a look: amber, blinking, from the moment a run `started`, and all green or red with the visor
-// once a run has `ended` good or bad, kept so until the next run starts; `lit` is how they were
-export const lightsAfter = (lit, started, ended) => ended || (started ? "amber" : lit);
+// The status lights on a unit's front after a look: each unit is built for the run going on as it is made, its `run`, and blinks amber
+// until that run ends, then shines green or red as that run ended, for good, whatever later runs do; one made with no run going takes
+// the next run's end. `ends` are the runs that ended at the look, each its card and tone (domain/figureState.js processEndsAfter)
+export function litAfter(unit, ends) {
+    if (unit.lit !== "amber") return unit.lit;
+    const end = unit.run ? ends.find((each) => each.card === unit.run) : ends.at(-1);
+    return end ? end.tone : unit.lit;
+}
+
+// every kind of light a unit shows, each drawn once (chat/VoiceFigure.vue)
+export const LIGHT_KINDS = Object.keys(LIGHT_COLOURS);
 
 // The 0 and 1 digits a blow's dust lets out, which drift in toward the unit as if bits were built into it: how many at least and at most,
 // and how far from the unit's middle they start, in pixels, all above the floor

@@ -41,7 +41,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, discoBall, keptClear, markSpot, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, lightsAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
+import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, craneAt, hammerMs, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt, unitGranted} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
@@ -134,11 +134,9 @@ const processStates = new Map();
 let visor = null;
 // the soft glow about the lit visor this frame, its colour and strength, or null
 const halo = ref(null);
-// the status lights of the server units the figure built (parcels.js lightsAfter), and whether the agent ran a build or a test at the last look
-const lights = ref("amber");
-// the pictures of a parcel's block with its lights as they are, one for each step of their blink, drawn by the figure's own renderer
+// the pictures of a parcel's block for each kind of its lights (parcels.js LIGHT_KINDS), one for each step of their blink, drawn by the
+// figure's own renderer; each parcel shows the kind its own run lit (parcels.js litAfter)
 const blocks = ref(null);
-let running = false;
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 let playing = {name: "", started: 0, shown: null, index: 0, closing: null};
@@ -690,9 +688,7 @@ function look() {
         ...sayingsAfter(lead.value, rows("messages"), seenAt),
     ];
     const ends = processEndsAfter(lead.value, processStates);
-    const runs = builds(held.value.state);
-    lights.value = lightsAfter(lights.value, runs && !running, ends.length ? ends.at(-1).tone : "");
-    running = runs;
+    if (ends.length) parcels.value = parcels.value.map((each) => ({...each, lit: litAfter(each, ends)}));
     if (happened.length) seenAt = Math.max(seenAt, ...happened.map((fire) => fire.time));
     if (committed(happened)) sendAway();
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
@@ -821,7 +817,7 @@ function keepParcels(shown) {
     const hammers = shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip;
     if (hammers && !list.some((each) => each.state !== "piled")) {
         const along = Math.min(Math.max(feetX() + beside - edge.left, PARCEL.inside), edge.width - PARCEL.inside);
-        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", until: performance.now() + hammerMs(Math.random), blows: 0}];
+        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", until: performance.now() + hammerMs(Math.random), blows: 0, lit: "amber", run: runningCard()}];
     }
     const building = parcels.value.find((each) => each.state === "building");
     if (building && hammers) countBlows(building, shown);
@@ -835,8 +831,11 @@ function keepParcels(shown) {
             making = false;
         }
     }
-    if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows}));
+    if (!taking.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows, lit: each.lit}));
 }
+
+// the process card of the run going on now, the last one started, whose end lights a parcel made now; "" with none
+const runningCard = () => (lead.value?.data?.cards || []).filter((card) => card.process && card.active).at(-1)?.key ?? "";
 
 // each blow that lands on the parcel being built is counted on it, so the parcel puffs dust at it (CodeParcel.vue)
 function countBlows(building, shown) {
@@ -912,7 +911,7 @@ function flyUfo(ms) {
         const k = rising.has(each.id) ? at.risen : 0;
         const x = parcelX(each);
         const y = edge.top + (at.y + PARCEL.height / 2 + each.up - edge.top) * k;
-        return {id: each.id, x: x + (at.x - x) * k, y, up: each.up, scale: 1 - 0.65 * k, opacity: k > 0.85 ? (1 - k) / 0.15 : 1};
+        return {id: each.id, x: x + (at.x - x) * k, y, up: each.up, scale: 1 - 0.65 * k, opacity: k > 0.85 ? (1 - k) / 0.15 : 1, lit: each.lit};
     };
     drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
     saucer.value = {x: at.x, y: at.y, beam: at.beam, width: at.width, reach: Math.max(edge.top - at.y, 0)};
@@ -936,7 +935,7 @@ function runCrane(ms) {
     const lifted = (each) => {
         const y = edge.top - (rising.has(each.id) ? at.lifted : 0);
         const shown = Math.min(Math.max((y - each.up - PARCEL.height - world.top) / PARCEL.height + 1, 0), 1);
-        return {id: each.id, x: parcelX(each), y, up: each.up, scale: 1, opacity: shown};
+        return {id: each.id, x: parcelX(each), y, up: each.up, scale: 1, opacity: shown, lit: each.lit};
     };
     drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
     crane.value = {box: world, x: at.x, chain: at.chain, open: at.open, look: {x: at.x, y: world.top + Math.max(at.chain, 0)}};
@@ -1081,15 +1080,16 @@ async function load(name) {
     }
 }
 
-// the block's pictures for the lights as they are now, through the player's stage, so the parcels are drawn as the figure is
+// the block's pictures for each kind of lights, through the player's stage, so the parcels are drawn as the figure is
 function drawBlocks() {
-    if (!player) return;
     const ratio = window.devicePixelRatio || 1;
-    const drawn = Array.from({length: phasesOf(lights.value)}, (_, phase) => player.stage.drawBlock(lights.value, phase, SIZE, ratio));
-    blocks.value = {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, below: drawn[0].below};
+    const blockOf = (lit) => {
+        const drawn = Array.from({length: phasesOf(lit)}, (_, phase) => player.stage.drawBlock(lit, phase, SIZE, ratio));
+        return {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, below: drawn[0].below};
+    };
+    blocks.value = Object.fromEntries(LIGHT_KINDS.map((lit) => [lit, blockOf(lit)]));
 }
 
-watch(lights, drawBlocks);
 watch(voice, load);
 watch(belongs, present);
 onMounted(() => {
@@ -1209,7 +1209,7 @@ const style = computed(() => {
         </div>
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
-        <CodeParcel v-if="blocks" :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :block="blocks" />
+        <CodeParcel v-if="blocks" :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" :block="blocks[drawing.lit]" />
     </template>
     <template v-if="crane">
         <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />

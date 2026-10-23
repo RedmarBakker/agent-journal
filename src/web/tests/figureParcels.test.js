@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, lookToward} from "../src/figure/figure.js";
-import {BLINK, CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, lightsAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {BLINK, CRANE, DIGITS, HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, pushStand, pushedTo, stacksOf, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
 import {carrierOf} from "../src/figure/reactions.js";
 import {PILE as ANIMATIONS} from "../src/figure/pile.js";
@@ -207,13 +207,22 @@ test("each parcel is a square block of two 1U server units, a strip of its top s
     expect(steps("bad")).toEqual([[1, 1, 1, 1]]);
 });
 
-test("a unit's lights blink amber from the moment a run starts, all turn green or red with the visor when it ends, and stay so until the next", () => {
-    expect(lightsAfter("good", true, "")).toBe("amber");
-    expect(lightsAfter("amber", false, "")).toBe("amber");
-    expect(lightsAfter("amber", false, "good")).toBe("good");
-    expect(lightsAfter("amber", true, "bad")).toBe("bad");
-    // the state lingers on the run a moment after it ends, which is no new run
-    expect(lightsAfter("good", false, "")).toBe("good");
+test("each unit keeps the lights of its own run: amber while that run goes, then green or red as it ended, for good", () => {
+    const first = {lit: "amber", run: "messages:1"};
+    const second = {lit: "amber", run: "messages:2"};
+    // the first run passes: its unit turns green, the second's blinks on
+    const passed = [{card: "messages:1", tone: "good"}];
+    const [a, b] = [first, second].map((unit) => ({...unit, lit: litAfter(unit, passed)}));
+    expect([a.lit, b.lit]).toEqual(["good", "amber"]);
+    // the second fails: its unit turns red and the first stays green
+    const failed = [{card: "messages:2", tone: "bad"}];
+    const [c, d] = [a, b].map((unit) => ({...unit, lit: litAfter(unit, failed)}));
+    expect([c.lit, d.lit]).toEqual(["good", "bad"]);
+    // a third run ends either way: neither ended unit changes again
+    for (const tone of ["good", "bad"]) expect([c, d].map((unit) => litAfter(unit, [{card: "messages:3", tone}]))).toEqual(["good", "bad"]);
+    // a unit made with no run going takes the next run's end
+    expect(litAfter({lit: "amber", run: ""}, [{card: "messages:4", tone: "bad"}])).toBe("bad");
+    expect(litAfter({lit: "amber", run: "messages:5"}, [])).toBe("amber");
 });
 
 test("each blow lets a few 0 and 1 digits out of the dust, starting about the unit and drifting in to it", () => {
