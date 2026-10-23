@@ -30,6 +30,9 @@ from journal.repositories.rules import Rules
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
+from journal.repositories.environment_owners import EnvironmentOwners
+from journal.sync.team_account import TeamAccount
+from journal.features.team.support.start_rule import StartRule
 
 TAKEOVER_WINDOW = timedelta(hours=12)
 
@@ -37,7 +40,8 @@ TAKEOVER_WINDOW = timedelta(hours=12)
 class EnvironmentCommand(Command):
     noun = "environment"
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask) -> None:
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule) -> None:
+        self.owners, self.account, self.starts = owners, account, starts
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
         self.memory, self.overview_commands, self.taking = memory, overview_commands, taking
@@ -47,6 +51,9 @@ class EnvironmentCommand(Command):
         self.verb(verbs, "list", "every environment and when it was last used")
         self.verb(verbs, "json", "the same, for the boot menu")
         self.verb(verbs, "create", "a new line of work").add_argument("name")
+        branch = self.verb(verbs, "branch", "record the branch an environment's worktree works on, as the launcher does when it makes one")
+        branch.add_argument("name")
+        branch.add_argument("branch")
         self.verb(verbs, "delete", "an environment and everything recorded in it").add_argument("name")
         rename = self.verb(verbs, "rename", "give an environment a new name; everything recorded in it stays")
         rename.add_argument("name")
@@ -59,7 +66,7 @@ class EnvironmentCommand(Command):
                 agents = self.agents.scoped()
             last = max(agents, key=lambda item: item.update_time) if agents else None
             resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
-            rows.append(EnvironmentRow(environment.name, last is not None and last.state != "ended", self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}))
+            rows.append(EnvironmentRow(environment.name, last is not None and last.state != "ended", self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number())))
         return rows
 
     def overview(self, args: Namespace, caller: Caller) -> int:
@@ -121,8 +128,13 @@ class EnvironmentCommand(Command):
         print(json.dumps([asdict(row) for row in self.rows()]))
         return 0
 
+    def branch(self, args: Namespace, caller: Caller) -> int:
+        environment = self.environments.save(self.environments.existing(args.name).with_(branch=args.branch), caller.actor)
+        print(f"environment {environment.name} works on branch {environment.branch}")
+        return 0
+
     def create(self, args: Namespace, caller: Caller) -> int:
-        environment = self.environments.lookup(args.name)
+        environment = self.environments.lookup(self.account.personal_name(args.name))
         print(f"environment {environment.id}: {environment.name}")
         return 0
 

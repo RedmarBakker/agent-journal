@@ -15,6 +15,7 @@ class Model:
 
     text_fields: ClassVar[tuple[str, ...]] = ()
     timeline_visible: ClassVar[bool] = True
+    shared: ClassVar[bool] = True
 
     id: int | None = None
     created_at: datetime | None = None
@@ -84,6 +85,9 @@ class Model:
 
     def mentioning_text(self) -> str:
         return "\n".join(str(getattr(self, name)) for name in self.text_fields)
+
+    def with_merged(self, name: str, values: dict) -> Self:
+        return self.with_(**{name: {**getattr(self, name), **values}})
 
     def with_(self, **changes) -> Self:
         return replace(self, **changes)

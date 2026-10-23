@@ -28,6 +28,16 @@ from journal.repositories.scope import Scope
 from journal.http.server import Server
 from journal.support.instance_guard import InstanceGuard
 from journal.http.share_server import ShareServer
+from journal.sync.record_outgoing_change import RecordOutgoingChange
+from journal.sync.block_numbers import BlockNumbers
+from journal.events.models.number_request import NumberRequest
+from journal.events.models.synced import Synced
+from journal.sync.pulled_settings import PulledSettings
+from journal.sync.pulled_files import PulledFiles
+from journal.sync.record_purge import RecordPurge
+from journal.sync.sync_client import SyncClient
+from journal.sync.team_account import TeamAccount
+from journal.events.models.purged import Purged
 
 
 INSTANCE_CHECK_SECONDS = 2.0
@@ -52,6 +62,11 @@ class Runtime:
         self.bus.listen(RowEvent, self.container.get(RowEventDelivery))
         self.bus.listen(Created, Creations())
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
+        self.bus.listen(ModelEvent, self.container.get(RecordOutgoingChange))
+        self.bus.listen(NumberRequest, self.container.get(BlockNumbers))
+        self.bus.listen(Synced, self.container.get(PulledSettings))
+        self.bus.listen(Synced, self.container.get(PulledFiles))
+        self.bus.listen(Purged, self.container.get(RecordPurge))
         self.bus.listen(Deleted, self.container.get(UnlinkDeleted))
         for feature in self.registry.features:
             for listener in feature.listeners:
@@ -61,7 +76,7 @@ class Runtime:
         for reply in self.machine.compactions_ended():
             self.container.get(Delivery).applied(reply, 0.0)
         from journal.repositories.environments import Environments
-        if not self.container.get(Environments).all():
+        if not self.container.get(Environments).all() and not self.container.get(TeamAccount).is_joined():
             self.container.get(Environments).lookup("main")
 
     def start(self) -> None:
@@ -85,6 +100,7 @@ class Runtime:
         self.register_jobs()
         self.jobs.start()
         self.server.start()
+        self.container.get(SyncClient).start()
         self.container.get(ServiceStart).run()
         gc.freeze()
 
@@ -111,6 +127,7 @@ class Runtime:
         self.stop()
 
     def stop(self) -> None:
+        self.container.get(SyncClient).stop()
         self.server.stop()
         self.share_server.stop()
         self.jobs.stop()

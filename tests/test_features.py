@@ -4,7 +4,7 @@ import json
 import os
 import re
 import time as timing
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request as HttpRequest, urlopen
@@ -36,7 +36,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.support.caller import Caller
 from journal.engine.state_machine import StateMachine
 from journal.features.sequences.support.run_tracker import RunTracker
-from journal.features.updates.support.release import Release
+from journal.support.release import Release
 from journal.features.updates.support.updater import Updater
 from journal.features.tasks.states.working import Working
 from journal.repositories.subagents import Subagents
@@ -824,7 +824,7 @@ def test_a_check_keeps_its_description_for_the_page(app: App):
 
 
 def test_the_documents_page_lists_the_projects_documents_their_search_and_the_attached_files(app: App, tmp_path):
-    from journal.http.attachments.attachments import Attachments
+    from journal.sync.attachments import Attachments
     from journal.models.message import Message
     from journal.repositories.messages import Messages
     old = tmp_path / "doc"
@@ -3775,7 +3775,7 @@ def test_a_plugin_runs_as_itself_never_as_the_user(app: App):
     assert "only the user approves" in cli(["plan", "approve", "1"])[1]["error"], "a plugin never approves a plan"
     assert cli(["task", "list"], value="wrong")[0] == 403 and cli(["task", "list"], plugin="lint")[0] == 403, "a wrong token, or a plugin's name without its own, is refused"
     identity = app.container.get(Identity)
-    assert identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": token}) == Actor.plugin("echo") and identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": "x"}) == Actor.user(1), "the API names the plugin only with its token"
+    assert identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": token}, "") == Actor.plugin("echo") and identity.build({"x-journal-plugin": "echo", "x-journal-plugin-token": "x"}, "") == Actor.user(1), "the API names the plugin only with its token"
 
 
 def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
@@ -9534,6 +9534,640 @@ def test_a_watch_or_wait_through_a_reader_is_refused_on_an_output_its_reader_doe
         assert not app.container.get(Messages).with_key(f"watch:{tests.id}")[0].data.get("docked"), "and its card can be taken down"
 
 
+def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_merged_here(app: App, monkeypatch):
+    from journal.features.workers.jobs.worker_watch import WorkerWatch
+    from journal.features.workers.seeds.workers_seed import WorkersSeed
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.repositories.workers import Workers
+    from journal.support.rejection import Rejection
+    from journal.sync.incoming_changes import IncomingChanges
+    from journal.sync.team_account import TEAM_FILE
+    from journal.sync.team_change import TeamChange
+
+    (app.config.home / TEAM_FILE).write_text(json.dumps({"device": "here"}))
+    signals = []
+    monkeypatch.setattr(os, "killpg", lambda *values: signals.append(values))
+    monkeypatch.setattr(os, "kill", lambda *values: signals.append(values))
+    app.container.get(IncomingChanges).apply([TeamChange(row_table="workers", row=7, action="created", writer="user:1", fields={"environment_id": 1, "name": "Mr. Faraday", "state": "dispatched", "pid": 424242, "device": "there"})])
+    workers, watch = app.container.get(Workers), app.container.get(WorkerWatch)
+    pulled = workers.find(7)
+    app.container.get(WorkersSeed).run()
+    watch.tick(timing.time())
+    assert 7 not in [worker.id for worker in watch.watched] and workers.find(7) == pulled and signals == [], "another machine's worker is never watched or signalled here"
+    actions = app.container.get(WorkerActions)
+    with pytest.raises(Rejection, match="runs on another machine of the team"):
+        actions.stop(7, "stop", Actor.user(1))
+    with pytest.raises(Rejection, match="runs on another machine of the team"):
+        actions.merge(7, Actor.user(1))
+    assert workers.find(7) == pulled
+
+
+def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_account_number(app: App):
+    from journal.http.support.identity import Identity
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.tasks import Tasks
+    from journal.support.caller_variables import CallerVariables
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+
+    assert app.container.get(Identity).build({}, "") == Actor.user(1), "a journal in no team is user 1's"
+    app.container.get(TeamAccount).write({"account_id": 7, "device": "d7"})
+    app.container.get(IdBlocks).add("tasks", 7001, 7999)
+    assert app.container.get(Identity).build({}, "") == Actor.user(7), "the viewer writes as the person whose account this machine joined with"
+    caller = CallerVariables("main", "claude", False).caller(app.container.get(TeamAccount).user_number())
+    assert caller.actor == Actor.user(7)
+    app.console().run(["task", "create", "made by the second person"], caller)
+    with app.container.get(Scope).environment(1):
+        [task] = [task for task in app.container.get(Tasks).scoped() if task.title == "made by the second person"]
+    assert task.creator == Actor.user(7) and task.id == 7001
+    (app.config.home / TEAM_FILE).unlink()
+
+
+def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_and_a_stranger_is_refused(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from journal.engine.agent_launcher import AgentLauncher
+    from journal.support.worktree import Worktree
+    from journal.db.connection import Connection
+    from journal.sync.journal_copy import JournalCopy
+    from journal.db.schema import Schema
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.team_server_link import TeamServerLink
+    from journal.sync.team_upgrade import TeamUpgrade
+    from journal.features.updates.support.updater import Updater
+    from journal.support.release import Release
+    from journal.sync.sync_status import SyncStatus
+    from journal.version import VERSION
+    from journal.sync.environment_names import EnvironmentNames
+    from journal.sync.attachments import Attachments
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.jobs.watch_refresh import WatchRefresh
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.models.message import Message
+    from journal.models.author import Author
+    from journal.repositories.messages import Messages
+    from journal.repositories.reactions import Reactions
+    from journal.repositories.questions import Questions
+    from journal.models.reaction import Reaction
+    from journal.models.question import Question
+    from journal.support.rejection import Rejection
+    from pathlib import Path
+    from journal.repositories.environment_owners import EnvironmentOwners
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.users import Users
+    from journal.models.task import Task
+    from journal.sync.team_account import TeamAccount
+    from journal.repositories.environments import Environments
+    from journal.repositories.workers import Workers
+    from sync_server.account import ADMIN
+    from sync_server.team_server import TeamServer
+    from conftest import copied
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
+    git("init", "-q", str(tmp_path / "c"))
+    git("-C", str(tmp_path / "c"), "-c", "user.name=Eve", "-c", "user.email=eve@example.com", "commit", "-q", "--allow-empty", "-m", "another")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    admin_code = team.invitations.issue("ada@example.com", timing.time())[0]
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc"]
+    a, b, c = journals
+
+    def urlopen_refusal(url: str) -> str:
+        try:
+            urlopen(HttpRequest(url, data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "ada-main"}), timeout=5)
+            return ""
+        except HTTPError as refused:
+            return refused.read().decode()
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + 3
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    try:
+        with a.container.get(Scope).environment(MAIN):
+            task = a.container.get(Tasks).save(Task(environment_id=MAIN, title="made before the team"), Actor.user(1))
+            worker = a.container.get(Workers).save(Worker(environment_id=MAIN, name="Mr. Faraday"), Actor.user(1))
+        with a.container.get(Scope).environment(MAIN):
+            early = a.container.get(Messages).save(Message(environment_id=MAIN, author=Author.USER, text="a file from before the team"), Actor.user(1))
+        a.container.get(Attachments).store("messages", early.id, "before.txt", b"attached before the team")
+        Worktree(tmp_path / "a", "main").created()
+        assert a.console().run(["team", "join", address, "--code", admin_code], USER).error.startswith("run journal team join yourself in a terminal")
+        joined = a.console().run(["team", "join", address, "--code", admin_code, "--password", "correct horse battery"], USER)
+        assert joined.code == 0 and "this journal is now the team's" in joined.text and "1 files uploaded" in joined.text, joined.text + joined.error
+        assert a.container.get(Workers).find(worker.id).device == str(a.container.get(TeamAccount).device()), "the first journal's workers are its device's"
+        assert (tmp_path / "a" / ".claude" / "worktrees" / "ada-main").is_dir() and not (tmp_path / "a" / ".claude" / "worktrees" / "main").exists(), "an environment's worktree moves with it when it takes its person's name"
+        assert a.container.get(Environments).existing("ada-main").branch == "worktree-ada-main"
+        assert a.container.get(EnvironmentNames).resolved("main").name == "ada-main", "a session started before the team, which still says main, works in ada-main"
+        invitation = a.console().run(["team", "invite", "bob@example.com"], USER).text
+        bob_code = re.search(r"--code (\S+)", invitation).group(1)
+        assert c.console().run(["team", "join", address, "--code", bob_code, "--password", "correct horse battery"], USER).error.startswith("the team's journal belongs to the repository"), "a checkout of another repository is refused"
+        with b.container.get(Scope).environment(MAIN):
+            b.container.get(Tasks).save(Task(environment_id=MAIN, title="b's own, before joining"), Actor.user(1))
+        major, minor, patch = (int(n) for n in VERSION.split("."))
+        for other in (f"{major}.{minor}.{patch + 1}", f"{major}.{minor - 1}.0"):
+            monkeypatch.setattr("journal.features.team.support.team_join.VERSION", other)
+            refused_join = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery"], USER)
+            assert refused_join.error.startswith(f"the team runs journal version {VERSION} and this journal {other}: install {VERSION} first with curl -fsSL"), "a join from a newer or an older journal is refused with the line to install the team's version"
+        monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
+        joined_b = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery"], USER)
+        assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
+        assert [row.title for row in b.container.get(Tasks).global_matching()] == [row.title for row in a.container.get(Tasks).global_matching()], "the joining journal holds exactly the team's tasks, its own replaced"
+        assert [row.name for row in b.container.get(Environments).rows()] == [row.name for row in a.container.get(Environments).rows()]
+        assert list((tmp_path / "b" / ".journal").glob("journal-before-team-*.db")), "the journal as it was is kept in a backup"
+        assert eventually(lambda: {user.id: user.name for user in a.container.get(Users).rows()}.get(2) == "Bob"), "every machine knows the new person"
+        assert "person: user 2" in b.console().run(["team", "status"], USER).text
+        bob_main = b.container.get(Environments).lookup("bob-main")
+        assert "works on branch worktree-bob-main" in b.console().run(["environment", "branch", "bob-main", "worktree-bob-main"], replace(USER, person=2)).text
+        assert eventually(lambda: [row.branch for row in a.container.get(Environments).rows() if row.name == "bob-main"] == ["worktree-bob-main"]), "the branch an environment works on is known to the team"
+        ada_main = a.container.get(Environments).existing("ada-main")
+        owners_a = a.container.get(EnvironmentOwners)
+        assert owners_a.owner_name(ada_main.row_id) == "Ada", "the first journal's environments are its person's, named for them"
+        assert eventually(lambda: [environment.name for environment in a.container.get(Environments).rows() if environment.name == "bob-main"] == ["bob-main"] and owners_a.owner_name(a.container.get(Environments).existing("bob-main").row_id) == "Bob"), "a colleague's environment arrives with its owner"
+        assert b.container.get(EnvironmentOwners).is_colleague(Actor.user(2), ada_main.row_id) and not b.container.get(EnvironmentOwners).is_colleague(Actor.user(2), bob_main.row_id)
+        refused = urlopen_refusal(f"http://127.0.0.1:{a.server().port}/journal/environments/{a.container.get(Environments).existing('bob-main').row_id}/launch")
+        assert "is Bob's: an agent starts only in your own environment" in refused, "the viewer's Start button refuses a colleague's environment"
+        rows = {row["name"]: row for row in json.loads(a.console().run(["environment", "json"], USER).text)}
+        assert rows["bob-main"]["refusal"].startswith("environment bob-main is Bob's") and rows["ada-main"]["refusal"] == "", "the launcher's rows carry the same refusal"
+        with a.container.get(Scope).environment(ada_main.row_id):
+            note = a.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="for my agent"), Actor.user(1))
+        assert eventually(lambda: bool(b.container.get(Messages).global_matching(id=note.id)))
+        read = HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/messages/read", data=json.dumps({"ids": [note.id]}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "ada-main"})
+        urlopen(read, timeout=5).read()
+        assert b.container.get(Messages).global_matching(id=note.id)[0].read_at is None, "a colleague reading Ada's chat marks nothing read"
+        timing.sleep(0.3)
+        assert a.container.get(Messages).global_matching(id=note.id)[0].read_at is None, "nor on Ada's machine"
+        with b.container.get(Scope).environment(ada_main.row_id):
+            ada_task = b.container.get(Tasks).global_matching(environment_id=ada_main.row_id)
+            assert ada_task, "Ada's task is on Bob's machine"
+            for refused_write in (
+                lambda: b.container.get(Tasks).save(ada_task[0].with_(title="renamed by Bob"), Actor.user(2)),
+                lambda: b.container.get(Reactions).save(Reaction(environment_id=ada_main.row_id, face="👍"), Actor.user(2)),
+                lambda: b.container.get(Questions).save(Question(environment_id=ada_main.row_id, text="Bob asks?"), Actor.user(2)),
+                lambda: b.container.get(Environments).save(b.container.get(Environments).existing("ada-main").with_(name="bob-took-it"), Actor.user(2)),
+            ):
+                with pytest.raises(Rejection, match="in a colleague's environment you only comment"):
+                    refused_write()
+            comment = b.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="a word from Bob"), Actor.user(2))
+        assert comment.author == Author.COLLEAGUE and comment.data["colleague"] == "Bob" and comment.sender == "Bob, a colleague of your user (not your user's words)", "a person's message in a colleague's environment is a colleague's comment"
+        assert eventually(lambda: bool(a.container.get(Messages).global_matching(id=comment.id)))
+        with a.container.get(Scope).environment(ada_main.row_id):
+            assert comment.id not in [message.id for message in a.container.get(Messages).unread()], "it is not among Ada's unread"
+            assert comment.id not in [message.id for message in a.container.get(Messages).unanswered()], "nor among what her agent owes an answer"
+            assert comment.id in [message.id for message in a.container.get(Messages).unread_comments()], "a comment that came while no agent ran waits to be named at the next start"
+            badge = a.container.get(Messages).unviewed()
+            a.container.get(Messages).read(a.container.get(Messages).find(comment.id), Actor.user(1), 0)
+            assert a.container.get(Messages).unviewed() == badge - 1 and comment.id in [message.id for message in a.container.get(Messages).unread_comments()], "Ada's badge counted the comment until she viewed it, which leaves it unread for her agent"
+            a.container.get(Messages).read(a.container.get(Messages).find(comment.id), Actor.agent("s1"), 0)
+            answer = a.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.AGENT, text="thanks, Bob", reply_target=comment.id), Actor.agent("s1"))
+            assert comment.id not in [message.id for message in a.container.get(Messages).unread_comments()], "and once the agent read it, it is named no more"
+        assert eventually(lambda: [row.reply_target for row in b.container.get(Messages).global_matching(id=answer.id)] == [comment.id]), "the agent's reply to Bob's comment is in Bob's view of Ada's chat"
+        assert urlopen_refusal(f"http://127.0.0.1:{b.server().port}/journal/environments/{ada_main.row_id}/stop").find("only comment") >= 0, "and Bob cannot stop Ada's agent from his viewer"
+        made = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/environments", data=json.dumps({"name": "feature-x"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "bob-main"}), timeout=5))
+        assert made["name"] == "bob-feature-x", "an environment made from the viewer carries its person"
+        assert "environment" in b.console().run(["environment", "create", "bob-hotfix"], USER).text and b.container.get(Environments).existing("bob-hotfix"), "a name that carries the person already keeps it"
+        for journal in (a, b):
+            names = [environment.name for environment in journal.container.get(Environments).rows()]
+            assert len(names) == len(set(names)), f"no two environments share a name: {names}"
+        assert eventually(lambda: all(a.container.get(EnvironmentOwners).owner_number(environment.row_id) for environment in a.container.get(Environments).rows() if not environment.is_team_chat)), "every environment but the Team chat has an owner"
+        assert not any(c.container.get(EnvironmentOwners).is_colleague(Actor.user(1), environment.row_id) for environment in c.container.get(Environments).rows()), "a journal in no team has no colleagues"
+        def side(journal, method, body=None):
+            request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/side-thread", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "ada-main"})
+            return json.load(urlopen(request, timeout=5))
+
+        ada_side = side(a, "POST", {"text": "lunch at one?"})
+        bob_side = side(b, "POST", {"text": "yes, and the tests pass"})
+        assert eventually(lambda: [row["text"] for row in side(a, "GET")] == ["lunch at one?", "yes, and the tests pass"] and [row["text"] for row in side(b, "GET")] == ["lunch at one?", "yes, and the tests pass"]), "everyone viewing Ada's environment sees its side thread"
+        with a.container.get(Scope).environment(ada_main.row_id):
+            unread = [message.id for message in a.container.get(Messages).unread()]
+        assert ada_side["id"] not in unread and bob_side["id"] not in unread and bob_side["author"] == "user", "no agent is told of the side thread, and a colleague's word there is no comment"
+        assert "lunch at one" not in a.console().run(["message", "unread"], Caller.agent("ada-main", "s1", "claude")).text, "nor does the agent's inbox list it"
+        def journal_call(journal, path, body, content_type="application/json"):
+            request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/{path}", data=body, method="POST", headers={"Content-Type": content_type, "X-Journal-Env": "ada-main"})
+            return json.load(urlopen(request, timeout=5))
+
+        def attached(journal, path, name, data):
+            boundary = "b0undary"
+            body = f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/octet-stream\r\n\r\n".encode() + data + f"\r\n--{boundary}--\r\n".encode()
+            return journal_call(journal, path, body, f"multipart/form-data; boundary={boundary}")
+
+        def file_on(journal, path):
+            try:
+                with urlopen(HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/{path}", headers={"X-Journal-Env": "ada-main"}), timeout=5) as answer:
+                    return answer.read()
+            except HTTPError:
+                return b""
+
+        picture_message = journal_call(a, "messages", json.dumps({"text": "the screenshot"}).encode())
+        attached(a, f"messages/{picture_message['id']}/files", "pic.png", b"\x89PNG picture")
+        dump = journal_call(a, "dumps", json.dumps({"brief": "a pile"}).encode())
+        attached(a, f"dumps/{dump['id']}/files", "notes.txt", b"dumped notes")
+        assert eventually(lambda: file_on(b, f"messages/{picture_message['id']}/files/pic.png") == b"\x89PNG picture"), "a picture attached on Ada's machine opens on Bob's"
+        assert eventually(lambda: file_on(b, f"dumps/{dump['id']}/files/notes.txt") == b"dumped notes"), "and so does a file dropped in a dump"
+        assert journal_call(b, "messages", json.dumps({"text": "from Bob's viewer"}).encode())["author"] == "colleague", "a message posted from a colleague's viewer is a colleague's comment too"
+        assert file_on(b, f"messages/{early.id}/files/before.txt") == b"attached before the team", "a file attached before the journal became shared opens on a journal that joined"
+        with b.container.get(Scope).environment(bob_main.row_id):
+            comment_with_picture = b.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="look at this"), Actor.user(2))
+        attached(b, f"messages/{comment_with_picture.id}/files", "bob.png", b"bob's picture")
+        on_ada = a.config.files / "message" / str(comment_with_picture.id) / "bob.png"
+        assert eventually(lambda: on_ada.is_file() and on_ada.read_bytes() == b"bob's picture"), "a pulled comment's picture is fetched as it arrives, so it is on disk where journal message read points"
+        assert str(on_ada) in a.console().run(["message", "read", str(comment_with_picture.id)], Caller.agent("ada-main", "s1", "claude")).text
+        def team_post(journal, text):
+            request = HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/messages", data=json.dumps({"text": text}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
+            return json.load(urlopen(request, timeout=5))
+
+        assert eventually(lambda: [row.name for row in b.container.get(Environments).rows() if row.is_team_chat] == ["team"]), "the Team chat is an environment every machine has"
+        team_env = b.container.get(Environments).existing("team")
+        assert b.container.get(EnvironmentOwners).owner_number(team_env.row_id) == 0, "owned by no one"
+        ada_word, bob_word = team_post(a, "morning, team"), team_post(b, "morning, Ada")
+        assert ada_word["author"] == "user" and bob_word["author"] == "user", "in the Team chat everyone's words are users' words, never a colleague's comment"
+        assert eventually(lambda: sorted(row.text for row in b.container.get(Messages).global_matching(environment_id=team_env.row_id)) == ["morning, Ada", "morning, team"]), "both people's words are in the Team chat on each machine"
+        assert not [row for row in b.container.get(Messages).global_matching(environment_id=bob_main.row_id) if row.text.startswith("morning")], "and stay out of their own chats"
+        rows = {row["name"]: row for row in json.loads(b.console().run(["environment", "json"], USER).text)}
+        assert "claim it first" in rows["team"]["refusal"], "the launcher starts an agent in the Team chat only on the machine that claims it"
+        started_agents = []
+        monkeypatch.setattr(AgentLauncher, "start", lambda self, environment, agent: started_agents.append((environment, agent)) or 1)
+        assert "you hold the Team chat now, as Ada" in a.console().run(["team", "claim"], USER).text
+        assert started_agents == [("team", "claude")], "the claiming machine starts the Team chat's agent"
+        refused_claim = b.console().run(["team", "claim"], replace(USER, person=2))
+        assert refused_claim.code == 1 and "team-chat is held by Ada" in refused_claim.error, "a second machine's claim is refused while the first holds it"
+        assert b.console().run(["team", "chat"], replace(USER, person=2)).text.startswith("Held by Ada"), "and it sees who holds it"
+        rows_b = {row["name"]: row for row in json.loads(b.console().run(["environment", "json"], replace(USER, person=2)).text)}
+        rows_a = {row["name"]: row for row in json.loads(a.console().run(["environment", "json"], USER).text)}
+        assert "claim it first" in rows_b["team"]["refusal"] and rows_a["team"]["refusal"] == "", "only the holder's machine may start an agent in the Team chat"
+        typed = []
+        monkeypatch.setattr(SupervisorLink, "type", lambda self, environment_id, line, following=0.0: typed.append(line))
+        session_start = HttpRequest(f"http://127.0.0.1:{a.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "chat1"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
+        urlopen(session_start, timeout=5).read()
+        bob_ask = team_post(b, "please run the tests")
+        assert eventually(lambda: any(f"new message {bob_ask['id']}" in line for line in typed)), "a message posted on Bob's machine is typed into the agent Ada's machine runs for the Team chat"
+        read_line = a.console().run(["message", "read", str(bob_ask["id"])], Caller.agent("team", "chat1", "claude")).text
+        assert "Bob, one of the people you work for in the Team chat" in read_line, "and it reads as Bob's"
+        git("init", "-q", "--bare", str(tmp_path / "remote.git"))
+        git("-C", str(tmp_path / "a"), "remote", "add", "origin", str(tmp_path / "remote.git"))
+        git("-C", str(tmp_path / "b"), "remote", "set-url", "origin", str(tmp_path / "remote.git"))
+        git("-C", str(tmp_path / "a"), "config", "user.name", "Ada")
+        git("-C", str(tmp_path / "a"), "config", "user.email", "ada@example.com")
+        (Worktree(tmp_path / "a", "team").created() / "draft.txt").write_text("not committed yet\n")
+        stopped = []
+        monkeypatch.setattr(SupervisorLink, "stop", lambda self, environment_id: stopped.append(environment_id))
+        assert "you no longer hold the Team chat" in a.console().run(["team", "release"], USER).text
+        assert stopped == [a.container.get(Environments).existing("team").row_id] and not a.container.get(TeamAccount).is_chat_holder(), "a release stops the Team chat's agent on the machine that let it go"
+        assert "you hold the Team chat now, as Bob" in b.console().run(["team", "claim"], replace(USER, person=2)).text, "another person claims the Team chat once it is released"
+        bob_start = HttpRequest(f"http://127.0.0.1:{b.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "chat2"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "team"})
+        assert "Bob: please run the tests" in urlopen(bob_start, timeout=5).read().decode(), "the agent the new holder's machine starts carries the Team chat's recent history"
+        assert (Worktree(tmp_path / "b", "team").path / "draft.txt").read_text() == "not committed yet\n", "a release commits and pushes the holder's files, and the new holder starts from them"
+        monkeypatch.setattr("sync_server.leases.LAPSE_SECONDS", -1)
+        a.console().run(["team", "claim"], USER)
+        monkeypatch.setattr("sync_server.leases.LAPSE_SECONDS", 90)
+        with a.container.get(Scope).environment(a.container.get(Environments).existing("team").row_id):
+            lapsed = [m.text for m in a.container.get(Messages).recent(20) if "while Bob was offline" in m.text]
+        assert lapsed == ["Ada claimed the Team chat while Bob was offline: what Bob had not pushed stayed on their machine"], "a claim over a lapsed holder says their unpushed work stayed behind"
+        major, minor, _ = (int(n) for n in VERSION.split("."))
+        pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
+        assert "the team is pinned to version" in a.console().run(["team", "upgrade", pinned], USER).text
+        assert eventually(lambda: b.container.get(SyncStatus).line() == f"Your team is on version {pinned}: journal update apply installs it"), "the admin's pin makes every member's status bar ask for the upgrade"
+        updater = b.container.get(Updater)
+        updater.releases = Release.lookup([f"v{pinned}", f"v{beyond}"])
+        assert [release.version for release in updater.newer()] == [pinned], "a shared journal is offered only the team's version, never a newer release"
+        own_start = HttpRequest(f"http://127.0.0.1:{b.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "bob-own"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "bob-main"})
+        assert f"this journal is behind its team: Your team is on version {pinned}" in urlopen(own_start, timeout=5).read().decode(), "the agent is told at its session start that the journal must be upgraded"
+        migrated = a.container.get(Schema).version() + 1
+        a.container.get(SyncClient).prepare_upgrade()
+        assert a.container.get(TeamAccount).is_upgrader(), "an upgrade marks its journal the upgrader before the new version installs"
+        monkeypatch.setattr(Schema, "version", lambda self: migrated)
+        monkeypatch.setattr("journal.sync.team_server_link.VERSION", pinned)
+        b.container.get(Connection).execute("UPDATE tasks SET title = 'stamped by a migration on Bob''s machine'")
+        a.container.get(TeamUpgrade).finish()
+        link = a.container.get(TeamServerLink)
+        assert link.summary(a.container.get(TeamAccount).address()).migration == migrated, "the upgrader's migrated copy becomes the team's"
+        assert not a.container.get(TeamAccount).is_upgrader() and not link.lease_state("upgrade").holder, "and it lets the lease and the mark go"
+        tasks_of = lambda journal: sorted((row.row, row.fields["title"]) for row in journal.container.get(JournalCopy).rows() if row.row_table == "tasks")
+        assert eventually(lambda: tasks_of(b) == tasks_of(a)), "a journal behind the upgrade takes the team's migrated copy in place of its own shared rows"
+        run = tmp_path / "a" / "run"
+        run.mkdir()
+        (run / "parts").write_text("R-\n")
+        (run / "0.part").write_text("make build")
+        (run / "0.out").write_text("step 1\n")
+        with a.container.get(Scope).environment(ada_main.row_id):
+            a.container.get(OutputLog).start("run", "make build", run, Caller.agent("ada-main", "s1", "claude"))
+            [output] = [row for row in a.container.get(CommandOutputs).selected_globally(a.container.get(CommandOutputs).query()) if row.command == "make build"]
+            a.container.get(CommandOutputs).save(output.backgrounded(), Actor.system())
+        a.container.get(WatchRefresh).tick(timing.time())
+        (run / "0.out").write_text("step 1\nstep 2\n")
+        a.container.get(WatchRefresh).tick(timing.time())
+
+        def card_of(journal):
+            return [message for message in journal.container.get(Messages).global_matching() if (message.data or {}).get("output") == output.id]
+
+        assert eventually(lambda: bool(card_of(b)) and "step 2" in str(card_of(b)[0].data) + card_of(b)[0].text), "the running command's card moves in the colleague's chat too"
+        assert card_of(b)[0].data.get("docked") == card_of(a)[0].data.get("docked"), "and is docked as it is on its own machine"
+        assert not b.container.get(CommandOutputs).selected_globally(b.container.get(CommandOutputs).query()), "while the output itself never leaves its machine"
+        shell = subprocess.run(["sh", "-c", f". {Path(__file__).resolve().parent.parent}/src/journal/hooks/environment.sh; journal_environment"], capture_output=True, text=True, timeout=10, cwd=tmp_path, env={"PATH": "/usr/bin:/bin", "JOURNAL_ROOT": str(tmp_path / "b")})
+        assert shell.stdout == "bob-main", "a shell on the joined machine works the person's own environment"
+        request = HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/tasks", data=json.dumps({"title": "made in bob's viewer"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "bob-main"})
+        made = json.load(urlopen(request, timeout=5))
+        assert b.container.get(Tasks).find(made["id"]).creator == Actor.user(2), "the viewer's write is the person's own"
+        assert eventually(lambda: (team.log.row("tasks", made["id"]) or None) is not None and team.log.row("tasks", made["id"]).fields.get("creator") == "user:2"), "and the server holds it as theirs"
+    finally:
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
+def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
+    from journal.features.etiquette.feature import Etiquette
+    from journal.features.messages.feature import Messages as MessagesFeature
+    messages, etiquette = MessagesFeature.skill.body, Etiquette.skill.body
+    assert "a colleague of your user, commented in your chat" in messages and "a request in it waits until your user\n  agrees" in messages
+    assert "A colleague's comment is not your user's" in etiquette
+
+
+def test_the_team_chat_holder_pushes_its_quiet_files_and_another_machine_takes_them_in_while_its_copy_is_clean(app: App, tmp_path):
+    import dataclasses
+    import subprocess
+    from journal.chat.moment_cards import MomentCards
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.scope import Scope
+    from journal.sync.sync_status import SyncStatus
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    from journal.support.worktree import Worktree
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.sync.team_chat_branch import TEAM_CHAT
+    from journal.sync.team_chat_branch import TeamChatBranch
+
+    root, remote, clone = app.config.root, tmp_path / "remote.git", tmp_path / "clone"
+
+    def git(*arguments, cwd=root):
+        return subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+
+    git("init", "-q", "--bare", str(remote), cwd=tmp_path)
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "Ada")
+    git("config", "user.email", "ada@example.com")
+    (root / ".gitignore").write_text("secret.env\n")
+    git("add", ".gitignore")
+    git("commit", "-q", "-m", "first")
+    git("remote", "add", "origin", str(remote))
+    git("push", "-q", "origin", "main")
+    git("clone", "-q", "-b", "main", str(remote), str(clone), cwd=tmp_path)
+    team = app.container.get(Environments).lookup(TEAM_CHAT)
+    account = app.container.get(TeamAccount)
+    try:
+        account.write({"account_id": 1, "device": "d1", "holds_chat": True})
+        app.container.get(IdBlocks).add("messages", 900000, 900100)
+        holder = app.container.get(TeamChatBranch)
+        held = Worktree(root, TEAM_CHAT).created()
+        (held / "plan.txt").write_text("the agent's work\n")
+        (held / "secret.env").write_text("TOKEN=1\n")
+        holder.push(0.0)
+        holder.push(5.0)
+        assert "plan.txt" not in git("ls-tree", "--name-only", "HEAD", cwd=held), "files still changing are not committed"
+        holder.push(20.0)
+        pushed = git("ls-tree", "--name-only", "journal/team-chat", cwd=remote)
+        assert "plan.txt" in pushed and "secret.env" not in pushed, "quiet files are committed and pushed, never an ignored one"
+
+        follower = TeamChatBranch(dataclasses.replace(app.config, root=clone), account, app.container.get(Environments), app.container.get(MomentCards), app.container.get(SyncStatus))
+        follower.pull()
+        copy = Worktree(clone, TEAM_CHAT).path
+        assert (copy / "plan.txt").read_text() == "the agent's work\n", "another machine's worktree of the Team chat takes the holder's files"
+
+        (copy / "local.txt").write_text("a change of this machine's own\n")
+        (held / "plan.txt").write_text("more work\n")
+        holder.push(30.0)
+        holder.push(50.0)
+        follower.pull()
+        assert (copy / "plan.txt").read_text() == "the agent's work\n", "a copy with changes of its own is never reset"
+        with app.container.get(Scope).environment(team.id):
+            cards = [m.text for m in app.container.get(Messages).with_key(f"team-chat-files:{account.device_name()}")]
+        assert len(cards) == 1, "and a card in the Team chat says so"
+    finally:
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+
+
+def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environments_worktree_and_main_is_untouched(app: App):
+    import subprocess
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.worker import Worker
+    from journal.repositories.environments import Environments
+    from journal.repositories.workers import Workers
+    from journal.support.worktree import Worktree
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+
+    root = app.config.root
+
+    def git(*arguments, cwd=root):
+        return subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+
+    git("init", "-q")
+    git("-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    main_before = git("rev-parse", "HEAD")
+    environment = app.container.get(Environments).find(MAIN)
+    own = Worktree(root, environment.name).created()
+    (own / "env.txt").write_text("the environment's own work\n")
+    git("add", "env.txt", cwd=own)
+    git("-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "-m", "environment work", cwd=own)
+    try:
+        app.container.get(TeamAccount).write({"account_id": 1, "device": "d1"})
+        worker = Worker(environment_id=MAIN, name="Mr Faraday", worktree=True, id=9001)
+        branch = app.container.get(WorkerBranch)
+        assert branch.checkout(worker) == own, "on a shared journal a worker's checkout is its environment's worktree"
+        app.container.get(WorkerRunner).workplace(worker)
+        folder = branch.folder(worker)
+        assert (folder / "env.txt").is_file(), "the worker's branch is cut from the environment's branch, with its unmerged work"
+        (folder / "worker.txt").write_text("the worker's work\n")
+        git("add", "worker.txt", cwd=folder)
+        git("-c", "user.name=Worker", "-c", "user.email=w@example.com", "commit", "-q", "-m", "worker work", cwd=folder)
+        repository = branch.repositories(worker)[0]
+        branch.merged(repository, worker)
+        assert (own / "worker.txt").is_file(), "the worker's work is merged into the environment's worktree"
+        assert git("rev-parse", "main" if git("branch", "--list", "main") else "master") == main_before, "and main is untouched"
+    finally:
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+
+
+def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names_them_in_what_they_write(app: App, tmp_path):
+    import json
+    from urllib.error import HTTPError
+    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
+
+    from journal.features.team.feature import TeamFeature
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.messages import Messages
+    from journal.repositories.setting_rows import SettingRows
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.account import ADMIN, MEMBER
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    server = team.started("127.0.0.1", 0)
+    journal = f"http://127.0.0.1:{app.server().port}"
+
+    class Kept(HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    opener = build_opener(Kept)
+
+    def sent(path, body=None, cookie="", form=None):
+        headers = {"X-Journal-Env": "main", **({"Cookie": cookie} if cookie else {})}
+        data = None if body is None else json.dumps(body).encode()
+        if form is not None:
+            boundary = "journalform"
+            data = "".join(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n" for name, value in form.items()).encode() + f"--{boundary}--\r\n".encode()
+            headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+        elif data is not None:
+            headers["Content-Type"] = "application/json"
+        try:
+            with opener.open(HttpRequest(journal + path, data=data, headers=headers, method="POST" if data is not None else "GET"), timeout=10) as answer:
+                return answer.status, answer.headers, answer.read()
+        except HTTPError as refused:
+            return refused.code, refused.headers, refused.read()
+
+    def signed_in(email):
+        status, headers, body = sent("/sign-in", form={"email": email, "password": "correct horse battery"})
+        assert status == 303 and headers["Location"] == "/", body
+        return headers["Set-Cookie"].split(";")[0]
+
+    app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": "t", "device": 9, "account_id": 9})
+    try:
+        app.container.get(IdBlocks).add("messages", 800000, 800100)
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        (app.config.home / "hosted").touch()
+        assert sent("/journal/people")[0] == 401, "a hosted journal refuses the API to a browser that has not signed in"
+        assert sent("/")[1]["Location"] == "/sign-in", "and sends a page request to the sign-in"
+        assert sent("/sign-in", form={"email": "ada@example.com", "password": "wrong"})[0] == 401, "a wrong password opens no session"
+        ada, bob = signed_in("ada@example.com"), signed_in("bob@example.com")
+        assert json.loads(sent("/journal/people", cookie=ada)[2])["me"] == 1 and json.loads(sent("/journal/people", cookie=bob)[2])["me"] == 2, "each person signed in is me to their own browser"
+        posted = [json.loads(sent("/journal/messages", {"text": f"from {who}"}, cookie=cookie)[2])["id"] for who, cookie in (("Ada", ada), ("Bob", bob))]
+        stamps = [app.container.get(Messages).find(n).creator.stamp for n in posted]
+        assert stamps == ["user:1", "user:2"], "a message each person posts is stamped as theirs"
+        assert sent("/sign-out", {}, cookie=bob)[0] == 303 and sent("/journal/people", cookie=bob)[0] == 401, "a signed-out session is gone"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
+
+
+def test_a_hosted_journal_starts_no_agent_by_any_door(app: App):
+    import json
+
+    from journal.features.team.feature import TeamFeature
+    from journal.features.team.support.start_rule import HOSTED_REFUSAL
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.setting_rows import SettingRows
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+
+    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1})
+    try:
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        (app.config.home / "hosted").touch()
+        rows = json.loads(app.console().run(["environment", "json"], USER).text)
+        assert all(row["refusal"] == HOSTED_REFUSAL for row in rows), "the launcher's rows, which the viewer's Start and the picker read, refuse every environment"
+        assert HOSTED_REFUSAL in app.console().run(["team", "claim"], USER).error, "the Team chat is never claimed by a hosted journal"
+        assert HOSTED_REFUSAL in app.console().run(["worker", "dispatch", "Mr Faraday", "--task", "1", "--profile", "journal-medior", "--changes", "a.py", "--tests", "No tests"], USER).error, "nor a worker dispatched from it"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+    assert all(row["refusal"] == "" for row in json.loads(app.console().run(["environment", "json"], USER).text)), "an ordinary journal refuses none of its own"
+
+
+def test_a_hosted_journal_installs_exactly_the_teams_pinned_version_and_never_upgrades_the_team(app: App, monkeypatch):
+    from journal.features.team.feature import TeamFeature
+    from journal.features.updates.support.release_installer import ReleaseInstaller
+    from journal.features.updates.support.release_source import ReleaseSource
+    from journal.features.updates.support.updater import Updater
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.setting_rows import SettingRows
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.version import VERSION
+
+    major, minor, _ = (int(n) for n in VERSION.split("."))
+    pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
+    installed = []
+    monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
+    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: installed.append(ref))
+    monkeypatch.setattr(SyncClient, "prepare_upgrade", lambda self: installed.append("the team's upgrade lease"))
+    app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
+    try:
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        (app.config.home / "hosted").touch()
+        app.container.get(Updater).checked()
+        assert installed == [f"v{pinned}"], "a hosted journal installs the team's pinned version on its own, no newer one, and never takes the team's upgrade lease"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+
+
+def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_line(app: App, tmp_path):
+    import json
+    import time as timing
+    from urllib.error import HTTPError
+    from urllib.request import Request as HttpRequest, urlopen
+
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.team_account import TEAM_FILE
+    from sync_server.team_server import TeamServer
+    from sync_server.team_setup import TeamSetup
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    code = TeamSetup(team).create("Ada", "ada@example.com", "correct horse battery", "correct horse battery", timing.time()).split("--code ")[-1].split()[0]
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+
+    def posted(path, body):
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
+        try:
+            with urlopen(request, timeout=20) as answer:
+                return answer.status, json.loads(answer.read())
+        except HTTPError as refused:
+            return refused.code, json.loads(refused.read())
+
+    def fetched(path):
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal{path}", headers={"X-Journal-Env": "main"})
+        with urlopen(request, timeout=10) as answer:
+            return json.loads(answer.read())
+
+    def standing():
+        return fetched("/team")
+
+    try:
+        assert standing() == {"joined": False}, "a journal in no team says so, and the page shows the form"
+        refused = posted("/team/join", {"address": address, "code": "0000", "password": "correct horse battery"})
+        assert refused[0] == 409 and "invitation code is not known" in refused[1]["error"], "a refusal comes back as the line the page shows"
+        joined = posted("/team/join", {"address": address + "/", "code": code, "password": "correct horse battery"})
+        assert joined[0] == 201 and joined[1]["outcome"].startswith("this journal is now the team's"), "the page's join makes the first journal the team's"
+        joined_standing = standing()
+        assert joined_standing["joined"] and joined_standing["address"] == address and joined_standing["version"], "and the page shows the team's server, its sync and its version"
+        assert joined_standing["admin"] and joined_standing["state"] in ("in_step", "waiting", "connecting") and joined_standing["running"], "it says whether this person is an admin and which sync state to draw"
+        [ada] = fetched("/team/people")["people"]
+        assert ada["name"] == "Ada" and ada["role"] == "admin" and ada["me"] and ada["environments"], "the people list names each person with their role and environments, the viewer's own marked"
+        [device] = fetched("/team/devices")["devices"]
+        assert device["this"], "an admin sees the team's devices, this one marked"
+        chat = fetched("/team-chat")
+        assert chat["line"] == "No one holds the Team chat" and chat["claimable"] and not chat["mine"], "the Team chat answer says who holds it and whether anyone may claim it"
+    finally:
+        app.container.get(SyncClient).stop()
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
 def test_a_watched_run_whose_card_shows_nothing_for_30_seconds_is_named_once(app: App, monkeypatch):
     from journal.features.shell.support.output_log import OutputLog
     from journal.repositories.command_outputs import CommandOutputs

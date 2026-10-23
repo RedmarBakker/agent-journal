@@ -11,6 +11,11 @@ from journal.events.models.created import Created
 from journal.events.models.creating import Creating
 from journal.events.models.deleted import Deleted
 from journal.events.models.deleting import Deleting
+from journal.events.models.number_request import NumberRequest
+from journal.events.models.purged import Purged
+from journal.events.models.synced_creation import SyncedCreation
+from journal.events.models.synced_deletion import SyncedDeletion
+from journal.events.models.synced_update import SyncedUpdate
 from journal.events.models.saved import Saved
 from journal.events.models.saving import Saving
 from journal.events.models.updated import Updated
@@ -61,8 +66,13 @@ class Repository(Generic[M]):
     def selected(self, query: Query) -> list[M]:
         return self._loaded(query)
 
-    def purged(self, query: Query) -> None:
+    def _purged(self, query: Query) -> None:
         self.connection.execute(*query.delete())
+
+    def purged_rows(self, model: type[Model], query: Query, actor: Actor) -> None:
+        ids = tuple(row["id"] for row in self.connection.all(*query.select()))
+        self._purged(query)
+        self.bus.dispatch(Purged(model=model, ids=ids, actor=actor))
 
     def linked(self, kind: str) -> dict[int, list[Ref]]:
         return self._linked(self.link_query.filter(kind=kind))
@@ -155,10 +165,41 @@ class Repository(Generic[M]):
     def delete(self, row: M, actor: Actor) -> None:
         with self.connection.transaction():
             self.bus.dispatch(Deleting(model=row, actor=actor))
-            self.purged(self.query().filter(id=row.id))
+            self._purged(self.query().filter(id=row.id))
             self.stored()
             self.bus.dispatch(Deleted(model=row, actor=actor))
             self.dispatched(row, actor)
+
+    def pulled_creation(self, id: int, fields: dict, actor: Actor) -> M:
+        row = self.model(**{**self._parsed(fields), "id": id, "updated_at": self._time()})
+        with self.connection.transaction():
+            self.connection.execute(*self.query().upsert(id=id, **self._column_values(row)))
+            self.stored()
+            self.bus.dispatch(SyncedCreation(model=row, actor=actor))
+            return self.dispatched(row.with_events(row.creation_events()), actor)
+
+    def pulled_update(self, id: int, fields: dict, actor: Actor) -> list[M]:
+        with self.connection.transaction():
+            parsed = self._parsed(fields)
+            if parsed:
+                self.connection.execute(*self.query().filter(id=id).update(**{**parsed, "updated_at": self._time()}))
+            self.stored()
+            rows = self._loaded(self.query().filter(id=id))
+            for row in rows:
+                self.bus.dispatch(SyncedUpdate(model=row, actor=actor))
+            return rows
+
+    def pulled_deletion(self, id: int, actor: Actor) -> list[M]:
+        with self.connection.transaction():
+            rows = self._loaded(self.query().filter(id=id))
+            self._purged(self.query().filter(id=id))
+            self.stored()
+            for row in rows:
+                self.bus.dispatch(SyncedDeletion(model=row, actor=actor))
+            return rows
+
+    def _parsed(self, fields: dict) -> dict:
+        return {name: self.column_map[name].parsed(value) for name, value in fields.items() if name in self.column_map and name != "id"}
 
     def remove(self, id: int, actor: Actor) -> None:
         self.delete(self.find(id), actor)
@@ -167,11 +208,16 @@ class Repository(Generic[M]):
         Title.check_target(row)
         stamped = row.with_(created_at=time, creator=actor, updated_at=time, updater=actor)
         self.bus.dispatch(Creating(model=stamped, actor=actor))
-        cursor = self.connection.execute(*self.query().insert(**self._column_values(stamped)))
+        number = self._number(stamped)
+        values = {"id": number, **self._column_values(stamped)} if number else self._column_values(stamped)
+        cursor = self.connection.execute(*self.query().insert(**values))
         created = stamped.with_(id=cursor.lastrowid)
         self.stored()
         self.bus.dispatch(Created(model=created, actor=actor))
         return created
+
+    def _number(self, row: M) -> int:
+        return next((answer for answer in self.bus.dispatch(NumberRequest(model=row)) if answer), 0)
 
     def _update(self, row: M, actor: Actor) -> M:
         stamped = row.with_(updated_at=self._time(), updater=actor)

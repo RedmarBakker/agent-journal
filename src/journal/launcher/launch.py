@@ -20,6 +20,7 @@ from journal.support.worktree import Worktree
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.config import Config
+from journal.sync.team_account import PREFIX_FILE, TEAM_FILE
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.support.private_folder import PrivateFolder
@@ -86,13 +87,34 @@ class Launch:
         menu = Menu(self.root, self.package / "journal.py")
         matched = self.environment or self.worktree or self.resume_folder(menu)
         if not sys.stdin.isatty():
-            menu.environment_rows(matched or "main", menu.environments())
-            return Choice(matched or "main", "", self.stashed, self.is_skipping())
+            menu.environment_rows(matched or self.default_environment(), menu.environments())
+            return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
         subprocess.run(["stty", "sane"], stdin=sys.stdin, check=False)
         if not self.confirmed and UpdatePrompt(Config(self.root), menu.screen, ReleaseSource()).installed_newer():
             self.log("updated before the launch: starting again on the new version")
             os.execv(sys.executable, [sys.executable, *sys.argv])
         return menu.choose(self.agent, matched, self.new, self.stashed, self.is_skipping(), self.confirmed)
+
+    def is_resumable(self, choice: Choice, folder: Path) -> bool:
+        if not choice.resume or folder == self.root or self.provider.copy_session(self.root, folder, choice.resume):
+            return bool(choice.resume)
+        line = f"session {choice.resume} ran in the project's main checkout and cannot be carried into {folder}: this launch starts a fresh session"
+        self.log(f"resume dropped: {line}")
+        print(line, file=sys.stderr)
+        return False
+
+    def is_worktree_launch(self, worktree: Worktree) -> bool:
+        return self.worktree_launch or worktree.path.is_dir() or self.is_shared()
+
+    def is_shared(self) -> bool:
+        return (self.root / ".journal" / TEAM_FILE).is_file()
+
+    def default_environment(self) -> str:
+        prefix_file = self.root / ".journal" / PREFIX_FILE
+        return f"{prefix_file.read_text().strip()}-main" if prefix_file.is_file() else "main"
+
+    def start_refusal(self, choice: Choice) -> str:
+        return next((row.refusal for row in Menu(self.root, self.package / "journal.py").environments() if row.name == choice.environment), "")
 
     def is_skipping(self) -> bool:
         return self.bypass or any(flag in self.args for flag in self.provider.prompt_flags)
@@ -125,6 +147,11 @@ class Launch:
             peers = ForeignHooks(self.root, self.provider)
             peers.restore()
             choice = self.choice()
+            refusal = self.start_refusal(choice)
+            if refusal:
+                self.log(f"refused: {refusal}")
+                print(refusal, file=sys.stderr)
+                return 1
             self.log(f"chosen: environment {choice.environment}, session {choice.resume or 'new'}, hooks aside {choice.stashed_hooks}")
             if choice.stashed_hooks:
                 peers.stash()
@@ -162,11 +189,13 @@ class Launch:
         launch = uuid.uuid4().hex
         environ = self.environ(choice, launch)
         worktree = Worktree(self.root, self.worktree or choice.environment)
-        folder = worktree.created() if self.worktree_launch or worktree.path.is_dir() else self.root
+        folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
+        if folder != self.root:
+            Menu(self.root, self.package / "journal.py").journal("environment", "branch", choice.environment, worktree.branch)
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log")}
         return {
             "launch": launch,
-            "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if choice.resume else [], "folder": str(folder), "env": environ},
+            "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
             "services": [] if self.journal_off else [journal],
             "socket": str(self.socket(choice.environment)),
             "announce": str(self.runtime / "inboxes" / choice.environment),

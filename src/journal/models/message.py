@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import ClassVar
 
+from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.events.rows.message_arrived import MessageArrived
 from journal.models.agent_role import AgentRole
 from journal.models.author import Author
@@ -18,6 +19,10 @@ class Message(Scoped):
     THOUGHT = "thought"
     REPORT = "report"
     PEER = "peer"
+    COLLEAGUE_NAME = "colleague"
+    COLLEAGUE_USER = "colleague_user"
+    VIEWED = "viewed"
+    TEAMMATE = "teammate"
     RECIPIENT_KEY = "sent_to"
     ASKS_KEY = "asks"
 
@@ -58,8 +63,25 @@ class Message(Scoped):
     def arrived(self) -> "Message":
         return self.with_event(MessageArrived(text=self.text))
 
+    def is_comment(self) -> bool:
+        return self.author == Author.COLLEAGUE
+
+    def viewed(self) -> "Message":
+        return self.with_merged("data", {self.VIEWED: 1})
+
+    def is_unsaved_user_message(self) -> bool:
+        return self.is_new and self.author == Author.USER and self.agent_role == AgentRole.MAIN
+
+    def commented(self, name: str, user: int) -> "Message":
+        comment = self.without_events().with_(author=Author.COLLEAGUE).with_merged("data", {self.COLLEAGUE_NAME: name, self.COLLEAGUE_USER: user, self.VIEWED: 0})
+        return comment.with_event(ColleagueCommented(text=self.text, colleague=name))
+
     @property
     def sender(self) -> str:
+        if self.author == Author.COLLEAGUE:
+            return f"{self.data[self.COLLEAGUE_NAME]}, a colleague of your user (not your user's words)"
+        if self.TEAMMATE in self.data:
+            return f"{self.data[self.TEAMMATE]}, one of the people you work for in the Team chat"
         return self.data[self.PEER] if self.PEER in self.data else f"the {self.author}"
 
     @property

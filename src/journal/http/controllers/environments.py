@@ -8,6 +8,10 @@ from journal.supervisor_link import SupervisorLink
 from journal.config import Config
 from journal.http.support.model_fields import ModelFields
 from journal.support.worktree import Worktree
+from journal.repositories.environment_owners import EnvironmentOwners
+from journal.sync.team_account import TeamAccount
+from journal.support.rejection import Rejection
+from journal.features.team.support.start_rule import StartRule
 
 
 class EnvironmentController(Controller[Environment]):
@@ -15,8 +19,9 @@ class EnvironmentController(Controller[Environment]):
 
     repository: Environments
 
-    def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config) -> None:
+    def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
+        self.owners, self.account, self.starts = owners, account, starts
 
     def rows(self) -> list[Environment]:
         return self.repository.all() or [self.repository.lookup("main")]
@@ -25,15 +30,21 @@ class EnvironmentController(Controller[Environment]):
         return [{**ModelFields.build(row), "worktree": next(iter(Worktree(self.config.root, row.name).badges()), "")} for row in rows]
 
     def store(self, request: Request) -> Response:
-        return Response.json(self.repository.lookup(request.body.get("name", "main")), 201)
+        return Response.json(self.repository.lookup(self.account.personal_name(request.body.get("name", "main"))), 201)
 
     def launch(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
+        refusal = self.starts.refusal(environment, request.actor.number())
+        if refusal:
+            raise Rejection(refusal)
         self.launcher.start(environment.name, request.body.get("agent", "claude"))
         return Response.json(environment)
 
     def stop(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
+        refusal = self.owners.write_refusal(request.actor, environment)
+        if refusal:
+            raise Rejection(refusal)
         self.supervisor.stop(environment.row_id)
         return Response.json(environment)
 

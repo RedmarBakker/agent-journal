@@ -15,6 +15,11 @@ from journal.http.controllers.mcp import McpController
 from journal.http.controllers.messages import MessageController
 from journal.http.controllers.migration import MigrationController
 from journal.http.controllers.mode import ModeController
+from journal.http.controllers.sync import SyncController
+from journal.http.controllers.team import TeamController
+from journal.http.controllers.people import PeopleController
+from journal.http.controllers.login_controller import LoginController
+from journal.http.controllers.team_chat import TeamChatController
 from journal.http.controllers.notices import NoticeController
 from journal.http.controllers.suggestions import SuggestionController
 from journal.http.controllers.nudges import NudgeController
@@ -66,6 +71,9 @@ class Routes:
         router.post("/shell/run", get(ShellController).run)
         router.post("/cli", get(CliController).run)
         router.post("/cli/run", get(CliController).run_posted)
+        router.get_unscoped("/sign-in", get(LoginController).show)
+        router.post_unscoped("/sign-in", get(LoginController).submit)
+        router.post_unscoped("/sign-out", get(LoginController).logout)
         self.journal(router)
         self.work(router)
         self.chat(router)
@@ -89,6 +97,17 @@ class Routes:
         router.get(f"{API}/updates/changelog", get(UpdateController).changes)
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
+        router.get(f"{API}/sync", get(SyncController).show)
+        router.get(f"{API}/team", get(TeamController).show)
+        router.post(f"{API}/team/join", get(TeamController).join)
+        router.post(f"{API}/team/invite", get(TeamController).invite)
+        router.get(f"{API}/team/people", get(TeamController).people)
+        router.get(f"{API}/team/devices", get(TeamController).devices)
+        router.post(f"{API}/team/devices/{{id}}/revoke", get(TeamController).revoke)
+        router.get(f"{API}/people", get(PeopleController).show)
+        router.get(f"{API}/team-chat", get(TeamChatController).show)
+        router.post(f"{API}/team-chat/claim", get(TeamChatController).claim)
+        router.post(f"{API}/team-chat/release", get(TeamChatController).release)
         mode = get(ModeController)
         router.get(f"{API}/mode", mode.show)
         router.post(f"{API}/mode", mode.choose)
@@ -147,6 +166,8 @@ class Routes:
         get = self.container.get
         messages, comments, notices = get(MessageController), get(CommentController), get(NoticeController)
         router.post(f"{API}/messages/read", messages.read_all)
+        router.get(f"{API}/side-thread", messages.side_thread)
+        router.post(f"{API}/side-thread", messages.side_post)
         self.listed(router, "messages", messages)
         router.post(f"{API}/messages", messages.store)
         router.post(f"{API}/messages/{{id}}", messages.update)

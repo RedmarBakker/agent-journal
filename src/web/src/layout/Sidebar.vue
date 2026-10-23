@@ -14,8 +14,9 @@ import {store} from "../state/store.js";
 import {useNavigation} from "../composables/navigation.js";
 import {rows} from "../sync/rows.js";
 import {pluginPages} from "../domain/pluginPages.js";
+import {ownEnvironments} from "../domain/people.js";
 
-const envs = computed(() => rows("environments"));
+const envs = computed(() => ownEnvironments(rows("environments"), store.people));
 const pages = computed(() => pluginPages(rows("plugins")));
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
 const release = computed(() => store.spec.version || "");
@@ -77,7 +78,7 @@ function point(e) {
                     <div class="env-row">
                         <a :class="['item', {on: route.env === e.name}]" :href="href.page()" @click="choose(e.name)">
                             <span :class="['env-dot', {live: agentRunningIn(e.name)}]" />
-                            <span class="label">{{ e.name }}</span>
+                            <span class="label">{{ e.is_team_chat ? "Team chat" : e.name }}</span>
                             <template v-if="e.worktree">
                                 <span class="worktree" :title="e.worktree">{{ e.worktree }}</span>
                             </template>

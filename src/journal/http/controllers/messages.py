@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from journal.db.query import Query
 from journal.features.messages.support.mentions import Mentions
-from journal.http.attachments.attachments import Attachments
+from journal.sync.attachments import Attachments
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
@@ -16,6 +16,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.repositories.reactions import Reactions
 from journal.chat.docking import Docking
+from journal.models.agent_role import AgentRole
 
 class MessageController(Controller[Message]):
     """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user."""
@@ -65,6 +66,13 @@ class MessageController(Controller[Message]):
         message = Message(author=Author.USER, text=request.body.get("text", ""), reply_target=request.body.get("reply_target"), idempotency=key).arrived()
         return Response.json(self.shown(self.repository.save(message, request.actor)), 201)
 
+    def side_thread(self, request: Request) -> Response:
+        return Response.json([self.shown(message) for message in self.repository.side_thread()])
+
+    def side_post(self, request: Request) -> Response:
+        message = Message(author=Author.USER, agent_role=AgentRole.PEOPLE, text=request.body.get("text", ""))
+        return Response.json(self.shown(self.repository.save(message, request.actor)), 201)
+
     def read(self, request: Request) -> Response:
         return Response.json(self.shown(self.repository.read(self.repository.find(request.number("id")), request.actor, self._tool_use())))
 
@@ -87,7 +95,7 @@ class MessageController(Controller[Message]):
     def press(self, request: Request) -> Response:
         message = self.repository.find(request.number("id"))
         pressed = [str(label) for label in request.body.get("pressed", [])]
-        return Response.json(self.shown(self.repository.save(message.with_(data={**message.data, "pressed": pressed}), request.actor)))
+        return Response.json(self.shown(self.repository.save(message.with_merged("data", {"pressed": pressed}), request.actor)))
 
     def dock(self, request: Request) -> Response:
         return Response.json(self.shown(self.docking.pin_message(self.repository.find(request.number("id")), request.actor)))

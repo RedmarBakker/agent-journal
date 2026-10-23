@@ -324,6 +324,74 @@ export class ApiClient {
         return this.get(this.here(`/agents/${agent}/terminal${query({after})}`));
     }
 
+    // who holds the Team chat, and the Claim that makes this machine hold it
+    teamChat() {
+        return this.get("/team-chat");
+    }
+
+    claimTeamChat() {
+        return this.post("/team-chat/claim", {});
+    }
+
+    // lets the Team chat go: its agent here stops after its files are committed and pushed
+    releaseTeamChat() {
+        return this.post("/team-chat/release", {}, LONG_WAIT_MS);
+    }
+
+    // the people's side thread beside an environment's chat, which no agent reads
+    sideThread() {
+        return this.get(this.here("/side-thread"));
+    }
+
+    postSideThread(text) {
+        return this.post(this.here("/side-thread"), {text});
+    }
+
+    // who the viewer is and who else is on the journal, so it says you only for its own person
+    people() {
+        return this.get("/people");
+    }
+
+    // how this journal stands with its team, or that it has joined none
+    team() {
+        return this.get("/team");
+    }
+
+    // joins a team server with the line its setup or an invitation printed, as journal team join does
+    joinTeam(fields) {
+        return this.post("/team/join", fields, LONG_WAIT_MS);
+    }
+
+    // the team's people, each with their role, when they were last seen and their environments
+    teamPeople() {
+        return this.get("/team/people");
+    }
+
+    // the team's devices, for an admin
+    teamDevices() {
+        return this.get("/team/devices");
+    }
+
+    // revokes one device, so it reaches the team no more
+    revokeDevice(id) {
+        return this.post(`/team/devices/${encoded(id)}/revoke`, {});
+    }
+
+    // an admin's invitation for one email, answered with the line the person joins with
+    inviteToTeam(email) {
+        return this.post("/team/invite", {email});
+    }
+
+    // ends the browser's session on a hosted journal
+    signOut() {
+        return transport.request("POST", `${this.base}/sign-out`, {});
+    }
+
+    // how a shared journal's sync with its team stands, one line for the status bar
+    syncLine() {
+        return this.get("/sync");
+    }
+
     // the work mode the plan bar's buttons set, and the pause of an agent
     saveMode(mode) {
         return this.post(this.here("/mode"), {mode});

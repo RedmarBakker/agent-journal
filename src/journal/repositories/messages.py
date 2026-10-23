@@ -11,6 +11,7 @@ from journal.repositories.links import Links
 from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.repositories.environment_owners import EnvironmentOwners
 
 
 class Messages(ScopedRepository[Message]):
@@ -20,12 +21,24 @@ class Messages(ScopedRepository[Message]):
 
     model = Message
 
-    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links) -> None:
+    def __init__(self, connection: Connection, bus: Bus, scope: Scope, reactions: Reactions, links: Links, owners: EnvironmentOwners) -> None:
+        self.owners = owners
         super().__init__(connection, bus, scope)
         self.reactions, self.links = reactions, links
 
     def save(self, row: Message, actor: Actor) -> Message:
-        return super().save(row.authored(actor.agent_session()), actor)
+        authored = self._placed(row.authored(actor.agent_session()))
+        if authored.is_unsaved_user_message() and self.owners.is_colleague(actor, authored.environment_id):
+            authored = authored.commented(self.owners.person_name(actor.number()), actor.number())
+        if authored.is_unsaved_user_message() and self.owners.is_teammate(actor, authored.environment_id):
+            authored = authored.with_merged("data", {Message.TEAMMATE: self.owners.person_name(actor.number())})
+        return super().save(authored, actor)
+
+    def unread_comments(self) -> list[Message]:
+        return self.selected(self.main_chat().filter(author=Author.COLLEAGUE).filter_null("read_at").order("id"))
+
+    def side_thread(self) -> list[Message]:
+        return self.newest(self.query().filter(agent_role=AgentRole.PEOPLE))
 
     def main_chat(self) -> Query:
         return self.query().filter(agent_role=AgentRole.MAIN)
@@ -77,7 +90,7 @@ class Messages(ScopedRepository[Message]):
         return self.selected(chat.filter_greater("updated_at", time).order("id").limit(500))
 
     def unviewed(self) -> int:
-        return self.counted(self.main_chat().filter(author=Author.AGENT).filter_null("read_at"))
+        return self.counted(self.main_chat().filter(author=Author.AGENT).filter_null("read_at")) + self.counted(self.main_chat().filter(author=Author.COLLEAGUE).filter_json("data->viewed", 0))
 
     def visitor_messages(self, share_id: int) -> list[Message]:
         return self.selected(self.query().filter_json("data->share", share_id).order("id"))
@@ -118,6 +131,10 @@ class Messages(ScopedRepository[Message]):
     def recent(self, last: int) -> list[Message]:
         return self.window(self.main_chat(), last)
 
+    def exchanges(self, last: int) -> list[Message]:
+        chat = self.main_chat().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter(author=Author.AGENT).filter_present("reply_target"))
+        return self.window(chat, last)
+
     def voice_matches(self, text: str, last: int) -> list[Message]:
         return [message for message in self.recent_voice(last) if message.text == text]
 
@@ -132,4 +149,8 @@ class Messages(ScopedRepository[Message]):
         return list(reversed(rows))
 
     def read(self, message: Message, actor: Actor, tool_use: int) -> Message:
+        if self.owners.is_colleague(actor, message.environment_id):
+            return message
+        if message.is_comment() and actor.is_user():
+            return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
         return message if message.read_at else self.save(message.with_(read_at=datetime.now(timezone.utc), read_position=tool_use), actor)

@@ -28,6 +28,7 @@ from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.worktree_commands import WorktreeCommands
 from journal.support.worktree_failure import WorktreeFailure
 from journal.support.process_check import ProcessCheck
+from journal.sync.team_account import TeamAccount
 
 REPORT_CHARACTERS = 12000
 REPORT_END_CHARACTERS = 3000
@@ -43,9 +44,10 @@ EXCLUDED_VARIABLES = ("JOURNAL_SESSION", "JOURNAL_LAUNCH")
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount) -> None:
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
+        self.account = account
         self._locks: dict[int, threading.Lock] = {}
         self._locks_lock = threading.Lock()
 
@@ -55,7 +57,7 @@ class WorkerRunner:
 
     def start(self, worker: Worker, actor: Actor) -> None:
         provider = self.providers.lookup(worker.provider)
-        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume)), actor)
+        worker = self.workers.save(worker.with_(session=provider.worker_session(worker.resume), device=self.account.device()), actor)
         command = [*provider.worker_command(self.instructed(worker), worker.model, worker.resume, worker.session), *provider.worker_settings_flags(self.hook_settings(worker))]
         threading.Thread(target=self.run_scoped, args=(worker, command, actor), name=f"worker-{worker.id}", daemon=True).start()
 
@@ -233,9 +235,9 @@ class WorkerRunner:
         return self.inner_worktrees(worker, names)
 
     def worktree_restoration(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:
-        folder, name = self.branch.folder(worker), self.branch.name(worker)
-        self.branch.git("worktree", "prune")
-        if self.branch.git("rev-parse", "--verify", "-q", f"refs/heads/{name}").returncode == 0:
+        folder, name, checkout = self.branch.folder(worker), self.branch.name(worker), self.branch.checkout(worker)
+        self.branch.git("worktree", "prune", cwd=checkout)
+        if self.branch.git("rev-parse", "--verify", "-q", f"refs/heads/{name}", cwd=checkout).returncode == 0:
             self.added(worker, str(folder), name)
         else:
             self.added(worker, "-b", name, str(folder), "HEAD")
@@ -269,9 +271,10 @@ class WorkerRunner:
         return True
 
     def added(self, worker: Worker, *argv: str) -> None:
-        if self.branch.git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+        checkout = self.branch.checkout(worker)
+        if self.branch.git("rev-parse", "--verify", "-q", "HEAD", cwd=checkout).returncode != 0:
             raise WorktreeFailure(worker.name, "the project has no commit yet, so there is no tip to cut a worktree from; make a first commit")
-        added = self.branch.git("worktree", "add", "-q", *argv)
+        added = self.branch.git("worktree", "add", "-q", *argv, cwd=checkout)
         if added.returncode != 0:
-            self.branch.git("worktree", "prune")
+            self.branch.git("worktree", "prune", cwd=checkout)
             raise WorktreeFailure(worker.name, added.stderr.strip())

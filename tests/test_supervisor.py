@@ -406,7 +406,7 @@ def test_a_folder_no_worktree_owns_is_moved_aside_never_deleted_and_a_failed_mak
 def test_the_boot_screen_offers_a_newer_release_of_the_same_major_before_the_journal_starts(tmp_path: Path, monkeypatch):
     import io
     from journal.config import Config
-    from journal.features.updates.support.release import Release
+    from journal.support.release import Release
     from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
     from journal.launcher.support.update_prompt import UpdatePrompt
@@ -487,3 +487,36 @@ def test_a_restart_asked_with_a_delay_waits_so_the_command_that_asked_ends_its_a
     assert restarts == [], "the answer goes back before the restart"
     time.sleep(0.6)
     assert len(restarts) == 1 and restarts[0] - asked >= 0.3, "and the restart comes once the delay is over"
+
+
+def test_on_a_shared_journal_every_launch_works_in_its_environments_own_worktree(tmp_path: Path):
+    import subprocess
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, timeout=30)
+    subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first"], check=True, timeout=30)
+    plain = Launch.parse(["claude", "--env", "ada-main", "--no-journal"], tmp_path).launch_file(Choice("ada-main", ""), StatusLine(tmp_path))
+    assert plain["front"]["folder"] == str(tmp_path), "a journal in no team launches in the project as before"
+    (tmp_path / ".journal").mkdir(exist_ok=True)
+    (tmp_path / ".journal" / "team.json").write_text("{}")
+    shared = Launch.parse(["claude", "--env", "ada-main", "--no-journal"], tmp_path).launch_file(Choice("ada-main", ""), StatusLine(tmp_path))
+    assert shared["front"]["folder"] == str(tmp_path / ".claude" / "worktrees" / "ada-main"), "a shared journal launches in the environment's own worktree, never the main checkout"
+    branches = subprocess.run(["git", "-C", str(tmp_path), "branch", "--list", "worktree-ada-main"], capture_output=True, text=True, timeout=30).stdout
+    assert "worktree-ada-main" in branches
+
+
+def test_a_session_from_the_main_checkout_is_carried_into_the_worktree_or_the_launch_says_it_starts_fresh(tmp_path: Path, monkeypatch, capsys):
+    import subprocess
+    from journal.providers.claude import Claude
+    project = tmp_path / "project"
+    subprocess.run(["git", "init", "-q", str(project)], check=True, timeout=30)
+    subprocess.run(["git", "-C", str(project), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first"], check=True, timeout=30)
+    (project / ".journal").mkdir()
+    (project / ".journal" / "team.json").write_text("{}")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    session = tmp_path / "claude" / "projects" / Claude.folder_name(project) / "s1.jsonl"
+    session.parent.mkdir(parents=True)
+    session.write_text("{}\n")
+    carried = Launch.parse(["claude", "--env", "ada-main", "--no-journal"], project).launch_file(Choice("ada-main", "s1"), StatusLine(project))
+    worktree = project / ".claude" / "worktrees" / "ada-main"
+    assert carried["front"]["resume"] == ["--resume", "s1"] and (tmp_path / "claude" / "projects" / Claude.folder_name(worktree) / "s1.jsonl").is_file(), "yesterday's session is carried into the environment's worktree and resumed there"
+    fresh = Launch.parse(["claude", "--env", "ada-main", "--no-journal"], project).launch_file(Choice("ada-main", "gone"), StatusLine(project))
+    assert fresh["front"]["resume"] == [] and "cannot be carried into" in capsys.readouterr().err, "a session that cannot be found starts fresh, and the launch says so"

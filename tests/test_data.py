@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from journal.config import Config
 from journal.support.masks import Masks
 from journal.support.secret_values import SecretValues
@@ -28,6 +29,8 @@ from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.repositories.links import Links
+from journal.repositories.environment_owners import EnvironmentOwners
+from journal.repositories.users import Users
 from journal.support.missing_row import MissingRow
 from journal.repositories.checks import Checks
 from journal.repositories.questions import Questions
@@ -169,7 +172,7 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
     Schema(old, AllModels.MODELS).create()
     bus = Bus()
     scope = Scope(Environments(old, bus))
-    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus)), Links(old, bus)).find(1)
+    message = Messages(old, bus, scope, Reactions(old, bus, scope, Links(old, bus)), Links(old, bus), EnvironmentOwners(Links(old, bus), Users(old, bus), Environments(old, bus))).find(1)
     assert message.files == () and message.acknowledgement is False and message.idempotency == "" and message.read_at is None
 
 
@@ -334,7 +337,7 @@ def test_a_query_renders_every_read_shape_with_its_values_bound():
     assert tasks.filter(state=TaskState.OPEN, creator=None).order_descending("id").limit(5).select() == ("SELECT * FROM tasks WHERE state = ? AND creator IS NULL ORDER BY id DESC LIMIT ? OFFSET ?", ("open", 5, 0)), "a value is turned by its column, and None reads as null"
     assert tasks.filter_listed("id", (1, 2)).filter_unlisted("state", (TaskState.FINISHED,)).filter_present("block_reason").select() == ("SELECT * FROM tasks WHERE id IN (?, ?) AND state NOT IN (?) AND block_reason IS NOT NULL", (1, 2, TaskState.FINISHED.value))
     assert tasks.filter_greater("id", 1).filter_less("id", 9).filter_greater_equal("id", 2).filter_less_equal("id", 8).filter_unequal("title", "x").select()[0] == "SELECT * FROM tasks WHERE id > ? AND id < ? AND id >= ? AND id <= ? AND title IS NOT ?"
-    assert tasks.filter_prefix("title", "a").filter_lacking_prefix("creator", "user:").select() == ("SELECT * FROM tasks WHERE title >= ? AND title < ? AND (creator IS NULL OR creator < ? OR creator >= ?)", ("a", "a\uffff", "user:", "user:\uffff"))
+    assert tasks.filter_prefix("title", "a").filter_missing_prefix("creator", "user:").select() == ("SELECT * FROM tasks WHERE title >= ? AND title < ? AND (creator IS NULL OR creator < ? OR creator >= ?)", ("a", "a\uffff", "user:", "user:\uffff"))
     assert tasks.filter_containing("title", "50%_off").order("state").order_descending("id").offset(3).select() == ("SELECT * FROM tasks WHERE title LIKE ? ESCAPE '\\' ORDER BY state, id DESC LIMIT ? OFFSET ?", ("%50\\%\\_off%", -1, 3))
     assert entries.filter_json("data->session", "s").filter_listed("data->call->kind", ("a",)).maximum("data->time", 0) == ("SELECT COALESCE(MAX(json_extract(data, '$.time')), 0) AS value FROM entries WHERE json_extract(data, '$.session') = ? AND json_extract(data, '$.call.kind') IN (?)", ("s", "a"))
     assert tasks.filter_alternatives(tasks.filter(title="a"), tasks.filter(title="b").filter_null("block_reason")).count() == ("SELECT count(*) AS value FROM tasks WHERE (title = ? OR (title = ? AND block_reason IS NULL))", ("a", "b"))
@@ -405,3 +408,355 @@ def test_the_tasks_repository_answers_which_tasks_are_open_blocked_parked_and_un
         assert [task.id for task in tasks.suspended_tasks()] == [parked.id]
         assert done.id not in [task.id for task in tasks.unclosed_tasks()] and free.id in [task.id for task in tasks.unclosed_tasks()]
         assert tasks.unfinished_ids([free.id, done.id]) == [free.id]
+
+
+def test_each_model_says_whether_it_is_shared_with_the_team_or_kept_on_one_machine():
+    from journal.models.all_models import AllModels
+    local = sorted(model.__name__ for model in AllModels.MODELS if not model.shared)
+    assert local == sorted(["Entry", "Agent", "Timing", "Statistic", "CommandOutput", "DashboardRow", "Secret", "Phone", "PhoneCode", "MigratedRow", "Version3Migration", "JournalVersion", "ReleaseMessage", "OutgoingChange", "IdBlock", "PendingUpload", "Plugin", "McpServer", "BrowserSession"]), "the models kept on one machine are the ones NOTES.md names"
+    assert all(model.shared for model in AllModels.MODELS if model.__name__ in ("Task", "Message", "Alias", "Worker", "Setting")), "everything else is shared"
+
+
+def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiting_writes_to_a_row_merge(connection, bus, scope, tmp_path):
+    from journal.config import Config
+    from journal.events.models.model_event import ModelEvent
+    from journal.models.release_message import ReleaseMessage
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.release_messages import ReleaseMessages
+    from journal.sync.record_outgoing_change import RecordOutgoingChange
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.sync.commit_signal import CommitSignal
+
+    config = Config(tmp_path)
+    changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
+    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_scopes(connection, bus, scope), CommitSignal()))
+    with scope.environment(1):
+        before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
+        assert changes.waiting() == [], "a journal in no team queues nothing"
+        config.home.mkdir(parents=True, exist_ok=True)
+        (config.home / TEAM_FILE).write_text("{}")
+        task = tasks.save(Task(environment_id=1, title="first"), actor=USER)
+        task = tasks.save(task.with_(title="second"), actor=AGENT)
+        task = tasks.save(task.with_(brief="a brief"), actor=USER)
+        [created] = changes.waiting()
+        assert (created.row_table, created.row, created.action) == ("tasks", task.id, "created")
+        assert (created.fields["title"], created.fields["brief"], created.writer) == ("second", "a brief", USER.stamp), "a creation and its updates are one creation"
+        assert set(created.changed_at) == set(created.fields)
+        before = tasks.save(before.with_(title="renamed"), actor=USER)
+        before = tasks.save(before.with_(brief="a second brief"), actor=USER)
+        update = changes.waiting()[1]
+        assert update.action == "updated" and set(update.fields) == {"title", "brief", "updated_at", "updater"}, "two updates are one, with only the columns they changed"
+        tasks.delete(task, USER)
+        assert [change.row for change in changes.waiting()] == [before.id], "a row created and deleted before sending sends nothing"
+        changes.save(changes.waiting()[0].with_(is_sending=True), USER)
+        tasks.save(before.with_(title="again"), actor=USER)
+        assert [change.fields["title"] for change in changes.waiting()] == ["again"], "a change being sent is never merged into"
+        tasks.delete(before, USER)
+        assert changes.waiting()[0].action == "deleted" and changes.waiting()[0].fields == {}
+        ReleaseMessages(connection, bus).save(ReleaseMessage(version="9.9.9", text="local"), USER)
+        assert [change.row_table for change in changes.waiting()] == ["tasks"], "a model kept on one machine is never queued"
+
+
+def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_and_from_sqlite_before(connection, bus, scope, tmp_path):
+    from journal.config import Config
+    from journal.events.models.number_request import NumberRequest
+    from journal.models.release_message import ReleaseMessage
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.release_messages import ReleaseMessages
+    from journal.support.rejection import Rejection
+    from journal.sync.block_numbers import BlockNumbers
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+
+    config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus), tasks_of(connection, bus, scope)
+    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config)))
+    with scope.environment(1):
+        assert [tasks.save(Task(environment_id=1, title=title), actor=USER).id for title in "ab"] == [1, 2], "a journal in no team numbers as before"
+        config.home.mkdir(parents=True, exist_ok=True)
+        (config.home / TEAM_FILE).write_text("{}")
+        blocks.add("tasks", 1001, 1003)
+        blocks.add("tasks", 2001, 2010)
+        assert [tasks.save(Task(environment_id=1, title=str(n)), actor=USER).id for n in range(4)] == [1001, 1002, 1003, 2001], "past a block's end the next block numbers"
+        assert blocks.is_wanted("tasks") and blocks.is_wanted("messages"), "nine numbers left of a block of ten wants another, and a table with no block wants one"
+        blocks.add("tasks", 3001, 3010)
+        assert not blocks.is_wanted("tasks"), "a block and a fifth of one left is enough"
+        assert ReleaseMessages(connection, bus).save(ReleaseMessage(version="9.9.9"), USER).id == 1, "a model kept on one machine is numbered by SQLite"
+        for _ in range(19):
+            tasks.save(Task(environment_id=1, title="more"), actor=USER)
+        with pytest.raises(Rejection):
+            tasks.save(Task(environment_id=1, title="one too many"), actor=USER)
+
+
+def team_scopes(connection, bus, scope):
+    from journal.features.registry import Registry
+    from journal.features.standard import Standard
+    from journal.repositories.setting_rows import SettingRows
+    from journal.sync.setting_scopes import SettingScopes
+
+    return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope)))
+
+
+def team_journal(tmp_path, name: str, signal=None):
+    from journal.config import Config
+    from journal.db.connection import Connection
+    from journal.db.schema import Schema
+    from journal.events.bus import Bus
+    from journal.events.models.model_event import ModelEvent
+    from journal.events.models.purged import Purged
+    from journal.models.all_models import AllModels
+    from journal.repositories.environments import Environments
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.scope import Scope
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.incoming_changes import IncomingChanges
+    from journal.sync.record_outgoing_change import RecordOutgoingChange
+    from journal.sync.record_purge import RecordPurge
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.features.listeners.unlink_deleted import UnlinkDeleted
+    from journal.events.models.deleted import Deleted
+    from journal.events.models.number_request import NumberRequest
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.sync.block_numbers import BlockNumbers
+    from journal.sync.commit_signal import CommitSignal
+
+    folder = tmp_path / name
+    config = Config(folder)
+    config.home.mkdir(parents=True)
+    (config.home / TEAM_FILE).write_text("{}")
+    connection = Connection(folder / "journal.db", Masks(SecretValues(config)))
+    Schema(connection, AllModels.MODELS).create()
+    bus = Bus()
+    scope = Scope(Environments(connection, bus))
+    outgoing = OutgoingChanges(connection, bus)
+    signal = signal or CommitSignal()
+    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_scopes(connection, bus, scope), signal))
+    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), signal))
+    blocks = IdBlocks(connection, bus)
+    base = (ord(name[0]) - ord("a")) * 100_000
+    for model in AllModels.MODELS:
+        if model.shared:
+            blocks.add(model.table(), base + 1, base + 99_999)
+    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config)))
+    bus.listen(Deleted, UnlinkDeleted(Links(connection, bus)))
+    return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus), outgoing, Links(connection, bus))
+
+
+def team_changes(outgoing):
+    from journal.sync.team_change import TeamChange
+
+    changes = outgoing.waiting()
+    for change in changes:
+        outgoing.delete(change, USER)
+    return [TeamChange(row_table=change.row_table, row=change.row, action=change.action, writer=change.writer, fields=change.fields or {}) for change in changes]
+
+
+def test_two_journals_exchange_their_changes_and_a_pulled_write_runs_no_listener_of_a_local_write(tmp_path):
+    from journal.events.listener import Listener
+    from journal.events.models.created import Created
+    from journal.events.rows.task_opened import TaskOpened
+    from journal.sync.team_change import TeamChange
+
+    class Heard(Listener):
+        def __init__(self) -> None:
+            self.events = []
+
+        def handle(self, event) -> None:
+            self.events.append(event)
+
+    bus_a, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    bus_b, scope_b, tasks_b, outgoing_b, incoming_b = team_journal(tmp_path, "b")
+    created, opened = Heard(), Heard()
+    bus_b.listen(Created, created)
+    bus_b.listen(TaskOpened, opened)
+    with scope_a.environment(1):
+        kept = tasks_a.save(Task(environment_id=1, title="kept"), actor=USER)
+        gone = tasks_a.save(Task(environment_id=1, title="gone"), actor=USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    with scope_b.environment(1):
+        assert [(task.id, task.title) for task in tasks_b.rows()] == [(kept.id, "kept"), (gone.id, "gone")]
+        assert len(opened.events) == 2 and created.events == [], "a pulled creation opens the task and runs no listener of a local creation"
+        tasks_b.save(tasks_b.find(kept.id).with_(title="b's title"), actor=AGENT)
+    with scope_a.environment(1):
+        tasks_a.save(kept.with_(title="a's title", brief="a's brief"), actor=USER)
+        tasks_a.delete(gone, USER)
+    with scope_b.environment(1):
+        tasks_b.save(tasks_b.find(gone.id).with_(brief="b's brief"), actor=AGENT)
+    applied_from = datetime.now(timezone.utc)
+    incoming_b.apply(team_changes(outgoing_a))
+    with scope_b.environment(1):
+        [task] = tasks_b.rows()
+        assert (task.title, task.brief) == ("b's title", "a's brief"), "a field this machine still has to send is kept as this machine has it"
+        assert task.updated_at >= applied_from, "a pulled row is dated when it was applied here, so the viewer's next poll finds it however old the edit"
+        assert [change.row for change in outgoing_b.waiting()] == [kept.id], "a pulled deletion drops this machine's waiting change to the row"
+    incoming_b.apply([TeamChange(row_table="tasks", row=kept.id, action="updated", writer=USER.stamp, fields={"column_from_a_newer_journal": 1})])
+
+
+def test_a_wiped_environment_and_a_deleted_rows_links_reach_the_other_journal(tmp_path):
+    from journal.models.environment import Environment
+    from journal.repositories.environments import Environments
+
+    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
+    environments_a, links_a, links_b = scope_a.environments, Links(tasks_a.connection, tasks_a.bus), Links(tasks_b.connection, tasks_b.bus)
+    environments_a.save(Environment(name="main"), USER)
+    second = environments_a.save(Environment(name="second"), USER)
+    with scope_a.environment(1):
+        first = tasks_a.save(Task(environment_id=1, title="first"), actor=USER)
+        other = tasks_a.save(Task(environment_id=1, title="other"), actor=USER)
+        links_a.save(Link(source=Ref.build(first), target=Ref.build(other), kind="follows"), actor=USER)
+    with scope_a.environment(second.id):
+        tasks_a.save(Task(environment_id=second.id, title="in the second"), actor=USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    assert len(tasks_b.global_matching(environment_id=1)) == 2 and len(tasks_b.global_matching(environment_id=second.id)) == 1 and len(links_b.rows()) == 1
+    with scope_a.environment(1):
+        tasks_a.delete(first, USER)
+    environments_a.wipe(second, USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    assert [task.title for task in tasks_b.global_matching(environment_id=1)] == ["other"] and tasks_b.global_matching(environment_id=second.id) == [] and links_b.rows() == [], "the deleted task's links and the wiped environment's rows are gone on the other journal too"
+    assert [environment.name for environment in Environments(tasks_b.connection, tasks_b.bus).rows()] == [environment.name for environment in environments_a.rows()]
+
+
+def test_a_shipped_template_is_written_once_for_the_team_by_the_machine_that_holds_the_upgrade(tmp_path):
+    import json
+    from journal.config import Config
+    from journal.features.templates.seeds.builtin_templates import BuiltinTemplates
+    from journal.features.templates.shipped import SHIPPED
+    from journal.repositories.templates import Templates
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+
+    _, _, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    _, _, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
+    (tmp_path / "a" / ".journal" / TEAM_FILE).write_text(json.dumps({"device": "a", "upgrade": True}))
+    templates_a, templates_b = Templates(tasks_a.connection, tasks_a.bus), Templates(tasks_b.connection, tasks_b.bus)
+    BuiltinTemplates(templates_a, TeamAccount(Config(tmp_path / "a"))).run()
+    BuiltinTemplates(templates_b, TeamAccount(Config(tmp_path / "b"))).run()
+    assert templates_b.rows() == [], "a machine without the upgrade writes no shipped row of its own"
+    incoming_b.apply(team_changes(outgoing_a))
+    BuiltinTemplates(templates_b, TeamAccount(Config(tmp_path / "b"))).run()
+    assert sorted(template.title for template in templates_b.rows()) == sorted(template.title for template in SHIPPED), "each shipped template once, as the machine with the upgrade wrote it"
+
+
+def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_persons(tmp_path):
+    from journal.features.voices.feature import Voices
+    from journal.features.workers.feature import Workers as WorkersFeature
+    from journal.repositories.setting_rows import SettingRows
+
+    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
+    settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a), SettingRows(tasks_b.connection, tasks_b.bus, scope_b)
+    settings_a.set(WorkersFeature.WORKER_LIMIT.key, 3, USER)
+    settings_a.set(WorkersFeature.PREPARATION_COMMANDS.key, ["make env"], USER)
+    settings_a.set(Voices.NAME.key, "Ada", USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    assert settings_b.project_values() == {WorkersFeature.WORKER_LIMIT.key: 3}, "the team's setting arrives; the machine's commands and the person's name stay where they were set"
+
+
+def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_while_it_is_down_arrives_later(tmp_path):
+    import json
+    import time
+    from journal.config import Config
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.sync.commit_signal import CommitSignal
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.sync_status import SyncStatus
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.sync.team_server_link import TeamServerLink
+    from sync_server.account import ADMIN
+    from sync_server.team_server import TeamServer
+    from journal.repositories.environments import Environments
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.repositories.setting_rows import SettingRows
+    from journal.supervisor_link import SupervisorLink
+    from journal.sync.team_chat_branch import TeamChatBranch
+    from journal.sync.team_upgrade import TeamUpgrade
+    from journal.sync.journal_copy import JournalCopy
+    from journal.support.typed_lines import TypedLines
+    from sync_server.login_request import LoginRequest
+    from journal.chat.moment_cards import MomentCards
+    from journal.repositories.messages import Messages
+    from journal.repositories.reactions import Reactions
+    from journal.repositories.shared_tables import SharedTables
+    from journal.sync.rejected_edits import RejectedEdits
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.pending_uploads import PendingUploads
+    from journal.sync.attachments import Attachments
+    from journal.sync.team_chat import TeamChat
+    from journal.engine.agent_launcher import AgentLauncher
+
+    team = TeamServer(tmp_path)
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    server = team.started("127.0.0.1", 0)
+    port = server.server_address[1]
+
+    def joined(name: str):
+        signal = CommitSignal()
+        _, scope, tasks, outgoing, incoming = team_journal(tmp_path, name, signal)
+        answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", name), "127.0.0.1")
+        account = TeamAccount(Config(tmp_path / name))
+        account.write({"address": f"http://127.0.0.1:{port}", "token": answer.token, "device": answer.device_id})
+        links = Links(tasks.connection, tasks.bus)
+        messages = Messages(tasks.connection, tasks.bus, scope, Reactions(tasks.connection, tasks.bus, scope, links), links, EnvironmentOwners(links, Users(tasks.connection, tasks.bus), Environments(tasks.connection, tasks.bus)))
+        rejected = RejectedEdits(SharedTables(tasks.connection, tasks.bus), outgoing, links, MomentCards(messages))
+        uploads = PendingUploads(tasks.connection, tasks.bus)
+        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), outgoing, incoming, rejected, signal, SyncStatus(account, outgoing), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus), uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), MomentCards(messages), SyncStatus(account, outgoing)), MomentCards(messages)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus))), JournalCopy(SharedTables(tasks.connection, tasks.bus)))
+        client.start()
+        return scope, tasks, client, messages
+
+    def eventually(check, seconds: float) -> bool:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if check():
+                return True
+            time.sleep(0.05)
+        return False
+
+    scope_a, tasks_a, client_a, _ = joined("a")
+    scope_b, tasks_b, client_b, messages_b = joined("b")
+    try:
+        assert oct((tmp_path / "a" / ".journal" / TEAM_FILE).stat().st_mode & 0o777) == "0o600", "the token is readable by its owner alone"
+        with scope_a.environment(1):
+            task = tasks_a.save(Task(environment_id=1, title="in step"), actor=USER)
+        assert eventually(lambda: [row.title for row in tasks_b.global_matching(environment_id=1)] == ["in step"], 1.0), "a task made on one journal is on the other within a second"
+        with scope_b.environment(1):
+            tasks_b.save(tasks_b.find(task.id).with_(title="renamed by b"), actor=USER)
+        assert eventually(lambda: tasks_a.find(task.id).title == "renamed by b", 1.0)
+        client_b.stop()
+        with scope_b.environment(1):
+            tasks_b.save(tasks_b.find(task.id).with_(title="b's older title"), actor=USER)
+        time.sleep(0.01)
+        with scope_a.environment(1):
+            tasks_a.save(tasks_a.find(task.id).with_(title="a's later title"), actor=USER)
+        assert eventually(lambda: team.log.row("tasks", task.id).fields["title"] == "a's later title", 1.0)
+        client_b.start()
+        assert eventually(lambda: tasks_b.find(task.id).title == "a's later title", 3.0) and tasks_a.find(task.id).title == "a's later title", "two edits of one title at once keep the later on both"
+        with scope_b.environment(1):
+            assert eventually(lambda: any("was kept over yours" in str(message) for message in messages_b.scoped()), 1.0), "the journal whose edit lost shows a card naming whose edit was kept"
+        team.close(server)
+        with scope_a.environment(1):
+            tasks_a.save(tasks_a.find(task.id).with_(brief="written while the server was down"), actor=USER)
+        time.sleep(0.5)
+        assert client_a.status.line().startswith("Not connected") and tasks_b.find(task.id).brief == ""
+        restarted = TeamServer(tmp_path)
+        server = restarted.http("127.0.0.1", port)
+        import threading
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        team = restarted
+        assert eventually(lambda: tasks_b.find(task.id).brief == "written while the server was down", 8.0), "a change made while the server was down arrives once it is back"
+    finally:
+        client_a.stop()
+        client_b.stop()
+        team.close(server)
+
+
+def test_a_write_queued_before_a_column_rename_is_sent_under_the_new_name(connection, bus):
+    from journal.db.migration import Migration
+    from journal.models.outgoing_change import UPDATED, OutgoingChange
+    from journal.repositories.outgoing_changes import OutgoingChanges
+
+    connection.execute("ALTER TABLE tasks ADD COLUMN headline TEXT")
+    outgoing = OutgoingChanges(connection, bus)
+    outgoing.queued(OutgoingChange(row_table="tasks", row=7, action=UPDATED, fields={"headline": {"words": "kept whole"}, "state": "open"}, changed_at={"headline": 1.0, "state": 1.0}, writer="user:2"), Actor.system())
+    with connection.transaction():
+        Migration.column_rename(connection, "tasks", "headline", "subtitle")
+    [change] = outgoing.waiting()
+    assert change.fields == {"subtitle": {"words": "kept whole"}, "state": "open"} and change.changed_at == {"subtitle": 1.0, "state": 1.0}, "a write queued offline before the rename goes out under the new name, its value intact"
