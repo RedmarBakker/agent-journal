@@ -2,8 +2,9 @@
 import {subagentsOf} from "../domain/subagents.js";
 import {computed} from "vue";
 import AgentInspector from "../agents/AgentInspector.vue";
+import SubagentInspector from "../agents/SubagentInspector.vue";
 import {stopAgentNamed} from "../actions/agents.js";
-import {scopeOfChat, useScope} from "../composables/scope.js";
+import {useScope} from "../composables/scope.js";
 import {loadedSkills, modelFamily, providerName} from "../domain/agents.js";
 import {ending, heldTask} from "../domain/agentState.js";
 import {createdAt, updatedAt} from "../domain/row.js";
@@ -69,40 +70,16 @@ const mainInfo = computed(() => ({
               ],
 }));
 
-const subagentInfo = computed(() => ({
-    kind: "Subagent",
-    name: picked.value.type || "general",
-    back: "Main agent",
-    state: picked.value.running
-        ? {key: "working", word: "Working", dot: "running"}
-        : {key: "idle", ...ending(picked.value.status, picked.value.time)},
-    facts: [picked.value.model || "its parent's model", `subagent of agent ${props.resource.id}`, environment.value],
-    actions: [],
-}));
-
-const pickedChat = computed(() => (picked.value ? scopeOfChat(picked.value.session) : null));
 const ACTIONS = {stop: () => stopAgentNamed(api, environment.value)};
 </script>
 
 <template>
     <template v-if="picked">
-        <AgentInspector
-            :key="picked.session"
-            kind="subagent"
-            :info="subagentInfo"
-            :env="env"
-            :agent="resource"
-            :session="picked.session"
-            :chat-session="picked.session"
-            :own-chat="pickedChat"
-            @back="showSession('')"
-            @close="emit('close')"
-        />
+        <SubagentInspector :key="picked.session" :subagent="picked" :agent="resource" :api="api" :env="env" @back="showSession('')" @close="emit('close')" />
     </template>
     <template v-else>
         <AgentInspector
             key="main"
-            kind="main"
             :info="mainInfo"
             :env="env"
             :agent="resource"

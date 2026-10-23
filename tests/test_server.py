@@ -890,7 +890,7 @@ def test_the_transcript_of_an_agent_and_of_its_subagent_are_read_from_the_provid
     project = tmp_path / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(server.config.root.resolve()))
     (project / "s5" / "subagents").mkdir(parents=True)
     rows = [{"type": "user", "timestamp": "2026-10-17T10:00:00Z", "message": {"content": "fix the login"}},
-            {"type": "assistant", "timestamp": "2026-10-17T10:00:05Z", "message": {"content": [{"type": "text", "text": "Looking."}, {"type": "tool_use", "name": "Read", "input": {}}]}},
+            {"type": "assistant", "timestamp": "2026-10-17T10:00:05Z", "message": {"content": [{"type": "text", "text": "Looking."}, {"type": "tool_use", "name": "Read", "input": {"file_path": "login.py"}}]}},
             {"type": "user", "timestamp": "2026-10-17T10:00:06Z", "message": {"content": [{"type": "tool_result", "content": "file text"}]}}]
     (project / "s5.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows) + '{"type": "assi')
     (project / "s5" / "subagents" / "agent-a5.jsonl").write_text(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Read the login."}]}}) + "\n")
@@ -901,6 +901,7 @@ def test_the_transcript_of_an_agent_and_of_its_subagent_are_read_from_the_provid
     agent = next(item for item in call(server, "GET", "/journal/agents")[1]["rows"] if item["session"] == "s5")
     page = call(server, "GET", f"/journal/agents/{agent['id']}/transcript")[1]
     assert [(t["kind"], t["text"], t["tools"]) for t in page["turns"]] == [("human", "fix the login", []), ("agent", "Looking.", ["Read"]), ("tool", "", [])], "a tool result is a heading, its text asked for"
+    assert page["turns"][1]["steps"] == [{"kind": "file read", "path": "login.py", "partial": False}], "each tool call carries what it did, as its provider decoded it"
     assert call(server, "GET", f"/journal/agents/{agent['id']}/transcript?entry=3")[1]["text"] == "file text"
     assert call(server, "GET", f"/journal/agents/{agent['id']}/transcript?since=1")[1]["turns"][0]["line"] == 2
     sub = call(server, "GET", f"/journal/agents/{agent['id']}/subagents/a5/transcript")[1]

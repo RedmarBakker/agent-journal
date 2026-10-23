@@ -117,11 +117,12 @@ class Claude(Provider):
         results = row.type_match("tool_result")
         if results and not text.strip():
             text = "\n".join(b.outcome for b in results)
-        tools = [b.name for b in row.type_match("tool_use")]
-        if not text.strip() and not tools:
+        uses = row.type_match("tool_use")
+        if not text.strip() and not uses:
             return None
         kind = row.kind
-        return Turn(number, "user" if kind in ("human", "injected") else kind, kind, self.seconds(row.timestamp), text, tools)
+        steps = [self.operation(b.name, b.input).as_data() for b in uses]
+        return Turn(number, "user" if kind in ("human", "injected") else kind, kind, self.seconds(row.timestamp), text, [b.name for b in uses], steps)
 
     def turn_thoughts(self, project: Path, session: str) -> list[str]:
         path = self.transcript(project, session)

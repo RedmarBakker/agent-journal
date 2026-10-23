@@ -73,3 +73,48 @@ export const briefOf = (entries) => {
     const first = entries.find((t) => hasText(t) && SPEAKERS[t.kind] === "user");
     return first ? {text: first.text, time: first.time} : null;
 };
+
+// What a subagent handed back: the last thing it said.
+export const reportOf = (entries) => {
+    const last = entries.findLast((t) => hasText(t) && SPEAKERS[t.kind] === "agent");
+    return last ? {text: last.text, time: last.time} : null;
+};
+
+const changedLines = (added, removed) => `${added} ${added === 1 ? "line" : "lines"} added, ${removed} removed`;
+
+// What one tool call did, in words, from the operation its provider decoded; a call with none decoded names its tool.
+const STEPS = {
+    "shell line": (s) => ({icon: "terminal", words: "Ran", code: s.command, rest: "", shell: true}),
+    "file edit": (s) => ({icon: "pencil", words: "Changed", code: s.paths.join(", "), rest: changedLines(s.added, s.removed)}),
+    "file write": (s) => ({icon: "docs", words: "Wrote", code: s.path, rest: `${s.added} ${s.added === 1 ? "line" : "lines"}`}),
+    "file read": (s) => ({icon: "book", words: "Read", code: s.path, rest: s.partial ? "part of it" : ""}),
+    "skill load": (s) => ({icon: "book", words: "Loaded the skill", code: s.skill, rest: ""}),
+    "subagent dispatch": (s) => ({icon: "agents", words: "Started a subagent:", code: "", rest: s.title}),
+    "agent message": (s) => ({icon: "chat", words: `Sent a message to ${s.receiver}`, code: "", rest: ""}),
+    "user question": () => ({icon: "questions", words: "Asked the user a question", code: "", rest: ""}),
+    "undecoded tool": (s) => ({icon: "tools", words: "Used", code: s.name, rest: ""}),
+};
+
+export const stepOf = (operation) => (STEPS[operation.kind] || STEPS["undecoded tool"])(operation);
+
+const stepsOf = (t) => (t.steps && t.steps.length ? t.steps : t.tools.map((name) => ({kind: "undecoded tool", name}))).map(stepOf);
+
+// A transcript as its speakers said it: each spoken turn with the steps it took after, each step with the line of its output.
+export function saidTurns(entries, speakers) {
+    const out = [];
+    let last = null;
+    for (const t of entries) {
+        if (t.kind === "tool") {
+            const step = last && last.steps.find((s) => !s.output);
+            if (step) step.output = t.line;
+            continue;
+        }
+        const spoken = hasText(t) && speakers[t.kind];
+        if (spoken || (t.tools.length && (!last || last.kind !== t.kind))) {
+            last = {key: t.line, kind: t.kind, who: speakers[t.kind] || t.kind, time: t.time, text: spoken ? t.text : "", steps: []};
+            out.push(last);
+        }
+        if (t.tools.length) last.steps.push(...stepsOf(t).map((step) => ({...step, output: 0})));
+    }
+    return out;
+}

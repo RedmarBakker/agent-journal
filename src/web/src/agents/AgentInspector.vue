@@ -9,8 +9,6 @@ import MenuPanel from "../kit/MenuPanel.vue";
 import PresetList from "../kit/PresetList.vue";
 import SwitchCase from "../kit/SwitchCase.vue";
 import FileFeed from "../chat/FileFeed.vue";
-import OwnChat from "../chat/OwnChat.vue";
-import SubagentChat from "../chat/SubagentChat.vue";
 import TerminalWindow from "../chat/TerminalWindow.vue";
 import Thread from "../chat/Thread.vue";
 import RailTodos from "../rail/RailTodos.vue";
@@ -21,26 +19,21 @@ import AgentTodo from "./AgentTodo.vue";
 import AgentPanes from "./AgentPanes.vue";
 import {scopeIn} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
-import {briefOf} from "../domain/transcript.js";
 import {INSPECTOR_FEED, INSPECTOR_PRESETS, matches, thumbnail} from "../domain/panes.js";
 import {levelOf} from "../domain/verbosity.js";
-import {agentOf, plainRefusal} from "../domain/agents.js";
+import {agentOf} from "../domain/agents.js";
+import {useInspectorActions} from "../composables/inspectorActions.js";
 import {pollKey, usePoll} from "../composables/poll.js";
 import {holding, rows} from "../sync/rows.js";
 import {go, route} from "../route.js";
 
 const props = defineProps({
     info: {type: Object, required: true},
-    kind: {type: String, default: "helper"},
     env: {type: String, default: ""},
     agent: {type: Object, default: null},
-    session: {type: String, default: ""},
-    chatSession: {type: String, default: ""},
     subagents: {type: Array, default: () => []},
     skills: {type: Array, default: () => []},
     run: {type: Function, default: async () => {}},
-    transcripts: {type: Object, default: null},
-    ownChat: {type: Object, default: null},
 });
 const emit = defineEmits(["back", "close", "open-subagent"]);
 const EVERY = 5000;
@@ -57,8 +50,6 @@ const VIEWS = {
     },
     skills: {title: "Skills", icon: "book"},
 };
-const subagent = props.kind === "subagent";
-const ownTranscript = subagent || props.kind === "worker";
 
 const elsewhere = Boolean(props.env) && props.env !== route.value.env;
 const scope = elsewhere ? scopeIn(props.env) : null;
@@ -78,13 +69,11 @@ usePoll(
     EVERY,
     (got) => {
         looked.value = true;
-        if (got) found.value = agentOf(got.rows, props.chatSession, !subagent);
+        if (got) found.value = agentOf(got.rows, "", true);
     }
 );
 const agent = computed(() => props.agent || found.value);
-usePoll(pollKey(), () => (props.ownChat ? props.ownChat.chat.refresh() : Promise.resolve(null)), EVERY, () => {});
-const chatRows = computed(() => (props.ownChat ? props.ownChat.rows("messages").length : 0));
-const sequence = computed(() => (ownTranscript ? null : agent.value?.sequence));
+const sequence = computed(() => agent.value?.sequence);
 const sequenceHistory = computed(() => agent.value?.sequence_history || []);
 
 
@@ -105,23 +94,16 @@ refreshers.push([
 
 const log = ref(null);
 const scroller = computed(() => log.value && log.value.scroller);
-const transcriptViews = () => shown("transcript") || (ownTranscript && shown("chat"));
-// a worker's transcript is read by the worker's own road, whether or not it has an agent row yet; the others need the agent
-const transcriptOwner = () => (props.kind === "worker" ? "worker" : agent.value ? agent.value.id : 0);
-const transcript = useTranscript(transcriptOwner, props.session, scroller, props.transcripts || there, transcriptViews);
+const transcriptViews = () => shown("transcript");
+const transcript = useTranscript(() => (agent.value ? agent.value.id : 0), "", scroller, there, transcriptViews);
 refreshers.push([transcriptViews, transcript.refresh]);
 watch(
     () => (panes.value ? panes.value.shown.join() : ""),
     () => refreshers.forEach(([wanted, fetch]) => wanted() && fetch())
 );
-const {turns, total, loading: transcriptLoading, atStart, earlier} = transcript;
+const {turns} = transcript;
 
-const AVAILABLE = {
-    main: ["chat", "transcript", "terminal", "feed", "tasks", "subagents", "skills"],
-    subagent: ["chat", "transcript", "terminal"],
-    worker: ["chat", "transcript"],
-};
-const available = computed(() => AVAILABLE[props.kind] || AVAILABLE.main);
+const AVAILABLE = ["chat", "transcript", "terminal", "feed", "tasks", "subagents", "skills"];
 
 const taskId = ref(0);
 const task = computed(() => rowsHere("tasks").find((row) => row.id === taskId.value) || null);
@@ -147,26 +129,7 @@ function pickPreset(key) {
 const stateKey = computed(() => props.info.state.key);
 const counts = computed(() => props.info.counts);
 const link = computed(() => props.info.link);
-const asking = ref("");
-const refusal = ref("");
-const actionOf = (key) => props.info.actions.find((action) => action.key === key);
-const question = computed(() => (asking.value ? actionOf(asking.value) : null));
-
-async function perform(key, answer = "") {
-    refusal.value = "";
-    asking.value = "";
-    try {
-        await props.run(key, answer);
-    } catch (e) {
-        refusal.value = plainRefusal(e.message, key);
-    }
-}
-
-function choose(key) {
-    const action = actionOf(key);
-    if (action.confirm) asking.value = key;
-    else perform(key);
-}
+const {asking, refusal, question, actionOf, perform, choose} = useInspectorActions(() => props.info.actions, (key, answer) => props.run(key, answer));
 
 const sequenceBusy = ref("");
 const SEQUENCE_ACTIONS = {skip: (n) => there.skipSequenceStep(n), end: (n) => there.endSequence(n)};
@@ -223,8 +186,6 @@ const openSkills = () => go("skills");
         </template>
         <AgentInspectorBands
             :confirm="question && question.confirm"
-            :brief="info.brief || (subagent ? briefOf(turns) : null)"
-            :report="info.report"
             :refusal="refusal"
             :state-key="stateKey"
                         :resume="actionOf('resume')"
@@ -238,37 +199,17 @@ const openSkills = () => go("skills");
             @end-sequence="onSequence('end')"
         />
         <slot name="bands" />
-        <AgentPanes ref="panes" :views="VIEWS" :available="available" :flushable="['feed']">
+        <AgentPanes ref="panes" :views="VIEWS" :available="AVAILABLE" :flushable="['feed']">
             <template #view="{view, pane, tune}">
                 <SwitchCase :value="view">
                     <template #chat>
-                        <template v-if="chatRows">
-                            <OwnChat :scope="ownChat" />
-                        </template>
-                        <template v-else-if="ownTranscript">
-                            <SubagentChat
-                                :turns="turns"
-                                :loading="transcriptLoading"
-                                :session="chatSession || session"
-                                :earlier="earlier"
-                                :at-start="atStart"
-                                read-only
-                            />
-                        </template>
-                        <template v-else>
-                            <Thread view="chat" />
-                        </template>
+                        <Thread view="chat" />
                     </template>
                     <template #transcript>
                         <TranscriptLog ref="log" class="fill" :transcript="transcript" :entries="turns" :env="env" />
                     </template>
                     <template #terminal>
-                        <template v-if="subagent">
-                            <EmptyState title="No terminal of its own">
-                                A subagent's commands are not kept apart from its parent's, so nothing of the parent's shows here.
-                            </EmptyState>
-                        </template>
-                        <template v-else-if="agent">
+                        <template v-if="agent">
                             <TerminalWindow :key="`${agent.id}:${levelOf(pane)}`" class="fill" :agent="agent" :level="levelOf(pane)" />
                         </template>
                         <template v-else>

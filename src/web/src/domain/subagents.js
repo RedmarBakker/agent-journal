@@ -7,6 +7,7 @@ export const subagentsOf = (agent) =>
         time: s.resumed_at || s.started_at,
         ended: s.ended_at,
         task: s.task,
+        brief: s.brief,
         type: s.agent_type,
         model: s.model,
         session: s.session,

@@ -1,5 +1,6 @@
 import {providerName} from "./agents.js";
 import {seconds} from "./row.js";
+import {clock} from "../format/time.js";
 
 // A worker as the viewer draws it: out at work, clocked out with work to check, ended without clocking out, idle with its
 // report back, or closed. A reported worker whose report was acted on is retired; a merged or released one is closed.
@@ -38,6 +39,20 @@ export function workerActions(row, device = "") {
     if ((row.device || "") !== device) return [];
     const state = workerState(row);
     return ACTIONS_OF[state] || [SEND];
+}
+
+const ICONS = {running: "started", ready: "done", reported: "done", unfinished: "blocked", finished: "done"};
+export const workerIcon = (row) => ICONS[workerState(row)];
+
+// The moves a worker makes from its dispatch to its merge: the first and the one it is at with their times, the ones to come after.
+const PATH = ["dispatched", "clocked in", "clocked out", "merged"];
+const moveWord = (state) => state[0].toUpperCase() + state.slice(1);
+const moveTime = (row, i, at) => (i === 0 ? clock(seconds(row.created_at)) : i === at ? clock(stateAt(row)) : "");
+
+export function workerMoves(row) {
+    const path = PATH.includes(row.state) ? PATH : ["dispatched", row.state];
+    const at = path.indexOf(row.state);
+    return path.map((state, i) => ({word: moveWord(state), time: moveTime(row, i, at), at: i === at ? "now" : i > at ? "later" : ""}));
 }
 
 export const workerTag = (row) => ({state: workerState(row), word: WORKER_WORDS[workerState(row)]});
