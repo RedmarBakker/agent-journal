@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, Posing, TELEPHONE, telephoneOf} from "../src/figure/figure.js";
+import {CLIPS, Posing, TELEPHONE, phoneArrival, telephoneOf} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {PILE, choicesFor} from "../src/figure/pile.js";
 import {reactionTo} from "../src/figure/reactions.js";
@@ -54,19 +54,19 @@ test("a worker's dispatch, its next job, its start again, a message sent it and 
 });
 
 test("the call goes in order: the telephone appears, the handset comes up to the ear, the dial turns and springs back, it talks, the handset goes down, the telephone goes", () => {
-    const order = [act.appears, act.reach, act.lift, act.finger, act.dial, act.back, act.talk, act.hang, act.goes];
+    const order = [act.poof, act.drop, act.settle, act.reach, act.lift, act.finger, act.dial, act.back, act.talk, act.hang, act.goes];
     for (let index = 1; index < order.length; index++) expect(order[index][0], `${index}`).toBeGreaterThanOrEqual(order[index - 1][0]);
     expect(act.back[0]).toBe(act.dial[1]);
     for (const voice of Object.keys(stances)) {
         const side = stanceOf(voice).busy.has("r") ? "l" : "r";
         const steps = Array.from({length: 97}, (_, index) => ({u: index / 96, ...posed(index / 96, voice)}));
         const prop = (step, name) => step.pose.props.get(name);
-        // it appears from nothing and is gone at the end
-        expect(prop(steps[0], "telephone").size, voice).toBe(0);
-        expect(steps.find((step) => step.u > act.appears[1] && step.u < act.goes[0]).pose.props.get("telephone").size, voice).toBe(1);
-        expect(prop(steps.at(-1), "telephone").size, voice).toBe(0);
+        // it is there from the first frame and gone at the end
+        expect(prop(steps[0], "telephone"), voice).toBeTruthy();
+        expect(prop(steps.at(-1), "telephone"), voice).toBeUndefined();
+        expect(prop(steps.at(-1), "telephone_handset"), voice).toBeUndefined();
         // the handset on the cradle, then in the free hand from the reach to the hang, then on the cradle again
-        for (const step of steps) {
+        for (const step of steps.filter((each) => phoneArrival(each.u).here)) {
             const inHand = step.u >= act.reach[1] && step.u < act.hang[1];
             expect(prop(step, "telephone_handset").bone, `${voice} ${step.u}`).toBe(inHand ? `hand_${side}` : "root");
         }
@@ -88,13 +88,20 @@ test("the call goes in order: the telephone appears, the handset comes up to the
     }
 });
 
-test("the telephone is solid: every part has depth, is shaded light and dark as the figure is and outlined, and it stands a size too large", () => {
-    const [set, handset, cord] = ["telephone", "telephone_handset", "telephone_cord"].map((name) => Object.assign(new THREE.Group(), {name}));
-    telephoneOf(set, handset, cord);
-    set.userData.shape({size: 1, dial: 0});
-    handset.userData.shape({size: 1});
-    cord.userData.shape({size: 1, from: new THREE.Vector3(0, 0, 0.3), to: new THREE.Vector3(0.6, -0.4, 1.2)});
-    const parts = [set, handset, cord].flatMap((group) => {
+// the telephone's props built as the figure builds them, its body at rest
+function telephone() {
+    const [set, handset, cord, poof] = ["telephone", "telephone_handset", "telephone_cord", "telephone_poof"].map((name) => Object.assign(new THREE.Group(), {name}));
+    telephoneOf(set, handset, cord, poof);
+    set.userData.shape({squash: 0, dial: 0});
+    cord.userData.shape({from: new THREE.Vector3(0, 0, 0.3), to: new THREE.Vector3(0.6, -0.4, 1.2)});
+    poof.userData.shape({puff: 0.5});
+    set.updateMatrixWorld(true);
+    return {set, handset, cord, poof};
+}
+
+test("the telephone is solid: every part has depth, is shaded light and dark as the figure is and outlined, a touch larger than true and near square", () => {
+    const {set, handset, cord, poof} = telephone();
+    const parts = [set, handset, cord, poof].flatMap((group) => {
         const found = [];
         group.traverse((node) => node.isMesh && node.material.side !== THREE.BackSide && found.push(node));
         return found;
@@ -111,30 +118,29 @@ test("the telephone is solid: every part has depth, is shaded light and dark as 
         const extent = part.geometry.boundingBox.getSize(new THREE.Vector3());
         expect(Math.min(extent.x, extent.y, extent.z), part.name).toBeGreaterThan(0.02);
     }
-    // the base deep as well as wide and high, the dial on its slope, and the whole a third of the figure's 5.4 units across, where a real one
-    // would be little more than a tenth
-    const base = new THREE.Box3().setFromObject(set).getSize(new THREE.Vector3());
-    expect(base.z).toBeGreaterThan(0.8);
-    expect(base.y).toBeGreaterThan(0.5);
-    expect(base.x / 5.4).toBeGreaterThan(0.3);
-    expect(TELEPHONE.handset.length / 5.4).toBeGreaterThan(0.25);
+    // the set alone, without its handset: its footprint near square, where the set before was half again as wide as deep (1.75 by 1.15),
+    // and smaller than it was, a fifth or so of the figure's 5.4 units across, a touch more than a real one's tenth and a bit
+    const body = new THREE.Box3().setFromObject(set.getObjectByName("telephone_base")).getSize(new THREE.Vector3());
+    expect(body.x / body.z).toBeLessThan(1.25);
+    expect(body.x / body.z).toBeLessThan(1.75 / 1.15);
+    expect(body.x).toBeLessThan(1.75);
+    expect(body.x / 5.4).toBeGreaterThan(0.15);
+    expect(body.x / 5.4).toBeLessThan(0.26);
+    expect(body.y).toBeGreaterThan(0.4);
 });
 
 test("the set has the classic desk shape: wider at the floor, its front face sloping back with the dial in it, round over the top, and the handset across the prongs with its pieces past the sides", () => {
-    const [set, handset, cord] = ["telephone", "telephone_handset", "telephone_cord"].map((name) => Object.assign(new THREE.Group(), {name}));
-    telephoneOf(set, handset, cord);
-    set.userData.shape({size: 1, dial: 0});
-    set.updateMatrixWorld(true);
+    const {set, handset} = telephone();
     const named = (name) => set.getObjectByName(`telephone_${name}`);
     const body = named("base").geometry.attributes.position;
     const points = Array.from({length: body.count}, (_, index) => new THREE.Vector3().fromBufferAttribute(body, index));
     const {base} = TELEPHONE;
     // wider at the floor than at the top
     const across = (low, high) => Math.max(...points.filter((point) => point.y >= low && point.y <= high).map((point) => Math.abs(point.x)));
-    expect(across(-0.01, 0.05)).toBeGreaterThan(across(base.height - 0.05, base.height + 0.2) + 0.15);
+    expect(across(base.height - 0.05, base.height + 0.3)).toBeLessThan(across(-0.01, 0.05) * 0.88);
     // the front face slopes back: its foot well forward of its brow
     const forward = (low, high) => Math.max(...points.filter((point) => point.y >= low && point.y <= high).map((point) => point.z));
-    expect(forward(-0.01, 0.05)).toBeGreaterThan(forward(base.brow[1] - 0.02, base.brow[1] + 0.02) + 0.3);
+    expect(forward(-0.01, 0.05)).toBeGreaterThan(forward(base.brow[1] - 0.02, base.brow[1] + 0.02) + 0.2);
     // round over the top: between the brow and the top's flat, heights between the two
     expect(points.some((point) => point.y > base.brow[1] + 0.03 && point.y < base.height - 0.02 && point.z > base.brow[0] - 0.2)).toBe(true);
     // the dial set in that face, facing out of it, forward and up
@@ -147,19 +153,55 @@ test("the set has the classic desk shape: wider at the floor, its front face slo
     expect(facing.y).toBeGreaterThan(0.4);
     // two prongs on top; the handset rests above them, longer than the top is wide, so its ear and mouth pieces hang past its sides
     for (const sign of [1, -1]) expect(named(`prong_${sign}`).position.y).toBeGreaterThan(base.height - 0.05);
-    expect(TELEPHONE.handset.length / 2).toBeGreaterThan(across(base.height - 0.05, base.height + 0.2) + TELEPHONE.handset.cup[1] / 2);
+    expect(TELEPHONE.handset.length / 2).toBeGreaterThan(across(base.height - 0.05, base.height + 0.3) + TELEPHONE.handset.cup[1] / 2);
     expect(handset.getObjectByName("telephone_handset_ear_piece")).toBeTruthy();
     expect(handset.getObjectByName("telephone_handset_mouth_piece")).toBeTruthy();
 });
 
 test("the handset rests on its cradle a moment before it is taken up and again after it is put down, the set standing whole", () => {
-    for (const u of [act.appears[1] + 0.01, act.reach[0] - 0.01, act.hang[1] + 0.02, act.goes[0] - 0.01]) {
+    const {set} = telephone();
+    const prong = set.getObjectByName("telephone_prong_1");
+    const cradle = prong.position.y + TELEPHONE.cradle.height / 2;
+    for (const u of [act.settle[1] + 0.005, act.reach[0] - 0.005, act.hang[1] + 0.02, act.goes[0] - 0.01]) {
         const {pose} = posed(u);
         const resting = pose.props.get("telephone_handset");
         expect(resting.bone, `${u}`).toBe("root");
-        expect(pose.props.get("telephone").size, `${u}`).toBe(1);
-        // on the cradle: where the set's own cradle holds it, the set and the handset lowered alike by any bend
-        const set = pose.props.get("telephone").at;
-        expect(resting.at.z - set.z, `${u}`).toBeCloseTo(TELEPHONE.base.height + TELEPHONE.cradle.height + TELEPHONE.handset.rest, 1);
+        expect(pose.props.get("telephone").squash, `${u}`).toBe(0);
+        // on the cradle: the handset's middle just over the prongs' tops, the set and the handset lowered alike by any bend
+        const at = pose.props.get("telephone").at;
+        expect(resting.at.z - at.z - cradle, `${u}`).toBeGreaterThan(0);
+        expect(resting.at.z - at.z - cradle, `${u}`).toBeLessThan(TELEPHONE.handset.grip * 2);
     }
+});
+
+test("the telephone comes whole, never growing or fading in: out of a poof a little above the floor, it drops onto it and settles with a squash and wobble, and goes in a poof", () => {
+    // whole from the first frame, above the floor, in the burst of a poof
+    const first = phoneArrival(0);
+    expect(first).toMatchObject({here: true, squash: 0});
+    expect(first.above).toBeGreaterThan(0.3);
+    expect(first.puff).toBeGreaterThan(0);
+    const {pose} = posed(0);
+    expect(pose.props.get("telephone")).toMatchObject({squash: 0});
+    expect(pose.props.get("telephone").size).toBeUndefined();
+    expect(pose.props.get("telephone_poof")).toBeTruthy();
+    // its body at full size as it arrives: the shape it is drawn with leaves it unscaled
+    const {set} = telephone();
+    set.userData.shape({squash: first.squash, dial: 0});
+    expect(set.children[0].scale.toArray()).toEqual([1, 1, 1]);
+    // it falls, gathering speed, onto the floor
+    const heights = Array.from({length: 41}, (_, index) => phoneArrival(act.drop[0] + ((act.drop[1] - act.drop[0]) * index) / 40).above);
+    for (let index = 1; index < heights.length; index++) expect(heights[index]).toBeLessThanOrEqual(heights[index - 1]);
+    expect(heights[20] - heights[40]).toBeGreaterThan(heights[0] - heights[20]);
+    expect(phoneArrival(act.drop[1]).above).toBe(0);
+    // it lands squashed, wobbles both ways, smaller each time, and is still by the time it is reached for
+    const squashes = Array.from({length: 101}, (_, index) => phoneArrival(act.settle[0] + ((act.settle[1] - act.settle[0]) * index) / 100).squash);
+    expect(Math.max(...squashes)).toBeGreaterThan(0.08);
+    expect(Math.min(...squashes)).toBeLessThan(-0.01);
+    expect(Math.abs(squashes[80])).toBeLessThan(Math.max(...squashes) / 3);
+    expect(phoneArrival(act.reach[0]).squash).toBe(0);
+    expect(phoneArrival(act.reach[0]).above).toBe(0);
+    // it goes in the middle of a poof at the end
+    expect(phoneArrival((act.goes[0] + act.goes[1]) / 2 - 0.005).here).toBe(true);
+    expect(phoneArrival((act.goes[0] + act.goes[1]) / 2 + 0.005).here).toBe(false);
+    expect(phoneArrival((act.goes[0] + act.goes[1]) / 2).puff).toBeGreaterThan(0.3);
 });

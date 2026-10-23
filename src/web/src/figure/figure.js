@@ -2057,12 +2057,16 @@ function dialFrame() {
     const {base} = TELEPHONE;
     const [foot, brow] = [[base.depth / 2, 0], base.brow];
     const out = new THREE.Vector2(brow[1], foot[0] - brow[0]).normalize();
-    const middle = new THREE.Vector3(0, (foot[1] + brow[1]) / 2, (foot[0] + brow[0]) / 2);
+    const middle = new THREE.Vector3(0, (foot[1] + brow[1]) / 2, (foot[0] + brow[0]) / 2).add(new THREE.Vector3(0, out.y, out.x).multiplyScalar(bulge()));
     return new THREE.Matrix4().compose(middle, new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.atan2(out.x, out.y), 0, 0)), new THREE.Vector3(1, 1, 1));
 }
 
+// how far the body's rounding swells out of its side outline, and how high its domed top is `across` from the middle
+const bulge = () => TELEPHONE.base.round * 0.8;
+const crownAt = (across) => TELEPHONE.base.height + bulge() + TELEPHONE.base.dome * Math.max(1 - (across / (TELEPHONE.base.width / 2)) ** 2, 0);
+
 // where the handset's middle rests across the cradle's prongs, in the figure's axes against the telephone
-const cradled = () => fromSet(new THREE.Vector3(0, TELEPHONE.base.height + TELEPHONE.cradle.height + TELEPHONE.handset.rest, TELEPHONE.cradle.at));
+const cradled = () => fromSet(new THREE.Vector3(0, crownAt(TELEPHONE.cradle.apart) + TELEPHONE.cradle.height + TELEPHONE.handset.rest, TELEPHONE.cradle.at));
 
 // a point `turned` degrees round the dial from its first hole, on the ring of holes, just over the dial's face, in the figure's axes
 // against the telephone
@@ -2081,6 +2085,25 @@ function handsetAtEar(side) {
     const basis = new THREE.Matrix4().makeBasis(along, outward.clone().cross(along), outward);
     const turn = new THREE.Euler().setFromRotationMatrix(basis, "ZYX");
     return {along, turn: {x: THREE.MathUtils.radToDeg(turn.x), y: THREE.MathUtils.radToDeg(turn.y), z: THREE.MathUtils.radToDeg(turn.z)}};
+}
+
+// The telephone's way in and out at `u` of the call (acts.js phone_call): whether it is there, how far above the floor it is drawn and how it
+// squashes, and how far through a poof of smoke it is at its place, if one bursts. It is there whole from the first frame, `above` the
+// floor in the burst of its poof; it drops onto the floor over `drop`, gathering speed, and settles over `settle`, squashing `squash` flat
+// as it lands and wobbling `wobbles` times smaller each time to still; it goes in the middle of the poof it leaves in, over `goes`
+export function phoneArrival(u) {
+    const act = ACTS.phone_call;
+    const fell = span(u, ...act.drop);
+    const settling = span(u, ...act.settle);
+    const wobble = settling > 0 && settling < 1 ? Math.sin(Math.PI * act.wobbles * settling) * (1 - settling) ** 2 : 0;
+    const leaving = span(u, ...act.goes);
+    const arriving = span(u, ...act.poof);
+    return {
+        here: leaving < 0.5,
+        above: act.above * (1 - fell * fell),
+        squash: act.squash * wobble,
+        puff: u >= act.goes[0] ? leaving : arriving < 1 ? 0.3 + 0.7 * arriving : null,
+    };
 }
 
 // A call on an old desk telephone that appears on the floor before it: it bends and lifts the handset to its ear with its free hand, bends
@@ -2122,15 +2145,27 @@ function phone_call(pose, stance, t) {
     const finger = partOf(u, act.finger) * (1 - partOf(u, act.back));
     const hole = onPhone(dialHole(act.turn * partOf(u, act.dial))).add(new THREE.Vector3(...CALL.wrist));
     handTo(pose, dialler, finger, pose.withinReach(dialler, hole, 0.97), new THREE.Vector3(-1, 0.2, -0.6));
-    const size = partOf(u, act.appears) * (1 - partOf(u, act.goes));
-    pose.standProp("telephone", onPhone(new THREE.Vector3(), down), {x: TELEPHONE.tip});
-    Object.assign(pose.props.get("telephone"), {size, dial: turned});
-    Object.assign(pose.props.get("telephone_handset"), {size});
+    eyesAs(pose, "amused", talking > 0 && talking < 1 ? 1 : 0);
+    // the telephone: whole from the first frame, dropping in out of its poof and settling, gone in the poof it leaves in
+    const arrival = phoneArrival(u);
+    const poof = arrival.puff ?? 0;
+    if (poof > 0 && poof < 1) {
+        pose.standProp("telephone_poof", onPhone(new THREE.Vector3(0, 0, TELEPHONE.base.height / 2 + (u < act.goes[0] ? act.above : 0)), down));
+        Object.assign(pose.props.get("telephone_poof"), {puff: poof});
+    }
+    if (!arrival.here) {
+        pose.props.delete("telephone_handset");
+        return;
+    }
+    const lift = new THREE.Vector3(0, 0, arrival.above);
+    pose.standProp("telephone", onPhone(new THREE.Vector3(), down).add(lift), {x: TELEPHONE.tip});
+    Object.assign(pose.props.get("telephone"), {squash: arrival.squash, dial: turned});
+    if (!inHand) pose.props.get("telephone_handset").at.add(lift).add(new THREE.Vector3(0, 0, -arrival.squash * cradled().z));
     // the cord, from the base's side to the mouthpiece, against the root
     pose.standProp("telephone_cord", [0, 0, down]);
     const root = new THREE.Vector3(0, 0, -down);
-    Object.assign(pose.props.get("telephone_cord"), {size, from: onPhone(new THREE.Vector3(-SIDES[side] * TELEPHONE.base.width * 0.4, 0.25, TELEPHONE.base.height * 0.3)).sub(root), to: mouth.sub(root)});
-    eyesAs(pose, "amused", talking > 0 && talking < 1 ? 1 : 0);
+    const end = inHand ? mouth : mouth.add(lift);
+    Object.assign(pose.props.get("telephone_cord"), {from: onPhone(new THREE.Vector3(-SIDES[side] * TELEPHONE.base.width * 0.4, 0.25, TELEPHONE.base.height * 0.3)).add(lift).sub(root), to: end.sub(root)});
 }
 
 // raises a sign with a question mark on a stick high over its head and waggles it
@@ -3185,30 +3220,32 @@ function propsOf() {
     const wipe = group("polishing_cloth");
     part(wipe, "fold", new THREE.BoxGeometry(cloth.width, cloth.thickness, cloth.depth), colours.white);
     reactionPropsOf(group, part);
-    telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"));
+    telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"), group("telephone_poof"));
     return props;
 }
 
 // An old rotary desk telephone, drawn a size too large for the figure so it plainly reads as one: its place on the floor across and forward
-// of the feet, tipped `tip` degrees toward the viewer. Its body, seen from the side, stands `height` high and `depth` deep: its front face
-// slopes back from the floor at the front up to its brow, `brow` (forward of the middle and up), with the dial set in it, its top runs
-// back from there and its back comes down to the floor, every top edge rounded by `round`; it is `width` across at the floor and
-// `narrow` of that narrower at the top. The dial is `radius` round on a face `face` thick, its wheel's `holes` finger holes `hole` round on
+// of the feet, tipped `tip` degrees toward the viewer, with a footprint near square. Its body, seen from the side, stands `height` high and
+// `depth` deep: its front face slopes back from the floor at the front up to its brow, `brow` (forward of the middle and up), with the dial
+// set in it, its top runs back from there and its back comes down to the floor, every edge rounded by `round` and its top domed `dome`
+// higher in the middle; it is `width` across at the floor and `narrow` of that narrower at the top. The dial is `radius` round on a face `face` thick, its wheel's `holes` finger holes `hole` round on
 // a ring `ring` from the middle, the first `first` degrees round from the right and the rest `spread` degrees on, a label in the middle
 // and a finger stop past the last. On top, `at` back of the middle, two prongs `apart` from the middle and `height` high, each with a
 // saddle for the handle. The handset is a curved horn `length` long, its handle `grip` thick bending down `drop` at its ends into an
 // ear piece and a mouth piece, cups `cup` (top and mouth radius, height) flared out, its mouths down; it rests `rest` over the prongs,
-// across the top with its cups hanging past the sides. The cord is `cord` thick in `coils` turns `coil` round. Each part is shaded and
+// across the top with its cups hanging past the sides. The cord is `cord` thick in `coils` turns `coil` round. The poof it comes and goes in
+// is `puffs` puffs of smoke `puff` round, bursting out from `from` to `to` of the figure's units about its middle. Each part is shaded and
 // outlined as the figure is, never flat.
 export const TELEPHONE = {
-    at: [0, -1.0],
+    at: [0, -0.92],
     tip: 10,
-    base: {width: 1.75, narrow: 0.24, depth: 1.15, height: 0.62, brow: [0.12, 0.5], round: 0.1},
-    dial: {radius: 0.29, face: 0.05, holes: 10, hole: 0.045, ring: 0.2, first: 60, spread: 290, label: 0.09},
-    cradle: {at: -0.14, apart: 0.42, post: 0.065, height: 0.2},
-    handset: {length: 1.7, grip: 0.09, drop: 0.14, cup: [0.1, 0.22, 0.2], rest: 0.07},
-    cord: 0.025, coils: 16, coil: 0.06,
-    colours: {body: 0xa8322d, face: 0xf3eedf, wheel: 0xc9ccd4, hole: 0x2b2e38, label: 0xf4f2ed},
+    base: {width: 1.2, narrow: 0.2, depth: 0.8, height: 0.46, brow: [0.12, 0.36], round: 0.16, dome: 0.06},
+    dial: {radius: 0.235, face: 0.045, holes: 10, hole: 0.036, ring: 0.16, first: 60, spread: 290, label: 0.075},
+    cradle: {at: -0.12, apart: 0.3, post: 0.055, height: 0.15},
+    handset: {length: 1.28, grip: 0.08, drop: 0.12, cup: [0.085, 0.17, 0.16], rest: 0.06},
+    cord: 0.022, coils: 14, coil: 0.05,
+    poof: {puffs: 11, puff: 0.24, from: 0.5, to: 0.95},
+    colours: {body: 0xa8322d, face: 0xf3eedf, wheel: 0xc9ccd4, hole: 0x2b2e38, label: 0xf4f2ed, smoke: 0xe6e3ee},
 };
 
 // a part shaded and outlined as the figure's own are (flatMaterial, outlineMaterial), for a prop that should read as solid
@@ -3228,28 +3265,35 @@ function shadedPart(root, name, geometry, colour, at = [0, 0, 0]) {
 // the telephone's body as one solid in its own axes (TELEPHONE base): its side's outline, the front sloping back to the brow, round over
 // the top and down the back, drawn out across its width with rounded sides, and narrowed toward the top
 function bodyGeometry() {
-    const {width, narrow, depth, height, brow, round} = TELEPHONE.base;
+    const {width, narrow, depth, height, brow, round, dome} = TELEPHONE.base;
     const side = new THREE.Shape();
-    side.moveTo(-depth / 2, 0);
-    side.lineTo(depth / 2, 0);
-    side.lineTo(brow[0], brow[1]);
-    side.quadraticCurveTo(brow[0] - round * 0.6, height, brow[0] - round * 2, height);
-    side.lineTo(-depth / 2 + round * 2.2, height);
-    side.quadraticCurveTo(-depth / 2 + round * 0.6, height, -depth / 2 + round * 0.4, height - round * 1.6);
-    side.closePath();
+    side.moveTo(-depth / 2 + round * 0.5, 0);
+    side.lineTo(depth / 2 - round * 0.5, 0);
+    side.quadraticCurveTo(depth / 2, 0, depth / 2 - round * 0.2, round * 0.5);
+    side.lineTo(brow[0] + round * 0.3, brow[1] - round * 0.4);
+    side.quadraticCurveTo(brow[0] - round * 0.2, height, brow[0] - round * 1.6, height);
+    side.lineTo(-depth / 2 + round * 1.8, height);
+    side.quadraticCurveTo(-depth / 2 + round * 0.1, height, -depth / 2 + round * 0.1, height - round * 1.6);
+    side.lineTo(-depth / 2, round * 0.5);
+    side.quadraticCurveTo(-depth / 2, 0, -depth / 2 + round * 0.5, 0);
     const across = width - 2 * round;
-    const solid = new THREE.ExtrudeGeometry(side, {depth: across, bevelEnabled: true, bevelThickness: round, bevelSize: round * 0.6, bevelSegments: 4, curveSegments: 10});
+    const solid = new THREE.ExtrudeGeometry(side, {depth: across, bevelEnabled: true, bevelThickness: round, bevelSize: bulge(), bevelSegments: 6, curveSegments: 12});
     solid.rotateY(-Math.PI / 2).translate(across / 2, 0, 0);
     const position = solid.attributes.position;
-    for (let index = 0; index < position.count; index++) position.setX(index, position.getX(index) * (1 - (narrow * Math.max(position.getY(index), 0)) / height));
+    for (let index = 0; index < position.count; index++) {
+        const [x, y] = [position.getX(index), Math.max(position.getY(index), 0)];
+        position.setX(index, x * (1 - (narrow * y) / height));
+        position.setY(index, position.getY(index) + dome * (y / height) ** 2 * Math.max(1 - (x / (width / 2)) ** 2, 0));
+    }
     solid.computeVertexNormals();
     return solid;
 }
 
 // The telephone's base, dial and cradle in `set`, standing up its y axis with its front toward the viewer (+z), its handset in `handset`,
 // its middle at the origin and its cups' mouths down, and its cord in `cord`, coiled from its shape's `from` to its `to` (in the figure's
-// own axes, against the root); each grows from nothing to its size as its shape's `size` says, and the dial's wheel turns `dial` degrees
-export function telephoneOf(set, handset, cord) {
+// own axes, against the root), and the poof it comes and goes in in `poof`, bursting as its shape's `puff` goes from 0 to 1. The body
+// squashes as its shape's `squash` says, flatter and wider for more, and the dial's wheel turns `dial` degrees
+export function telephoneOf(set, handset, cord, poof) {
     const {base, dial, cradle, colours} = TELEPHONE;
     const body = new THREE.Group();
     body.name = set.name;
@@ -3274,8 +3318,8 @@ export function telephoneOf(set, handset, cord) {
     const stop = radians(dial.first + dial.spread + 22);
     shadedPart(face, "dial_stop", new THREE.BoxGeometry(0.04, dial.face * 2.2, 0.1), colours.wheel, [Math.cos(stop) * (dial.radius - 0.02), dial.face * 1.2, -Math.sin(stop) * (dial.radius - 0.02)]);
     for (const sign of [1, -1]) {
-        const top = base.height + cradle.height;
-        shadedPart(body, `prong_${sign}`, new THREE.CylinderGeometry(cradle.post, cradle.post * 1.4, cradle.height, 12), colours.body, [sign * cradle.apart, base.height + cradle.height / 2 - 0.02, cradle.at]);
+        const top = crownAt(cradle.apart) + cradle.height;
+        shadedPart(body, `prong_${sign}`, new THREE.CylinderGeometry(cradle.post, cradle.post * 1.4, cradle.height + 0.04, 12), colours.body, [sign * cradle.apart, top - cradle.height / 2 - 0.02, cradle.at]);
         const saddle = shadedPart(body, `saddle_${sign}`, new THREE.TorusGeometry(TELEPHONE.handset.grip * 1.1, cradle.post * 0.45, 8, 14, Math.PI), colours.body, [sign * cradle.apart, top + TELEPHONE.handset.grip * 0.4, cradle.at]);
         saddle.rotation.set(0, Math.PI / 2, Math.PI);
     }
@@ -3294,22 +3338,31 @@ export function telephoneOf(set, handset, cord) {
         shadedPart(piece, `${name}_piece`, new THREE.CylinderGeometry(cup[0], cup[1], cup[2], 20), colours.body, [0, -cup[2] / 2 + 0.03, 0]);
         shadedPart(piece, `${name}_grille`, new THREE.CylinderGeometry(cup[1] * (name === "ear" ? 0.62 : 0.5), cup[1] * (name === "ear" ? 0.62 : 0.5), 0.03, 20), colours.hole, [0, -cup[2] + 0.025, 0]);
     }
-    set.userData.shape = ({size, dial: turned}) => {
-        body.scale.setScalar(Math.max(size, 1e-3));
+    set.userData.shape = ({squash, dial: turned}) => {
+        body.scale.set(1 + squash / 2, 1 - squash, 1 + squash / 2);
         wheel.rotation.y = radians(turned);
     };
-    handset.userData.shape = ({size}) => held.scale.setScalar(Math.max(size, 1e-3));
-    const coiled = shadedPart(cord, "cord", cordGeometry(new THREE.Vector3(), new THREE.Vector3(1, 0, 0), 1), colours.body);
-    cord.userData.shape = ({size, from, to}) => {
+    const coiled = shadedPart(cord, "cord", cordGeometry(new THREE.Vector3(), new THREE.Vector3(1, 0, 0)), colours.body);
+    cord.userData.shape = ({from, to}) => {
         coiled.geometry.dispose();
-        coiled.geometry = coiled.children[0].geometry = cordGeometry(from, to, size);
+        coiled.geometry = coiled.children[0].geometry = cordGeometry(from, to);
         addHullNormals(coiled.geometry);
+    };
+    const {puffs, puff, from, to} = TELEPHONE.poof;
+    const smoke = Array.from({length: puffs}, (_, index) => shadedPart(poof, `puff_${index}`, new THREE.IcosahedronGeometry(puff * (0.75 + 0.5 * ((index * 7) % 5) / 4), 1), colours.smoke));
+    poof.userData.shape = ({puff: k}) => {
+        smoke.forEach((each, index) => {
+            const angle = (2 * Math.PI * index) / puffs;
+            const out = from + (to - from) * Math.sqrt(k);
+            each.position.set(Math.cos(angle) * out, Math.sin(angle * 2) * out * 0.35, Math.sin(angle) * out * 0.6);
+            each.scale.setScalar(Math.max(Math.sin(Math.PI * k), 1e-3));
+        });
     };
 }
 
-// the telephone's coiled cord from `from` to `to`, points in the figure's own axes, sagging between them and wound round its path, `size`
-// of its thickness, as the prop's own geometry (z up there is y)
-function cordGeometry(from, to, size) {
+// the telephone's coiled cord from `from` to `to`, points in the figure's own axes, sagging between them and wound round its path, as the
+// prop's own geometry (z up there is y)
+function cordGeometry(from, to) {
     const {cord, coils, coil} = TELEPHONE;
     const glb = (point) => new THREE.Vector3(point.x, point.z, -point.y);
     const [a, b] = [glb(from), glb(to)];
@@ -3322,9 +3375,9 @@ function cordGeometry(from, to, size) {
         const side = new THREE.Vector3(0, 1, 0).cross(tangent).normalize();
         const up = tangent.clone().cross(side).normalize();
         const angle = 2 * Math.PI * coils * k;
-        return at.addScaledVector(side, Math.cos(angle) * coil * size).addScaledVector(up, Math.sin(angle) * coil * size);
+        return at.addScaledVector(side, Math.cos(angle) * coil).addScaledVector(up, Math.sin(angle) * coil);
     });
-    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), coils * 16, Math.max(cord * size, 1e-3), 6);
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), coils * 16, cord, 6);
 }
 
 // The things the voices bring out when the agent answers with one of their faces, sized against the figure, each standing up its y axis
