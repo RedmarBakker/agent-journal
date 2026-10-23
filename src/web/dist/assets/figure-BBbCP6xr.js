@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-Dq2iVoyg.js
-import{A as _e,p as Ve,h as ul,s as md,g as gd,a as _d,P as Hi,L as xd,b as vd,V as yd}from"./main-D_pY4qN5.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as _e,p as Ge,h as fl,s as _d,g as xd,a as vd,P as Hi,L as yd,b as Md,V as Sd}from"./main-CodXoY0w.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> a66f5a959 (Tickled by the mouse pointer moved back and forth over it, the figure swats at the pointer with one hand and then the other, giggling, its eyes squeezed shut laughing in a kawaii > <, facing the user, every time it is tickled and at once over whatever it holds; a single pass does not start it, and once the pointer leaves no other swat follows; a showpiece of the pile with no cooldown, for every avatar):src/web/dist/assets/figure-D2siSSfD.js
+import{A as _e,p as Ge,h as fl,s as _d,g as xd,a as vd,P as Hi,L as yd,b as Md,V as Sd}from"./main-9ygLzxtI.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
