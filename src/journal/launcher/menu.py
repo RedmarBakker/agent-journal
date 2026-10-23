@@ -2,20 +2,25 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypeVar
 
 from journal.support.worktree import Worktree
 from journal.launcher.support.answers import Answers
 from journal.support.choice import Choice
 from journal.support.environment_row import EnvironmentRow
+from journal.support.past_session_row import PastSessionRow
 from journal.launcher.support.option import Option
 from journal.launcher.support.foreign_hooks import ForeignHooks
 from journal.launcher.support.launcher_memory import LauncherMemory
 from journal.launcher.screen import Screen
 from journal.providers.providers import Providers
 
+SESSIONS_SHOWN = 12
+ListedRow = TypeVar("ListedRow", EnvironmentRow, PastSessionRow)
+
 
 class Menu:
-    """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, whether to carry on its last conversation, whether the agent asks before each tool, and whether the hooks that are not the journal's are set aside for the run."""
+    """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, for a new one a past conversation of the project's to carry on from, whether to carry on its last conversation, whether the agent asks before each tool, and whether the hooks that are not the journal's are set aside for the run."""
 
     def __init__(self, root: Path, journal_py: Path, screen: Screen | None = None) -> None:
         self.root, self.journal_py = root, journal_py
@@ -23,8 +28,11 @@ class Menu:
         self.remembered = LauncherMemory(root)
 
     def environments(self) -> list[EnvironmentRow]:
+        return self.listed(EnvironmentRow, "environment", "json")
+
+    def listed(self, row_type: type[ListedRow], *argv: str) -> list[ListedRow]:
         try:
-            return [EnvironmentRow.parsed(row) for row in json.loads(self.journal("environment", "json") or "[]")]
+            return [row_type.parsed(row) for row in json.loads(self.journal(*argv) or "[]")]
         except ValueError:
             return []
 
@@ -66,7 +74,23 @@ class Menu:
             return self._environment(agent, self.environments())
         if selected < len(rows):
             return rows[selected].name
-        return self.screen.ask("Name:") or "main"
+        name = self.screen.ask("Name:") or "main"
+        self._session_question(name)
+        return name
+
+    def past_sessions(self) -> list[PastSessionRow]:
+        return self.listed(PastSessionRow, "environment", "sessions")
+
+    def _session_question(self, name: str) -> None:
+        sessions = [session for session in self.past_sessions() if session.is_free()][:SESSIONS_SHOWN]
+        if not sessions:
+            return
+        options = [Option("Start fresh"), *(Option(session.label(), session.badges()) for session in sessions)]
+        notes = ["Its chat is filled from the conversation you pick, and the agent carries it on.", "Conversations already in an environment are not listed."]
+        index = self.screen.pick(f"Carry on from a past conversation in {name}?", notes, options, 0)
+        if index > 0:
+            session = sessions[index - 1]
+            self.journal("environment", "create", name, "--session", session.session, "--provider", session.provider)
 
     def _delete(self, row: EnvironmentRow) -> None:
         if row.working:

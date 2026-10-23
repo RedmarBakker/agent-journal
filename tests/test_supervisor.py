@@ -46,6 +46,21 @@ def test_the_menu_defaults_and_answers_and_remembers(tmp_path: Path, monkeypatch
     assert menu.choose("claude", environment="spike", new=True, stashed=True, omit=False, confirmed=True) == Choice("spike", "", stashed_hooks=True, prompt_flags=True)
 
 
+def test_a_new_environment_in_the_menu_may_carry_on_from_a_past_conversation_or_start_fresh(tmp_path: Path, monkeypatch):
+    calls = []
+    kept = [{"provider": "claude", "session": "old-1", "updated_at": 2.0, "first_prompt": "fix the login page", "line_count": 40, "title": "Claude Code", "environment": ""},
+            {"provider": "codex", "session": "old-2", "updated_at": 1.0, "first_prompt": "already used", "line_count": 9, "title": "Codex", "environment": "spike"}]
+    menu = menu_answering(tmp_path, monkeypatch, ["3", "login", "2", "1", "2"])
+    menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
+    assert menu.choose("claude").environment == "login"
+    assert ("environment", "create", "login", "--session", "old-1", "--provider", "claude") in calls, "the picked conversation fills the new environment"
+    calls.clear()
+    menu = menu_answering(tmp_path, monkeypatch, ["3", "fresh", "1", "1", "2"])
+    menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
+    assert menu.choose("claude").environment == "fresh"
+    assert not [call for call in calls if "--session" in call], "start fresh fills nothing"
+
+
 def test_the_hooks_question_is_asked_even_when_no_other_hooks_are_found_yet(tmp_path: Path, monkeypatch):
     menu = menu_answering(tmp_path, monkeypatch, ["", "2", "2", "1"])
     assert menu.choose("claude") == Choice("main", "", stashed_hooks=True, prompt_flags=False)

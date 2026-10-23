@@ -33,6 +33,7 @@ from journal.repositories.workers import Workers
 from journal.repositories.environment_owners import EnvironmentOwners
 from journal.sync.team_account import TeamAccount
 from journal.features.team.support.start_rule import StartRule
+from journal.features.hydration.support.session_hydration import SessionHydration
 
 TAKEOVER_WINDOW = timedelta(hours=12)
 
@@ -40,8 +41,8 @@ TAKEOVER_WINDOW = timedelta(hours=12)
 class EnvironmentCommand(Command):
     noun = "environment"
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule) -> None:
-        self.owners, self.account, self.starts = owners, account, starts
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration) -> None:
+        self.owners, self.account, self.starts, self.hydration = owners, account, starts, hydration
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
         self.memory, self.overview_commands, self.taking = memory, overview_commands, taking
@@ -50,7 +51,11 @@ class EnvironmentCommand(Command):
         self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules, facts and reminders, then each command the setting briefing.look_commands names, under its heading; owed at every session start")
         self.verb(verbs, "list", "every environment and when it was last used")
         self.verb(verbs, "json", "the same, for the boot menu")
-        self.verb(verbs, "create", "a new line of work").add_argument("name")
+        creation = self.verb(verbs, "create", "a new line of work")
+        creation.add_argument("name")
+        creation.add_argument("--session", help="a kept conversation's session to fill the new environment's chat from, as journal environment sessions lists them")
+        creation.add_argument("--provider", default="claude", help="the program that kept that session")
+        self.verb(verbs, "sessions", "the project's kept conversations a new environment can carry on from, for the boot menu")
         branch = self.verb(verbs, "branch", "record the branch an environment's worktree works on, as the launcher does when it makes one")
         branch.add_argument("name")
         branch.add_argument("branch")
@@ -134,8 +139,12 @@ class EnvironmentCommand(Command):
         return 0
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        environment = self.environments.lookup(args.name)
+        environment = self.hydration.created(args.name, args.provider, args.session, caller.actor) if args.session else self.environments.lookup(args.name)
         print(f"environment {environment.id}: {environment.name}")
+        return 0
+
+    def sessions(self, args: Namespace, caller: Caller) -> int:
+        print(json.dumps(self.hydration.past_sessions()))
         return 0
 
     def delete(self, args: Namespace, caller: Caller) -> int:

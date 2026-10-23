@@ -1,9 +1,6 @@
-from dataclasses import asdict
 
 from journal.engine.agent_launcher import AgentLauncher
 from journal.features.hydration.support.session_hydration import SessionHydration
-from journal.providers.providers import Providers
-from journal.repositories.agents import Agents
 from journal.http.controllers.controller import Controller
 from journal.http.support.request import Request
 from journal.support.response import Response
@@ -24,9 +21,9 @@ class EnvironmentController(Controller[Environment]):
     repository: Environments
 
     def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, starts: StartRule,
-                 hydration: SessionHydration, providers: Providers, agents: Agents) -> None:
+                 hydration: SessionHydration) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
-        self.owners, self.starts, self.hydration, self.providers, self.agents = owners, starts, hydration, providers, agents
+        self.owners, self.starts, self.hydration = owners, starts, hydration
 
     def rows(self) -> list[Environment]:
         return self.repository.all()
@@ -38,18 +35,11 @@ class EnvironmentController(Controller[Environment]):
         name, session = request.body.get("name", "").strip(), request.body.get("session", "")
         if not name:
             raise Rejection("an environment needs a name")
-        if session and self.repository.matching(name=name):
-            raise Rejection(f"environment {name} exists already: a session fills only a new environment's chat")
-        environment = self.repository.lookup(name)
-        if session:
-            self.hydration.hydrate(environment, request.body.get("provider", "claude"), session, request.actor)
+        environment = self.hydration.created(name, request.body.get("provider", "claude"), session, request.actor) if session else self.repository.lookup(name)
         return Response.json(environment, 201)
 
     def sessions(self, request: Request) -> Response:
-        names = {environment.row_id: environment.name for environment in self.repository.all()}
-        session_environments = {agent.session: names.get(agent.environment_id, "") for agent in self.agents.all_agents()}
-        rows = [{**asdict(conversation), "title": provider.title, "environment": session_environments.get(conversation.session, "")} for provider in self.providers.all() for conversation in provider.past_sessions(self.config.root)]
-        return Response.json(sorted(rows, key=lambda row: row["updated_at"], reverse=True))
+        return Response.json(self.hydration.past_sessions())
 
     def launch(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
