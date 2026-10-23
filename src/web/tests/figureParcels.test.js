@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, SHOVE, leanOf, lookToward} from "../src/figure/figure.js";
-import {BLINK, BUILD, CLAW, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, testRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
+import {BLINK, BUILD, CLAW, CLAW_CLEARANCE, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, testRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
 import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
@@ -275,7 +275,7 @@ test("the claw crane rolls in along the window's top, lowers its claw onto the s
     // over the stack the claw goes down on its chain until it meets the stack's top, then shuts
     const lowered = visit(CRANE.enter + CRANE.lower);
     expect(lowered.x).toBe(600);
-    expect(top + lowered.chain).toBeCloseTo(floor - stops[0].high, 6);
+    expect(top + lowered.chain).toBeCloseTo(floor - stops[0].high - CLAW_CLEARANCE, 6);
     expect(lowered.open).toBe(1);
     expect(visit(CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab).open).toBe(0);
     // it lifts the stack, ever higher, until the stack is out past the window's top
@@ -322,7 +322,7 @@ test("the crane's claw comes down around the box, its hub on the stack's top, an
     const top = 100;
     const shut = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab, floor, top, 300, 900);
     expect(shut.open).toBe(0);
-    expect(top + shut.chain).toBeCloseTo(floor - stops[0].high, 5);
+    expect(top + shut.chain).toBeCloseTo(floor - stops[0].high - CLAW_CLEARANCE, 5);
     const lifting = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift / 2, floor, top, 300, 900);
     expect(lifting.open).toBe(0);
     expect(lifting.lifted).toBeCloseTo(shut.chain - lifting.chain, 5);
@@ -459,11 +459,12 @@ test("a build command is timed from its own start, so one that ends within five 
 });
 
 test("the claw slows to a stop just over the stack with no overshoot, hovers, grips only then, and lifts after a tug", async () => {
-    const {craneAt, CRANE} = await import("../src/figure/parcels.js");
+    const {craneAt} = await import("../src/figure/parcels.js");
     const stops = [{x: 300, high: 20, ids: [1]}];
     const floor = 600;
     const top = 0;
-    const reach = floor - top - stops[0].high;
+    const reach = floor - top - stops[0].high - CLAW_CLEARANCE;
+    expect(CLAW_CLEARANCE, "the hub stops clear of the box's top").toBeGreaterThan(2);
     const at = (ms) => craneAt(stops, CRANE.enter + ms, floor, top, 0, 900);
     const lowering = Array.from({length: 23}, (_, step) => at((CRANE.lower * step) / 22).chain);
     expect(Math.max(...lowering)).toBeLessThanOrEqual(reach + 1e-9);

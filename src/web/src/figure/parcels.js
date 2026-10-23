@@ -269,8 +269,11 @@ export const CLAW = {hub: 5, side: PARCEL.width / 2 + 1.5, reach: Math.round((PA
 export const prongsOf = (open) =>
     [-1, 1].map((way) => ({way, top: way * (CLAW.side + CLAW.spread * open * 0.3), tip: way * (CLAW.side + CLAW.spread * open), reach: CLAW.reach}));
 
-// the chain a claw at the window's `top` needs to reach down onto `stop`'s stack, standing on the floor at `floor`, in pixels
-const reachOf = (stop, floor, top) => floor - top - stop.high;
+// how far above the stack's top the claw's hub stops, in pixels, so the hub stays clear of the box and only the prongs come down round it
+export const CLAW_CLEARANCE = 4;
+
+// the chain a claw at the window's `top` needs to reach down to just over `stop`'s stack, standing on the floor at `floor`, in pixels
+const reachOf = (stop, floor, top) => floor - top - stop.high - CLAW_CLEARANCE;
 
 // Where the crane is `ms` into its visit to `stops` (stopsOf, each with `high`, its stack's height), its rail along the window's top at
 // `top` over a floor at `floor`, rolling in at `from` and out at `away`, all page x: its trolley's x; its chain's length down from the rail,
