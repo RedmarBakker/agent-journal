@@ -40,10 +40,11 @@ try {
         added.dataset.ref = "messages:0";
         above.before(added);
         await measure();
-        const next = rows()[rows().indexOf(held) + 1];
-        at = next.getBoundingClientRect().top;
+        // the row read is folded away: what stays in view above it keeps its place, and what came after moves up into its room
+        const before = rows()[rows().indexOf(held) - 1];
+        at = before.getBoundingClientRect().top;
         held.remove();
-        held = next;
+        held = before;
         await measure();
         const scrollTop = box.scrollTop;
         await new Promise((done) => setTimeout(done, 6500));
