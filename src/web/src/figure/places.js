@@ -44,6 +44,7 @@ const GRIP_ASIDE = 1.25 / 5.4;
 export const POSTURES = {
     stand: {drop: 0, travels: "stand"},
     sit: {drop: SEAT_DROP, travels: "stand"},
+    lounge: {drop: SEAT_DROP, travels: "stand"},
     hang: {drop: HANG_DROP, travels: "hang"},
     walk: {drop: 0, travels: "stand"},
 };
@@ -251,25 +252,21 @@ export function cornerAt(box, side, {size}, reach = CORNER_INBOARD) {
     return {x: box.left + box.width * along + inboard * reach * size, y: box.top, face, posture: "stand"};
 }
 
-// Where a figure sits now and then at the end of an edge: turned out along the edge, its hips `SEAT_INBOARD` of its height inside the
-// corner, so its seat rests on the box and its knees reach past the end, the legs hanging past the end of the box, never over its face,
-// where it would seem to sink into the box to the knees
-const SEAT_SIDES = {
-    right: {along: 1, inboard: -1, face: 70},
-    left: {along: 0, inboard: 1, face: 290},
-};
-export const SEAT_INBOARD = 0.06;
+// Where a figure sits now and then at a corner of the edge: back from the end on the floor's top, lounging (POSTURES lounge), facing the
+// viewer with its legs straight out toward them and its hands flat behind it, its middle FEET_INBOARD inside the corner and a share more,
+// so it never seems to slide off the end
+export const SEAT_INBOARD = FEET_INBOARD + 0.12;
 
 export function seatAt(box, side, {size}) {
-    const {along, inboard, face} = SEAT_SIDES[side];
-    return {x: box.left + box.width * along + inboard * SEAT_INBOARD * size, y: box.top, face, posture: "sit"};
+    const inboard = side === "right" ? -1 : 1;
+    return {x: box.left + box.width * (side === "right" ? 1 : 0) + inboard * SEAT_INBOARD * size, y: box.top, face: 0, posture: "lounge"};
 }
 
 // Where the figure sits at home: on a corner of the edge it stands on whose seat is inside its world and hides nothing, the one nearest
 // `near`; null when neither corner holds a seat
 export function seatOf(figure, near) {
     const {element, edge} = groundEdge();
-    const seats = Object.keys(SEAT_SIDES)
+    const seats = ["left", "right"]
         .map((side) => seatAt(edge, side, figure))
         .filter((seat) => element && inWorld(seat, figure) && !hiddenAt(seat, figure));
     const away = (seat) => (near ? Math.abs(seat.x - near.x) : 0);

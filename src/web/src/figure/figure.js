@@ -530,6 +530,23 @@ function seat(pose) {
     pose.lift("root", {z: SEAT_LIFT});
 }
 
+// Lounging on a floor's top (places.js POSTURES lounge): sat on it with the legs straight out toward the viewer, the feet up, leaning
+// back on both hands set flat on the floor a little behind the hips; the floor line is LOUNGE.floor above the standing feet in the
+// figure's units, where the hips' seat meets it
+const LOUNGE = {lean: -24, feet: 18, hands: [0.62, 0.5], floor: 1.4};
+
+function loungedLegs(pose) {
+    for (const side of Object.keys(SIDES)) {
+        pose.turn(`thigh_${side}`, {x: -88});
+        pose.turn(`foot_${side}`, {x: LOUNGE.feet});
+    }
+    trunk(pose, {lean: LOUNGE.lean, nod: -LOUNGE.lean * 0.6});
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const flat = new THREE.Vector3(sign * LOUNGE.hands[0], LOUNGE.hands[1], LOUNGE.floor);
+        handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(0.6, 1, 0));
+    }
+}
+
 function seatedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
         pose.turn(`thigh_${side}`, {x: -88});
@@ -2424,17 +2441,18 @@ function wave_up(pose, stance, t) {
 
 // What a posture does to the legs of whatever clip is drawn in it: what it sets before the clip poses the body, and what it lays over the
 // legs after. Standing, the clip has the legs to itself, and so does a clip that poses its own `legs`, as the push walks on bent knees.
-const LEGS = {
+export const LEGS = {
     sit: {under: seat, over: seatedLegs},
+    lounge: {under: seat, over: loungedLegs},
     walk: {under: strideUnder, over: strideLegs},
 };
 
-// The postures a clip is drawn in: a gesture standing, seated on an edge or on the move, its legs laid by the posture; a move of the whole
+// The postures a clip is drawn in: a gesture standing, seated on an edge, lounging on a floor's top or on the move, its legs laid by the posture; a move of the whole
 // body on its feet alone; a hang from its hands alone; and the laptop only on a lap
-const GESTURE = ["stand", "sit", "walk"];
+const GESTURE = ["stand", "sit", "lounge", "walk"];
 const MOVE = ["stand"];
 const HANGING = ["hang"];
-const ON_A_LAP = ["sit"];
+const ON_A_LAP = ["sit", "lounge"];
 
 // Every clip plays out before another starts, so the figure never reads as cut off: one that plays once to its end, a loop to the end of
 // its cycle or of the stretch it names as `leaves`. An `interruptible` clip gives way the moment something else is wanted instead, as the

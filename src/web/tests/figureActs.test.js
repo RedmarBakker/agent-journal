@@ -252,18 +252,31 @@ test("eager, the figure's eyes are sparkling stars from the first frames until i
 });
 
 const {SEAT_INBOARD, seatAt} = await import("../src/figure/places.js");
+const {LEGS} = await import("../src/figure/figure.js");
 
-test("sitting on a corner the figure sits just inside it, toward the inside of the edge, its seat on the box and its knees past the end", () => {
+test("at a corner the figure lounges back from the end on the top, facing the viewer, legs straight out and hands flat on the floor behind", () => {
     const box = {left: 100, width: 400, top: 300};
     const figure = {size: 112};
     const right = seatAt(box, "right", figure);
     const left = seatAt(box, "left", figure);
     expect([right.x, left.x]).toEqual([500 - SEAT_INBOARD * 112, 100 + SEAT_INBOARD * 112]);
-    // the knees, a seated thigh's length out along the edge it faces, reach past the end, so the legs never hang over the box's face
-    const thigh = (1.35 - 0.79) * (112 / 5.4) * Math.sin((70 * Math.PI) / 180);
-    expect(SEAT_INBOARD * 112).toBeLessThan(thigh);
-    expect(SEAT_INBOARD * 112).toBeGreaterThan(0.04 * 112);
-    expect([right.face, left.face, right.posture]).toEqual([70, 290, "sit"]);
+    expect([right.face, left.face, right.posture]).toEqual([0, 0, "lounge"]);
+    for (const voice of Object.keys(stances)) {
+        const pose = new Posing(RIG, "lounge", 0);
+        LEGS.lounge.under(pose);
+        clipNamed("idle").pose(pose, stanceOf(voice), 0);
+        LEGS.lounge.over(pose);
+        const moves = pose.moves(0);
+        const at = (bone) => pose.head(bone, moves.get(bone));
+        for (const side of ["l", "r"]) {
+            if (!stanceOf(voice).free.has(side)) continue;
+            // the feet out ahead of the hips toward the viewer and up level with them, the hands behind the hips and down at the floor line
+            expect(at(`foot_${side}`).y, `${voice} foot`).toBeLessThan(at(`thigh_${side}`).y - 0.6);
+            expect(Math.abs(at(`foot_${side}`).z - at(`thigh_${side}`).z), `${voice} foot level`).toBeLessThan(0.45);
+            expect(at(`hand_${side}`).y, `${voice} hand`).toBeGreaterThan(at(`thigh_${side}`).y);
+            expect(at(`hand_${side}`).z, `${voice} hand low`).toBeLessThan(at(`thigh_${side}`).z + 0.35);
+        }
+    }
 });
 
 const {SPELL, spellFor, spellIn} = await import("../src/figure/reactions.js");
@@ -462,4 +475,14 @@ test("the swat goes on for as long as the pointer keeps tickling, past one play 
     expect(held.length).toBeGreaterThan(10);
     expect(held.every(Boolean)).toBe(true);
     expect(tickling(pointer, last + TICKLE.lingers + 1)).toBe(false);
+});
+
+test("a move that overshoots the figure still tickles it: the pointer counts within its reach round the body, and nowhere further", async () => {
+    const {TICKLE, nearBody} = await import("../src/figure/tickle.js");
+    const body = {left: 100, right: 160, top: 200, bottom: 300};
+    expect(nearBody(body, 130, 250)).toBe(true);
+    expect(nearBody(body, 160 + TICKLE.reach - 1, 250)).toBe(true);
+    expect(nearBody(body, 100 - TICKLE.reach + 1, 199)).toBe(true);
+    expect(nearBody(body, 160 + TICKLE.reach + 1, 250)).toBe(false);
+    expect(TICKLE.reach).toBeGreaterThanOrEqual(30);
 });

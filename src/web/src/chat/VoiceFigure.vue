@@ -50,7 +50,7 @@ import FlyingSaucer from "./FlyingSaucer.vue";
 import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, spellFor, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
-import {UNTICKLED, movedTo, tickling} from "../figure/tickle.js";
+import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
 import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
 import {cutsAfter} from "../figure/pile.js";
 import {
@@ -1000,22 +1000,18 @@ const onType = (event) => {
 };
 
 // what the figure does about a moment, as reactions.js answerTo decides: a beat the body plays, or a look the eyes take on
-// The mouse pointer over the figure (figure/tickle.js): moved back and forth it tickles the figure, which swats at it, aiming each swat at
-// where the pointer is, and keeps swatting for as long as the tickling goes on; once the pointer leaves or stops, the swat on screen plays
-// out and no other follows
+// The mouse pointer over the figure or near it (figure/tickle.js): moved back and forth it tickles the figure, which swats at it, aiming
+// each swat at where the pointer is, and keeps swatting for as long as the tickling goes on; a move that overshoots the figure still counts,
+// and one far from it is not heard at all, so the tickle ends only once the pointer has stopped or gone a while
+const bodyArea = ref(null);
 let pointer = UNTICKLED;
 let pointerAt = null;
-function tickledBy(event) {
+function pointerMoved(event) {
+    const area = bodyArea.value?.getBoundingClientRect();
+    if (!area || !nearBody(area, event.clientX, event.clientY)) return;
     pointer = movedTo(pointer, event.clientX, performance.now());
     pointerAt = {x: event.clientX, y: event.clientY};
     if (tickling(pointer, performance.now()) && !beats.value.some((beat) => beat.clip === "tickle_swat")) react({beat: "tickled", time: now.value});
-}
-
-function untickled() {
-    pointer = UNTICKLED;
-    pointerAt = null;
-    const swatting = playing.shown?.clip.name === "tickle_swat";
-    beats.value = beats.value.filter((beat, index) => beat.clip !== "tickle_swat" || (index === 0 && swatting));
 }
 
 // the moments answered before any beat already waiting: a stumble on a long walk, and a tickle, which the figure swats at at once
@@ -1115,6 +1111,7 @@ onMounted(() => {
     document.addEventListener("visibilitychange", seen);
     document.addEventListener("input", onType, true);
     window.addEventListener("resize", look);
+    window.addEventListener("mousemove", pointerMoved, {passive: true});
     load(voice.value);
 });
 onUnmounted(() => {
@@ -1125,6 +1122,7 @@ onUnmounted(() => {
     document.removeEventListener("visibilitychange", seen);
     document.removeEventListener("input", onType, true);
     window.removeEventListener("resize", look);
+    window.removeEventListener("mousemove", pointerMoved);
 });
 
 // the mark the clip on screen draws drifting up from the head in this frame (figure.js CLIPS marks), or ""
@@ -1203,7 +1201,7 @@ const style = computed(() => {
         :data-trip="body.trip ? (body.trip.started ? 'walking' : 'waiting to set off') : body.arriving ? 'arriving' : ''"
         :data-clip="shownClip?.name"
     >
-        <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" @mousemove="tickledBy" @mouseleave="untickled" />
+        <div class="voice-figure-body" :style="bodyStyle" @mousedown.prevent @click="clicked" ref="bodyArea" />
         <div :class="['voice-figure-actor', moved, {chasing}]" :style="actorStyle" @animationend="squashed">
             <canvas ref="canvas" class="voice-figure-canvas" :style="passing || hidesBelowFloor(acting?.name) ? {clipPath: `inset(0 0 ${below * 100}% 0)`} : null" />
             <template v-if="halo">

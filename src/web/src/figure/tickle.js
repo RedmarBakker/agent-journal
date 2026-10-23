@@ -1,6 +1,11 @@
-// The mouse pointer tickling the figure: moved back and forth over it, turning `turns` times within `within` milliseconds, each move at
-// least `least` pixels across to count, and kept up while the next move comes within `lingers` milliseconds of the last
-export const TICKLE = {turns: 3, within: 1500, least: 6, lingers: 500};
+// The mouse pointer tickling the figure: moved back and forth over it or within `reach` pixels round its body, so a move may overshoot it,
+// turning `turns` times within `within` milliseconds, each move at least `least` pixels across to count, and kept up while the next move
+// comes within `lingers` milliseconds of the last, wherever the pointer went meanwhile
+export const TICKLE = {turns: 3, within: 1500, least: 6, lingers: 500, reach: 40};
+
+// whether the pointer at `x`, `y` on the page is over the figure's body `box` or within TICKLE.reach of it
+export const nearBody = (box, x, y) =>
+    x >= box.left - TICKLE.reach && x <= box.right + TICKLE.reach && y >= box.top - TICKLE.reach && y <= box.bottom + TICKLE.reach;
 
 // the pointer as it was before any move over the figure: where across it last was, the way it went, 1 right or -1 left, the times it
 // turned back and when it last moved

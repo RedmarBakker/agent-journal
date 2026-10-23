@@ -65,7 +65,7 @@ test("the figure builds a parcel only for a test run or a build, types at its la
         expect(clip({tool: "Bash", tool_work: work}), work).not.toBe("work");
         expect(clip({tool: "Bash", tool_work: work}), work).not.toBe("type");
     }
-    expect(CLIPS.find((each) => each.name === "type").postures).toEqual(["sit"]);
+    expect(CLIPS.find((each) => each.name === "type").postures).toEqual(["sit", "lounge"]);
 });
 
 test("a stopped, paused or compacting agent keeps its figure, plainly not working; absence is never a state", () => {
