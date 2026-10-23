@@ -46,6 +46,7 @@ def start_block(briefing: BriefingData, source: str) -> list[Nudge]:
         (briefing.rules, lambda: feature.ACTIVE_RULES.create(count=briefing.rules_count, rows=briefing.rules)),
         (briefing.facts, lambda: feature.ENVIRONMENT_FACTS.create(rows=briefing.facts)),
         (briefing.reminders, lambda: feature.ENVIRONMENT_REMINDERS.create(rows=briefing.reminders)),
+        (briefing.interrupted_runs, lambda: feature.INTERRUPTED_RUNS.create(rows=briefing.interrupted_runs)),
         (briefing.waiting, lambda: feature.PENDING_ITEMS.create(rows=briefing.waiting)),
     )
     return [feature.JOURNAL_READY.create(env=briefing.environment), feature.JOURNAL_DISCRETION.create(), feature.JOURNAL_LAWS.create(), *(line() for matched, line in optional if matched)]

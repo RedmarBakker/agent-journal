@@ -5,6 +5,7 @@ from journal.models.environment import Environment
 from journal.models.message import Message
 from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
+from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.facts import Facts
 from journal.repositories.messages import Messages
 from journal.repositories.questions import Questions
@@ -17,11 +18,15 @@ HISTORY_MESSAGES = 10
 HISTORY_CHARACTERS = 200
 
 
+INTERRUPTION_WINDOW = timedelta(minutes=30)
+
+
 class StartLines:
     """What the start block names, worked out here once: when another session worked here lately, the rules, facts and reminders numbered, what waits, and in the Team chat its last ten messages and answers, each cut to 200 characters, so an agent on a machine that claimed it picks up from them; the briefing conduct says the block from the feature data that carries them."""
 
-    def __init__(self, agents: Agents, rules: Rules, facts: Facts, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions) -> None:
+    def __init__(self, agents: Agents, rules: Rules, facts: Facts, reminders: Reminders, tasks: Tasks, messages: Messages, questions: Questions, outputs: CommandOutputs) -> None:
         self.agents, self.rules, self.facts, self.reminders = agents, rules, facts, reminders
+        self.outputs = outputs
         self.tasks, self.messages, self.questions = tasks, messages, questions
 
     def takeover_note(self, event: SessionStarted) -> str:
@@ -56,3 +61,7 @@ class StartLines:
     @staticmethod
     def numbered(texts) -> str:
         return "; ".join(f"{n}. {text}" for n, text in enumerate(texts, 1))
+
+    def interrupted_runs(self) -> str:
+        cutoff_at = datetime.now(timezone.utc) - INTERRUPTION_WINDOW
+        return "; ".join(f"output {output.id}, {output.headline()}" for output in self.outputs.recent_interruptions(cutoff_at))

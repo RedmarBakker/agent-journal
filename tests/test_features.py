@@ -11237,3 +11237,17 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
+
+
+def test_a_session_start_after_a_restart_names_the_background_runs_it_cut_off(app: App):
+    import time as clock
+
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    with app.container.get(Scope).environment(MAIN):
+        outputs = app.container.get(CommandOutputs)
+        run = outputs.save(CommandOutput(chain="suite", command="python3 -m pytest -q", session="s0", folder=str(app.config.root / "suite")).backgrounded(), Actor.system())
+        outputs.save(outputs.find(run.id).interrupted(clock.time()), Actor.system())
+    status, body = hook(app, "SessionStart")
+    told = body["hookSpecificOutput"]["additionalContext"]
+    assert f"the journal restarted and cut off these background runs: output {run.id}, python3 -m pytest -q" in told, "the new session hears at its start which runs the restart ended, so none is taken for still running"

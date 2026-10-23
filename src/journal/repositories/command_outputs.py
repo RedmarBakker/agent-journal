@@ -59,6 +59,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def unread(self, session: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True, ended=True, is_announced=True, is_read=False, watch_reader="").order("id"))
 
+    def recent_interruptions(self, cutoff_at: datetime) -> list[CommandOutput]:
+        return self.selected(self.query().filter(is_interrupted=True).filter_greater("updated_at", cutoff_at).order("id"))
+
     def unannounced(self, session: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True, ended=True, is_announced=False).order("id"))
 
