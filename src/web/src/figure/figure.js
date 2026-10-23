@@ -2239,7 +2239,7 @@ function phone_call(pose, stance, t) {
         pose.aim(`hand_${side}`, pointing.lerp(atEar.along, lifted).normalize());
     }
     const grip = inHand && pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${side}`)).addScaledVector(inward, CALL.palm);
-    const mouth = inHand ? grip.clone().addScaledVector(along, -handset.length / 2) : onPhone(cradled().add(new THREE.Vector3(-handset.length / 2, 0, -handset.drop - handset.cup[2])));
+    const mouth = inHand ? grip.clone().addScaledVector(along, -handset.length / 2) : onPhone(cradled().add(new THREE.Vector3(-handset.length / 2, 0, -handset.drop - handset.end[1])));
     if (inHand) {
         pose.holdUpright("telephone_handset", side, [0, 0, 0], {x: atEar.turn.x * lifted + TELEPHONE.tip * (1 - lifted), y: atEar.turn.y * lifted, z: atEar.turn.z * lifted});
         pose.props.get("telephone_handset").at = grip.clone().applyMatrix4(pose.matrix(`hand_${side}`).clone().invert());
@@ -3351,24 +3351,26 @@ function propsOf() {
 // of the feet, tipped `tip` degrees toward the viewer, with a footprint near square. Its body, seen from the side, stands `height` high and
 // `depth` deep: its front face slopes back from the floor at the front up to its brow, `brow` (forward of the middle and up), with the dial
 // set in it, its top runs back from there and its back comes down to the floor, every edge rounded by `round` and its top domed `dome`
-// higher in the middle; it is `width` across at the floor and `narrow` of that narrower at the top. The dial is `radius` round on a face `face` thick, its wheel's `holes` finger holes `hole` round on
-// a ring `ring` from the middle, the first `first` degrees round from the right and the rest `spread` degrees on, a label in the middle
-// and a finger stop past the last. On top, `at` back of the middle, two prongs `apart` from the middle and `height` high, each with a
-// saddle for the handle. The handset is a curved horn `length` long, its handle `grip` thick bending down `drop` at its ends into an
-// ear piece and a mouth piece, cups `cup` (top and mouth radius, height) flared out, its mouths down; it rests `rest` over the prongs,
-// across the top with its cups hanging past the sides. The cord is `cord` thick in `coils` turns `coil` round. The poof it comes and goes in
+// higher in the middle; it is `width` across at the floor and `narrow` of that narrower at the top, nearly as tall as it is wide. The
+// dial is a cream plate `plate` round filling most of the front face, `face` thick, with marks round its rim for the numbers `marks` from
+// its middle, and on it a dark wheel `radius` round, its `holes` white finger holes `hole` round on a ring `ring` from the middle, the
+// first `first` degrees round from the right and the rest `spread` degrees on, a small label in the middle and a finger stop past the
+// last. On top, `at` back of the middle, two prongs `apart` from the middle and `height` high, each with a saddle for the handle. The
+// handset is a curved horn `length` long, its handle `grip` thick bending down `drop` at its ends into round ends, an ear piece and a
+// mouth piece, each a bulb `end` round and high with its grille underneath; it rests `rest` over the prongs, across the top with its
+// ends hanging past the sides. The cord is `cord` thick in `coils` turns `coil` round. The poof it comes and goes in
 // is `puffs` puffs of smoke `puff` round, bursting out from `from` to `to` of the figure's units about its middle. Each part is shaded and
 // outlined as the figure is, never flat.
 export const TELEPHONE = {
     at: [0, -0.92],
     tip: 10,
-    base: {width: 1.2, narrow: 0.2, depth: 0.8, height: 0.46, brow: [0.12, 0.36], round: 0.16, dome: 0.06},
-    dial: {radius: 0.235, face: 0.045, holes: 10, hole: 0.036, ring: 0.16, first: 60, spread: 290, label: 0.075},
-    cradle: {at: -0.12, apart: 0.3, post: 0.055, height: 0.15},
-    handset: {length: 1.28, grip: 0.08, drop: 0.12, cup: [0.085, 0.17, 0.16], rest: 0.06},
+    base: {width: 1.2, narrow: 0.18, depth: 0.85, height: 0.88, brow: [0.08, 0.8], round: 0.16, dome: 0.06},
+    dial: {plate: 0.42, face: 0.045, marks: 0.37, radius: 0.31, holes: 10, hole: 0.05, ring: 0.22, first: 60, spread: 290, label: 0.11},
+    cradle: {at: -0.14, apart: 0.3, post: 0.055, height: 0.13},
+    handset: {length: 1.4, grip: 0.085, drop: 0.15, end: [0.2, 0.15], rest: 0.06},
     cord: 0.022, coils: 14, coil: 0.05,
     poof: {puffs: 11, puff: 0.24, from: 0.5, to: 0.95},
-    colours: {body: 0xa8322d, face: 0xf3eedf, wheel: 0xc9ccd4, hole: 0x2b2e38, label: 0xf4f2ed, smoke: 0xe6e3ee},
+    colours: {body: 0xa8322d, face: 0xf1e6cf, wheel: 0x2b2e38, hole: 0xf4f2ed, mark: 0x2b2e38, label: 0xf4f2ed, grille: 0x2b2e38, smoke: 0xe6e3ee},
 };
 
 // a part shaded and outlined as the figure's own are (flatMaterial, outlineMaterial), for a prop that should read as solid
@@ -3427,19 +3429,23 @@ export function telephoneOf(set, handset, cord, poof) {
     face.matrixAutoUpdate = false;
     face.matrix.copy(dialFrame());
     body.add(face);
-    shadedPart(face, "dial_face", new THREE.CylinderGeometry(dial.radius, dial.radius, dial.face, 32), colours.face, [0, dial.face / 2, 0]);
+    shadedPart(face, "dial_plate", new THREE.CylinderGeometry(dial.plate, dial.plate, dial.face, 40), colours.face, [0, dial.face / 2, 0]);
+    for (let index = 0; index < dial.holes; index++) {
+        const angle = radians(dial.first + (dial.spread * index) / (dial.holes - 1));
+        shadedPart(face, `number_${index}`, new THREE.BoxGeometry(0.03, dial.face * 0.6, 0.045), colours.mark, [Math.cos(angle) * dial.marks, dial.face, -Math.sin(angle) * dial.marks]);
+    }
     const wheel = new THREE.Group();
     wheel.name = set.name;
     wheel.position.y = dial.face;
     face.add(wheel);
-    shadedPart(wheel, "dial_wheel", new THREE.CylinderGeometry(dial.radius * 0.92, dial.radius * 0.92, dial.face * 0.6, 32), colours.wheel, [0, dial.face * 0.3, 0]);
+    shadedPart(wheel, "dial_wheel", new THREE.CylinderGeometry(dial.radius, dial.radius, dial.face * 0.6, 36), colours.wheel, [0, dial.face * 0.3, 0]);
     for (let index = 0; index < dial.holes; index++) {
         const angle = radians(dial.first + (dial.spread * index) / (dial.holes - 1));
         shadedPart(wheel, `hole_${index}`, new THREE.CylinderGeometry(dial.hole, dial.hole, dial.face * 0.7, 12), colours.hole, [Math.cos(angle) * dial.ring, dial.face * 0.4, -Math.sin(angle) * dial.ring]);
     }
     shadedPart(face, "dial_label", new THREE.CylinderGeometry(dial.label, dial.label, dial.face * 1.6, 24), colours.label, [0, dial.face, 0]);
     const stop = radians(dial.first + dial.spread + 22);
-    shadedPart(face, "dial_stop", new THREE.BoxGeometry(0.04, dial.face * 2.2, 0.1), colours.wheel, [Math.cos(stop) * (dial.radius - 0.02), dial.face * 1.2, -Math.sin(stop) * (dial.radius - 0.02)]);
+    shadedPart(face, "dial_stop", new THREE.BoxGeometry(0.04, dial.face * 2.2, 0.1), colours.label, [Math.cos(stop) * (dial.radius + 0.02), dial.face * 1.2, -Math.sin(stop) * (dial.radius + 0.02)]);
     for (const sign of [1, -1]) {
         const top = crownAt(cradle.apart) + cradle.height;
         shadedPart(body, `prong_${sign}`, new THREE.CylinderGeometry(cradle.post, cradle.post * 1.4, cradle.height + 0.04, 12), colours.body, [sign * cradle.apart, top - cradle.height / 2 - 0.02, cradle.at]);
@@ -3449,17 +3455,18 @@ export function telephoneOf(set, handset, cord, poof) {
     const held = new THREE.Group();
     held.name = handset.name;
     handset.add(held);
-    const {length, grip, drop, cup} = TELEPHONE.handset;
+    const {length, grip, drop, end} = TELEPHONE.handset;
     const horn = new THREE.CatmullRomCurve3([[-length / 2, -drop], [-length / 2 + 0.24, 0.02], [0, 0.06], [length / 2 - 0.24, 0.02], [length / 2, -drop]].map(([x, y]) => new THREE.Vector3(x, y, 0)));
     shadedPart(held, "handle", new THREE.TubeGeometry(horn, 32, grip, 12), colours.body);
     for (const [name, sign] of [["ear", 1], ["mouth", -1]]) {
         const piece = new THREE.Group();
         piece.name = handset.name;
         piece.position.set(sign * length / 2, -drop, 0);
-        piece.rotation.z = sign * 0.28;
+        piece.rotation.z = sign * 0.22;
         held.add(piece);
-        shadedPart(piece, `${name}_piece`, new THREE.CylinderGeometry(cup[0], cup[1], cup[2], 20), colours.body, [0, -cup[2] / 2 + 0.03, 0]);
-        shadedPart(piece, `${name}_grille`, new THREE.CylinderGeometry(cup[1] * (name === "ear" ? 0.62 : 0.5), cup[1] * (name === "ear" ? 0.62 : 0.5), 0.03, 20), colours.hole, [0, -cup[2] + 0.025, 0]);
+        const bulb = shadedPart(piece, `${name}_piece`, new THREE.SphereGeometry(end[0], 24, 16), colours.body, [0, -end[1] * 0.45, 0]);
+        bulb.scale.set(1, end[1] / end[0], 1);
+        shadedPart(piece, `${name}_grille`, new THREE.CylinderGeometry(end[0] * 0.62, end[0] * 0.62, 0.025, 20), colours.grille, [0, -end[1] * 0.92, 0]);
     }
     set.userData.shape = ({squash, dial: turned}) => {
         body.scale.set(1 + squash / 2, 1 - squash, 1 + squash / 2);

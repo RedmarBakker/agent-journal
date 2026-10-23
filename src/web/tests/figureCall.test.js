@@ -146,16 +146,16 @@ test("the set has the classic desk shape: wider at the floor, its front face slo
     // round over the top: between the brow and the top's flat, heights between the two
     expect(points.some((point) => point.y > base.brow[1] + 0.03 && point.y < base.height - 0.02 && point.z > base.brow[0] - 0.2)).toBe(true);
     // the dial set in that face, facing out of it, forward and up
-    const dial = named("dial_face");
+    const dial = named("dial_plate");
     const middle = dial.getWorldPosition(new THREE.Vector3());
     const facing = new THREE.Vector3(0, 1, 0).applyQuaternion(dial.getWorldQuaternion(new THREE.Quaternion()));
     expect(middle.z).toBeGreaterThan(base.brow[0]);
     expect(middle.y).toBeLessThan(base.brow[1]);
     expect(facing.z).toBeGreaterThan(0.4);
-    expect(facing.y).toBeGreaterThan(0.4);
+    expect(facing.y).toBeGreaterThan(0.3);
     // two prongs on top; the handset rests above them, longer than the top is wide, so its ear and mouth pieces hang past its sides
     for (const sign of [1, -1]) expect(named(`prong_${sign}`).position.y).toBeGreaterThan(base.height - 0.05);
-    expect(TELEPHONE.handset.length / 2).toBeGreaterThan(across(base.height - 0.05, base.height + 0.3) + TELEPHONE.handset.cup[1] / 2);
+    expect(TELEPHONE.handset.length / 2).toBeGreaterThan(across(base.height - 0.05, base.height + 0.3) + TELEPHONE.handset.end[0] / 2);
     expect(handset.getObjectByName("telephone_handset_ear_piece")).toBeTruthy();
     expect(handset.getObjectByName("telephone_handset_mouth_piece")).toBeTruthy();
 });
@@ -269,4 +269,34 @@ test("on the telephone it says whom it calls: the worker and the task it holds, 
     expect(spot.bottom).toBeLessThan(head.y);
     expect(bubbleSpot(head, 120, 40, {left: 100, right: 600}, () => 0).side).toBe(1);
     expect(bubbleSpot(head, 120, 40, {left: 600, right: 100}, () => 0).side).toBe(-1);
+});
+
+test("drawn after the reference picture: a large cream dial plate fills most of the sloped front, with the dark wheel, its white holes, the marks round it and the label, and the handset has round ends", () => {
+    const {set, handset} = telephone();
+    const named = (group, name) => group.getObjectByName(`${group.name}_${name}`);
+    const size = (mesh) => new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+    const body = size(named(set, "base"));
+    // the plate, cream, round and most of the body's width, the wheel on it a dark disc inside its rim
+    const plate = named(set, "dial_plate");
+    const wheel = named(set, "dial_wheel");
+    expect(plate.geometry.parameters.radiusTop * 2).toBeGreaterThan(body.x * 0.6);
+    expect(wheel.geometry.parameters.radiusTop).toBeLessThan(plate.geometry.parameters.radiusTop);
+    const colour = (mesh) => mesh.material.uniforms.colour.value;
+    expect(colour(plate).x + colour(plate).y + colour(plate).z).toBeGreaterThan(2.2);
+    expect(colour(wheel).x + colour(wheel).y + colour(wheel).z).toBeLessThan(0.5);
+    // the ten finger holes light on the dark wheel, a mark for each number round them on the plate, and the label in the middle
+    for (let index = 0; index < TELEPHONE.dial.holes; index++) {
+        expect(colour(named(set, `hole_${index}`)).x, `${index}`).toBeGreaterThan(0.8);
+        expect(named(set, `number_${index}`), `${index}`).toBeTruthy();
+    }
+    expect(named(set, "dial_label")).toBeTruthy();
+    // the handset's ends, round bulbs wider than its handle, the same across as front to back
+    const handle = TELEPHONE.handset.grip * 2;
+    for (const end of ["ear", "mouth"]) {
+        const bulb = named(handset, `${end}_piece`);
+        expect(bulb.geometry.type, end).toBe("SphereGeometry");
+        const extent = size(bulb);
+        expect(extent.x, end).toBeGreaterThan(handle * 1.8);
+        expect(Math.abs(extent.x - extent.z), end).toBeLessThan(0.01);
+    }
 });
