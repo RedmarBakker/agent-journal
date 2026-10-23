@@ -1831,3 +1831,61 @@ def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_
     assert keys == "\x1b[B\r" and transmitted[-1] == {"verb": "keys", "name": "agent", "keys": "\x1b[B\r"}, "the cursor goes down to option 2, Trust all and continue, and takes it"
     with app.container.get(Scope).environment(1):
         assert any('chose "Trust all and continue"' in m.text for m in app.container.get(Messages).scoped()), "and a card in the chat says so"
+
+
+def test_a_compaction_that_left_no_start_never_keeps_the_agents_lines_off_under_another_state():
+    from journal.engine.states.compacting import Compacting
+    from journal.events.agent.tool_finished import ToolFinished
+    from journal.events.agent.turn_displayed import TurnDisplayed
+    from journal.events.feature_data import FeatureData
+    settings = SettingsValue({})
+    read = ToolCall.decoded("Read", {"file_path": "a.py"}, Claude().operation("Read", {"file_path": "a.py"}), ())
+    assert Compacting().respond(ToolFinished(call=read, output=""), settings).popped, "a tool finishing shows the compaction is over"
+    assert Compacting().respond(TurnDisplayed(text="Done."), settings).popped, "and so do the agent's words shown"
+    resumed = Compacting().on_resume(FeatureData({}), settings)
+    assert resumed.popped, "a state pushed over it popping leaves it no longer compacting, so typing comes back"
+
+
+def compaction_that_never_started(app: App, monkeypatch, between) -> list:
+    from journal.supervisor_link import SupervisorLink
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields["line"]))
+    agents = app.container.get(Agents)
+    hook(app, "SessionStart")
+    app.console().run(["task", "create", "the footer", "--start"], AGENT)
+    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal await"})
+    assert hook(app, "PreCompact", trigger="auto")[0] == 200 and agents.session_agent("s1").stack[-1]["state"] == "compacting", "Claude Code sends PreCompact in the middle of a tool call, and no compaction start follows"
+    between()
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "journal await"}, tool_response={"stdout": ""})
+    hook(app, "Stop")
+    return transmitted
+
+
+def user_message_lines(app: App, transmitted: list) -> list[str]:
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.messages import Messages
+    from journal.repositories.scope import Scope
+    from journal.support.actor import Actor
+    from journal.support.listener_queue import ListenerQueue
+    from journal.supervisor_link import SupervisorLink
+    app.container.get(SupervisorLink).resting(1)
+    with app.container.get(Scope).environment(1):
+        message = app.container.get(Messages).save(Message(author=Author.USER, text="hello?"), Actor.user(1))
+    app.container.get(ListenerQueue).drain()
+    return [line for line in transmitted if f"new message {message.id}" in line]
+
+
+def test_a_message_reaches_a_stopped_agent_after_a_compaction_that_never_started(app: App, monkeypatch):
+    transmitted = compaction_that_never_started(app, monkeypatch, lambda: None)
+    assert app.container.get(Agents).session_agent("s1").stack[-1]["state"] != "compacting", "the tool's end shows no compaction is running"
+    assert user_message_lines(app, transmitted), "so a message the user sends to the stopped agent is typed into its terminal at once"
+
+
+def test_a_message_reaches_an_agent_waiting_on_top_of_a_compaction_that_never_started(app: App, monkeypatch):
+    agents = app.container.get(Agents)
+    transmitted = compaction_that_never_started(app, monkeypatch, lambda: app.console().run(["await", "the designs", "--until", "false"], AGENT))
+    assert [s["state"] for s in agents.session_agent("s1").stack][-2:] == ["compacting", "awaiting"], "the await the tool ran pushed its wait over the compaction, so the tool's end and the stop went to the wait"
+    assert user_message_lines(app, transmitted), "only the state on top decides whether lines are typed, so the waiting agent still gets the user's message at once"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    assert "compacting" not in [s["state"] for s in agents.session_agent("s1").stack], "and once the wait pops, the compaction beneath it pops too"

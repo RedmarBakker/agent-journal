@@ -6,7 +6,7 @@ from journal.engine.support.typist import Typist
 
 @dataclass(frozen=True)
 class Stack:
-    """The agent's states, bottom to top, as the row keeps them; the bottom state is never popped. Replacing an earlier stack, each state leaving is told it exits and each one arriving that it enters, with the typist they may switch off or on."""
+    """The agent's states, bottom to top, as the row keeps them; the bottom state is never popped. Replacing an earlier stack whose top was another state, the top leaving is told it exits and the new top that it enters, with the typist they may switch off or on: only the state on top decides whether lines are typed."""
 
     states: tuple[BaseState, ...]
 
@@ -26,10 +26,7 @@ class Stack:
         return [{"state": state.name, "data": state.serialized()} for state in self.states]
 
     def replace(self, previous: "Stack", typist: Typist) -> None:
-        staying, leaving = {type(state) for state in self.states}, {type(state) for state in previous.states}
-        for state in previous.states:
-            if type(state) not in staying:
-                state.on_exit(typist)
-        for state in self.states:
-            if type(state) not in leaving:
-                state.on_enter(typist)
+        if type(previous.top()) is type(self.top()):
+            return
+        previous.top().on_exit(typist)
+        self.top().on_enter(typist)
