@@ -93,7 +93,7 @@ watch(
 .watch-dock-state {
     position: absolute;
     top: -3px;
-    right: -4px;
+    left: -4px;
     display: flex;
     padding: 1px;
     border-radius: 50%;

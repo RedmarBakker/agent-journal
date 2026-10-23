@@ -10613,9 +10613,14 @@ def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and
     assert f"outputs {output.id} still run" in told and "end any that is stuck" in told and sent == [], "the restart waits and names the running command"
     wait.tick(0.0)
     assert sent == [] and queue.waiting() == [MAIN], "it keeps waiting while the command runs"
+    later = app.config.root / "later-run"
+    later.mkdir()
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(CommandOutputs).save(CommandOutput(chain="later-run", command="sleep 900", session="s2", folder=str(later)).backgrounded(), Actor.system())
     (folder / "done").write_text("1")
     wait.tick(0.0)
-    assert sent == [(MAIN, "restart", "journal")] and queue.waiting() == [], "it goes by itself once the command ended"
+    assert sent == [(MAIN, "restart", "journal")] and queue.waiting() == [], "it goes by itself once the command it waited on ended, never waiting on one started after it was asked"
+    (later / "done").write_text("1")
     (folder / "done").unlink()
     assert queue.restart(MAIN, str(folder)) == [] and len(sent) == 2, "the command asking for the restart is never waited on"
     (folder / "done").write_text("1")

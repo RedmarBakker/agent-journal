@@ -33,6 +33,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
         query = self.query().filter(environment_id=environment_id, ended=False).filter_unequal("folder", excluded_folder).order("id")
         return [o for o in self.selected_globally(query) if self.is_running(Path(o.folder))]
 
+    def running_among(self, ids: list[int]) -> list[CommandOutput]:
+        return [output for output in self.selected_globally(self.query().filter_listed("id", tuple(ids))) if self.is_running(Path(output.folder))] if ids else []
+
     def unended(self) -> list[CommandOutput]:
         return self.selected_globally(self.query().filter(ended=False).order("id"))
 
