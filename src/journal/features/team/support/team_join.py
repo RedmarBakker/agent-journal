@@ -2,6 +2,7 @@ import hashlib
 import socket
 import ssl
 import time
+from typing import Callable
 from datetime import datetime, timezone
 
 from journal.config import Config
@@ -15,6 +16,8 @@ from journal.repositories.environment_owners import OWNER, EnvironmentOwners
 from journal.features.team.support.repository_identity import RepositoryIdentity
 from journal.models.environment import Environment
 from journal.models.link import Link
+from journal.models.message import Message
+from journal.models.task import Task
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.models.outgoing_change import CREATED, OutgoingChange
@@ -43,7 +46,7 @@ TABLES = {folder: table for table, folder in FOLDERS.items()}
 
 
 class TeamJoin:
-    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, the code and password traded for this machine's token; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and a new environment named team, owned by no one, which is the Team chat; a team with one replaces this journal's shared rows with its copy, this journal kept as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync client starts once it is done."""
+    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, a team that holds a journal refused to a journal with tasks or messages of its own unless it asks to replace them, the code and password traded for this machine's token; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and a new environment named team, owned by no one, which is the Team chat; a team with one replaces this journal's shared rows with its copy, this journal kept as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync client starts once it is done."""
 
     def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, client: SyncClient, backups: JournalBackup, config: Config, environments: Environments, agents: Agents, entries: Entries, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting) -> None:
         self.account, self.link, self.tables, self.outgoing, self.identity, self.client = account, link, tables, outgoing, identity, client
@@ -51,6 +54,12 @@ class TeamJoin:
         self.owners, self.links, self.copy, self.schema, self.hosting = owners, links, copy, schema, hosting
 
     def join(self, address: str, code: str, password: str, fingerprint: str, name: str) -> str:
+        return self.joined(address, code, password, fingerprint, name, self.history_refusal)
+
+    def join_replacing(self, address: str, code: str, password: str, fingerprint: str, name: str) -> str:
+        return self.joined(address, code, password, fingerprint, name, lambda summary, address: "")
+
+    def joined(self, address: str, code: str, password: str, fingerprint: str, name: str, guard: Callable[[TeamSummary, str], str]) -> str:
         if self.account.is_joined():
             raise Rejection(f"this journal has joined the team at {self.account.address()} already: journal team status says how it stands")
         if fingerprint:
@@ -61,6 +70,8 @@ class TeamJoin:
             raise Rejection(self.repository_refusal(summary, repository))
         if self.version_refusal(summary):
             raise Rejection(self.version_refusal(summary))
+        if guard(summary, address):
+            raise Rejection(guard(summary, address))
         login = self.link.accept(address, code, name or self.identity.person_name(), password, socket.gethostname())
         prefix = self.account.write_prefix(login.name)
         if not summary.has_rows:
@@ -84,6 +95,13 @@ class TeamJoin:
             return ""
         tag = f"v{summary.version}"
         return f"the team runs journal version {summary.version} and this journal {VERSION}: install {summary.version} first with curl -fsSL {ReleaseInstaller.script_path(REPOSITORY, tag)} | AGENT_JOURNAL_REF={tag} sh, then join again"
+
+    def history_refusal(self, summary: TeamSummary, address: str) -> str:
+        tasks, messages = self.tables.rows(Task.table()).stored_count(), self.tables.rows(Message.table()).stored_count()
+        if not summary.has_rows or not tasks + messages:
+            return ""
+        return (f"this journal holds {tasks} tasks and {messages} messages of its own, and the team at {address} holds a journal already, which a join would put in place of this one: "
+                "join from a fresh clone of the repository, or take the team's journal in place of this one with journal team join --replace-mine, this journal kept in a backup file beside it")
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)

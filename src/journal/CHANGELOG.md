@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.29.5
+
+- Joining a team that already holds a journal is refused when this journal has tasks or messages of its own, since the join would put the team's journal in its place; journal team join --replace-mine takes the team's on purpose, this one kept in a backup.
+- A command cut off by a journal restart, in the foreground as well as in the background, is marked ended when the journal starts again, so no later restart or update waits on it.
+
 ## 4.29.4
 
 - A row's number in parentheses after its word, as in "the joining task (1463)", is a link to the row in the chat, as "task 1463" is.

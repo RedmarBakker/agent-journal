@@ -6586,7 +6586,7 @@ def test_a_plan_with_a_parked_or_a_blocked_task_is_not_done_when_the_rest_close(
     assert app.container.get(Plans).find(1).state != PlanState.FINISHED, "nor does the boot take the plan for done"
 
 
-def test_a_background_command_left_running_by_a_restart_is_ended_as_cut_off_at_boot(app: App):
+def test_a_command_left_running_by_a_restart_is_ended_as_cut_off_at_boot(app: App):
     from journal.features.faults.seeds.stale_test_run_files import StaleTestRunFiles
     from journal.features.shell.seeds.cut_off_outputs import CutOffOutputs
     from journal.features.shell.support.output_log import OutputLog
@@ -6605,6 +6605,12 @@ def test_a_background_command_left_running_by_a_restart_is_ended_as_cut_off_at_b
     assert ended.ended and ended.ending() == "cut off when the journal restarted", "its chain died with the server, so it is ended, never left running"
     shell = app.container.get(ShellDataReader).read(app.container.get(Agents).session_agent("s1"))
     assert [(o.id, o.ending) for o in shell.unannounced] == [(1, "cut off when the journal restarted")], "and its agent is told as of any other end"
+    foreground = app.config.root / "foreground"
+    foreground.mkdir()
+    (foreground / "parts").write_text("R-\n")
+    app.container.get(OutputLog).start("foreground", "ssh host check", foreground, Caller.agent("main", "s1", "claude"))
+    app.container.get(CutOffOutputs).run()
+    assert outputs.find(2).ended and outputs.active_outputs(1, "") == [], "a command cut off in the foreground is ended too, so no restart ever waits on it"
     dead = app.config.home / "runtime" / "tests.running.999999"
     dead.parent.mkdir(parents=True, exist_ok=True)
     dead.touch()
@@ -9725,7 +9731,9 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             assert refused_join.error.startswith(f"the team runs journal version {VERSION} and this journal {other}: install {VERSION} first with curl -fsSL"), "a join from a newer or an older journal is refused with the line to install the team's version"
         monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
         assert [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()] == before_refusal and not b.container.get(TeamAccount).is_joined(), "a refused join leaves every environment as it was"
-        joined_b = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery"], USER)
+        kept = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery"], USER)
+        assert "this journal holds 1 tasks and" in kept.error and "--replace-mine" in kept.error and not b.container.get(TeamAccount).is_joined(), "a journal with its own history is never replaced by the team's unless it asks"
+        joined_b = b.console().run(["team", "join", address, "--code", bob_code, "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
         assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
         assert [row.title for row in b.container.get(Tasks).global_matching()] == [row.title for row in a.container.get(Tasks).global_matching()], "the joining journal holds exactly the team's tasks, its own replaced"
         bob_names = {row.name: row for row in b.container.get(Environments).rows()}

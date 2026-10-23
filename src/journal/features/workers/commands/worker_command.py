@@ -97,9 +97,9 @@ class WorkerCommand(Command):
         return self.providers.default().name if caller.provider is None else caller.provider
 
     def testing_template(self, title: str) -> Template:
-        matches = self.templates.testing_titled(title)
+        matches = self.templates.testing_titled(title, "worker")
         if not matches:
-            raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing())}")
+            raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
         return matches[0]
 
     def dispatch(self, args: Namespace, caller: Caller) -> int:

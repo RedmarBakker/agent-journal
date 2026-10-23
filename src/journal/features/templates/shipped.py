@@ -51,4 +51,29 @@ FULL_SUITE = Template(
     purpose=TESTING,
     brief="Run the tests that cover your change while you work, and the full suite once before you clock out.",
 )
-SHIPPED = (FUNCTIONAL, FIND_MISTAKES, FIND_GAPS, CHALLENGE, ZERO_TESTS, SCOPED_TESTS, FULL_SUITE)
+PLAN_ZERO_TESTS = Template(
+    title="Never run tests",
+    targets=("plan",),
+    purpose=TESTING,
+    brief="Run no tests while you follow this plan; write the tests that prove each task and leave them for the user to run.",
+)
+PLAN_PHASE_TESTS = Template(
+    title="Tests at each phase end",
+    targets=("plan",),
+    purpose=TESTING,
+    brief="Write the tests each task needs, and run the tests only at the end of each phase.",
+)
+PLAN_SCOPED_TESTS = Template(
+    title="Scoped tests after each task",
+    targets=("plan",),
+    purpose=TESTING,
+    brief="After each task run the tests that cover what it changed, by name, and the full suite at the end of each phase.",
+)
+PLAN_FULL_TESTS = Template(
+    title="Test throughout",
+    targets=("plan",),
+    purpose=TESTING,
+    brief="Run the full suite whenever it helps, and after every task at least.",
+)
+SHIPPED = (FUNCTIONAL, FIND_MISTAKES, FIND_GAPS, CHALLENGE, ZERO_TESTS, SCOPED_TESTS, FULL_SUITE, PLAN_ZERO_TESTS, PLAN_PHASE_TESTS, PLAN_SCOPED_TESTS, PLAN_FULL_TESTS)
+PLAN_TESTING = (PLAN_ZERO_TESTS, PLAN_PHASE_TESTS, PLAN_SCOPED_TESTS, PLAN_FULL_TESTS)

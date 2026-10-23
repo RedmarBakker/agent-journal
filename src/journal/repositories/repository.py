@@ -63,6 +63,9 @@ class Repository(Generic[M]):
     def rows(self) -> list[M]:
         return self.selected(self.query().order("id"))
 
+    def stored_count(self) -> int:
+        return self.connection.result(*self.query().count())["value"]
+
     def selected(self, query: Query) -> list[M]:
         return self._loaded(query)
 
