@@ -71,10 +71,24 @@ function keepTrying(e) {
     if (!isRefused(e)) throw e;
 }
 
+// a message asked of the environment's host on another machine has no number until the host has made it and it has come back
+const notYet = (e) => {
+    throw e.status === 404 ? new Error("the environment's host has not made the message yet") : e;
+};
+
+async function messageNumber(server, record) {
+    if (!record.asked) {
+        const message = await server.create("messages", {text: record.text, reply_target: record.reply_target, idempotency: record.id});
+        if (message.id) return message.id;
+        record.asked = true;
+        await stored(record);
+    }
+    return record.files.length ? (await server.sentMessage(record.id).catch(notYet)).id : 0;
+}
+
 async function deliver(record) {
     const server = api.at(record.origin, record.env);
-    const message = await server.create("messages", {text: record.text, reply_target: record.reply_target, idempotency: record.id});
-    record.message = message.id;
+    record.message = record.message || (await messageNumber(server, record));
     record.uploaded = Array.isArray(record.uploaded) ? record.uploaded : [];
     await stored(record);
     for (let n = 0; n < record.files.length; n += 1) {

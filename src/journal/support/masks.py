@@ -7,7 +7,7 @@ SHORTEST_CHARACTERS = 8
 
 
 class Masks:
-    """The secret values no write may carry: each one found in text about to be written becomes [secret VARIABLE], and the leak is noted for the alarm. A field shown while typing is no secret and never masks. The values are read again when the values file or the list of shown fields changes, by time and size, looked at once per statement, so two writes in one clock tick are both seen."""
+    """The secret values no write may carry: each one found in text about to be written becomes [secret VARIABLE], and the leak is noted for the alarm. A field shown while typing is no secret and never masks. The values are read again when the values file or the list of shown fields changes, by time and size, looked at once per statement, so two writes in one clock tick are both seen; values read while either file changed are used once and read again next time."""
 
     def __init__(self, values: SecretValues) -> None:
         self.values = values
@@ -28,12 +28,15 @@ class Masks:
         return text
 
     def current(self) -> dict[str, str]:
-        stamp = (self.stamp(self.values.path), self.stamp(self.values.shown_path))
+        stamp = self.file_stamps()
         if stamp != self._stamp:
-            self._stamp = stamp
             plain = self.values.shown()
             self._masks = {value: variable.removeprefix(RETIRED).rsplit(EMAIL_SIGN_TOKEN, 1)[0] for variable, value in self.values.values().items() if len(value) >= SHORTEST_CHARACTERS and variable not in plain}
+            self._stamp = stamp if self.file_stamps() == stamp else ()
         return self._masks
+
+    def file_stamps(self) -> tuple:
+        return self.stamp(self.values.path), self.stamp(self.values.shown_path)
 
     @staticmethod
     def stamp(path: Path) -> tuple:

@@ -9930,6 +9930,17 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
                 return [message.author for message in a.container.get(Messages).sent_with("bob-1")]
 
         assert eventually(lambda: from_bobs_viewer() == [Author.COLLEAGUE]), "a message posted from a colleague's viewer is made by the environment's host, Ada's journal, as a colleague's comment too"
+
+        def sent_on_bobs(key):
+            try:
+                with urlopen(HttpRequest(f"http://127.0.0.1:{b.server().port}/journal/messages/sent/{key}", headers={"X-Journal-Env": ada_name(b)}), timeout=5) as answer:
+                    return json.load(answer)["id"]
+            except HTTPError:
+                return 0
+
+        assert eventually(lambda: sent_on_bobs("bob-1")), "once the host has made it, Bob's viewer finds the message by the key it sent it with"
+        attached(b, f"messages/{sent_on_bobs('bob-1')}/files", "bob-sent.png", b"sent with the message")
+        assert eventually(lambda: file_on(a, f"messages/{sent_on_bobs('bob-1')}/files/bob-sent.png") == b"sent with the message"), "and the file it then attaches opens on the host"
         assert file_on(b, f"messages/{early.id}/files/before.txt") == b"attached before the team", "a file attached before the journal became shared opens on a journal that joined"
         with b.container.get(Scope).environment(bob_main.row_id):
             comment_with_picture = b.container.get(Messages).save(Message(environment_id=ada_main.row_id, author=Author.USER, text="look at this"), Actor.user(2))
@@ -10338,6 +10349,10 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
         assert team.log.row("messages", made("k-1")[0].id) is not None, "the host sends the message it made in Bob's name, which the server lets through"
         with sqlite3.connect(app.config.database) as rows:
             assert rows.execute("SELECT title FROM tasks WHERE id = 900001").fetchall() == [("bob's task",)], "the push's answer brings the team's changes, with no pull of its own"
+        account.write({"address": "http://127.0.0.1:9", "token": bob, "device": 2, "account_id": 2})
+        with pytest.raises(HTTPError) as unreached:
+            posted("while the team server is out of reach", "k-2")
+        assert unreached.value.code == 500 and not made("k-2"), "an ask the team server cannot take fails as a fault, which the page's outbox sends again, never as a refusal it would drop"
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)

@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from "vitest";
 
-const server = {create: vi.fn(), upload: vi.fn()};
+const server = {create: vi.fn(), upload: vi.fn(), sentMessage: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api: {at: () => server}}));
 vi.mock("../src/composables/poll.js", () => ({pollNow: vi.fn(), startPoll: vi.fn()}));
 
@@ -15,6 +15,7 @@ beforeEach(() => {
     localStorage.clear();
     server.create.mockReset().mockResolvedValue({id: 41});
     server.upload.mockReset().mockResolvedValue({});
+    server.sentMessage.mockReset();
     onOutboxChange(() => {});
 });
 
@@ -76,6 +77,26 @@ describe("files with a message", () => {
         await delivered("main", body, [], "id-10");
         const names = server.upload.mock.calls.map(([, , file]) => file.name);
         expect(names).toEqual(["a.txt", "b.txt", "b.txt"]);
+    });
+});
+
+describe("a message asked of the environment's host", () => {
+    const missing = () => Object.assign(new Error("not made yet"), {status: 404});
+
+    test("without files it is done once the host has it", async () => {
+        server.create.mockResolvedValue({idempotency: "id-20"});
+        expect(await delivered("main", body, [], "id-20")).toBe(true);
+        expect(server.sentMessage).not.toHaveBeenCalled();
+    });
+
+    test("its files wait until the host has made it, and are uploaded to it without asking again", async () => {
+        server.create.mockResolvedValue({idempotency: "id-21"});
+        server.sentMessage.mockRejectedValueOnce(missing()).mockResolvedValue({id: 77});
+        expect(await delivered("main", body, [text("a.txt", "1")], "id-21")).toBe(false);
+        expect(queued()[0].asked).toBe(true);
+        await delivered("main", body, [], "id-22");
+        expect(server.create.mock.calls.map(([, sent]) => sent.idempotency)).toEqual(["id-21", "id-22"]);
+        expect(server.upload.mock.calls.map(([type, n, file]) => [type, n, file.name])).toEqual([["messages", 77, "a.txt"]]);
     });
 });
 

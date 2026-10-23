@@ -231,6 +231,11 @@ export class ApiClient {
         return this.post(this.here("/messages/read"), {ids});
     }
 
+    // the message made with the key the page sent it with, once the environment's host has made it
+    sentMessage(key) {
+        return this.get(this.here(`/messages/sent/${encodeURIComponent(key)}`));
+    }
+
     // the buttons pressed on a message's card, kept so the chat shows them spent
     pressed(id, labels) {
         return this.act("messages", id, "press", {pressed: labels});

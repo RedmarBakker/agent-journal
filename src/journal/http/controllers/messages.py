@@ -22,7 +22,7 @@ from journal.chat.docking import Docking
 from journal.models.agent_role import AgentRole
 
 class MessageController(Controller[Message]):
-    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user, or asked of the environment's host when this journal is not it."""
+    """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user, or asked of the environment's host when this journal is not it, and then found by the key the page sent it with once the host has made it."""
 
     is_timeline = True
 
@@ -68,6 +68,10 @@ class MessageController(Controller[Message]):
             self.hosts.ask(environment, HostDesk.MESSAGE, message.host_fields(), request.actor)
             return Response.json({"idempotency": message.idempotency}, 202)
         return Response.json(self.shown(self.repository.posted(message, request.actor)), 201)
+
+    def sent(self, request: Request) -> Response:
+        messages = self.repository.sent_with(request.params["key"])
+        return Response.json(self.shown(messages[0])) if messages else Response.absent(f"no message is made with the key {request.params['key']} yet")
 
     def side_thread(self, request: Request) -> Response:
         return Response.json([self.shown(message) for message in self.repository.side_thread()])
