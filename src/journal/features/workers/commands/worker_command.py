@@ -96,6 +96,7 @@ class WorkerCommand(Command):
             retire.add_argument("n", type=int)
             retire.add_argument("--why", default="", help="why the worker cannot be reused for the next job")
         self.verb(verbs, "list", "every worker, and the subagents this agent started")
+        self.verb(verbs, "open", "the workers still to act on: out, clocked out with work to check, or ended without clocking out, and the subagents still running")
         self.verb(verbs, "peers", "for a worker: the other workers of the agent that dispatched it, out or idle, and what each is on")
 
     def provider_default(self, caller: Caller) -> str:
@@ -291,6 +292,17 @@ class WorkerCommand(Command):
         if output:
             print(f"`journal worker wait {' '.join(output)}` waits for a report; listing again does not bring it sooner")
         self.print_subagents(caller.session)
+        return 0
+
+    def open(self, args: Namespace, caller: Caller) -> int:
+        workers = self.workers.open_workers()
+        for worker in workers:
+            print(f"{worker.id:>4}  {worker.state:<10} {worker.name}: {CardDetail.shortened(worker.brief)}")
+        subagents = [] if caller.session is None else self.subagents.running_session_subagents(caller.session)
+        for subagent in subagents:
+            print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.task}")
+        if not workers and not subagents:
+            print("no worker or subagent to act on")
         return 0
 
     def print_subagents(self, session: str | None) -> None:

@@ -14,7 +14,7 @@ class Briefing(Feature[BriefingData]):
     OVERVIEW_COMMANDS = Option("briefing.look_commands", "Commands the overview runs",
                                "The commands journal environment overview runs after its summary, in this order, each under its heading: a journal line by the journal itself, any other "
                                "line in the project's shell; journal plan show current shows the started plan and journal task show current the task in hand, each saying so when there is none",
-                               ["journal plan show current", "journal task list", "journal message unread", "journal worker list", "journal question list", "journal task show current"], kind="lines")
+                               ["journal plan show current", "journal task list", "journal message unread", "journal worker open", "journal question list", "journal task show current"], kind="lines")
     name = "briefing"
     title = "Session briefing"
     help = "Every session start, and every resume after a compaction, tells the agent where it is and what binds it: the start block, the engine's own, said before any state's own line at the start."

@@ -11347,3 +11347,20 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
         (app.config.home / "hosted").unlink(missing_ok=True)
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
+
+
+def test_the_overview_lists_only_the_workers_still_to_act_on(app: App):
+    from journal.features.briefing.feature import Briefing
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.workers import Workers
+    workers = app.container.get(Workers)
+    with app.container.get(Scope).environment(MAIN):
+        for name, state in (("Mr. Pepys", WorkerState.REPORTED), ("Mr. Brunel", WorkerState.MERGED), ("Lady Lovelace", WorkerState.DISPATCHED), ("Mr. Babbage", WorkerState.DELIVERED)):
+            workers.save(Worker(name=name, brief=f"{name}'s job", model="sonnet", state=state), Actor.system())
+        shown = app.console().run(["worker", "open"], USER).text
+        listed = app.console().run(["worker", "list"], USER).text
+    assert "Lady Lovelace" in shown and "Mr. Babbage" in shown, "the one out and the one with work to check are listed"
+    assert "Mr. Pepys" not in shown and "Mr. Brunel" not in shown, "a reported and a merged one are history, left out"
+    assert all(name in listed for name in ("Mr. Pepys", "Mr. Brunel", "Lady Lovelace", "Mr. Babbage")), "the full list still has every one"
+    assert "journal worker open" in Briefing.OVERVIEW_COMMANDS.default and "journal worker list" not in Briefing.OVERVIEW_COMMANDS.default, "the overview runs the short list"

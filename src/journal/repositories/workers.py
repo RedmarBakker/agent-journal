@@ -21,6 +21,9 @@ class Workers(ScopedRepository[Worker]):
         super().__init__(connection, bus, scope)
         self.links, self.rows, self.tasks = links, rows, tasks
 
+    def open_workers(self) -> list[Worker]:
+        return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).order("id"))
+
     def running_workers(self) -> list[Worker]:
         return [worker for worker in self.scoped() if worker.is_running()]
 
