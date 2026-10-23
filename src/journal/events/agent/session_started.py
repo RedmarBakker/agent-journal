@@ -4,6 +4,7 @@ from typing import ClassVar
 from journal.events.agent.agent_event import AgentEvent
 
 COMPACTION_SOURCE = "compact"
+RESUME_SOURCE = "resume"
 
 
 @dataclass(frozen=True)
@@ -18,4 +19,7 @@ class SessionStarted(AgentEvent):
 
     def is_compaction_start(self) -> bool:
         return self.source == COMPACTION_SOURCE
+
+    def is_resume(self) -> bool:
+        return self.source == RESUME_SOURCE
 

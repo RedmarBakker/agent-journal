@@ -5,12 +5,11 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
 from journal.events.rows.setting_changed import SettingChanged
 
-RESUME = "resume"
 STARTS = ("startup", "resume")
 
 
 class VoicesConduct(Conduct):
-    """The voices feature's conduct in every state: how to talk to the user at a start, the introduction when the journal started the agent, and the new voice when the user changes it."""
+    """The voices feature's conduct in every state: how to talk to the user at a start but a resume, whose conversation already holds it, the introduction when the journal started the agent, and the new voice when the user changes it."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return Transition.merged(self, [voices_check(self, event, settings), introduce_check(self, event, settings)])
@@ -24,6 +23,8 @@ class VoicesConduct(Conduct):
 
 def voices_check(state: BaseState, event: SessionStarted, settings: Settings) -> Transition:
     from journal.features.voices.feature import Voices
+    if event.is_resume():
+        return state.none()
     return state.none(Voices.VOICE_INSTRUCTION.create(voice=event.data.part(Voices).instruction))
 
 
@@ -31,4 +32,4 @@ def introduce_check(state: BaseState, event: SessionStarted, settings: Settings)
     from journal.features.voices.feature import Voices
     if event.source not in STARTS:
         return state.none()
-    return state.none().typing((Voices.RETURN_GREETING if event.source == RESUME else Voices.INTRODUCE_YOURSELF).create())
+    return state.none().typing((Voices.RETURN_GREETING if event.is_resume() else Voices.INTRODUCE_YOURSELF).create())

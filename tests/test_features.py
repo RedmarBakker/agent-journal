@@ -1857,6 +1857,19 @@ def test_every_session_start_reads_what_is_in_flight_before_any_other_write(app:
     assert app.container.get(SessionAgents).top("s1").name != "reading_overview", "once it has run the state pops"
     assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200
 
+def test_a_resumed_conversation_gets_no_briefing_again_and_owes_no_overview(app: App):
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    status, body = hook(app, "SessionStart", source="resume")
+    context = body.get("hookSpecificOutput", {}).get("additionalContext", "")
+    assert "the journal is ready" not in context and "journal environment overview" not in context and "how to talk to the user" not in context, "a resumed conversation already holds the briefing, so none of it is printed again"
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "and no overview is owed before a write"
+    status, body = hook(app, "SessionStart", source="startup")
+    assert "journal environment overview" in body["hookSpecificOutput"]["additionalContext"], "a fresh start is still briefed"
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 409, "and owes the overview"
+
+
 def test_a_question_answered_under_a_pause_the_agent_owes_releases_the_wait_beneath_it(app: App, monkeypatch):
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: None)
     console = app.console()
