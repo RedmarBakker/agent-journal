@@ -2,15 +2,19 @@ import threading
 
 from journal.models.timing import Timing
 from journal.repositories.statistics import Statistics
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.timings import Timings
 from journal.support.actor import Actor
+from journal.support.stage_times import StageTimes
+
+STAGES_PREFIX = "developer.stages."
 
 
 class DeveloperTally:
     """The developer numbers of the requests answered since they were last written, held in memory and written together: the sums to add to each series, the slowest time of each, and the timings."""
 
-    def __init__(self, statistics: Statistics, timings: Timings) -> None:
-        self.statistics, self.timings = statistics, timings
+    def __init__(self, statistics: Statistics, timings: Timings, stages: StageTimes, settings: SettingRows) -> None:
+        self.statistics, self.timings, self.stages, self.settings = statistics, timings, stages, settings
         self._lock = threading.Lock()
         self._sums: dict[str, int] = {}
         self._slowest: dict[str, int] = {}
@@ -26,11 +30,20 @@ class DeveloperTally:
         with self._lock:
             self._sums[key] = self._sums.get(key, 0) + amount
 
+    def stage_samples(self) -> None:
+        from journal.features.faults.feature import Faults
+        samples = self.stages.drained()
+        if not self.settings.option(Faults.STAGE_TIMING):
+            return
+        for stage, ms in samples:
+            self.measured(f"{STAGES_PREFIX}{stage}", ms)
+
     def logged(self, timing: Timing) -> None:
         with self._lock:
             self._timings.append(timing)
 
     def write(self) -> None:
+        self.stage_samples()
         with self._lock:
             sums, slowest, timings = self._sums, self._slowest, self._timings
             self._sums, self._slowest, self._timings = {}, {}, []

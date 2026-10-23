@@ -49,6 +49,18 @@ class StateMachine:
             self.agents.save(agent.queued(decision.context), Actor.system())
         return Decision(decision.allowed, decision.reason)
 
+    def index_listeners(self) -> None:
+        kinds = self.event_kinds(Event)
+        conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER)]
+        for state in self.states.classes():
+            for conducts in conduct_sets:
+                for kind in kinds:
+                    state.event_listeners(kind, conducts)
+
+    @classmethod
+    def event_kinds(cls, kind: type) -> list[type]:
+        return [kind, *(descendant for subclass in kind.__subclasses__() for descendant in cls.event_kinds(subclass))]
+
     @staticmethod
     def is_queued_remark(agent: Agent, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
         return nudge.is_remark and not event.has_hook_lines() and agent.role != AgentRole.WORKER

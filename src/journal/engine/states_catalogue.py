@@ -29,6 +29,9 @@ class StatesCatalogue:
             return registered
         raise ValueError(f"two unrelated states are both named {state.name}: {registered.__name__} and {state.__name__}")
 
+    def classes(self) -> list[type[BaseState]]:
+        return list(self._states.values())
+
     def known(self, name: str) -> bool:
         return name in self._states
 

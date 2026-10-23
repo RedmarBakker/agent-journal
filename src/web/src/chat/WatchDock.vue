@@ -87,13 +87,16 @@ watch(
 .watch-dock-run {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     min-width: 0;
+    padding: 0 15px 4px;
 }
 
 .watch-dock-state {
     display: flex;
     flex: none;
+    justify-content: center;
+    width: 16px;
 }
 
 .watch-dock-elsewhere {
@@ -105,7 +108,7 @@ watch(
 
 .watch-dock-command {
     display: block;
-    padding: 0 15px 4px;
+    min-width: 0;
     overflow: hidden;
     color: var(--text-3);
     font-size: 9.5px;

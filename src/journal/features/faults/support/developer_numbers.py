@@ -1,4 +1,4 @@
-from journal.features.faults.support.developer_tally import DeveloperTally
+from journal.features.faults.support.developer_tally import STAGES_PREFIX, DeveloperTally
 from journal.http.journal.answer_time import AnswerTime
 from journal.models.support.model_load import ModelLoad
 from journal.models.timing import Timing
@@ -36,6 +36,11 @@ class DeveloperNumbers:
         numbers = self.series(HOOKS_PREFIX)
         kinds = sorted({key.split(".")[2] for key in numbers if key.count(".") == 3})
         return {kind: AnswerTime.read(numbers, f"{HOOKS_PREFIX}{kind}") for kind in kinds}
+
+    def stage_averages(self) -> dict[str, AnswerTime]:
+        numbers = self.series(STAGES_PREFIX)
+        stages = sorted({key.removeprefix(STAGES_PREFIX).rsplit(".", 1)[0] for key in numbers})
+        return {stage: AnswerTime.read(numbers, f"{STAGES_PREFIX}{stage}") for stage in stages}
 
     def recent(self) -> list[Timing]:
         return self.log().recent(LOG_ENTRIES)

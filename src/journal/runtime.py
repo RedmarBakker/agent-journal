@@ -58,6 +58,7 @@ class Runtime:
 
     def boot(self) -> None:
         self.register_nudges()
+        self.machine.index_listeners()
         self.bus.listen(AgentEvent, self.container.get(HookAnswer))
         self.bus.listen(RowEvent, self.container.get(RowEventDelivery))
         self.bus.listen(Created, Creations())

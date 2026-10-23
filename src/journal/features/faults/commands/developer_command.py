@@ -30,7 +30,7 @@ class DeveloperCommand(Command):
         slowest.add_argument("--top", type=int, default=TOP, help="how many, the slowest first")
         self.verb(verbs, "loads", "the newest requests with the records each read, by kind, while load counting is on")
         self.verb(verbs, "models", "the records read per kind since the last reset")
-        self.verb(verbs, "averages", "the average and slowest time of hooks, requests and each kind of hook")
+        self.verb(verbs, "averages", "the average and slowest time of hooks, requests, each kind of hook and, while stage timing is on, each stage of a hook")
         self.verb(verbs, "reset", "clear the times, the rolling log and the counts")
         profile = self.verb(verbs, "profile", "watch every thread of the server for a while and print where its time goes, the busiest functions first")
         profile.add_argument("seconds", type=float, nargs="?", default=PROFILE_SECONDS, help=f"how long to watch, at most {PROFILE_LIMIT_SECONDS:.0f} seconds")
@@ -55,7 +55,7 @@ class DeveloperCommand(Command):
         return 0
 
     def averages(self, args: Namespace, caller: Caller) -> int:
-        rows = {"hooks": self.numbers.hook_time(), "requests": self.numbers.request_time(), **{f"hook {kind}": time for kind, time in self.numbers.hook_averages().items()}}
+        rows = {"hooks": self.numbers.hook_time(), "requests": self.numbers.request_time(), **{f"hook {kind}": time for kind, time in self.numbers.hook_averages().items()}, **{f"stage {stage}": time for stage, time in self.numbers.stage_averages().items()}}
         self.print_lines([self.average_line(name, time) for name, time in rows.items() if time.count], "nothing measured yet")
         return 0
 
@@ -79,7 +79,7 @@ class DeveloperCommand(Command):
 
     @staticmethod
     def average_line(name: str, time: AnswerTime) -> str:
-        return f"{name:<28} {time.count:>6} measured  {time.average_ms():>5} ms average  {time.slowest_ms:>5} ms slowest"
+        return f"{name:<44} {time.count:>6} measured  {time.average_ms():>5} ms average  {time.slowest_ms:>5} ms slowest"
 
     @staticmethod
     def clock(timing: Timing) -> str:

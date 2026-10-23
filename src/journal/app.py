@@ -8,6 +8,7 @@ from journal.support.masks import Masks
 from journal.db.migrations import MIGRATIONS
 from journal.db.migrator import Migrator
 from journal.db.indexes import Indexes
+from journal.support.stage_times import StageTimes
 from journal.repositories.declared_indexes import INDEXES
 from journal.db.schema import Schema
 from journal.engine.support.feature_registry import FeatureRegistry
@@ -44,7 +45,7 @@ class App:
         self.container.bind(StaticFiles, lambda: StaticFiles(Path(__file__).resolve().parents[1] / "web" / "dist"))
         self.container.bind(Registry, lambda: Registry(Standard.FEATURES, self.container.get(SettingRows)))
         self.container.bind(FeatureRegistry, lambda: self.container.get(Registry))
-        self.container.bind(DataReaders, lambda: DataReaders({getattr(reader, "source", feature).name: self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}, self.container.get(Scope)))
+        self.container.bind(DataReaders, lambda: DataReaders({getattr(reader, "source", feature).name: self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}, self.container.get(Scope), self.container.get(StageTimes)))
         self.container.bind(ProcessCardPoll, lambda: ProcessCardPoll(self.container.get(Messages), {RowProcessCard.name: self.container.get(RowProcessCard), **{card.name: self.container.get(card) for feature in Standard.FEATURES for card in feature.process_cards}}))
 
     def connection(self) -> Connection:

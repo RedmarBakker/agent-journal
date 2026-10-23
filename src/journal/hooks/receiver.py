@@ -1,6 +1,8 @@
 from functools import partial
 import time
 
+from journal.support.stage_times import StageTimes
+
 from journal.chat.moment_cards import MomentCards
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.stop import Stop
@@ -34,8 +36,8 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry, runs the blocking listeners now and folds their decisions into the answer, and hands the rest to the deferred worker after the reply. A hook that does not carry its environment's launch id is recorded and reported, and reaches no listener; a proven worker's hook is recorded and answered by the listeners that hear workers, the state machine alone, under the worker's own conduct, so none of the main agent's conduct holds a worker and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, cards: MomentCards, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames) -> None:
-        self.names = names
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, cards: MomentCards, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes) -> None:
+        self.names, self.stages = names, stages
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
         self.transcript, self.cards, self.slow = transcript, cards, slow
@@ -50,10 +52,12 @@ class Receiver:
             self.worker_hooks.bind(hook, environment)
             if hook.worker is not None:
                 return self.worker_recorded(hook, environment)
-            for saved in self.transcript.events(hook, environment):
-                self._immediate(saved)
+            with self.stages.timed("hook transcript"):
+                for saved in self.transcript.events(hook, environment):
+                    self._immediate(saved)
             event = self.translation.event(hook, environment)
-            entry = self.recorded(hook, environment, event)
+            with self.stages.timed("hook entry"):
+                entry = self.recorded(hook, environment, event)
             if self.is_unknown_session_end(event):
                 return Decision()
             decision = self._blocking(event, self._split(self.bus.listeners(type(event)))[0])
@@ -101,7 +105,8 @@ class Receiver:
             if not decision.allowed and getattr(listener, "asked_while_free", False):
                 self.deferred.add(partial(listener.handle, event))
                 continue
-            line_text = self._guarded(listener, event)
+            with self.stages.timed(f"listener {type(listener).__name__}"):
+                line_text = self._guarded(listener, event)
             if line_text is None:
                 continue
             decision = decision.merged(Decision.allowed_with(line_text.reason) if not line_text.allowed and not decision.allowed else line_text)
@@ -119,7 +124,11 @@ class Receiver:
 
     def _defer(self, event: AgentEvent) -> None:
         for listener in self._split(self.bus.listeners(type(event)))[1]:
-            self.deferred.add(partial(listener.handle, event))
+            self.deferred.add(partial(self.timed_handle, listener, event))
+
+    def timed_handle(self, listener: Listener, event: AgentEvent) -> None:
+        with self.stages.timed(f"deferred {type(listener).__name__}"):
+            listener.handle(event)
 
     @staticmethod
     def _split(listeners: list[Listener]) -> tuple[list[Listener], list[Listener]]:

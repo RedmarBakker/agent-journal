@@ -3,13 +3,14 @@ from journal.models.agent import Agent
 from journal.engine.support.data_reader import DataReader
 from journal.engine.support.feature_parts import FeatureParts
 from journal.repositories.scope import Scope
+from journal.support.stage_times import StageTimes
 
 
 class DataReaders:
     """Every feature's data reader by the feature's name; builds the feature data an event carries for the agent asked, each part read when a listener first asks for it."""
 
-    def __init__(self, readers: dict[str, DataReader], scope: Scope) -> None:
-        self.readers, self.scope = readers, scope
+    def __init__(self, readers: dict[str, DataReader], scope: Scope, stages: StageTimes) -> None:
+        self.readers, self.scope, self.stages = readers, scope, stages
 
     def agent_data(self, agent: Agent) -> FeatureData:
-        return FeatureData(FeatureParts(self.readers, agent, self.scope))
+        return FeatureData(FeatureParts(self.readers, agent, self.scope, self.stages))
