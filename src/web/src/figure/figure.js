@@ -2039,9 +2039,10 @@ function actHand(pose, stance, ready, at, turn = {}) {
 
 // The call on the telephone (acts.js phone_call): how deep it bends to the telephone and how far it leans and nods into the bend, and how
 // far it nods while it talks, in the figure's units and degrees; where its ear is on the head at rest, against which the handset's ear cup
-// is held, the handset leaning `lean` degrees back from upright; how far it tilts its head to the handset; and how far above a hole of the
-// dial its finger's wrist is held, the finger reaching down into it
-export const CALL = {bend: 0.9, lean: 30, nod: 18, talkNod: 7, ear: [1.24, 0.05, 3.3], handsetLean: 16, tilt: 8, wrist: [0, -0.12, 0.3]};
+// is held, the handset leaning `lean` degrees back from upright; how far it tilts its head to the handset; how far above a hole of the
+// dial its finger's wrist is held, the finger reaching down into it; and how far in from the palm the handset's grip is held, its fingers
+// round the back of the grip: toward the head at the ear, under the palm as it takes the handset off the cradle
+export const CALL = {bend: 0.9, lean: 30, nod: 18, talkNod: 7, ear: [1.24, 0.05, 3.3], handsetLean: 16, tilt: 8, wrist: [0, -0.12, 0.3], palm: 0.16};
 
 // a point on the telephone, `local` in its own axes (across, back, up from the middle of its base on the floor), where it stands now, the
 // whole telephone tipped `tip` degrees toward the viewer so its dial shows, raised by `raised` as the root is lowered by a crouch
@@ -2137,11 +2138,23 @@ function phone_call(pose, stance, t) {
     const held = ear.clone().addScaledVector(atEar.along, -handset.length / 2);
     const rest = onPhone(cradled());
     const reach = u >= act.reach[1] && u < act.hang[1] ? 1 : partOf(u, act.reach) * (1 - partOf(u, [act.hang[1], act.goes[0]]));
-    handTo(pose, side, reach, pose.withinReach(side, rest.clone().lerp(held, lifted), 0.97), new THREE.Vector3(1, 0.4, -0.6));
+    // the palm behind the grip, the way from it to the handset turning from down, over the handset on its cradle, to the head at the ear
+    const inward = new THREE.Vector3(0, 0, -1).lerp(new THREE.Vector3(-SIDES[side], 0, 0), lifted).normalize();
+    const palm = rest.clone().lerp(held, lifted).addScaledVector(inward, -CALL.palm);
+    handTo(pose, side, reach, pose.withinReach(side, palm, 0.97), new THREE.Vector3(1, 0.4, -0.6));
     const inHand = u >= act.reach[1] && u < act.hang[1];
-    const mouth = inHand ? held.clone().addScaledVector(atEar.along, -handset.length / 2) : onPhone(cradled().add(new THREE.Vector3(-handset.length / 2, 0, -handset.drop - handset.cup[2])));
-    if (inHand) pose.holdUpright("telephone_handset", side, [0, 0, 0], {x: atEar.turn.x * lifted + TELEPHONE.tip * (1 - lifted), y: atEar.turn.y * lifted, z: atEar.turn.z * lifted});
-    else pose.standProp("telephone_handset", onPhone(cradled(), down), {x: TELEPHONE.tip});
+    const along = new THREE.Vector3(1, 0, 0).lerp(atEar.along, lifted).normalize();
+    // lifted, the hand turns to run up along the handset, its fingers round the back of the grip
+    if (inHand) {
+        const pointing = pose.rig.along.get(`hand_${side}`).clone().transformDirection(pose.matrix(`hand_${side}`));
+        pose.aim(`hand_${side}`, pointing.lerp(atEar.along, lifted).normalize());
+    }
+    const grip = inHand && pose.grip(side, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${side}`)).addScaledVector(inward, CALL.palm);
+    const mouth = inHand ? grip.clone().addScaledVector(along, -handset.length / 2) : onPhone(cradled().add(new THREE.Vector3(-handset.length / 2, 0, -handset.drop - handset.cup[2])));
+    if (inHand) {
+        pose.holdUpright("telephone_handset", side, [0, 0, 0], {x: atEar.turn.x * lifted + TELEPHONE.tip * (1 - lifted), y: atEar.turn.y * lifted, z: atEar.turn.z * lifted});
+        pose.props.get("telephone_handset").at = grip.clone().applyMatrix4(pose.matrix(`hand_${side}`).clone().invert());
+    } else pose.standProp("telephone_handset", onPhone(cradled(), down), {x: TELEPHONE.tip});
     // the dial: a finger put in its first hole, turned round to the stop, and taken out as the dial springs back
     const turned = act.turn * partOf(u, act.dial) * (1 - partOf(u, act.back));
     const finger = partOf(u, act.finger) * (1 - partOf(u, act.back));

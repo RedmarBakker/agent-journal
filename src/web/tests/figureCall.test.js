@@ -207,3 +207,31 @@ test("the telephone comes whole, never growing or fading in: out of a poof a lit
     expect(phoneArrival((act.goes[0] + act.goes[1]) / 2 + 0.005).here).toBe(false);
     expect(phoneArrival((act.goes[0] + act.goes[1]) / 2).puff).toBeGreaterThan(0.3);
 });
+
+test("the hand holds the handset from behind: its palm at the back of the grip, the grip between the hand and the head at the ear, and under the palm as it comes off the cradle", () => {
+    for (const voice of Object.keys(stances)) {
+        const side = stanceOf(voice).busy.has("r") ? "l" : "r";
+        let checked = 0;
+        for (let index = 0; index <= 200; index++) {
+            const u = index / 200;
+            const {pose, moves, at} = posed(u, voice);
+            const held = pose.props.get("telephone_handset");
+            if (held?.bone !== `hand_${side}`) continue;
+            checked++;
+            const grip = held.at.clone().applyMatrix4(moves.get(held.bone));
+            const palm = pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
+            const head = at("head").add(new THREE.Vector3(0, 0, 0.8));
+            const label = `${voice} ${u}`;
+            // the grip a palm's depth from the palm
+            expect(grip.distanceTo(palm), label).toBeGreaterThan(0.1);
+            if (u > act.lift[1] && u < act.hang[0]) {
+                // at the ear: the grip between the hand and the head, the palm on its far side
+                expect(grip.distanceTo(head), label).toBeLessThan(palm.distanceTo(head) - 0.1);
+                expect(Math.sign(palm.x - grip.x), label).toBe(Math.sign(palm.x - head.x));
+            }
+            // just off the cradle: the grip under the palm
+            if (u < act.lift[0] + 0.01) expect(grip.z, label).toBeLessThan(palm.z - 0.1);
+        }
+        expect(checked, voice).toBeGreaterThan(50);
+    }
+});
