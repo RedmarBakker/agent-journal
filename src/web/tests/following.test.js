@@ -66,3 +66,24 @@ test("a pane told the reader scrolled up stops following without measuring", () 
     arrived(3);
     expect([away.value, box.scrollTop]).toEqual([true, 600]);
 });
+
+test("a chat resting a little above its foot settles there after ten seconds, and one further up stays", () => {
+    vi.useFakeTimers();
+    try {
+        const near = pane(550);
+        const settling = useFollowing(near);
+        settling.scrolled();
+        expect(settling.away.value).toBe(true);
+        vi.advanceTimersByTime(9000);
+        expect(near.scrollTop).toBe(550);
+        vi.advanceTimersByTime(1000);
+        expect([near.scrollTop, settling.away.value]).toEqual([near.scrollHeight, false]);
+        const far = pane(300);
+        const reading = useFollowing(far);
+        reading.scrolled();
+        vi.advanceTimersByTime(20000);
+        expect([far.scrollTop, reading.away.value]).toEqual([300, true]);
+    } finally {
+        vi.useRealTimers();
+    }
+});

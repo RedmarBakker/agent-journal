@@ -6,19 +6,25 @@ export const AT_BOTTOM = 24;
 
 const NEWEST_AFTER = 1000;
 const NEWEST_AFTER_BOTTOM = 2000;
+// a pane resting this short of its foot, a share of its height, for this long settles there and follows again: a scroll
+// that missed the foot by a little; further up, the reader is reading and it stays
+export const SETTLE_SHARE = 0.25;
+export const SETTLE_AFTER_MS = 10000;
 
 /**
  * Whether a scrolling pane is following what arrives, which is the one rule the chat and the agent inspector share.
  *
  * At the foot, the reader is following and new content carries them along. Having scrolled up, they are reading, and
  * nothing moves under them; what arrives is counted instead, so the pane can offer to take them to it. The offer waits
- * a moment, and longer for a reader who has only just left the foot, so a glance up does not flash a button.
+ * a moment, and longer for a reader who has only just left the foot, so a glance up does not flash a button. A reader
+ * who stopped a little short of the foot is taken to it once the pane has rested there.
  */
 export function useFollowing(scroller, at = AT_BOTTOM) {
     const away = ref(false);
     const missed = ref(0);
     const showNewest = ref(false);
     let newestTimer = 0;
+    let settleTimer = 0;
     let leftAt = 0;
 
     const box = () => (scroller && "value" in scroller ? scroller.value : scroller);
@@ -43,6 +49,7 @@ export function useFollowing(scroller, at = AT_BOTTOM) {
 
     /** The reader is at the foot again and following what arrives; the pane is not moved. */
     function follow() {
+        clearTimeout(settleTimer);
         away.value = false;
         missed.value = 0;
         offerNewest(false);
@@ -56,11 +63,24 @@ export function useFollowing(scroller, at = AT_BOTTOM) {
         follow();
     }
 
-    /** The reader has scrolled up and is reading: nothing moves under them from here. */
+    /** The reader has scrolled up and is reading: nothing moves under them from here, unless they rest just short of the foot. */
     function left() {
+        settleSoon();
         if (away.value) return;
         away.value = true;
         offerNewest(true);
+    }
+
+    const isNearBottom = () => {
+        const s = box();
+        return Boolean(s) && gap() < s.clientHeight * SETTLE_SHARE;
+    };
+
+    /** A pane resting a little short of its foot settles there once it has rested long enough. */
+    function settleSoon() {
+        clearTimeout(settleTimer);
+        if (!isNearBottom()) return;
+        settleTimer = setTimeout(() => away.value && isNearBottom() && toBottom(true), SETTLE_AFTER_MS);
     }
 
     /** Called when the reader scrolls: leaving the foot stops the following, returning to it starts again. */
@@ -75,7 +95,7 @@ export function useFollowing(scroller, at = AT_BOTTOM) {
         else toBottom(smooth);
     }
 
-    if (getCurrentScope()) onScopeDispose(() => clearTimeout(newestTimer));
+    if (getCurrentScope()) onScopeDispose(() => [newestTimer, settleTimer].forEach(clearTimeout));
 
     return {away, missed, showNewest, gap, atBottom, follow, toBottom, left, scrolled, arrived};
 }
