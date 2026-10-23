@@ -17,14 +17,14 @@ class ActivityLabel:
 
     @classmethod
     def build(cls, part: str) -> str:
-        words = TOKEN_PATTERN.findall(CommandShape.inner(part).split("<<", 1)[0])
-        text = [w for index, w in enumerate(words) if not w.startswith("-") and "=" not in w and (index == 0 or words[index - 1] not in VALUED_FLAGS)]
-        text = text[1:] if text and text[0] in RUNNERS and len(text) > 1 else text
-        if not text:
+        tokens = TOKEN_PATTERN.findall(CommandShape.inner(part).split("<<", 1)[0])
+        arguments = [w for index, w in enumerate(tokens) if not w.startswith("-") and "=" not in w and (index == 0 or tokens[index - 1] not in VALUED_FLAGS)]
+        arguments = arguments[1:] if arguments and arguments[0] in RUNNERS and len(arguments) > 1 else arguments
+        if not arguments:
             return "running"
-        fallback = f"running {text[0]}"
-        verb = VERBS.get(text[0].rsplit("/", 1)[-1])
-        for word in text[1:]:
+        fallback = f"running {arguments[0]}"
+        verb = VERBS.get(arguments[0].rsplit("/", 1)[-1])
+        for word in arguments[1:]:
             if not isinstance(verb, dict):
                 break
             verb = verb.get(word, verb.get("", fallback))

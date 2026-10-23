@@ -48,10 +48,9 @@ class AgentActivity:
         return [self.row(item, [] if item.state == ENDED else [e for e in recent if e.data.get("session") == item.session or (e.actor and e.actor.id == item.session)]) for item in agents]
 
     def work(self, entry, entries) -> str:
-        """The word for the tool call in hand: testing or building while the shell part running, or else the call's first, is a test run or a build, else the call's own work word."""
         call = entry.recorded_call()
-        running = self.unended_part(entries)
-        labels = [running.data.get("doing", "")] if running else [ActivityLabel.build(part.text) for part in call.parts[:1]]
+        unended = self.unended_part(entries)
+        labels = [unended.data.get("doing", "")] if unended else [ActivityLabel.build(part.text) for part in call.parts[:1]]
         return next((label for label in labels if label in LONG_RUNS), call.work)
 
     def row(self, agent: Agent, entries) -> dict:
