@@ -11513,3 +11513,25 @@ def test_a_task_given_up_is_cancelled_with_why_and_leaves_the_list(app: App):
         task = app.container.get(Tasks).find(1)
     assert (task.state, task.outcome) == (TaskState.CANCELLED, "screens differ in size")
     assert "the shared avatar" not in console.run(["task", "list"], AGENT).text
+
+
+def test_a_block_on_work_going_on_here_or_a_batch_of_blocks_is_refused_and_a_real_wait_passes(app: App):
+    from journal.models.task_state import TaskState
+    from journal.repositories.tasks import Tasks
+    console = app.console()
+    hook(app, "SessionStart")
+    for title in ("the parser", "the docs", "the guide", "the index", "the help", "the notes"):
+        console.run(["task", "create", title], AGENT)
+    console.run(["task", "start", "1"], AGENT)
+    own = console.run(["task", "block", "2", "after the parser", "--on", "task:1"], AGENT)
+    assert own.code != 0 and "task 1 is work going on here, started" in own.error and "journal worker queue" in own.error, "a task waiting on the agent's own task in hand is sequencing, not a block"
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Tasks).find(2).state == TaskState.OPEN, "and it stays open"
+    asked = console.run(["question", "ask", "Which colour?", "--options", "red", "blue"], AGENT)
+    assert asked.code == 0, asked.error
+    assert console.run(["task", "block", "3", "the user picks the colour", "--on", "question:1"], AGENT).code == 0, "a block on the user's answer is a real wait"
+    assert console.run(["task", "block", "4", "the vendor's key arrives"], AGENT).code == 0, "and so is one on something outside"
+    third = console.run(["task", "block", "5", "later"], AGENT)
+    assert third.code != 0 and "2 tasks were blocked in the last 5 minutes" in third.error, "a third block in the stretch is clearing the list, and refused"
+    app.container.get(SettingRows).set("tasks.block_batch_seconds", 0, Actor.user(1))
+    assert console.run(["task", "block", "5", "the vendor's second key"], AGENT).code == 0, "once the stretch is over, a block passes again"

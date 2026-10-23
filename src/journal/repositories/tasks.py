@@ -194,6 +194,9 @@ class Tasks(ScopedRepository[Task]):
             for task in self.matching(id=link.target.id, state=TaskState.DELEGATED):
                 self.save(task.released(datetime.now(timezone.utc).timestamp()), actor)
 
+    def block_batch(self, start_at: float) -> list[Task]:
+        return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]
+
     def worker_holdings(self) -> dict[int, int]:
         return {link.target.id: link.source.id for link in self.links.all_matching(kind=CURRENT_TASK_LINK) if link.source.type == WORKERS}
 

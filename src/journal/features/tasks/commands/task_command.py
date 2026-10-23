@@ -10,6 +10,7 @@ from journal.support.rejection import Rejection
 from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.support.task_briefing import TaskBriefing
+from journal.features.tasks.support.block_check import BlockCheck
 from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
 from journal.models.support.ref import Ref
@@ -31,9 +32,10 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck) -> None:
         self.clock, self.next_task = clock, next_task
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
+        self.check = check
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -133,6 +135,7 @@ class TaskCommand(Command):
 
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
+        self.check.refuse(args.n, args.on)
         task = self.tasks.save(self.tasks.find(args.n).blocked(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         print(f"task {task.id} blocked, waiting on: {self.tasks.reason(task)}")
