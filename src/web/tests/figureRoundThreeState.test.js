@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {expect, test} from "vitest";
 import {HELD, cardsAfter, clipFor, frameIn} from "../src/domain/figureState.js";
-import {AMBIENT, LONG_WALK_SECONDS, answerTo, ambientFor, stretchClip, walkingMoment} from "../src/figure/reactions.js";
+import {AMBIENT, LONG_WALK_SECONDS, answerTo, ambientFor, walkingMoment} from "../src/figure/reactions.js";
 import {CLIPS} from "../src/figure/figure.js";
 
 const VOICES = ["butler", "coach", "colleague", "homie", "squire"];
@@ -13,10 +13,6 @@ test("waiting and asking tap a foot toward compose; compacting has its own clip"
     expect(HELD.asking).toBe("waiting");
     expect(HELD.compacting).toBe("compacting");
     expect(clipFor({place: {posture: "sit", face: 70}, state: "asking", doing: "waiting", composeFacing: -30}, () => true)).toEqual({clip: "waiting", facing: -30});
-});
-
-test("reading and writing are not replaced by a laptop work roll", () => {
-    for (const state of ["reading", "writing"]) expect(stretchClip(state, {stretch: "work", clip: "type"}, () => 0).shows).toBe(HELD[state]);
 });
 
 test("sleep plays its yawn once, then loops only its sleeping frames", () => {

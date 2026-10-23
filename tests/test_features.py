@@ -2393,7 +2393,8 @@ def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
     assert [p.text[:20] for p in Chain.parts(chained_after)] == ["python3 - <<'EOF'\nim", "python3 -m pytest -q", "python3 -m pytest -q"], "a heredoc ends at its terminator line, and the commands after it are parts of their own"
     assert not Writes.is_code_write_line(chained_after), "a test run chained behind a script that edits code is no edit of code: the line goes through the runner and its limit"
     assert [p.text for p in Chain.parts(heredoc) if p.recorded] == ["cd src", "python3 - <<'EOF'\nprint(1)\nEOF"], "a command with a heredoc comes without < /dev/null and is still the agent's own"
-    assert [ActivityLabel.build(c) for c in ("git commit -m x", "python3 -m pytest -q | tail -2", "cd src", "npm run build", "foo --bar", "python3 - <<'EOF'\nprint(1)\nEOF")] == ["committing", "testing", "moving", "running a script", "running foo", "running python3"]
+    assert [ActivityLabel.build(c) for c in ("git commit -m x", "python3 -m pytest -q | tail -2", "cd src", "npm run build", "foo --bar", "python3 - <<'EOF'\nprint(1)\nEOF")] == ["committing", "testing", "moving", "building", "running foo", "running python3"]
+    assert [ActivityLabel.build(c) for c in ("npm --prefix src/web run build", "npm run dev", "npx vitest run tests/a.test.js", "make -C src")] == ["building", "running a script", "testing", "building"], "a flag's value is no part of what the command does, and a build or a test through npm is one"
 
 
 def test_the_foreground_limit_is_thirty_seconds_or_ten_while_a_message_waits(app: App):

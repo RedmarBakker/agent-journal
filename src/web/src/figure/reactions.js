@@ -1,4 +1,4 @@
-import {WORKING, clipOf, eggFor} from "../domain/figureState.js";
+import {WORKING, eggFor} from "../domain/figureState.js";
 
 // What the figure does about what happens around it, and how often. Every number that decides it is here, so it can be tuned in one place.
 // Nothing fires every time: `odds` is the chance a moment is reacted to at all, and `cooldown` the seconds before the same reaction may
@@ -86,10 +86,6 @@ export function eyesAt(looking, facing, now) {
 // whether a look makes the figure let go of where it is: it hangs there with its back to the viewer, so it lets go to turn round
 export const letsGoFor = (place) => place.posture === "hang" && !eyesShown(place.face);
 
-// While the agent works, the figure seated works at a laptop most of the time, rolled once for each stretch of work so it keeps at it from
-// one tool to the next; on its feet, or when the roll says no, it does what each state's own clip does
-export const WORK_VARIANTS = [["type", 0.7]];
-
 // Things it does by itself while it sits at rest: once the state has lasted `after` seconds, every so often (a random number of seconds
 // between the two in `every`), and then with chance `odds`
 export const AMBIENT = [
@@ -143,21 +139,6 @@ export function ambientFor(state, held, next, now, random, voice = "", has = () 
 
 // whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way
 export const flips = (height, size, random) => height > FLIP_OVER * size && random() < FLIP_ODDS;
-
-// The clip a stretch of work shows, or "" for each state's own: the figure rolls once for each stretch, so it does not change its mind
-export function workClip(random) {
-    const found = WORK_VARIANTS.find(([, odds]) => random() < odds);
-    return found ? found[0] : "";
-}
-
-// The clip the figure shows in `state`: through a stretch of work, the laptop when it rolled it once for the stretch, else the state's
-// own. `rolled` is what it rolled for the stretch it was in, {stretch, clip}; it returns the roll for the stretch it is in now, with the
-// clip it shows as `shows`.
-export function stretchClip(state, rolled, random) {
-    const stretch = WORKING.has(state) ? "work" : state;
-    const roll = rolled.stretch === stretch ? rolled : {stretch, clip: WORKING.has(state) ? workClip(random) : ""};
-    return {stretch: roll.stretch, clip: roll.clip, shows: ["reading", "writing"].includes(state) ? clipOf(state) : roll.clip || clipOf(state)};
-}
 
 // The moments of the agent's work and of the user at the compose box at `now`: typing since the last look, and the end of a stretch of
 // work that lasted WORKED_SECONDS. `began` is when the work in hand began, 0 with none; it returns the moments and that time as it is now.

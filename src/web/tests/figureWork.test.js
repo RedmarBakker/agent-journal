@@ -21,9 +21,9 @@ const STANCE = {voice: "butler", level: new Set(["l"]), busy: new Set(["l"]), ca
 // a few poses for each blow, enough to see each come down and lift back
 const STEPS_A_BLOW = 16;
 
-test("a running command's figure hammers at least ten seconds once it starts, each blow coming down quick and lifting back slower", () => {
+test("the hammering is one blow a loop, so it can stop after any blow, each coming down quick and lifting back slower", () => {
     const clip = CLIPS.find((each) => each.name === "work");
-    expect(clip.frames / clip.fps).toBeGreaterThanOrEqual(10);
+    expect([WORK.blows, clip.frames]).toEqual([1, WORK.blowFrames]);
     expect([clip.loops, Boolean(clip.interruptible), Boolean(clip.leaves)]).toEqual([true, false, false]);
     for (let frame = 1; frame < clip.frames; frame++) expect(canSwitch(clip, frame, frame - 1), `${frame}`).toBe(false);
     expect(canSwitch(clip, clip.frames, clip.frames - 1)).toBe(true);

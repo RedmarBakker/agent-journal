@@ -384,6 +384,31 @@ def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_ke
         app.runtime().stop()
 
 
+def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_hand(tmp_path: Path):
+    """The figure builds a parcel only for a test run or a build: the agent row's tool_work names the shell part in hand by its label when it is testing or building, and is the line's own work word otherwise."""
+    app = App(Config(tmp_path, port=0))
+    app.runtime().start()
+    unowed(app)
+    server = app.server()
+    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
+    def hook(kind, **extra):
+        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    work = lambda: call(server, "GET", "/journal/agents")[1]["rows"][0]["tool_work"]
+    try:
+        hook("SessionStart")
+        for n, (command, said) in enumerate([("pytest -q", "testing"), ("npm --prefix src/web run build", "building"), ("git log -1", "reading"), ("python3 tools/seed.py", "running"), ("git log -1 && pytest -q", "running")]):
+            hook("PreToolUse", tool_name="Bash", tool_input={"command": command}, tool_use_id=f"t-{n}")
+            assert work() == said, f"{command} is {said} before its part starts"
+            hook("PostToolUse", tool_name="Bash", tool_input={"command": command}, tool_response={"stdout": ""}, tool_use_id=f"t-{n}")
+        hook("PreToolUse", tool_name="Bash", tool_input={"command": "git log -1 && pytest -q"}, tool_use_id="t-9")
+        ShellVerbs(app).started("git log -1", "c9")
+        ShellVerbs(app).ran("git log -1", "c9", 0)
+        ShellVerbs(app).started("pytest -q", "c9")
+        assert work() == "testing", "a chained call is a test run while its test part runs"
+    finally:
+        app.runtime().stop()
+
+
 def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: Path):
     """While a chained shell call runs, the agent's doing is the text of the part running now, then the next; another tool is its verb; once nothing runs it is neither."""
     app = App(Config(tmp_path, port=0))

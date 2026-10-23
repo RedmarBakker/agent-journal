@@ -50,8 +50,22 @@ test("the figure does what the tool in flight says the agent does, and thinks be
     expect(stateAt({running: true, tool: "Edit"})).toBe("writing");
     expect(stateAt({running: true, tool: "Bash", since: NOW - 120})).toBe("running");
     expect(stateAt({tool: "Bash", since: NOW - 30})).toBe("thinking");
-    expect(stateAt({running: true, tool: "Bash", tool_work: "reading"})).toBe("reading");
-    expect(stateAt({running: true, tool: "Bash", tool_work: "searching"})).toBe("searching");
+    expect(stateAt({running: true, tool: "Bash", tool_work: "testing"})).toBe("testing");
+    expect(stateAt({running: true, tool: "Bash", tool_work: "building"})).toBe("building");
+    // any other command, reading, searching, moving files or git through the shell, is plain running
+    for (const work of ["running", "reading", "searching"]) expect(stateAt({running: true, tool: "Bash", tool_work: work}), work).toBe("running");
+});
+
+test("the figure builds a parcel only for a test run or a build, types at its laptop for an edit, and plays neither for any other command", () => {
+    const clip = (fields) => clipOf(stateAt({running: true, ...fields}));
+    expect(clip({tool: "Bash", tool_work: "testing"})).toBe("work");
+    expect(clip({tool: "Bash", tool_work: "building"})).toBe("work");
+    for (const tool of ["Edit", "MultiEdit", "Write", "NotebookEdit"]) expect(clip({tool}), tool).toBe("type");
+    for (const work of ["running", "reading", "searching"]) {
+        expect(clip({tool: "Bash", tool_work: work}), work).not.toBe("work");
+        expect(clip({tool: "Bash", tool_work: work}), work).not.toBe("type");
+    }
+    expect(CLIPS.find((each) => each.name === "type").postures).toEqual(["sit"]);
 });
 
 test("a stopped, paused or compacting agent keeps its figure, plainly not working; absence is never a state", () => {
@@ -296,7 +310,7 @@ test("each prop is chosen for its tools, and stays a moment after a quick tool f
     const prop = (fields) => clipOf(stateAt(fields));
     ["Read"].forEach((tool) => expect(prop({running: true, tool})).toBe("read"));
     ["Grep", "Glob"].forEach((tool) => expect(prop({running: true, tool})).toBe("search"));
-    ["Edit", "Write"].forEach((tool) => expect(prop({running: true, tool})).toBe("write"));
+    ["Edit", "Write"].forEach((tool) => expect(prop({running: true, tool})).toBe("type"));
     expect(prop({tool: "Read", since: NOW - 1})).toBe("read");
     expect(prop({tool: "Grep", since: NOW - 1})).toBe("search");
     expect(prop({tool: "Read", since: NOW - 10})).toBe("think");

@@ -3,8 +3,13 @@ import re
 from journal.support.command_shape import RUNNERS, TOKEN_PATTERN, CommandShape
 
 VERBS: dict[str, str | dict] = {"git": {"commit": "committing", "push": "pushing", "pull": "pulling", "add": "staging", "checkout": "switching branch", "merge": "merging", "rebase": "rebasing", "status": "checking git", "diff": "reading a diff", "log": "reading history"},
-         "pytest": "testing", "phpunit": "testing", "pest": "testing", "php": {"artisan": {"test": "testing", "": "running artisan"}}, "npm": {"test": "testing", "run": "running a script", "install": "installing", "ci": "installing"}, "pip": "installing", "pip3": "installing", "make": "building",
+         "pytest": "testing", "phpunit": "testing", "pest": "testing", "php": {"artisan": {"test": "testing", "": "running artisan"}}, "npm": {"test": "testing", "run": {"build": "building", "test": "testing", "": "running a script"}, "install": "installing", "ci": "installing"}, "vitest": "testing", "vite": {"build": "building", "": "running vite"},
+         "npx": {"vitest": "testing", "vite": {"build": "building", "": "running vite"}, "": "running npx"}, "pip": "installing", "pip3": "installing", "make": "building",
          "cargo": {"build": "building", "test": "testing", "run": "running"}, "docker": "running docker", "gh": "on github", "journal": "journalling", "cd": "moving", "ls": "listing", "cat": "reading", "sed": "reading", "grep": "searching", "rg": "searching", "find": "searching", "curl": "fetching"}
+
+
+# the flags that take the word after them as their value, as npm --prefix src/web, so that word is no part of what the command does
+VALUED_FLAGS = frozenset({"--prefix", "-C", "--cwd"})
 
 
 class ActivityLabel:
@@ -12,7 +17,8 @@ class ActivityLabel:
 
     @classmethod
     def build(cls, part: str) -> str:
-        text = [w for w in TOKEN_PATTERN.findall(CommandShape.inner(part).split("<<", 1)[0]) if not w.startswith("-") and "=" not in w]
+        words = TOKEN_PATTERN.findall(CommandShape.inner(part).split("<<", 1)[0])
+        text = [w for index, w in enumerate(words) if not w.startswith("-") and "=" not in w and (index == 0 or words[index - 1] not in VALUED_FLAGS)]
         text = text[1:] if text and text[0] in RUNNERS and len(text) > 1 else text
         if not text:
             return "running"

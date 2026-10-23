@@ -10,7 +10,6 @@ const {
     REACTIONS,
     VOICE_FACES,
     WORKED_SECONDS,
-    WORK_VARIANTS,
     ambientFor,
     answerTo,
     eyesAt,
@@ -20,8 +19,6 @@ const {
     lookOf,
     pastimeFor,
     reactionTo,
-    stretchClip,
-    workClip,
     workMoments,
 } = await import("../src/figure/reactions.js");
 const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, testResultsAfter} = await import("../src/domain/figureState.js");
@@ -61,7 +58,6 @@ test("every clip and look the figure is ever asked for exists, so no reaction, e
         ...EGGS.map((egg) => egg.clip),
         ...AMBIENT.map((each) => each.clip),
         ...Object.values(HELD),
-        ...WORK_VARIANTS.map(([clip]) => clip),
         "walk",
         "jump",
         "fall",
@@ -89,12 +85,10 @@ test("a figure at rest looks about and stretches only after the state has lasted
     expect(ambientFor("idle", look.after, rolled, 0, () => 0.99)).toBe("");
 });
 
-test("only a jump of more than the figure's own height sometimes turns over, and a stretch of work sometimes shows the laptop", () => {
+test("only a jump of more than the figure's own height sometimes turns over", () => {
     expect(flips(112 * FLIP_OVER, 112, () => 0)).toBe(false);
     expect(flips(112 * FLIP_OVER + 1, 112, () => FLIP_ODDS - 0.01)).toBe(true);
     expect(flips(112 * FLIP_OVER + 1, 112, () => FLIP_ODDS)).toBe(false);
-    expect(workClip(() => 0)).toBe("type");
-    expect(workClip(() => 0.99)).toBe("");
 });
 
 test("a watched test run that ends is seen once, as a pass or a failure, and a run already known is not seen again", () => {
@@ -174,19 +168,11 @@ test("a look's clock runs only while its eyes are shown: it waits while the figu
     expect([letsGoFor({posture: "hang", face: 0}), letsGoFor({posture: "sit", face: 300})]).toEqual([false, false]);
 });
 
-test("the laptop is rolled once for a stretch of work and kept from one tool to the next, and a stretch of rest shows its own clip", () => {
-    let rolled = stretchClip("running", {stretch: "", clip: ""}, () => 0);
-    expect(rolled).toEqual({stretch: "work", clip: "type", shows: "type"});
-    rolled = stretchClip("thinking", rolled, () => 0.99);
-    expect(rolled.shows).toBe("type");
-    expect(stretchClip("idle", rolled, () => 0)).toEqual({stretch: "idle", clip: "", shows: "idle"});
-    expect(stretchClip("running", {stretch: "", clip: ""}, () => 0.99).shows).toBe("work");
-});
-
 test("typing is a moment, and so is the end of a stretch of work long enough, timed from when the work began", () => {
     expect(workMoments("idle", true, 0, 50)).toEqual({moments: [{beat: "typing", time: 50}], began: 0});
     expect(workMoments("running", false, 0, 50)).toEqual({moments: [], began: 50});
     expect(workMoments("thinking", false, 50, 60).began).toBe(50);
+    expect(workMoments("reading", false, 10, 20)).toEqual({moments: [], began: 10});
     expect(workMoments("idle", false, 50, 50 + WORKED_SECONDS)).toEqual({
         moments: [{beat: "work_done", time: 50 + WORKED_SECONDS}],
         began: 0,
@@ -224,13 +210,3 @@ test("the figure does something by itself only while it is calm: idle, not hangi
     expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toBe(null);
 });
 
-test("reading shows the book even when the stretch rolled a laptop, without rerolling the stretch", () => {
-    const rolled = stretchClip("running", {stretch: "", clip: ""}, () => 0);
-    const noRoll = () => {
-        throw new Error("the working stretch must keep its roll");
-    };
-    const reading = stretchClip("reading", rolled, noRoll);
-    expect(reading).toEqual({stretch: "work", clip: "type", shows: "read"});
-    expect(stretchClip("running", reading, noRoll).shows).toBe("type");
-    expect(workMoments("reading", false, 10, 20)).toEqual({moments: [], began: 10});
-});

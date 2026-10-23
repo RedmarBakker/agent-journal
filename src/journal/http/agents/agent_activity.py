@@ -4,7 +4,9 @@ from journal.engine.support.stack_history import StackHistory
 from journal.engine.states.wait import Wait
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.sequences.listeners.record_run_changes import RUN
+from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
+from journal.features.shell.support.watch_suggestions import LONG_RUNS
 from journal.features.tasks.states.working import Working
 from journal.support.chain import Chain
 from journal.config import Config
@@ -45,9 +47,12 @@ class AgentActivity:
         recent = list(reversed(self.entries.kind_entries_scoped(ENTRY_COUNT))) if any(item.state != ENDED for item in agents) else []
         return [self.row(item, [] if item.state == ENDED else [e for e in recent if e.data.get("session") == item.session or (e.actor and e.actor.id == item.session)]) for item in agents]
 
-    @staticmethod
-    def work(entry) -> str:
-        return entry.recorded_call().work
+    def work(self, entry, entries) -> str:
+        """The word for the tool call in hand: testing or building while the shell part running, or else the call's first, is a test run or a build, else the call's own work word."""
+        call = entry.recorded_call()
+        running = self.unended_part(entries)
+        labels = [running.data.get("doing", "")] if running else [ActivityLabel.build(part.text) for part in call.parts[:1]]
+        return next((label for label in labels if label in LONG_RUNS), call.work)
 
     def row(self, agent: Agent, entries) -> dict:
         hooks = [e for e in entries if e.kind not in ("nudge", "created", "updated", "deleted")]
@@ -63,7 +68,7 @@ class AgentActivity:
             "status": "stopped" if agent.state == ENDED else self.status(agent.state, STATUS.get(kind, "idle")),
             "heard_at": last.created_at if last else agent.updated_at,
             "tool": last.data.get("tool_name", "") if last and kind in ("ToolStarting", "ToolFinished") else "",
-            "tool_work": self.work(last) if last and kind in ("ToolStarting", "ToolFinished") else "",
+            "tool_work": self.work(last, entries) if last and kind in ("ToolStarting", "ToolFinished") else "",
             "tool_running": kind == "ToolStarting" or self.unended_part(entries) is not None,
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),

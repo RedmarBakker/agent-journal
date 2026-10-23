@@ -14,6 +14,13 @@ export function pileSlot(index) {
     return {left: -(PARCEL.inside + PARCEL.width / 2 + column * (PARCEL.width + PILE.gap)), up: (index % PILE.high) * (PARCEL.height - 2)};
 }
 
+// how long the figure hammers each parcel, a random number of milliseconds between the two
+export const HAMMER = {least: 3000, most: 8000};
+export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAMMER.least);
+
+// how many blows have landed `frames` frames into a hammering whose blows are `blowFrames` frames long and land `lands` of the way through
+export const blowsLanded = (frames, blowFrames, lands) => Math.max(Math.floor(frames / blowFrames - lands) + 1, 0);
+
 // how far in front of its feet a pushing figure's hands meet the parcel's middle, and the room it leaves behind a parcel before pushing
 export const PUSH = {reach: 22, room: 6};
 

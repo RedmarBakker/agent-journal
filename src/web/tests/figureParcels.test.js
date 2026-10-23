@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
-import {PARCEL, PILE, PUSH, UFO, behind, flightMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
+import {HAMMER, PARCEL, PILE, PUSH, UFO, behind, blowsLanded, flightMs, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../src/figure/parcels.js";
 import {clipFor} from "../src/domain/figureState.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
@@ -145,4 +145,14 @@ test("pushing a parcel far lower than its hands, the figure bends its knees and 
             }
         }
     }
+});
+
+test("each parcel is hammered a random three to eight seconds, and every blow that lands on it is counted, once", () => {
+    expect([HAMMER.least, HAMMER.most]).toEqual([3000, 8000]);
+    expect(hammerMs(() => 0)).toBe(3000);
+    expect(hammerMs(() => 0.5)).toBe(5500);
+    expect(hammerMs(() => 0.999999)).toBeCloseTo(8000, 0);
+    // a blow of 8 frames lands at 0.3 of its way: none before the first lands, then one a blow
+    const landed = [0, 2, 2.4, 3, 10, 10.4, 11, 26.4].map((frames) => blowsLanded(frames, 8, 0.3));
+    expect(landed).toEqual([0, 0, 1, 1, 1, 2, 2, 4]);
 });

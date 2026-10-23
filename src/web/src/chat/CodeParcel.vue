@@ -1,15 +1,70 @@
 <script setup>
-import {computed} from "vue";
+import {computed, ref, watch} from "vue";
 
 // A parcel of code the figure built, standing on the page with its base's middle at `x`, `y`, in pixels, `up` pixels higher on the pile
 // it sits on, `scale` times its size and as opaque as `opacity`; it pops in as it appears, and hops up when it is pushed onto the pile.
+// Each time `blows` goes up, a blow has landed on it: a cartoon cloud of dust puffs around it, and now and then a few bits fly out.
 const props = defineProps({
     x: {type: Number, required: true},
     y: {type: Number, required: true},
     up: {type: Number, default: 0},
     scale: {type: Number, default: 1},
     opacity: {type: Number, default: 1},
+    blows: {type: Number, default: 0},
 });
+
+// The dust of a blow: puffs of cloud around the parcel, each its place from the parcel's base's middle and its size, in pixels; the share
+// of blows that throw bits out, how many at most, what they are, how far they fly and how fast they spin
+const DUST = {
+    clouds: [
+        {x: -17, y: -5, size: 15},
+        {x: -7, y: -2, size: 13},
+        {x: 6, y: -3, size: 14},
+        {x: 17, y: -6, size: 13},
+        {x: -11, y: -15, size: 12},
+        {x: 12, y: -17, size: 11},
+        {x: 0, y: -22, size: 12},
+    ],
+    throws: 0.45,
+    most: 3,
+    bits: ["{", "}", ";", "</>", "=", "a", "x", "λ", "nail"],
+    reach: [14, 30],
+    spin: 540,
+};
+
+// the puffs in the air, each {id, bits}, every bit {id, text, dx, dy, spin}
+const puffs = ref([]);
+let puffed = 0;
+const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function bitOf(id) {
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+    const reach = DUST.reach[0] + Math.random() * (DUST.reach[1] - DUST.reach[0]);
+    const text = DUST.bits[Math.floor(Math.random() * DUST.bits.length)];
+    return {id, text, dx: Math.cos(angle) * reach, dy: Math.sin(angle) * reach, spin: (Math.random() - 0.5) * DUST.spin};
+}
+
+function puff() {
+    const id = ++puffed;
+    const thrown = Math.random() < DUST.throws ? 1 + Math.floor(Math.random() * DUST.most) : 0;
+    puffs.value = [...puffs.value, {id, bits: Array.from({length: thrown}, (_, index) => bitOf(`${id}-${index}`))}];
+}
+
+// a puff is gone once its first cloud has faded, as they all fade together
+const settled = (id) => (puffs.value = puffs.value.filter((each) => each.id !== id));
+
+watch(
+    () => props.blows,
+    (now, before) => now > before && !still() && puff()
+);
+
+const cloudStyle = (cloud) => ({
+    left: `${cloud.x - cloud.size / 2}px`,
+    top: `${cloud.y - cloud.size / 2}px`,
+    width: `${cloud.size}px`,
+    height: `${cloud.size}px`,
+});
+const bitStyle = (bit) => ({"--dx": `${bit.dx}px`, "--dy": `${bit.dy}px`, "--spin": `${bit.spin}deg`});
 
 // the lines of code on the parcel's front, each its row from the top and its indent and length in the drawing's units
 const LINES = [
@@ -46,6 +101,21 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
                 </svg>
             </div>
         </div>
+        <template v-for="each in puffs" :key="each.id">
+            <div class="code-parcel-dust" @animationend.once="settled(each.id)">
+                <template v-for="cloud in DUST.clouds" :key="`${cloud.x}/${cloud.y}`">
+                    <span class="code-parcel-cloud" :style="cloudStyle(cloud)" />
+                </template>
+                <template v-for="bit in each.bits" :key="bit.id">
+                    <span class="code-parcel-bit" :style="bitStyle(bit)">
+                        <template v-if="bit.text === 'nail'">
+                            <svg viewBox="0 0 4 10" width="4" height="10"><path d="M0 0h4v1.5H2.6L2 10 1.4 1.5H0Z" /></svg>
+                        </template>
+                        <template v-else>{{ bit.text }}</template>
+                    </span>
+                </template>
+            </div>
+        </template>
     </div>
 </template>
 
@@ -131,6 +201,72 @@ const sized = computed(() => ({transform: `scale(${props.scale})`, opacity: prop
     100% {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+/* a blow's dust puffs out around the parcel and fades, and its bits fly up and out in an arc, turning */
+.code-parcel-dust {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 0;
+    height: 0;
+}
+
+.code-parcel-cloud {
+    position: absolute;
+    border-radius: 50%;
+    background: #ece6d8;
+    box-shadow: 0 0 0 0.7px color-mix(in srgb, #272936 70%, transparent);
+    animation: code-parcel-puff 560ms ease-out both;
+}
+
+@keyframes code-parcel-puff {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+
+    25% {
+        opacity: 0.95;
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.35) translateY(-4px);
+    }
+}
+
+.code-parcel-bit {
+    position: absolute;
+    left: -3px;
+    top: -12px;
+    font: 700 9px/1 var(--mono, monospace);
+    color: #272936;
+    text-shadow: 0 0 2px #f3eedf;
+    animation: code-parcel-fly 560ms cubic-bezier(0.2, 0.6, 0.4, 1) both;
+}
+
+.code-parcel-bit svg {
+    display: block;
+    fill: #a9adb8;
+    stroke: #272936;
+    stroke-width: 0.5;
+}
+
+@keyframes code-parcel-fly {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0);
+    }
+
+    70% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(var(--dx), calc(var(--dy) + 8px)) rotate(var(--spin));
     }
 }
 

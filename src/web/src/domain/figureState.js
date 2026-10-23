@@ -9,8 +9,10 @@ export const HELD = {
     thinking: "think",
     searching: "search",
     reading: "read",
-    writing: "write",
-    running: "work",
+    writing: "type",
+    testing: "work",
+    building: "work",
+    running: "think",
     waiting: "waiting",
     asking: "waiting",
     compacting: "compacting",
@@ -22,7 +24,7 @@ export const HELD = {
 export const RESTS = new Set(["asleep", "compacting", "paused", "stopped"]);
 
 // The states in which the agent is at work
-export const WORKING = new Set(["thinking", "searching", "reading", "writing", "running"]);
+export const WORKING = new Set(["thinking", "searching", "reading", "writing", "testing", "building", "running"]);
 
 // A tool in flight says what the agent is doing with it; the providers report their own tools under these names.
 const TOOL_STATES = {
@@ -37,6 +39,10 @@ const TOOL_STATES = {
     NotebookEdit: "writing",
     Bash: "running",
 };
+
+// What a shell line says it does (the agent row's tool_work): a test run or a build is built as a parcel; any other command, moving files,
+// reading or git alike, is plain running, which plays neither the parcel nor the laptop
+const SHELL_STATES = {testing: "testing", building: "building"};
 
 const BAR_STATES = {paused: "paused", stopped: "stopped", compacting: "compacting", waiting: "waiting", running: "waiting"};
 
@@ -59,8 +65,8 @@ export function figureStateOf(agent, waitingSince, now = Date.now() / 1000) {
     if (bar === "idle" && (waitingSince || agent?.awaiting)) return {state: "asking", since: waitingSince || since};
     if (bar === "idle") return {state: now - since >= ASLEEP_AFTER ? "asleep" : "idle", since};
     const tool = agent?.tool;
-    // a shell line says what it does itself: a read or a search through the shell shows the book or the glass, not the laptop
-    const inFlight = Boolean(tool) && (agent.tool_running || now - since < TOOL_LINGERS) && (agent.tool_work || TOOL_STATES[tool]);
+    const doing = agent.tool_work ? (SHELL_STATES[agent.tool_work] ?? "running") : TOOL_STATES[tool];
+    const inFlight = Boolean(tool) && (agent.tool_running || now - since < TOOL_LINGERS) && doing;
     return {state: inFlight || "thinking", since};
 }
 

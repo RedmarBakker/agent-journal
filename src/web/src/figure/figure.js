@@ -1387,11 +1387,12 @@ function onTablet(pose, stance, side, stroke) {
     }
 }
 
-// `blows` blows of `blowFrames` frames a loop, so the hammering plays at least ten seconds once it starts: each blow comes down quick,
+// One blow of `blowFrames` frames a loop, so the hammering can stop after any blow; how long it goes on for each parcel the page decides
+// (figure/parcels.js HAMMER). Each blow comes down quick,
 // gathering speed, lands `lands` of the way through, and lifts back slower, easing up; the wrist snaps the hammer's head `snap` degrees
 // down into the blow. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
 // `landsAt` from its feet at rest across and forward; the parcel stands on the page, not in the picture, so it never turns with the figure.
-export const WORK = {blows: 13, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, turn: 80, landsAt: [0.74, -1.27]};
+export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, turn: 80, landsAt: [0.74, -1.27]};
 
 function blowOf(t) {
     const phase = (t * WORK.blows) % 1;

@@ -24,6 +24,7 @@ import {
     cardsAfter,
     canSwitch,
     clipFor,
+    clipOf,
     modeOf,
     closeAt,
     facesAfter,
@@ -35,10 +36,10 @@ import {
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
 import {builds, keptClear, stayAtHome, stepAside, stayForLook, stayingAt, targetFor} from "../figure/perches.js";
-import {PARCEL, PILE, PUSH, UFO, behind, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
+import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, pileSlot, pushStand, pushedTo, stopsOf, ufoAt} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, eyesAt, lookOf, pastimeFor, stretchClip, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, eyesAt, lookOf, pastimeFor, walkingMoment, workMoments} from "../figure/reactions.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -124,18 +125,20 @@ let stay = {where: "rest", until: 0};
 let cleared = {until: 0};
 // the sides, "l" or "r", of the hands this voice carries nothing in, which it can hang by
 let hands = [];
-// the clip rolled for the stretch the figure is in (reactions.js stretchClip)
-let rolled = {stretch: "", clip: ""};
 // the user has typed in the compose box since the last look, and when the agent's work in hand began
 let typed = false;
 let workBegan = 0;
 let walkBegan = 0;
-// The parcels of code the figure has built (figure/parcels.js), oldest first, each {id, along, up, state}: on the compose box's top `along`
-// pixels from its left end and `up` pixels up the pile; "building" while the figure hammers it, "built" once it has stopped, until it is
-// pushed onto the pile, and then "piled". `beside` is how far the blows land from the figure's feet, in pixels toward the viewer's right.
+// The parcels of code the figure has built (figure/parcels.js), oldest first, each {id, along, up, state, until, blows}: on the compose
+// box's top `along` pixels from its left end and `up` pixels up the pile; "building" while the figure hammers it, until `until` on the
+// page's clock, a random few seconds after it popped in, with `blows` blows landed on it; "built" once that time is up, until it is pushed
+// onto the pile, and then "piled". `beside` is how far the blows land from the figure's feet, in pixels toward the viewer's right.
 const parcels = ref([]);
 let made = 0;
 let beside = 0;
+// how long one blow of the hammering is and where in it the blow lands (figure.js WORK), and the blows counted of the hammering on screen
+let blow = {frames: 1, lands: 0};
+let counted = {started: 0, landed: 0};
 // The UFO once the work is committed, or null: when it set off, the stops it makes for the parcels it takes (parcels.js stopsOf), and
 // where it comes from and goes off to; and what is drawn of it and of the parcels this frame
 const ufo = ref(null);
@@ -154,13 +157,13 @@ const canDraw = (name, posture) => clipNamed(name).postures.includes(posture);
 const drawnHere = (name) => hasClip(name) && canDraw(name, body.place.posture);
 const figureSize = () => ({size: SIZE, below: below.value});
 
-// the clip the figure's body shows for the stretch it is in: pushing a parcel it built while it stands behind it, standing by on its way
+// the clip the figure's body shows for what its agent does: pushing a parcel it built while it stands behind it, standing by on its way
 // round behind it, and while its agent runs a command and it has yet to get to where it builds, so it never hammers on the way there
 function doing() {
-    rolled = stretchClip(held.value.state, rolled, Math.random);
     const pushing = parcels.value.find((each) => each.state === "built");
     if (pushing) return behind(parcelX(pushing), feetX()) ? "push" : "idle";
-    return builds(held.value.state) && !body.place.stays ? "idle" : rolled.shows;
+    if (parcels.value.some((each) => each.state === "building")) return "work";
+    return builds(held.value.state) && !body.place.stays ? "idle" : clipOf(held.value.state);
 }
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
@@ -640,17 +643,26 @@ function keepParcels(shown) {
     const hammers = shown.clip.name === "work" && drawn === "stand" && body.place.stays && !body.trip;
     if (hammers && !list.some((each) => each.state !== "piled")) {
         const along = Math.min(Math.max(feetX() + beside - edge.left, PARCEL.inside), edge.width - PARCEL.inside);
-        parcels.value = [...list, {id: ++made, along, up: 0, state: "building"}];
+        parcels.value = [...list, {id: ++made, along, up: 0, state: "building", until: performance.now() + hammerMs(Math.random), blows: 0}];
     }
-    const building = list.find((each) => each.state === "building");
-    if (building && shown.clip.name !== "work" && !builds(held.value.state) && !ufo.value) building.state = "built";
+    const building = parcels.value.find((each) => each.state === "building");
+    if (building && hammers) countBlows(building, shown);
+    if (building && performance.now() >= building.until && !ufo.value) building.state = "built";
     const pushing = list.find((each) => each.state === "built");
     if (pushing && !ufo.value) {
         const to = slotX(piled());
         if (body.trip?.moves) pushing.along = pushedTo(parcelX(pushing), feetX(), to, body.way) - edge.left;
         if (Math.abs(parcelX(pushing) - to) < PUSH.room) Object.assign(pushing, {along: to - edge.left, state: "piled", up: pileSlot(piled()).up});
     }
-    if (!ufo.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1}));
+    if (!ufo.value) drawnParcels.value = parcels.value.map((each) => ({id: each.id, x: parcelX(each), y: edge.top, up: each.up, scale: 1, opacity: 1, blows: each.blows}));
+}
+
+// each blow that lands on the parcel being built is counted on it, so the parcel puffs dust at it (CodeParcel.vue)
+function countBlows(building, shown) {
+    if (counted.started !== playing.started) counted = {started: playing.started, landed: 0};
+    const landed = blowsLanded(exactFrameOf(shown), blow.frames, blow.lands);
+    building.blows += Math.max(landed - counted.landed, 0);
+    counted.landed = landed;
 }
 
 // the work is committed: the UFO comes for every parcel that is built, on the pile or not
@@ -793,6 +805,7 @@ async function load(name) {
         clips = module.CLIPS.filter((clip) => !clip.voices || clip.voices.includes(name));
         hands = [...loaded.stance.free];
         beside = module.blowsLandAt(loaded.stance) * SIZE;
+        blow = {frames: module.WORK.blowFrames, lands: module.WORK.lands};
         testResultsAfter(lead.value, testStates);
         cardsAfter(lead.value, knownCards);
         below.value = module.GROUND;
@@ -902,7 +915,7 @@ const style = computed(() => ({
         </div>
     </div>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
-        <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" />
+        <CodeParcel :x="drawing.x" :y="drawing.y" :up="drawing.up" :scale="drawing.scale" :opacity="drawing.opacity" :blows="drawing.blows ?? 0" />
     </template>
     <template v-if="saucer">
         <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
