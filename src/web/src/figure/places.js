@@ -277,6 +277,17 @@ export function seatAt(box, side, {size}) {
 // the way a lounging figure faces, side-on with its legs along the floor toward `way` (1 to the right, -1 to the left), never the viewer
 export const loungeFacing = (way) => (way > 0 ? 90 : 270);
 
+// the least a figure at its laptop is turned from the viewer, in degrees: three-quarters
+export const ASIDE = 60;
+
+// the way a figure seated playing `clip` faces on a spot facing `face`: the spot's way, turned to three-quarters for a clip drawn aside
+// (figure.js CLIPS aside) where the spot faces nearer the viewer, to the side it already leans to
+export function seatedFacing(clip, face) {
+    const turn = ((((face + 180) % 360) + 360) % 360) - 180;
+    if (!clip.aside || Math.abs(turn) >= ASIDE) return face;
+    return turn < 0 ? 360 - ASIDE : ASIDE;
+}
+
 // Where the figure sits at home: on a corner of the edge it stands on, beside the pile (freeEdge), whose seat is inside its world and hides
 // nothing, the one nearest `near`; null when neither corner holds a seat
 export function seatOf(figure, near) {

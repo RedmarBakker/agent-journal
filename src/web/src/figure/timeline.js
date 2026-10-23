@@ -14,9 +14,13 @@ export function closeAt(clip, index) {
     return intro + Math.ceil(Math.max(index - intro, 0) / unit) * unit;
 }
 
-// Whether the clip on screen gives way to another that is wanted: at once when it is interruptible (figure.js CLIPS), else once it has played
-// out, between the frame it was at when last drawn, `last`, and the frame it is at now, `index`
+// whether a clip on screen `seconds` has played the least it plays (figure.js CLIPS least)
+export const playedLeast = (clip, seconds) => seconds >= (clip.least ?? 0);
+
+// Whether the clip on screen gives way to another that is wanted: never before it has played its least, at once when it is interruptible
+// (figure.js CLIPS), else once it has played out, between the frame it was at when last drawn, `last`, and the frame it is at now, `index`
 export function canSwitch(clip, index, last) {
+    if (!playedLeast(clip, index / clip.fps)) return false;
     if (clip.interruptible) return true;
     if (!clip.loops) return index >= clip.frames;
     const unit = clip.leaves || clip.frames;

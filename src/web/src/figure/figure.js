@@ -2623,6 +2623,8 @@ const GESTURE = ["stand", "sit", "lounge", "composed", "walk"];
 const MOVE = ["stand"];
 const HANGING = ["hang"];
 const ON_A_LAP = ["sit", "lounge"];
+// the seconds the figure types at its laptop, once it has started, before anything else may take it off it
+export const TYPING_SECONDS = 5;
 
 // Every clip plays out before another starts, so the figure never reads as cut off: one that plays once to its end, a loop to the end of
 // its cycle or of the stretch it names as `leaves`. An `interruptible` clip gives way the moment something else is wanted instead, as the
@@ -2631,7 +2633,9 @@ const ON_A_LAP = ["sit", "lounge"];
 // the next of each pair: the Z of sleep, the notes of a whistled tune. A clip that `cuts` in takes over at once from whatever plays, as the
 // figure stops what it does to watch the UFO or swats at a tickle. A clip with its `ownLook` keeps it, the head never turned away to watch
 // the bar under it or the UFO, nor turned toward the viewer for a look in the eyes, as the figure faces the user dancing or laughing, or
-// pushes a parcel with its head going with its lean.
+// pushes a parcel with its head going with its lean. A clip that names `least` plays at least that many seconds before anything else may
+// take over, the beats waiting behind it, as typing does; one that is `aside` is drawn seated turned aside from the viewer, never square
+// to it, as at the laptop.
 
 export const CLIPS = [
     {name: "idle", frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
@@ -2679,7 +2683,7 @@ export const CLIPS = [
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
     {name: "land", frames: LANDING.frames, fps: LANDING.fps, loops: false, postures: MOVE, pose: land},
-    {name: "type", frames: 24, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: type},
+    {name: "type", frames: 24, fps: 8, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, postures: ON_A_LAP, pose: type},
     {name: "joy", frames: ACTS.joy.frames, fps: ACTS.joy.fps, loops: false, postures: GESTURE, pose: joy},
     {name: "dismay", frames: 28, fps: 10, loops: false, postures: GESTURE, pose: dismay},
     {name: "polish", frames: 40, fps: 12, loops: false, postures: GESTURE, voices: ["butler"], pose: polish},
@@ -2720,7 +2724,7 @@ export const CLIPS = [
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},
     {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
     {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
-    {name: "type_ponder", frames: 24, fps: 6, loops: true, leaves: 8, postures: ON_A_LAP, pose: type_ponder},
+    {name: "type_ponder", frames: 24, fps: 6, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, postures: ON_A_LAP, pose: type_ponder},
     {name: "wipe_brow", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
     {name: "wave_up", frames: 12, fps: 12, loops: true, cuts: true, postures: ["stand", "sit"], pose: wave_up},
 ];

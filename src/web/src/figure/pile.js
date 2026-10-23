@@ -1,3 +1,5 @@
+import {playedLeast} from "./timeline.js";
+
 // The figure's animations, one pile. Every entry is something the figure may do, with its weight, a weight of 3 counting as three tickets,
 // and `when`, the condition it may play under: the moment it belongs to, and anything else it needs, as a voice, a stretch of time the
 // state has lasted, a free hand. At each choice the pile is filtered to the entries whose condition holds, that the figure can draw and
@@ -227,6 +229,8 @@ export const lineOf = (entry) =>
 // whether the clip `name` may be cut off by the next moment once it has played `seconds`: only an act of CUT that has played its least
 export const cutsAfter = (name, seconds) => Boolean(CUT[name]) && seconds >= CUT[name];
 
-// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: a loop at once, an act once it has played
-// its least (cutsAfter), and anything at once for a `trip` that drops everything, as for the end of a long run (reactions.js EAGER)
-export const givesWay = (shown, seconds, trip = null) => Boolean(trip?.urgent) || !shown?.once || cutsAfter(shown.clip.name, seconds);
+// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: a loop as soon as it has played its
+// least (timeline.js playedLeast), an act once it has played its least (cutsAfter), and anything at once for a `trip` that drops
+// everything, as for the end of a long run (reactions.js EAGER)
+export const givesWay = (shown, seconds, trip = null) =>
+    Boolean(trip?.urgent) || !shown || (shown.once ? cutsAfter(shown.clip.name, seconds) : playedLeast(shown.clip, seconds));

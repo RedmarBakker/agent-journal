@@ -72,6 +72,7 @@ import {
     hiddenAt,
     spotOf,
     SEATED,
+    seatedFacing,
     tripTo,
     turnStep,
 } from "../figure/places.js";
@@ -354,8 +355,8 @@ function step() {
         return step();
     }
     const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
-    // seated, it faces as its seat does, whatever the clip still on screen faced
-    poseToward({posture, facing: SEATED.has(posture) ? body.place.face : shown.facing});
+    // seated, it faces as its seat does, whatever the clip still on screen faced, and turned aside at its laptop (places.js seatedFacing)
+    poseToward({posture, facing: SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
     // the leg waiting for the clip it sets off with goes in the frame that clip goes on screen, so the walk is never drawn on the spot
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
     drawn = posed.posture;
