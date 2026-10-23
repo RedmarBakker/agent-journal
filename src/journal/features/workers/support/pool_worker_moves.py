@@ -6,6 +6,7 @@ from journal.sync.hosts import Hosts
 READY = "worker_ready"
 DELIVERED = "worker_delivered"
 ENDED = "worker_ended"
+UNCLAIMED = "pool_unclaimed"
 
 
 class PoolWorkerMoves:

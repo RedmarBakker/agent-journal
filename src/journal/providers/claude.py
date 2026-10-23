@@ -37,6 +37,7 @@ SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"
 class Claude(Provider):
     user_line_key = "systemMessage"
     name = "claude"
+    program = "claude"
     prompt_flags = ("--dangerously-skip-permissions",)
     home = ".claude"
     settings_file = "settings.json"
@@ -156,7 +157,7 @@ class Claude(Provider):
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:
         skipped = [flag for flag in self.prompt_flags if choice.prompt_flags and flag not in args]
-        return ["claude", *skipped, "--settings", status.settings(), *args]
+        return [self.program, *skipped, "--settings", status.settings(), *args]
 
     def launch_environment(self, runner: Path) -> dict[str, str]:
         return {"CLAUDE_CODE_SHELL_PREFIX": str(runner)}

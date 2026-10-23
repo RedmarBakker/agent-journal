@@ -39,6 +39,9 @@ class PoolJobIntake(Listener[PoolJobArrived]):
             self.claimed(job, self.workers.find(job.worker_id))
 
     def claimed(self, job: PoolJob, worker: Worker) -> None:
+        if not self.providers.lookup(worker.provider).is_installed():
+            self.declined(job, f"{worker.provider}, the program the worker runs, is not installed on this machine")
+            return
         try:
             self.link.claim_request(job.request_id)
         except TeamRefusal as taken:

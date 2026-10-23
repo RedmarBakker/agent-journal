@@ -1,6 +1,7 @@
 import json
 import re
 import shlex
+import shutil
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +47,7 @@ class Provider(ABC):
     """One agent program, Claude Code or Codex: everything the journal knows about it, and nowhere else."""
 
     name: ClassVar[str]
+    program: ClassVar[str]
     home: ClassVar[str]
     settings_file: ClassVar[str]
     prompt_flags: ClassVar[tuple[str, ...]]
@@ -178,6 +180,9 @@ class Provider(ABC):
 
     @abstractmethod
     def worker_command(self, brief: str, model: str, resume: str, session: str) -> list[str]: ...
+
+    def is_installed(self) -> bool:
+        return shutil.which(self.program) is not None
 
     @abstractmethod
     def worker_session(self, resume: str) -> str: ...

@@ -1,7 +1,7 @@
 import time
 from typing import Callable
 
-from journal.features.workers.support.pool_worker_moves import DELIVERED, ENDED, READY
+from journal.features.workers.support.pool_worker_moves import DELIVERED, ENDED, READY, UNCLAIMED
 from journal.features.workers.support.worker_end import WorkerEnd
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -14,20 +14,23 @@ from journal.support.host_writer import HostWriter
 from sync_server.host_request import HostRequest
 
 
+UNCLAIMED_LINE = "no machine of the team's pool took it up within ten minutes: dispatch it again, here or to the pool"
+
+
 class PoolWorkerWrites(HostWriter):
-    """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, and its run's end."""
+    """The moves of a pool worker running on a teammate's machine, made here, on the journal that dispatched it, so its dispatcher hears them: clocked in, clocked out with its report, its run's end, and a pool request nobody took up, which ends the worker unfinished."""
 
     def __init__(self, workers: Workers, reports: WorkerReports, runner: WorkerRunner, environments: Environments, scope: Scope) -> None:
         self.workers, self.reports, self.runner, self.environments, self.scope = workers, reports, runner, environments, scope
 
     def makers(self) -> dict[str, Callable[[HostRequest], None]]:
-        return {READY: self.ready, DELIVERED: self.delivered, ENDED: self.ended}
+        return {READY: self.ready, DELIVERED: self.delivered, ENDED: self.ended, UNCLAIMED: self.unclaimed}
 
     def ready(self, request: HostRequest) -> None:
-        self.scoped(request, lambda worker, actor: self.workers.save(worker.ready(time.time()), actor))
+        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.workers.save(worker.ready(time.time()), actor))
 
     def delivered(self, request: HostRequest) -> None:
-        self.scoped(request, lambda worker, actor: self.delivery(worker, request.body["report"], actor))
+        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.delivery(worker, request.body["report"], actor))
 
     def delivery(self, worker: Worker, report: str, actor: Actor) -> None:
         self.reports.posted(worker, report, actor)
@@ -35,7 +38,7 @@ class PoolWorkerWrites(HostWriter):
 
     def ended(self, request: HostRequest) -> None:
         end = WorkerEnd.parsed(request.body)
-        self.scoped(request, lambda worker, actor: self.end(worker.with_(resume=end.resume or worker.resume), end, actor))
+        self.scoped(request, request.body["worker_id"], lambda worker, actor: self.end(worker.with_(resume=end.resume or worker.resume), end, actor))
 
     def end(self, worker: Worker, end: WorkerEnd, actor: Actor) -> None:
         if not self.runner.awaits_report(worker):
@@ -43,8 +46,10 @@ class PoolWorkerWrites(HostWriter):
             return
         self.runner.reported(worker.with_(touched_paths=end.touched), end.outcome, end.summary, actor)
 
-    def scoped(self, request: HostRequest, change: Callable[[Worker, Actor], None]) -> None:
-        worker_id = request.body["worker_id"]
+    def unclaimed(self, request: HostRequest) -> None:
+        self.scoped(request, request.body["body"]["worker_id"], lambda worker, actor: self.workers.save(worker.unfinished(time.time(), UNCLAIMED_LINE), actor))
+
+    def scoped(self, request: HostRequest, worker_id: int, change: Callable[[Worker, Actor], None]) -> None:
         for environment in self.environments.keyed(request.environment_key):
             with self.scope.environment(environment.row_id):
                 change(self.workers.find(worker_id), Actor.worker(worker_id))

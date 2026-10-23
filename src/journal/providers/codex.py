@@ -39,6 +39,7 @@ class Codex(Provider):
     """OpenAI's Codex: the journal reads no thoughts, no messages between sessions and no subagent transcripts from its rollouts, so it offers none of them."""
 
     name = "codex"
+    program = "codex"
     prompt_flags = ("--dangerously-bypass-approvals-and-sandbox",)
     home = ".codex"
     settings_file = "hooks.json"
@@ -164,7 +165,7 @@ class Codex(Provider):
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:
         skipped = [flag for flag in self.prompt_flags if choice.prompt_flags and flag not in args]
-        return ["codex", "--no-daemon", *skipped, *([] if choice.prompt_flags else self.network_access), *args]
+        return [self.program, "--no-daemon", *skipped, *([] if choice.prompt_flags else self.network_access), *args]
 
     def launch_environment(self, runner: Path) -> dict[str, str]:
         return {}

@@ -11077,3 +11077,79 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
+
+
+def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_one_nobody_takes_ends_unfinished(app: App, tmp_path, monkeypatch):
+    import subprocess
+
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.models.pool_job import PoolJob
+    from journal.models.pool_job_state import PoolJobState
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.environments import Environments
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.pool_jobs import PoolJobs
+    from journal.repositories.workers import Workers
+    from journal.support.worktree_failure import WorktreeFailure
+    from journal.sync.host_desk import HostDesk
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from journal.version import VERSION
+    from sync_server.account import ADMIN, MEMBER
+    from sync_server.pool_slots import PoolSlots
+    from sync_server.pull_query import PullQuery
+    from sync_server.team_server import TeamServer
+
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "--bare", str(tmp_path / "origin.git"), cwd=tmp_path)
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    git("remote", "add", "origin", str(tmp_path / "origin.git"))
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", "correct horse battery", MEMBER, 1.0)
+    _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, bob = team.devices.login("bob@example.com", "correct horse battery", "desktop", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
+    offered = lambda device: [request for request in team.host_requests.waiting(team.devices.device(device).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION)) if request.kind == "pool_worker"]
+    jobs = app.container.get(PoolJobs)
+    try:
+        for table in ("workers", "links", "tasks", "task_logs", "entries", "messages", "settings", "proofs"):
+            app.container.get(IdBlocks).add(table, 800000, 800100)
+        app.container.get(TeamAccount).write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": ada, "device": 1, "account_id": 1})
+        assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the parser", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
+        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+        monkeypatch.setattr("journal.providers.provider.Provider.is_installed", lambda self: True)
+        app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
+        busy = jobs.save(PoolJob(request_id=999, environment_key="elsewhere", account_id=2, worker_id=1, profile="journal-medior").started(), Actor.system())
+        app.container.get(HostDesk).handle(tuple(offered(ada)))
+        app.runtime().deferred.drain()
+        request = offered(bob)[0]
+        assert [job.state for job in jobs.all_matching(request_id=request.id)] == [PoolJobState.DECLINED] and offered(ada) == [], "a machine whose slot is already taken declines it and is not offered it again"
+        assert [each.id for each in offered(bob)] == [request.id], "the others still are"
+        jobs.save(busy.finished(), Actor.system())
+        for job in jobs.all_matching(request_id=request.id):
+            jobs.delete(job, Actor.system())
+        def failed(self, worker):
+            raise WorktreeFailure(worker.name, "the disk is full")
+        monkeypatch.setattr(WorkerRunner, "workplace", failed)
+        team.host_requests.claimed(bob, request.id)
+        with pytest.raises(Exception):
+            team.host_requests.claimed(ada, request.id)
+        team.host_requests.declined(bob, request.id)
+        assert [each.id for each in offered(ada)] == [], "ada declined it before, so it stays away from her"
+        team.host_requests.lapse(team.clock.time() + 601)
+        answered = [each for each in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (app.container.get(Environments).existing("main").key,), PoolSlots(0, 0), VERSION)) if each.kind == "pool_unclaimed"]
+        assert len(answered) == 1, "one nobody takes is answered back to its environment's host"
+        app.container.get(HostDesk).handle(tuple(answered))
+        with app.container.get(Scope).environment(MAIN):
+            worker = app.container.get(Workers).all()[0]
+        assert worker.state == WorkerState.UNFINISHED and "no machine of the team's pool took it up" in worker.run_end, "and the dispatcher's worker ends unfinished with the reason, so the agent is told"
+        app.container.get(HostDesk).handle(tuple(team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION))) + (answered[0].__class__(id=0, environment_key="k", kind="from a later version", body={}, account_id=1, created_at=0.0),))
+    finally:
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
