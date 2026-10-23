@@ -220,6 +220,9 @@ onMounted(() => {
     });
 });
 
+// scrolled back, the chat keeps every row it holds while it refreshes; back at the foot it trims to its newest page
+watch(away, (back) => (back ? scope.keepRows("messages") : scope.releaseRows("messages")));
+
 const {loading: loadingOlder, older} = useScrollback(scroller, topMark, () => scope.earlier("messages"), {
     ready: () => ready.value && settledOnce.value && scrolledUp.value && Boolean(scroller.value),
     margin: AHEAD,

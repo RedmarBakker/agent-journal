@@ -3,7 +3,7 @@ import {ref, toRaw, watch} from "vue";
 import {api, onWrite} from "../api/client.js";
 import {onOutboxChange} from "../chat/outbox.js";
 import {withoutAnswered} from "../domain/placeholders.js";
-import {isClosed, updatedAt} from "../domain/row.js";
+import {closable, isClosed, updatedAt} from "../domain/row.js";
 import {TABLES} from "../domain/tables.js";
 import {route} from "../route.js";
 import {store} from "../state/store.js";
@@ -48,9 +48,20 @@ function trimmed(table) {
     const held = store.rows[table] || [];
     if (held.length <= pageOf(table)) return;
     const recent = new Set(held.slice(-pageOf(table)));
-    store.rows[table] = held.filter((r) => recent.has(r) || !isClosed(r));
+    store.rows[table] = held.filter((r) => recent.has(r) || (closable(table) && !isClosed(r)));
     store.paging.size[table] = pageOf(table);
     store.paging.more[table] = true;
+}
+
+// tables the reader is scrolled back in: a refresh adds and changes their rows but never slides the oldest out, so nothing above
+// the reader moves, until the reader is back at the foot and the table is trimmed to its newest page again
+const keptTables = new Set();
+
+export const keepRows = (table) => keptTables.add(table);
+
+export function releaseRows(table) {
+    keptTables.delete(table);
+    trimmed(table);
 }
 
 function forget() {
@@ -271,7 +282,7 @@ async function counted(table) {
 
 function read(table) {
     if (!watchedTables.has(table)) return counted(table);
-    return (store.paging.size[table] || pageOf(table)) === pageOf(table) ? paged(table) : caughtUp(table);
+    return (store.paging.size[table] || pageOf(table)) === pageOf(table) && !keptTables.has(table) ? paged(table) : caughtUp(table);
 }
 
 async function entriesAndSettings() {

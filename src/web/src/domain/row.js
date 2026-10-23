@@ -65,6 +65,8 @@ const CLOSED = {
 // When the row closed, in seconds; 0 while it is open, and always for a table whose rows never close.
 export const closedAt = (row) => (CLOSED[row.table] ? CLOSED[row.table](row) : 0);
 export const isClosed = (row) => closedAt(row) > 0;
+// whether a table's rows close, as a task is done or a question answered; a message never does
+export const closable = (table) => Boolean(CLOSED[table]);
 export const createdAt = (row) => seconds(row.created_at);
 export const updatedAt = (row) => seconds(row.updated_at) || createdAt(row);
 

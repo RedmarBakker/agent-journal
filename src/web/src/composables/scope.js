@@ -1,10 +1,13 @@
 import {inject} from "vue";
 import {api} from "../api/client.js";
 import {isClosed} from "../domain/row.js";
-import {earlier, hasLoaded, holding, pageOf, rows} from "../sync/rows.js";
+import {earlier, hasLoaded, holding, keepRows, pageOf, releaseRows, rows} from "../sync/rows.js";
 import {store} from "../state/store.js";
 
-const HERE = {env: "", api, rows, loaded: hasLoaded, holding, earlier};
+const HERE = {env: "", api, rows, loaded: hasLoaded, holding, earlier, keepRows, releaseRows};
+
+// a chat whose rows are only ever added to, never slid, has nothing to keep while the reader is scrolled back
+const ADDED_ONLY = {keepRows: () => {}, releaseRows: () => {}};
 const merged = (list, fresh) => [...list.filter((row) => !fresh.some((f) => f.id === row.id)), ...fresh];
 
 export const useScope = () => inject("scope", HERE);
@@ -30,6 +33,7 @@ export function scopeOfChat(session, send = null) {
         loaded: (table) => (table === "messages" ? key in store.elsewhere : hasLoaded(table)),
         holding: (table, ids) => (table === "messages" ? Promise.resolve() : holding(table, ids)),
         earlier: earlierOf,
+        ...ADDED_ONLY,
         chat: {session, send, refresh: async () => keep(await api.chat(session, {limit: pageOf("messages")}))},
     };
 }
@@ -60,5 +64,5 @@ export function scopeIn(env) {
         );
     }
 
-    return {env, api: there, rows: rowsThere, loaded: loadedThere, holding: hold, recent, recentAll, earlier: earlierThere};
+    return {env, api: there, rows: rowsThere, loaded: loadedThere, holding: hold, recent, recentAll, earlier: earlierThere, ...ADDED_ONLY};
 }
