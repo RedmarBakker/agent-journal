@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-DrjQ4syw.js
-import{A as Be,p as tt,h as cl,g as dd,a as pd,P as ki,L as md,b as gd,V as _d}from"./main-gyw9lsFG.js";import"./tokens-D2Th-Z3L.js";import"./tip-CE3lbJsV.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as we,p as tt,h as cl,s as dd,g as pd,a as md,P as zi,L as gd,b as _d,V as xd}from"./main-DObUhUYO.js";import"./tokens-D2Th-Z3L.js";import"./tip-CwpU0l2_.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> b19607b8d (Now and then, with nothing to do, the figure ties a rope swing under a bubble near the middle of the chat, its knots on the bubble's bottom edge, sits on the seat holding both ropes and swings gently, never under a bubble too near the chat's side, where its swing would hide words, or so low its legs would hang below the compose box; a showpiece of the pile, fifteen minutes apart, for every avatar):src/web/dist/assets/figure-DKtqrUln.js
+import{A as we,p as tt,h as cl,s as dd,g as pd,a as md,P as zi,L as gd,b as _d,V as xd}from"./main-DM3QEhM2.js";import"./tokens-D2Th-Z3L.js";import"./tip-CE3lbJsV.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
