@@ -81,10 +81,12 @@ class Messages(ScopedRepository[Message]):
         return self.selected(self.query().filter(idempotency=key).order("id").limit(1))
 
     def window(self, chat: Query, last: int, previous: int = 0, following: int = 0) -> list[Message]:
-        query = chat.filter_greater("id", following)
+        query = chat
+        if following:
+            query = query.filter_greater("created_at", self.find(following).created_at.isoformat())
         if previous:
-            query = query.filter_less("id", previous)
-        return list(reversed(self.selected(query.order_descending("id").limit(last))))
+            query = query.filter_less("created_at", self.find(previous).created_at.isoformat())
+        return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))
 
     def changes(self, chat: Query, time: datetime) -> list[Message]:
         return self.selected(chat.filter_greater("updated_at", time).order("id").limit(500))

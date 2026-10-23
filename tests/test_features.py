@@ -5605,6 +5605,19 @@ def test_a_parked_task_resumed_while_a_plan_is_started_is_the_task_the_top_bar_n
     assert named["main"] and named["main"]["title"] == "outside", f"the top bar names the resumed task, not {named['main']}"
 
 
+def test_the_chat_orders_messages_by_when_they_were_written_never_by_their_number(app: App):
+    from datetime import datetime, timedelta, timezone
+    from journal.repositories.messages import Messages
+    from journal.repositories.scope import Scope
+    messages = app.container.get(Messages)
+    written = datetime.now(timezone.utc) + timedelta(hours=1)
+    with app.container.get(Scope).environment(1):
+        for number, text, moment in ((500000, "written here", written), (400000, "written on the hosted page", written + timedelta(seconds=5))):
+            messages.pulled_creation(number, {"environment_id": 1, "author": "user", "text": text, "created_at": moment.isoformat(), "updated_at": moment.isoformat()}, Actor.user(1))
+        assert [m.text for m in messages.window(messages.main_chat(), 2)] == ["written here", "written on the hosted page"], "a message written later shows last, though its journal gave it a lower number"
+        assert messages.window(messages.main_chat(), 5, previous=400000)[-1].text == "written here", "and the page before it holds what was written before it"
+
+
 def test_a_collection_holds_rows_of_any_type_and_a_dump_files_its_items_into_its_own(app: App, tmp_path):
     from journal.repositories.collections import Collections
     console = app.console()

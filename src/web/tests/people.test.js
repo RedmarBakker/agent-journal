@@ -114,3 +114,9 @@ test("a journal behind its team updates from a button on the Team tab, never a c
     expect(sync).toMatch(/<Btn kind="primary" :busy="updating" @click="update">Update to \{\{ standing\.version \}\}<\/Btn>/);
     expect(sync).not.toMatch(/journal update apply/);
 });
+
+test("the viewer keeps a chat's messages in the order they were written, whichever journal numbered them", () => {
+    const rows = readFileSync(resolve(__dirname, "../src/sync/rows.js"), "utf8");
+    expect(rows).toMatch(/const ORDERS = \{messages: byWriting\}/);
+    expect(rows).not.toMatch(/\.sort\(byId\)/);
+});

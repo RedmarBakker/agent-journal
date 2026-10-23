@@ -25,6 +25,10 @@ let owedWhole = false;
 let draining = null;
 
 const byId = (a, b) => a.id - b.id;
+// a chat's messages come from every journal of a team, each numbering from its own block, so they go in the order they were written
+const byWriting = (a, b) => String(a.created_at).localeCompare(String(b.created_at)) || a.id - b.id;
+const ORDERS = {messages: byWriting};
+const orderOf = (table) => ORDERS[table] || byId;
 
 export function hasLoaded(table) {
     seen.value;
@@ -73,7 +77,7 @@ export async function holding(table, ids) {
         absent.set(table, none);
         if (!got.rows.length) return;
         const known = new Set((store.rows[table] || []).map((r) => r.id));
-        store.rows[table] = [...withoutAnswered(store.rows[table] || [], got.rows), ...got.rows.filter((r) => !known.has(r.id))].sort(byId);
+        store.rows[table] = [...withoutAnswered(store.rows[table] || [], got.rows), ...got.rows.filter((r) => !known.has(r.id))].sort(orderOf(table));
         store.paging.size[table] = store.rows[table].length;
     } finally {
         missing.forEach((id) => pending.delete(id));
@@ -116,9 +120,11 @@ function took(table, got) {
     store.paging.more[table] = !got.is_last_page;
 }
 
+// the rows held are in their table's order, so the oldest is the first
 const oldest = (held) => {
     const closed = held.filter(isClosed);
-    return (closed.length ? closed : held).reduce((low, r) => Math.min(low, r.id), Infinity);
+    const listed = closed.length ? closed : held;
+    return listed.length ? listed[0].id : Infinity;
 };
 
 const beforeKey = (held) => (Number.isFinite(oldest(held)) ? oldest(held) : 0);
@@ -145,7 +151,7 @@ export async function load(table) {
     keptCounts(table, got.counts);
     const listed = new Set(got.rows.map((r) => r.id));
     const arriving = withoutAnswered((store.rows[table] || []).filter((r) => !starting.has(r.id) && !listed.has(r.id)), got.rows);
-    took(table, {...got, rows: [...got.rows, ...arriving].sort(byId)});
+    took(table, {...got, rows: [...got.rows, ...arriving].sort(orderOf(table))});
     store.paging.size[table] = Math.max(held, PAGE);
     return store.rows[table];
 }
@@ -160,7 +166,7 @@ async function caughtUp(table) {
     const held = store.rows[table] || [];
     const fresh = new Map(got.rows.map((r) => [r.id, r]));
     const kept = withoutAnswered(held.filter((r) => !fresh.has(r.id)), got.rows).concat(stillWhole(held, got.rows));
-    store.rows[table] = kept.sort(byId);
+    store.rows[table] = kept.sort(orderOf(table));
     store.paging.size[table] = store.rows[table].length;
     return store.rows[table];
 }
@@ -172,7 +178,7 @@ export async function earlier(...tables) {
             const got = await api.list(table, {limit: PAGE, before: beforeKey(store.rows[table] || [])});
             const held = store.rows[table] || [];
             const known = new Set(held.map((r) => r.id));
-            store.rows[table] = [...got.rows.filter((r) => !known.has(r.id)), ...held].sort(byId);
+            store.rows[table] = [...got.rows.filter((r) => !known.has(r.id)), ...held].sort(orderOf(table));
             store.paging.size[table] = store.rows[table].length;
             store.paging.more[table] = !got.is_last_page;
         })
@@ -185,7 +191,7 @@ const closedMore = (table) => `${table}:closed`;
 function addedRows(table, got) {
     const held = store.rows[table] || [];
     const known = new Set(held.map((r) => r.id));
-    store.rows[table] = [...got.rows.filter((r) => !known.has(r.id)), ...held].sort(byId);
+    store.rows[table] = [...got.rows.filter((r) => !known.has(r.id)), ...held].sort(orderOf(table));
     store.paging.size[table] = store.rows[table].length;
 }
 
