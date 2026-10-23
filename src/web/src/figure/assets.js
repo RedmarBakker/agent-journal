@@ -1,4 +1,5 @@
 import {api} from "../api/client.js";
+import {transport} from "../api/transport.js";
 
 // The Cache API keeps figure files; the name a figure is stored under carries the hash of its content, so a changed figure is a new entry
 export const FIGURE_CACHE = "voice-figures";
@@ -24,7 +25,7 @@ export async function figureBytes(voice) {
 }
 
 async function fetched(url, voice) {
-    const response = await fetch(url);
+    const response = await transport.raw(url);
     if (!response.ok) throw new Error(`The ${voice} figure did not load: ${response.status}`);
     return response;
 }

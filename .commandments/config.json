@@ -54,7 +54,8 @@
         "FeatureListenerSpeaksDetector",
         "DispatchOutsideFunnelsDetector",
         "LifecycleHandlerNotFirstDetector",
-        "SqlOutsideDatabaseLayerDetector"
+        "SqlOutsideDatabaseLayerDetector",
+        "RequestOutsideTransportDetector"
     ],
     "parallel": 2,
     "configure": {

@@ -99,7 +99,7 @@ const transcript = useTranscript(() => (agent.value ? agent.value.id : 0), "", s
 refreshers.push([transcriptViews, transcript.refresh]);
 watch(
     () => (panes.value ? panes.value.shown.join() : ""),
-    () => refreshers.forEach(([wanted, fetch]) => wanted() && fetch())
+    () => refreshers.forEach(([wanted, refresh]) => wanted() && refresh())
 );
 const {turns} = transcript;
 

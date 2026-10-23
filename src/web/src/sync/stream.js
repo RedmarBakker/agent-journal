@@ -5,6 +5,7 @@ import {wakePolls} from "../composables/poll.js";
 import {route} from "../route.js";
 import {store} from "../state/store.js";
 import {reload, takeEntries} from "./rows.js";
+import {STREAM_CLOSED} from "../api/transport.js";
 
 const REOPEN_AFTER = 3000;
 const OFFLINE_AFTER = 15000;
@@ -59,7 +60,7 @@ function failed() {
     store.streamOpen = false;
     failing ||= Date.now();
     if (Date.now() - failing >= OFFLINE_AFTER) store.offline = true;
-    if (source && source.readyState === EventSource.CLOSED) setTimeout(listen, REOPEN_AFTER);
+    if (source && source.readyState === STREAM_CLOSED) setTimeout(listen, REOPEN_AFTER);
 }
 
 // The phone has no stream through the tunnel's listener: it asks for the entries after the last it took instead.

@@ -12,6 +12,11 @@ function query(fields) {
     return query.toString() ? `?${query}` : "";
 }
 
+// which part of a list a read asks for, which keys it apart from the other parts of the same list: its newest page, a page
+// before or after a row, its changes since a moment, rows by id, and each of those among its closed rows
+const readKind = ({before, after, since, ids = [], closed = false}) =>
+    [closed ? "closed" : "", ids.length ? "ids" : before ? "older" : after ? "newer" : since ? "changes" : "page"].filter(Boolean).join(".");
+
 const NO_ENV = "the page does not know its environment yet";
 
 export const ENV_HEADER = "X-Journal-Env";
@@ -41,8 +46,9 @@ export class ApiClient {
         return {[REQUEST_TIME_HEADER]: String(Date.now()), ...(this.env() ? {[ENV_HEADER]: this.env()} : {})};
     }
 
-    get(path) {
-        return path === NO_ENV ? Promise.reject(new Error(NO_ENV)) : transport.request("GET", this.url(path), undefined, 0, this.headers());
+    // a read keyed by what it reads, within this environment: by default its endpoint, never its query
+    get(path, key = path.split("?")[0]) {
+        return path === NO_ENV ? Promise.reject(new Error(NO_ENV)) : transport.request("GET", this.url(path), undefined, 0, this.headers(), `${this.env()} ${key}`);
     }
 
     post(path, body = {}, wait = 0) {
@@ -154,17 +160,18 @@ export class ApiClient {
 
     stream(since = 0) {
         const after = since ? `?since=${since}` : "";
-        return new EventSource(this.address("/entries/stream" + after));
+        return transport.stream(this.address("/entries/stream" + after));
     }
 
     // a resource's rows: a page with its counts, one row, a new one, a change, and an act on one
     list(table, {limit, before, after, since, ids = [], closed = false} = {}) {
-        return this.get(this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), closed: closed ? "1" : ""})}`));
+        const path = this.here(`/${table}${query({limit, before, after, since, ids: ids.join(","), closed: closed ? "1" : ""})}`);
+        return this.get(path, `${table}.${readKind({before, after, since, ids, closed})}`);
     }
 
     // the own chat of a worker or a subagent, by its session
     chat(session, {limit, before, since} = {}) {
-        return this.get(this.here(`/chats/${encodeURIComponent(session)}${query({limit, before, since})}`));
+        return this.get(this.here(`/chats/${encodeURIComponent(session)}${query({limit, before, since})}`), `chats/${session}.${readKind({before, since})}`);
     }
 
     show(table, id) {
@@ -322,11 +329,12 @@ export class ApiClient {
     }
 
     transcript(agent, session, fields) {
-        return this.get(this.here(`/agents/${agent}${session ? `/subagents/${encoded(session)}` : ""}/transcript${query(fields)}`));
+        const path = `/agents/${agent}${session ? `/subagents/${encoded(session)}` : ""}/transcript`;
+        return this.get(this.here(`${path}${query(fields)}`), `${path}.${readKind(fields)}`);
     }
 
     workerTranscript(id, fields = {}) {
-        return this.get(this.here(`/workers/${id}/transcript${query(fields)}`));
+        return this.get(this.here(`/workers/${id}/transcript${query(fields)}`), `/workers/${id}/transcript.${readKind(fields)}`);
     }
 
     edits(agent, since) {

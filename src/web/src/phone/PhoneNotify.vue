@@ -1,4 +1,5 @@
 <script setup>
+import {transport} from "../api/transport.js";
 import {onMounted, ref} from "vue";
 
 // Offers to tell this phone by push when something new waits for the user: asked once, on a tap, never on its own.
@@ -12,9 +13,9 @@ async function turnOn() {
     try {
         if ((await Notification.requestPermission()) !== "granted") throw new Error("notifications were not allowed on this phone");
         const worker = await navigator.serviceWorker.ready;
-        const {key} = await (await fetch("./push-key", {credentials: "same-origin"})).json();
+        const {key} = await (await transport.raw("./push-key", {credentials: "same-origin"})).json();
         const subscription = await worker.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: fromBase64(key)});
-        const answer = await fetch("./push", {
+        const answer = await transport.raw("./push", {
             method: "POST",
             credentials: "same-origin",
             headers: {"Content-Type": "application/json", "X-Phone": "1"},

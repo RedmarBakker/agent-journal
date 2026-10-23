@@ -62,7 +62,22 @@ function forget() {
 }
 
 // The rows of a table with these ids, read when a page needs one it does not hold.
+// rows by id are read one batch at a time per table, the read of a table's ids being one key: ids asked while a batch is in
+// flight wait for it, and go in the next batch if it did not bring them
+const idsRead = new Map();
+
 export async function holding(table, ids) {
+    while (idsRead.has(table)) await idsRead.get(table).catch(() => {});
+    const read = heldIds(table, ids);
+    idsRead.set(table, read);
+    try {
+        await read;
+    } finally {
+        if (idsRead.get(table) === read) idsRead.delete(table);
+    }
+}
+
+async function heldIds(table, ids) {
     const have = new Set((store.rows[table] || []).map((r) => r.id));
     const pending = asked.get(table) || new Set();
     const none = absent.get(table) || new Set();

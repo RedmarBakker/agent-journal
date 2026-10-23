@@ -8,6 +8,7 @@ import {blendMoves} from "./blend.js";
 import {BUTLER, dressButler, topHatBandGeometry, topHatGeometry} from "./butler.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
+import {transport} from "../api/transport.js";
 
 // render_clips.py and snaps.py: an orthographic camera eight units in front, framing 5.4 units about a height of 2.4
 export const CELL = 224;
@@ -3136,17 +3137,17 @@ function rigOf(root) {
 
 // The glb's bytes; a host that serves no .glb, such as a claude.ai artifact, carries it as base64 in <url>.txt
 async function glbBytes(url) {
-    const glb = await fetch(url);
+    const glb = await transport.raw(url);
     if (glb.ok) {
         return glb.arrayBuffer();
     }
-    const text = await fetch(`${url}.txt`).then((response) => response.text());
+    const text = await transport.raw(`${url}.txt`).then((response) => response.text());
     return Uint8Array.from(atob(text), (character) => character.charCodeAt(0)).buffer;
 }
 
 // The figure of one voice from its glb, its worn pieces drawn and the body parts they cover left out (rig.assemble)
 export async function loadFigure(url, wardrobe, voice) {
-    const [bytes, manifest] = await Promise.all([glbBytes(url), fetch(wardrobe).then((response) => response.json())]);
+    const [bytes, manifest] = await Promise.all([glbBytes(url), transport.raw(wardrobe).then((response) => response.json())]);
     const bare = voice === "bare";
     const covered = new Set((bare ? [] : manifest.outfits[voice]).flatMap((item) => manifest.assets[item].hide_base_parts));
     return figureOf(bytes, voice, DECODER, (mesh) => !covered.has(mesh.name) && !(bare && mesh.userData.item));

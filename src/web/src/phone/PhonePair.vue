@@ -1,4 +1,5 @@
 <script setup>
+import {transport} from "../api/transport.js";
 import {onMounted, ref} from "vue";
 import "../tokens.css";
 
@@ -14,7 +15,7 @@ async function pair(given) {
     busy.value = true;
     failure.value = "";
     try {
-        const answer = await fetch("./pair", {
+        const answer = await transport.raw("./pair", {
             method: "POST",
             credentials: "same-origin",
             headers: {"Content-Type": "application/json", "X-Phone": "1"},

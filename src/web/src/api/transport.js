@@ -29,10 +29,12 @@ export async function answered(response, fallback, failed = failure) {
 
 const payload = (body) => (body === undefined || body instanceof FormData ? body : JSON.stringify(body));
 
+// the state of a stream the journal closed, as an EventSource reports it
+export const STREAM_CLOSED = 2;
+
 class Transport {
     constructor() {
         this.flying = new Map();
-        this.asked = new Map();
         this.written = () => {};
         this.refused = () => {};
         this.watcher = () => {};
@@ -96,25 +98,28 @@ class Transport {
         return res.arrayBuffer();
     }
 
-    request(method, url, body, wait = 0, headers = {}) {
+    // a read is keyed by what it reads, never by its query: while a read of a key is in flight, a read of the same key is not
+    // sent, and its caller takes the answer of the one in flight
+    request(method, url, body, wait = 0, headers = {}, key = url.split("?")[0]) {
         if (method !== "GET") return this.send(method, url, body, wait, RELOAD_TRIES, headers).then((got) => (this.written(url), got));
         if (covered() && !asksUpdateStatus(url))
             return Promise.reject(Object.assign(new Error("The journal is updating."), {updating: true}));
-        const scope = Object.values(headers).join(" ");
-        const key = `${scope} ${url}`;
-        if (this.asked.has(key)) return this.asked.get(key);
-        const endpoint = `${scope} ${url.split("?")[0]}`;
-        const tries = this.tries;
-        const call = (this.flying.get(endpoint) || Promise.resolve())
-            .catch(() => {})
-            .then(() => this.send(method, url, body, 0, tries, headers));
-        this.flying.set(endpoint, call);
-        this.asked.set(key, call);
-        call.finally(() => {
-            if (this.flying.get(endpoint) === call) this.flying.delete(endpoint);
-            this.asked.delete(key);
-        }).catch(() => {});
+        if (this.flying.has(key)) return this.flying.get(key);
+        const call = this.send(method, url, body, 0, this.tries, headers);
+        this.flying.set(key, call);
+        call.finally(() => this.flying.delete(key)).catch(() => {});
         return call;
+    }
+
+    // the stream of the journal's entries, which an address names whole, its environment in its query
+    stream(url) {
+        return new EventSource(url);
+    }
+
+    // a request of the phone app or a shared page to an address beside the page, or a file the build carries, answered
+    // as the browser's own response
+    raw(url, init = {}) {
+        return fetch(url, init);
     }
 }
 
