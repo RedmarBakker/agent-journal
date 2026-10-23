@@ -42,7 +42,7 @@ p {{ margin: 0; color: #f08a8a; }}
 
 
 class LoginController:
-    """The sign-in of a hosted journal: the form, the team server's check of the email and password, which opens a browser session for that person, and the sign-out, which ends it."""
+    """The sign-in of a hosted journal: the one-time link a member's own journal opens, which the team server trades for that person and which opens their browser session; the form with the team server's check of the email and password; and the sign-out, which ends it."""
 
     def __init__(self, sessions: BrowserSessions, link: TeamServerLink, account: TeamAccount) -> None:
         self.sessions, self.link, self.account = sessions, link, account
@@ -56,6 +56,14 @@ class LoginController:
         except TeamRefusal as refused:
             return self.page(f"<p>{html.escape(str(refused))}</p>", 401)
         key = self.sessions.opened(login.account_id, login.name)
+        return Response(303, None, {"Location": "/", "Set-Cookie": SessionCookie.value(key, request.protocol)})
+
+    def opened(self, request: Request) -> FileResponse | Response:
+        try:
+            answer = self.link.signin_account(str(request.query.get("code", "")))
+        except TeamRefusal as refused:
+            return self.page(f"<p>{html.escape(str(refused))}</p>", 403)
+        key = self.sessions.opened(answer.account_id, answer.name)
         return Response(303, None, {"Location": "/", "Set-Cookie": SessionCookie.value(key, request.protocol)})
 
     def logout(self, request: Request) -> Response:

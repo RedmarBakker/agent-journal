@@ -10146,6 +10146,61 @@ def test_on_a_shared_journal_a_worker_branches_from_and_merges_into_its_environm
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
 
 
+def test_a_member_opens_the_shared_journal_from_their_own_journal_by_a_one_time_link(app: App, tmp_path):
+    import json
+    from urllib.error import HTTPError
+    from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
+    from sync_server.account import MEMBER, RELAY
+    from sync_server.team_server import TeamServer
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    ada = team.accounts.create("ada@example.com", "Ada", "correct horse battery", MEMBER, 1.0)
+    team.accounts.create("hosted-journal@team.server", "Hosted journal", "correct horse battery", RELAY, 1.0)
+    _, ada_token = team.devices.login("ada@example.com", "correct horse battery", "laptop", "127.0.0.1", 1.0)
+    _, relay_token = team.devices.login("hosted-journal@team.server", "correct horse battery", "server", "127.0.0.1", 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    journal = f"http://127.0.0.1:{app.server().port}"
+
+    class Kept(HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+    opener = build_opener(Kept)
+
+    def sent(path, body=None, cookie=""):
+        headers = {"X-Journal-Env": "main", "Content-Type": "application/json", **({"Cookie": cookie} if cookie else {})}
+        request = HttpRequest(journal + path, data=None if body is None else json.dumps(body).encode(), headers=headers, method="POST" if body is not None else "GET")
+        try:
+            with opener.open(request, timeout=10) as answer:
+                return answer.status, answer.headers, answer.read()
+        except HTTPError as refused:
+            return refused.code, refused.headers, refused.read()
+
+    account = app.container.get(TeamAccount)
+    try:
+        account.write({"address": address, "token": ada_token, "device": 1, "account_id": ada.id})
+        status, _, body = sent("/journal/team/open", {})
+        url = json.loads(body)["url"]
+        assert status == 200 and url.startswith(f"{address}/open?code="), "a member's own journal asks the team server for a one-time link to the shared journal"
+        code = url.split("code=")[1]
+        account.write({"address": address, "token": relay_token, "device": 2, "account_id": 2})
+        app.container.get(IdBlocks).add("settings", 800000, 800100)
+        (app.config.home / "hosted").touch()
+        status, headers, _ = sent(f"/open?code={code}")
+        assert status == 303 and headers["Location"] == "/", "the hosted journal takes the link up and signs the browser in"
+        cookie = headers["Set-Cookie"].split(";")[0]
+        assert json.loads(sent("/journal/people", cookie=cookie)[2])["me"] == ada.id, "as the member whose journal asked for it"
+        assert sent(f"/open?code={code}")[0] == 403, "a link works once"
+    finally:
+        (app.config.home / "hosted").unlink(missing_ok=True)
+        (app.config.home / TEAM_FILE).unlink(missing_ok=True)
+        team.close(server)
+
+
 def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names_them_in_what_they_write(app: App, tmp_path):
     import json
     from urllib.error import HTTPError

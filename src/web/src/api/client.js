@@ -388,6 +388,11 @@ export class ApiClient {
     }
 
     // an admin's invitation for one email, answered with the line the person joins with
+    // a one-time link that opens the team's hosted journal signed in as this person
+    openSharedJournal() {
+        return this.post("/team/open", {});
+    }
+
     inviteToTeam(email) {
         return this.post("/team/invite", {email});
     }

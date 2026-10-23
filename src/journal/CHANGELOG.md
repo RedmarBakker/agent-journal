@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.34.0
+
+- The shared journal opens from your own journal: Settings, Team has an Open the shared journal button that asks the team server for a one-time link and opens it signed in, with no password typed in the browser. The team image's proxy forbids every browser request that has no session.
+- The top bar shows a Team button with a dot for how the sync stands, opening the Team tab; the sync line by the pause button is gone.
+
 ## 4.33.0
 
 - No two running environments work on one branch: an environment is not started on the branch another running environment works on, and a git checkout or switch onto such a branch is refused, naming the environment running there.

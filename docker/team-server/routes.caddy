@@ -1,6 +1,6 @@
 # The team server's paths go to the sync server, but only with the journal's protocol header, a request without it answered 404
 # before it reaches the server; the hooks and the CLI go to no one, and every other path to the hosted journal.
-@sync path /login /accept /install /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /upload /upgrade /team /team/* /files/* /leases /leases/*
+@sync path /login /accept /install /signin-links /signin-links/* /push /pull /copy /blocks /invite /devices /devices/* /people /people/* /upload /upgrade /team /team/* /files/* /leases /leases/*
 handle @sync {
 	@unmarked not header X-Journal-Protocol *
 	respond @unmarked 404
@@ -9,6 +9,15 @@ handle @sync {
 @closed path /hooks/* /cli /cli/* /shell/*
 handle @closed {
 	respond 404
+}
+# A browser reaches the hosted journal only with a session, which only the one-time link a member's own journal opens
+# sets; every other request is forbidden before it reaches the hosted journal.
+@stranger {
+	not path /open
+	not header Cookie *journal_session=*
+}
+handle @stranger {
+	respond 403
 }
 handle {
 	reverse_proxy 127.0.0.1:8421 {

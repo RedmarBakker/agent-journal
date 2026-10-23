@@ -1,5 +1,6 @@
 <script setup>
 import {computed, ref} from "vue";
+import {api} from "../api/client.js";
 import {runUpdate} from "../composables/updates.js";
 import Btn from "../kit/Btn.vue";
 import CopyButton from "../kit/CopyButton.vue";
@@ -15,6 +16,20 @@ const waiting = computed(() => (props.standing.waiting ? String(props.standing.w
 const updating = ref(false);
 const failure = ref("");
 
+const opening = ref(false);
+
+async function openShared() {
+    opening.value = true;
+    failure.value = "";
+    try {
+        window.open((await api.openSharedJournal()).url, "_blank", "noopener");
+    } catch (e) {
+        failure.value = e.message;
+    } finally {
+        opening.value = false;
+    }
+}
+
 async function update() {
     updating.value = true;
     failure.value = (await runUpdate(props.standing.version)) || "";
@@ -28,6 +43,9 @@ async function update() {
             <div class="team-status">
                 <StateDot :state="DOTS[standing.state]" />
                 <span>{{ standing.line }}</span>
+            </div>
+            <div>
+                <Btn :busy="opening" @click="openShared">Open the shared journal</Btn>
             </div>
             <template v-if="behind">
                 <div>

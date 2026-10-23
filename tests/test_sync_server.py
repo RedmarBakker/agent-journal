@@ -442,3 +442,26 @@ def test_the_proxy_in_front_passes_every_path_the_team_server_answers():
     assert answered and missing == [], f"the proxy sends these to the hosted journal instead: {missing}"
     routes = (root / "docker/team-server/routes.caddy").read_text()
     assert "@unmarked not header X-Journal-Protocol *" in routes and "respond @unmarked 404" in routes, "a team server path without the journal's protocol header is turned away at the proxy"
+
+
+def test_a_one_time_signin_link_is_issued_to_a_member_and_taken_up_once_by_the_hosted_journal_alone(tmp_path):
+    from pathlib import Path
+    from sync_server.account import RELAY
+    from sync_server.team_server import TeamServer
+    team = TeamServer(tmp_path)
+    team.accounts.create("ada@example.com", "Ada", PASSWORD, MEMBER, 1.0)
+    team.accounts.create("hosted-journal@team.server", "Hosted journal", PASSWORD, RELAY, 1.0)
+    _, ada = team.devices.login("ada@example.com", PASSWORD, "laptop", "127.0.0.1", 1.0)
+    _, hosted = team.devices.login("hosted-journal@team.server", PASSWORD, "server", "127.0.0.1", 1.0)
+    code = team.signins.issue(ada, 10.0)
+    with pytest.raises(Refusal, match="only the team's hosted journal"):
+        team.signins.redeemed(ada, code, 11.0)
+    assert team.signins.redeemed(hosted, code, 11.0).email == "ada@example.com", "the hosted journal signs in the member who asked"
+    with pytest.raises(Refusal, match="used already or has expired"):
+        team.signins.redeemed(hosted, code, 12.0)
+    late = team.signins.issue(ada, 10.0)
+    with pytest.raises(Refusal, match="used already or has expired"):
+        team.signins.redeemed(hosted, late, 10.0 + 121)
+    routes = (Path(__file__).resolve().parents[1] / "docker/team-server/routes.caddy").read_text()
+    assert "not header Cookie *journal_session=*" in routes and "respond 403" in routes, "the proxy forbids a browser without a session"
+    team.store.close()

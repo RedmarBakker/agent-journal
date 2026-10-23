@@ -128,3 +128,9 @@ test("a joined journal shows a Team button with a dot for how its sync stands, a
     const bar = readFileSync(resolve(__dirname, "../src/layout/StatusBar.vue"), "utf8");
     expect(bar).not.toMatch(/statusbar-sync/);
 });
+
+test("the Team tab opens the shared journal by a one-time link from this journal", () => {
+    const sync = readFileSync(resolve(__dirname, "../src/pages/TeamSync.vue"), "utf8");
+    expect(sync).toMatch(/<Btn :busy="opening" @click="openShared">Open the shared journal<\/Btn>/);
+    expect(sync).toMatch(/window\.open\(\(await api\.openSharedJournal\(\)\)\.url, "_blank", "noopener"\)/);
+});
