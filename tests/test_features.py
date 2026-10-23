@@ -11451,3 +11451,17 @@ def test_a_codex_session_start_answers_the_briefing_in_codexs_shape_and_its_hook
         answer = json.loads(reply.read())
     output = answer["hookSpecificOutput"]
     assert output["hookEventName"] == "SessionStart" and "the journal is ready on main" in output["additionalContext"], "the briefing comes back as Codex reads it, hookSpecificOutput.additionalContext"
+
+
+def test_a_task_given_up_is_cancelled_with_why_and_leaves_the_list(app: App):
+    from journal.models.task_state import TaskState
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    console = app.console()
+    console.run(["task", "create", "the shared avatar"], AGENT)
+    assert console.run(["task", "cancel", "1"], AGENT).code != 0, "a task is given up only with why"
+    assert "task 1 cancelled" in console.run(["task", "cancel", "1", "--why", "screens differ in size"], AGENT).text
+    with app.container.get(Scope).environment(1):
+        task = app.container.get(Tasks).find(1)
+    assert (task.state, task.outcome) == (TaskState.CANCELLED, "screens differ in size")
+    assert "the shared avatar" not in console.run(["task", "list"], AGENT).text

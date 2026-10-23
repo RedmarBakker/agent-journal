@@ -92,8 +92,8 @@ class Task(Scoped):
             raise Rejection(f"task {self.id} is {self.state}: only a started task is parked")
         return self.closed(self.with_(state=TaskState.SUSPENDED, suspension_reason=reason), time, "parked")
 
-    def cancelled(self, time: datetime) -> "Task":
-        return self.closed(self.with_(state=TaskState.CANCELLED, finished_at=self.finished_at or time), time, "cancelled")
+    def cancelled(self, time: datetime, outcome: str) -> "Task":
+        return self.closed(self.with_(state=TaskState.CANCELLED, finished_at=self.finished_at or time, outcome=outcome), time, "cancelled")
 
     def closed(self, task: "Task", time: datetime, manner: str) -> "Task":
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))

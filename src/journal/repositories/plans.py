@@ -46,7 +46,7 @@ class Plans(ScopedRepository[Plan]):
         for task in self.plan_tasks(plan):
             if task.is_closed() or self.is_shared(task, plan):
                 continue
-            cancelled.append(self.tasks.save(task.cancelled(datetime.now(timezone.utc)), actor))
+            cancelled.append(self.tasks.save(task.cancelled(datetime.now(timezone.utc), f"its plan {plan.id} was cancelled"), actor))
         return cancelled
 
     def is_shared(self, task: Task, plan: Plan) -> bool:

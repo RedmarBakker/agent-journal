@@ -731,7 +731,7 @@ def test_the_users_edits_and_closes_of_a_workers_task_reach_the_worker(app: App)
         assert "the user rewrote point 2 of task" in " ".join(agents.session_agent("w1").queued_lines), "and the worker is told which points changed"
     controller = app.container.get(TaskController)
     with scope.environment(1):
-        tasks.save(tasks.find(task.id).cancelled(datetime.now(timezone.utc)), Actor.user(1))
+        tasks.save(tasks.find(task.id).cancelled(datetime.now(timezone.utc), "no longer wanted"), Actor.user(1))
     app.runtime().deferred.drain()
     assert app.container.get(SessionAgents).top("w1").name != "working" and "the user closed your task" in " ".join(agents.session_agent("w1").queued_lines), "the user's cancel ends the worker's work, and it is told"
     with scope.environment(1):
