@@ -11,6 +11,7 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
+from journal.support.stage_times import StageTimes
 from journal.support.worktree import Worktree
 from journal.support.moment import Moment
 
@@ -20,12 +21,12 @@ HISTORY_READS = 26
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope) -> None:
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes) -> None:
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
-        self.scope = scope
+        self.scope, self.stages = scope, stages
 
     def read(self, agent: Agent) -> LazyFacts:
-        return LazyFacts({
+        return LazyFacts("shell", {
             "background": lambda: tuple(o.row_id for o in self.outputs.background(agent.session)),
             "backgrounded_at": lambda: min((o.creation_time.timestamp() for o in self.outputs.background(agent.session)), default=0.0),
             "unannounced": lambda: tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unannounced(agent.session)),
@@ -39,7 +40,7 @@ class ShellDataReader:
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
-        }, lambda: self.scope.environment(agent.environment_id))
+        }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def output_reads(self, agent: Agent) -> tuple[str, ...]:
         commands = [command for e in self.entries.output_tool_starts(agent.session) if (command := e.recorded_call().command)]
