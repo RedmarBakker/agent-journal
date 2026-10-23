@@ -49,6 +49,9 @@ export function waitingOn(agent, workers = [], now = Date.now() / 1000) {
     return waitingFor({text: agent.awaiting, on: agent.wait_refs, since: seconds(agent.awaiting_since)}, {workers, now});
 }
 
+// whether the agent is at work, by the same reading the top bar shows: working, compacting, or a state of its own that is neither idle nor stopped
+export const isBusy = (agent) => Boolean(agent) && ["working", "busy", "compacting"].includes(stateOf(agent));
+
 export function stateOf(agent) {
     if (agent?.state === "paused") return "paused";
     const reported = agent ? agent.status : "stopped";

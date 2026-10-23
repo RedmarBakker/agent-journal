@@ -1,6 +1,6 @@
 <script setup>
 import {subagentsOf} from "../domain/subagents.js";
-import {busyLine} from "../domain/agentState.js";
+import {busyLine, isBusy} from "../domain/agentState.js";
 import {openQuestion, questionView, updateView} from "../state/overlays.js";
 import {agent} from "../composables/leadAgent.js";
 import {feedOn} from "../composables/settings.js";
@@ -109,7 +109,7 @@ function editLast() {
 function unedit() {
     editing.value = null;
 }
-const busy = computed(() => !!owner.value && ["working", "compacting"].includes(owner.value.status));
+const busy = computed(() => isBusy(owner.value));
 const {waiting: waitingNow, open: waitingOpen, anchor: waitingAnchor, toggle: toggleWaiting} = useWaiting(undefined, owner);
 const planCard = computed(() => cardPlan(rows("plans")));
 const dumpDock = computed(() => (store.dumping ? null : dockedDump(rows("dumps"))));
