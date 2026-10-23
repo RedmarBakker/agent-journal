@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-Ckj2P4v3.js
-import{A as Le,p as Ke,h as il,g as ud,a as hd,P as Oi,L as fd,b as dd,V as pd}from"./main-CGYvjLdr.js";import"./tokens-D2Th-Z3L.js";import"./tip-0I85NWvL.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as Le,p as Ke,h as il,g as ud,a as hd,P as Oi,L as fd,b as dd,V as pd}from"./main-Du9JNtvy.js";import"./tokens-D2Th-Z3L.js";import"./tip-DW_kTa7X.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 86b4ce996 (A figure sitting on a docked card that closes falls with its seat and lands turned as it sat: a fall keeps the face of the spot it fell from, so the sitting clip there is drawn turned a real way; before, the landing spot had no face, the clip's facing was undefined, the figure's pose went NaN and it vanished, and the blend into every later clip carried the NaN on, so it never came back. The server unit test reads the 3D block's pictures):src/web/dist/assets/figure-DLqdMScy.js
+import{A as Le,p as Ke,h as il,g as ud,a as hd,P as Oi,L as fd,b as dd,V as pd}from"./main-hTdet99i.js";import"./tokens-D2Th-Z3L.js";import"./tip-0I85NWvL.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
