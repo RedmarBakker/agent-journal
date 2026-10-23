@@ -1,7 +1,11 @@
 <script setup>
 import {ref} from "vue";
+import Dot from "./Dot.vue";
 
-defineProps({label: {type: String, default: ""}, folded: Boolean, lifted: Boolean, kind: {type: String, default: ""}, tone: {type: String, default: ""}});
+// the colour of the dot in the card's corner for the state of the run it shows: running, passed (good) or failed (bad)
+const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad: "var(--tone-bad)"};
+
+defineProps({label: {type: String, default: ""}, folded: Boolean, lifted: Boolean, kind: {type: String, default: ""}, state: {type: String, default: ""}});
 const card = ref(null);
 defineExpose({card});
 </script>
@@ -9,7 +13,12 @@ defineExpose({card});
 <template>
     <div :class="['chat-dock', {lifted}]">
         <div class="chat-dock-fold">
-            <section ref="card" :class="['chat-dock-card', kind, tone && `tone-${tone}`]" :aria-label="label">
+            <section ref="card" :class="['chat-dock-card', kind]" :aria-label="label">
+                <template v-if="STATE_TONES[state]">
+                    <span class="chat-dock-state" :data-state="state" :style="{'--tone': STATE_TONES[state]}">
+                        <Dot solid :size="8" :kind="state" :pulsing="state === 'running'" />
+                    </span>
+                </template>
                 <header class="chat-dock-head">
                     <slot name="head" />
                 </header>
@@ -38,6 +47,7 @@ defineExpose({card});
 }
 
 .chat-dock-card {
+    position: relative;
     container-type: inline-size;
     border: 1px solid var(--border-2);
     border-radius: 10px;
@@ -45,12 +55,12 @@ defineExpose({card});
     overflow: hidden;
 }
 
-.chat-dock-card.tone-good {
-    border-color: var(--tone-good);
-}
-
-.chat-dock-card.tone-bad {
-    border-color: var(--tone-bad);
+.chat-dock-state {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    pointer-events: none;
 }
 
 .chat-dock-head {

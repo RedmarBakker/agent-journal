@@ -46,9 +46,9 @@ test("a docked output is titled in words, names its command beneath, and opens o
     expect(host.querySelector(".watch-dock-output")).toBeNull();
 });
 
-test("an ended run's dock is outlined green when it passed and red when it failed, and a running one is not outlined", async () => {
-    const outlines = [];
-    for (const data of [{tone: "good", ending: "finished"}, {tone: "bad", ending: "failed with code 1"}, {tone: "", ending: ""}]) {
+test("a docked run shows its state as a dot in the card's corner, blue while running, green once passed, red once failed, and no outline", async () => {
+    const states = [];
+    for (const data of [{tone: "", ending: ""}, {tone: "good", ending: "finished"}, {tone: "bad", ending: "failed with code 1"}]) {
         const host = document.createElement("div");
         document.body.append(host);
         app = createApp({render: () => h(WatchDock, {message: {...watched, data: {...watched.data, ...data}}})});
@@ -56,9 +56,14 @@ test("an ended run's dock is outlined green when it passed and red when it faile
         app.mount(host);
         await flush();
         const card = host.querySelector(".chat-dock-card");
-        outlines.push(["tone-good", "tone-bad"].filter((name) => card.classList.contains(name)));
+        const dot = card.querySelector(".chat-dock-state");
+        states.push([dot.dataset.state, dot.style.getPropertyValue("--tone"), [...card.classList].filter((name) => name.startsWith("tone-"))]);
         app.unmount();
         app = null;
     }
-    expect(outlines).toEqual([["tone-good"], ["tone-bad"], []]);
+    expect(states).toEqual([
+        ["running", "var(--tone-work)", []],
+        ["good", "var(--tone-good)", []],
+        ["bad", "var(--tone-bad)", []],
+    ]);
 });
