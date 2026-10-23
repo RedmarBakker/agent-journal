@@ -3082,7 +3082,10 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
             eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
             eyes.squeezed.push(Object.assign(shapeOver(mesh, SQUEEZE, SQUEEZE_COLOUR), {userData: {way: mesh.name === "eye_l" ? -1 : 1}}));
             const side = mesh.name === "eye_l" ? 1 : -1;
-            for (const [name, {geometry}] of Object.entries(EYE_SHAPES)) eyes.over.push(Object.assign(shapeOver(mesh, geometry, SQUEEZE_COLOUR), {userData: {name, side}}));
+            for (const [name, {geometry, glows}] of Object.entries(EYE_SHAPES)) {
+                eyes.over.push(Object.assign(shapeOver(mesh, geometry, SQUEEZE_COLOUR), {userData: {name, side, halo: false}}));
+                if (glows) eyes.over.push(Object.assign(haloOver(mesh, geometry), {userData: {name, side, halo: true}}));
+            }
         }
     }
     const carried = meshes.filter((mesh) => mesh.visible);
@@ -3809,6 +3812,9 @@ export const EYE_SHAPES = {
     })(), size: 0.46, aside: 0, up: 0, mirrored: true},
     calm: {geometry: LIDDED, size: 0.38, aside: 0, up: -0.02},
     eyeing: {geometry: LIDDED, size: 0.32, aside: 0.13, up: 0},
+    // a run's end shown in the eyes (visor.js SIGN), each glowing in the visor's colour with a soft halo about it: a cross, and a tick
+    cross: {geometry: new THREE.ShapeGeometry([[-1, 1], [1, -1]].map(([from, to]) => new THREE.Shape([[-0.5 * from, 0.5], [-0.5 * from + 0.18 * to, 0.5], [0.5 * from, -0.5], [0.5 * from - 0.18 * to, -0.5]].map(([x, y]) => new THREE.Vector2(x, y))))), size: 0.4, aside: 0, up: 0, glows: true},
+    tick: {geometry: new THREE.ShapeGeometry(new THREE.Shape([[-0.5, 0.02], [-0.32, 0.18], [-0.12, -0.04], [0.36, 0.52], [0.52, 0.36], [-0.12, -0.36]].map(([x, y]) => new THREE.Vector2(x, y)))), size: 0.42, aside: 0, up: 0, glows: true},
 };
 
 // a shape over an eye, a heart or a star, carried by the head as the eye is, hidden until the eyes take it on
@@ -3825,6 +3831,16 @@ function shapeOver(eye, geometry, colour) {
     holder.add(over);
     head.add(holder);
     return over;
+}
+
+// the soft halo about a glowing shape over an eye: the shape again, larger, faint and just behind it
+const HALO = {size: 1.45, opacity: 0.4, behind: 0.004};
+
+function haloOver(eye, geometry) {
+    const halo = shapeOver(eye, geometry, SQUEEZE_COLOUR);
+    halo.material.transparent = true;
+    halo.material.depthWrite = false;
+    return halo;
 }
 
 // where each hand's closed fingers grip, in the figure's own space, for the pose's moves
@@ -3876,7 +3892,7 @@ function place(figure, pose, facing, blend) {
         if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
     }
     // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
-    for (const hull of figure.visorHulls) hull.visible = !pose.screen;
+    for (const hull of figure.visorHulls) hull.visible = !pose.screen || Boolean(pose.screen.sign);
     // the eyes go out before a lit visor comes on, a display with nothing on it
     const eyed = crt.eyes > EYES_GONE;
     const shaped = pose.eyeShape && !pose.hearts && !pose.stars && !pose.squeezed ? pose.eyeShape : null;
@@ -3895,13 +3911,18 @@ function place(figure, pose, facing, blend) {
         squeeze.scale.set(SQUEEZE_SIZE * pose.squeezed * squeeze.userData.way, SQUEEZE_SIZE * pose.squeezed, 1);
     }
     // a shape the eyes take on opens as their own smile closes, and closes again as the smile comes back
+    // a sign glows in the visor's colour, as white as its flash and as bright as it is lit
+    const sign = pose.screen?.sign;
     for (const over of figure.eyes.over) {
-        const {name, side} = over.userData;
+        const {name, side, halo} = over.userData;
         over.visible = eyed && shaped?.name === name;
         if (!over.visible) continue;
         const {size, aside, up, mirrored} = EYE_SHAPES[name];
-        over.scale.set(size * (mirrored ? side : 1), size * Math.max(shaped.strength, MIN_EYE_HEIGHT), 1);
-        over.position.set(aside * shaped.way, up, 0);
+        const grown = size * (halo ? HALO.size : 1);
+        over.scale.set(grown * (mirrored ? side : 1), grown * Math.max(shaped.strength, MIN_EYE_HEIGHT), 1);
+        over.position.set(aside * shaped.way, up, halo ? -HALO.behind : 0);
+        if (sign) over.material.color.setRGB(...pose.screen.colour.map((part) => (part + (1 - part) * sign.white) * sign.lit));
+        if (halo) over.material.opacity = HALO.opacity * (sign?.lit ?? 1);
     }
     return moves;
 }
@@ -4009,6 +4030,7 @@ export class Stage {
         const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0);
         if (toward && !pose.gaze && !sideOn && !clip.ownLook) turnToViewer(pose, turned, toward);
         if (eyes) lookAs(pose, eyes);
+        if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;
         if (this.renderer.domElement.width !== size) {

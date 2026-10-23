@@ -210,6 +210,8 @@ test("every animation in the pile, with its weight and the condition it plays un
         "pick hops ×3 when moment=climb footholds=true",
         "pick unit ×19 when moment=unit",
         "nothing nothing ×1 when moment=unit",
+        "pick sign ×1 when moment=run_end",
+        "nothing nothing ×2 when moment=run_end",
         "pick ufo ×3 when moment=carrier",
         "pick crane ×1 when moment=carrier",
         "pick left ×1 when moment=crane_from",

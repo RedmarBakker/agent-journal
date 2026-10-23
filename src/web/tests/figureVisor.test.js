@@ -18,8 +18,9 @@ test("a process card that ends bad lights the visor red for about two seconds an
         expect(ended).toEqual([{tone, time: 10, card: "messages:1"}]);
         // seen once, an end is not lit again
         expect(ends(known, card(1, false, tone))).toEqual([]);
-        const lit = visorFor(ended, null, 100);
-        expect(lit).toEqual({tone, at: 100});
+        // the plain glow, as the pile draws it for most ends (figureSigns.test.js)
+        const lit = visorFor(ended, null, 100, () => 0.99);
+        expect(lit).toEqual({tone, at: 100, sign: false});
         expect(visorAt(lit, 101, false)).toEqual({colour, eyes: 0, across: 1, open: 1, flash: 0, glow: 1});
         expect(visorAt(lit, 100 + VISOR.seconds - 0.05, false).eyes).toBeGreaterThan(0);
         expect(visorAt(lit, 100 + VISOR.seconds, false)).toBe(null);

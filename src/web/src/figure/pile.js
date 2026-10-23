@@ -160,6 +160,8 @@ export const PILE = [
     ...at("climb", {}, [showpiece(pick("pogo", 2)), pick("hops", 3, {footholds: true})]),
     // while a run goes, whether the figure builds a server unit now (UNIT)
     ...at("unit", {cooldown: UNIT.every}, [pick("unit", UNIT.weight), nothing(1)]),
+    // a run's end, as the visor shows it: now and then as a sign in the eyes, crosses or ticks, else the plain glow (visor.js SIGN)
+    ...at("run_end", {}, [pick("sign", 1), nothing(2)]),
     // what takes the work away once it is committed, the UFO or the crane, one of them every time with no cooldown, and the side the crane
     // rolls in from
     ...at("carrier", {}, [pick("ufo", 3), pick("crane", 1)]),
