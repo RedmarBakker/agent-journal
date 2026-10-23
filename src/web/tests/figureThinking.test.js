@@ -10,6 +10,7 @@ import {GROUNDED, HELD, clipFor, clipOf} from "../src/domain/figureState.js";
 import {thinkingAct, workMoments} from "../src/figure/reactions.js";
 import {choicesFor} from "../src/figure/pile.js";
 import FigureAct from "../src/chat/FigureAct.vue";
+import {seeded} from "./support/seeded.js";
 
 const {rig, stances} = JSON.parse(readFileSync(`${dirname(fileURLToPath(import.meta.url))}/figureRig.json`));
 const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [name, new THREE.Vector3(...at)]));
@@ -44,17 +45,6 @@ function cloudOver(name, u) {
 const THINKING_CLIPS = ["ponder", "think_cloud", "got_it", "type_ponder"];
 // the middle of the cloud in the thinking act's play with the cloud alone
 const CLOUDED = (ACTS.think_cloud.cloud[0] + ACTS.think_cloud.cloud[1]) / 2;
-
-// a seeded random, the same rolls every run
-function seeded(seed) {
-    let state = seed;
-    return () => {
-        state = (state + 0x6d2b79f5) | 0;
-        let t = Math.imul(state ^ (state >>> 15), 1 | state);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
 
 // the thinking act's plays over `seconds` of the agent thinking, looked at once a second, each {at, clip}
 function playsOver(seconds, random) {

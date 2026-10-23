@@ -2,17 +2,7 @@
 import {describe, expect, it} from "vitest";
 import {EYE_SHAPES} from "../src/figure/figure.js";
 import {SIGN, VISOR, glowTurn, lightOnce, signAt, visorAt, visorFor} from "../src/figure/visor.js";
-
-// a seeded random, the same rolls every run
-function seeded(seed) {
-    let state = seed;
-    return () => {
-        state = (state + 0x6d2b79f5) | 0;
-        let t = Math.imul(state ^ (state >>> 15), 1 | state);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
+import {seeded} from "./support/seeded.js";
 
 // the visor `seconds` after a run ending `tone` lit it, `lit` being how visorFor drew it, lit as the run ended
 function shownAt(lit, seconds) {
