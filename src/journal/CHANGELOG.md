@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.27.1
+
+- Merging a worker's work finishes its task before letting the worker go, so the task is never told as open again on the way to done.
+
 ## 4.27.0
 
 - A journal can be shared with a team. A team server, one Docker image with HTTPS, keeps the team's accounts, devices and an ordered log of changes; every shared row syncs between the team's machines, each field settled on the later edit, and an edit that lost is named in a card.

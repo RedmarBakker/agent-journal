@@ -7489,6 +7489,9 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     with app.container.get(Scope).environment(MAIN):
         said = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.worker_place_free"]
     assert said and "the lexer tests" in said[-1], "a merged worker frees a place, and the orchestrator is told at once with the open tasks"
+    with app.container.get(Scope).environment(MAIN):
+        reopened = [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "tasks.task_reopened"]
+    assert not reopened, "a merge finishes its task before it lets the worker go, so the task never opens again on the way"
     tip = git("rev-parse", "HEAD").stdout.strip()
     assert merged.code == 0 and (root / "parser.py").exists(), merged.error
     with app.container.get(Scope).environment(MAIN):

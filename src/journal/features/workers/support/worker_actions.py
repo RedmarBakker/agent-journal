@@ -99,12 +99,12 @@ class WorkerActions:
             raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} is not checked: journal worker check {worker.id} <point> first")
         self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or ()))
         commit = self.branch.merge_commit(worker) if worker.worktree else ""
-        self.tasks.release(Ref.build(worker), actor)
-        self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
         closed = self.tasks.save(task.finished(datetime.now(timezone.utc), outcome), actor)
+        self.tasks.release(Ref.build(worker), actor)
+        self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
         return MergeOutcome(closed, self.branch.dropped(self.workers.find(worker.id)))
 
