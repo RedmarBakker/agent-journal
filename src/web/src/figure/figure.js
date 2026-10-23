@@ -326,6 +326,27 @@ export class Posing {
         this.props.set(name, {bone: "head", frame: "head", at: this.rig.heads.get("head").clone().add(new THREE.Vector3(...offset)), turn});
     }
 
+    // the bone `name` turned `degrees` about its own length, as the forearm turns the hand over
+    roll(name, degrees) {
+        const current = this.matrix(name);
+        const along = this.rig.along.get(name).clone().transformDirection(current).normalize();
+        this.final.set(name, aboutPoint(this.head(name, current), new THREE.Matrix4().makeRotationAxis(along, radians(degrees))).multiply(current));
+    }
+
+    // the hand on `side` closed into a fist, its fingers curled in to `share` of the open hand's length, as it grips a handle
+    clench(side, share) {
+        const name = `hand_${side}`;
+        const head = this.rig.heads.get(name);
+        const along = this.rig.along.get(name).clone().normalize();
+        const scale = new THREE.Matrix4().set(
+            1 + (share - 1) * along.x * along.x, (share - 1) * along.x * along.y, (share - 1) * along.x * along.z, 0,
+            (share - 1) * along.y * along.x, 1 + (share - 1) * along.y * along.y, (share - 1) * along.y * along.z, 0,
+            (share - 1) * along.z * along.x, (share - 1) * along.z * along.y, 1 + (share - 1) * along.z * along.z, 0,
+            0, 0, 0, 1,
+        );
+        this.final.set(name, this.matrix(name).clone().multiply(aboutPoint(head, scale)));
+    }
+
     // where the hand on `side` grips at rest, `offset` from its own grip
     grip(side, offset) {
         return this.rig.heads.get(`hand_${side}`).clone().add(new THREE.Vector3(SIDES[side] * (HAND.grip + offset[0]), HAND.forward + offset[1], offset[2]));
@@ -1562,10 +1583,12 @@ function onTablet(pose, stance, side, stroke) {
 // One blow of `blowFrames` frames a loop, so the hammering can stop after any blow; how long it goes on for each parcel the page decides
 // (figure/parcels.js HAMMER). Each blow comes down quick,
 // gathering speed, lands `lands` of the way through, and lifts back slower, easing up; the wrist snaps the hammer's head `snap` degrees
-// down into the blow. The swing stops dead `strike` of the way up from its lowest, where the hammer's head comes to rest on the parcel's
-// top (parcels.js PARCEL height at the chat's 112-pixel picture), so no blow passes into it. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
+// down into the blow. The forearm is turned `roll` degrees so the thumb is on top, the hand closed round the handle near its end, its
+// fingers curled in to `fist` of the open hand's length, and the handle turned `thumb` degrees to run across the palm through the fist,
+// the head out beyond the thumb. The swing stops dead `strike` of the way up from its lowest, where the hammer's head comes to rest on the
+// parcel's top (parcels.js PARCEL height at the chat's 112-pixel picture), so no blow passes into it. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
 // `landsAt` from its feet at rest across and forward; the parcel stands on the page, not in the picture, so it never turns with the figure.
-export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, turn: 80, strike: 0.345, landsAt: [0.74, -1.86]};
+export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, thumb: 90, roll: -90, fist: 0.62, turn: 80, strike: 0.413, landsAt: [0.72, -1.81]};
 
 function blowOf(t) {
     const phase = (t * WORK.blows) % 1;
@@ -1591,7 +1614,9 @@ function work(pose, stance, t) {
     trunk(pose, {lean: 8 + 6 * blow, nod: 10});
     armsAtRest(pose, stance, [side]);
     armTo(pose, side, 1, {y: mix(75, 5, raised), z: -35, bend: mix(15, 70, raised)});
-    pose.holdProp("work_hammer", side, [0, 0, 0], {x: WORK.snap * blow, z: TOOLS.hammer.tilt * SIDES[side]});
+    pose.roll(`forearm_${side}`, SIDES[side] * WORK.roll);
+    pose.clench(side, WORK.fist);
+    pose.holdProp("work_hammer", side, [0, 0, 0], {x: WORK.thumb, z: SIDES[side] * WORK.snap * blow});
     if (pose.posture === "stand") pose.revolve(SIDES[side] * WORK.turn);
 }
 

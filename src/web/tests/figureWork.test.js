@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import {expect, test} from "vitest";
 import * as THREE from "three";
-import {CLIPS, Posing, TOOLS, WORK, blowsLandAt} from "../src/figure/figure.js";
+import {CLIPS, HAND, Posing, TOOLS, WORK, blowsLandAt} from "../src/figure/figure.js";
 import {PARCEL, PUSH_LOOK, workLook} from "../src/figure/parcels.js";
 import {canSwitch} from "../src/figure/timeline.js";
 
@@ -71,6 +71,38 @@ test("on its feet the figure hammers side-on, its face toward the side its blows
             expect(Math.abs(facing.x), `${voice} ${step}`).toBeGreaterThan(0.9);
             expect(Math.sign(facing.x), `${voice} ${step}`).toBe(Math.sign(lands));
             expect([...pose.props.keys()], `${voice} ${step}`).toEqual(["work_hammer"]);
+        }
+    }
+});
+
+test("the hand is closed round the hammer's handle at every frame of the swing: its grip inside the fist, the handle across the palm through it, the head beyond the thumb", () => {
+    const work = CLIPS.find((each) => each.name === "work");
+    for (const voice of Object.keys(stances)) {
+        for (let step = 0; step <= 128; step++) {
+            const pose = new Posing(REAL, "stand", 0);
+            work.pose(pose, stanceOf(voice), step / 128);
+            const moves = pose.moves(0);
+            const held = pose.props.get("work_hammer");
+            const move = moves.get(held.bone);
+            const shape = new THREE.Matrix3().setFromMatrix4(move);
+            // the fingers closed: the hand drawn well short of the open hand along its length
+            expect(REAL.along.get(held.bone).clone().applyMatrix3(shape).length(), `${voice} ${step}`).toBeLessThan(0.7);
+            // the grip inside the closed hand: along its length between the wrist and the fingers' ends, and on its middle line
+            const wrist = REAL.heads.get(held.bone).clone().applyMatrix4(move);
+            const length = REAL.along.get(held.bone).clone().transformDirection(move);
+            const grip = held.at.clone().applyMatrix4(move).sub(wrist);
+            const along = grip.dot(length);
+            expect(along, `${voice} ${step}`).toBeGreaterThan(0);
+            expect(along, `${voice} ${step}`).toBeLessThan(2 * HAND.grip * WORK.fist);
+            expect(grip.clone().addScaledVector(length, -along).length(), `${voice} ${step}`).toBeLessThan(TOOLS.hammer.handleRadius);
+            // the handle runs across the palm, never out of its back, from the little finger's side to the thumb's
+            const turn = held.turn;
+            const turned = new THREE.Matrix4().extractRotation(moves.get(held.frame)).multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...[turn.x, turn.y, turn.z].map((degrees) => THREE.MathUtils.degToRad(degrees || 0)), "ZYX")));
+            const handle = new THREE.Vector3(0, 0, 1).applyMatrix4(turned);
+            const palm = new THREE.Vector3(0, 0, 1).transformDirection(move);
+            const thumb = new THREE.Vector3(0, -1, 0).transformDirection(move);
+            expect(Math.abs(handle.dot(palm)), `${voice} ${step}`).toBeLessThan(0.05);
+            expect(handle.dot(thumb), `${voice} ${step}`).toBeGreaterThan(0.5);
         }
     }
 });
