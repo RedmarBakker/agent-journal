@@ -213,6 +213,13 @@ export class Posing {
         this.turnAll({z: degrees});
     }
 
+    // `name` and every bone above it as posed so far turned about its head, as a back bent forward carries the shoulders, arms and head
+    bendAbove(name, {x = 0, y = 0, z = 0}) {
+        const turn = aboutPoint(this.head(name, this.matrix(name)), euler(x, y, z));
+        const above = (bone) => bone === name || (Boolean(bone) && above(this.rig.parents.get(bone)));
+        this.final = new Map(this.rig.order.map((bone) => [bone, above(bone) ? turn.clone().multiply(this.matrix(bone)) : this.matrix(bone)]));
+    }
+
     // the whole figure as posed so far moved by `offset`
     shiftAll(offset) {
         const shift = translation(new THREE.Vector3(...offset));
@@ -1446,14 +1453,19 @@ function watch(pose, stance, t) {
     }
 }
 
-// leans into a parcel in front of it, both hands out low on it, pushing it along as it walks
-export const SHOVE = {lean: 22, nod: 6, wrist: [0.3, -0.7, 1.6]};
+// Pushes a parcel along in front of it, which stands far lower than its hands: the knees bent to lower the hips by `drop` and the back
+// bent forward `lean` degrees until both hands are on the parcel's near side, the wrists at `hands` from where its feet stand, over the
+// floor; it walks the parcel along on bent knees, and on the spot it stays bent over it
+export const SHOVE = {lean: 70, nod: -25, drop: 0.45, hands: [0.4, -0.15, 0.5]};
 
 function push(pose, stance, t) {
-    breathe(pose, 0);
-    trunk(pose, {lean: SHOVE.lean, nod: SHOVE.nod});
-    armsAtRest(pose, stance, Object.keys(SIDES));
-    for (const side of Object.keys(SIDES)) propHand(pose, side, 1, SHOVE.wrist);
+    stride(pose, stance, pose.stride, pose.posture === "walk" ? 1 : 0, {lean: 0, drop: SHOVE.drop, bend: {nod: SHOVE.nod}});
+    pose.bendAbove("spine", {x: SHOVE.lean});
+    const [across, forward, up] = SHOVE.hands;
+    for (const [side, sign] of Object.entries(SIDES)) {
+        handTo(pose, side, 1, new THREE.Vector3(sign * across, forward, up), new THREE.Vector3(...ACTING.elbow));
+        pose.face(`hand_${side}`, {z: -sign * 90});
+    }
     pose.putAway(...IN_HAND);
 }
 
@@ -1905,7 +1917,7 @@ function castle(pose, stance, t) {
 }
 
 // What a posture does to the legs of whatever clip is drawn in it: what it sets before the clip poses the body, and what it lays over the
-// legs after. Standing, the clip has the legs to itself.
+// legs after. Standing, the clip has the legs to itself, and so does a clip that poses its own `legs`, as the push walks on bent knees.
 const LEGS = {
     sit: {under: seat, over: seatedLegs},
     walk: {under: strideUnder, over: strideLegs},
@@ -1961,7 +1973,7 @@ export const CLIPS = [
     {name: "work", frames: WORK.blows * WORK.blowFrames, fps: WORK.fps, loops: true, postures: ["stand", "sit"], pose: work},
     {name: "point", frames: 12, fps: 8, loops: true, postures: GESTURE, pose: point},
     {name: "watch", frames: 8, fps: 8, loops: true, cuts: true, postures: ["stand", "sit"], pose: watch},
-    {name: "push", frames: 6, fps: 12, loops: true, postures: ["walk", "stand"], pose: push},
+    {name: "push", frames: 6, fps: 12, loops: true, legs: true, postures: ["walk", "stand"], pose: push},
     {name: "jump", frames: 16, fps: 20, loops: false, postures: MOVE, pose: jump},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
@@ -2748,9 +2760,9 @@ export class Stage {
     draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
-        LEGS[posture]?.under(pose);
+        if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
-        LEGS[posture]?.over(pose);
+        if (!clip.legs) LEGS[posture]?.over(pose);
         if (at) lookToward(pose, at, facing);
         if (eyes) lookAs(pose, eyes, facing);
         const moves = place(figure, pose, facing, blend);

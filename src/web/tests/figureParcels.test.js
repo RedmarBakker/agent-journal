@@ -115,3 +115,34 @@ test("while the UFO is here the figure stops whatever it does to watch it: its h
         expect(root(posed({at: {x: 0.5, y: -0.8}, shade: 0, back: 1})).y - root(posed({at: {x: 0.5, y: -0.8}, shade: 0, back: 0})).y, voice).toBeGreaterThan(0.3);
     }
 });
+
+test("pushing a parcel far lower than its hands, the figure bends its knees and its back until both hands are on the parcel, feet on the floor", () => {
+    const push = CLIPS.find((clip) => clip.name === "push");
+    // the parcel's near side, from the figure's feet, in the figure's units: PUSH.reach pixels ahead of the feet less half a parcel, up to
+    // its height, at the chat's 112-pixel figure, whose picture is 5.4 units high
+    const unit = 112 / 5.4;
+    const near = (PUSH.reach - PARCEL.width / 2) / unit;
+    const top = PARCEL.height / unit;
+    for (const voice of Object.keys(stances)) {
+        for (const [posture, steps] of [["walk", 12], ["stand", 1]]) {
+            for (let step = 0; step < steps; step++) {
+                const pose = new Posing(RIG, posture, step / steps);
+                push.pose(pose, stanceOf(voice), 0);
+                const moves = pose.moves(0);
+                const at = (name) => pose.head(name, moves.get(name));
+                const label = `${voice} ${posture} ${step}`;
+                for (const side of ["l", "r"]) {
+                    const grip = pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`));
+                    expect(grip.z, label).toBeLessThan(top);
+                    expect(grip.z, label).toBeGreaterThan(0);
+                    expect(-grip.y, label).toBeGreaterThan(near - 0.25);
+                    expect(-grip.y, label).toBeLessThan(near + 0.35);
+                }
+                // the back bent well forward, and no foot under the floor
+                const back = at("neck").sub(at("hips")).normalize();
+                expect(back.z, label).toBeLessThan(Math.cos(THREE.MathUtils.degToRad(45)));
+                for (const side of ["l", "r"]) expect(at(`foot_${side}`).z, label).toBeGreaterThan(-0.05);
+            }
+        }
+    }
+});
