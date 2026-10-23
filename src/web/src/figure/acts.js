@@ -37,8 +37,10 @@ export const ACTS = {
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
     // searching: binoculars at its eyes, sweeping slowly left and right
     binoculars: {frames: 80, fps: 10, sweep: 1},
-    // searching: a flashlight shone into a dark corner beside it, the beam moving about in it
-    flashlight: {frames: 80, fps: 10},
+    // searching with a torch (figure.js flashlight, torchOf): its beam aimed at `aim` (across to the free hand's side, forward and up from
+    // the feet, in the figure's units) and swept slowly about it, `sweep` across and up and down (torchAim); its lens `lens` from where the
+    // hand grips it, which the beam spreads from (chat/FigureAct.vue)
+    flashlight: {frames: 80, fps: 10, aim: [2.1, -0.9, 0.55], sweep: [0.55, 0.2], lens: 0.72},
     // searching: it crouches, lifts a corner of the floor it stands on and peeks under it, then lets it down
     peek_under: {frames: 80, fps: 10, lift: [0.08, 0.3], peek: [0.3, 0.75], down: [0.75, 0.92], open: 42},
     // searching, now and then: like a cartoon character hunting through a closet, it rummages in an opening at the edge beside it. The
@@ -170,4 +172,11 @@ export function ropeDown(u) {
 export function swingAngle(u) {
     const {held} = heldPhases(ACTS.rope_swing, u);
     return held === null ? 0 : ACTS.rope_swing.sway * Math.sin(2 * Math.PI * ACTS.rope_swing.swings * held);
+}
+
+// Where the torch's beam lands `u` of the way through the search, across to the free hand's side, forward and up from the feet, in the
+// figure's units (ACTS flashlight): swept once across and back, and twice up and down, as one looks about in the dark
+export function torchAim(u) {
+    const {aim: [across, forward, up], sweep: [wide, high]} = ACTS.flashlight;
+    return [across + wide * Math.sin(2 * Math.PI * u), forward, up + high * Math.sin(4 * Math.PI * u)];
 }

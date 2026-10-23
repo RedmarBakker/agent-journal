@@ -1,8 +1,9 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
+import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swingAngle, torchAim} from "./acts.js";
 import {lookAngles} from "./look.js";
+import {FRAMED} from "./frame.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -13,8 +14,7 @@ import {transport} from "../api/transport.js";
 
 // render_clips.py and snaps.py: an orthographic camera eight units in front, framing 5.4 units about a height of 2.4
 export const CELL = 224;
-const FRAMED_HEIGHT = 5.4;
-const FRAMED_MIDDLE = 2.4;
+const {height: FRAMED_HEIGHT, middle: FRAMED_MIDDLE} = FRAMED;
 const DISTANCE = 8;
 const DEPTH = 3;
 // three's own Draco decoder, for the review page, which has no server of its own
@@ -2745,12 +2745,19 @@ function binoculars(pose, stance, t) {
 }
 
 // shines a flashlight held out low into a dark corner beside it, the beam moving about in it, leaning to look
+// searches with a torch held out to its free side, the hand turned to point it at where its beam lands (acts.js torchAim), sweeping it
+// slowly about as it looks
 function flashlight(pose, stance, t) {
-    const sweep = glanceOf(t);
+    const side = freeSide(stance);
+    const sign = SIDES[side];
+    const [across, forward, up] = torchAim(t);
     const [x, y, z] = ACTED.torch;
     breathe(pose, 0);
-    trunk(pose, {lean: 10, nod: 18, turn: -SIDES[freeSide(stance)] * 20});
-    actHand(pose, stance, 1, [x, y, z - ACTED.torchSweep * sweep], {x: -10});
+    trunk(pose, {lean: 10, nod: 18, turn: -sign * 20});
+    actHand(pose, stance, 1, [x, y, z], {x: -10});
+    const wrist = pose.head(`hand_${side}`, pose.matrix(`hand_${side}`));
+    pose.aim(`hand_${side}`, pose.carried(new THREE.Vector3(sign * across, forward, up)).sub(wrist));
+    pose.holdProp("flashlight", side, [0, 0, 0], {z: sign > 0 ? 0 : 180});
     eyesAs(pose, "reading");
 }
 
@@ -3564,6 +3571,7 @@ function propsOf() {
     telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"), group("telephone_poof"));
     lightBulbOf(group("light_bulb"));
     reportScrollOf(group("report_scroll"));
+    torchOf(group("flashlight"));
     rummagedOf(group);
     return props;
 }
@@ -3618,6 +3626,38 @@ function rummagedOf(group) {
     shadedPart(found, "ring", new THREE.TorusGeometry(...key.ring, 8, 20), colours.gold, [0, key.shaft + key.ring[0], 0]);
     shadedPart(found, "shaft", new THREE.CylinderGeometry(key.ring[1] * 0.8, key.ring[1] * 0.8, key.shaft, 8), colours.gold, [0, key.shaft / 2, 0]);
     for (const [index, up] of [0.08, 0.22].entries()) shadedPart(found, `bit_${index}`, new THREE.BoxGeometry(...key.bit), colours.gold, [key.bit[0] / 2, up, 0]);
+}
+
+// The torch the figure searches with (flashlight), in the figure's own style and drawn a size too large, as the magnifying glass is, so it
+// reads at the figure's size: a metal barrel `barrel` round and `length` long, across the hand where it grips it, its tail cap darker, a
+// switch on its top; at its front a wider head `head` round flaring out from the barrel, a rim round its lens, and the lens itself, which
+// glows warm as the torch shines, its middle at `lens` from the grip (acts.js flashlight), where the page draws its beam from
+export const TORCH = {
+    barrel: 0.13, length: 0.85, head: [0.21, 0.24], rim: 0.035, cap: 0.12, switch: [0.12, 0.05, 0.07],
+    colours: {metal: 0x9aa1ad, cap: 0x3a3d47, head: 0xb7bcc6, rim: 0x2b2e38, switch: 0xd9413b, lens: 0xfff3c4},
+};
+
+// the torch's parts in its own axes, along +x from where the hand grips it, the lens at the +x end
+export function torchOf(root) {
+    const {barrel, length, head, rim, cap, colours} = TORCH;
+    const lens = ACTS.flashlight.lens;
+    const along = (mesh) => {
+        mesh.rotation.z = -Math.PI / 2;
+        return mesh;
+    };
+    along(shadedPart(root, "barrel", new THREE.CylinderGeometry(barrel, barrel, length, 18), colours.metal, [lens - head[1] - length / 2, 0, 0]));
+    along(shadedPart(root, "cap", new THREE.CylinderGeometry(barrel * 1.08, barrel * 1.08, cap, 18), colours.cap, [lens - head[1] - length - cap / 2 + 0.01, 0, 0]));
+    along(shadedPart(root, "head", new THREE.CylinderGeometry(head[0], barrel, head[1], 20), colours.head, [lens - head[1] / 2, 0, 0]));
+    const ring = shadedPart(root, "rim", new THREE.TorusGeometry(head[0], rim, 10, 28), colours.rim, [lens, 0, 0]);
+    ring.rotation.y = Math.PI / 2;
+    const [wide, high, deep] = TORCH.switch;
+    shadedPart(root, "switch", new THREE.BoxGeometry(wide, high, deep), colours.switch, [lens - head[1] - length * 0.3, barrel + high / 2 - 0.005, 0]);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(head[0] * 0.92, 24), new THREE.MeshBasicMaterial({color: colours.lens, side: THREE.DoubleSide}));
+    glass.name = `${root.name}_lens`;
+    glass.position.set(lens + 0.003, 0, 0);
+    glass.rotation.y = Math.PI / 2;
+    glass.frustumCulled = false;
+    root.add(glass);
 }
 
 // The report scroll the figure reads (scroll), in the figure's own style: two wooden rollers `roller` round and `length` long, across, a
