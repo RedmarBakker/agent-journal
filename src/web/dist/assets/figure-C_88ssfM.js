@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-jrYN64m0.js
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-BamcpGrW.js";import"./tokens-D2Th-Z3L.js";import"./tip-CgWBk4Q1.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-BK0IXQW4.js";import"./tokens-D2Th-Z3L.js";import"./tip-CgWBk4Q1.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 6908ab40e (The avatar takes the pogo stick only up onto the top of a bubble, where it lands standing, never to a hang, a seat or a tab; at the top of the final throw it lets the stick go, the stick falling away, and it falls onto the bubble on its own feet with no bounce on the stick):src/web/dist/assets/figure-DodCsFUa.js
+import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-CQq15DDF.js";import"./tokens-D2Th-Z3L.js";import"./tip-CgWBk4Q1.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
