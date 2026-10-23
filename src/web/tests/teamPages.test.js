@@ -29,7 +29,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const EMPTY_POOL = {slots: 0, free: 0, lent: [], elsewhere: [], team: []};
+const EMPTY_POOL = {slots: 0, free: 0, minutes_today: 0, minute_cap: 0, lent: [], elsewhere: [], team: []};
 
 async function mounted(component, pool = EMPTY_POOL) {
     vi.spyOn(api, "teamChat").mockResolvedValue({line: "Held by Ada Lovelace", mine: false, claimable: false, holder: "Ada Lovelace"});
@@ -81,18 +81,18 @@ test("the hosted Team page puts the summary on top and each section in its colum
 
 
 test("the Team pages show the pool: the slots this machine gives, the workers it runs for colleagues with a Stop each, this journal's workers elsewhere, and the team's", async () => {
-    const lent = {request: 7, worker: 3, name: "Lady Lovelace", task: "the parser", owner: "Bob"};
-    const elsewhere = {request: 8, worker: 4, name: "Mr. Babbage", task: "the printer", owner: "machine 2"};
-    const pool = {slots: 2, free: 1, lent: [lent], elsewhere: [elsewhere], team: [lent, elsewhere]};
+    const lent = {request: 7, worker: 3, name: "Lady Lovelace", task: "the parser", owner: "Bob", minutes: 12};
+    const elsewhere = {request: 8, worker: 4, name: "Mr. Babbage", task: "the printer", owner: "machine 2", minutes: 3};
+    const pool = {slots: 2, free: 1, minutes_today: 40, minute_cap: 120, lent: [lent], elsewhere: [elsewhere], team: [lent, elsewhere]};
     let host = await mounted(TeamLocal, pool);
     expect(host.querySelector(".stepper-value").textContent).toBe("2");
     const facts = Object.fromEntries([...host.querySelectorAll(".team-facts > div")].map((fact) => [fact.querySelector("dt").textContent.trim(), fact.querySelector("dd").textContent.trim()]));
-    expect([facts["Lent out now"], facts["Free now"]]).toEqual(["1", "1"]);
+    expect([facts["Lent out now"], facts["Free now"], facts["Minutes today"]]).toEqual(["1", "1", "40 of 120"]);
     expect(host.textContent).toContain("Lady Lovelace");
-    expect(host.textContent).toContain("the parser · Bob");
+    expect(host.textContent).toContain("the parser · Bob · 12 min");
     expect(host.textContent).toContain("Mr. Babbage");
     expect([...host.querySelectorAll(".team-row .btn")].map((button) => button.textContent.trim())).toContain("Stop");
     app.unmount();
     host = await mounted(TeamHosted, pool);
-    expect(host.textContent).toContain("the printer · machine 2");
+    expect(host.textContent).toContain("the printer · machine 2 · 3 min");
 });

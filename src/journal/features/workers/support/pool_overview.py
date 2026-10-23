@@ -1,3 +1,5 @@
+import time
+
 from journal.features.workers.support.pool_worker_moves import PoolWorkerMoves
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.pool_worker_line import PoolWorkerLine
@@ -17,7 +19,7 @@ STOP_REASON = "stopped from the Team page by the member whose machine runs it"
 
 
 class PoolOverview:
-    """The worker pool as the Team page shows it: the slots this machine gives and how many are free, the pool workers it runs for teammates, this journal's pool workers running on other machines, and every pool worker the team runs; and the stop of one it runs, from that page."""
+    """The worker pool as the Team page shows it: the slots this machine gives and how many are free, the minutes of pool work it ran today against its daily cap, the pool workers it runs for teammates, this journal's pool workers running on other machines, and every pool worker the team runs; and the stop of one it runs, from that page."""
 
     def __init__(self, jobs: PoolJobs, workers: Workers, tasks: Tasks, environments: Environments, scope: Scope, settings: SettingRows, owners: EnvironmentOwners, moves: PoolWorkerMoves, actions: WorkerActions) -> None:
         self.jobs, self.workers, self.tasks, self.environments, self.scope, self.settings = jobs, workers, tasks, environments, scope, settings
@@ -26,6 +28,13 @@ class PoolOverview:
     def slots(self) -> int:
         from journal.features.workers.feature import Workers as Feature
         return self.settings.integer(Feature.POOL_SLOTS)
+
+    def minute_cap(self) -> int:
+        from journal.features.workers.feature import Workers as Feature
+        return self.settings.integer(Feature.POOL_MINUTES)
+
+    def minutes_today(self) -> int:
+        return round(self.jobs.today_minutes(time.time()))
 
     def lent(self) -> list[PoolWorkerLine]:
         return [line for job in self.jobs.all_matching(state=PoolJobState.STARTED) for line in self.job_lines(job.environment_key, job.worker_id, self.owners.person_name(job.account_id))]
@@ -52,7 +61,8 @@ class PoolOverview:
 
     def line(self, worker: Worker, owner: str) -> PoolWorkerLine:
         task_ids = self.tasks.holder_task_ids(Ref.build(worker))
-        return PoolWorkerLine(worker.pool_request, worker.id, worker.name, self.tasks.find(task_ids[0]).title if task_ids else "", owner)
+        minutes = round((time.time() - worker.began) / 60) if worker.began else 0
+        return PoolWorkerLine(worker.pool_request, worker.id, worker.name, self.tasks.find(task_ids[0]).title if task_ids else "", owner, minutes)
 
     def stop(self, request: int, actor: Actor) -> None:
         for job in self.jobs.all_matching(request_id=request, state=PoolJobState.STARTED):

@@ -38,7 +38,7 @@ class TeamController:
     def pool(self, request: Request) -> Response:
         lent = self.pool_overview.lent()
         slots = self.pool_overview.slots()
-        return Response.json({"slots": slots, "free": max(slots - len(lent), 0), "lent": [asdict(line) for line in lent], "elsewhere": [asdict(line) for line in self.pool_overview.remote_runs()], "team": [asdict(line) for line in self.pool_overview.team()]})
+        return Response.json({"slots": slots, "free": max(slots - len(lent), 0), "minutes_today": self.pool_overview.minutes_today(), "minute_cap": self.pool_overview.minute_cap(), "lent": [asdict(line) for line in lent], "elsewhere": [asdict(line) for line in self.pool_overview.remote_runs()], "team": [asdict(line) for line in self.pool_overview.team()]})
 
     def pool_stop(self, request: Request) -> Response:
         self.pool_overview.stop(request.number("id"), request.actor)

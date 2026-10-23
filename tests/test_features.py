@@ -10661,12 +10661,12 @@ def test_a_restart_waits_while_a_command_runs_names_it_and_goes_once_it_ends_and
     from journal.models.pool_job import PoolJob
     from journal.repositories.pool_jobs import PoolJobs
     jobs = app.container.get(PoolJobs)
-    job = jobs.save(PoolJob(request_id=7, environment_key="k", account_id=1, worker_id=1, profile="journal-medior").started(), Actor.system())
+    job = jobs.save(PoolJob(request_id=7, environment_key="k", account_id=1, worker_id=1, profile="journal-medior").started(1.0), Actor.system())
     assert queue.restart(MAIN, "") == [] and len(sent) == 4, "a pool worker running here never holds a restart asked by hand"
     assert queue.update_restart(MAIN) == [] and len(sent) == 4 and queue.is_waiting(MAIN), "an update's restart waits while a pool worker taken up here runs"
     wait.tick(0.0)
     assert len(sent) == 4, "and keeps waiting while it runs"
-    jobs.save(job.finished(), Actor.system())
+    jobs.save(job.finished(2.0), Actor.system())
     wait.tick(0.0)
     assert len(sent) == 5 and not queue.is_waiting(MAIN), "it goes once the pool worker has finished"
 
@@ -11167,13 +11167,28 @@ def test_a_pool_worker_a_machine_cannot_run_is_declined_and_offered_again_and_on
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
         monkeypatch.setattr("journal.providers.provider.Provider.is_installed", lambda self: True)
         app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
-        busy = jobs.save(PoolJob(request_id=999, environment_key="elsewhere", account_id=2, worker_id=1, profile="journal-medior").started(), Actor.system())
+        busy = jobs.save(PoolJob(request_id=999, environment_key="elsewhere", account_id=2, worker_id=1, profile="journal-medior").started(1.0), Actor.system())
         app.container.get(HostDesk).handle(tuple(offered(ada)))
         app.runtime().deferred.drain()
         request = offered(bob)[0]
         assert [job.state for job in jobs.all_matching(request_id=request.id)] == [PoolJobState.DECLINED] and offered(ada) == [], "a machine whose slot is already taken declines it and is not offered it again"
         assert [each.id for each in offered(bob)] == [request.id], "the others still are"
-        jobs.save(busy.finished(), Actor.system())
+        jobs.save(busy.finished(2.0), Actor.system())
+        import shutil as disk
+        import time as clock
+        from collections import namedtuple
+        from journal.features.workers.listeners.pool_job_intake import PoolJobIntake
+        intake = app.container.get(PoolJobIntake)
+        app.container.get(SettingRows).set("workers.pool_daily_minutes", 2, Actor.user(1))
+        spent = jobs.save(PoolJob(request_id=998, environment_key="elsewhere", account_id=2, worker_id=1, profile="journal-medior", started_at=clock.time() - 180, ended_at=clock.time()), Actor.system())
+        assert "run its 2 minutes of pool work for today" in intake.machine_refusal(), "past the day's minutes of pool work a machine turns pool workers down"
+        jobs.delete(spent, Actor.system())
+        assert intake.machine_refusal() == "", "under the cap and with a free slot it takes them"
+        monkeypatch.setattr(disk, "disk_usage", lambda path: namedtuple("Usage", "total used free")(10, 9, 1))
+        assert "GB of disk free" in intake.machine_refusal(), "and with too little disk free for a worktree it turns them down"
+        monkeypatch.undo()
+        monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+        monkeypatch.setattr("journal.providers.provider.Provider.is_installed", lambda self: True)
         for job in jobs.all_matching(request_id=request.id):
             jobs.delete(job, Actor.system())
         def failed(self, worker):

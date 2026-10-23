@@ -6,7 +6,7 @@ defineProps({line: {type: Object, required: true}});
     <div class="team-row">
         <div class="team-row-main">
             <b>{{ line.name }}</b>
-            <span class="team-row-sub">{{ [line.task, line.owner].filter(Boolean).join(" · ") }}</span>
+            <span class="team-row-sub">{{ [line.task, line.owner, `${line.minutes} min`].filter(Boolean).join(" · ") }}</span>
         </div>
         <slot />
     </div>

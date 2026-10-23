@@ -1,3 +1,4 @@
+import time
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.models.pool_job_state import PoolJobState
 from journal.models.worker import Worker
@@ -48,7 +49,7 @@ class PoolWorkerMoves:
 
     def ended(self, worker: Worker) -> None:
         for job in self.jobs.all_matching(worker_id=worker.id, state=PoolJobState.STARTED):
-            self.jobs.save(job.finished(), Actor.system())
+            self.jobs.save(job.finished(time.time()), Actor.system())
             self.link.finish_host_request(job.request_id)
 
     def ask(self, worker: Worker, kind: str, body: dict, actor: Actor) -> None:

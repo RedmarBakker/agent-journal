@@ -55,6 +55,7 @@ class Workers(Feature[WorkersData]):
     BUILT_PATHS = Option("workers.built_paths", "Folders built from the sources", "Folders, one per line, that a build makes from the sources, such as a built viewer; a worker's merge that clashes only in them takes the project's side and builds them again with the command below", [], kind="lines")
     BUILD_COMMAND = Option("workers.build_command", "Command that builds them", "The shell command, run in the worker's worktree, that builds the folders above again after a merge clashed only in them", "", kind="text")
     POOL_SLOTS = Option("workers.pool_slots", "Worker slots given to the team's pool", "How many workers this machine runs at once for teammates who dispatch to the team's pool; 0 gives none", 0, unit="workers", scope=OptionScope.MACHINE, setter=USER)
+    POOL_MINUTES = Option("workers.pool_daily_minutes", "Minutes a day of pool work on this machine", "How many minutes a day this machine runs workers for teammates, counted from midnight; past it a pool worker is turned down until the next day. 0 sets no limit", 0, unit="min", scope=OptionScope.MACHINE, setter=USER)
     POOL_PROFILES = Option("workers.pool_profiles", "Profiles a pool worker may use", "The worker profiles, one per line, a teammate may dispatch to the team's pool; a pool request naming another is refused", ["journal-medior"], kind="lines", setter=USER)
     COMPLETION_COMMANDS = Option("workers.completion_commands", "Commands after a worker's worktree is made", "Your own shell commands, one per line, run inside a worker's worktree once it is made, such as installing its dependencies; told the same as the commands before", [], kind="lines", scope=OptionScope.MACHINE)
 
@@ -62,7 +63,7 @@ class Workers(Feature[WorkersData]):
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports."
     modes = Modes(MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
-    options = (TIMEOUT, MODE, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS, BUILT_PATHS, BUILD_COMMAND, POOL_SLOTS, POOL_PROFILES)
+    options = (TIMEOUT, MODE, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS, BUILT_PATHS, BUILD_COMMAND, POOL_SLOTS, POOL_MINUTES, POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
     seeds = (WorkersSeed, SubagentsSeed)

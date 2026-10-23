@@ -15,7 +15,7 @@ import "./team.css";
 const standing = ref(null);
 const people = ref([]);
 const devices = ref([]);
-const pool = ref({slots: 0, free: 0, lent: [], elsewhere: [], team: []});
+const pool = ref({slots: 0, free: 0, minutes_today: 0, minute_cap: 0, lent: [], elsewhere: [], team: []});
 const failure = ref("");
 const outcome = ref("");
 const opening = ref(false);
