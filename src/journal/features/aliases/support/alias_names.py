@@ -2,7 +2,7 @@ from journal.console.standard_commands import StandardCommands
 from journal.features.registry import Registry
 from journal.repositories.aliases import Aliases
 
-SHIM_COMMANDS = ("claude", "codex", "serve")
+SHIM_COMMANDS = ("claude", "codex", "serve", "remote")
 
 
 class AliasNames:
