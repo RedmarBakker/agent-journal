@@ -75,8 +75,10 @@ test("every animation in the pile, with its weight and the condition it plays un
     expect(PILE.map(lineOf)).toEqual([
         "clip joy ×2 when moment=tests_passed, plays out",
         "clip party_horn ×1 when moment=tests_passed, plays out",
-        "shenanigan clip bug_shot ×1 when moment=tests_passed, plays out",
         "nothing nothing ×1 when moment=tests_passed",
+        "shenanigan clip bug_shot ×3 when moment=tests_fixed, plays out",
+        "clip joy ×2 when moment=tests_fixed, plays out",
+        "clip party_horn ×1 when moment=tests_fixed, plays out",
         "clip startled ×2 when moment=tests_failed, plays out",
         "clip dismay ×1 when moment=tests_failed, plays out",
         "nothing nothing ×1 when moment=tests_failed",
@@ -281,20 +283,18 @@ test("a commit with units always brings the UFO or the crane to take them, with 
     for (let share = 0; share < 1; share += 0.01) expect(["ufo", "crane"]).toContain(carrierOf(() => share));
 });
 
-test("a passing test run, and only one, may bring a bug the figure shoots, in place of the visor's glow, waiting its own cooldown and the moment's", () => {
+test("a pass that fixed a failed test run, and only that, may bring a bug the figure shoots, in place of the visor's glow, waiting its own cooldown and the moment's", () => {
     const bugShot = (moment, scene = {}) => choicesFor({moment, ...scene}).some((entry) => entry.name === "bug_shot");
-    expect(bugShot("tests_passed")).toBe(true);
-    for (const moment of ["tests_failed", "committed", "check_passed", "bar_done", "pastime", "building"]) expect(bugShot(moment, {free: true, lasted: 1000}), moment).toBe(false);
+    expect(bugShot("tests_fixed")).toBe(true);
+    for (const moment of ["tests_passed", "tests_failed", "committed", "check_passed", "bar_done", "pastime", "building"]) expect(bugShot(moment, {free: true, lasted: 1000}), moment).toBe(false);
     const entry = PILE.find((each) => each.name === "bug_shot");
-    expect(entry).toMatchObject({when: {moment: "tests_passed"}, cooldown: SHOWPIECES.bug_shot, toward: "", onto: false});
-    // drawn, it is not drawn again for its cooldown, and nothing else of a passing run plays inside the run's own
+    expect(entry).toMatchObject({when: {moment: "tests_fixed"}, cooldown: SHOWPIECES.bug_shot, toward: "", onto: false});
+    // drawn, it is not drawn again for its cooldown, and nothing else of a fixed run plays inside the run's own
     const memory = new Map();
-    const tickets = choicesFor({moment: "tests_passed"});
-    const share = (tickets.slice(0, tickets.findIndex((each) => each.name === "bug_shot")).reduce((sum, each) => sum + each.weight, 0) + 0.5) / tickets.reduce((sum, each) => sum + each.weight, 0);
-    expect(draw({moment: "tests_passed", memory, now: 0}, () => share).name).toBe("bug_shot");
-    expect(choicesFor({moment: "tests_passed", memory, now: 10}).filter((each) => each.kind !== "nothing")).toEqual([]);
-    expect(bugShot("tests_passed", {memory, now: 30})).toBe(false);
-    expect(bugShot("tests_passed", {memory, now: SHOWPIECES.bug_shot})).toBe(true);
+    expect(draw({moment: "tests_fixed", memory, now: 0}, () => 0).name).toBe("bug_shot");
+    expect(choicesFor({moment: "tests_fixed", memory, now: 10}).filter((each) => each.kind !== "nothing")).toEqual([]);
+    expect(bugShot("tests_fixed", {memory, now: 30})).toBe(false);
+    expect(bugShot("tests_fixed", {memory, now: SHOWPIECES.bug_shot})).toBe(true);
 });
 
 test("a finished task never brings the stamp: no stamp in the pile or among the clips, and its moment draws a nod, a celebration or nothing", () => {

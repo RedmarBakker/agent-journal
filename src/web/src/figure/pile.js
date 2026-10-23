@@ -72,9 +72,10 @@ const pastime = (name, weight, lasted, cooldown, more = {}) => ({...clip(name, w
 const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name], apart: true, shenanigan: true});
 
 export const PILE = [
-    // a test run's end: celebrated on its card, now and then by shooting a bug that crawls into the chat instead of the visor's glow, or a
-    // start at a failure
-    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), {...showpiece(clip("bug_shot", 1)), toward: "", onto: false}, nothing(1)]),
+    // a test run's end: celebrated on its card, or a start at a failure; a pass soon after a failure is the bug solved, most often shot
+    // as it crawls into the chat instead of the visor's glow
+    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), nothing(1)]),
+    ...at("tests_fixed", {cooldown: 20, toward: "card", onto: true}, [{...showpiece(clip("bug_shot", 3)), toward: "", onto: false}, ...celebrations()]),
     ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [...celebrations(), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time

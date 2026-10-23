@@ -220,20 +220,25 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     // a run 20 seconds in at 70 percent has over 8 seconds left: not yet
     expect(eagerFor(at(0.7), null, () => 0, 120)).toEqual({eager: null, moment: null});
     // at 80 percent after 20 seconds it has 5 left: it rolls, once, by the odds
-    expect(eagerFor(at(0.8), null, () => oddsOf("eager"), 120).eager).toEqual({bar, on: false});
+    expect(eagerFor(at(0.8), null, () => oddsOf("eager"), 120).eager).toEqual({run: 100, on: false});
     const eager = eagerFor(at(0.8), null, () => 0, 120).eager;
-    expect(eager).toEqual({bar, on: true});
-    expect(eagerFor(at(0.95), {bar, on: false}, () => 0, 123).eager.on).toBe(false);
+    expect(eager).toEqual({run: 100, on: true});
+    expect(eagerFor(at(0.95), {run: 100, on: false}, () => 0, 123).eager.on).toBe(false);
     // a quick run, under ten seconds old when it nears its end, never makes it eager
-    expect(eagerFor(at(0.6), null, () => 0, 100 + EAGER.after - 4).eager).toEqual({bar, on: false});
+    expect(eagerFor(at(0.6), null, () => 0, 100 + EAGER.after - 4).eager).toEqual({run: 100, on: false});
     // started, it is kept to the end whatever the figure does, and then it is cheered or fumed at
     expect(eagerFor(at(0.97), eager, () => 0.99, 124)).toEqual({eager, moment: null});
-    expect(eagerFor(at(1, "good"), eager, () => 0, 125)).toEqual({eager: {bar, on: false}, moment: {beat: "bar_done"}});
+    expect(eagerFor(at(1, "good"), eager, () => 0, 125)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}});
     expect(eagerFor(at(1, "bad"), eager, () => 0, 125).moment).toEqual({beat: "bar_failed"});
+    // the dock drawn again, with a new bar for the same run, is still that run: its end is fumed at once, never again
+    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 125).eager;
+    const redrawn = (share, ended = "") => ({bar: {}, share, ended, began: 100});
+    expect(eagerFor(redrawn(0.97), fumed, () => 0, 126)).toEqual({eager: fumed, moment: null});
+    expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 127).moment).toBe(null);
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
     expect(of("bar_done").map((each) => each.name)).toEqual(["joy", "party_horn"]);
     // only the bar going ends it with nothing to mark
-    expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {bar, on: false}, moment: null});
+    expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {run: 100, on: false}, moment: null});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
 });
 

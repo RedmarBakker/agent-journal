@@ -134,6 +134,8 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, icon: "check", tone: "good", label: "Check Check for sins passed"},
         {time: 2, key: "messages:1", icon: "terminal", label: "Running tests", watch: {figure: "Tests 100%", ending: "finished"}},
         {time: 2, key: "messages:2", icon: "terminal", label: "Running tests", watch: {figure: "Tests 90%", ending: "failed with code 1"}},
+        {time: 5, key: "messages:8", icon: "terminal", label: "Running tests", watch: {figure: "Tests 40%", ending: "failed with code 1"}},
+        {time: 6, key: "messages:9", icon: "terminal", label: "Running tests", watch: {figure: "Tests 100%", ending: "finished"}},
     ];
     const agent = {data: {cards, person_at: 2}};
     const said = (kind) => ({table: "messages", id: kind.length + 1, author: "agent", session: "s", created_at: new Date(2000).toISOString(), data: {kind}});

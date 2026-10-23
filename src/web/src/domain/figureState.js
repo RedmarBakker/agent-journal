@@ -202,16 +202,23 @@ const isTestRun = (card) => /test/i.test(card.label ?? "");
 // A test run's ending: its watch card's, or a process card's tone once it is no longer active
 const endingOf = (card) => card.watch?.ending || (card.process && !card.active && {good: "finished", bad: "failed"}[card.tone]) || "";
 
+// A pass this many seconds or fewer after a failed test run is that failure fixed
+export const FIX_SECONDS = 30 * 60;
+
+// The test run's beat: a failure, a pass, or a pass that fixed the test run before it, which failed within FIX_SECONDS
+const testBeat = (card, ended) => {
+    if (endingOf(card) !== "finished") return "tests_failed";
+    const before = ended.filter((other) => Number(other.time) < Number(card.time)).sort((a, b) => Number(b.time) - Number(a.time))[0];
+    const fixed = before && endingOf(before) !== "finished" && Number(card.time) - Number(before.time) <= FIX_SECONDS;
+    return fixed ? "tests_fixed" : "tests_passed";
+};
+
 // The beats for each test run that has ended since `known` (card key to the ending it had) was last filled in, which this fills in
 export function testResultsAfter(agent, known) {
     const ended = (agent?.data?.cards || []).filter((card) => isTestRun(card) && endingOf(card));
     const fresh = ended.filter((card) => known.get(card.key) !== endingOf(card));
     fresh.forEach((card) => known.set(card.key, endingOf(card)));
-    return fresh.map((card) => ({
-        beat: endingOf(card) === "finished" ? "tests_passed" : "tests_failed",
-        time: Number(card.time),
-        card: card.key,
-    }));
+    return fresh.map((card) => ({beat: testBeat(card, ended), time: Number(card.time), card: card.key}));
 }
 
 // The process cards that have ended since `known` (card key to whether it was active) was last filled in, which this fills in: each one

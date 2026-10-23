@@ -1069,7 +1069,7 @@ function pointerMoved(event) {
 }
 
 // the moments answered before any beat already waiting: a stumble on a long walk, and a tickle, which the figure swats at at once
-const FIRST = new Set(["long_walk", "tickled"]);
+const FIRST = new Set(["long_walk", "tickled", "bar_failed"]);
 
 function react(moment) {
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);

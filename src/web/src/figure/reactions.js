@@ -78,16 +78,16 @@ export const EAGER = {lead: 5, after: 10};
 export const secondsLeft = (elapsed, share) => (share > 0 ? (elapsed / share) * (1 - share) : Infinity);
 
 // The figure's eagerness at `now` seconds for the bar docked over the compose box, `progress` (places.js progressOf), or null with none:
-// the bar it rolled for and whether it is eager for it; and the moment the bar's end is once it ends while the figure is eager, a pass or
-// a failure. Only the bar's end, or the bar going, ends it.
+// the run it rolled for, known by when its card began so a bar drawn again is the same run, and whether it is eager for it; and the moment
+// the bar's end is once it ends while the figure is eager, a pass or a failure, once for the run. Only the bar's end, or the bar going, ends it.
 export function eagerFor(progress, eager, random, now) {
-    const same = Boolean(progress) && progress.bar === eager?.bar;
+    const same = Boolean(progress) && progress.began === eager?.run;
     if (same && eager.on && progress.ended) return {eager: {...eager, on: false}, moment: {beat: progress.ended === "good" ? "bar_done" : "bar_failed"}};
     if (!progress || progress.ended) return {eager: eager && {...eager, on: false}, moment: null};
     if (same) return {eager, moment: null};
     const elapsed = now - progress.began;
     if (secondsLeft(elapsed, progress.share) > EAGER.lead) return {eager, moment: null};
-    return {eager: {bar: progress.bar, on: draw({moment: "eager", slow: elapsed >= EAGER.after}, random)?.name === "eager"}, moment: null};
+    return {eager: {run: progress.began, on: draw({moment: "eager", slow: elapsed >= EAGER.after}, random)?.name === "eager"}, moment: null};
 }
 
 // A jump of more than this many of the figure's own heights is high, and now and then turns over backwards on the way (pile.js jump)
