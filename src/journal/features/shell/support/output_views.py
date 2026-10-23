@@ -41,7 +41,7 @@ class OutputViews:
         progress = self.progress(output, reader, lines)
         tally = reader.tally(lines) if not output.ended else StepTally(0, 0)
         figure = " · ".join(part for part in (progress.text() if progress.is_known() else "", tally.text() if tally.is_known() else "") if part)
-        return OutputView(output.row_id, tuple(reader.read(lines)[-VIEW_LINES:]), figure, progress.fraction(), ending)
+        return OutputView(output.row_id, tuple(reader.read(lines)[-VIEW_LINES:]), figure, progress.fraction(), ending, is_counting=reader.is_counting())
 
     # the run's progress as it prints it, or, running and before it prints a count, its steps so far against the steps the same
     # command line's last run took
@@ -51,9 +51,6 @@ class OutputViews:
             return count_progress
         last_run = self.outputs.previous_run(output)
         return Progress.estimated(self.steps(reader.tally(lines)), self.run_steps(last_run, reader), reader.label) if last_run else count_progress
-
-    def is_counting(self, output: CommandOutput) -> bool:
-        return bool(output.watch_reader) and self.readers.lookup(output.watch_reader).is_counting()
 
     def run_steps(self, output: CommandOutput, reader: Reader) -> int:
         files = OutputFiles(Path(output.folder))
@@ -100,6 +97,10 @@ class OutputViews:
         progress, tally = self.progress(output, reader, lines), reader.tally(lines)
         steps = progress.count_text() if progress.is_known() and not output.ended else ""
         return " · ".join(part for part in (steps, tally.text() if tally.is_known() else "") if part)
+
+    def ended_summary(self, output: CommandOutput) -> str | None:
+        summary_lines = self.card_lines(output, self.view(output)) if output.watch_reader else ()
+        return " / ".join(summary_lines) if summary_lines else None
 
     def card_text(self, output: CommandOutput, view: OutputView) -> str:
         return "\n".join(self.card_lines(output, view) or self.ending_lines(output))

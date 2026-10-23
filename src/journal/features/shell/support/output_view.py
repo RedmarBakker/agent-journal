@@ -7,7 +7,7 @@ WATCH_KEY = "watch"
 
 @dataclass(frozen=True)
 class OutputView:
-    """What a watch on an output shows: the lines its reader picks, or its last lines, how far its command has come, as words and as a fraction, how it ended once it has, whether its card has shown nothing for 30 seconds while it runs, and whether it ended printing no summary, so its card ends on the counts of its step marks."""
+    """What a watch on an output shows: the lines its reader picks, or its last lines, how far its command has come, as words and as a fraction, how it ended once it has, whether its card has shown nothing for 30 seconds while it runs, whether it ended printing no summary, so its card ends on the counts of its step marks, and whether its reader counts steps."""
 
     output: int
     lines: tuple[str, ...]
@@ -19,6 +19,7 @@ class OutputView:
     empty_card: bool = False
     silent: bool = False
     summary_missing: bool = False
+    is_counting: bool = False
 
     @classmethod
     def empty(cls) -> "OutputView":

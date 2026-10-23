@@ -497,6 +497,30 @@ def test_an_output_the_agent_waits_on_is_told_by_the_wait_alone(app: App):
     assert [o.id for o in outputs.unannounced("s1")] == [2, 3], "a wait lifted by other work before its output ended leaves that end to the quiet tick"
 
 
+def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app: App, monkeypatch):
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    folder = app.config.root / "run"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest -q")
+    (folder / "0.out").write_text("..F.\nFAILED tests/a.py::test_b\n1 failed, 3 passed in 1.20s\n")
+    assert app.console().run(["reader", "add", "pytest", "--pattern", "[0-9]+ (passed|failed)", "--about", "a test run's summary"], USER).code == 0
+    outputs = app.container.get(CommandOutputs)
+    output = outputs.save(CommandOutput(chain="run", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("pytest", "the tests"), Actor.system())
+    app.console().run(["await", "the tests", "--output", str(output.id)], AGENT)
+    app.container.get(ShellRecord).ended("run", 1, folder, "", Caller.agent("main", "s1", "claude"))
+    app.runtime().deferred.drain()
+    told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) + " ".join(keystrokes)
+    assert f"the wait for the tests is over: output {output.id} failed with code 1: " in told and "1 failed, 3 passed" in told, "the wait's end says how it ended and what the reader picked"
+    assert outputs.find(output.id).summary is not None
+
+
 def test_a_check_edited_runs_its_new_command(app: App):
     from journal.features.checks.support.check_runner import CheckRunner
     from journal.repositories.checks import Checks

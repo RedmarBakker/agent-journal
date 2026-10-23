@@ -80,8 +80,10 @@ def silent_check(state: BaseState, event: Ticked) -> Transition:
 def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
     outcomes: dict[str, list[int]] = {}
     for output in ended:
-        outcomes.setdefault(output.ending, []).append(output.id)
-    return "; ".join(f"output{'s' if len(ids) > 1 else ''} {', '.join(map(str, ids))} {outcome}" for outcome, ids in outcomes.items())
+        if output.summary is None:
+            outcomes.setdefault(output.ending, []).append(output.id)
+    grouped = [f"output{'s' if len(ids) > 1 else ''} {', '.join(map(str, ids))} {outcome}" for outcome, ids in outcomes.items()]
+    return "; ".join([*grouped, *(f"output {output.id} {output.ending}: {output.summary}" for output in ended if output.summary is not None)])
 
 
 def partial_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:

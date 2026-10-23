@@ -29,8 +29,8 @@ class ShellDataReader:
         return LazyFacts("shell", {
             "background": lambda: tuple(o.row_id for o in self.outputs.background(agent.session)),
             "backgrounded_at": lambda: min((o.creation_time.timestamp() for o in self.outputs.background(agent.session)), default=0.0),
-            "unannounced": lambda: tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unannounced(agent.session)),
-            "unread": lambda: tuple(EndedOutput(o.row_id, o.ending()) for o in self.outputs.unread(agent.session)),
+            "unannounced": lambda: tuple(EndedOutput(o.row_id, o.ending(), o.summary) for o in self.outputs.unannounced(agent.session)),
+            "unread": lambda: tuple(EndedOutput(o.row_id, o.ending(), o.summary) for o in self.outputs.unread(agent.session)),
             "reader_requests": lambda: self.reader_requests(agent),
             "tool_uses": lambda: agent.tool_uses,
             "last_ending_line": lambda: self.last_ending_line(agent),
