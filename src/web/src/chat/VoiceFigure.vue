@@ -47,7 +47,7 @@ import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, queuedFirst, spellFor, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, carrierOf, craneFrom, eagerFor, eyesAt, lookOf, pastimeFor, queuedFirst, spellFor, headTurned, LOOK_TURN_SPEED, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, visorAt, visorFor} from "../figure/visor.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -1072,20 +1072,26 @@ const onDocks = () => groundEdge().docked && !body.trip;
 // The look eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once
 // there is not, as the UFO goes or the bar ends, so the head never snaps; `amount` is how far into it the figure is, 0 to 1
 const LOOK_EASE_MS = 500;
+// how far down the figure's picture its head's middle sits, as a share of the picture's height
+const HEAD_HEIGHT = 0.3;
 const gaze = {point: null, amount: 0, at: 0};
 
 // where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
 function lookingAt(shown) {
     const now = performance.now();
     const point = lookedAt(shown);
-    const step = (now - (gaze.at || now)) / LOOK_EASE_MS;
+    const elapsedMs = now - (gaze.at || now);
+    const step = elapsedMs / LOOK_EASE_MS;
     gaze.at = now;
     gaze.amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
-    if (point) gaze.point = point;
+    if (point) gaze.point = gaze.point ? headTurned(gaze.point, point, headCenter(), (LOOK_TURN_SPEED * elapsedMs) / 1000) : point;
     if (!gaze.amount || !gaze.point) return null;
     const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
     return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind)};
 }
+
+// the middle of the figure's head on the page, about which its look turns
+const headCenter = () => ({x: body.at.x + SIZE / 2, y: body.at.y + SIZE * HEAD_HEIGHT});
 
 const onType = (event) => {
     if (event.target.closest?.(HOME)) typed = true;

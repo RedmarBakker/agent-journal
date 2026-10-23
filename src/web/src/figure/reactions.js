@@ -156,3 +156,17 @@ export function pastimeFor(scene, waited, memory, now, random, has, tally = null
 // The beat queue with `beat` put before every other: the beat at its head, when it is the clip playing now, `playingClip`, is broken off
 // and dropped, so it never plays again from its start once `beat` has played
 export const queuedFirst = (beats, beat, playingClip) => [beat, ...(beats[0]?.clip === playingClip ? beats.slice(1) : beats)];
+
+// How fast the figure's head can swing its look, in radians a second: a pointer moved faster is followed at this pace
+export const LOOK_TURN_SPEED = 2 * Math.PI;
+
+// The point the head looks at next, from the one it looked at, `previous`, toward `target`, both on the page: turned about the head,
+// `center`, by at most `largest` radians, at the target's own distance
+export function headTurned(previous, target, center, largest) {
+    const from = Math.atan2(previous.y - center.y, previous.x - center.x);
+    const to = Math.atan2(target.y - center.y, target.x - center.x);
+    const gap = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    const angle = from + Math.max(-largest, Math.min(largest, gap));
+    const reach = Math.hypot(target.x - center.x, target.y - center.y);
+    return {...target, x: center.x + reach * Math.cos(angle), y: center.y + reach * Math.sin(angle)};
+}

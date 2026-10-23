@@ -252,3 +252,16 @@ test("a beat cut in front of the one playing drops it, so the cut one never play
     expect(queuedFirst([joy, nod], swat, "idle")).toEqual([swat, joy, nod]);
     expect(queuedFirst([], swat, "joy")).toEqual([swat]);
 });
+
+test("the head follows the pointer no faster than a set speed, and reaches it in the end", async () => {
+    const {headTurned, LOOK_TURN_SPEED} = await import("../src/figure/reactions.js");
+    const center = {x: 0, y: 0};
+    const frame = 1 / 60;
+    let look = {x: 100, y: 0};
+    const target = {x: -100, y: 1};
+    const angle = (point) => Math.atan2(point.y, point.x);
+    const next = headTurned(look, target, center, LOOK_TURN_SPEED * frame);
+    expect(Math.abs(angle(next) - angle(look))).toBeLessThanOrEqual(LOOK_TURN_SPEED * frame + 1e-9);
+    for (let step = 0; step < 60; step++) look = headTurned(look, target, center, LOOK_TURN_SPEED * frame);
+    expect(Math.hypot(look.x - target.x, look.y - target.y)).toBeLessThan(1);
+});
