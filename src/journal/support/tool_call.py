@@ -34,6 +34,9 @@ class ToolCall:
         return cls(tool=tool, input=input, operation=operation, command=command, parts=parts, is_journal=bool(parts) and all(part.is_journal for part in parts), writes=operation.writes(),
                    edited_paths=operation.target_paths(), read_paths=operation.read_paths(), file_lines=operation.file_lines(), skill_loaded=operation.loaded_skill(), work=Chain.work(command) if command else "")
 
+    def shell_lines(self) -> tuple[str, ...]:
+        return (*(part.text for part in self.parts), self.command)
+
     @property
     def input_text(self) -> str:
         return " ".join(str(value) for value in self.input.values())

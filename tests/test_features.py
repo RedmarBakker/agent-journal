@@ -5622,6 +5622,30 @@ def test_a_journal_holding_two_team_chats_keeps_the_first_as_the_teams_owned_by_
     assert links.model_links("target", [first], OWNER) == [], "and it is owned by no one"
 
 
+def test_no_two_running_environments_work_on_one_branch(app: App, monkeypatch):
+    import subprocess
+    from journal.features.git.support.branch_switch import BranchSwitch
+    from journal.features.team.support.start_rule import StartRule
+    from journal.models.environment import Environment
+    from journal.repositories.environments import Environments
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "-b", "trunk")
+    git("-c", "user.name=T", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    environments = app.container.get(Environments)
+    other = environments.save(Environment(name="other"), Actor.system())
+    main = environments.existing("main")
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: environment_id == other.row_id)
+    assert [BranchSwitch.target(line) for line in ("git switch trunk", "git checkout -b fresh", "git checkout -- a.py", "git status")] == ["trunk", "fresh", "", ""]
+    refusal = app.container.get(StartRule).refusal(main, 1)
+    assert "other is running on branch trunk" in refusal and "worktree of its own" in refusal, "an environment is not started on the branch another running one works on"
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    status, answer = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git switch trunk"})
+    assert status == 409 and "the branch trunk is in use by the environment other" in json.dumps(answer), "a switch onto a branch another running environment works on is refused"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git switch -c elsewhere"})[0] == 200, "a switch onto a free branch goes through"
+
+
 def test_the_chat_orders_messages_by_when_they_were_written_never_by_their_number(app: App):
     from datetime import datetime, timedelta, timezone
     from journal.repositories.messages import Messages

@@ -2,6 +2,11 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.33.0
+
+- No two running environments work on one branch: an environment is not started on the branch another running environment works on, and a git checkout or switch onto such a branch is refused, naming the environment running there.
+- A member's journal that its team is already ahead of installs the team's version without first trying to send its changes, which the team would refuse, and sends them once it runs that version.
+
 ## 4.32.1
 
 - After an update, a joined journal pulls what is new before it uploads its migrated copy, and a refusal from the team server is retried in the background instead of crashing the journal at every start.
