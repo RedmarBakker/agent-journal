@@ -5587,6 +5587,24 @@ def test_a_task_a_worker_holds_is_left_to_it_by_the_plan_and_shown_as_held(app: 
     assert [task.title for task in plans.free()] == ["loose and free"], "a task a worker is out on is never the next free task for anyone else"
 
 
+def test_a_parked_task_resumed_while_a_plan_is_started_is_the_task_the_top_bar_names(app: App):
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "first", "--brief", "the first is done"], USER)
+    console.run(["plan", "add", "1", "second", "--brief", "the second is done"], USER)
+    console.run(["task", "create", "outside", "--brief", "the outside one is done", "--start"], AGENT)
+    console.run(["task", "suspend", "3", "the plan first"], AGENT)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["task", "suspend", "1", "the outside one first"], AGENT)
+    assert console.run(["task", "resume", "3"], AGENT).code == 0
+    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/summary", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+        named = {row["environment"]["name"]: row["task"] for row in json.loads(reply.read())["environments"]}
+    assert named["main"] and named["main"]["title"] == "outside", f"the top bar names the resumed task, not {named['main']}"
+
+
 def test_a_collection_holds_rows_of_any_type_and_a_dump_files_its_items_into_its_own(app: App, tmp_path):
     from journal.repositories.collections import Collections
     console = app.console()
