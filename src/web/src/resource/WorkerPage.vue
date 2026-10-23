@@ -15,7 +15,7 @@ import {useInspectorActions} from "../composables/inspectorActions.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {checkedCount, doneCount} from "../domain/workerShift.js";
-import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerState} from "../domain/workers.js";
+import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago} from "../format/time.js";
 import {narrow} from "../platform/view.js";
 import {peek} from "../route.js";
@@ -44,8 +44,8 @@ const facts = computed(() => {
     return [
         {label: "Model", value: workerLine(row) || "Its profile's model"},
         {label: "Worktree", value: row.worktree ? "Its own" : "The project's checkout"},
-        {label: "Files changed", value: row.files, mono: true},
-        {label: "Times reused", value: row.reuse_count ? String(row.reuse_count) : ""},
+        {label: "Branch", value: row.branch, mono: true},
+        {label: "Reuses", value: workerReusesLine(row)},
         {label: "Why it was retired", value: row.retire_reason},
     ].filter((fact) => fact.value);
 });

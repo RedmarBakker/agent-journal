@@ -128,7 +128,7 @@ class WorkerCommand(Command):
             raise Rejection(f"worker {worker.name} was not dispatched: {failed}") from failed
         self.tasks.handover(task, Ref.build(worker), caller.actor)
         self.runner.start(worker, caller.actor)
-        self.workers.save(self.workers.find(worker.row_id).with_(repositories=repositories).dispatched(moment), caller.actor)
+        self.workers.save(self.workers.find(worker.row_id).with_(repositories=repositories, branch=self.branch.name(worker) if worker.worktree else "").dispatched(moment), caller.actor)
         print(f"worker {worker.id} {worker.name} dispatched on {worker.provider} {worker.model}; it reports in the chat when it ends")
         return 0
 

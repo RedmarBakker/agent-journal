@@ -7528,6 +7528,8 @@ def test_the_main_agent_is_told_a_workers_work_is_ready_and_checks_each_proof(ap
         sent = workers.find(1)
         assert sent.is_running() and "Point 2 of task 1 came back short: the alias names are missing" in sent.brief and sent.resume == "w-1", "the shortfall reaches the same worker in its last session"
         assert tasks.holder(tasks.find(1)) == Ref(Worker.table(), 1), "with the task still held"
+        assert [move for move, _ in sent.moves.steps] == ["dispatched", "clocked in", "clocked out", "sent back"], "each move is kept with its time where the worker's state changes, a point sent back named so"
+        assert sent.moves.steps[1][1] == 1.0, "with the time it was made"
 
 
 def test_a_wait_on_a_clocked_out_worker_is_answered_at_once_and_each_clock_out_is_told(app: App, monkeypatch):
@@ -7625,6 +7627,9 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
         done = tasks.find(1)
         assert done.state == TaskState.FINISHED and tip[:9] in done.outcome and "not done: point 2 (names need a table first)" in done.outcome, "the merge takes what the worktree has checked out, on a branch of the worker's own making too, and closes the task with the branch tip, naming the point checked as not done"
         assert workers.find(1).state == WorkerState.MERGED and tasks.holder(done) is None and not folder.exists(), "the hold is released and the worktree retired"
+        assert (workers.find(1).branch, workers.find(2).branch) == ("worker/1-Lady-Lovelace", ""), "a worker in a worktree keeps the branch it commits on; one in the project has none of its own"
+        assert tasks.earlier_tasks() == {1: 1}, "a merged worker keeps the task it worked on, while one still holding its task has none before it"
+        assert [move for move, _ in workers.find(1).moves.steps][-1] == "merged"
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)
     console.run(["worker", "check", "2", "1"], AGENT)

@@ -22,6 +22,7 @@ from journal.repositories.scoped_repository import ScopedRepository
 
 WAIT_LINK = "waits_on"
 CURRENT_TASK_LINK = "in_hand"
+WORKED_LINK = "worked_on"
 WORKERS = "workers"
 WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task it holds, {holdings}"
 HOLDER_REFUSAL = "task {task} is held by worker {worker} until its work is merged or released: send that worker its next job, or release it first"
@@ -157,6 +158,8 @@ class Tasks(ScopedRepository[Task]):
                 self.links.delete(link, actor)
         if owner != holder:
             self.links.save(Link(source=holder, target=target, kind=CURRENT_TASK_LINK), actor)
+        if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, kind=WORKED_LINK):
+            self.links.save(Link(source=holder, target=target, kind=WORKED_LINK), actor)
         if holder.type == WORKERS and task.state != TaskState.DELEGATED:
             self.save(task.delegated(datetime.now(timezone.utc)), actor)
 
@@ -174,6 +177,11 @@ class Tasks(ScopedRepository[Task]):
 
     def worker_holdings(self) -> dict[int, int]:
         return {link.target.id: link.source.id for link in self.links.all_matching(kind=CURRENT_TASK_LINK) if link.source.type == WORKERS}
+
+    def earlier_tasks(self) -> dict[int, int]:
+        held = {worker: task for task, worker in self.worker_holdings().items()}
+        worked = sorted(self.links.all_matching(kind=WORKED_LINK), key=lambda link: link.row_id)
+        return {link.source.id: link.target.id for link in worked if link.source.type == WORKERS and held.get(link.source.id) != link.target.id}
 
     def unfinished_count(self) -> int:
         planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query())

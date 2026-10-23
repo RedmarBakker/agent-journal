@@ -44,16 +44,24 @@ export function workerActions(row, device = "") {
 const ICONS = {running: "started", ready: "done", reported: "done", unfinished: "blocked", finished: "done"};
 export const workerIcon = (row) => ICONS[workerState(row)];
 
-// The moves a worker makes from its dispatch to its merge: the first and the one it is at with their times, the ones to come after.
-const PATH = ["dispatched", "clocked in", "clocked out", "merged"];
+// The moves a worker made on its current job, from its dispatch or the job sent to it, each with its time, the last the one it is at,
+// then the ones still to come before a merge. A worker from before moves were kept shows its dispatch and the move it is at.
+const LATER = {dispatched: ["clocked in", "clocked out", "merged"], "clocked in": ["clocked out", "merged"], "clocked out": ["merged"]};
+const JOB_STARTS = new Set(["dispatched", "sent a job"]);
 const moveWord = (state) => state[0].toUpperCase() + state.slice(1);
-const moveTime = (row, i, at) => (i === 0 ? clock(seconds(row.created_at)) : i === at ? clock(stateAt(row)) : "");
+const jobMoves = (steps) => steps.slice(Math.max(0, steps.findLastIndex(([move]) => JOB_STARTS.has(move))));
+const madeMoves = (row) =>
+    row.moves && row.moves.steps.length ? jobMoves(row.moves.steps) : [["dispatched", seconds(row.created_at)], ...(row.state === "dispatched" ? [] : [[row.state, stateAt(row)]])];
 
 export function workerMoves(row) {
-    const path = PATH.includes(row.state) ? PATH : ["dispatched", row.state];
-    const at = path.indexOf(row.state);
-    return path.map((state, i) => ({word: moveWord(state), time: moveTime(row, i, at), at: i === at ? "now" : i > at ? "later" : ""}));
+    const made = madeMoves(row);
+    const later = (LATER[row.state] || []).map((state) => ({word: moveWord(state), time: "", at: "later"}));
+    return [...made.map(([state, time], i) => ({word: moveWord(state), time: clock(time), at: i === made.length - 1 ? "now" : ""})), ...later];
 }
+
+// How often a worker took a new job, a point sent back being the same job; a worker from before moves were kept counts each resume.
+const reuses = (row) => (row.moves && row.moves.steps.length ? row.moves.steps.filter(([move]) => move === "sent a job").length : row.reuse_count || 0);
+export const workerReusesLine = (row) => (reuses(row) ? `${reuses(row)}${row.earlier_task ? `, on task ${row.earlier_task}` : ""}` : "");
 
 export const workerTag = (row) => ({state: workerState(row), word: WORKER_WORDS[workerState(row)]});
 

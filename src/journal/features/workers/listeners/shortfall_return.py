@@ -11,4 +11,4 @@ class ShortfallReturn(Listener[ProofShort]):
         self.actions = actions
 
     def handle(self, event: ProofShort) -> None:
-        self.actions.send(event.worker_id, f"Point {event.point} of task {event.task_id} came back short: {event.shortfall}. Prove it again, then clock out.", None, Actor.system())
+        self.actions.send_back(event.worker_id, f"Point {event.point} of task {event.task_id} came back short: {event.shortfall}. Prove it again, then clock out.", Actor.system())

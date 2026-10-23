@@ -14,7 +14,7 @@ from journal.repositories.workers import Workers
 
 
 class WorkerController(Controller[Worker]):
-    """The workers sent from here, each with the last report it filed; one stopped is closed. Each carries the task it holds, the task's points, its to-do items and the latest proof of each point. The viewer sends one its next job, stops it, retires it, checks a proof, sends one back short or merges its work, as the commands do."""
+    """The workers sent from here, each with the last report it filed; one stopped is closed. Each carries the task it holds, the task's points, its to-do items and the latest proof of each point, and the task it worked on before. The viewer sends one its next job, stops it, retires it, checks a proof, sends one back short or merges its work, as the commands do."""
 
     repository: Workers
 
@@ -56,7 +56,8 @@ class WorkerController(Controller[Worker]):
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
         views = self.task_views(rows)
-        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView())} for w in rows]
+        earlier = self.tasks.earlier_tasks()
+        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": earlier.get(w.row_id)} for w in rows]
 
     def task_views(self, rows: list[Worker]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}

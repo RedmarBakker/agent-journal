@@ -2,7 +2,7 @@ import {createApp, h} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 import {flush} from "./flush.js";
 import {saidTurns} from "../src/domain/transcript.js";
-import {workerActions, workerMoves, workerState} from "../src/domain/workers.js";
+import {workerActions, workerMoves, workerReusesLine, workerState} from "../src/domain/workers.js";
 import {checkedCount, doneCount, pointRows} from "../src/domain/workerShift.js";
 
 window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
@@ -65,6 +65,30 @@ test("a worker's moves are the ones it made, the one it is at, and the ones stil
     expect(workerMoves(worker("reported")).map((move) => move.word)).toEqual(["Dispatched", "Reported"]);
 });
 
+test("a worker sent back once shows every move of its current job with its time, the one it is at, and the merge still to come", () => {
+    const at = (hour, minute) => new Date(2026, 9, 23, hour, minute).getTime() / 1000;
+    const steps = [["dispatched", at(14, 2)], ["clocked in", at(14, 3)], ["clocked out", at(14, 51)], ["sent back", at(14, 58)], ["clocked in", at(14, 59)], ["clocked out", at(15, 24)]];
+    const moves = workerMoves({...worker("clocked out"), moves: {steps}});
+    expect(moves.map((move) => [move.word, move.at])).toEqual([
+        ["Dispatched", ""],
+        ["Clocked in", ""],
+        ["Clocked out", ""],
+        ["Sent back", ""],
+        ["Clocked in", ""],
+        ["Clocked out", "now"],
+        ["Merged", "later"],
+    ]);
+    expect(moves.every((move) => move.at === "later" || /\d\d:\d\d/.test(move.time))).toBe(true);
+    const reused = workerMoves({...worker("clocked in"), moves: {steps: [["dispatched", at(9, 0)], ["merged", at(10, 0)], ["sent a job", at(14, 2)], ["clocked in", at(14, 3)]]}});
+    expect(reused.map((move) => move.word)).toEqual(["Sent a job", "Clocked in", "Clocked out", "Merged"]);
+});
+
+test("a worker's reuses count the new jobs it took, never a point sent back, and name the task it worked on before", () => {
+    expect([workerReusesLine({reuse_count: 1, earlier_task: 1402}), workerReusesLine({reuse_count: 2}), workerReusesLine({reuse_count: 0})]).toEqual(["1, on task 1402", "2", ""]);
+    const resumed = {reuse_count: 2, earlier_task: 1402, moves: {steps: [["dispatched", 1], ["merged", 2], ["sent a job", 3], ["sent back", 4]]}};
+    expect(workerReusesLine(resumed)).toBe("1, on task 1402");
+});
+
 test("each point is a row with its proof, a sent-back point shows its reason, and a clocked-out worker's proved point offers check and send back", async () => {
     const api = {act: vi.fn(async () => ({}))};
     const host = mount(WorkerPoints, {task, worker: 3, api, checking: true});
@@ -120,4 +144,9 @@ test("the worker page shows its points, its readable transcript and its to-do li
     expect(host.textContent).toContain("1 of 2 done");
     expect(host.querySelector(".tx").textContent).toContain("pytest -k parser");
     expect(host.textContent).toContain("Not written yet.");
+    app.unmount();
+    const branched = mount(WorkerPage, {resource: {...worker("clocked in"), branch: "worker/3-Lady-Lovelace", reuse_count: 1, earlier_task: 1402}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    await flush();
+    const facts = Object.fromEntries([...branched.querySelectorAll(".fact")].map((fact) => [fact.querySelector(".label").textContent, fact.querySelector(".value").textContent.trim()]));
+    expect([facts.Branch, facts.Reuses]).toEqual(["worker/3-Lady-Lovelace", "1, on task 1402"]);
 });
