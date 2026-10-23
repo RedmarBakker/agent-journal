@@ -6418,6 +6418,9 @@ def test_an_update_holds_its_mark_until_the_journal_runs_the_version_it_went_to(
     threshold.write(UpdatePause("4.0.0", VERSION, "Restarting the journal", timing.time(), -1))
     updating.reconcile(timing.time())
     assert threshold.paused() is None and updating.problem == "", "a journal that came back on the version it went to takes the mark off"
+    threshold.write(UpdatePause("4.0.0", VERSION, "Restarting the journal", timing.time(), os.getpid()))
+    updating.reconcile(timing.time())
+    assert threshold.paused() is None, "even when it came back under the same process number, as a journal in a container does"
     import subprocess
     ended = subprocess.Popen(["true"])
     ended.wait()

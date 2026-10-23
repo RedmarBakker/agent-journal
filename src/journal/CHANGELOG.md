@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.29.3
+
+- A journal that comes back on the version it updated to takes the update's mark off even under the same process number, as a hosted journal in a container does, so its next update is never refused as one under way.
+
 ## 4.29.2
 
 - A team's hosted journal restarts on the new version after it updates itself, instead of waiting on a restart that never came.

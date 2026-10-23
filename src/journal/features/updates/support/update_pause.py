@@ -18,3 +18,6 @@ class UpdatePause:
 
     def is_stale(self, time: float) -> bool:
         return time - self.time > UPDATE_PAUSE_SECONDS
+
+    def is_pending(self, version: str, pid: int, time: float) -> bool:
+        return self.target != version and self.pid == pid and not self.is_stale(time)

@@ -126,7 +126,7 @@ class Updater:
 
     def reconcile(self, time: float) -> None:
         blocked = self.card.paused()
-        if blocked is None or (blocked.pid == os.getpid() and not blocked.is_stale(time)):
+        if blocked is None or blocked.is_pending(VERSION, os.getpid(), time):
             return
         self.card.clear()
         self.problem = "" if blocked.target == self.label() else f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
