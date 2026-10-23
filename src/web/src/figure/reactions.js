@@ -130,13 +130,12 @@ export function workMoments(state, typed, began, now) {
 }
 
 // The thinking act for this play while the agent thinks, as the pile draws it and its parts at `now` (pile.js pondering), each part on its
-// own cooldown in `memory`: with the thought cloud and the bulb "ponder", with the cloud alone "think_cloud", with the bulb alone
-// "got_it", or null when it is not due or neither part is
+// own cooldown in `memory`: the thinking with its thought cloud, "think_cloud", ending in the bulb, "ponder", when the bulb is due too;
+// the bulb is drawn only after the thinking it ends, so it never lights alone; null when the thinking is not due
 export function thinkingAct(memory, now, random) {
     if (!draw({moment: "pondering", memory, now}, random)) return null;
-    const cloud = Boolean(draw({moment: "thought_cloud", memory, now}, random));
-    const bulb = Boolean(draw({moment: "light_bulb", memory, now}, random));
-    return cloud && bulb ? "ponder" : cloud ? "think_cloud" : bulb ? "got_it" : null;
+    if (!draw({moment: "thought_cloud", memory, now}, random)) return null;
+    return draw({moment: "light_bulb", memory, now}, random) ? "ponder" : "think_cloud";
 }
 
 // the moments answered by an act put together from the pile's parts, by moment

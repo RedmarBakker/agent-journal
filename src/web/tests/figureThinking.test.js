@@ -157,17 +157,15 @@ describe("the thinking act", () => {
         for (const name of ["ponder", "think_cloud", "got_it"]) expect(named[name].loops, `${name} played once`).toBe(false);
     });
 
-    it("gives the cloud and the bulb each a cooldown of its own, so neither shows every play, the bulb only at a play's end", () => {
+    it("gives the cloud and the bulb each a cooldown of its own, the bulb lighting only at the end of a thinking that played, never alone", () => {
         const plays = playsOver(30 * 60, seeded(45291));
         const clips = plays.map((play) => play.clip);
-        expect(clips.length, "half an hour of thinking plays it many times").toBeGreaterThan(15);
-        const clouded = clips.filter((clip) => clip !== "got_it").length;
-        const lit = clips.filter((clip) => clip !== "think_cloud").length;
-        expect(clouded, "the cloud on some plays").toBeGreaterThan(0);
-        expect(clouded, "never on every play").toBeLessThan(clips.length);
+        expect(clips.length, "half an hour of thinking plays it a number of times").toBeGreaterThan(5);
+        expect(clips.includes("got_it"), "the bulb never lights without the thinking before it").toBe(false);
+        const lit = clips.filter((clip) => clip === "ponder").length;
         expect(lit, "the bulb on some plays").toBeGreaterThan(0);
         expect(lit, "never on every play").toBeLessThan(clips.length);
-        const cloudAt = plays.filter((play) => play.clip !== "got_it").map((play) => play.at);
+        const cloudAt = plays.map((play) => play.at);
         cloudAt.slice(1).forEach((at, index) => expect(at - cloudAt[index], "the cloud's own cooldown").toBeGreaterThanOrEqual(90));
         const bulbAt = plays.filter((play) => play.clip !== "think_cloud").map((play) => play.at);
         bulbAt.slice(1).forEach((at, index) => expect(at - bulbAt[index], "the bulb's own cooldown").toBeGreaterThanOrEqual(150));
