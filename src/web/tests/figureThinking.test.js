@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, PONDERING, Posing, THINKING} from "../src/figure/figure.js";
+import {CLIPS, LIGHT_BULB, PONDERING, Posing, THINKING, lightBulbOf, lightFromBulb} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {GROUNDED, HELD, clipFor, clipOf} from "../src/domain/figureState.js";
 import {reactionTo, workMoments} from "../src/figure/reactions.js";
@@ -130,14 +130,57 @@ describe("the thinking act", () => {
         expect(drawnAt(act.lights[1]).querySelector("[data-thought-dot]"), "gone once the bulb lights").toBe(null);
     });
 
-    it("ends with the bulb every time it plays, the finger raised, 'got it'", () => {
-        const lit = drawnAt((act.lights[1] + act.fades[0]) / 2).querySelector("[data-bulb]");
-        expect(lit).not.toBe(null);
-        expect(Number(lit.getAttribute("opacity"))).toBe(1);
-        expect(drawnAt(middle).querySelector("[data-bulb]"), "not while it thinks").toBe(null);
-        expect(drawnAt(1).querySelector("[data-bulb]"), "faded at the end").toBe(null);
-        const {at} = pondering((act.lights[1] + act.fades[0]) / 2);
+    it("ends with the 3D light bulb every time it plays, over the head, switched on and lighting the head, the finger raised, 'got it'", () => {
+        const glowing = (act.lights[1] + act.fades[0]) / 2;
+        const {pose, at} = pondering(glowing);
+        const bulb = pose.props.get("light_bulb");
+        expect(bulb, "the bulb at the end of the play").toBeDefined();
+        expect([bulb.size, bulb.lit, pose.bulbLit]).toEqual([1, 1, 1]);
+        expect(bulb.at.z, "just above the head").toBeGreaterThan(RIG.heads.get("head").z + 1.2);
+        expect(Math.sign(bulb.at.x), "over the raised hand").toBe(Math.sign(at("hand_r").x));
         expect(at("hand_r").z, "the hand raised").toBeGreaterThan(RIG.heads.get("upper_arm_r").z + 0.4);
+        expect(pondering(middle).pose.props.get("light_bulb"), "not while it thinks").toBeUndefined();
+        expect(pondering(act.appears[1]).pose.bulbLit, "there, switched off, before it lights").toBe(0);
+        expect(pondering(act.fades[1]).pose.bulbLit, "out again as it fades").toBe(0);
         expect(CLIPS.some((clip) => clip.name === "bulb"), "the bulb is the act's own end, never a clip apart").toBe(false);
+        expect(drawnAt(glowing).querySelector("[data-bulb]"), "drawn in 3D, never flat on the page").toBe(null);
+    });
+
+    it("models the bulb with a glass globe, a filament and a screw base, glowing warm when lit", () => {
+        const root = new THREE.Group();
+        root.name = "light_bulb";
+        lightBulbOf(root);
+        const names = [];
+        root.traverse((node) => node.name && names.push(node.name));
+        for (const part of ["light_bulb_glass", "light_bulb_base", "light_bulb_thread_0", "light_bulb_contact"]) expect(names, part).toContain(part);
+        const filament = [];
+        root.traverse((node) => node.isMesh && node.geometry.type === "TubeGeometry" && filament.push(node));
+        expect(filament.length, "the filament and its two wires").toBe(3);
+        let glass;
+        root.traverse((node) => node.name === "light_bulb_glass" && (glass = node));
+        root.userData.shape({size: 1, lit: 0});
+        const off = glass.material.uniforms.colour.value.clone();
+        root.userData.shape({size: 1, lit: 1});
+        const on = glass.material.uniforms.colour.value.clone();
+        expect(on.x, "warm").toBeGreaterThan(on.z + 0.3);
+        expect(off.z, "clear glass when off").toBeGreaterThan(on.z);
+        expect(filament[0].material.color.r).toBeGreaterThan(0.9);
+    });
+
+    it("casts its warm light from where it hangs onto the figure while it glows, and none once it is out", () => {
+        const light = {bulbAt: {value: new THREE.Vector3()}, bulbGlow: {value: new THREE.Vector3()}};
+        const prop = new THREE.Group();
+        prop.matrix.makeTranslation(1, 4, 0);
+        const figure = {bulbLight: light, propByName: new Map([["light_bulb", prop]])};
+        lightFromBulb(figure, {bulbLit: 1});
+        expect(light.bulbGlow.value.x).toBeCloseTo(LIGHT_BULB.colours.warm[0] * LIGHT_BULB.strength);
+        expect(light.bulbGlow.value.x, "warm, more red than blue").toBeGreaterThan(light.bulbGlow.value.z);
+        expect(light.bulbAt.value.toArray()).toEqual([1, 4 + LIGHT_BULB.globe, 0]);
+        lightFromBulb(figure, {bulbLit: 0});
+        expect(light.bulbGlow.value.toArray()).toEqual([0, 0, 0]);
+    });
+
+    it("keeps the eyes in their usual soft shape all through the act, never bare round dots", () => {
+        for (let frame = 0; frame < named.ponder.frames; frame++) expect(pondering(frame / named.ponder.frames).pose.eyeShape, `${frame}`).toBe(null);
     });
 });

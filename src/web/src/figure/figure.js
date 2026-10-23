@@ -106,6 +106,7 @@ export class Posing {
         this.eyes = 1;
         this.eyeShape = null;
         this.eyeShift = [0, 0];
+        this.bulbLit = 0;
         this.eyeTint = null;
         this.hearts = 0;
         this.stars = 0;
@@ -319,6 +320,15 @@ export class Posing {
     // `at` is given raised by as much for the prop to stay on the floor
     standProp(name, at, turn = {}) {
         this.props.set(name, {bone: "root", frame: "root", at: new THREE.Vector3(...at), turn});
+    }
+
+    // the light bulb over the head (LIGHT_BULB) toward `way`, 1 the figure's left, grown in `size` of the way and lit `lit` of the way,
+    // both 0 to 1
+    lightBulb(size, lit, way) {
+        const [x, y, z] = LIGHT_BULB.at;
+        this.standProp("light_bulb", [way * x, y, z]);
+        Object.assign(this.props.get("light_bulb"), {size, lit});
+        this.bulbLit = lit;
     }
 
     // a prop worn on the head, `offset` from the head's own place at rest, as the hat lifted from it or the sunglasses put on
@@ -540,6 +550,7 @@ function ponder(pose, stance, t) {
     if (thinking) foldUnder(pose, other, side, thinking);
     pose.glanceEyes(THINKING.glance[0] * thinking, -sign * THINKING.glance[1] * thinking);
     eyesAs(pose, "startled", got);
+    if (u >= act.appears[0]) pose.lightBulb(partOf(u, act.appears) * (1 - partOf(u, act.goes)), partOf(u, act.lights) * (1 - partOf(u, act.fades)), sign);
 }
 
 // the chin rested on the hand on `side`
@@ -2918,12 +2929,18 @@ const SKINNED = /* glsl */ `
     }
 `;
 
+// Every flat part is lit by the light bulb over the head too while it glows (LIGHT_BULB): as warm as `bulbGlow`, on the faces turned to the
+// bulb at `bulbAt`, weaker with the square of the distance by `bulbFalloff`
 const FLAT = /* glsl */ `
     uniform vec3 colour;
     uniform vec3 light;
     uniform vec3 shade;
     uniform float litFrom;
+    uniform vec3 bulbAt;
+    uniform vec3 bulbGlow;
+    uniform float bulbFalloff;
     varying vec3 worldNormal;
+    varying vec3 worldPosition;
 
     void main() {
         vec3 normal = normalize(worldNormal);
@@ -2931,7 +2948,9 @@ const FLAT = /* glsl */ `
             normal = -normal;
         }
         float lit = step(litFrom, dot(normal, light));
-        gl_FragColor = vec4(colour * mix(shade, vec3(1.0), lit), 1.0);
+        vec3 toBulb = bulbAt - worldPosition;
+        float bulb = max(dot(normal, normalize(toBulb)), 0.0) / (1.0 + dot(toBulb, toBulb) * bulbFalloff);
+        gl_FragColor = vec4(colour * mix(shade, vec3(1.0), lit) + bulbGlow * bulb * mix(colour, vec3(1.0), 0.35), 1.0);
         #include <colorspace_fragment>
     }
 `;
@@ -3033,6 +3052,9 @@ function flatMaterial(mesh) {
             light: {value: LIGHT_FROM.clone().normalize().applyMatrix4(TO_GLB)},
             shade: {value: SHADE},
             litFrom: {value: LIT_FROM},
+            bulbAt: {value: new THREE.Vector3()},
+            bulbGlow: {value: new THREE.Vector3()},
+            bulbFalloff: {value: LIGHT_BULB.falloff},
         },
     });
 }
@@ -3177,10 +3199,12 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const book = bookOf();
     const propByName = propsOf();
     scene.add(laptop, book, ...propByName.values());
+    const bulbLight = {bulbAt: {value: new THREE.Vector3()}, bulbGlow: {value: new THREE.Vector3()}};
+    scene.traverse((node) => node.material?.uniforms?.bulbGlow && Object.assign(node.material.uniforms, bulbLight));
     const hulls = (shown) => shown.flatMap((mesh) => [mesh, mesh.userData.hull]);
     const inHand = carried.filter((mesh) => IN_HAND.has(mesh.userData.item));
     const stowable = hulls(carried.filter((mesh) => mesh.userData.item));
-    return {scene, rig: rigOf(scene), stance, eyes, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand)};
+    return {scene, rig: rigOf(scene), stance, eyes, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand), bulbLight};
 }
 
 // A laptop drawn in the flat colours of the chat's own: its hinge at the origin, its keyboard toward the body (-z), its lid opened a little
@@ -3423,7 +3447,62 @@ function propsOf() {
     part(wipe, "fold", new THREE.BoxGeometry(cloth.width, cloth.thickness, cloth.depth), colours.white);
     reactionPropsOf(group, part);
     telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"), group("telephone_poof"));
+    lightBulbOf(group("light_bulb"));
     return props;
+}
+
+// The light bulb over the head at the end of the thinking act, in the figure's own style, standing `at` (across toward the hand raised
+// under it, forward and up, in the figure's units), just above the head and inside the picture whatever the figure wears on it: a pear
+// shaped glass globe `globe` round, narrowing into its neck, on a screw base `base` round and high with `threads` rings about it and a
+// small contact under it; inside, a filament on two wires, drawn through the glass. Switched off its glass is clear and its filament
+// dark; lit, both glow `warm`, a soft halo `halo` times its size about it, and it lights the parts of the figure turned to it (FLAT) as
+// strongly as `strength`, weaker with the square of the distance by `falloff`. Every number of it is here.
+export const LIGHT_BULB = {
+    at: [0.95, -0.25, 4.05], globe: 0.36, neck: 0.15, base: [0.15, 0.22], threads: 3, filament: 0.14, wire: 0.014, halo: 1.7,
+    strength: 1.4, falloff: 0.6,
+    colours: {glass: 0xe3edf3, glassLit: 0xffe27a, base: 0xb7bcc6, contact: 0x3a3d47, filament: 0x5b5f6b, filamentLit: 0xfff4c2, warm: [1, 0.82, 0.42]},
+};
+
+// the light bulb's parts in its own axes, its middle at the root, the globe up and the base down; its `shape` grows it in by `size` and
+// lights it by `lit`, both 0 to 1
+export function lightBulbOf(root) {
+    const {globe, neck, base, threads, filament, wire, halo, colours} = LIGHT_BULB;
+    const bulb = new THREE.Group();
+    bulb.name = root.name;
+    root.add(bulb);
+    const profile = [[0, globe * 1.95], [globe * 0.55, globe * 1.85], [globe * 0.92, globe * 1.45], [globe, globe], [globe * 0.88, globe * 0.55], [neck * 1.2, globe * 0.18], [neck, 0]].map(([x, y]) => new THREE.Vector2(x, y)).reverse();
+    const glass = shadedPart(bulb, "glass", new THREE.LatheGeometry(profile, 28), colours.glass);
+    glass.material.uniforms.shade = {value: SHADE.clone()};
+    const [radius, height] = base;
+    shadedPart(bulb, "base", new THREE.CylinderGeometry(radius, radius * 0.92, height, 20), colours.base, [0, -height / 2, 0]);
+    for (let ring = 0; ring < threads; ring++) shadedPart(bulb, `thread_${ring}`, new THREE.TorusGeometry(radius * 1.02, height / (threads * 4), 6, 20), colours.base, [0, -height * ((ring + 0.6) / threads), 0]).rotation.x = Math.PI / 2;
+    shadedPart(bulb, "contact", new THREE.SphereGeometry(radius * 0.45, 12, 8), colours.contact, [0, -height, 0]);
+    const zigzag = new THREE.CatmullRomCurve3([[-filament, globe * 0.6], [-filament * 0.5, globe * 1.15], [0, globe * 0.95], [filament * 0.5, globe * 1.15], [filament, globe * 0.6]].map(([x, y]) => new THREE.Vector3(x, y, 0)));
+    const lamp = new THREE.Group();
+    bulb.add(lamp);
+    const parts = [new THREE.TubeGeometry(zigzag, 24, wire * 1.4, 6), ...[-1, 1].map((side) => new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(side * filament, 0.02, 0), new THREE.Vector3(side * filament, globe * 0.6, 0)), 1, wire, 6))];
+    const glowing = parts.map((geometry) => {
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({color: colours.filament, depthTest: false}));
+        mesh.renderOrder = 2;
+        mesh.frustumCulled = false;
+        lamp.add(mesh);
+        return mesh;
+    });
+    const aura = new THREE.Mesh(new THREE.CircleGeometry(globe * halo, 32), new THREE.MeshBasicMaterial({color: new THREE.Color(...colours.warm), transparent: true, depthWrite: false}));
+    aura.position.set(0, globe, -globe * 1.2);
+    aura.frustumCulled = false;
+    bulb.add(aura);
+    const off = new THREE.Color(colours.glass);
+    const on = new THREE.Color(colours.glassLit);
+    root.userData.shape = ({size, lit}) => {
+        bulb.scale.setScalar(Math.max(size, 0.001));
+        const colour = off.clone().lerp(on, lit);
+        glass.material.uniforms.colour.value.set(colour.r, colour.g, colour.b);
+        glass.material.uniforms.shade.value.copy(SHADE).lerp(new THREE.Vector3(1.25, 1.25, 1.25), lit);
+        for (const mesh of glowing) mesh.material.color.set(colours.filament).lerp(new THREE.Color(colours.filamentLit), lit);
+        aura.visible = lit > 0;
+        aura.material.opacity = 0.35 * lit;
+    };
 }
 
 // An old rotary desk telephone, drawn a size too large for the figure so it plainly reads as one: its place on the floor across and forward
@@ -3696,6 +3775,13 @@ function heldPropOf(moves, {bone, frame, at, turn}) {
         .multiply(euler(turn.x || 0, turn.y || 0, turn.z || 0)).multiply(FROM_GLB);
 }
 
+// the light bulb's light on the figure, where the bulb is and as warm as it is lit, none while it is out
+export function lightFromBulb(figure, pose) {
+    const {bulbAt, bulbGlow} = figure.bulbLight;
+    bulbGlow.value.set(...LIGHT_BULB.colours.warm).multiplyScalar(LIGHT_BULB.strength * pose.bulbLit);
+    if (pose.bulbLit) bulbAt.value.setFromMatrixPosition(figure.propByName.get("light_bulb").matrix).add(new THREE.Vector3(0, LIGHT_BULB.globe, 0));
+}
+
 // every prop placed where the pose holds it, and one whose shape moves, as the papers squared or the confetti flying, shaped as it says
 function moveProps(figure, pose, moves) {
     for (const [name, prop] of figure.propByName) {
@@ -3948,6 +4034,7 @@ function place(figure, pose, facing, blend) {
     for (const part of figure.stowable) part.visible = !pose.stowed.has(part.userData.item);
     for (const part of figure.inHand) part.visible = !pose.stowed.has(part.userData.item) && (!occupied || pose.keep.has(part.userData.item));
     moveProps(figure, pose, moves);
+    lightFromBulb(figure, pose);
     for (const part of figure.cloth) part.visible = pose.cloth;
     if (pose.laptop) {
         figure.laptop.matrix.copy(lapOf(world));
