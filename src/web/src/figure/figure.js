@@ -103,6 +103,7 @@ export class Posing {
         this.eyes = 1;
         this.eyeTint = null;
         this.hearts = 0;
+        this.stars = 0;
         this.laptop = false;
         this.tablet = false;
         this.cloth = false;
@@ -248,6 +249,11 @@ export class Posing {
     // hearts in place of the eyes, `size` times their own size; 0 leaves the eyes
     heartEyes(size) {
         this.hearts = size;
+    }
+
+    // sparkling stars in place of the eyes, `size` times their own size; 0 leaves the eyes
+    starEyes(size) {
+        this.stars = size;
     }
 
     // a laptop open on the lap, its lid toward the face
@@ -2106,6 +2112,58 @@ function vacuum(pose, stance, t) {
     actHand(pose, stance, into * (1 - out), [x, y, z - 0.12 * waveOf(held ?? 0, 2)], {x: -10});
 }
 
+// Eager for the bar under its feet to end: its feet tapping fast over the intro, then pointing down at the bar with the free hand, bouncing
+// Eager for the bar under its feet to end, wild with it as a child is: its feet tapping fast over the intro, then both free hands pointing
+// down at the bar, bouncing and wiggling, and all the while its eyes sparkling stars
+export const EAGERNESS = {intro: 18, hold: 12, outro: 6, fps: 12, taps: 6, tap: 18, point: [1.25, -0.45, 1.75], bounce: 0.14, wiggle: 7, sparkle: 0.25};
+
+function eager(pose, stance, t) {
+    const {intro, hold, outro, taps, tap, point, bounce, wiggle, sparkle} = EAGERNESS;
+    const frame = t * (intro + hold + outro);
+    const tapping = frame < intro ? Math.sin((Math.PI * frame) / intro) : 0;
+    const pointing = frame < intro ? rise(frame / intro, 0.7, 1) : 1 - rise((frame - intro - hold) / outro, 0, 1);
+    const held = frame >= intro && frame < intro + hold ? (frame - intro) / hold : null;
+    const bob = held === null ? 0 : Math.abs(Math.sin(2 * Math.PI * held));
+    const beat = waveOf(frame / intro, taps);
+    pose.lift("root", {z: bounce * bob});
+    breathe(pose, 0);
+    trunk(pose, {lean: 6 * pointing, nod: 14 * pointing + 4 * bob, twist: wiggle * (held === null ? tapping * beat : waveOf(held, 2))});
+    if (pose.posture === "stand") {
+        pose.turn("foot_l", {x: tap * tapping * Math.max(beat, 0)});
+        pose.turn("foot_r", {x: tap * tapping * Math.max(-beat, 0)});
+    }
+    armsAtRest(pose, stance, pointing ? [...stance.free] : []);
+    for (const side of stance.free) propHand(pose, side, pointing, [point[0], point[1], point[2] + 0.1 * bob * SIDES[side]], {x: 40});
+    if (pointing) emptyHand(pose);
+    const glow = Math.min(frame / 4, 1) * (1 - span(frame, intro + hold, intro + hold + outro));
+    pose.starEyes(glow * (1 + sparkle * Math.abs(waveOf(frame / 6))));
+}
+
+// crushed by the bar it was eager for failing, slumped and looking down, then mad about it: stamping one foot and the other, fists
+// clenched at its sides, shaking, its eyes red
+function fume(pose, stance, t) {
+    const act = ACTS.fume;
+    const u = onceTime(t, act.frames);
+    const crushed = swell(u, act.crushed[0], act.crushed[1] + 0.06);
+    const mad = partOf(u, [act.mad[0], act.mad[0] + 0.06]) * (1 - partOf(u, [act.mad[1], 1]));
+    const stamp = waveOf(span(u, ...act.mad), act.stamps / 2);
+    crouch(pose, 0.14 * crushed);
+    pose.lift("root", {z: 0.12 * mad * Math.abs(stamp)});
+    breathe(pose, 0);
+    trunk(pose, {lean: 16 * crushed + 6 * mad, nod: 28 * crushed + 10 * mad, tilt: 5 * mad * waveOf(u, 14)});
+    armsAtRest(pose, stance, mad ? [...stance.free] : []);
+    for (const side of stance.free) armTo(pose, side, mad, {y: 40, z: -25, bend: 95});
+    if (pose.posture === "stand") {
+        for (const [side, sign] of [["l", 1], ["r", -1]]) {
+            const up = mad * Math.max(sign * stamp, 0);
+            pose.turn(`thigh_${side}`, {x: -34 * up, y: sign * 18 * up});
+            pose.turn(`shin_${side}`, {x: 52 * up});
+        }
+    }
+    if (crushed > mad) eyesAs(pose, "worried", crushed);
+    else eyesAs(pose, "angry", mad);
+}
+
 // hops on up from bubble to bubble, arms flung up and legs tucked, very fast
 function hop_up(pose, stance, t) {
     const pump = waveOf(t);
@@ -2295,6 +2353,8 @@ export const CLIPS = [
     {name: "pack_box", frames: ACTS.pack_box.intro + ACTS.pack_box.hold + ACTS.pack_box.outro, intro: ACTS.pack_box.intro, outro: ACTS.pack_box.outro, leaves: ACTS.pack_box.hold, fps: ACTS.pack_box.fps, loops: true, postures: MOVE, pose: pack_box},
     {name: "press", frames: ACTS.press.intro + ACTS.press.hold + ACTS.press.outro, intro: ACTS.press.intro, outro: ACTS.press.outro, leaves: ACTS.press.hold, fps: ACTS.press.fps, loops: true, postures: GESTURE, pose: press},
     {name: "vacuum", frames: ACTS.vacuum.intro + ACTS.vacuum.hold + ACTS.vacuum.outro, intro: ACTS.vacuum.intro, outro: ACTS.vacuum.outro, leaves: ACTS.vacuum.hold, fps: ACTS.vacuum.fps, loops: true, postures: MOVE, pose: vacuum},
+    {name: "eager", frames: EAGERNESS.intro + EAGERNESS.hold + EAGERNESS.outro, intro: EAGERNESS.intro, outro: EAGERNESS.outro, leaves: EAGERNESS.hold, fps: EAGERNESS.fps, loops: true, postures: MOVE, pose: eager},
+    {name: "fume", frames: ACTS.fume.frames, fps: ACTS.fume.fps, loops: false, postures: MOVE, pose: fume},
     {name: "hop_up", frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: GESTURE, pose: binoculars},
@@ -2469,7 +2529,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     scene.updateMatrixWorld(true);
     const meshes = [];
     scene.traverse((node) => node.isSkinnedMesh && meshes.push(node));
-    const eyes = {materials: [], shapes: [], hearts: []};
+    const eyes = {materials: [], shapes: [], hearts: [], stars: []};
     for (const mesh of meshes) {
         mesh.visible = shows(mesh) && !LEFT_OUT.has(mesh.userData.item) && mesh.userData.item !== TABLET && mesh.userData.item !== CLOTH;
         addHullNormals(mesh.geometry);
@@ -2488,7 +2548,8 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
             mesh.material.userData.colour = mesh.material.uniforms.colour.value.toArray();
             eyes.materials.push(mesh.material, hull.material);
             eyes.shapes.push(mesh, hull);
-            eyes.hearts.push(heartOver(mesh));
+            eyes.hearts.push(shapeOver(mesh, HEART, HEART_COLOUR));
+            eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
         }
     }
     const carried = meshes.filter((mesh) => mesh.visible);
@@ -2953,20 +3014,33 @@ const HEART = (() => {
 const HEART_SIZE = 0.42;
 const HEART_COLOUR = new THREE.Color(1, 0.3, 0.5);
 
-// a heart over an eye, carried by the head as the eye is, hidden until the eyes are hearts
-function heartOver(eye) {
+// A five-pointed star the size of an eye, drawn flat toward the viewer, a point up
+const STAR = (() => {
+    const shape = new THREE.Shape();
+    for (let point = 0; point < 10; point++) {
+        const reach = point % 2 ? 0.22 : 0.55;
+        const way = Math.PI / 2 + (point * Math.PI) / 5;
+        shape[point ? "lineTo" : "moveTo"](reach * Math.cos(way), reach * Math.sin(way));
+    }
+    return new THREE.ShapeGeometry(shape);
+})();
+const STAR_SIZE = 0.46;
+const STAR_COLOUR = new THREE.Color(1, 0.86, 0.3);
+
+// a shape over an eye, a heart or a star, carried by the head as the eye is, hidden until the eyes take it on
+function shapeOver(eye, geometry, colour) {
     const bounds = new THREE.Box3().setFromBufferAttribute(eye.geometry.attributes.position).applyMatrix4(eye.matrixWorld);
     const centre = bounds.getCenter(new THREE.Vector3()).setZ(bounds.max.z + 0.01);
     const head = eye.skeleton.getBoneByName("head");
     const holder = new THREE.Group();
     holder.matrixAutoUpdate = false;
     holder.matrix.copy(head.matrixWorld).invert().multiply(translation(centre));
-    const heart = new THREE.Mesh(HEART, new THREE.MeshBasicMaterial({color: HEART_COLOUR}));
-    heart.frustumCulled = false;
-    heart.visible = false;
-    holder.add(heart);
+    const over = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({color: colour}));
+    over.frustumCulled = false;
+    over.visible = false;
+    holder.add(over);
     head.add(holder);
-    return heart;
+    return over;
 }
 
 // where each hand's closed fingers grip, in the figure's own space, for the pose's moves
@@ -3009,10 +3083,15 @@ function place(figure, pose, facing, blend) {
         figure.laptop.matrix.copy(lapOf(world));
         figure.laptop.matrixWorldNeedsUpdate = true;
     }
-    for (const shape of figure.eyes.shapes) shape.visible = !pose.hearts;
+    for (const shape of figure.eyes.shapes) shape.visible = !pose.hearts && !pose.stars;
     for (const heart of figure.eyes.hearts) {
         heart.visible = pose.hearts > 0;
         heart.scale.setScalar(HEART_SIZE * pose.hearts);
+    }
+    for (const star of figure.eyes.stars) {
+        star.visible = pose.stars > 0 && !pose.hearts;
+        star.scale.setScalar(STAR_SIZE * pose.stars);
+        star.rotation.z = 1.2 * (pose.stars - 1);
     }
     return moves;
 }

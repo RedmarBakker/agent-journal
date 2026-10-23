@@ -44,7 +44,7 @@ import {PARCEL, PILE, PUSH, UFO, behind, blowsLanded, hammerMs, pileSlot, pushSt
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {answerTo, eyesAt, lookOf, pastimeFor, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {answerTo, eagerFor, eyesAt, lookOf, pastimeFor, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf} from "../figure/acts.js";
 import {
     clickedBody,
@@ -60,6 +60,7 @@ import {
     gripIn,
     groundEdge,
     progressEdge,
+    progressOf,
     hiddenAt,
     spotOf,
     tripTo,
@@ -172,6 +173,8 @@ const handAt = ref({x: 0.75, y: 0.6, out: 1});
 // sight, when its parachute brings it back; and where the run is this frame, which the clip on screen turns by
 let flight = null;
 const flying = ref(null);
+// the figure's eagerness for the bar docked under its feet to end (reactions.js eagerFor)
+let eager = null;
 // the clip the figure plays while its UFO is here (reactions.js VARIANTS watch), picked for each flight
 let watching = "watch";
 // the clip the held state is played as for this stretch of it (reactions.js variantOf), picked again each time the state changes
@@ -217,6 +220,7 @@ function current() {
         doing: doing(),
         watching: ufo.value ? watching : "",
         flying: flying.value,
+        eager: Boolean(eager?.on),
         chute: Boolean(body.airborne?.chute),
         composeFacing: composeFacing(),
     };
@@ -619,6 +623,9 @@ function look() {
     const stroll = walkingMoment(body.trip, walkBegan, now.value);
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
+    const eagerness = eagerFor(onDocks() && body.footing?.home ? progressOf(groundEdge().element) : null, eager, Math.random);
+    eager = eagerness.eager;
+    if (eagerness.moment) react(eagerness.moment);
     const work = workMoments(held.value.state, typed, workBegan, now.value);
     typed = false;
     workBegan = work.began;
@@ -806,10 +813,12 @@ function stepForward() {
 // the compose box, so its head follows the edge as it moves: looking down at it standing on the bars, and up at it from the compose box's
 // top under them, hammering there too, but not while it pushes a parcel bent over; null when there is nothing to look at
 function lookedAt(shown) {
-    const docks = groundEdge();
     const near = body.footing?.home || (body.place.stays && shown.clip.name !== "push");
-    return saucer.value ?? (docks.docked && near && !body.trip ? progressEdge(docks.element) : null);
+    return saucer.value ?? (onDocks() && near ? progressEdge(groundEdge().element) : null);
 }
+
+// whether the figure is at rest by the bars docked over the compose box
+const onDocks = () => groundEdge().docked && !body.trip;
 
 // The look eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last place looked at once
 // there is not, as the UFO goes or the bar ends, so the head never snaps; `amount` is how far into it the figure is, 0 to 1

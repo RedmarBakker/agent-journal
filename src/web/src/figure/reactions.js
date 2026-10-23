@@ -58,6 +58,10 @@ export const REACTIONS = [
     {moment: "fact_filed", among: [{clip: "file_card", weight: 3}, {clip: "nod", weight: 1}], odds: 0.4, cooldown: 120},
     {moment: "check_passed", among: [{clip: "cheer", weight: 3}, ...CELEBRATIONS], odds: 0.25, cooldown: 120},
     // a break from the hammering now and then
+    // the bar the figure was eager for has ended, as its card says: it jumps and celebrates, or, the more for having been eager, is crushed
+    // and then fumes
+    {moment: "bar_done", among: CELEBRATIONS, odds: 1, cooldown: 0},
+    {moment: "bar_failed", clip: "fume", odds: 1, cooldown: 0},
     {moment: "building", among: [{clip: "wipe_brow", weight: 2}, {clip: "look_around", weight: 1}], odds: 0.08, cooldown: 30},
     {moment: "failed", clip: "shake", odds: 0.6, cooldown: 20, toward: "card"},
     {moment: "refused", clip: "shake", odds: 0.5, cooldown: 20},
@@ -149,6 +153,19 @@ export function walkingMoment(trip, began, now) {
 }
 
 export const WORKED_SECONDS = 30;
+
+// Standing on a docked bar that has run past `from` of the way, now and then, with chance `odds`, once a bar, the figure gets eager for it
+// to end: it taps its feet fast, then points down at the bar, bouncing, until it ends
+export const EAGER = {from: 0.85, odds: 0.4};
+
+// The figure's eagerness for the bar under it, `progress` (places.js progressOf), or null when it stands on none: the bar it last rolled
+// for and whether it is eager for it, and the moment the bar's end is once it ends while the figure is eager, a pass or a failure
+export function eagerFor(progress, eager, random) {
+    const same = Boolean(progress) && progress.bar === eager?.bar;
+    if (same && eager.on && progress.ended) return {eager: {...eager, on: false}, moment: {beat: progress.ended === "good" ? "bar_done" : "bar_failed"}};
+    if (same || !progress || progress.ended || progress.share < EAGER.from) return {eager: eager && {...eager, on: same && eager.on}, moment: null};
+    return {eager: {bar: progress.bar, on: random() < EAGER.odds}, moment: null};
+}
 
 // A jump of more than this many of the figure's own heights sometimes turns over backwards on the way
 export const FLIP_OVER = 1;

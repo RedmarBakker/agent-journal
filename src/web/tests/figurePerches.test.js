@@ -3,7 +3,7 @@ import {beforeEach, expect, test} from "vitest";
 
 const {CLEARED_SECONDS, HANGS, HANG_SHARE, ROAMS, STANDS, perchOn, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
-const {boxAt, overlaps} = await import("../src/figure/places.js");
+const {SEAT_INBOARD, boxAt, overlaps} = await import("../src/figure/places.js");
 const {write} = await import("./figurePage.js");
 
 // a page with nothing on it a perch could hide, until a test writes words onto it, and no chat, so the figure's world is the window
@@ -215,15 +215,15 @@ test("now and then the figure sits on a corner itself, its legs hanging past the
     const home = {getBoundingClientRect: () => box({left: 258, right: 754, top: 768, bottom: 888}), closest: () => thread};
     document.querySelector = (selector) => (selector === "[data-figure-home]" ? home : null);
     const at = {counts: {question: 0, waiting: 0, suggestion: 0}, now: 100, figure: FIGURE, hands: HANDS};
-    // a stay sitting: on the corner nearest, the hips on its very end, turned out along the edge so the legs hang past it
+    // a stay sitting: on the corner nearest, the hips just inside its end, turned out along the edge so the legs hang past it
     const right = targetFor({...at, state: "idle", near: {x: 700, y: 768}, stay: {where: "seat", until: 500}}).spot;
-    expect(right).toMatchObject({x: 754, y: 768, posture: "sit", face: 70, on: home});
+    expect(right).toMatchObject({x: 754 - SEAT_INBOARD * FIGURE.size, y: 768, posture: "sit", face: 70, on: home});
     const left = targetFor({...at, state: "idle", near: {x: 300, y: 768}, stay: {where: "seat", until: 500}}).spot;
-    expect(left).toMatchObject({x: 258, posture: "sit", face: 290});
+    expect(left).toMatchObject({x: 258 + SEAT_INBOARD * FIGURE.size, posture: "sit", face: 290});
     // the seat's picture hangs over the world's edge, its body does not
     expect(boxAt(right, FIGURE).right).toBeGreaterThan(778);
     // editing, it goes to sit at its laptop on a corner
-    expect(targetFor({...at, state: "writing", near: {x: 700, y: 768}, stay: {where: "edge", until: 500, along: {x: 400, y: 0}}}).spot).toMatchObject({posture: "sit", x: 754});
+    expect(targetFor({...at, state: "writing", near: {x: 700, y: 768}, stay: {where: "edge", until: 500, along: {x: 400, y: 0}}}).spot).toMatchObject({posture: "sit", x: 754 - SEAT_INBOARD * FIGURE.size});
 });
 
 test("resting by its parcel pile the figure stands beside it, never in front of the parcels, and may sit on the edge there", () => {
@@ -241,7 +241,7 @@ test("resting by its parcel pile the figure stands beside it, never in front of 
     expect(beside).toMatchObject({posture: "stand", y: 768});
     expect(body(beside)[1]).toBeLessThanOrEqual(pile.left);
     // sitting on the edge by the pile is left as it is
-    expect(targetFor({...at, stay: {where: "seat", until: 500}}).spot).toMatchObject({posture: "sit", x: 754});
+    expect(targetFor({...at, stay: {where: "seat", until: 500}}).spot).toMatchObject({posture: "sit", x: 754 - SEAT_INBOARD * FIGURE.size});
     // a figure standing on another floor is not moved
     expect(targetFor({...at, pile: {...pile, top: 600}, stay: {where: "rest", until: 500}}).spot.x).toBe(plain.x);
 });

@@ -30,6 +30,8 @@ export const ACTS = {
     flashlight: {frames: 80, fps: 10},
     // searching: it crouches, lifts a corner of the floor it stands on and peeks under it, then lets it down
     peek_under: {frames: 80, fps: 10, lift: [0.08, 0.3], peek: [0.3, 0.75], down: [0.75, 0.92], open: 42},
+    // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
+    fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
     // coming down on a parachute, swaying a little under it
     chute: {frames: 24, fps: 8, sway: 8},
     // compacting: a box appears, it hops into it and the box shrinks with it inside; once the compaction is over the box grows back and

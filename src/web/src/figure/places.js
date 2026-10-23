@@ -214,8 +214,9 @@ const ON_TAB = [0.5, 0.25, 0.75];
 const tabSpots = (tab) => alongTop(tab.getBoundingClientRect(), ON_TAB);
 
 // Where a figure rests at the end of an edge: standing on the corner of a box, its feet on the top, turned along the edge and a third of
-// the way back toward the viewer, a little inboard of the corner so it stands on the surface. Sitting there it sits on the corner itself
-// (seatAt), as a seat inboard hangs the legs over the face of the box, so it looks as if it sinks into it to the knees.
+// the way back toward the viewer, a little inboard of the corner so it stands on the surface. Sitting there it sits just inside the corner
+// (seatAt), its seat on the box and its knees past the end, as a seat further in hangs the legs over the face of the box, so it looks as if
+// it sinks into it to the knees.
 const CORNER_SIDES = {
     right: {along: 1, inboard: -1, face: 60},
     left: {along: 0, inboard: 1, face: 300},
@@ -229,16 +230,18 @@ export function cornerAt(box, side, {size}, reach = CORNER_INBOARD) {
     return {x: box.left + box.width * along + inboard * reach * size, y: box.top, face, posture: "stand"};
 }
 
-// Where a figure sits now and then at the end of an edge: its hips right on the corner of the box and turned out along the edge, so its
-// legs hang past the end of the box, never over its face, where it would seem to sink into the box to the knees
+// Where a figure sits now and then at the end of an edge: turned out along the edge, its hips `SEAT_INBOARD` of its height inside the
+// corner, so its seat rests on the box and its knees reach past the end, the legs hanging past the end of the box, never over its face,
+// where it would seem to sink into the box to the knees
 const SEAT_SIDES = {
-    right: {along: 1, face: 70},
-    left: {along: 0, face: 290},
+    right: {along: 1, inboard: -1, face: 70},
+    left: {along: 0, inboard: 1, face: 290},
 };
+export const SEAT_INBOARD = 0.06;
 
-export function seatAt(box, side) {
-    const {along, face} = SEAT_SIDES[side];
-    return {x: box.left + box.width * along, y: box.top, face, posture: "sit"};
+export function seatAt(box, side, {size}) {
+    const {along, inboard, face} = SEAT_SIDES[side];
+    return {x: box.left + box.width * along + inboard * SEAT_INBOARD * size, y: box.top, face, posture: "sit"};
 }
 
 // Where the figure sits at home: on a corner of the edge it stands on whose seat is inside its world and hides nothing, the one nearest
@@ -246,7 +249,7 @@ export function seatAt(box, side) {
 export function seatOf(figure, near) {
     const {element, edge} = groundEdge();
     const seats = Object.keys(SEAT_SIDES)
-        .map((side) => seatAt(edge, side))
+        .map((side) => seatAt(edge, side, figure))
         .filter((seat) => element && inWorld(seat, figure) && !hiddenAt(seat, figure));
     const away = (seat) => (near ? Math.abs(seat.x - near.x) : 0);
     const seat = seats.sort((a, b) => away(a) - away(b))[0];
@@ -326,6 +329,18 @@ export function progressEdge(element) {
     if (!fill) return null;
     const box = fill.getBoundingClientRect();
     return {x: box.right, y: box.top + box.height / 2};
+}
+
+// a progress bar marked for the figure, its value how it ended, as the card's tone, and empty while it runs
+export const BAR = "[data-figure-bar]";
+
+// How the progress bar on `element` stands, as the bars docked over the compose box: the bar itself, how far its fill has run, 0 to 1,
+// and how it ended, "" while it runs; null when there is none
+export function progressOf(element) {
+    const bar = element.querySelector(BAR);
+    const fill = bar?.firstElementChild;
+    if (!fill) return null;
+    return {bar, share: fill.getBoundingClientRect().width / Math.max(bar.getBoundingClientRect().width, 1), ended: bar.dataset.figureBar};
 }
 
 // The main chat's compose box and its top edge, whatever is docked over it, else the foot of the window: the floor the figure builds on

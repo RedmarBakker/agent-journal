@@ -78,7 +78,7 @@ export const waitingSinceAt = (counts, since, now) => (counts.question + counts.
 
 // What the figure plays now, by clip name, with the way it faces: its fall, under a parachute when it comes down on one, its run up the
 // bubbles while it is `flying`, its entrance or exit, the landing, the leg of a trip it is on, its hang
-// while it hangs, the clip it watches the UFO with while it is `watching` one, a beat until it is done, pointing once it stands at a tab while the agent waits
+// while it hangs, the clip it watches the UFO with while it is `watching` one, its eagerness for the bar under it to end while it is `eager`, a beat until it is done, pointing once it stands at a tab while the agent waits
 // on the user, else what its body is doing,
 // drawn in its place. `scene` says where things stand, `doing` being the clip of the stretch it is in; `canDraw(name, posture)` whether a
 // clip is drawn in a posture. A beat comes with the way it faces.
@@ -108,6 +108,7 @@ export function clipFor(scene, canDraw) {
     // a hanging figure holds on until it is let go; a beat waits until it has dropped
     if (place.posture === "hang") return {clip: `hang_${place.grip}`, facing: place.face};
     if (scene.watching) return {clip: scene.watching, facing: 0};
+    if (scene.eager) return {clip: "eager", facing: 0};
     if (beat) return {clip: beat.clip, facing: beat.facing, once: true};
     if (["asking", "waiting"].includes(state)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
     return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : 0};

@@ -12,7 +12,7 @@ const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).ma
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
 const ACTED = ["post_dove", "post_mailbox", "stamp", "pin_note", "ask_sign", "whistle_runner", "scroll", "file_card", "cheer"];
-const NEW = ["pack_box", "press", "vacuum", "confetti_cannon", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
+const NEW = ["fume", "eager", "pack_box", "press", "vacuum", "confetti_cannon", "party_horn", "binoculars", "flashlight", "peek_under", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
     for (const name of [...ACTED, ...NEW]) {
@@ -200,4 +200,56 @@ test("while the context compacts the figure is packed into a box that shrinks, s
     expect(pressed(press.intro + 1).x).toBeGreaterThan(1);
     expect(pressed(press.intro + press.hold + press.outro).y).toBeCloseTo(1, 5);
     expect(squeezeOf("vacuum", 0.5)).toBe(null);
+});
+
+const {EAGER, eagerFor} = await import("../src/figure/reactions.js");
+
+test("on a docked bar past its last stretch the figure now and then gets eager, once a bar, and celebrates when it ends well", () => {
+    const bar = {};
+    const at = (share, ended = "") => ({bar, share, ended});
+    // short of the last stretch it rolls nothing; past it, once, by the odds
+    expect(eagerFor(at(EAGER.from - 0.01), null, () => 0)).toEqual({eager: null, moment: null});
+    expect(eagerFor(at(EAGER.from), null, () => EAGER.odds)).toEqual({eager: {bar, on: false}, moment: null});
+    expect(eagerFor(at(0.95), {bar, on: false}, () => 0).eager).toEqual({bar, on: false});
+    const eager = eagerFor(at(EAGER.from), null, () => 0).eager;
+    expect(eager).toEqual({bar, on: true});
+    expect(eagerFor(at(0.97), eager, () => 0.99)).toEqual({eager, moment: null});
+    expect(eagerFor(at(1, "good"), eager, () => 0)).toEqual({eager: {bar, on: false}, moment: {beat: "bar_done"}});
+    expect(eagerFor(at(1, "bad"), eager, () => 0).moment).toEqual({beat: "bar_failed"});
+    expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
+    // stepping off the bar ends it, with nothing to mark, and stepping back on rolls nothing again
+    const off = eagerFor(null, eager, () => 0);
+    expect(off).toEqual({eager: {bar, on: false}, moment: null});
+    expect(eagerFor(at(0.97), off.eager, () => 0).eager).toEqual({bar, on: false});
+    expect(REACTIONS.find((each) => each.moment === "bar_done").among.map((each) => each.clip)).toEqual(["joy", "confetti_cannon", "party_horn"]);
+    expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
+});
+
+test("eager, the figure's eyes are sparkling stars from the first frames until it lets go of the bar, for every voice", () => {
+    const clip = clipNamed("eager");
+    for (const voice of Object.keys(stances)) {
+        for (let frame = 4; frame < clip.intro + clip.leaves; frame++) {
+            const pose = new Posing(RIG, "stand", 0);
+            clip.pose(pose, stanceOf(voice), frame / clip.frames);
+            expect(pose.stars, `${voice} ${frame}`).toBeGreaterThan(0.9);
+        }
+        const last = new Posing(RIG, "stand", 0);
+        clip.pose(last, stanceOf(voice), (clip.frames - 0.01) / clip.frames);
+        expect(last.stars, voice).toBeLessThan(0.1);
+    }
+});
+
+const {SEAT_INBOARD, seatAt} = await import("../src/figure/places.js");
+
+test("sitting on a corner the figure sits just inside it, toward the inside of the edge, its seat on the box and its knees past the end", () => {
+    const box = {left: 100, width: 400, top: 300};
+    const figure = {size: 112};
+    const right = seatAt(box, "right", figure);
+    const left = seatAt(box, "left", figure);
+    expect([right.x, left.x]).toEqual([500 - SEAT_INBOARD * 112, 100 + SEAT_INBOARD * 112]);
+    // the knees, a seated thigh's length out along the edge it faces, reach past the end, so the legs never hang over the box's face
+    const thigh = (1.35 - 0.79) * (112 / 5.4) * Math.sin((70 * Math.PI) / 180);
+    expect(SEAT_INBOARD * 112).toBeLessThan(thigh);
+    expect(SEAT_INBOARD * 112).toBeGreaterThan(0.04 * 112);
+    expect([right.face, left.face, right.posture]).toEqual([70, 290, "sit"]);
 });

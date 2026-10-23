@@ -149,6 +149,17 @@ const vacuumed = computed(() => {
     return {on, canister, nozzle, words: held === null ? [] : words, hose: `M${canister.x} ${canister.y - 12}Q${canister.x} ${nozzle.y + 30} ${nozzle.x - out.value * 6} ${nozzle.y}`};
 });
 
+// the steam rising off the head of a figure fuming, puff after puff from either side
+const steam = computed(() => {
+    const k = (props.u - act.value.steam[0]) / (act.value.steam[1] - act.value.steam[0]);
+    if (k <= 0 || k >= 1) return [];
+    return Array.from({length: 6}, (_, index) => {
+        const rise = (k * 3 + index / 6) % 1;
+        const side = index % 2 ? 1 : -1;
+        return {x: head.value.x + side * (12 + 10 * rise), y: head.value.y - 14 - 26 * rise, r: 2.5 + 4 * rise, fade: 1 - rise};
+    });
+});
+
 // the corner of the floor lifted beside the figure, hinged at its far end
 const flap = computed(() => {
     const {lift, down, open} = act.value;
@@ -306,6 +317,10 @@ const flap = computed(() => {
                     <rect x="-4" y="-1.6" width="9" height="3.2" rx="1" fill="#35374b" />
                     <rect x="5" y="-2.4" width="2.4" height="4.8" :fill="COLOURS.gold" />
                 </g>
+            </template>
+
+            <template v-if="name === 'fume'">
+                <circle v-for="(puff, index) in steam" :key="index" :cx="puff.x" :cy="puff.y" :r="puff.r" fill="#e9e7e1" stroke="#a9adb8" stroke-width="0.6" :opacity="puff.fade" />
             </template>
 
             <template v-if="name === 'chute'">
