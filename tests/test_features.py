@@ -10937,9 +10937,15 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).state == "delegated", "the worker keeps the request's number and holds its task, though nothing runs here"
         started = []
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+        monkeypatch.setenv("PLANTED_CLOUD_KEY", "secret")
         app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
+        app.container.get(SettingRows).set("workers.preparation_commands", ["touch prepared.txt"], Actor.user(1))
         app.container.get(SyncClient).pulled(0)
         app.runtime().deferred.drain()
+        variables = app.container.get(WorkerRunner).worker_variables(started[0])
+        assert "PLANTED_CLOUD_KEY" not in variables and "PATH" in variables, "a pool worker gets a short list of the machine's variables, never its keys"
+        assert not (root / "prepared.txt").exists() and (app.container.get(WorkerBranch).folder(worker) / "prepared.txt").exists(), "the machine's own commands run inside the pool worktree, never in its checkout"
+        (app.container.get(WorkerBranch).folder(worker) / "prepared.txt").unlink()
         assert [(each.name, each.model) for each in started] == [("Lady Lovelace", "sonnet")], "a machine giving the pool a slot takes the worker up and runs it on the model its profile names there"
         folder = app.container.get(WorkerBranch).folder(worker)
         assert git("rev-parse", "HEAD", cwd=folder).stdout == git("rev-parse", "main").stdout, "its worktree is cut from the base fetched from origin"

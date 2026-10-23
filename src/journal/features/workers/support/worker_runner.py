@@ -42,6 +42,8 @@ ERROR_STATUS = -3
 ENDINGS = {TIMEOUT_STATUS: "stopped after {minutes:g} minutes without ending: {report}", END_UNWATCHED: "{report}", ERROR_STATUS: "failed: {report}"}
 JOURNAL_ACTIVE = "AGENT_JOURNAL_ACTIVE"
 EXCLUDED_VARIABLES = ("JOURNAL_SESSION", "JOURNAL_LAUNCH")
+POOL_VARIABLES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", AGENT_SHELL, JOURNAL_ACTIVE, ACTOR)
+POOL_PREFIXES = ("LC_", "JOURNAL_")
 
 
 class WorkerRunner:
@@ -86,7 +88,7 @@ class WorkerRunner:
     def run(self, worker: Worker, command: list[str], actor: Actor) -> None:
         token = WorkerToken.random()
         worker = self.workers.save(worker.with_(token_hash=token.digest()), actor)
-        environ = {**self.environment_variables(self.environments.find(worker.environment_id).name), WORKER: str(worker.id), WORKER_TOKEN: token.text}
+        environ = {**self.worker_variables(worker), WORKER: str(worker.id), WORKER_TOKEN: token.text}
         output, err = self.outputs(worker)
         output.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -97,6 +99,12 @@ class WorkerRunner:
             return
         worker = self.workers.save(worker.running_as(process.pid, time.time()), actor)
         self.finish(worker, self.waited(worker, process, actor), actor)
+
+    def worker_variables(self, worker: Worker) -> dict[str, str]:
+        variables = self.environment_variables(self.environments.find(worker.environment_id).name)
+        if not worker.pool_request:
+            return variables
+        return {name: value for name, value in variables.items() if name in POOL_VARIABLES or name.startswith(POOL_PREFIXES)}
 
     def environment_variables(self, environment: str) -> dict[str, str]:
         excluded = (*EXCLUDED_VARIABLES, *self.providers.inherited_markers(), *self.providers.session_variables())
@@ -233,6 +241,8 @@ class WorkerRunner:
         return self.inner_worktrees(worker, names)
 
     def prepared(self, worker: Worker, names: tuple[str, ...], maker: Callable[[Worker, tuple[str, ...]], tuple[str, ...]]) -> tuple[str, ...]:
+        if worker.pool_request:
+            return self.pool_prepared(worker, maker)
         from journal.features.workers.feature import Workers as Feature
         folder = self.branch.folder(worker)
         self.commands.run(worker, Feature.PREPARATION_COMMANDS.texts(self.settings.option(Feature.PREPARATION_COMMANDS)), self.config.root, names)
@@ -241,6 +251,14 @@ class WorkerRunner:
         if not folder.is_dir():
             raise WorktreeFailure(worker.name, f"the worktree commands made no worktree at {folder}; with the journal's own step off, they make it there on the branch {self.branch.name(worker)}")
         return repositories or tuple(name for name in names if (folder / name / ".git").exists())
+
+    def pool_prepared(self, worker: Worker, maker: Callable[[Worker, tuple[str, ...]], tuple[str, ...]]) -> tuple[str, ...]:
+        from journal.features.workers.feature import Workers as Feature
+        repositories = maker(worker, ())
+        folder = self.branch.folder(worker)
+        for option in (Feature.PREPARATION_COMMANDS, Feature.COMPLETION_COMMANDS):
+            self.commands.run(worker, option.texts(self.settings.option(option)), folder, ())
+        return repositories
 
     def worktree_creation(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:
         self.added(worker, "-b", self.branch.name(worker), str(self.branch.folder(worker)), f"origin/{worker.base}" if worker.base else "HEAD")
