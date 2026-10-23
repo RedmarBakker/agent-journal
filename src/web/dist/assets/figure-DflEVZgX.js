@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-DImvpzYO.js
-import{A as ye,p as vd,a as yd,b as $e,h as fl,s as Md,g as Sd,c as Ed,P as Vi,L as bd,d as wd,V as Td}from"./main-Das_6KPI.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-B56RUgzw.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 54ba8da48 (Now and then, with nothing to do, the avatar walks to near the middle of the floor it stands on and sits there composed, facing the user, upright with its legs out along the floor and both hands flat on the floor at its sides, a while before it gets up; a new posture, one of its idle stays in the pile):src/web/dist/assets/figure-K1V38aAk.js
+import{A as ye,p as yd,a as Md,b as $e,h as pl,s as Sd,g as Ed,c as bd,P as Vi,L as wd,d as Td,V as Ad}from"./main-CfvJJcO1.js";import"./tokens-D2Th-Z3L.js";import"./tip-CN_oYXIT.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
