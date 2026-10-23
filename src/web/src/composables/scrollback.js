@@ -1,12 +1,30 @@
 import {nextTick, onUnmounted, ref, unref, watch} from "vue";
 
+// how many frames the place is held while rows drawn above it settle, and how many still frames end the hold early
+const HOLD_FRAMES = 60;
+const STILL_FRAMES = 6;
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+// Loads rows above what the reader sees and keeps the reader's place: the rows above may be drawn over several frames, so the
+// place is held each frame until the height has been still for a few, and let go at once when the reader scrolls themselves.
 export async function keepingPlace(scroller, load) {
     const box = unref(scroller);
     const fromBottom = box ? box.scrollHeight - box.scrollTop : 0;
     const grew = await load();
     await nextTick();
-    const now = unref(scroller);
-    if (grew !== false && now) now.scrollTop = now.scrollHeight - fromBottom;
+    if (grew === false) return grew;
+    let held = null;
+    let still = 0;
+    let height = -1;
+    for (let frame = 0; frame < HOLD_FRAMES && still < STILL_FRAMES; frame++) {
+        const now = unref(scroller);
+        if (!now || (held !== null && now.scrollTop !== held)) break;
+        now.scrollTop = now.scrollHeight - fromBottom;
+        held = now.scrollTop;
+        still = now.scrollHeight === height ? still + 1 : 0;
+        height = now.scrollHeight;
+        await nextFrame();
+    }
     return grew;
 }
 
