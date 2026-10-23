@@ -39,6 +39,13 @@ class TeamController:
         checked_at = time.time()
         return Response.json({"people": [{"id": person.id, "name": person.name, "role": person.role, "me": person.id == request.actor.number(), "online": checked_at - person.pulled_at < ONLINE_SECONDS, "seen_at": person.pulled_at, "environments": [{"id": row.row_id, "name": row.name} for row in rows if self.owners.owner_number(row.row_id) == person.id]} for person in answer.people]})
 
+    def password(self, request: Request) -> Response:
+        TeamRequests.reached(lambda: self.link.change_password(str(request.body.get("old", "")), str(request.body.get("new", ""))))
+        return Response.json({"changed": True})
+
+    def password_reset(self, request: Request) -> Response:
+        return Response.json({"password": TeamRequests.reached(lambda: self.link.reset_password(request.number("id")))})
+
     def opening(self, request: Request) -> Response:
         code = TeamRequests.reached(self.link.signin_code)
         return Response.json({"url": f"{self.account.address()}/open?code={code}"})

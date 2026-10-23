@@ -22,6 +22,15 @@ class Accounts:
             raise Refusal("this team server has its admin already: join it with the invitation URL an admin shares from the Team tab")
         return self.create(email, name, password, ADMIN, created_at)
 
+    def password_changed(self, account: Account, old: str, new: str) -> Account:
+        self.verified(account.email, old)
+        return self.password_set(account, new)
+
+    def password_set(self, account: Account, password: str) -> Account:
+        PasswordStrength.check(password, account.email)
+        self.rows.set_password(account.id, Password.hashed(password))
+        return account
+
     def find(self, id: int) -> Account:
         row = self.rows.numbered(id)
         if row is None:

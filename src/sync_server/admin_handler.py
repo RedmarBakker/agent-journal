@@ -8,10 +8,11 @@ from sync_server.invitations import Invitations
 from sync_server.server_clock import ServerClock
 from sync_server.team_details import TeamDetails
 from sync_server.team_summary import TeamSummary
+from sync_server.password_answer import PasswordAnswer
 
 
 class AdminHandler:
-    """What only an admin does: invite a person by email, list the devices, revoke one, remove a person with every device of theirs, pin the team to a journal version, which the team's own hosted journal may do too, and say whether a journal must run exactly it."""
+    """What only an admin does: invite a person by email, list the devices, revoke one, remove a person with every device of theirs, reset a person's password to a new one to pass on, pin the team to a journal version, which the team's own hosted journal may do too, and say whether a journal must run exactly it."""
 
     def __init__(self, devices: Devices, accounts: Accounts, invitations: Invitations, clock: ServerClock, details: TeamDetails) -> None:
         self.devices, self.accounts, self.invitations, self.clock, self.details = devices, accounts, invitations, clock, details
@@ -38,6 +39,12 @@ class AdminHandler:
         self.devices.admin(token)
         self.details.record_versions(rule)
         return self.details.answer()
+
+    def password_reset(self, token: str, account_id: int) -> PasswordAnswer:
+        self.devices.admin(token)
+        password = PasswordAnswer.generated()
+        self.accounts.password_set(self.accounts.find(account_id), password.password)
+        return password
 
     def remove(self, token: str, account_id: int) -> Account:
         self.devices.admin(token)

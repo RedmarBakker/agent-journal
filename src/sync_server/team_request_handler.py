@@ -7,6 +7,7 @@ from urllib.parse import parse_qsl, urlsplit
 from sync_server.accept_request import AcceptRequest
 from sync_server.account import Account
 from sync_server.install_request import InstallRequest
+from sync_server.password_request import PasswordRequest
 from sync_server.signin_answer import SigninAnswer
 from sync_server.signin_request import SigninRequest
 from sync_server.admin_request import AdminRequest
@@ -28,7 +29,7 @@ FORWARDED_HEADER = "X-Forwarded-For"
 
 
 class TeamRequestHandler(BaseHTTPRequestHandler):
-    """One request to the team server, answered in JSON: POST /login, /accept, /install (the first connection to a server with no account, which makes its admin), /signin-links (a member's journal asking for a one-time link to open the hosted journal signed in) and /signin-links/redeem (the hosted journal taking one up), /push, /blocks, /invite, /devices/revoke, /people/remove, /team/version, /team/versions, /upload and /upgrade, GET /pull?after=<sequence>&wait=<seconds>, /copy, /devices, /people and /team, which alone needs no token; /files/<table>/<row>/<name>, read with GET and written with POST of its bytes, and /leases?name=<name>, which POST /leases/take and /leases/release change; a refusal is a 403 with its line, an unknown path a 404. Every request names the protocol its journal speaks and every answer the server's: a journal on an older protocol is answered 426 with the line to upgrade it, and a push or pull from a journal on an older migration than the team's, or on another version than the pinned one while the team requires it, is refused with it; the device holding the upgrade lease is let through on its old version to send and pull before it upgrades."""
+    """One request to the team server, answered in JSON: POST /login, /accept, /install (the first connection to a server with no account, which makes its admin), /signin-links (a member's journal asking for a one-time link to open the hosted journal signed in) and /signin-links/redeem (the hosted journal taking one up), /push, /blocks, /invite, /devices/revoke, /people/remove, /people/password (an admin resetting a person's password), /password (a person changing their own), /team/version, /team/versions, /upload and /upgrade, GET /pull?after=<sequence>&wait=<seconds>, /copy, /devices, /people and /team, which alone needs no token; /files/<table>/<row>/<name>, read with GET and written with POST of its bytes, and /leases?name=<name>, which POST /leases/take and /leases/release change; a refusal is a 403 with its line, an unknown path a 404. Every request names the protocol its journal speaks and every answer the server's: a journal on an older protocol is answered 426 with the line to upgrade it, and a push or pull from a journal on an older migration than the team's, or on another version than the pinned one while the team requires it, is refused with it; the device holding the upgrade lease is let through on its old version to send and pull before it upgrades."""
 
     def do_GET(self) -> None:
         if self.is_outdated_client():
@@ -61,6 +62,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             "/invite": lambda: team.admins.invite(self.token(), self.typed(AdminRequest).email),
             "/devices/revoke": lambda: team.admins.revoke(self.token(), self.typed(AdminRequest).device_id),
             "/people/remove": lambda: team.admins.remove(self.token(), self.typed(AdminRequest).account_id),
+            "/people/password": lambda: team.admins.password_reset(self.token(), self.typed(AdminRequest).account_id),
+            "/password": lambda: self.password_changed(self.typed(PasswordRequest)),
             "/team/version": lambda: team.admins.pin(self.token(), self.typed(AdminRequest).version),
             "/team/versions": lambda: team.admins.allow(self.token(), self.typed(AdminRequest).versions),
             "/upload": lambda: self.uploaded(self.typed(UploadRequest.parsed)),
@@ -93,6 +96,10 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
 
     def login(self, request: LoginRequest):
         return self.server.team.logins.answer(request, self.address())
+
+    def password_changed(self, request: PasswordRequest) -> SigninAnswer:
+        team = self.server.team
+        return self.signin_answer(team.accounts.password_changed(team.devices.person(self.token()), request.old, request.new))
 
     @staticmethod
     def signin_answer(account: Account) -> SigninAnswer:

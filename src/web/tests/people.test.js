@@ -134,3 +134,13 @@ test("the Team tab opens the shared journal by a one-time link from this journal
     expect(sync).toMatch(/<Btn :busy="opening" @click="openShared">Open the shared journal<\/Btn>/);
     expect(sync).toMatch(/window\.open\(\(await api\.openSharedJournal\(\)\)\.url, "_blank", "noopener"\)/);
 });
+
+test("a person changes their team password, and an admin resets a member's from the people list", () => {
+    const own = readFileSync(resolve(__dirname, "../src/pages/TeamPassword.vue"), "utf8");
+    expect(own).toMatch(/api\.changeTeamPassword\(old\.value, password\.value\)/);
+    expect(own).toMatch(/<Btn @click="generate">Generate<\/Btn>/);
+    const people = readFileSync(resolve(__dirname, "../src/pages/TeamPeople.vue"), "utf8");
+    expect(people).toMatch(/<Btn small @click="reset\(person\)">Reset password<\/Btn>/);
+    const team = readFileSync(resolve(__dirname, "../src/pages/SettingsTeam.vue"), "utf8");
+    expect(team).toMatch(/<TeamPeople :admin="standing\.admin" \/>\s*<TeamPassword \/>/);
+});

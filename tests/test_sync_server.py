@@ -465,3 +465,23 @@ def test_a_one_time_signin_link_is_issued_to_a_member_and_taken_up_once_by_the_h
     routes = (Path(__file__).resolve().parents[1] / "docker/team-server/routes.caddy").read_text()
     assert "not header Cookie *journal_session=*" in routes and "respond 403" in routes, "the proxy forbids a browser without a session"
     team.store.close()
+
+
+def test_a_person_changes_their_own_password_and_an_admin_resets_a_members(tmp_path):
+    from sync_server.team_server import TeamServer
+    team = TeamServer(tmp_path)
+    ada = team.accounts.create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
+    bob = team.accounts.create("bob@example.com", "Bob", PASSWORD, MEMBER, 1.0)
+    _, ada_token = team.devices.login("ada@example.com", PASSWORD, "laptop", "127.0.0.1", 1.0)
+    _, bob_token = team.devices.login("bob@example.com", PASSWORD, "laptop", "127.0.0.2", 1.0)
+    with pytest.raises(Refusal, match="email or the password is wrong"):
+        team.accounts.password_changed(bob, "not mine", "Another-pass-2026")
+    with pytest.raises(Refusal, match="at least"):
+        team.accounts.password_changed(bob, PASSWORD, "weak")
+    team.accounts.password_changed(bob, PASSWORD, "Another-pass-2026")
+    assert team.devices.login("bob@example.com", "Another-pass-2026", "phone", "127.0.0.3", 2.0), "the new password signs in"
+    with pytest.raises(Refusal, match="no admin"):
+        team.admins.password_reset(bob_token, ada.id)
+    fresh = team.admins.password_reset(ada_token, bob.id).password
+    assert len(fresh) == 22 and team.devices.login("bob@example.com", fresh, "tablet", "127.0.0.4", 3.0), "an admin's reset gives a new password that signs in"
+    team.store.close()

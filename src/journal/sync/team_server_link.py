@@ -18,6 +18,7 @@ from sync_server.login_request import LoginRequest
 from sync_server.people_answer import PeopleAnswer
 from sync_server.pull_answer import PullAnswer
 from sync_server.push_answer import PushAnswer
+from sync_server.password_answer import PasswordAnswer
 from sync_server.signin_answer import SigninAnswer
 from sync_server.team_summary import TeamSummary
 from sync_server.upload_answer import UploadAnswer
@@ -84,6 +85,12 @@ class TeamServerLink:
     def install(self, address: str, email: str, name: str, password: str, device_name: str) -> LoginAnswer:
         body = json.dumps({"email": email, "name": name, "password": password, "device_name": device_name}).encode()
         return LoginAnswer(**json.loads(self.sent(address, "/install", body, REQUEST_SECONDS)))
+
+    def change_password(self, old: str, new: str) -> None:
+        self.posted("/password", {"old": old, "new": new})
+
+    def reset_password(self, account_id: int) -> str:
+        return PasswordAnswer(**json.loads(self.posted("/people/password", {"account_id": account_id}))).password
 
     def signin_code(self) -> str:
         return SigninAnswer(**json.loads(self.posted("/signin-links", {}))).code

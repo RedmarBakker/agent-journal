@@ -4,6 +4,7 @@ import {api} from "../api/client.js";
 import {agentRunningIn} from "../composables/settings.js";
 import {clock} from "../format/time.js";
 import Btn from "../kit/Btn.vue";
+import CopyButton from "../kit/CopyButton.vue";
 import Icon from "../kit/Icon.vue";
 import ListBox from "../kit/ListBox.vue";
 import StateDot from "../kit/StateDot.vue";
@@ -12,12 +13,23 @@ import {choose} from "../state/environment.js";
 import TeamFailure from "./TeamFailure.vue";
 import "./team.css";
 
+const props = defineProps({admin: {type: Boolean, default: false}});
 const LEAD = "A colleague's environment opens read-only: what you write there is a comment, and their agent treats it as a colleague's words.";
 const ROLES = {admin: "Admin", member: "Member", relay: "Hosted journal"};
 const people = ref([]);
 const failure = ref("");
+const resets = ref({});
 const initial = (name) => (name || "?").trim().charAt(0).toUpperCase();
 const presence = (person) => (person.online ? "Online" : person.seen_at ? `Offline since ${clock(person.seen_at)}` : "Not seen yet");
+
+async function reset(person) {
+    failure.value = "";
+    try {
+        resets.value = {...resets.value, [person.id]: (await api.resetTeamPassword(person.id)).password};
+    } catch (e) {
+        failure.value = e.message;
+    }
+}
 
 onMounted(async () => {
     try {
@@ -52,7 +64,17 @@ onMounted(async () => {
                             {{ presence(person) }}
                         </span>
                     </template>
+                    <template v-if="props.admin && !person.me && person.role !== 'relay'">
+                        <Btn small @click="reset(person)">Reset password</Btn>
+                    </template>
                 </div>
+                <template v-if="resets[person.id]">
+                    <div class="team-command">
+                        <code>{{ resets[person.id] }}</code>
+                        <CopyButton :text="resets[person.id]" label="Copy" />
+                    </div>
+                    <p class="team-fine">{{ person.name }}'s new password. Pass it on to them; it is shown only here.</p>
+                </template>
                 <div class="team-environments">
                     <template v-if="!person.environments.length">
                         <p class="team-fine">No environments yet</p>

@@ -24,5 +24,8 @@ class AccountRows:
     def count(self) -> int:
         return self.store.one("SELECT COUNT(*) AS count FROM accounts")["count"]
 
+    def set_password(self, id: int, password_hash: str) -> None:
+        self.store.execute("UPDATE accounts SET password_hash = ? WHERE id = ?", (password_hash, id))
+
     def remove(self, id: int, removed_at: float) -> None:
         self.store.execute("UPDATE accounts SET removed_at = ? WHERE id = ?", (removed_at, id))

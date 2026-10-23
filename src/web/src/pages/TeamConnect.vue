@@ -1,7 +1,7 @@
 <script setup>
 import {onMounted, ref} from "vue";
 import {api} from "../api/client.js";
-import {strongPassword} from "../domain/passwords.js";
+import {usePasswordField} from "../composables/passwordField.js";
 import Btn from "../kit/Btn.vue";
 import FormField from "../kit/FormField.vue";
 import ListBox from "../kit/ListBox.vue";
@@ -13,17 +13,11 @@ const props = defineProps({email: {type: String, default: ""}});
 const emit = defineEmits(["joined"]);
 const url = ref("");
 const email = ref("");
-const password = ref("");
-const generated = ref(false);
+const {password, generated, generate} = usePasswordField();
 const busy = ref(false);
 const failure = ref("");
 
 onMounted(() => (email.value = props.email));
-
-function generate() {
-    password.value = strongPassword();
-    generated.value = true;
-}
 
 async function join() {
     busy.value = true;

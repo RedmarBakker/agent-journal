@@ -103,6 +103,8 @@ class Routes:
         router.post(f"{API}/team/join", get(TeamController).join)
         router.post(f"{API}/team/invite", get(TeamController).invite)
         router.post(f"{API}/team/open", get(TeamController).opening)
+        router.post(f"{API}/team/password", get(TeamController).password)
+        router.post(f"{API}/team/people/{{id}}/password", get(TeamController).password_reset)
         router.get(f"{API}/team/people", get(TeamController).people)
         router.get(f"{API}/team/devices", get(TeamController).devices)
         router.post(f"{API}/team/devices/{{id}}/revoke", get(TeamController).revoke)

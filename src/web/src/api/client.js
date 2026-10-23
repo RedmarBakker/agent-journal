@@ -388,6 +388,16 @@ export class ApiClient {
     }
 
     // an admin's invitation for one email, answered with the line the person joins with
+    // changes this person's team password, the old one checked
+    changeTeamPassword(old, password) {
+        return this.post("/team/password", {old, new: password});
+    }
+
+    // an admin resets a person's team password, answered with the new one to pass on
+    resetTeamPassword(id) {
+        return this.post(`/team/people/${id}/password`, {});
+    }
+
     // a one-time link that opens the team's hosted journal signed in as this person
     openSharedJournal() {
         return this.post("/team/open", {});

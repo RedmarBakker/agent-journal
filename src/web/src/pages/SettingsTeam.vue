@@ -6,6 +6,7 @@ import TeamChatBox from "./TeamChatBox.vue";
 import TeamConnect from "./TeamConnect.vue";
 import TeamDevices from "./TeamDevices.vue";
 import TeamInvite from "./TeamInvite.vue";
+import TeamPassword from "./TeamPassword.vue";
 import TeamPeople from "./TeamPeople.vue";
 import TeamSync from "./TeamSync.vue";
 import "./team.css";
@@ -47,7 +48,8 @@ onMounted(load);
             </template>
             <TeamSync :standing="standing" />
             <TeamChatBox />
-            <TeamPeople />
+            <TeamPeople :admin="standing.admin" />
+            <TeamPassword />
             <template v-if="standing.admin">
                 <TeamInvite />
                 <TeamDevices />
