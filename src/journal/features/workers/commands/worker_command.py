@@ -151,7 +151,7 @@ class WorkerCommand(Command):
             self.workers.delete(worker, caller.actor)
             raise
         self.tasks.handover(task, Ref.build(worker), caller.actor)
-        self.workers.save(self.workers.find(worker.row_id).with_(pool_request=request, base=PoolDispatch.base(worker), branch=self.branch.name(worker)).dispatched(moment), caller.actor)
+        self.workers.save(self.workers.find(worker.row_id).with_(pool_request=request, base=WorkerBranch.pool_base(worker), branch=self.branch.name(worker)).dispatched(moment), caller.actor)
         print(f"worker {worker.id} {worker.name} sent to the team's pool as request {request}; a teammate's machine with a free slot takes it up, and it reports in the chat when it ends")
         return 0
 

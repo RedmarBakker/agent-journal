@@ -1,6 +1,7 @@
 from journal.chat.process_card import ProcessCard
 from journal.chat.process_cards import ProcessCards
 from journal.features.workers.support.subagent_card import SubagentCard
+from journal.features.workers.support.subagent_card_state import SubagentCardState
 from journal.features.workers.support.subagent_entries import SubagentEntries
 from journal.models.message import Message
 from journal.models.subagent import Subagent
@@ -29,6 +30,6 @@ class SubagentProcessCard(ProcessCard):
             return
         self.cards.show(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.task}", data, actor, CardKind.SUBAGENTS, row.is_running(), row.task)
 
-    def refresh(self, message: Message) -> dict:
+    def refresh(self, message: Message) -> SubagentCardState:
         row = self.subagents.dispatched(message.data["session"], message.data["dispatch"])
-        return {"model": row.model, "subagent": row.session, "active": row.is_running()}
+        return SubagentCardState(model=row.model, subagent=row.session, active=row.is_running())

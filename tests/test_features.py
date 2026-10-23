@@ -11053,7 +11053,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             workers = app.container.get(Workers)
-            worker = workers.save(workers.all()[0].with_(token_hash="h", session="w-1"), Actor.system())
+            worker = workers.save(workers.all()[0].with_(token_hash="h", session="w-1", device="1"), Actor.system())
         lovelace = Caller.worker("main", worker.id, "w-1", "claude")
         assert console.run(["clock-in"], lovelace).code == 0
         with app.container.get(Scope).environment(MAIN):
@@ -11076,6 +11076,23 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         with app.container.get(Scope).environment(MAIN):
             assert workers.find(worker.id).state == WorkerState.DELIVERED and any("the parser is done" in message.text for message in app.container.get(Messages).all()), "the host clocks the worker out and posts its report in the dispatcher's chat"
         assert hosted_requests() == (), "each request is made once and finished"
+        app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
+        assert console.run(["worker", "check", str(worker.id), "1", "--short", "name the rule it reads"], AGENT).code == 0, "the dispatcher checks the pool worker's proofs on its own journal"
+        app.runtime().deferred.drain()
+        redo = [request for request in team.host_requests.waiting(team.devices.device(ada).id, PullQuery(0, 0, (), PoolSlots(0, 0), VERSION)) if request.kind == "worker_redo"]
+        assert len(redo) == 1 and "name the rule it reads" in redo[0].body["brief"], "a point sent back travels to the machine running the worker, once"
+        team.host_requests.finished(ada, redo[0].id, team.clock.time())
+        assert console.run(["proof", "1", "parser.py:1, test_reads passes and names the rule"], lovelace).code == 0
+        assert console.run(["worker", "check", str(worker.id), "1"], AGENT).code == 0
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+        git("worktree", "remove", "--force", str(folder))
+        git("branch", "-D", app.container.get(WorkerBranch).name(worker))
+        merged = console.run(["worker", "merge", str(worker.id)], AGENT)
+        assert merged.code == 0, merged.error
+        assert (root / "parser.py").exists(), "the merge fetches the worker's pool branch from origin and takes it into the dispatcher's checkout, with no worktree of its own"
+        assert "journal/pool/" not in git("ls-remote", "origin").stdout, "and both pool branches are deleted from origin"
+        app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
         printer = console.run(["task", "create", "the printer", "--brief", "the printer prints"], AGENT).text.split()[1]
         app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
         assert console.run(["worker", "dispatch", "Mr. Babbage", "--task", printer, "--changes", "the printer", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0

@@ -16,16 +16,8 @@ class PoolDispatch:
     def __init__(self, branch: WorkerBranch, link: TeamServerLink, account: TeamAccount, environments: Environments) -> None:
         self.branch, self.link, self.account, self.environments = branch, link, account, environments
 
-    @staticmethod
-    def base(worker: Worker) -> str:
-        return f"{PoolDispatch.branch(worker)}-base"
-
-    @staticmethod
-    def branch(worker: Worker) -> str:
-        return f"journal/pool/{worker.id}-{worker.name}".replace(" ", "-")
-
     def send(self, worker: Worker, task: Task) -> int:
-        base = self.base(worker)
+        base = self.branch.pool_base(worker)
         pushed = self.branch.git("push", "origin", f"HEAD:refs/heads/{base}", cwd=self.branch.checkout(worker))
         if pushed.returncode != 0:
             raise Rejection(f"worker {worker.name} was not sent to the pool: its base could not be pushed to origin: {pushed.stderr.strip()}")

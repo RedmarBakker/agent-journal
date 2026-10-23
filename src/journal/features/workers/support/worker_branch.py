@@ -30,6 +30,24 @@ class WorkerBranch:
     def name(self, worker: Worker) -> str:
         return f"worker/{worker.id}-{worker.name}".replace(" ", "-")
 
+    @staticmethod
+    def pool_branch(worker: Worker) -> str:
+        return f"journal/pool/{worker.id}-{worker.name}".replace(" ", "-")
+
+    @staticmethod
+    def pool_base(worker: Worker) -> str:
+        return f"{WorkerBranch.pool_branch(worker)}-base"
+
+    def fetch_pool(self, worker: Worker) -> None:
+        if self.folder(worker).is_dir():
+            return
+        fetched = self.git("fetch", "origin", f"+refs/heads/{self.pool_branch(worker)}:refs/heads/{self.name(worker)}", cwd=self.checkout(worker))
+        if fetched.returncode != 0:
+            raise Rejection(f"worker {worker.id}'s branch {self.pool_branch(worker)} could not be fetched from origin: {fetched.stderr.strip()}")
+
+    def clear_pool(self, worker: Worker) -> None:
+        self.git("push", "origin", "--delete", self.pool_branch(worker), self.pool_base(worker), cwd=self.checkout(worker))
+
     def folder(self, worker: Worker) -> Path:
         return self.config.home / "worktrees" / f"{worker.id}-{worker.name}".replace(" ", "-")
 
@@ -174,6 +192,8 @@ class WorkerBranch:
     def rebased(self, repository: WorkerRepository, worker: Worker) -> str:
         head = self.git("rev-parse", "HEAD", cwd=repository.checkout).stdout.strip()
         if self.git("merge-base", "--is-ancestor", head, self.tip(repository, worker), cwd=repository.checkout).returncode == 0:
+            return ""
+        if not repository.is_present and worker.pool_request:
             return ""
         if not repository.is_present:
             return f"{repository.label()}, whose worktree is gone, so its commits cannot be rebased"

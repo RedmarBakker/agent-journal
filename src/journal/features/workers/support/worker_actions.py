@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.worker_branch import WorkerBranch
-from journal.features.workers.support.pool_worker_moves import STOPPED, PoolWorkerMoves
+from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
@@ -51,7 +51,11 @@ class WorkerActions:
 
     def redo(self, n: int, brief: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            return self.relaunch(self.local(n), brief, None, actor, REDO_MOVE)
+            worker = self.local(n)
+            if self.moves.is_remote_run(worker):
+                self.moves.ask_runner(worker, REDO, {"brief": brief})
+                return worker
+            return self.relaunch(worker, brief, None, actor, REDO_MOVE)
 
     def peer_send(self, n: int, brief: str, sender: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -87,7 +91,8 @@ class WorkerActions:
         worker = self.delivered(n, "proofs to check")
         task = self.worker_task(worker)
         proof = self.open_proof(task, point)
-        self.resumable(worker)
+        if not self.moves.is_remote_run(worker):
+            self.resumable(worker)
         self.proofs.save(proof.short(shortfall, datetime.now(timezone.utc).timestamp(), task.id, worker.id), actor)
         return task
 
@@ -104,6 +109,8 @@ class WorkerActions:
         unchecked = [point for point in range(1, len(task.points()) + 1) if point not in latest or latest[point].state not in CHECKED_STATES]
         if unchecked:
             raise Rejection(f"point {', '.join(map(str, unchecked))} of task {task.id} is not checked: journal worker check {worker.id} <point> first")
+        if worker.pool_request:
+            self.branch.fetch_pool(worker)
         self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or ()))
         commit = self.branch.merge_commit(worker) if worker.worktree else ""
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
@@ -113,6 +120,8 @@ class WorkerActions:
         self.tasks.release(Ref.build(worker), actor)
         self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
+        if worker.pool_request:
+            self.branch.clear_pool(worker)
         return MergeOutcome(closed, self.branch.dropped(self.workers.find(worker.id)))
 
     def merge_gate(self, event: WorkerMerging) -> None:
@@ -128,7 +137,7 @@ class WorkerActions:
 
     def local(self, n: int) -> Worker:
         worker = self.workers.find(n)
-        if self.account.is_joined() and not worker.is_device(self.account.device()):
+        if self.account.is_joined() and not worker.is_device(self.account.device()) and not self.moves.is_local_dispatch(worker):
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team ({worker.device}): only that machine starts, stops, messages, checks or merges it")
         return worker
 
@@ -177,7 +186,11 @@ class WorkerActions:
 
     def notify(self, n: int, text: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
-            return self.notified(self.local(n), text, "the agent that dispatched you", actor)
+            worker = self.local(n)
+            if self.moves.is_remote_run(worker):
+                self.moves.ask_runner(worker, NOTE, {"text": text, "sender": "the agent that dispatched you"})
+                return worker
+            return self.notified(worker, text, "the agent that dispatched you", actor)
 
     def notified(self, worker: Worker, text: str, sender: str, actor: Actor) -> Worker:
         refusal = self.notify_refusal(worker)
