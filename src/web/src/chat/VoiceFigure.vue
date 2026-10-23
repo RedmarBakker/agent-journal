@@ -831,6 +831,8 @@ const bodyStyle = computed(() => {
 const feetX = () => body.at.x + SIZE / 2;
 const parcelX = (parcel) => composeEdge().edge.left + parcel.along;
 const piled = () => parcels.value.filter((each) => each.state === "piled").length;
+// the way the figure goes: the way its trip takes it while it is on one, else toward the pile
+const goingWay = () => (body.trip?.moves ? body.way : Math.sign(slotX(piled()) - feetX()) || 1);
 const slotX = (index) => {
     const {edge} = composeEdge();
     return edge.left + edge.width + pileSlot(index).left;
@@ -1027,7 +1029,7 @@ function lookedAt(shown) {
     if (shown.clip.ownLook) return null;
     const flying = saucer.value ?? crane.value?.look;
     if (flying) return flying;
-    const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top);
+    const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
     if (work) return work.at;
     return onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(groundEdge().element) : null;
 }

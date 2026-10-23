@@ -107,11 +107,16 @@ export function unitsAfter(units, run, memory, now, random) {
     return same && units.granted ? units : {card: run.card, granted: unitGranted(memory, now, random)};
 }
 
-// What the figure looks at while it works on the boxes, `parcels` as they are and `making` one: the top of the box it builds, pushes or
-// stacks, at `xOf(box)` across the page over the floor's top `floor`, or nothing at all while it sets out to build one, so its head is on
-// its work and never on a progress bar; null while it does neither, so it may look elsewhere
-export function workLook(parcels, making, xOf, floor) {
+// how far ahead of the box it takes to the pile the figure looks, and how high over the floor, in pixels: the way it goes, at its eyes
+export const PUSH_LOOK = {ahead: 140, up: 70};
+
+// What the figure looks at while it works on the boxes, `parcels` as they are and `making` one, a box at `xOf(box)` across the page on the
+// floor's top `floor`: the top of the box it hammers, the surface its blows strike; ahead the way it goes, `way`, while it takes a built
+// box round and pushes and stacks it, never at that box; and nothing at all while it sets out to build one, so its head is on its work
+// and never on a progress bar; null while it does neither, so it may look elsewhere
+export function workLook(parcels, making, xOf, floor, way) {
     const box = parcels.find((each) => each.state !== "piled");
+    if (box?.state === "built") return {at: {x: xOf(box) + way * PUSH_LOOK.ahead, y: floor - PUSH_LOOK.up}};
     if (box) return {at: {x: xOf(box), y: floor - box.up - PARCEL.height}};
     return making ? {at: null} : null;
 }

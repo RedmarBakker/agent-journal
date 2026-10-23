@@ -1455,9 +1455,10 @@ function onTablet(pose, stance, side, stroke) {
 // One blow of `blowFrames` frames a loop, so the hammering can stop after any blow; how long it goes on for each parcel the page decides
 // (figure/parcels.js HAMMER). Each blow comes down quick,
 // gathering speed, lands `lands` of the way through, and lifts back slower, easing up; the wrist snaps the hammer's head `snap` degrees
-// down into the blow. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
+// down into the blow. The swing stops dead `strike` of the way up from its lowest, where the hammer's head comes to rest on the parcel's
+// top (parcels.js PARCEL height at the chat's 112-pixel picture), so no blow passes into it. On its feet the figure turns side-on, `turn` degrees, its face in profile toward the parcel the blow lands on,
 // `landsAt` from its feet at rest across and forward; the parcel stands on the page, not in the picture, so it never turns with the figure.
-export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, turn: 80, landsAt: [0.74, -1.54]};
+export const WORK = {blows: 1, blowFrames: 8, fps: 10, lands: 0.3, snap: 50, turn: 80, strike: 0.345, landsAt: [0.74, -1.86]};
 
 function blowOf(t) {
     const phase = (t * WORK.blows) % 1;
@@ -1476,7 +1477,7 @@ export function blowsLandAt(stance) {
 // hammers away with a hammer in the free hand, the body dipping into each blow
 function work(pose, stance, t) {
     const side = freeSide(stance);
-    const raised = blowOf(t);
+    const raised = Math.max(blowOf(t), WORK.strike);
     const blow = 1 - raised;
     crouch(pose, 0.04 * blow);
     breathe(pose, 0);
@@ -3105,7 +3106,7 @@ export const TOOLS = {
     whistle: {body: [0.13, 0.1, 0.16], mouthpiece: [0.08, 0.04, 0.15], mouthAt: [0, 0.01, -0.12]},
     cloth: {width: 0.35, depth: 0.26, thickness: 0.02},
     // a hammer held a little up its handle, its head across the top, tipped outward so each blow lands downward
-    hammer: {handleRadius: 0.06, handleLength: 1.4, gripFrom: 0.15, head: [0.55, 0.22, 0.22], sides: 10, tilt: 45},
+    hammer: {handleRadius: 0.06, handleLength: 1.2, gripFrom: 0.15, head: [0.55, 0.22, 0.22], sides: 10, tilt: 45},
     // a stalk of straw held in the corner of the mouth, its seed head at the far end
     straw: {radius: 0.03, length: 0.7, head: [0.045, 0.16]},
     colours: {ink: 0x272936, silver: 0xa9adb8, paper: 0xf3eedf, white: 0xf4f2ed, accent: 0x6366f1, pencil: 0xd6b06b, handle: 0x8a5a2b, straw: 0xe8c66a},

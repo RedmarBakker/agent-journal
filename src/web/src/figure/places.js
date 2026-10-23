@@ -1,7 +1,7 @@
 import {GRAVITY} from "../domain/falls.js";
 import {ACTS} from "./acts.js";
 import {flips} from "./reactions.js";
-import {PARCEL, PILED} from "./parcels.js";
+import {PARCEL, PILED, PUSH} from "./parcels.js";
 
 // Where the figure can stand, read from the page as it is laid out at this moment and never stored: the top edge of the main
 // chat's compose box is home, and each of Home's tabs is a place it can go to point at what waits there.
@@ -426,6 +426,7 @@ export function composeEdge() {
 // Where the figure stands to build or to push what it built: on its feet on the compose box's top edge, whatever is docked over it, and
 // kept there as bars dock and go (`stays`, floors.js footingOn); at `x` on the page when given, beside the parcel it builds or behind one
 // it pushes, else at a free place along the edge whose parcel, `beside` pixels from its feet, stands clear of the pile from `before` on
+// and with room behind it, on its left, for the figure to stand and push it
 export function buildSpot(figure, near, {x = null, beside = 0, before = Infinity} = {}) {
     const {element, edge} = composeEdge();
     const spot = x === null ? freeBuildSpot(edge, figure, near, beside, before) : insideWorld({x, y: edge.top, posture: "stand"}, figure);
@@ -434,7 +435,8 @@ export function buildSpot(figure, near, {x = null, beside = 0, before = Infinity
 
 function freeBuildSpot(edge, figure, near, beside, before) {
     const stands = homeStands(edge, figure);
-    const clear = stands.filter((spot) => spot.x + beside + PARCEL.width < before);
+    const leftmost = Math.min(...stands.map((spot) => spot.x));
+    const clear = stands.filter((spot) => spot.x + beside + PARCEL.width < before && spot.x + beside - PUSH.reach - PUSH.room >= leftmost);
     return freeSpot(clear.length ? clear : stands, figure, near);
 }
 
