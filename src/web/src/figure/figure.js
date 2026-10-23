@@ -630,8 +630,8 @@ function type(pose, stance, t) {
 
 // jumps for joy: both arms thrown up and the whole body leaving the ground, or the seat, twice, the head back
 function joy(pose, stance, t) {
-    const u = onceTime(t, 20);
-    const leap = Math.max(Math.sin(2 * Math.PI * 2 * span(u, 0.1, 0.9)), 0) * (1 - 0.3 * u);
+    const u = onceTime(t, ACTS.joy.frames);
+    const leap = Math.max(Math.sin(2 * Math.PI * ACTS.joy.jumps * span(u, 0.06, 0.94)), 0) * (1 - 0.3 * u);
     pose.lift("root", {z: 0.32 * leap});
     breathe(pose, 0);
     trunk(pose, {lean: -5 * leap, nod: -14 + 4 * leap});
@@ -2641,7 +2641,7 @@ export const CLIPS = [
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
     {name: "land", frames: LANDING.frames, fps: LANDING.fps, loops: false, postures: MOVE, pose: land},
     {name: "type", frames: 24, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: type},
-    {name: "joy", frames: 20, fps: 14, loops: false, postures: GESTURE, pose: joy},
+    {name: "joy", frames: ACTS.joy.frames, fps: ACTS.joy.fps, loops: false, postures: GESTURE, pose: joy},
     {name: "dismay", frames: 28, fps: 10, loops: false, postures: GESTURE, pose: dismay},
     {name: "polish", frames: 40, fps: 12, loops: false, postures: GESTURE, voices: ["butler"], pose: polish},
     {name: "stretch", frames: 24, fps: 8, loops: false, postures: GESTURE, pose: stretch},

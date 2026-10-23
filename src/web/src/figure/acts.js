@@ -2,6 +2,8 @@
 // length, unless it plays a clip of figure.js's own, and the shares of its clip over which each of its parts plays, read alike by the clip
 // that moves the body (figure.js) and by the page that draws what it holds, so the hand and the thing in it never part.
 export const ACTS = {
+    // a celebration: it jumps for joy `jumps` times with its arms flung up, each jump a little lower than the last
+    joy: {frames: 50, fps: 14, jumps: 5},
     // a worker sent off or another session messaged: a call on an old desk telephone (figure.js TELEPHONE). The telephone appears on the
     // floor before it, whole, in a poof of smoke over `poof`, `above` its units over the floor, drops onto it over `drop` and settles with
     // a jiggle over `settle`, squashing `squash` flat as it lands and wobbling `wobbles` times to still (figure.js phoneArrival), its handset

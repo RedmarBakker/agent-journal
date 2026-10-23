@@ -492,3 +492,14 @@ test("a move that overshoots the figure still tickles it: the pointer counts wit
     expect(nearBody(body, 160 + TICKLE.reach + 1, 250)).toBe(false);
     expect(TICKLE.reach).toBeGreaterThanOrEqual(30);
 });
+
+test("the jump for joy lasts three to four and a half seconds, a few jumps, and plays out", async () => {
+    const {CLIPS} = await import("../src/figure/figure.js");
+    const {cutsAfter} = await import("../src/figure/pile.js");
+    const joy = CLIPS.find((clip) => clip.name === "joy");
+    const seconds = joy.frames / joy.fps;
+    expect(seconds).toBeGreaterThanOrEqual(3);
+    expect(seconds).toBeLessThanOrEqual(4.5);
+    expect(ACTS.joy.jumps).toBeGreaterThanOrEqual(3);
+    expect(cutsAfter("joy", seconds), "no following beat cuts it short").toBe(false);
+});
