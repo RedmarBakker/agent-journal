@@ -9,7 +9,8 @@ const {JUMP, POGO, climbStops, heightOf, jumpMost, pogoClimb} = await import("..
 const {legAt} = await import("../src/domain/figureMotion.js");
 
 // the pile's places to roam to, and its share of perches that are a hang
-const ROAMS = PILE.filter((entry) => entry.when.moment === "roam");
+// the places the figure roams to while it waits, with nothing to do
+const ROAMS = PILE.filter((entry) => entry.when.moment === "roam" && entry.when.free !== false);
 const [HANG, STAND] = PILE.filter((entry) => entry.when.moment === "perch");
 const HANG_SHARE = HANG.weight / (HANG.weight + STAND.weight);
 const {FEET_INBOARD, SEAT_INBOARD, boxAt, overlaps, tripTo} = await import("../src/figure/places.js");
@@ -59,7 +60,7 @@ test("a perch whose figure would hide words is not taken: it hangs beside the bu
     const newest = at(500);
     // words just above the newest bubble's right corner, where a seated body rises and a hanging one does not reach
     write([{left: 470, right: 520, top: 440, bottom: 470}]);
-    expect(perchOn(floorsOf(older, newest), FIGURE, HANDS, () => 0.99)).toMatchObject({floor: newest.id, kind: HANGS});
+    expect(perchOn(floorsOf(older, newest), FIGURE, HANDS, () => 0.99, {free: true})).toMatchObject({floor: newest.id, kind: HANGS});
     expect(perchOn(floorsOf(older, newest), FIGURE, [], () => 0.99)).toMatchObject({floor: older.id, kind: STANDS});
     expect(perchSpot({floor: newest.id, kind: STANDS, side: "right", grip: ""}, floorsOf(older, newest), FIGURE)).toBe(null);
 });
@@ -67,15 +68,15 @@ test("a perch whose figure would hide words is not taken: it hangs beside the bu
 test("it perches on the side of a bubble with more room outside it, and hangs or stands on its corner as the roll says", () => {
     expect(perchOn(floorsOf(at(300, 260, 500)), FIGURE, HANDS, () => 0).side).toBe("right");
     expect(perchOn(floorsOf(at(300, 450, 690)), FIGURE, HANDS, () => 0).side).toBe("left");
-    expect(perchOn(floorsOf(at(300)), FIGURE, HANDS, fixed(0)).kind).toBe(HANGS);
-    expect(perchOn(floorsOf(at(300)), FIGURE, HANDS, fixed(HANG_SHARE)).kind).toBe(STANDS);
+    expect(perchOn(floorsOf(at(300)), FIGURE, HANDS, fixed(0), {free: true}).kind).toBe(HANGS);
+    expect(perchOn(floorsOf(at(300)), FIGURE, HANDS, fixed(HANG_SHARE), {free: true}).kind).toBe(STANDS);
     expect(perchOn(floorsOf(at(300)), FIGURE, [], fixed(0)).kind).toBe(STANDS);
 });
 
 test("it hangs from a bubble's side at most once every two minutes, drawn or as the stand's fallback, and may hang again after", () => {
     expect(HANG_COOLDOWN.every).toBe(120);
     const memory = new Map();
-    const perch = (now, random = fixed(0)) => perchOn(floorsOf(at(300)), FIGURE, HANDS, random, {memory, now}).kind;
+    const perch = (now, random = fixed(0)) => perchOn(floorsOf(at(300)), FIGURE, HANDS, random, {memory, now, free: true}).kind;
     const kinds = [10, 40, 70, 100, 129].map((now) => perch(now));
     expect(kinds.filter((kind) => kind === HANGS).length, "one hang in two minutes, drawn every time").toBe(1);
     expect(perch(130), "a hang possible again two minutes after").toBe(HANGS);
@@ -84,19 +85,19 @@ test("it hangs from a bubble's side at most once every two minutes, drawn or as 
     const older = at(300);
     const newest = at(500);
     write([{left: 470, right: 520, top: 440, bottom: 470}]);
-    const fallback = (now) => perchOn(floorsOf(older, newest), FIGURE, HANDS, () => 0.99, {memory: words, now});
+    const fallback = (now) => perchOn(floorsOf(older, newest), FIGURE, HANDS, () => 0.99, {memory: words, now, free: true});
     expect(fallback(0)).toMatchObject({floor: newest.id, kind: HANGS});
     expect(fallback(60)).toMatchObject({floor: older.id, kind: STANDS});
     expect(fallback(120)).toMatchObject({floor: newest.id, kind: HANGS});
 });
 
 test("a hanging figure grips the roomy corner with the hand on its side, or turns to face the bubble to grip it with its one free hand", () => {
-    const right = perchOn(floorsOf(at(300, 260, 500)), FIGURE, HANDS, fixed(0));
+    const right = perchOn(floorsOf(at(300, 260, 500)), FIGURE, HANDS, fixed(0), {free: true});
     expect([right.grip, right.side, right.face]).toEqual(["r", "right", 0]);
-    const left = perchOn(floorsOf(at(300, 450, 690)), FIGURE, HANDS, fixed(0));
+    const left = perchOn(floorsOf(at(300, 450, 690)), FIGURE, HANDS, fixed(0), {free: true});
     expect([left.grip, left.side, left.face]).toEqual(["l", "left", 0]);
     const only = at(300, 260, 500);
-    const one = perchOn(floorsOf(only), FIGURE, ["l"], fixed(0));
+    const one = perchOn(floorsOf(only), FIGURE, ["l"], fixed(0), {free: true});
     expect([one.grip, one.side, one.face]).toEqual(["l", "right", 180]);
     expect(perchSpot(one, floorsOf(only), FIGURE)).toMatchObject({face: 180, posture: "hang"});
 });
@@ -106,8 +107,8 @@ test("every place the figure roams to comes up by its odds and is stayed at betw
     let before = 0;
     for (const each of ROAMS) {
         const middle = (before + each.weight / 2) / total;
-        expect(roamNext(fixed(middle, 0), {free: true, swings: true})).toEqual({where: each.name, stay: each.stay[0]});
-        expect(roamNext(fixed(middle, 1), {free: true, swings: true}).stay).toBe(each.stay[1]);
+        expect(roamNext(fixed(middle, 0), {free: true, room: Infinity, swings: true})).toEqual({where: each.name, stay: each.stay[0]});
+        expect(roamNext(fixed(middle, 1), {free: true, room: Infinity, swings: true}).stay).toBe(each.stay[1]);
         before += each.weight;
     }
     expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge", "composed", "rope_swing"]));
@@ -366,7 +367,7 @@ test("now and then the figure swings on a rope tied under a bubble near the midd
     const entry = PILE.find((each) => each.name === "rope_swing");
     expect(entry).toMatchObject({when: {moment: "roam", free: true, swings: true}, cooldown: SHOWPIECES.rope_swing, shenanigan: true});
     expect(SHOWPIECES.rope_swing).toBe(15 * 60);
-    const offers = (scene) => choicesFor({moment: "roam", free: true, ...scene}).some((each) => each.name === "rope_swing");
+    const offers = (scene) => choicesFor({moment: "roam", free: true, room: Infinity, ...scene}).some((each) => each.name === "rope_swing");
     expect(offers({swings: false})).toBe(false);
     const memory = new Map([["roam/rope_swing", 0]]);
     expect(offers({swings: true, memory, now: 600})).toBe(false);
@@ -388,21 +389,21 @@ test("the pogo stick is for a big climb only, onto a bubble's top at least half 
     const onTop = (floor) => ({x: 400, y: floor.top, posture: "stand", on: floor.element});
     // a climb under half the chat's height is a hop, even with the roll for the stick
     const low = goal(2 * tall);
-    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(low), FIGURE, from, onTop(low), {}, () => roll), `under half: ${roll}`).toEqual({via: [], pogo: false});
+    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(low), FIGURE, from, onTop(low), {room: Infinity}, () => roll), `under half: ${roll}`).toEqual({via: [], pogo: false});
     // one above it with no bubble on the way goes on the stick, every roll
     const high = goal(0.6 * chat);
-    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {}, () => roll), `above half: ${roll}`).toEqual({via: [], pogo: true});
+    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {room: Infinity}, () => roll), `above half: ${roll}`).toEqual({via: [], pogo: true});
     // measured from the thread's own height each time: the same climb in a chat twice as high is no climb for the stick, and too high to hop
     const taller = {view: {...THREAD, top: THREAD.bottom - 2 * chat}, floors: [high]};
-    expect(wayUp(taller, FIGURE, from, onTop(high), {}, () => 0)).toBe(null);
+    expect(wayUp(taller, FIGURE, from, onTop(high), {room: Infinity}, () => 0)).toBe(null);
     // with bubbles on the way to hop up on, the stick or the hops as the roll says
     const steps = floorsOf(goal(1.6 * tall), high);
-    expect(wayUp(steps, FIGURE, from, onTop(high), {}, () => 0)).toEqual({via: [], pogo: true});
-    expect(wayUp(steps, FIGURE, from, onTop(high), {}, () => 0.99)).toMatchObject({pogo: false, via: [{y: 700 - 1.6 * tall}]});
+    expect(wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => 0)).toEqual({via: [], pogo: true});
+    expect(wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => 0.99)).toMatchObject({pogo: false, via: [{y: 700 - 1.6 * tall}]});
     // the stick waits its cooldown: inside it, the hops
     const memory = new Map();
-    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 0}, () => 0).pogo).toBe(true);
-    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 60}, () => 0)).toMatchObject({pogo: false, via: [{y: 700 - 1.6 * tall}]});
+    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 0, room: Infinity}, () => 0).pogo).toBe(true);
+    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 60, room: Infinity}, () => 0)).toMatchObject({pogo: false, via: [{y: 700 - 1.6 * tall}]});
     // on the stick it bounces on the spot, higher each time, then springs up the whole way in one
     const legs = tripTo({x: 400, y: 700, posture: "stand"}, {x: 400, y: 700 - 0.6 * chat, posture: "stand"}, FIGURE, {pogo: true}).legs;
     const leg = legs.find((each) => each.pogo);
@@ -423,18 +424,18 @@ test("one limit of two and a half of its heights holds every plain jump: no hop 
     const onTop = (floor) => ({x: 400, y: floor.top, posture: "stand", on: floor.element});
     const hanging = (floor) => ({x: floor.right + 0.3 * FIGURE.size, y: floor.top, posture: "hang", grip: "r", face: 0, on: floor.element});
     // a hop onto its top, the roll keeping off the stick
-    expect(wayUp(floorsOf(under), FIGURE, from, onTop(under), {}, () => 0.99), "a hop just under the limit").toEqual({via: [], pogo: false});
-    expect(wayUp(floorsOf(over), FIGURE, from, onTop(over), {}, () => 0.99), "no hop just over it").toBe(null);
+    expect(wayUp(floorsOf(under), FIGURE, from, onTop(under), {room: Infinity}, () => 0.99), "a hop just under the limit").toEqual({via: [], pogo: false});
+    expect(wayUp(floorsOf(over), FIGURE, from, onTop(over), {room: Infinity}, () => 0.99), "no hop just over it").toBe(null);
     // under half the chat's height, the roll for the stick still hops, and no higher
-    expect(wayUp(floorsOf(under), FIGURE, from, onTop(under), {}, () => 0), "the roll for the stick just under the limit").toEqual({via: [], pogo: false});
-    expect(wayUp(floorsOf(over), FIGURE, from, onTop(over), {}, () => 0), "nor just over it").toBe(null);
+    expect(wayUp(floorsOf(under), FIGURE, from, onTop(under), {room: Infinity}, () => 0), "the roll for the stick just under the limit").toEqual({via: [], pogo: false});
+    expect(wayUp(floorsOf(over), FIGURE, from, onTop(over), {room: Infinity}, () => 0), "nor just over it").toBe(null);
     // a reach up to hang from its side, the grip at its top
-    expect(wayUp(floorsOf(under), FIGURE, from, hanging(under), {}, () => 0), "a hang just under the limit").toEqual({via: [], pogo: false});
-    expect(wayUp(floorsOf(over), FIGURE, from, hanging(over), {}, () => 0), "no hang just over it").toBe(null);
+    expect(wayUp(floorsOf(under), FIGURE, from, hanging(under), {room: Infinity}, () => 0), "a hang just under the limit").toEqual({via: [], pogo: false});
+    expect(wayUp(floorsOf(over), FIGURE, from, hanging(over), {room: Infinity}, () => 0), "no hang just over it").toBe(null);
     // every hop of a climb in steps keeps to the limit too
     const high = at(700 - 4.5 * tall, 330, 470);
     const steps = floorsOf(at(700 - 2.3 * tall, 330, 470), high);
-    const way = wayUp(steps, FIGURE, from, onTop(high), {}, () => 0.99);
+    const way = wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => 0.99);
     const stops = [from, ...way.via, {y: high.top}];
     stops.slice(1).forEach((stop, index) => expect(stops[index].y - stop.y, `step ${index}`).toBeLessThanOrEqual(jumpMost(FIGURE)));
 });
@@ -447,17 +448,17 @@ test("the pogo stick is only ever the way up onto a bubble's top, where the figu
     const floors = {view: {...THREAD, top: THREAD.bottom - 3 * tall}, floors: [high]};
     const spot = {x: 400, y: high.top, on: high.element};
     // standing on its top, the stick as the roll says
-    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand"}, {}, () => 0)).toEqual({via: [], pogo: true});
+    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand"}, {room: Infinity}, () => 0)).toEqual({via: [], pogo: true});
     // a hang from its side, a seat on it or the composed sit there: never the stick, every roll, the hop instead
     for (const posture of ["hang", "lounge", "sit", "composed"]) {
-        for (const roll of [0, 0.5, 0.99]) expect(wayUp(floors, FIGURE, from, {...spot, posture}, {}, () => roll), posture).toEqual({via: [], pogo: false});
+        for (const roll of [0, 0.5, 0.99]) expect(wayUp(floors, FIGURE, from, {...spot, posture}, {room: Infinity}, () => roll), posture).toEqual({via: [], pogo: false});
     }
     // nor standing anywhere that is not a bubble, as a tab
-    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand", on: {rect: {}}}, {}, () => 0)).toEqual({via: [], pogo: false});
+    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand", on: {rect: {}}}, {room: Infinity}, () => 0)).toEqual({via: [], pogo: false});
     // and higher up, with bubbles to hop up on, a hang goes by the hops, every roll
     const higher = at(700 - 4 * tall, 330, 470);
     const steps = floorsOf(at(700 - 1.6 * tall, 330, 470), at(700 - 3.2 * tall, 330, 470), higher);
-    for (const roll of [0, 0.5, 0.99]) expect(wayUp(steps, FIGURE, from, {x: 400, y: higher.top, on: higher.element, posture: "hang"}, {}, () => roll).pogo).toBe(false);
+    for (const roll of [0, 0.5, 0.99]) expect(wayUp(steps, FIGURE, from, {x: 400, y: higher.top, on: higher.element, posture: "hang"}, {room: Infinity}, () => roll).pogo).toBe(false);
 });
 
 test("the disco dance plays only standing on a bubble with another above it to hang the ball from, and then only on a rare occasion", () => {
@@ -482,14 +483,14 @@ test("the disco dance plays only standing on a bubble with another above it to h
     // no ball sitting or hanging
     expect(discoBall({...standing, posture: "sit"}, FIGURE, floorsOf(under, over))).toBe(null);
     // the pile has it only under a bubble, and rarely: under one draw in fifty of the idle acts
-    const choices = (ball) => choicesFor({moment: "pastime", ball, free: true, lasted: 1000});
+    const choices = (ball) => choicesFor({moment: "pastime", ball, free: true, room: Infinity, lasted: 1000});
     const weight = (ball) => choices(ball).filter((each) => each.name === "disco").reduce((sum, each) => sum + each.weight, 0);
     expect(weight("")).toBe(0);
     expect(weight("bubble")).toBeGreaterThan(0);
     expect(weight("bubble") / choices("bubble").reduce((sum, each) => sum + each.weight, 0)).toBeLessThan(1 / 50);
     const memory = new Map([["pastime/disco", 0]]);
-    expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: 2 * 60 * 60 - 1}).some((each) => each.name === "disco")).toBe(false);
-    expect(choicesFor({moment: "pastime", ball: "bubble", memory, now: SHOWPIECES.disco}).some((each) => each.name === "disco")).toBe(true);
+    expect(choicesFor({moment: "pastime", ball: "bubble", room: Infinity, memory, now: 2 * 60 * 60 - 1}).some((each) => each.name === "disco")).toBe(false);
+    expect(choicesFor({moment: "pastime", ball: "bubble", room: Infinity, memory, now: SHOWPIECES.disco}).some((each) => each.name === "disco")).toBe(true);
     expect(SHOWPIECES.disco).toBe(2 * 60 * 60);
 });
 

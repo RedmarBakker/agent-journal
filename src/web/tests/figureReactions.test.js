@@ -16,6 +16,7 @@ const {
     pastimeFor,
     pastimeOf,
     reactionTo,
+    roomFor,
     workMoments,
 } = await import("../src/figure/reactions.js");
 const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, sayingsAfter, testResultsAfter} = await import("../src/domain/figureState.js");
@@ -79,20 +80,23 @@ test("a figure at rest stretches only after the state has lasted, not again befo
     const look = of("pastime").find((entry) => entry.name === "stretch");
     const only = (name) => name === "stretch";
     const memory = new Map();
-    expect(pastimeOf("idle", look.when.lasted - 1, memory, 0, () => 0, "", only)).toBe(null);
-    expect(pastimeOf("idle", look.when.lasted, memory, 0, () => 0, "", only).name).toBe("stretch");
-    expect(pastimeOf("idle", look.when.lasted, memory, 1, () => 0, "", only)).toBe(null);
+    const idle = roomFor("idle", null, 0);
+    expect(pastimeOf(idle, look.when.lasted - 1, memory, 0, () => 0, "", only)).toBe(null);
+    expect(pastimeOf(idle, look.when.lasted, memory, 0, () => 0, "", only).name).toBe("stretch");
+    expect(pastimeOf(idle, look.when.lasted, memory, 1, () => 0, "", only)).toBe(null);
     // an idle act is for a figure with nothing to do
-    expect(pastimeOf("thinking", 999, new Map(), 1000, () => 0, "", only)).toBe(null);
-    expect(pastimeOf("idle", look.when.lasted, new Map(), 0, () => 0.99, "", only)).toBe(null);
+    expect(pastimeOf(roomFor("thinking", null, 0), 999, new Map(), 1000, () => 0, "", only)).toBe(null);
+    expect(pastimeOf(idle, look.when.lasted, new Map(), 0, () => 0.99, "", only)).toBe(null);
 });
 
 test("only a jump of more than the figure's own height sometimes turns over", () => {
     const [backflip, jump] = of("jump");
     const odds = backflip.weight / (backflip.weight + jump.weight);
-    expect(flips(112 * FLIP_OVER, 112, () => 0)).toBe(false);
-    expect(flips(112 * FLIP_OVER + 1, 112, () => odds - 0.01)).toBe(true);
-    expect(flips(112 * FLIP_OVER + 1, 112, () => odds)).toBe(false);
+    expect(flips(112 * FLIP_OVER, 112, () => 0, null, 0, Infinity)).toBe(false);
+    expect(flips(112 * FLIP_OVER + 1, 112, () => odds - 0.01, null, 0, Infinity)).toBe(true);
+    expect(flips(112 * FLIP_OVER + 1, 112, () => odds, null, 0, Infinity)).toBe(false);
+    // a salto is a shenanigan, never turned while the agent works
+    expect(flips(112 * FLIP_OVER + 1, 112, () => 0, null, 0, 0)).toBe(false);
 });
 
 test("a watched test run that ends is seen once, as a pass or a failure, and a run already known is not seen again", () => {
@@ -180,7 +184,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         ].map((fire) => fire.beat)
     );
     // every reaction's moment: the pile's moments but those of the figure's own choices, drawn where it chooses them
-    const choices = ["pastime", "spell", "eager", "jump", "carrier", "run_end", "thought_cloud", "light_bulb", "crane_from", "perch", "fall", "digit", "roam", "ledge_at", "unit", "climb", "tickled"];
+    const choices = ["pastime", "spell", "eager", "jump", "carrier", "run_end", "thought_cloud", "light_bulb", "crane_from", "perch", "fall", "digit", "roam", "ledge_at", "unit", "climb", "tickled", "laptop"];
     for (const moment of new Set(PILE.map((entry) => entry.when.moment)))
         if (!choices.includes(moment) && !moment.startsWith("held:")) expect(made.has(moment), moment).toBe(true);
 });
@@ -231,14 +235,15 @@ test("a moment is answered by its egg first, else by its reaction, a beat for th
     expect(answerTo({beat: "work_done", time: 1}, "butler", memory(), 0, () => 0, () => false)).toBe(null);
 });
 
-test("the figure does something by itself only while it is calm, not hanging, with nothing to play and neither coming nor going; at work only a shenanigan", () => {
-    const calm = {place: {posture: "sit"}, beats: 0, arriving: false, leaving: false};
+test("the figure does something by itself only while it is calm, not hanging, held by no sequence, with nothing to play and neither coming nor going; at work nothing", () => {
+    const calm = {place: {posture: "sit"}, beats: 0, arriving: false, leaving: false, room: roomFor("idle", null, 0)};
     const waited = {state: "idle", lasted: 1000};
     const has = () => true;
     expect(pastimeFor(calm, waited, new Map(), 0, () => 0, has)).toEqual({clip: "stretch", card: "", flies: false});
     expect(pastimeFor({...calm, beats: 1}, waited, new Map(), 0, () => 0, has)).toBe(null);
+    expect(pastimeFor({...calm, held: true}, waited, new Map(), 0, () => 0, has)).toBe(null);
     expect(pastimeFor({...calm, place: {posture: "hang"}}, waited, new Map(), 0, () => 0, has)).toBe(null);
-    expect(pastimeFor(calm, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toEqual({clip: "hop_up", card: "", flies: true});
+    expect(pastimeFor({...calm, room: roomFor("running", null, 0)}, {...waited, state: "running"}, new Map(), 0, () => 0, has)).toBe(null);
 });
 
 

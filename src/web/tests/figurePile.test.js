@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {expect, test} from "vitest";
-import {CUT, PILE, SHENANIGAN, SHOWPIECES, UNIT, choicesFor, cutsAfter, draw, lineOf} from "../src/figure/pile.js";
+import {CUT, PILE, SEQUENCES, SHENANIGAN, SHOWPIECES, choicesFor, cutsAfter, draw, lineOf, sequenceLineOf} from "../src/figure/pile.js";
 import {CLIPS} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {unitGranted} from "../src/figure/parcels.js";
@@ -14,14 +14,15 @@ test("the pile is filtered to what may play where things stand: the moment, the 
     expect(names(choicesFor({moment: "tests_failed"}))).toEqual(["startled", "dismay", "nothing"]);
     expect(names(choicesFor({moment: "heard", voice: "butler"}))).toEqual(["bow", "nothing"]);
     expect(names(choicesFor({moment: "heard", voice: "homie"}))).toEqual(["nod", "nothing"]);
-    // an idle act once the state has lasted long enough, and only while the figure has nothing to do; a shenanigan in any state
-    const idle = names(choicesFor({moment: "pastime", free: true, lasted: 20, voice: "coach"}));
+    // an idle act once the state has lasted long enough, and only while the figure has nothing to do; a shenanigan only with the room for it
+    const idle = names(choicesFor({moment: "pastime", free: true, room: Infinity, lasted: 20, voice: "coach"}));
     expect(idle).toEqual(["hop_up", "nothing"]);
-    expect(names(choicesFor({moment: "pastime", free: true, lasted: 1000, voice: "coach"}))).toContain("whistle");
-    expect(names(choicesFor({moment: "pastime", free: false, lasted: 1000, voice: "coach"}))).toEqual(["hop_up", "nothing"]);
-    // a hang only with a free hand, a backflip only on a high jump, the work's acts only while that work goes on
+    expect(names(choicesFor({moment: "pastime", free: true, room: Infinity, lasted: 1000, voice: "coach"}))).toContain("whistle");
+    expect(names(choicesFor({moment: "pastime", free: false, room: 0, lasted: 1000, voice: "coach"}))).toEqual(["nothing"]);
+    // a hang only with a free hand while the figure has nothing to do, a backflip only on a high jump, the work's acts only while that work goes on
     expect(names(choicesFor({moment: "perch", hands: false}))).toEqual(["stand"]);
-    expect(names(choicesFor({moment: "perch", hands: true}))).toEqual(["hang", "stand"]);
+    expect(names(choicesFor({moment: "perch", hands: true, free: true}))).toEqual(["hang", "stand"]);
+    expect(names(choicesFor({moment: "perch", hands: true, free: false}))).toEqual(["stand"]);
     expect(names(choicesFor({moment: "jump", high: false}))).toEqual(["jump"]);
     expect(names(choicesFor({moment: "spell", state: "reading"}))).toEqual(["reading", "nothing"]);
     // what the figure cannot draw where it is, it never draws
@@ -41,7 +42,7 @@ test("one is drawn by weight, a weight of 3 counting as three tickets, and a mom
 
 test("after three acts in a row with no shenanigan among them, the next draw that may be one is one; an act just played is not drawn again at once", () => {
     const tally = {plain: 0, last: ""};
-    const free = {moment: "pastime", free: true, lasted: 1000, voice: "butler", tally};
+    const free = {moment: "pastime", free: true, room: Infinity, lasted: 1000, voice: "butler", tally};
     // three plain acts, and the next draw, at a roll that would play nothing, is a shenanigan all the same
     for (let act = 0; act < SHENANIGAN.after; act++) draw({moment: "reported", tally}, rolls(0));
     expect(tally.plain).toBe(SHENANIGAN.after);
@@ -71,65 +72,65 @@ test("an act may be cut off by the next moment only as the pile says and once it
     for (const [name, least] of Object.entries(CUT)) expect([name, least], name).toEqual([name, seconds(name) > 3 ? 3 : 1]);
 });
 
-test("every animation in the pile, with its weight and the condition it plays under, and whether it may be cut or plays out", () => {
-    expect(PILE.map(lineOf)).toEqual([
-        "clip nod ×2 when moment=tests_passed, cut after 1s",
-        "nothing nothing ×1 when moment=tests_passed",
-        "shenanigan clip bug_shot ×3 when moment=tests_fixed, plays out",
-        "clip nod ×2 when moment=tests_fixed, cut after 1s",
-        "clip startled ×2 when moment=tests_failed, plays out",
-        "clip dismay ×1 when moment=tests_failed, plays out",
-        "nothing nothing ×1 when moment=tests_failed",
-        "clip nod ×2 when moment=committed, cut after 1s",
-        "nothing nothing ×2 when moment=committed",
-        "clip phone_call ×1 when moment=messaged, plays out",
-        "clip nod ×4 when moment=task_finished, cut after 1s",
-        "clip hand_rub ×4 when moment=task_finished, plays out",
-        "nothing nothing ×7 when moment=task_finished",
-        "clip ask_sign ×9 when moment=question_asked, plays out",
-        "clip look_up ×3 when moment=question_asked, cut after 1s",
-        "nothing nothing ×8 when moment=question_asked",
-        "clip scroll ×3 when moment=reported, plays out",
-        "clip nod ×1 when moment=reported, cut after 1s",
-        "nothing nothing ×4 when moment=reported",
-        "clip file_card ×3 when moment=fact_filed, plays out",
-        "clip nod ×1 when moment=fact_filed, cut after 1s",
-        "nothing nothing ×6 when moment=fact_filed",
-        "clip nod ×2 when moment=check_passed, cut after 1s",
-        "nothing nothing ×9 when moment=check_passed",
+test("every act in the pile and every sequence, one line each: its weight, its condition, whether it may be cut, its group's cooldown and its own, and its lifetime", () => {
+    expect([...PILE.map(lineOf), ...Object.values(SEQUENCES).map(sequenceLineOf)]).toEqual([
+        "clip nod ×2 when moment=tests_passed, cut after 1s, group cools 20s",
+        "nothing nothing ×1 when moment=tests_passed, group cools 20s",
+        "clip bug_shot ×3 when moment=tests_fixed, plays out, group cools 20s, cools 360s",
+        "clip nod ×2 when moment=tests_fixed, cut after 1s, group cools 20s",
+        "clip startled ×2 when moment=tests_failed, plays out, group cools 20s",
+        "clip dismay ×1 when moment=tests_failed, plays out, group cools 20s",
+        "nothing nothing ×1 when moment=tests_failed, group cools 20s",
+        "clip nod ×2 when moment=committed, cut after 1s, group cools 30s",
+        "nothing nothing ×2 when moment=committed, group cools 30s",
+        "clip phone_call ×1 when moment=messaged, plays out, group cools 120s",
+        "clip nod ×4 when moment=task_finished, cut after 1s, group cools 90s",
+        "clip hand_rub ×4 when moment=task_finished, plays out, group cools 90s",
+        "nothing nothing ×7 when moment=task_finished, group cools 90s",
+        "clip ask_sign ×9 when moment=question_asked, plays out, group cools 60s",
+        "clip look_up ×3 when moment=question_asked, cut after 1s, group cools 60s",
+        "nothing nothing ×8 when moment=question_asked, group cools 60s",
+        "clip scroll ×3 when moment=reported, plays out, group cools 90s",
+        "clip nod ×1 when moment=reported, cut after 1s, group cools 90s",
+        "nothing nothing ×4 when moment=reported, group cools 90s",
+        "clip file_card ×3 when moment=fact_filed, plays out, group cools 120s",
+        "clip nod ×1 when moment=fact_filed, cut after 1s, group cools 120s",
+        "nothing nothing ×6 when moment=fact_filed, group cools 120s",
+        "clip nod ×2 when moment=check_passed, cut after 1s, group cools 120s",
+        "nothing nothing ×9 when moment=check_passed, group cools 120s",
         "clip joy ×2 when moment=bar_done, plays out",
         "clip fume ×1 when moment=bar_failed, plays out",
-        "clip look_left ×2 when moment=standing, cut after 1s",
-        "clip look_right ×2 when moment=standing, cut after 1s",
-        "clip look_up ×1 when moment=standing, cut after 1s",
-        "nothing nothing ×40 when moment=standing",
-        "clip tumble ×3 when moment=launched, plays out",
-        "nothing nothing ×47 when moment=launched",
-        "clip wipe_brow ×4 when moment=building, cut after 1s",
-        "clip look_left ×1 when moment=building, cut after 1s",
-        "clip look_right ×1 when moment=building, cut after 1s",
-        "nothing nothing ×69 when moment=building",
-        "clip shake ×3 when moment=failed, cut after 1s",
-        "nothing nothing ×2 when moment=failed",
-        "clip shake ×1 when moment=refused, cut after 1s",
-        "nothing nothing ×1 when moment=refused",
-        "clip stretch ×2 when moment=work_done, cut after 1s",
-        "nothing nothing ×3 when moment=work_done",
-        "pick ponder ×1 when moment=pondering",
-        "pick cloud ×1 when moment=thought_cloud",
-        "pick bulb ×1 when moment=light_bulb",
-        "look amused ×3 when moment=answered",
-        "nothing nothing ×2 when moment=answered",
-        "clip bow ×1 when moment=heard voices=butler, cut after 1s",
-        "clip salute ×1 when moment=heard voices=squire, cut after 1s",
-        "clip nod ×1 when moment=heard voices=coach,colleague,homie, cut after 1s",
-        "nothing nothing ×1 when moment=heard",
-        "clip stumble ×3 when moment=long_walk, plays out",
-        "nothing nothing ×22 when moment=long_walk",
-        "clip glance ×7 when moment=card_arrived, cut after 1s",
-        "nothing nothing ×13 when moment=card_arrived",
-        "look reading ×1 when moment=typing",
-        "nothing nothing ×4 when moment=typing",
+        "clip look_left ×2 when moment=standing, cut after 1s, group cools 12s",
+        "clip look_right ×2 when moment=standing, cut after 1s, group cools 12s",
+        "clip look_up ×1 when moment=standing, cut after 1s, group cools 12s",
+        "nothing nothing ×40 when moment=standing, group cools 12s",
+        "clip tumble ×3 when moment=launched, plays out, group cools 300s",
+        "nothing nothing ×47 when moment=launched, group cools 300s",
+        "clip wipe_brow ×4 when moment=building, cut after 1s, group cools 30s",
+        "clip look_left ×1 when moment=building, cut after 1s, group cools 30s",
+        "clip look_right ×1 when moment=building, cut after 1s, group cools 30s",
+        "nothing nothing ×69 when moment=building, group cools 30s",
+        "clip shake ×3 when moment=failed, cut after 1s, group cools 20s",
+        "nothing nothing ×2 when moment=failed, group cools 20s",
+        "clip shake ×1 when moment=refused, cut after 1s, group cools 20s",
+        "nothing nothing ×1 when moment=refused, group cools 20s",
+        "clip stretch ×2 when moment=work_done, cut after 1s, group cools 120s",
+        "nothing nothing ×3 when moment=work_done, group cools 120s",
+        "pick ponder ×1 when moment=pondering, group cools 30-60s",
+        "pick cloud ×1 when moment=thought_cloud, group cools 90s",
+        "pick bulb ×1 when moment=light_bulb, group cools 150s",
+        "look amused ×3 when moment=answered, group cools 15s",
+        "nothing nothing ×2 when moment=answered, group cools 15s",
+        "clip bow ×1 when moment=heard voices=butler, cut after 1s, group cools 30s",
+        "clip salute ×1 when moment=heard voices=squire, cut after 1s, group cools 30s",
+        "clip nod ×1 when moment=heard voices=coach,colleague,homie, cut after 1s, group cools 30s",
+        "nothing nothing ×1 when moment=heard, group cools 30s",
+        "clip stumble ×3 when moment=long_walk, plays out, group cools 90s",
+        "nothing nothing ×22 when moment=long_walk, group cools 90s",
+        "clip glance ×7 when moment=card_arrived, cut after 1s, group cools 20s",
+        "nothing nothing ×13 when moment=card_arrived, group cools 20s",
+        "look reading ×1 when moment=typing, group cools 60s",
+        "nothing nothing ×4 when moment=typing, group cools 60s",
         "look hearts ×1 when moment=reacted:❤️",
         "look amused ×1 when moment=reacted:👍",
         "look startled ×1 when moment=reacted:🎉",
@@ -165,20 +166,20 @@ test("every animation in the pile, with its weight and the condition it plays un
         "clip shield_up ×1 when moment=agent_reacted:🛡️ voices=squire, plays out",
         "clip castle ×1 when moment=agent_reacted:🏰 voices=squire, plays out",
         "clip thanks ×1 when moment=agent_reacted:🙏, plays out",
-        "clip stretch ×3 when moment=pastime free=true lasted=90, cut after 1s",
-        "clip rest ×3 when moment=pastime free=true lasted=180, cut after 3s",
-        "clip yawn ×2 when moment=pastime free=true lasted=60, cut after 1s",
-        "clip polish ×4 when moment=pastime free=true lasted=45 voices=butler, cut after 3s",
-        "clip whistle ×4 when moment=pastime free=true lasted=45 voices=coach, cut after 3s",
-        "clip sip ×4 when moment=pastime free=true lasted=45 voices=colleague, cut after 3s",
-        "clip headphones ×4 when moment=pastime free=true lasted=45 voices=homie, cut after 3s",
-        "clip shield_polish ×4 when moment=pastime free=true lasted=45 voices=squire, cut after 3s",
-        "shenanigan clip hop_up ×2 when moment=pastime, plays out",
-        "shenanigan clip disco ×2 when moment=pastime ball=bubble, plays out",
+        "clip stretch ×3 when moment=pastime free=true lasted=90, cut after 1s, cools 90s",
+        "clip rest ×3 when moment=pastime free=true lasted=180, cut after 3s, cools 120s",
+        "clip yawn ×2 when moment=pastime free=true lasted=60, cut after 1s, cools 60s",
+        "clip polish ×4 when moment=pastime free=true lasted=45 voices=butler, cut after 3s, cools 60s",
+        "clip whistle ×4 when moment=pastime free=true lasted=45 voices=coach, cut after 3s, cools 60s",
+        "clip sip ×4 when moment=pastime free=true lasted=45 voices=colleague, cut after 3s, cools 60s",
+        "clip headphones ×4 when moment=pastime free=true lasted=45 voices=homie, cut after 3s, cools 60s",
+        "clip shield_polish ×4 when moment=pastime free=true lasted=45 voices=squire, cut after 3s, cools 60s",
+        "shenanigan of 20s clip hop_up ×2 when moment=pastime, plays out, cools 1200s",
+        "shenanigan of 12s clip disco ×2 when moment=pastime ball=bubble, plays out, cools 7200s",
         "nothing nothing ×560 when moment=pastime",
-        "clip search ×3 when moment=held:search, plays out",
-        "clip binoculars ×2 when moment=held:search home=true, plays out",
-        "clip rummage ×1 when moment=held:search, plays out",
+        "clip search ×3 when moment=held:search, plays out, group cools 120s, cools 300s",
+        "clip binoculars ×2 when moment=held:search home=true, plays out, group cools 120s, cools 300s",
+        "clip rummage ×1 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
         "clip watch ×2 when moment=held:watch, plays out",
@@ -191,22 +192,22 @@ test("every animation in the pile, with its weight and the condition it plays un
         "pick reading ×12 when moment=spell state=reading",
         "pick searching ×12 when moment=spell state=searching",
         "nothing nothing ×4 when moment=spell",
-        "shenanigan clip tickle_swat ×1 when moment=tickled, plays out",
+        "clip tickle_swat ×1 when moment=tickled, plays out, lives 3s",
         "clip eager ×2 when moment=eager slow=true, plays out",
         "nothing nothing ×3 when moment=eager",
-        "shenanigan clip backflip ×7 when moment=jump high=true, plays out",
+        "shenanigan of 3s clip backflip ×7 when moment=jump high=true, plays out, cools 360s",
         "clip jump ×13 when moment=jump, plays out",
-        "shenanigan pick pogo ×2 when moment=climb",
+        "shenanigan of 8s pick pogo ×2 when moment=climb, cools 360s",
         "pick hops ×3 when moment=climb footholds=true",
-        "pick unit ×19 when moment=unit",
-        "nothing nothing ×1 when moment=unit",
+        "pick unit ×19 when moment=unit, group cools 180s",
+        "nothing nothing ×1 when moment=unit, group cools 180s",
         "pick sign ×1 when moment=run_end",
         "nothing nothing ×2 when moment=run_end",
         "pick ufo ×3 when moment=carrier",
         "pick crane ×1 when moment=carrier",
         "pick left ×1 when moment=crane_from",
         "pick right ×1 when moment=crane_from",
-        "pick hang ×1 when moment=perch hands=true",
+        "pick hang ×1 when moment=perch hands=true free=true, cools 120s",
         "pick stand ×5 when moment=perch",
         "pick caught ×1 when moment=fall settled=true",
         "pick home ×1 when moment=fall",
@@ -215,14 +216,18 @@ test("every animation in the pile, with its weight and the condition it plays un
         "pick rest ×35 when moment=roam",
         "pick seat ×15 when moment=roam",
         "pick edge ×25 when moment=roam",
-        "shenanigan pick bubble ×15 when moment=roam",
+        "shenanigan of 90s pick bubble ×15 when moment=roam",
+        "pick bubble ×6 when moment=roam free=false",
         "pick tab ×10 when moment=roam",
         "pick ledge ×9 when moment=roam free=true",
         "pick composed ×8 when moment=roam free=true",
-        "shenanigan pick rope_swing ×8 when moment=roam free=true swings=true",
+        "shenanigan of 60s pick rope_swing ×8 when moment=roam free=true swings=true, cools 900s",
+        "pick seat ×6 when moment=laptop",
+        "pick bubble_ledge ×1 when moment=laptop",
         "pick middle ×2 when moment=ledge_at",
         "pick third ×1 when moment=ledge_at",
         "pick two_thirds ×1 when moment=ledge_at",
+        "sequence build of work, inspect, push while box=true, broken by ufo or crane, cools 180s, lives 60s",
     ]);
     // every clip of the pile is one the figure has
     const clips = new Set(CLIPS.map((clip) => clip.name));
@@ -234,15 +239,15 @@ test("each showpiece waits its own cooldown, listed in one place: the parachute 
     expect([SHOWPIECES.disco, SHOWPIECES.rope_swing]).toEqual([2 * 60 * 60, 15 * 60]);
     for (const name of ["backflip", "pogo", "bug_shot"]) expect(SHOWPIECES[name] >= 5 * 60 && SHOWPIECES[name] <= 8 * 60, name).toBe(true);
     expect(SHOWPIECES.tickle_swat).toBe(0);
-    // every showpiece in the pile takes its cooldown from the list, kept apart from the other acts of its moment
+    // every showpiece in the pile takes its own cooldown from the list, beside its group's
     const showpieces = PILE.filter((entry) => entry.name in SHOWPIECES);
     expect(showpieces.length).toBeGreaterThan(0);
-    for (const entry of showpieces) expect([entry.name, entry.cooldown, entry.apart]).toEqual([entry.name, SHOWPIECES[entry.name], true]);
+    for (const entry of showpieces) expect([entry.name, entry.cooldown]).toEqual([entry.name, SHOWPIECES[entry.name]]);
 });
 
 test("a showpiece is out of the draw while its cooldown lasts and back in at its own weight once it is over", () => {
     const memory = new Map();
-    const idle = (now) => ({moment: "pastime", free: true, lasted: 1000, voice: "butler", memory, now});
+    const idle = (now) => ({moment: "pastime", free: true, room: Infinity, lasted: 1000, voice: "butler", memory, now});
     const hopUp = (now) => choicesFor(idle(now)).find((entry) => entry.name === "hop_up");
     const weight = hopUp(0).weight;
     // the run to the parachute drawn, it is not drawn again for twenty minutes, whatever the roll
@@ -253,9 +258,9 @@ test("a showpiece is out of the draw while its cooldown lasts and back in at its
     expect(hopUp(SHOWPIECES.hop_up).weight).toBe(weight);
     // the salto on a jump up turns now and then, then waits its cooldown before it turns again
     const jumps = new Map();
-    expect(flips(400, 112, () => 0, jumps, 0)).toBe(true);
-    expect(flips(400, 112, () => 0, jumps, SHOWPIECES.backflip - 1)).toBe(false);
-    expect(flips(400, 112, () => 0, jumps, SHOWPIECES.backflip)).toBe(true);
+    expect(flips(400, 112, () => 0, jumps, 0, Infinity)).toBe(true);
+    expect(flips(400, 112, () => 0, jumps, SHOWPIECES.backflip - 1, Infinity)).toBe(false);
+    expect(flips(400, 112, () => 0, jumps, SHOWPIECES.backflip, Infinity)).toBe(true);
 });
 
 test("a running test run builds a server unit nearly every time it may, but never two within three minutes", () => {
@@ -266,10 +271,10 @@ test("a running test run builds a server unit nearly every time it may, but neve
     const granted = [];
     for (let now = 0; now < 3600; now++) if (!granted.length || now - granted.at(-1) >= 30) unitGranted(memory, now, random) && granted.push(now);
     const gaps = granted.slice(1).map((at, index) => at - granted[index]);
-    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(UNIT.every);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(SEQUENCES.build.cooldown);
     // once it may, it builds one at once most of the time
-    expect(gaps.filter((gap) => gap === UNIT.every).length / gaps.length).toBeGreaterThan(0.8);
-    expect(granted.length).toBeGreaterThanOrEqual(Math.floor(3600 / UNIT.every) - 2);
+    expect(gaps.filter((gap) => gap === SEQUENCES.build.cooldown).length / gaps.length).toBeGreaterThan(0.8);
+    expect(granted.length).toBeGreaterThanOrEqual(Math.floor(3600 / SEQUENCES.build.cooldown) - 2);
 });
 
 test("a commit with units always brings the UFO or the crane to take them, with no cooldown between", () => {

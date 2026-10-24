@@ -7,7 +7,7 @@ import {BLINK, BUILD, CLAW, CLAW_CLEARANCE, CRANE, DIGITS, HAMMER, IDLE_CLIPS, L
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
 import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
-import {PILE as ANIMATIONS, UNIT} from "../src/figure/pile.js";
+import {PILE as ANIMATIONS, SEQUENCES} from "../src/figure/pile.js";
 import {headYaw} from "./support/headYaw.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
@@ -394,7 +394,7 @@ test("a running chat mark titled with the word test builds boxes one after anoth
     const first = run(memory, (now) => [mark("a", "npm test", 0, now < 60)], 0, 61);
     expect(memory.get("unit")).toBe(60);
     const second = run(memory, (now) => [mark("b", "npm test", 62)], 62, 300, first.units);
-    expect(second.begun[0]).toBe(60 + UNIT.every);
+    expect(second.begun[0]).toBe(60 + SEQUENCES.build.cooldown);
 });
 
 test("pushing, the head looks ahead past the box, raised against the lean: never nodded down over the box, turned or tilted by itself, and no look turns it", () => {

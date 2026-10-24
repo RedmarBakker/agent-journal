@@ -1,20 +1,32 @@
 import {playedLeast} from "./timeline.js";
 
-// The figure's animations, one pile. Every entry is something the figure may do, with its weight, a weight of 3 counting as three tickets,
-// and `when`, the condition it may play under: the moment it belongs to, and anything else it needs, as a voice, a stretch of time the
-// state has lasted, a free hand. At each choice the pile is filtered to the entries whose condition holds, that the figure can draw and
-// that are not cooling down, and one is drawn by weight (draw). A `nothing` entry is the chance that the moment passes with nothing played.
-// A new animation is added to the pile, never put in another's place.
+// The figure's acts, one pile, and the sequences it plays whole. A new act is one entry of PILE, a new sequence one entry of SEQUENCES,
+// never put in another's place.
 //
-// An entry is a clip the body plays, a look the eyes take on, or a pick, a choice of something that is not a clip: the carrier that takes
-// the work away, a perch's kind, a digit, a place to go, a spell the figure keeps up. Its `cooldown` is the seconds before its moment may
-// play again once it has, kept under the moment, or under the entry itself when it stands `apart`. A reaction may turn `toward` its card
-// or go `onto` it, playing there.
+// An act is {name, kind, weight, when, group, cooldown, lifetime}. Its kind is a clip the body plays, a look the eyes take on, or a pick,
+// a choice of something that is not a clip: the carrier that takes the work away, a perch's kind, a digit, a place to go, a spell the
+// figure keeps up. Its weight is its tickets, a weight of 3 counting as three. `when` is the condition it may play under: the moment it
+// answers, and anything else it needs, as a voice, a stretch of time the state has lasted, a free hand. Its group, {name, cooldown}, is
+// the moment it answers, and the seconds before any act of the group may play again once one has; its own `cooldown` the seconds before
+// it may play again itself; both are read in one place (cooldownsOf). Its `lifetime` is the seconds it stays worth playing while it waits
+// in the beat queue (reactions.js freshBeats), LIFETIME unless it says. A reaction may turn `toward` its card or go `onto` it, playing
+// there, and `holds` when nothing may cut it off. At each choice the pile is filtered to the acts whose condition holds, that the figure
+// can draw and that are not cooling down, and one is drawn by weight (draw). A `nothing` act is the chance that the moment passes with
+// nothing played.
 //
-// The playful acts are `shenanigan`s: a salto on a jump up, the run up the bubbles off the screen, a jump up onto a bubble or a hang from one. They may
-// play in any state, each state weighting its own acts higher, and after SHENANIGAN.after acts in a row with none among them the next
-// draw that may be one is one.
+// A sequence is {name, acts, when, breaks, cooldown, lifetime}: a run of acts the figure plays as one whole. While its `when` holds,
+// nothing takes the figure off it, no act, moment, pastime or reaction, but what it names in `breaks`; what comes meanwhile waits in the
+// beat queue and is dropped once its lifetime is over (sequenceIn). Its cooldown is the seconds before it may begin again once it has, its
+// lifetime the seconds it stays worth beginning once it is due.
+//
+// The playful acts are `shenanigan`s, each keeping the figure from its spot for at most the seconds SHENANIGANS lists, the way back
+// included: it plays one only while it has that much `room`, the seconds it may be away (reactions.js roomFor), any while it waits on
+// the user, a worker or a run, as long as a long run has left before its anticipation, and none while its agent works. After
+// SHENANIGAN.after acts in a row with none among them the next draw that may be one is one.
 export const SHENANIGAN = {after: 3};
+
+// the seconds an act stays worth playing while it waits in the beat queue, unless it has a lifetime of its own
+export const LIFETIME = 10;
 
 // The showpiece acts and how long each waits before it may play again once it has, in seconds, so they stay special: the run up to the
 // parachute at most every 20 minutes, the disco dance at most every 2 hours and rarely then, the rope swing about every 15, the salto on a jump up, the pogo stick and the bug
@@ -22,9 +34,20 @@ export const SHENANIGAN = {after: 3};
 // its weight is its own.
 export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, tickle_swat: 0};
 
-// While a test run, a build or a check runs, building a server unit is drawn far above doing nothing, but one unit at most every `every`
-// seconds
-export const UNIT = {weight: 19, every: 3 * 60};
+// The shenanigans and the most seconds each keeps the figure from its spot, the way back included: the run up the bubbles, its time out
+// of sight and the parachute down; the disco dance; the rope swing's stay; the salto; the pogo stick's climb; a stay on a bubble
+export const SHENANIGANS = {hop_up: 20, disco: 12, rope_swing: 60, backflip: 3, pogo: 8, bubble: 90};
+
+// While a test run, a build or a check runs, building a server unit is drawn far above doing nothing, but no more often than the build's
+// sequence allows (SEQUENCES build)
+export const UNIT = {weight: 19};
+
+// The sequences the figure plays whole. A server box built for a run: from the first blow of the hammer on it, through its inspections,
+// until it is pushed onto the pile and the figure is free again, while it has a `box` in hand; broken only by the UFO or the crane come
+// to take the pile; one in three minutes at most, and given up when the figure has not begun it a minute after it was due.
+export const SEQUENCES = {
+    build: {name: "build", acts: ["work", "inspect", "push"], when: {box: true}, breaks: ["ufo", "crane"], cooldown: 3 * 60, lifetime: 60},
+};
 
 // A one-armed hang from a bubble's side at most once every `every` seconds
 export const HANG = {every: 2 * 60};
@@ -57,35 +80,38 @@ export const CUT = {
     salute: 1, wave: 1, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
 };
 
-const clip = (name, weight, when = {}) => ({name, kind: "clip", weight, when, cut: CUT[name] ?? false});
-const look = (name, weight, when = {}) => ({name, kind: "look", weight, when});
-const pick = (name, weight, when = {}, more = {}) => ({name, kind: "pick", weight, when, ...more});
-const nothing = (weight) => ({name: "nothing", kind: "nothing", weight, when: {}});
+const act = (name, kind, weight, when) => ({name, kind, weight, when, lifetime: LIFETIME});
+const clip = (name, weight, when = {}) => ({...act(name, "clip", weight, when), cut: CUT[name] ?? false});
+const look = (name, weight, when = {}) => act(name, "look", weight, when);
+const pick = (name, weight, when = {}, more = {}) => ({...act(name, "pick", weight, when), ...more});
+const nothing = (weight) => act("nothing", "nothing", weight, {});
 
 // the seconds after any search before the figure searches again
 const SEARCH_COOLDOWN = 120;
 
 // a search act, waiting PROP_COOLDOWN seconds before it is drawn again
 const PROP_COOLDOWN = 300;
-const prop = (name, weight) => ({...clip(name, weight), cooldown: PROP_COOLDOWN, apart: true});
+const prop = (name, weight) => ({...clip(name, weight), cooldown: PROP_COOLDOWN});
 
 // the seconds between two telephone calls, whatever workers were given work between them
 export const CALL_COOLDOWN = 120;
 
-// the entries of one moment, each given the moment and whatever the moment says of them all, as its cooldown; one apart from the others
-// with a cooldown of its own still waits the moment's, `moment` seconds after any of them played
-const at = (moment, shared, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}, ...(shared.cooldown && {waits: shared.cooldown})}));
+// the acts of one moment, its group: each given the moment and whatever the moment says of them all, its `cooldown` the group's
+const at = (moment, {cooldown = 0, ...shared}, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}, group: {name: moment, cooldown}}));
 
 // the way the figure celebrates: a jump for joy with its hands up, kept for the end of a run it anticipated; an everyday success
 // gets a nod
 const celebrations = () => [clip("joy", 2)];
 
-// the idle acts, while the figure has nothing to do: each once the state has lasted `lasted` seconds, apart from the others, and so
+// the idle acts, while the figure has nothing to do: each once the state has lasted `lasted` seconds, waiting a cooldown of its own, and so
 // weighted against nothing that one is played about every half minute, looked for every second
-const pastime = (name, weight, lasted, cooldown, more = {}) => ({...clip(name, weight, {free: true, lasted, ...more.when}), cooldown, apart: true});
+const pastime = (name, weight, lasted, cooldown, more = {}) => ({...clip(name, weight, {free: true, lasted, ...more.when}), cooldown});
 
-// a showpiece among the acts, a shenanigan in any state, apart from the others, waiting its own cooldown (SHOWPIECES)
-const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name], apart: true, shenanigan: true});
+// a showpiece among the acts, waiting its own cooldown (SHOWPIECES)
+const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name]});
+
+// a shenanigan, keeping the figure from its spot as long as SHENANIGANS says
+const shenanigan = (entry) => ({...entry, shenanigan: true, lasts: SHENANIGANS[entry.name]});
 
 export const PILE = [
     // a test run's end: celebrated on its card, or a start at a failure; a pass soon after a failure is the bug solved, most often shot
@@ -149,10 +175,10 @@ export const PILE = [
         pastime("shield_polish", 4, 45, 60, {when: {voices: ["squire"]}}),
         // the shenanigan: it hops up the bubbles off the top of the chat and comes back down on a parachute (figure/skyward.js); it turns
         // a salto only now and then on a high jump up onto a bubble (the jump moment), never where it stands
-        {...showpiece(clip("hop_up", 2)), flies: true},
+        {...shenanigan(showpiece(clip("hop_up", 2))), flies: true},
         // on a rare occasion it disco dances under a disco ball, only standing on a bubble with another above it to hang the ball from
         // (perches.js discoBall)
-        showpiece(clip("disco", 2, {ball: "bubble"})),
+        shenanigan(showpiece(clip("disco", 2, {ball: "bubble"}))),
         nothing(560),
     ]),
     // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars or, now and then, rummaging past
@@ -169,25 +195,27 @@ export const PILE = [
     // the work's own acts, each only while that work goes on and then weighted heavily, a spell keeping it up a while so it is seen though
     // the tool lasts a moment: the laptop while the agent edits, the book while it reads, the searching while it searches
     ...at("spell", {}, [pick("writing", 12, {state: "writing"}), pick("reading", 12, {state: "reading"}), pick("searching", 12, {state: "searching"}), nothing(4)]),
-    // the mouse pointer tickling it (tickle.js): it swats at the pointer every time, as often as it is tickled
-    ...at("tickled", {}, [showpiece(clip("tickle_swat", 1))]),
+    // the mouse pointer tickling it (tickle.js): it swats at the pointer every time, as often as it is tickled, and never once the pointer
+    // has long gone
+    ...at("tickled", {}, [{...showpiece(clip("tickle_swat", 1)), lifetime: 3}]),
     // a slow docked bar near its end: the figure gets eager for it now and then
     ...at("eager", {}, [clip("eager", 2, {slow: true}), nothing(3)]),
     // a jump up more than the figure's own height now and then turns over backwards on the way
-    ...at("jump", {}, [showpiece(clip("backflip", 7, {high: true})), clip("jump", 13)]),
+    ...at("jump", {}, [shenanigan(showpiece(clip("backflip", 7, {high: true}))), clip("jump", 13)]),
     // a climb of at least half the chat window's height (climbs.js POGO): now and then on the pogo stick it
     // pulls from behind its back, else hopping up the bubbles on the way, and on the stick always when there are none to hop on
-    ...at("climb", {}, [showpiece(pick("pogo", 2)), pick("hops", 3, {footholds: true})]),
-    // while a run goes, whether the figure builds a server unit now (UNIT)
-    ...at("unit", {cooldown: UNIT.every}, [pick("unit", UNIT.weight), nothing(1)]),
+    ...at("climb", {}, [shenanigan(showpiece(pick("pogo", 2))), pick("hops", 3, {footholds: true})]),
+    // while a run goes, whether the figure builds a server unit now (UNIT), the build's sequence waiting its cooldown
+    ...at("unit", {cooldown: SEQUENCES.build.cooldown}, [pick("unit", UNIT.weight), nothing(1)]),
     // a run's end, as the visor shows it: now and then as a sign in the eyes, crosses or ticks, else the plain glow (visor.js SIGN)
     ...at("run_end", {}, [pick("sign", 1), nothing(2)]),
     // what takes the work away once it is committed, the UFO or the crane, one of them every time with no cooldown, and the side the crane
     // rolls in from
     ...at("carrier", {}, [pick("ufo", 3), pick("crane", 1)]),
     ...at("crane_from", {}, [pick("left", 1), pick("right", 1)]),
-    // a perch on a bubble: a hang from its corner by a free hand, at most once every HANG.every, or a stand on its corner
-    ...at("perch", {}, [{...pick("hang", 1, {hands: true}), cooldown: HANG.every, apart: true}, pick("stand", 5)]),
+    // a perch on a bubble: a hang from its corner by a free hand while it has nothing to do, at most once every HANG.every, or a stand on
+    // its corner
+    ...at("perch", {}, [{...pick("hang", 1, {hands: true, free: true}), cooldown: HANG.every}, pick("stand", 5)]),
     // a falling figure caught by a bubble it falls past, but never soon after another fall, or dropping straight home
     ...at("fall", {}, [pick("caught", 1, {settled: true}), pick("home", 1)]),
     // a digit a blow's dust lets out
@@ -198,7 +226,9 @@ export const PILE = [
         pick("rest", 35, {}, {stay: [25, 60]}),
         pick("seat", 15, {}, {stay: [15, 40]}),
         pick("edge", 25, {}, {stay: [8, 20]}),
-        pick("bubble", 15, {}, {stay: [30, 80], shenanigan: true}),
+        shenanigan(pick("bubble", 15, {}, {stay: [30, 80]})),
+        // while its agent works, now and then, bored of the spot, it takes its work up onto a bubble a while
+        pick("bubble", 6, {free: false}, {stay: [20, 45]}),
         pick("tab", 10, {}, {stay: [10, 25]}),
         // with nothing to do, it sits on the edge of the floor it stands on, facing the viewer, its legs over the edge
         pick("ledge", 9, {free: true}, {stay: [20, 45]}),
@@ -206,8 +236,11 @@ export const PILE = [
         // flat on the floor at its sides (perches.js composedSpot)
         pick("composed", 8, {free: true}, {stay: [25, 50]}),
         // with nothing to do and a bubble near the middle of the chat above it, it ties a rope swing under that bubble and swings
-        showpiece(pick("rope_swing", 8, {free: true, swings: true}, {stay: [25, 50]})),
+        shenanigan(showpiece(pick("rope_swing", 8, {free: true, swings: true}, {stay: [25, 50]}))),
     ]),
+    // where it sits at its laptop while its agent works at it: mostly on a corner at home, now and then, bored of the spot, on the edge of
+    // a bubble, keeping to each a while
+    ...at("laptop", {}, [pick("seat", 6, {}, {stay: [60, 150]}), pick("bubble_ledge", 1, {}, {stay: [30, 60]})]),
     // where along the floor it sits on the edge: around the middle, or a third of the way from either end, never at an end
     ...at("ledge_at", {}, [pick("middle", 2, {}, {along: 1 / 2}), pick("third", 1, {}, {along: 1 / 3}), pick("two_thirds", 1, {}, {along: 2 / 3})]),
 ];
@@ -217,26 +250,29 @@ export const PILE = [
 const holds = (when, scene) =>
     Object.entries(when).every(([key, wanted]) => (key === "voices" ? wanted.includes(scene.voice) : key === "lasted" ? scene.lasted >= wanted : scene[key] === wanted));
 
-// what an entry's cooldown is kept under: its moment, or itself when it stands apart
-const cooledUnder = (entry) => (entry.apart ? `${entry.when.moment}/${entry.name}` : entry.when.moment);
+// The cooldowns an act waits, as [key, seconds] pairs, each kept in the figure's memory under its key: its group's under the group's name,
+// its own under the group's and its own; one that is none is left out
+export const cooldownsOf = (entry) =>
+    [[entry.group.name, entry.group.cooldown], [`${entry.group.name}/${entry.name}`, entry.cooldown]].filter(([, cooldown]) => cooldown);
 
 // A cooldown is a number of seconds, or the least and the most, [least, most], when it lasts a random time between them each time: the
 // least, and the seconds past the least it lasts this time, drawn with `random`
 const leastOf = (cooldown) => (Array.isArray(cooldown) ? cooldown[0] : cooldown);
 const beyondLeast = (cooldown, random) => (Array.isArray(cooldown) ? random() * (cooldown[1] - cooldown[0]) : 0);
 
-// The entries that may play where things stand, `scene`: its moment and what else the conditions read, whether the figure `has` a clip,
-// and, with `memory` (cooldown key to when it last played, in seconds) and `now`, only those not cooling down. With a `tally` of the acts
-// played since the last shenanigan at SHENANIGAN.after or more, only the shenanigans, where there is one; and never the tally's last act
-// again while anything else may play.
 // whether the pile holds any entry for `moment`
 export const hasMoment = (moment) => PILE.some((entry) => entry.when.moment === moment);
 
+// The entries that may play where things stand, `scene`: its moment and what else the conditions read, whether the figure `has` a clip,
+// and, with `memory` (cooldown key to when it last played, in seconds) and `now`, only those not cooling down; a shenanigan only within
+// the scene's `room`, none when it says none. With a `tally` of the acts played since the last shenanigan at SHENANIGAN.after or more,
+// only the shenanigans, where there is one; and never the tally's last act again while anything else may play.
 export function choicesFor(scene) {
     const has = scene.has ?? (() => true);
     const since = (key) => scene.now - (scene.memory.get(key) ?? -Infinity);
-    const cooled = (entry) => !scene.memory || ((!entry.cooldown || since(cooledUnder(entry)) >= leastOf(entry.cooldown)) && (!entry.waits || since(entry.when.moment) >= leastOf(entry.waits)));
-    const choices = PILE.filter((entry) => holds(entry.when, scene) && (entry.kind !== "clip" || has(entry.name)) && cooled(entry));
+    const cooled = (entry) => !scene.memory || cooldownsOf(entry).every(([key, cooldown]) => since(key) >= leastOf(cooldown));
+    const roomy = (entry) => !entry.shenanigan || entry.lasts <= (scene.room ?? 0);
+    const choices = PILE.filter((entry) => holds(entry.when, scene) && (entry.kind !== "clip" || has(entry.name)) && cooled(entry) && roomy(entry));
     const due = (scene.tally?.plain ?? 0) >= SHENANIGAN.after && choices.some((entry) => entry.shenanigan);
     const kept = due ? choices.filter((entry) => entry.shenanigan) : choices;
     // the act just played is not drawn again at once, while anything else may play
@@ -256,12 +292,10 @@ export function draw(scene, random) {
     return drawn;
 }
 
-// The cooldown of `entry` begun in the scene's memory at its `now`, as when it is drawn; a cooldown of a random length is kept as one of
+// The cooldowns of `entry` begun in the scene's memory at its `now`, as when it is drawn; a cooldown of a random length is kept as one of
 // its least that began as much later
 function cool(scene, entry, random) {
-    const later = beyondLeast(entry.cooldown ?? entry.waits, random);
-    scene.memory?.set(cooledUnder(entry), scene.now + later);
-    if (entry.waits) scene.memory?.set(entry.when.moment, scene.now + later);
+    for (const [key, cooldown] of cooldownsOf(entry)) scene.memory?.set(key, scene.now + beyondLeast(cooldown, random));
 }
 
 // The entry `name` of the scene's moment taken without being drawn, as a perch's other kind when the drawn one does not fit: its cooldown
@@ -270,9 +304,27 @@ export function taken(scene, name, random) {
     cool(scene, PILE.find((entry) => entry.when.moment === scene.moment && entry.name === name), random);
 }
 
-// an entry as a line: what it is, its weight and the condition it plays under
+// The sequence that holds the figure where things stand, `scene`: the one whose condition holds, unless what the scene's `carrier` is, the
+// UFO or the crane come for the work, is among what breaks it; null with none
+export const sequenceIn = (scene) => Object.values(SEQUENCES).find((sequence) => holds(sequence.when, scene) && !sequence.breaks.includes(scene.carrier)) ?? null;
+
+// whether `thing`, an act or a sequence waiting since `since`, is still worth playing at `now`: its lifetime is not yet over
+export const alive = (thing, since, now) => now - since <= (thing.lifetime ?? LIFETIME);
+
+const conditions = (when) => Object.entries(when).map(([key, value]) => `${key}=${value}`).join(" ");
+const secondsOf = (cooldown) => `${[cooldown].flat().join("-")}s`;
+
+// an entry as a line: what it is, its weight, the condition it plays under, whether it may be cut, its group's cooldown and its own, and
+// its lifetime where it has one of its own
 export const lineOf = (entry) =>
-    `${entry.shenanigan ? "shenanigan " : ""}${entry.kind} ${entry.name} ×${entry.weight} when ${Object.entries(entry.when).map(([key, value]) => `${key}=${value}`).join(" ")}${entry.kind === "clip" ? (entry.cut ? `, cut after ${entry.cut}s` : ", plays out") : ""}`;
+    `${entry.shenanigan ? `shenanigan of ${entry.lasts}s ` : ""}${entry.kind} ${entry.name} ×${entry.weight} when ${conditions(entry.when)}` +
+    `${entry.kind === "clip" ? (entry.cut ? `, cut after ${entry.cut}s` : ", plays out") : ""}` +
+    `${entry.group.cooldown ? `, group cools ${secondsOf(entry.group.cooldown)}` : ""}${entry.cooldown ? `, cools ${secondsOf(entry.cooldown)}` : ""}` +
+    `${entry.lifetime === LIFETIME ? "" : `, lives ${entry.lifetime}s`}`;
+
+// a sequence as a line: its acts, the condition it holds under, what breaks it, its cooldown and its lifetime
+export const sequenceLineOf = (sequence) =>
+    `sequence ${sequence.name} of ${sequence.acts.join(", ")} while ${conditions(sequence.when)}, broken by ${sequence.breaks.join(" or ")}, cools ${secondsOf(sequence.cooldown)}, lives ${sequence.lifetime}s`;
 
 // whether the clip `name` may be cut off by the next moment once it has played `seconds`: only an act of CUT that has played its least
 export const cutsAfter = (name, seconds) => Boolean(CUT[name]) && seconds >= CUT[name];

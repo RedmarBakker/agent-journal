@@ -56,13 +56,13 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, answerTo, barWatchAt, watchesBar, carrierOf, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, answerTo, barWatchAt, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
 import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
-import {givesWay} from "../figure/pile.js";
+import {SEQUENCES, alive, givesWay, sequenceIn} from "../figure/pile.js";
 import {
     clickedBody,
     CHANGE_SECONDS,
@@ -307,7 +307,7 @@ const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(phrasesSec
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
 function current() {
     if (!body.trip?.moves || body.trip.hopping) beats.value = beats.value.filter((beat) => beat.clip !== "stumble");
-    const first = beats.value[0];
+    const first = headBeat(beats.value, sequenceNow());
     const beat = first && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto, holds: first.holds, stretch: stretchOf(first)};
     const scene = {
         mode: modeOf(body),
@@ -512,13 +512,14 @@ async function moveTo(spot, {straight = false, pace = 1, pressing = false, urgen
 function setOff() {
     const {to, straight, pace, footing: held} = body.trip;
     const there = landingOn(to, held, figureSize());
-    const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there, {memory: memory.reacted, now: now.value}, Math.random);
+    const room = roomNow();
+    const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there, {memory: memory.reacted, now: now.value, room}, Math.random);
     // grown out of its reach since the look sent it, it stays where it is until the next look sends it elsewhere
     if (!way) {
         body.trip = null;
         return step();
     }
-    const trip = tripTo(body.place, there, figureSize(), {straight, pace, ...way, memory: memory.reacted, now: now.value});
+    const trip = tripTo(body.place, there, figureSize(), {straight, pace, ...way, memory: memory.reacted, now: now.value, room});
     body.way = Math.sign(there.x - body.place.x);
     stopSwinging();
     if (trip) {
@@ -810,9 +811,20 @@ const scene = () => ({
     moving: Boolean(body.trip || flight),
     place: body.place,
     beats: beats.value.length,
+    held: Boolean(sequenceNow()),
+    room: roomNow(),
     arriving: body.arriving,
     leaving: body.leaving,
 });
+
+// the sequence that holds the figure now (pile.js sequenceIn): the build, while it has a box in hand, unless the UFO or the crane has come
+const sequenceNow = () => sequenceIn({box: parcels.value.some((each) => each.state !== "piled"), carrier: taking.value?.by ?? ""});
+
+// the seconds the figure may be off its spot now for a shenanigan (reactions.js roomFor), as its agent's state and the bar docked under it say
+function roomNow() {
+    const docks = groundEdge();
+    return roomFor(held.value.state, docks.docked ? progressOf(docks.element) : null, now.value);
+}
 
 function look() {
     clearTimeout(lookTimer);
@@ -848,7 +860,9 @@ function look() {
     walkBegan = stroll.began;
     if (stroll.moment && !beats.value.some((beat) => beat.clip === "stumble")) react(stroll.moment);
     const docks = groundEdge();
-    const eagerness = eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value);
+    // held by a sequence, it gets eager for no run's end until the sequence is over
+    const sequence = sequenceNow();
+    const eagerness = sequence ? {eager, moment: null} : eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value);
     eager = eagerness.eager;
     if (eagerness.moment) react(eagerness.moment);
     const work = workMoments(held.value.state, typed, workBegan, now.value);
@@ -859,8 +873,8 @@ function look() {
     visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const pushing = pushWaits(parcels.value);
-    // pushing a box, or eager for a run's end, it takes up nothing else
-    const quiet = pushing || Boolean(eager?.on);
+    // held by a sequence, pushing a box, or eager for a run's end, it takes up nothing else
+    const quiet = Boolean(sequence) || pushing || Boolean(eager?.on);
     const egg = quiet ? null : answerTo(waited, voice.value, memory, now.value, Math.random, hasClip)?.beat;
     const over = body.trip ? null : discoBall(body.place, figureSize(), latestFloors());
     const pastime = quiet ? null : pastimeFor({...scene(), ball: over ? over.kind : ""}, waited, pastimesDue, now.value, Math.random, drawnHere, memory.tally);
@@ -884,6 +898,7 @@ function look() {
         pile: pileOf(),
         tally: memory.tally,
         memory: memory.reacted,
+        room: roomNow(),
     });
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
@@ -965,22 +980,27 @@ function workOf() {
     return making ? {beside, before: slotX(piled() + PILE.high) - PARCEL.width / 2, aim} : null;
 }
 
-// the boxes of the run the figure builds for (parcels.js unitsAfter), and whether it builds one now, until it is piled; where along the
-// floor it aims to begin the next (parcels.js buildAim), and the time before which it rests after the last was piled
+// the boxes of the run the figure builds for (parcels.js unitsAfter), and whether it builds one now, until it is piled, due since `dueAt`;
+// where along the floor it aims to begin the next (parcels.js buildAim), and the time before which it rests after the last was piled
 let units = null;
 let making = false;
+let dueAt = 0;
 let aim = null;
 let nextBoxAt = 0;
 
 // at a look: with no box in hand the figure builds the next while the run going on is granted boxes, and gives up one not yet begun once
-// it ends
+// it ends, or once the build's lifetime is over since it was due (pile.js SEQUENCES build), the run then waiting the build's cooldown
 function grantUnit() {
     const inHand = parcels.value.some((each) => each.state !== "piled");
     units = unitsAfter(units, buildRunAt(lead.value?.data?.cards || [], shellRun(), now.value), memory.reacted, now.value, Math.random);
     if (inHand) return;
     const starting = Boolean(units?.granted) && now.value >= nextBoxAt;
-    if (starting && !making) aim = nextAim();
-    making = starting;
+    if (starting && !making) {
+        aim = nextAim();
+        dueAt = now.value;
+    }
+    making = starting && alive(SEQUENCES.build, dueAt, now.value);
+    if (starting && !making) units = {...units, granted: false};
 }
 
 // when no run has built since, in seconds, null while one builds; a pile left that long goes as at a commit (parcels.js isPileLeft)
@@ -1257,8 +1277,8 @@ function react(moment) {
         beats.value = queued.beats;
         cutting ||= queued.cut;
     }
-    // a celebration on its chat mark: off to stand on it, when it has a stand free, else played where the figure is
-    if (answer?.beat?.onto && markSpot(answer.beat.card, figureSize())) {
+    // a celebration on its chat mark: off to stand on it, when it has a stand free and no sequence holds the figure, else played where it is
+    if (answer?.beat?.onto && !sequenceNow() && markSpot(answer.beat.card, figureSize())) {
         stay = {where: "mark", card: answer.beat.card, until: now.value + MARK_STAY};
         hurried = true;
     }

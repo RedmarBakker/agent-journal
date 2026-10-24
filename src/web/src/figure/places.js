@@ -90,19 +90,20 @@ export const STEADY = 5;
 
 // The trip of a picture `size` pixels tall from `from` to `to`, its left and top, or null when they are closer than STEADY: its way, -1
 // left or 1 right, and its legs, each a move of the picture taking `ms` after `lead`. Up to a perch it walks to below it and then jumps,
-// now and then turning over on a high jump, as the pile draws it with `memory` of when it last did at `now`, or bouncing up on the `pogo`
+// now and then turning over on a high jump, as the pile draws it with `memory` of when it last did at `now` and the `room` the figure has
+// for it (reactions.js roomFor), or bouncing up on the `pogo`
 // stick; down from one it falls first
 // and then walks, never walking on air. `straight` is for ground
 // that came or went under it: it goes straight up or down where it is, then walks. It lands after a hop unless it `hangs` there, from a
 // bubble's corner or on a rope swing's seat. It walks
 // at `pace` times its walking speed, which the trip keeps.
-export function tripBetween(from, to, size, {straight = false, hangs = false, pace = 1, random = Math.random, memory = null, now = 0, pogo = false} = {}) {
+export function tripBetween(from, to, size, {straight = false, hangs = false, pace = 1, random = Math.random, memory = null, now = 0, room = 0, pogo = false} = {}) {
     if (Math.hypot(to.x - from.x, to.y - from.y) < STEADY) return null;
     const across = Math.abs(to.x - from.x);
     const walk = across < STEADY ? 0 : (across / (WALK_SPEED * pace)) * 1000;
     const height = Math.abs(to.y - from.y);
     const up = to.y < from.y;
-    const flip = up && !pogo && flips(height, size, random, memory, now);
+    const flip = up && !pogo && flips(height, size, random, memory, now, room);
     const air = up ? JUMP_AIR_MS + Math.min(height, 400) * JUMP_AIR_PER_PIXEL : Math.sqrt((2 * height) / GRAVITY) * 1000;
     const hop = {
         x: to.x,
@@ -571,14 +572,14 @@ function freeBuildSpot(edge, figure, near, beside, before) {
 // The trip of a figure resting at `place` to `spot` (tripBetween), from its picture in the posture it travels in where it is to its picture
 // in the posture it travels in there; on a climb it hops on up from each foothold of `via` (perches.js climbOf) to the next, and on to the
 // spot, or goes up in one on the `pogo` stick
-export function tripTo(place, spot, figure, {straight = false, pace = 1, random = Math.random, via = [], memory = null, now = 0, pogo = false} = {}) {
+export function tripTo(place, spot, figure, {straight = false, pace = 1, random = Math.random, via = [], memory = null, now = 0, room = 0, pogo = false} = {}) {
     const corner = (each) => {
         const box = boxAt(each, figure, POSTURES[each.posture].travels);
         return {x: box.left, y: box.top};
     };
     const [from, ...stops] = [place, ...via, spot].map(corner);
-    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang" || Boolean(spot.swings), pace, random, memory, now, pogo});
-    const hops = stops.slice(1).map((to, index) => tripBetween(stops[index], to, figure.size, {random, memory, now})?.legs.find((leg) => leg.hopping));
+    const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang" || Boolean(spot.swings), pace, random, memory, now, room, pogo});
+    const hops = stops.slice(1).map((to, index) => tripBetween(stops[index], to, figure.size, {random, memory, now, room})?.legs.find((leg) => leg.hopping));
     return trip && {...trip, legs: [...trip.legs, ...hops.filter(Boolean)]};
 }
 

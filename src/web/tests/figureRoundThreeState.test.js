@@ -28,10 +28,10 @@ test("each voice has its own available, occasional pastime", () => {
         expect(own.map((entry) => entry.when.voices), voice).toEqual([[voice]]);
         const only = (name) => name === own[0].name && has(voice)(name);
         const memory = new Map();
-        expect(pastimeOf("idle", 1000, memory, 1000, () => 0, voice, only)?.name).toBe(own[0].name);
+        expect(pastimeOf(Infinity, 1000, memory, 1000, () => 0, voice, only)?.name).toBe(own[0].name);
         // drawn, it waits out its cooldown before it may be drawn again
-        expect(pastimeOf("idle", 1000, memory, 1001, () => 0, voice, only)).toBe(null);
-        expect(pastimeOf("idle", 1000, new Map(), 1000, () => 0, voice, () => false)).toBe(null);
+        expect(pastimeOf(Infinity, 1000, memory, 1001, () => 0, voice, only)).toBe(null);
+        expect(pastimeOf(Infinity, 1000, new Map(), 1000, () => 0, voice, () => false)).toBe(null);
     }
 });
 

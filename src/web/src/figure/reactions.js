@@ -1,5 +1,5 @@
 import {HELD, WORKING, eggFor} from "../domain/figureState.js";
-import {CALL_COOLDOWN, draw, hasMoment} from "./pile.js";
+import {CALL_COOLDOWN, LIFETIME, alive, draw, hasMoment} from "./pile.js";
 import {lookAngles, lookWay, upFor} from "./look.js";
 
 // What the figure does about what happens around it, and when. Which animation plays is drawn from the one pile (pile.js); here are the
@@ -46,6 +46,18 @@ export const letsGoFor = (place) => place.posture === "hang" && !eyesShown(place
 
 // The states in which the figure has nothing to do, and so plays its pastimes: idle, or waiting, on a run, a worker or the user alike
 export const FREE = new Set(["idle", "waiting", "asking"]);
+
+// the states of a run going on, a test run, a build or another command, which a long one makes a wait
+const RUNS = new Set(["testing", "building", "running"]);
+
+// The seconds the figure may be off its spot in `state` at `now`, for a shenanigan (pile.js SHENANIGANS): any while it has nothing to do;
+// while a run goes whose docked bar, `progress` (places.js progressOf), says how much of it is done, the seconds it has left before the
+// figure is due back for its anticipation (EAGER lead); none while its agent works, nor for a run whose bar has yet to show its pace
+export function roomFor(state, progress, now) {
+    if (FREE.has(state)) return Infinity;
+    if (!RUNS.has(state) || !progress?.share || progress.ended) return 0;
+    return Math.max(secondsLeft(now - progress.began, progress.share) - EAGER.lead, 0);
+}
 
 // the agent has worked for at least this many seconds when it settles, for "work_done" to be a moment
 export const LONG_WALK_SECONDS = 5;
@@ -104,23 +116,25 @@ export function eagerFor(progress, eager, random, now) {
 // A jump of more than this many of the figure's own heights is high, and now and then turns over backwards on the way (pile.js jump)
 export const FLIP_OVER = 1;
 
-// The reaction to this moment drawn from the pile, or null when nothing is drawn: a clip the body plays or a look the eyes take on, and
-// whether it turns toward its card or goes onto it. `memory` maps a moment to when it last played, in seconds, and is filled in here.
+// The reaction to this moment drawn from the pile, or null when nothing is drawn: a clip the body plays or a look the eyes take on,
+// whether it turns toward its card or goes onto it, whether it holds, and its lifetime in the queue. `memory` maps a moment to when it
+// last played, in seconds, and is filled in here.
 export function reactionTo(moment, memory, now, random, voice = "", has = () => true, tally = null) {
     const drawn = draw({moment, voice, has, memory, now, tally}, random);
     if (!drawn) return null;
-    return {[drawn.kind === "look" ? "look" : "clip"]: drawn.name, toward: drawn.toward ?? "", onto: Boolean(drawn.onto), holds: Boolean(drawn.holds)};
+    return {[drawn.kind === "look" ? "look" : "clip"]: drawn.name, toward: drawn.toward ?? "", onto: Boolean(drawn.onto), holds: Boolean(drawn.holds), lifetime: drawn.lifetime};
 }
 
-// The act drawn for `held` seconds of `state`, as its entry, or null: the idle acts while the figure has nothing to do, and the
-// shenanigans in any state; `memory` holds when each act last played and `tally` the acts since the last shenanigan, filled in here, and
-// `ball` where a disco ball may hang over the figure (perches.js discoBall), "" with no room
-export const pastimeOf = (state, held, memory, now, random, voice = "", has = () => true, tally = null, ball = "") =>
-    draw({moment: "pastime", free: FREE.has(state), lasted: held, voice, has, memory, now, tally, ball}, random);
+// The act drawn after `held` seconds of a state, as its entry, or null: the idle acts while the figure has nothing to do, and the
+// shenanigans that fit in `room` (roomFor), which is more than none only while it has nothing to do; `memory` holds when each act last
+// played and `tally` the acts since the last shenanigan, filled in here, and `ball` where a disco ball may hang over the figure (perches.js
+// discoBall), "" with no room
+export const pastimeOf = (room, held, memory, now, random, voice = "", has = () => true, tally = null, ball = "") =>
+    draw({moment: "pastime", free: room > 0, room, lasted: held, voice, has, memory, now, tally, ball}, random);
 
 // whether this jump up, `height` pixels for a figure `size` pixels tall, turns over on the way, as the pile draws it; `memory` holds when the
-// salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES)
-export const flips = (height, size, random, memory, now) => draw({moment: "jump", high: height > FLIP_OVER * size, memory, now}, random).name === "backflip";
+// salto last turned, `now` being the time, so it waits its cooldown (pile.js SHOWPIECES), and only with the `room` for it (roomFor)
+export const flips = (height, size, random, memory, now, room = 0) => draw({moment: "jump", high: height > FLIP_OVER * size, memory, now, room}, random).name === "backflip";
 
 // the moments each held clip is, every look while it is held: building while the figure hammers, standing while it stands idle
 const WHILE = {work: ["building"], idle: ["standing"]};
@@ -167,17 +181,18 @@ export function answerTo(moment, voice, memory, now, random, has) {
     }
     const reaction = reactionTo(moment.beat, memory.reacted, now, random, voice, has, memory.tally);
     if (reaction?.look) return {look: reaction.look};
-    if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(moment.card ? {mark: moment.card} : {}), ...(reaction.onto && moment.card ? {onto: true} : {}), ...(reaction.holds && {holds: true})}};
+    if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(moment.card ? {mark: moment.card} : {}), ...(reaction.onto && moment.card ? {onto: true} : {}), ...(reaction.holds && {holds: true}), ...(reaction.lifetime !== LIFETIME && {lifetime: reaction.lifetime})}};
     return null;
 }
 
 // What the figure does by itself after `waited` ({state, lasted}), as a beat, `flies` when it is the run off the top of the screen, or
-// null: only while it is calm, nothing to play, off any hang or swing and neither coming nor going. `scene` says where things stand; `memory` when
-// each act last played and `tally` the acts since the last shenanigan, filled in here.
+// null: only while it is calm, nothing to play, off any hang or swing, held by no sequence (pile.js sequenceIn) and neither coming nor
+// going. `scene` says where things stand, its `room` the seconds it may be away (roomFor); `memory` when each act last played and `tally`
+// the acts since the last shenanigan, filled in here.
 export function pastimeFor(scene, waited, memory, now, random, has, tally = null) {
-    const calm = scene.place.posture !== "hang" && !scene.place.swings && !scene.beats && !scene.arriving && !scene.leaving && !scene.moving;
+    const calm = scene.place.posture !== "hang" && !scene.place.swings && !scene.beats && !scene.held && !scene.arriving && !scene.leaving && !scene.moving;
     if (!calm) return null;
-    const drawn = pastimeOf(waited.state, waited.lasted, memory, now, random, scene.voice, has, tally, scene.ball);
+    const drawn = pastimeOf(scene.room ?? 0, waited.lasted, memory, now, random, scene.voice, has, tally, scene.ball);
     return drawn && {clip: drawn.name, card: "", flies: Boolean(drawn.flies)};
 }
 
@@ -240,13 +255,17 @@ export function heldCall(held, beats, reacted, now) {
     return call;
 }
 
-// how long a moment, or an act waiting in the queue, stays worth acting on, in seconds: the figure acts on what just happened, never late
+// how long a moment stays worth acting on, in seconds: the figure acts on what just happened, never late
 export const FRESH_SECONDS = 10;
 
-// The beats still worth playing at `now` (seconds): the one on screen, as `playing` names its clip, and every waiting beat queued within
-// FRESH_SECONDS; a beat with no time it was queued, as one shown during a state, stays
+// The beats still worth playing at `now` (seconds): the one on screen, as `playing` names its clip, and every waiting beat within its
+// lifetime since it was queued (pile.js alive); a beat with no time it was queued, as one shown during a state, stays
 export const freshBeats = (beats, playing, now) =>
-    beats.filter((beat, index) => (index === 0 && beat.clip === playing) || !beat.queuedAt || now - beat.queuedAt <= FRESH_SECONDS);
+    beats.filter((beat, index) => (index === 0 && beat.clip === playing) || !beat.queuedAt || alive(beat, beat.queuedAt, now));
+
+// the beat the figure plays now from the queue `beats`: the one at its head, or none while a sequence holds the figure (pile.js
+// sequenceIn), so what comes meanwhile waits
+export const headBeat = (beats, sequence) => (sequence ? null : (beats[0] ?? null));
 
 // The beat queue as the agent stands in `state`: a beat shown during a state (`during`, as the thinking act is) gone once that state is
 // over, whether it waits or plays; `cut` says whether the beat on screen, playing as the clip `playing`, is one of them, ended at once

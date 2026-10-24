@@ -31,14 +31,14 @@ test("every voice plays every journal moment and every new variant in each postu
     }
 });
 
-const {pastimeFor, reactionTo, variantOf, workMoments} = await import("../src/figure/reactions.js");
+const {pastimeFor, reactionTo, roomFor, variantOf, workMoments} = await import("../src/figure/reactions.js");
 const {PILE} = await import("../src/figure/pile.js");
 
 // the pile's entries of a moment, those that play something, the chance that one does, and the moment's cooldown
 const of = (moment) => PILE.filter((entry) => entry.when.moment === moment);
 const played = (moment) => of(moment).filter((entry) => entry.kind !== "nothing");
 const oddsOf = (moment) => played(moment).reduce((sum, entry) => sum + entry.weight, 0) / of(moment).reduce((sum, entry) => sum + entry.weight, 0);
-const cooldownOf = (moment) => played(moment)[0].cooldown;
+const cooldownOf = (moment) => played(moment)[0].group.cooldown;
 const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 
 const JOURNAL = {
@@ -155,11 +155,12 @@ const {ACTS, heldPhases, squeezeOf} = await import("../src/figure/acts.js");
 test("now and then while idle the figure hops up the bubbles above it very fast, off the top of the screen, and stays gone one to five seconds", () => {
     const pastime = of("pastime").find((each) => each.flies);
     expect([pastime.name, pastime.shenanigan, oddsOf("pastime") < 1]).toEqual(["hop_up", true, true]);
-    // a shenanigan, played in any state, a wait on a run, a worker or the user, or work, as much as idle (messages 40669, 40680, 41809)
+    // a shenanigan, played while the figure waits, on a run, a worker or the user, as much as idle, and never while its agent works
+    // (messages 40669, 40680, 41809, 46478)
     const has = (name) => name === "hop_up";
     for (const state of ["idle", "waiting", "asking", "thinking"]) {
-        const scene = {voice: "butler", place: {posture: "stand"}, beats: 0, arriving: false, leaving: false, moving: false};
-        expect(pastimeFor(scene, {state, lasted: 0}, new Map(), 0, () => 0, has), state).toEqual({clip: "hop_up", card: "", flies: true});
+        const scene = {voice: "butler", place: {posture: "stand"}, beats: 0, arriving: false, leaving: false, moving: false, room: roomFor(state, null, 0)};
+        expect(pastimeFor(scene, {state, lasted: 0}, new Map(), 0, () => 0, has), state).toEqual(state === "thinking" ? null : {clip: "hop_up", card: "", flies: true});
     }
     // the run ends over the chat's top, past which the figure is not drawn
     const hops = skywardHops({x: 300, y: 700}, [{x: 340, y: 560}, {x: 260, y: 400}, {x: 330, y: 260}], 40);

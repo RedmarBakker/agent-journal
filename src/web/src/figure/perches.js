@@ -3,7 +3,7 @@ import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
-import {FREE, letsGoFor} from "./reactions.js";
+import {letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
 
 // Where a figure perches on a message bubble now and then, instead of the compose box's edge: on top of it with its legs over the side,
@@ -19,8 +19,9 @@ export const HANG_STAY = [8, 20];
 // compose box's edge and stands a while on a corner of it, now and then sits on the corner itself with its legs hanging past the end
 // (places.js seatAt), perches on a message bubble or crosses to stand on one of the page's tabs, and whatever the agent is doing it does
 // from there; with nothing to do it may sit on the edge of the floor it stands on, facing the viewer, or swing on a rope under a bubble
-// that `swings` allows. `scene` holds the `tally` of acts since the last shenanigan, a perch on a bubble being one, whether the figure is
-// `free` while it has nothing to do, and the `memory` of when each act last played at `now`, for the showpieces' cooldowns.
+// that `swings` allows. `scene` holds the `tally` of acts since the last shenanigan, whether the figure is `free` while it has nothing to
+// do, its `room` for a shenanigan (reactions.js roomFor), and the `memory` of when each act last played at `now`, for the showpieces'
+// cooldowns; and the `moment` drawn for, the laptop's (pile.js laptop) in place of the roam.
 export function roamNext(random, scene = {}) {
     const drawn = draw({moment: "roam", ...scene}, random);
     return {where: drawn.name, stay: between(drawn.stay, random)};
@@ -43,13 +44,14 @@ const TURNED_TO_THE_BUBBLE = 180;
 
 // The perch a figure takes now on the bubbles of the floors snapshot `floors`, or null when no bubble in view has one free: the newest
 // bubble first, as the thread keeps it in view while older ones scroll away, and on each the kind the pile draws first (pile.js perch), a
-// hang only with a free hand and not cooling down in the figure's `memory` at `now`, then the other, a hang taken either way starting its
-// cooldown. `hands` are the sides, "l" or "r", of the hands that carry nothing; `random` is a function returning 0 up to 1.
-export function perchOn(floors, figure, hands, random, {memory = null, now = 0} = {}) {
+// hang only with a free hand while the figure is `free`, with nothing to do, and not cooling down in its `memory` at `now`, then the
+// other, a hang taken either way starting its cooldown. `hands` are the sides, "l" or "r", of the hands that carry nothing; `random` is a
+// function returning 0 up to 1.
+export function perchOn(floors, figure, hands, random, {memory = null, now = 0, free = false} = {}) {
     const open = floors.floors.filter((floor) => floor.kind === "bubble" && inView(floor, floors.view, figure));
-    const scene = {moment: "perch", hands: hands.length > 0, memory, now};
+    const scene = {moment: "perch", hands: hands.length > 0, free, memory, now};
     const hangs = choicesFor(scene).some((entry) => entry.name === HANGS);
-    const first = draw({moment: "perch", hands: hangs}, random).name;
+    const first = draw({moment: "perch", hands: hangs, free}, random).name;
     const kinds = !hangs ? [STANDS] : first === HANGS ? [HANGS, STANDS] : [STANDS, HANGS];
     const perches = open.reverse().flatMap((floor) => kinds.map((kind) => perchAt(floor, kind, floors.view, hands)));
     const perch = perches.find((each) => perchSpot(each, floors, figure)) ?? null;
@@ -199,17 +201,18 @@ export function climbable(spot, figure, near, scene = {}) {
     return spot && (climbOf(floors, figure, near, spot.y) || pogoFits(floors, near, spot, scene)) ? spot : null;
 }
 
-// The next stay, drawn at `now` seconds from the pile: where, until when, and what it holds for the stay, the perch on a bubble, the
-// tab it stands on, of those with a spot inside its world, or the point along the home edge it strolls to. A hang from a bubble is a short
-// one.
-export function nextStay(now, figure, hands, random, {tally = null, free = false, memory = null} = {}) {
+// The next stay, drawn at `now` seconds from the pile, from the roam or the `moment` named: where, until when, and what it holds for the
+// stay, the perch on a bubble, the bubble whose edge it sits on, the tab it stands on, of those with a spot inside its world, or the point
+// along the home edge it strolls to. A hang from a bubble is a short one.
+export function nextStay(now, figure, hands, random, {tally = null, free = false, room = 0, memory = null, moment = "roam"} = {}) {
     const swings = swingFloors(readFloors(), figure);
-    const {where, stay: seconds} = roamNext(random, {tally, free, swings: swings.length > 0, memory, now});
+    const {where, stay: seconds} = roamNext(random, {moment, tally, free, room, swings: swings.length > 0, memory, now});
     const until = now + seconds;
     if (where === "ledge") return {where, until, along: draw({moment: "ledge_at"}, random).along};
+    if (where === "bubble_ledge") return {where, until, ...bubbleLedge(figure, random)};
     if (where === "rope_swing") return {where, until, floor: swings[Math.floor(random() * swings.length)].id};
     if (where === "bubble") {
-        const perch = perchOn(readFloors(), figure, hands, random, {memory, now});
+        const perch = perchOn(readFloors(), figure, hands, random, {memory, now, free});
         return {where, until: perch?.kind === HANGS ? now + between(HANG_STAY, random) : until, perch};
     }
     if (where === "tab") {
@@ -218,6 +221,15 @@ export function nextStay(now, figure, hands, random, {tally = null, free = false
     }
     if (where === "edge") return {where, until, along: {x: random() * window.innerWidth, y: 0}};
     return {where, until};
+}
+
+// A bubble in the thread's view whose edge the figure may sit on, and where along it (pile.js ledge_at), {floor, along}; the floor "" when
+// no bubble has its edge free there
+function bubbleLedge(figure, random) {
+    const along = draw({moment: "ledge_at"}, random).along;
+    const floors = readFloors();
+    const free = floors.floors.filter((floor) => floor.kind === "bubble" && inView(floor, floors.view, figure) && ledgeSpot(along, figure, {on: floor.element}));
+    return {floor: free[Math.floor(random() * free.length)]?.id ?? "", along};
 }
 
 // how far in from the chat window's edge the middle of the figure's picture stands to rummage past it, as a share of the picture: near
@@ -250,6 +262,7 @@ export function stayingAt(stay, figure, near) {
     if (stay.where === "rummage") return rummageSpot(figure, stay.way);
     if (stay.where === "mark") return markSpot(stay.card, figure);
     if (stay.where === "ledge") return ledgeSpot(stay.along, figure, near);
+    if (stay.where === "bubble_ledge") return ledgeSpot(stay.along, figure, {on: readFloors().floors.find((floor) => floor.id === stay.floor)?.element});
     if (stay.where === "composed") return composedSpot(figure, near);
     if (stay.where === "rope_swing") return swingSpot(readFloors().floors.find((floor) => floor.id === stay.floor), figure);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
@@ -261,12 +274,13 @@ export function stayingAt(stay, figure, near) {
 // (places.js buildSpot), `work` being null with none of these in hand;
 // resting at home while its agent cannot act; to the tab of what waits on the user when something does and that tab has a spot inside
 // the figure's world; otherwise where its stay is, drawing the next stay when this one is over or its place is gone. `near` is where it
-// is, `counts` the views' badge counts and `state` what the agent does. The spot is kept clear of the box the figure stepped aside from
-// while that box is `cleared` (keptClear), except where it builds; resting by the parcel `pile`, it stands beside it (places.js besidePile).
-export function targetFor({state, counts, stay, now, near, figure, hands, work = null, pile = null, cleared = {until: 0}, random = Math.random, tally = null, memory = null}) {
+// is, `counts` the views' badge counts, `state` what the agent does and `room` the seconds it may be away for a shenanigan (reactions.js
+// roomFor). The spot is kept clear of the box the figure stepped aside from while that box is `cleared` (keptClear), except where it
+// builds; resting by the parcel `pile`, it stands beside it (places.js besidePile).
+export function targetFor({state, counts, stay, now, near, figure, hands, work = null, pile = null, cleared = {until: 0}, random = Math.random, tally = null, memory = null, room = 0}) {
     const building = work && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
-    const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory});
+    const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory, room});
     return {...target, spot: unlessClosing(watching(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), figure), near)};
 }
 
@@ -293,18 +307,32 @@ export function keptClear(spot, {state, now, near, figure, cleared}) {
     return clearOf(cleared.box, figure, near, RESTS.has(state)) ?? spot;
 }
 
-function targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory}) {
+function targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory, room}) {
     if (RESTS.has(state)) return {spot: restOf(figure, near), stay};
-    // at its laptop, while its agent edits, it sits on a corner where there is one
-    const seat = clipOf(state) === "type" && seatOf(figure, near);
-    if (seat) return {spot: seat, stay};
+    const scene = {memory, now, room};
+    const laptop = clipOf(state) === "type" && laptopAt(stay, now, figure, hands, random, near, scene);
+    if (laptop) return laptop;
     const pressing = pointedView(counts, openTabs());
-    const pointing = pressing && climbable(spotOf(pressing, figure, near), figure, near, {memory, now});
+    const pointing = pressing && climbable(spotOf(pressing, figure, near), figure, near, scene);
     if (pointing) return {spot: pointing, stay};
-    const kept = now < stay.until && climbable(stayingAt(stay, figure, near), figure, near, {memory, now});
+    const kept = !stay.laptop && now < stay.until && climbable(stayingAt(stay, figure, near), figure, near, scene);
     if (kept) return {spot: kept, stay};
-    const next = nextStay(now, figure, hands, random, {tally, free: FREE.has(state), memory});
-    return {spot: climbable(stayingAt(next, figure, near), figure, near, {memory, now}) || restOf(figure, near), stay: next};
+    const next = nextStay(now, figure, hands, random, {tally, free: room > 0, room, memory});
+    return {spot: climbable(stayingAt(next, figure, near), figure, near, scene) || restOf(figure, near), stay: next};
+}
+
+// Where the figure sits at its laptop while its agent works at it, and the stay it keeps there: the laptop's stay while it lasts and its
+// spot is there, else the next drawn from the pile (pile.js laptop), mostly a corner at home, now and then, bored of the spot, a bubble's
+// edge, or a corner when that one has no spot; null when no corner is free either. `scene` holds the `memory`, `now` and `room` its climb
+// is drawn with.
+function laptopAt(stay, now, figure, hands, random, near, scene) {
+    const kept = stay.laptop && now < stay.until && climbable(stayingAt(stay, figure, near), figure, near, scene);
+    if (kept) return {spot: kept, stay};
+    const next = {...nextStay(now, figure, hands, random, {moment: "laptop", memory: scene.memory}), laptop: true};
+    const there = climbable(stayingAt(next, figure, near), figure, near, scene);
+    if (there) return {spot: there, stay: next};
+    const seat = seatOf(figure, near);
+    return seat && {spot: seat, stay: {...next, where: "seat"}};
 }
 
 // Having jumped up onto a bubble on purpose, by a hop or the pogo stick, the figure stays there `seconds` before any trip away, but one

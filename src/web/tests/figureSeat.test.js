@@ -173,7 +173,7 @@ test("a trip up walks under the place and then jumps, one down falls and then wa
     ]);
     // a high jump now and then turns over, and a figure that goes on to hang does not land
     expect(tripBetween({x: 100, y: 500}, {x: 100, y: 300}, 112, {random: () => 0, hangs: true})).toMatchObject({lands: false});
-    expect(tripBetween({x: 100, y: 500}, {x: 100, y: 300}, 112, {random: () => 0}).legs[1].clip).toBe("backflip");
+    expect(tripBetween({x: 100, y: 500}, {x: 100, y: 300}, 112, {random: () => 0, room: Infinity}).legs[1].clip).toBe("backflip");
     expect(STEADY).toBeGreaterThan(0);
     // stepping out of the way it sprints, its stroll that much shorter
     const sprint = tripBetween({x: 100, y: 500}, {x: 400, y: 500}, 112, {pace: SPRINT});
