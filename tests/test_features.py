@@ -12740,3 +12740,28 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     door("POST", "pushed", {"ids": batch["ids"], "answer": {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}}})
     assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
     account.left(0)
+
+
+def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts_once(app: App):
+    from journal.models.outgoing_change import UPDATED, OutgoingChange
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.sync.team_account import TeamAccount
+    account = app.container.get(TeamAccount)
+    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
+    outgoing = app.container.get(OutgoingChanges)
+    outgoing.clear()
+    change = lambda row, state: outgoing.queued(OutgoingChange(row_table="tasks", row=row, action=UPDATED, fields={"state": state}, changed_at={"state": float(row)}, writer="user:1"), Actor.system())
+    change(1, "started")
+    change(2, "started")
+    port = app.server().port
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    first = door("GET", "batch")
+    change(3, "done")
+    again = door("GET", "batch")
+    assert again["ids"] == first["ids"] and again["changes"] == first["changes"], "a batch whose result never came is handed out again, the same changes and nothing added"
+    result = {"ids": first["ids"], "answer": {"settlement": {"sequences": [1, 2], "rejected": [], "server_time": 1.0}, "delivery": {"changes": [], "head": 2, "server_time": 1.0}}}
+    door("POST", "pushed", result)
+    door("POST", "pushed", result)
+    assert [c.row for c in outgoing.waiting()] == [3] and door("GET", "batch")["ids"] != first["ids"], "the result posted twice takes the batch off once, and the next batch is the change that waited"
+    account.left(0)
+

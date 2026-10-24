@@ -36,6 +36,9 @@ class OutgoingChanges(Repository[OutgoingChange]):
 
     def sending_batch(self, limit: int) -> list[OutgoingChange]:
         with self.connection.transaction():
+            outstanding = self.all_matching(is_sending=True)
+            if outstanding:
+                return outstanding[:limit]
             for change in self.waiting()[:limit]:
                 self.save(change.with_(is_sending=True), Actor.system())
         return self.all_matching(is_sending=True)[:limit]
