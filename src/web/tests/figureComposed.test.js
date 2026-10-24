@@ -64,13 +64,81 @@ test("sitting composed, both hands lie flat on the floor at its sides, beside th
         // upright, not leaning back as it does lounging
         const back = at("neck").sub(hips).normalize();
         expect(back.z, voice).toBeGreaterThan(Math.cos(THREE.MathUtils.degToRad(15)));
-        // its knees up and its feet flat on the floor before it, never its legs straight out toward the viewer
+        // its knees up and its feet flat on the floor before it, their soles on the floor line, never sunk into it nor its legs straight
+        // out toward the viewer
         for (const side of ["l", "r"]) {
             const knee = at(`shin_${side}`);
             const foot = at(`foot_${side}`);
             expect(knee.z, `${voice} ${side} knee up`).toBeGreaterThan(at(`thigh_${side}`).z + 0.15);
-            expect(knee.z, `${voice} ${side} knee over the foot`).toBeGreaterThan(foot.z + 0.25);
+            expect(knee.z, `${voice} ${side} knee well over the floor`).toBeGreaterThan(COMPOSED.floor + 0.45);
+            expect(knee.z, `${voice} ${side} knee over the foot`).toBeGreaterThan(foot.z + 0.15);
             expect(foot.y - hips.y, `${voice} ${side} foot near`).toBeGreaterThan(-0.9);
+            // the ankle as high over the floor line as it stands over the ground, so the sole rests on the floor
+            expect(foot.z - COMPOSED.floor, `${voice} ${side} sole on the floor`).toBeCloseTo(RIG.heads.get(`foot_${side}`).z, 2);
+        }
+    }
+});
+
+// the figure sitting composed for `voice` playing `name` at `t`, turned `facing` degrees and leaning on the arm `leans` names (figure.js SIDES,
+// 0 for none), posed as the page draws it (figure.js Stage.draw), in its own axes
+function composed(voice, name, t, facing, leans) {
+    const pose = new Posing(RIG, "composed", 0);
+    Object.assign(pose, {facing, leanWay: leans});
+    LEGS.composed.under(pose);
+    CLIPS.find((clip) => clip.name === name).pose(pose, stanceOf(voice), t);
+    LEGS.composed.over(pose);
+    const moves = pose.moves(0);
+    return {at: (bone) => pose.head(bone, moves.get(bone)), tip: (bone) => RIG.heads.get(bone).clone().add(RIG.along.get(bone)).applyMatrix4(moves.get(bone))};
+}
+
+// whether the hand on `side` lies flat on the floor line, wrist and fingers on it and level
+const flatOnFloor = ({at, tip}, side) => [at(`hand_${side}`), tip(`hand_${side}`)].every((point) => Math.abs(point.z - COMPOSED.floor) < 0.12) && Math.abs(tip(`hand_${side}`).z - at(`hand_${side}`).z) < 0.05;
+
+test("sitting composed it now and then sits turned a little to the left or right, the hand on the side turned away flat on the floor and the other arm free to move", async () => {
+    const {draw} = await import("../src/figure/pile.js");
+    // the ways it sits, drawn once a stay: facing the viewer most often, turned either way, and leaning on either arm
+    const ways = choicesFor({moment: "composed_as"});
+    expect(ways.map((way) => way.name)).toEqual(["facing", "turned_left", "turned_right", "leaning_on_left_arm", "leaning_on_right_arm"]);
+    expect(ways[0].weight).toBeGreaterThan(Math.max(...ways.slice(1).map((way) => way.weight)));
+    expect(draw({moment: "composed_as"}, () => 0)).toMatchObject({turn: 0, leans: 0});
+    // the spot it sits on carries the way, turned and leaning as drawn
+    const home = chat();
+    expect(composedSpot(FIGURE, {x: 360, y: 600, on: home}, {turn: 25, leans: 0})).toMatchObject({face: 25, leans: 0, posture: "composed"});
+    for (const voice of Object.keys(stances)) {
+        const free = stanceOf(voice).busy.has("r") ? "l" : "r";
+        const SIDE = {l: 1, r: -1};
+        // turned so its waving hand is the one toward the viewer: that arm free, still up waving, and the other hand flat on the floor
+        const turn = -SIDE[free] * 25;
+        const planted = free === "l" ? "r" : "l";
+        const turned = composed(voice, "wave", 0.5, (turn + 360) % 360, 0);
+        expect(flatOnFloor(turned, planted), `${voice} turned ${turn}: the hand turned away flat`).toBe(true);
+        expect(turned.at(`hand_${free}`).z, `${voice} turned ${turn}: the other arm free, waving`).toBeGreaterThan(COMPOSED.floor + 0.8);
+        // facing the viewer the same wave is set down, both hands flat
+        const facing = composed(voice, "wave", 0.5, 0, 0);
+        for (const side of ["l", "r"]) expect(flatOnFloor(facing, side), `${voice} facing: ${side} flat`).toBe(true);
+        // turned and at rest, the free hand lies over its knee, never hanging down through the floor
+        const resting = composed(voice, "idle", 0, (turn + 360) % 360, 0);
+        expect(flatOnFloor(resting, planted), `${voice} turned at rest: the hand turned away flat`).toBe(true);
+        const knee = resting.at(`shin_${free}`).add(new THREE.Vector3(...COMPOSED.lean.knee));
+        expect(resting.at(`hand_${free}`).distanceTo(knee), `${voice} turned at rest: the free hand over its knee`).toBeLessThan(0.15);
+        for (const point of [resting.at(`hand_${free}`), resting.tip(`hand_${free}`)]) expect(point.z, `${voice} turned at rest`).toBeGreaterThan(COMPOSED.floor);
+    }
+});
+
+test("sitting composed it sometimes leans over on one arm, that hand flat on the floor further out and the other resting over its knee", () => {
+    for (const voice of Object.keys(stances)) {
+        for (const [leans, side, other] of [[1, "l", "r"], [-1, "r", "l"]]) {
+            const label = `${voice} leaning on ${side}`;
+            const seat = composed(voice, "idle", 0, 0, leans);
+            const upright = composed(voice, "idle", 0, 0, 0);
+            // the body bent over toward the arm it leans on
+            expect(leans * (seat.at("neck").x - upright.at("neck").x), label).toBeGreaterThan(0.1);
+            // that hand flat on the floor, further out than when it sits upright
+            expect(flatOnFloor(seat, side), label).toBe(true);
+            expect(leans * seat.at(`hand_${side}`).x, label).toBeGreaterThan(leans * upright.at(`hand_${side}`).x + 0.1);
+            // the other over the front of its knee
+            const knee = seat.at(`shin_${other}`).add(new THREE.Vector3(...COMPOSED.lean.knee));
+            expect(seat.at(`hand_${other}`).distanceTo(knee), label).toBeLessThan(0.15);
         }
     }
 });

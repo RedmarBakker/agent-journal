@@ -115,14 +115,16 @@ export function ledgeSpot(along, figure, near) {
 // where along the floor it stands on the figure sits composed, as shares of the way across: the middle first, then a little either side
 export const COMPOSED_ALONG = [0.5, 0.42, 0.58];
 
-// Where the figure sits composed on the floor it stands at, `near`, a bubble, the dock or the composer: on its top near the middle, facing the
-// viewer (POSTURES composed), at the first of COMPOSED_ALONG where it is inside its world, clear of the chat's sides, hides no words and
-// keeps clear of the pile; null when it stands on no such floor or no place near the middle is free
-export function composedSpot(figure, near) {
+// Where the figure sits composed on the floor it stands at, `near`, a bubble, the dock or the composer: on its top near the middle, sitting
+// as `way` has it (pile.js composed_as), facing the viewer or turned `turn` degrees a little to one side, and leaning on the arm `leans`
+// names or on none (POSTURES composed), at the first of COMPOSED_ALONG where it is inside its world, clear of the chat's sides, hides no
+// words and keeps clear of the pile; null when it stands on no such floor or no place near the middle is free
+export function composedSpot(figure, near, way = {turn: 0, leans: 0}) {
     const floors = readFloors();
     const floor = floors.floors.find((each) => each.element && each.element === near.on && LEDGES.has(each.kind));
     if (!floor) return null;
-    const spots = COMPOSED_ALONG.map((share) => ({x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: 0, posture: "composed", view: null, on: floor.element}));
+    const at = (share) => ({x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: way.turn, leans: way.leans, posture: "composed", view: null, on: floor.element});
+    const spots = COMPOSED_ALONG.map(at);
     return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) && clearOfPile(spot, figure)) ?? null;
 }
 
@@ -244,6 +246,10 @@ export function nextStay(now, figure, hands, random, {tally = null, free = false
         return {where, until, view: tabs[Math.floor(random() * tabs.length)]};
     }
     if (where === "edge") return {where, until, along: {x: random() * window.innerWidth, y: 0}};
+    if (where === "composed") {
+        const {turn, leans} = draw({moment: "composed_as"}, random);
+        return {where, until, turn, leans};
+    }
     return {where, until};
 }
 
@@ -340,7 +346,7 @@ export function stayingAt(stay, figure, near) {
     if (stay.where === "mark") return markSpot(stay.card, figure);
     if (stay.where === "ledge") return ledgeSpot(stay.along, figure, near);
     if (stay.where === "bubble_ledge") return ledgeSpot(stay.along, figure, {on: readFloors().floors.find((floor) => floor.id === stay.floor)?.element});
-    if (stay.where === "composed") return composedSpot(figure, near);
+    if (stay.where === "composed") return composedSpot(figure, near, stay);
     if (stay.where === "lean") return leanSpot(figure, near);
     if (stay.where === "rope_swing") return swingSpot(readFloors().floors.find((floor) => floor.id === stay.floor), figure);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);

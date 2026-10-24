@@ -222,6 +222,11 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "pick middle ×2 when moment=ledge_at",
         "pick third ×1 when moment=ledge_at",
         "pick two_thirds ×1 when moment=ledge_at",
+        "pick facing ×4 when moment=composed_as",
+        "pick turned_left ×1 when moment=composed_as",
+        "pick turned_right ×1 when moment=composed_as",
+        "pick leaning_on_left_arm ×1 when moment=composed_as",
+        "pick leaning_on_right_arm ×1 when moment=composed_as",
         "sequence build of work, inspect, push while box=true, broken by ufo or crane, cools 180s, lives 60s",
     ]);
     // every clip of the pile is one the figure has

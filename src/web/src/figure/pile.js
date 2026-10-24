@@ -248,6 +248,16 @@ export const PILE = [
     ...at("laptop", {}, [pick("seat", 6, {}, {stay: [60, 150]}), pick("bubble_ledge", 1, {}, {stay: [30, 60]})]),
     // where along the floor it sits on the edge: around the middle, or a third of the way from either end, never at an end
     ...at("ledge_at", {}, [pick("middle", 2, {}, {along: 1 / 2}), pick("third", 1, {}, {along: 1 / 3}), pick("two_thirds", 1, {}, {along: 2 / 3})]),
+    // how it sits composed, drawn once a stay (figure.js COMPOSED): most often facing the viewer, both hands flat on the floor beside it;
+    // now and then turned a little to the left or right, `turn` degrees, one arm free; sometimes leaning over on one arm, its left (`leans`
+    // 1, figure.js SIDES) or its right (-1)
+    ...at("composed_as", {}, [
+        pick("facing", 4, {}, {turn: 0, leans: 0}),
+        pick("turned_left", 1, {}, {turn: 335, leans: 0}),
+        pick("turned_right", 1, {}, {turn: 25, leans: 0}),
+        pick("leaning_on_left_arm", 1, {}, {turn: 0, leans: 1}),
+        pick("leaning_on_right_arm", 1, {}, {turn: 0, leans: -1}),
+    ]),
 ];
 
 // whether a condition holds where things stand: its moment, a voice among its voices, a state lasted at least so long, and anything else

@@ -446,7 +446,7 @@ function step() {
         walkWay: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.way : 0,
         sky: shown.clip.name === watching ? sky : null,
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
-        leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : 0,
+        leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : drawn === "composed" ? body.place.leans : 0,
         at: lookingAt(shown),
         target: aimAt(shown),
         open: blinked(),

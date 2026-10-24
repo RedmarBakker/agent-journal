@@ -334,13 +334,16 @@ export const SEAT_INBOARD = 0.1;
 export const seatAt = (box, side, {size}) => endOf(box, SEAT_SIDES[side], SEAT_INBOARD * size, "sit");
 
 
+// the turn `facing` degrees is from the viewer, the least way round, from -180 to 180
+export const signedTurn = (facing) => ((((facing + 180) % 360) + 360) % 360) - 180;
+
 // the least a figure at its laptop is turned from the viewer, in degrees: three-quarters
 export const ASIDE = 60;
 
 // the way a figure seated playing `clip` faces on a spot facing `face`: the spot's way, turned to three-quarters for a clip drawn aside
 // (figure.js CLIPS aside) where the spot faces nearer the viewer, to the side it already leans to
 export function seatedFacing(clip, face) {
-    const turn = ((((face + 180) % 360) + 360) % 360) - 180;
+    const turn = signedTurn(face);
     if (!clip.aside || Math.abs(turn) >= ASIDE) return face;
     return turn < 0 ? 360 - ASIDE : ASIDE;
 }

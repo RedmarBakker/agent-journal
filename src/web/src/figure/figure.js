@@ -4,7 +4,7 @@ import * as THREE from "three";
 import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
-import {POSTURES} from "./places.js";
+import {POSTURES, signedTurn} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {FRAMES_PER_SECOND, GRID, TICKER, litPixels} from "./visorPixels.js";
 import {HEAD, holdsHead} from "./looks.js";
@@ -699,10 +699,15 @@ function loungedLegs(pose) {
     }
 }
 
-// Sitting composed on a floor's top (places.js POSTURES composed): sat upright facing the viewer with its knees up, its feet flat on the
-// floor before it at `feet` (across, forward, up from the standing feet, in the figure's units), never its legs straight out toward the
-// viewer, and both hands set flat on the floor at its sides; the floor line is `floor` above the standing feet, as when it lounges
-export const COMPOSED = {feet: [0.3, -0.72, 1.5], hands: [0.78, -0.05], nod: -4, floor: LOUNGE.floor};
+// Sitting composed on a floor's top (places.js POSTURES composed): sat upright with its knees up, its feet flat on the floor before it at
+// `feet` (across, forward, up from the standing feet, in the figure's units), their soles on the floor line `ankle` under the ankles,
+// never sunk into the floor nor its legs straight out toward the viewer; the floor line is `floor` above the standing feet, as when it
+// lounges. Facing the viewer both hands are set flat on the floor at its sides, palms down, `hands` across and forward of the middle;
+// turned a little to one side (perches.js composedSpot) only the hand on the side turned away, the other arm left free to move as the clip
+// has it, laid over its knee when the clip leaves it hanging at rest, under `free` over the floor line, so it never hangs through the
+// floor; leaning on one arm it bends its body `tilt` degrees over to that side, that hand set flat further out, `out` across, and the
+// other resting over the front of its knee, `knee` forward and up from the knee
+export const COMPOSED = {feet: [0.32, -0.8, LOUNGE.floor + 0.33], hands: [0.78, -0.05], nod: -4, floor: LOUNGE.floor, free: 0.4, lean: {tilt: 12, out: 1.0, knee: [0, -0.2, 0.12]}};
 
 function composedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
@@ -710,11 +715,29 @@ function composedLegs(pose) {
         pose.step(side, new THREE.Vector3(sign * x, y, z), new THREE.Vector3(0, -1, 1));
     }
     trunk(pose, {nod: COMPOSED.nod});
+    const leans = pose.leanWay;
+    if (leans) pose.bendAbove("spine", {y: leans * COMPOSED.lean.tilt});
+    const turned = Math.sign(signedTurn(pose.facing));
     for (const [side, sign] of Object.entries(SIDES)) {
-        const flat = new THREE.Vector3(sign * COMPOSED.hands[0], COMPOSED.hands[1], COMPOSED.floor);
-        handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(1, 0.3, 0));
-        pose.face(`hand_${side}`, {x: -80});
+        if (leans && sign !== leans) restOnKnee(pose, side);
+        else if (leans) handFlat(pose, side, COMPOSED.lean.out);
+        else if (!turned || sign === turned) handFlat(pose, side, COMPOSED.hands[0]);
+        else if (pose.head(`hand_${side}`, pose.matrix(`hand_${side}`)).z < COMPOSED.floor + COMPOSED.free) restOnKnee(pose, side);
     }
+}
+
+// the hand on `side` set flat on the floor line of a composed seat, palm down, `across` to its side
+function handFlat(pose, side, across) {
+    const flat = new THREE.Vector3(SIDES[side] * across, COMPOSED.hands[1], COMPOSED.floor);
+    handTo(pose, side, 1, pose.withinReach(side, flat, 0.97), new THREE.Vector3(1, 0.3, 0));
+    pose.face(`hand_${side}`, {x: -80});
+}
+
+// the hand on `side` resting over the front of its knee, palm down
+function restOnKnee(pose, side) {
+    const knee = pose.head(`shin_${side}`, pose.matrix(`shin_${side}`)).add(new THREE.Vector3(...COMPOSED.lean.knee));
+    handTo(pose, side, 1, pose.withinReach(side, knee, 0.97), new THREE.Vector3(1, 0.3, 0));
+    pose.face(`hand_${side}`, {x: -80});
 }
 
 function seatedLegs(pose) {
