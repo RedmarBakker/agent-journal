@@ -7,17 +7,18 @@ from journal.sync.team_account import TeamAccount
 
 
 class BlockNumbers(Listener[NumberRequest]):
-    """A new row of a shared model takes its number from this machine's blocks once the journal has joined a team, so no two machines give one number, asking the team server for more there and then when a table has none left; otherwise SQLite numbers it."""
+    """A new row of a shared model, or of one sharing a shared model's table, takes its number from this machine's blocks of that model once the journal has joined a team, so no two machines give one number, asking the team server for more there and then when a table has none left; otherwise SQLite numbers it."""
 
     def __init__(self, blocks: IdBlocks, account: TeamAccount, supply: BlockSupply) -> None:
         self.blocks, self.account, self.supply = blocks, account, supply
 
     def handle(self, event: NumberRequest) -> int:
-        if not event.model.shared or not self.account.is_joined():
+        pool = event.model.number_pool()
+        if pool is None or not self.account.is_joined():
             return 0
-        if not self.blocks.has_numbers(event.model.table()):
-            self.refilled(event.model.table())
-        return self.blocks.next_id(event.model.table())
+        if not self.blocks.has_numbers(pool):
+            self.refilled(pool)
+        return self.blocks.next_id(pool)
 
     def refilled(self, table: str) -> None:
         try:

@@ -10,6 +10,8 @@ class WorkerReuseCounts(Migration):
     number: ClassVar[int] = 30
 
     def apply(self, connection: Connection) -> None:
+        if not self.has_table(connection, "workers"):
+            return
         for worker in connection.all("SELECT id, state FROM workers WHERE reuse_count IS NULL OR reuse_count = 0"):
             reports = connection.result("SELECT COUNT(*) AS n FROM links WHERE source = ? AND kind = 'reported'", (f"workers:{worker['id']}",))["n"]
             sends = reports if worker["state"] == "dispatched" else reports - 1

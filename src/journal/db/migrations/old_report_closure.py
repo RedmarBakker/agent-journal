@@ -10,4 +10,6 @@ class OldReportClosure(Migration):
     number: ClassVar[int] = 12
 
     def apply(self, connection: Connection) -> None:
+        if not self.has_table(connection, "workers"):
+            return
         connection.execute("UPDATE workers SET taken_up = 1 WHERE state != 'dispatched'")

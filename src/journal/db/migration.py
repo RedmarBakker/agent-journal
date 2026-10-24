@@ -14,6 +14,11 @@ class Migration:
         for statement in self.statements:
             connection.execute(statement)
 
+    # workers and verifiers moved to the table of sent agents in migration 50, so a migration before it finds the workers table only in a journal that old
+    @staticmethod
+    def has_table(connection: Connection, name: str) -> bool:
+        return bool(connection.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)))
+
     @staticmethod
     def column_rename(connection: Connection, table: str, old: str, new: str) -> None:
         present = {row["name"] for row in connection.all(f"PRAGMA table_info({table})")}

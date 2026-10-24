@@ -51,7 +51,7 @@ class Repository(Generic[M]):
         self.link_query = Query.build(Link)
 
     def query(self) -> Query:
-        return Query(self.table, self.column_map)
+        return Query.build(self.model)
 
     def find(self, id: int) -> M:
         rows = self._loaded(self.query().filter(id=id))
@@ -76,7 +76,7 @@ class Repository(Generic[M]):
             return {row["value"]: row["total"] for row in self.connection.all(*self._scoped(query).grouped(column))}
 
     def listing(self) -> AbstractContextManager[None]:
-        return self.connection.listing(self.table)
+        return self.connection.listing(self.model.storage())
 
     def selected(self, query: Query) -> list[M]:
         return self._selected(self._scoped(query))
@@ -296,7 +296,7 @@ class Repository(Generic[M]):
         return row.without_events()
 
     def stored(self) -> None:
-        self.connection.changed(self.table)
+        self.connection.changed(self.model.storage())
 
     def _loaded(self, query: Query) -> list[M]:
         return self.connection.cached(query.tables(), *query.select(), lambda rows: [self._load(row) for row in rows])

@@ -10,5 +10,6 @@ class BlankSessionNulls(Migration):
     number: ClassVar[int] = 33
 
     def apply(self, connection: Connection) -> None:
-        connection.execute("UPDATE workers SET dispatcher = NULL WHERE dispatcher = ''")
+        if self.has_table(connection, "workers"):
+            connection.execute("UPDATE workers SET dispatcher = NULL WHERE dispatcher = ''")
         connection.execute("UPDATE command_outputs SET session = NULL WHERE session = ''")

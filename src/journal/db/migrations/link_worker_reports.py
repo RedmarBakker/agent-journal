@@ -11,6 +11,8 @@ class LinkWorkerReports(Migration):
     number: ClassVar[int] = 5
 
     def apply(self, connection: Connection) -> None:
+        if not self.has_table(connection, "workers"):
+            return
         time = datetime.now(timezone.utc).isoformat()
         for worker in connection.all("SELECT id, name, environment_id FROM workers"):
             message = connection.one("SELECT id FROM messages WHERE environment_id = ? AND text LIKE ? ORDER BY id DESC LIMIT 1", (worker["environment_id"], f"{worker['name']} reports: %"))

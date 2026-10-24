@@ -9,7 +9,10 @@ ORPHAN_CONDITION = ("(json_extract(data, '$.row') LIKE 'workers:%' AND CAST(subs
 
 
 class OrphanWorkerCards(Migration):
-    """The chat cards of the verifiers once kept as workers, whose rows migration 48 removed, go too, so the chat never opens a worker that is not there."""
+    """The chat cards of the verifiers once kept as workers, whose rows migration 48 removed, go too, so the chat never opens a worker that is not there; a journal whose workers already moved to the table of sent agents has none left."""
 
     number: ClassVar[int] = 49
-    statements: ClassVar[tuple[str, ...]] = (f"DELETE FROM messages WHERE {ORPHAN_CONDITION}",)
+
+    def apply(self, connection: Connection) -> None:
+        if self.has_table(connection, "workers"):
+            connection.execute(f"DELETE FROM messages WHERE {ORPHAN_CONDITION}")

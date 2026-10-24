@@ -10,4 +10,6 @@ class DispatcherSessionClear(Migration):
     number: ClassVar[int] = 31
 
     def apply(self, connection: Connection) -> None:
+        if not self.has_table(connection, "workers"):
+            return
         connection.execute("UPDATE workers SET session = '' WHERE session != '' AND session IN (SELECT dispatcher FROM workers)")

@@ -231,6 +231,14 @@ def test_a_row_answers_its_heading_its_summary_and_its_dock_card():
     assert RowCard.build(report).as_data() == {"row": "reports:33", "heading": "Report 33: What the dock showed", "summary": "One line about it", "dock": {"buttons": [{"label": "Open", "act": "open"}, {"label": "Close", "act": "close"}], "folds": True}}, "a card carries no file: a document is downloaded from where it is read"
 
 
+def legacy_workers(connection) -> None:
+    """The workers table as journals kept it before workers and verifiers shared the table of sent agents, for the migrations that ran on it."""
+    from journal.db.schema import Schema
+    from journal.models.worker import Worker
+    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Worker) if column.name not in ("id", "kind"))
+    connection.execute(f"CREATE TABLE workers (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})")
+
+
 def test_the_time_keys_migration_renames_at_in_the_column_and_the_stored_json(connection):
     """Migration 20: the edits column at becomes time, and the at key inside an entry's data, a check's progress and a dump's question and answers becomes time; a record without them is left as it is."""
     from journal.db.migrations.time_keys import TimeKeys
@@ -258,6 +266,7 @@ def test_the_time_keys_migration_renames_at_in_the_column_and_the_stored_json(co
 def test_the_verifiers_once_kept_as_workers_go_with_their_links_their_role_column_and_their_chat_cards(connection):
     from journal.db.migrations.orphan_worker_cards import OrphanWorkerCards
     from journal.db.migrations.verifier_workers_drop import VerifierWorkersDrop
+    legacy_workers(connection)
     connection.execute("ALTER TABLE workers ADD COLUMN role TEXT DEFAULT 'worker'")
     for name, role in (("Ada", "worker"), ("Diogenes", "verifier")):
         connection.execute("INSERT INTO workers (environment_id, name, role, created_at, creator) VALUES (1, ?, ?, '2026-10-25', 'system')", (name, role))
@@ -270,6 +279,26 @@ def test_the_verifiers_once_kept_as_workers_go_with_their_links_their_role_colum
     assert [row["name"] for row in connection.all("SELECT name FROM workers")] == ["Ada"] and not connection.all("SELECT id FROM links WHERE kind = 'verifies'")
     assert "role" not in {row["name"] for row in connection.all("PRAGMA table_info(workers)")}, "the workers lose the column that told a verifier apart"
     assert [json.loads(row["data"]) for row in connection.all("SELECT data FROM messages ORDER BY id")] == [{"row": f"workers:{ada}"}, {"key": "verifier:1"}], "only the cards of the removed verifiers go"
+
+
+def test_workers_and_verifiers_move_into_the_one_table_of_sent_agents_each_keeping_what_names_it(connection):
+    from journal.db.migrations.sent_agent_rows import SentAgentRows
+    from journal.db.schema import Schema
+    from journal.models.verifier import Verifier
+    legacy_workers(connection)
+    columns = ", ".join(f"{column.name} {column.sql_type}" for column in Schema.columns(Verifier) if column.name not in ("id", "kind"))
+    connection.execute(f"CREATE TABLE verifiers (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})")
+    for name in ("Ada", "Grace"):
+        connection.execute("INSERT INTO workers (environment_id, name, state, created_at, creator) VALUES (1, ?, 'dispatched', '2026-10-25', 'system')", (name,))
+    connection.execute("INSERT INTO verifiers (environment_id, name, state, created_at, creator) VALUES (1, 'Diogenes', 'judged', '2026-10-25', 'system')")
+    connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('verifiers:1', 'reader_reports:4', 'verifies', '2026-10-25', 'system')")
+    connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at, creator) VALUES (1, 'system', 'card', ?, '2026-10-25', 'system')", (json.dumps({"key": "verifier:1"}),))
+    SentAgentRows().apply(connection)
+    rows = [(row["id"], row["name"], row["kind"]) for row in connection.all("SELECT id, name, kind FROM sent_agents ORDER BY id")]
+    assert rows == [(1, "Ada", "worker"), (2, "Grace", "worker"), (3, "Diogenes", "verifier")], "each worker keeps its number, and a verifier takes one after the last so none meets a worker's"
+    assert connection.one("SELECT source FROM links")["source"] == "verifiers:3" and json.loads(connection.one("SELECT data FROM messages")["data"]) == {"key": "verifier:3"}, "its link and its card follow its new number"
+    tables = {row["name"] for row in connection.all("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "workers" not in tables and "verifiers" not in tables, "and the two old tables go"
 
 
 def test_the_trigger_phrases_migration_renames_the_words_column(connection):
@@ -361,6 +390,7 @@ def test_the_timestamp_renames_migration_moves_the_phone_codes_and_the_wait_time
 def test_the_worker_reuse_counts_migration_reads_each_reuse_from_the_reports_before_it(connection):
     """Migration 30: an old worker row's reuse count comes from its report links, the last report followed by a send when it is out again; the reason it was retired starts empty."""
     from journal.db.migrations.worker_reuse_counts import WorkerReuseCounts
+    legacy_workers(connection)
     for n, state in ((1, "reported"), (2, "dispatched"), (3, "dispatched")):
         connection.execute("INSERT INTO workers (environment_id, name, state, created_at, creator) VALUES (1, ?, ?, '2026-10-21', 'system')", (f"w{n}", state))
     for worker, reports in ((1, 3), (2, 2)):

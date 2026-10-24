@@ -13590,7 +13590,10 @@ def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_t
     with sqlite3.connect(app.config.database) as database:
         database.row_factory = sqlite3.Row
         local = [dict(row) for row in database.execute("select * from tasks")]
-        others = [{"row_table": table, "row": row["id"], "fields": dict(row), "changed_at": {}} for table in app.container.get(SharedTables).names() if table != "tasks" for row in database.execute(f"select * from {table}")]
+        from journal.db.query import Query
+        from journal.models.all_models import AllModels
+        models = {model.table(): model for model in AllModels.MODELS}
+        others = [{"row_table": table, "row": row["id"], "fields": dict(row), "changed_at": {}} for table in app.container.get(SharedTables).names() if table != "tasks" for row in database.execute(*Query.build(models[table]).select())]
     rows = others + [{"row_table": "tasks", "row": row["id"], "fields": {**row, "brief": "x" * 4_000_000 if n == 0 else row["brief"]}, "changed_at": {}} for n, row in enumerate(local)]
     edited = local[1]["id"]
     outgoing = app.container.get(OutgoingChanges)

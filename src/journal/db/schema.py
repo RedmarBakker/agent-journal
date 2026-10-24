@@ -31,14 +31,14 @@ class Schema:
         self.connection.execute("VACUUM")
 
     def add_new_columns(self, db, model: type[Model]) -> None:
-        present = {row["name"] for row in db.execute(f"PRAGMA table_info({model.table()})").fetchall()}
+        present = {row["name"] for row in db.execute(f"PRAGMA table_info({model.storage()})").fetchall()}
         for column in self.columns(model):
             if column.name not in present:
-                db.execute(f"ALTER TABLE {model.table()} ADD COLUMN {column.name} {column.sql_type}")
+                db.execute(f"ALTER TABLE {model.storage()} ADD COLUMN {column.name} {column.sql_type}")
 
     def statement(self, model: type[Model]) -> str:
         columns = ", ".join(f"{column.name} {column.sql_type}" for column in self.columns(model) if column.name != "id")
-        return f"CREATE TABLE IF NOT EXISTS {model.table()} (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})"
+        return f"CREATE TABLE IF NOT EXISTS {model.storage()} (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns})"
 
     @staticmethod
     def columns(model: type[Model]) -> tuple[Column, ...]:

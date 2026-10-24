@@ -40,6 +40,20 @@ class Model:
             return singular + "es"
         return singular + "s"
 
+    # the SQL table its rows are stored in; models that share one table tell their rows apart by kind_filter
+    @classmethod
+    def storage(cls) -> str:
+        return cls.table()
+
+    @classmethod
+    def kind_filter(cls) -> dict[str, str]:
+        return {}
+
+    # the team's block of row numbers a new row takes its number from, when it takes one
+    @classmethod
+    def number_pool(cls) -> str | None:
+        return cls.table() if cls.shared else None
+
     @classmethod
     def noun(cls) -> str:
         return re.sub(r"(?<!^)(?=[A-Z])", " ", cls.__name__).lower()

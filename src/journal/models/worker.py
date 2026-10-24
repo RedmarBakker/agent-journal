@@ -17,7 +17,7 @@ from journal.events.rows.worker_retired import WorkerRetired
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.events.rows.worker_queue_drained import WorkerQueueDrained
-from journal.models.scoped import Scoped
+from journal.models.sent_agent import SentAgent
 from journal.models.support.path_overlap import PathOverlap
 from journal.models.worker_state import WorkerState
 from journal.support.timeout import Timeout
@@ -26,32 +26,26 @@ SILENCE = Timeout.minutes(20)
 
 
 @dataclass(frozen=True)
-class Worker(Scoped):
+class Worker(SentAgent):
     """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; retired once stopped or acted on. It keeps each move it made with its time, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
-    name: str = ""
-    brief: str = ""
-    provider: str = "claude"
-    model: str = ""
+    kind: str = "worker"
     profile: str | None = None
     worktree: bool = False
     repositories: tuple[str, ...] = ()
     library_links: tuple[str, ...] = ()
     library_copies: tuple[str, ...] = ()
     state: WorkerState = WorkerState.DISPATCHED
-    session: str = ""
     dispatcher: str | None = None
     resume: str = ""
     adopted: bool = False
-    pid: int = 0
     device: str = ""
     began: float = 0.0
     recovered_session: str = ""
     touched_paths: tuple[str, ...] | None = None
     reuse_count: int = 0
     retire_reason: str = ""
-    token_hash: str = ""
     run_end: str = ""
     transcript_bytes: int = 0
     silence: WorkerSilence = WorkerSilence(SILENCE)

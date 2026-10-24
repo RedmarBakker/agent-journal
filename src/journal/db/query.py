@@ -15,7 +15,7 @@ PREFIX_END = "￿"
 
 @dataclass(frozen=True)
 class Query:
-    """A read or a write of one table composed in calls, each returning a new query, and rendered to SQL text and its parameters for the Connection to run; a column the table does not have fails as it is named, and data->key->key names a JSON path in a column."""
+    """A read or a write of one table composed in calls, each returning a new query, and rendered to SQL text and its parameters for the Connection to run; a column the table does not have fails as it is named, and data->key->key names a JSON path in a column; a model that shares its table with another reads and writes only rows of its own kind, and is named in refs by its own name."""
 
     table: str
     columns: Mapping[str, Column]
@@ -24,10 +24,15 @@ class Query:
     row_limit: int = -1
     row_offset: int = 0
     subquery_tables: tuple[str, ...] = ()
+    ref_table: str = ""
 
     @classmethod
     def build(cls, model: type[Model]) -> "Query":
-        return cls(model.table(), {column.name: column for column in Schema.columns(model)})
+        return cls(model.storage(), {column.name: column for column in Schema.columns(model)}, ref_table=model.table()).filter(**model.kind_filter())
+
+    @property
+    def ref_name(self) -> str:
+        return self.ref_table or self.table
 
     def filter(self, **fields) -> "Query":
         query = self
@@ -96,7 +101,7 @@ class Query:
         return (self.table, *self.subquery_tables)
 
     def filter_ref(self, column: str, query: "Query") -> "Query":
-        return self._with(Condition(f"{self.table}.{self._column(column).name} = ? || {query.table}.id", (f"{query.table}:",)))
+        return self._with(Condition(f"{self.table}.{self._column(column).name} = ? || {query.table}.id", (f"{query.ref_name}:",)))
 
     def inlined(self) -> "Query":
         return replace(self, conditions=tuple(condition.inlined() for condition in self.conditions))
