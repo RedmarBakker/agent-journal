@@ -4,6 +4,11 @@ Newest first. Each entry is what changed, what it makes possible, and what to do
 `journal upgrade` prints the entries since the version you had; a session started on a
 newer version than the last one it saw is handed the same.
 
+## 3.3.7 — The way across to version 4 checks what it needs first
+
+- `journal upgrade --to 4 --yes` checks for Python 3.14 and git before it stops anything. Version 4's installer runs with no terminal, so where Python 3.14 was missing it stopped at the password python.org's installer asks for, leaving this journal stopped on 3.3.6 with nothing in upgrade.log. Now, with either missing, nothing is stopped, and you are told what to install, or to run version 4's install line from a plain terminal, where it offers to install Python itself.
+- The question before the crossing says that stopping the journal ends the agent session it runs in, so run it from a plain terminal, and names the log the installer writes to.
+
 ## 3.3.6 — The way across to version 4
 
 - `journal upgrade --to 4` (or `journal upgrade 4.0.0`) is now the one way across to version 4. It asks first and names what it will do: back up the journal, stop it completely, install version 4 by running its install script from the project root, and restart. With `--yes` it does it. The install script keeps this journal whole in `.journal/version-3`. Before, naming 4.0.0 ran this version's own installer.

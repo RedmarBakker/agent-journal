@@ -1023,15 +1023,22 @@ def test_the_way_across_to_version_4_asks_first_then_backs_up_stops_and_installs
     monkeypatch.setattr(queries, "halt", lambda ctx: calls.append("stop") or "the journal is stopped")
     monkeypatch.setattr(to_four.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(to_four.subprocess, "Popen", lambda words, **how: calls.append((words, how["cwd"], how["env"]["AGENT_JOURNAL_YES"])))
+    monkeypatch.setattr(to_four, "missing_needs", lambda: [])
     for wanted in ({"to": "4", "version": None}, {"to": None, "version": "4.0.0"}):
         asked = queries.upgrade_here({"record": record, "yes": False, **wanted})
-        for step in ("backs up", "stops the journal completely", "installs version 4", "restarts", to_four.INSTALLER, ".journal/version-3"):
+        for step in ("backs up", "stops the journal completely", "installs version 4", "restarts", to_four.INSTALLER, ".journal/version-3", "ends the agent session", "Python 3.14", "agent-journal-upgrade-to-4.log"):
             assert step in asked, f"the question names {step}"
         assert calls == [], "nothing is done before the answer"
     queries.upgrade_here({"record": record, "yes": True, "to": "4", "version": None})
     assert calls == ["back up", "stop", (["sh", "-c", f"curl -fsSL {to_four.INSTALLER} | sh"], str(record.root.parent), "1")], \
         "yes backs the journal up, stops it, then runs version 4's installer from the project root, carrying the yes, since it has no terminal to ask on"
     assert not to_four.names_four("3.3.5") and not to_four.names_four(None) and to_four.names_four("4.0.0")
+    calls.clear()
+    monkeypatch.setattr(to_four, "missing_needs", lambda: ["Python 3.14"])
+    refused = queries.upgrade_here({"record": record, "yes": True, "to": "4", "version": None})
+    assert calls == [] and "needs Python 3.14" in refused and "nothing was stopped" in refused and to_four.INSTALLER in refused, \
+        "with Python 3.14 missing the crossing stops nothing and says what to install, since the installer would stop with no terminal to ask on"
+    assert to_four.has_wanted_python("no-such-python-here") is False
 
 
 def test_the_viewer_crosses_to_version_4_by_the_same_path_and_is_told_a_new_line_is_out(monkeypatch):
