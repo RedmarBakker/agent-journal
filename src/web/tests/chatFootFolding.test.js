@@ -51,3 +51,8 @@ test("the docks and the status line take their own room under the pane, so a bub
     );
     expect(thread).toContain("paneWatch.observe(scroller.value);");
 });
+
+test("while the plan bar is open the chat never snaps itself to its foot after resting, so the bar never folds and flashes open again", () => {
+    const rest = thread.split("function restAtFoot() {")[1].split("\n}\n")[0];
+    expect(rest).toContain("!planOpen.value");
+});

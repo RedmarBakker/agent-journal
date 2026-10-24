@@ -313,7 +313,8 @@ function leftTheBottom(s) {
 }
 
 // a reader who is away and comes to rest near the foot without scrolling there, as when the docks fold and the pane gets shorter,
-// follows again only once the pane has rested there for RESTED_MS with no scroll of theirs; their own scroll to the foot follows at once
+// follows again only once the pane has rested there for RESTED_MS with no scroll of theirs, and never while the plan bar is open, where
+// a snap to the foot would fold and open it again; their own scroll to the foot follows at once
 const RESTED_MS = 5000;
 let restTimer = 0;
 // the status line keeps its row at the foot and slides out only while the pane is scrolled up from it, wherever the following stands
@@ -323,7 +324,7 @@ function restAtFoot() {
     clearTimeout(restTimer);
     restTimer = setTimeout(() => {
         const s = scroller.value;
-        if (s && away.value && Date.now() - scrolledAt >= RESTED_MS && s.scrollHeight - s.scrollTop - s.clientHeight <= FAR) atTheFoot();
+        if (s && away.value && !planOpen.value && Date.now() - scrolledAt >= RESTED_MS && s.scrollHeight - s.scrollTop - s.clientHeight <= FAR) atTheFoot();
     }, RESTED_MS);
 }
 
