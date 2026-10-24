@@ -8,7 +8,7 @@ from sync_server.settlement import Settlement
 
 
 class PushResults:
-    """What the server answered for each pushed change, so a push sent again after a lost answer is answered the same and stored once."""
+    """What the server answered for each pushed change, so a push sent again after a lost answer is answered the same and stored once; a device's answers below the lowest change it pushes next are no longer kept."""
 
     def __init__(self, rows: PushResultRows) -> None:
         self.rows = rows
@@ -18,6 +18,10 @@ class PushResults:
         if stored is None:
             return None
         return Settlement(replace(change, sequence=stored["sequence"]), tuple(RejectedField(**field) for field in json.loads(stored["rejected"])))
+
+    # a device sends its unanswered changes oldest first, so a push whose lowest local number is this one can no longer be retried below it
+    def settled_below(self, device_id: int, local_number: int) -> None:
+        self.rows.delete_older(device_id, local_number)
 
     def record(self, device_id: int, local_number: int, settlement: Settlement) -> None:
         self.rows.write(device_id, local_number, settlement.sequence(), settlement.rejected_json())

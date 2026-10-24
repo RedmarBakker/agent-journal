@@ -218,6 +218,10 @@ def test_a_push_sent_again_after_a_lost_answer_is_kept_once_and_answered_as_the_
     bob_again = push.answer(bob, request(1, "user:2", "bob's", 20.0), 24.0)
     assert bob_again.sequences == (1,) and bob_again.rejected == () and log.head() == 1, "a change sent twice is kept once and never rejected by itself"
     assert push.answer(ada, request(6, "user:1", "ada's newest", 30.0), 31.0).sequences == (2,), "a new local number is a new change"
+    kept = lambda device: [row["local_number"] for row in store.all("SELECT local_number FROM push_results WHERE device_id = ? ORDER BY local_number", (device,))]
+    assert kept(devices.device(ada).id) == [6], "a push whose lowest local number is 6 settles every answer below it, which the device can never send again"
+    newest_again = push.answer(ada, request(6, "user:1", "ada's newest", 30.0), 32.0)
+    assert newest_again.sequences == (2,) and log.head() == 2, "and the answer it may still retry is kept: sent again, it is answered as the first time and stored once"
 
 
 def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_and_takes_the_first_full_copy(tmp_path):
