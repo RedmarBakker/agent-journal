@@ -1,5 +1,6 @@
 """The supervisor's parts that start no process: the launch, the picker, the hooks set aside, the status line, the inbox's announce file, the mirror, and that it imports every module at start. Its processes are tested in supervisor_processes_run.py."""
 
+import io
 import json
 import os
 import signal
@@ -16,6 +17,7 @@ from journal.support.choice import Choice
 from journal.launcher.menu import Menu
 from journal.launcher.remote_install import RemoteInstall
 from journal.launcher.screen import Screen
+from journal.launcher.support.option import Option
 from journal.providers.support.status_line import StatusLine
 from journal.providers.claude import Claude
 
@@ -33,7 +35,6 @@ def settings_with_other_hooks(root: Path) -> Path:
 
 
 def menu_answering(tmp_path: Path, monkeypatch, answers: list[str]) -> Menu:
-    import io
     value = iter(answers)
     monkeypatch.setattr("builtins.input", lambda: next(value))
     menu = Menu(tmp_path, tmp_path / "journal.py", Screen(io.StringIO()))
@@ -118,7 +119,6 @@ def test_the_other_hooks_are_set_aside_and_put_back_with_later_edits_kept(tmp_pa
 
 
 def test_the_picker_moves_with_the_arrow_keys_and_jumps_by_number(tmp_path: Path):
-    from journal.launcher.support.option import Option
     from journal.launcher.screen import Screen as Picker
     assert Picker._moved(0, "\x1b[B", 3) == 1 and Picker._moved(0, "\x1b[A", 3) == 2 and Picker._moved(0, "3", 3) == 2 and Picker._moved(1, "q", 3) == 1
 
@@ -434,7 +434,6 @@ def test_a_folder_no_worktree_owns_is_moved_aside_never_deleted_and_a_failed_mak
 
 
 def test_the_boot_screen_offers_a_newer_release_of_the_same_major_before_the_journal_starts(tmp_path: Path, monkeypatch):
-    import io
     from journal.config import Config
     from journal.support.release import Release
     from journal.features.updates.support.release_installer import ReleaseInstaller
@@ -574,4 +573,29 @@ def test_remote_install_hands_the_host_it_reaches_as_the_team_address():
     assert "TEAM_ADDRESS=203.0.113.5 sh" in RemoteInstall("root@203.0.113.5", "4.55.0").command()[-1]
     assert "TEAM_ADDRESS=team.example.com sh" in RemoteInstall("deploy@team.example.com", "4.55.0").command()[-1]
     assert "TEAM_ADDRESS" not in RemoteInstall("teamserver", "4.55.0").command()[-1], "an ssh alias names no address the team can reach"
+
+
+class PressedKeys:
+    """Keys a test presses: each read hands the next, and an interrupt is raised as a Ctrl+C would be."""
+
+    def __init__(self, *keys) -> None:
+        self.keys = list(keys)
+
+    def read(self) -> list[str]:
+        key = self.keys.pop(0)
+        if key is KeyboardInterrupt:
+            raise KeyboardInterrupt
+        return [key]
+
+
+def test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c():
+    from journal.launcher.support.option import Option
+    for key, code in (("\x1b", 0), (KeyboardInterrupt, 130)):
+        printed = io.StringIO()
+        try:
+            Screen(printed, PressedKeys(key)).key_choice("Start which journal?", [], [Option("main")], 0, ())
+            raise AssertionError("the menu went on")
+        except SystemExit as left:
+            assert left.code == code, (key, left.code)
+        assert "Left without starting the journal." in printed.getvalue() and "Traceback" not in printed.getvalue()
 

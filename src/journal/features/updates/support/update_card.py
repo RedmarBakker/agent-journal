@@ -19,7 +19,7 @@ class UpdateCard:
         self.path = config.home / "runtime" / "updating.json"
 
     def claim(self, previous: str, destination: str) -> None:
-        blocked = self.paused()
+        blocked = self.running()
         if blocked is not None and not blocked.is_stale(timing.time()):
             raise Rejection(f"an update to {blocked.target} is under way since {timing.strftime('%H:%M', timing.localtime(blocked.time))}")
         self.write(UpdatePause(previous, destination, FIRST_STEP, timing.time(), os.getpid()))

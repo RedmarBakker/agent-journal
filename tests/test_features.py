@@ -6855,6 +6855,8 @@ def test_an_update_holds_its_mark_until_the_journal_runs_the_version_it_went_to(
     ended.wait()
     threshold.write(UpdatePause("4.0.0", "4.99.0", "Installing the new version", timing.time(), ended.pid))
     assert threshold.paused() is not None and updating.data().updating == "", "a mark whose process is gone shows no update under way, so the viewer's cover never hangs on it"
+    threshold.claim("4.0.0", "4.99.0")
+    assert threshold.paused().pid == os.getpid(), "and a new update goes ahead over it, rather than waiting out the quarter hour"
 
 
 def test_a_long_typed_line_is_typed_one_segment_at_a_time(app: App):
@@ -11049,6 +11051,14 @@ def test_a_long_run_whose_reader_showed_no_progress_is_reported_with_the_tools_s
         [report] = app.container.get(ReaderReports).unread("s1")
     assert report.reader == "packages" and "the run took 45 seconds and its card showed no progress" in report.findings, report.findings
     assert any("go test -json or -v" in fix for fix in report.fixes), "the fix names the streaming form of the tool it ran"
+
+def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read():
+    from journal.features.shell.support.reader_commands import ReaderCommands
+    pytest_runs = ReaderCommands(("pytest",))
+    assert pytest_runs.is_shown_run("python3 -m pytest -p no:warnings tests/test_x.py 2>&1"), "a plain run, its errors joined to its output, is shown"
+    assert not pytest_runs.is_shown_run("S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py"), "a run whose output goes to a file shows nothing on the card"
+    assert not pytest_runs.is_shown_run("command -v uv\npython3 -m pytest --version"), "asking the tool its version is no run of it"
+
 
 def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
     from journal.features.shell.support.readers import Readers

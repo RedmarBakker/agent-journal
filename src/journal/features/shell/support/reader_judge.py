@@ -28,7 +28,7 @@ class ReaderJudge:
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.lookup(output.watch_reader)
         files = OutputFiles(Path(output.folder))
-        if not isinstance(reader, Reader) or not files.is_stored():
+        if not isinstance(reader, Reader) or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
         shortfalls = [*self.poor_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.missing_summary(reader, output, lines)]

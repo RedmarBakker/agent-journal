@@ -5,6 +5,9 @@ from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 
 COMMANDS_PREFIX = "commands: "
+# a part whose standard output goes to a file, or that only asks the program its version or its help, shows no run of it on a card
+OUTPUT_TO_FILE = re.compile(r"(?:^|\s)[1&]?>>?\s*\S+")
+NO_RUN_FLAGS = ("--version", "--help", "-h", "-V")
 
 
 @dataclass(frozen=True)
@@ -25,3 +28,7 @@ class ReaderCommands:
 
     def read_part(self, line: str) -> str:
         return next((part.text for part in Chain.parts(line) for program in self.programs if re.search(rf"(^|[\s/]){re.escape(program)}(\s|$)", CommandShape.build(part.text))), "")
+
+    def is_shown_run(self, line: str) -> bool:
+        part = self.read_part(line)
+        return bool(part) and not OUTPUT_TO_FILE.search(part) and not any(flag in part.split() for flag in NO_RUN_FLAGS)

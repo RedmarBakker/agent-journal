@@ -3,6 +3,7 @@ import shutil
 import sys
 import termios
 import tty
+from typing import NoReturn
 
 from journal.launcher.support.keys import Keys
 from journal.launcher.support.option import Option
@@ -13,6 +14,8 @@ HINT = "↑ ↓ to move · Enter to pick · a number to jump · Esc to leave"
 ACTION_HINTS = {"x": "x to delete"}
 
 
+# the exit code of a program a Ctrl+C ended, as the shell gives one
+INTERRUPTED = 130
 SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
 
@@ -85,10 +88,18 @@ class Screen:
     def _pick_with_keys(self, heading: str, notes: list[str], options: list[Option], time: int, actions: tuple[str, ...]) -> tuple[int, str]:
         fd = sys.stdin.fileno()
         saved = termios.tcgetattr(fd)
-        rendered = 0
         try:
             tty.setcbreak(fd)
             self.out.write(HIDE_CURSOR)
+            return self.key_choice(heading, notes, options, time, actions)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+            self.out.write(VISIBLE_CURSOR)
+            self.out.flush()
+
+    def key_choice(self, heading: str, notes: list[str], options: list[Option], time: int, actions: tuple[str, ...]) -> tuple[int, str]:
+        rendered = 0
+        try:
             while True:
                 lines = self._lines(heading, notes, options, time, actions)
                 self.out.write((f"\x1b[{rendered}F\x1b[J" if rendered else "") + "\n".join(lines) + "\n")
@@ -100,12 +111,15 @@ class Screen:
                     if key in actions:
                         return time, key
                     if key == Keys.ESCAPE:
-                        raise SystemExit("journal: left without starting")
+                        self.leave(0)
                     time = self._moved(time, key, len(options))
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
-            self.out.write(VISIBLE_CURSOR)
-            self.out.flush()
+        except KeyboardInterrupt:
+            self.leave(INTERRUPTED)
+
+    def leave(self, code: int) -> NoReturn:
+        self.out.write(f"\n  {self.paint(DIM, 'Left without starting the journal.')}\n")
+        self.out.flush()
+        raise SystemExit(code)
 
     @staticmethod
     def _moved(time: int, key: str, count: int) -> int:
