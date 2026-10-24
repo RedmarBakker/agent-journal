@@ -100,7 +100,7 @@ class Task(Scoped):
         return task.with_event(TaskClosed(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, outcome=manner)).with_event(RowResolved(environment_id=self.environment_id, time=time.timestamp(), ref=f"tasks:{self.id}"))
 
     def blocked(self, reason: str, time: datetime) -> "Task":
-        if self.started_at is not None:
+        if self.state == TaskState.STARTED:
             raise Rejection(f"task {self.id} has started, so it is paused rather than blocked: journal task pause {self.id} \"<why>\", with --on or --until when it waits on something")
         return self.closed(self.with_(state=TaskState.BLOCKED, block_reason=reason), time, "blocked")
 

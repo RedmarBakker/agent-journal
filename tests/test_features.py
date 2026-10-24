@@ -12113,3 +12113,17 @@ def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_f
     folding.start(), taking.start()
     folding.join(30), taking.join(30)
     assert faults == [], "a change folded away while a batch is taken is never sought again"
+
+
+def test_a_paused_task_can_be_blocked_so_an_agent_held_by_the_user_may_say_it_is_stuck(app: App):
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "the design", "--start"], AGENT)
+    assert console.run(["task", "block", "1", "waits on the user's go"], AGENT).code != 0, "a task in hand is paused, not blocked"
+    console.run(["task", "pause", "1", "the user said stop"], AGENT)
+    stuck = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": 'journal stuck "waiting on the user"'})
+    assert stuck()[0] == 409, "a paused task is work left"
+    blocked = console.run(["task", "block", "1", "waits on the user's go"], AGENT)
+    assert blocked.code == 0, blocked.error
+    assert stuck()[0] == 200, "the paused task blocked, every task waits, and the agent may say it is stuck"
