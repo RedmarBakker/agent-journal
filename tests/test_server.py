@@ -622,6 +622,27 @@ def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id
         app.runtime().stop()
 
 
+def test_a_row_asked_for_by_id_is_found_however_far_it_lies_behind_the_newest_page(tmp_path: Path):
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.repository import PAGE_ROWS
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    unowed(app)
+    server = app.server()
+    try:
+        tasks = app.container.get(Tasks)
+        with app.container.get(Scope).environment(1):
+            old = tasks.save(Task(environment_id=1, title="done long ago", state=TaskState.FINISHED), Actor.user(1))
+            for n in range(PAGE_ROWS + 5):
+                tasks.save(Task(environment_id=1, title=f"later {n}", state=TaskState.FINISHED), Actor.user(1))
+        assert old.id not in [row["id"] for row in call(server, "GET", "/journal/tasks")[1]["rows"]], "the plain list holds the newest page"
+        assert [row["id"] for row in call(server, "GET", f"/journal/tasks?ids={old.id}")[1]["rows"]] == [old.id], "a task read by its id is found though it lies behind the newest page, as a plan's done tasks do"
+    finally:
+        app.runtime().stop()
+
+
 def test_a_started_plans_phase_shown_advances_when_its_tasks_are_all_done(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()

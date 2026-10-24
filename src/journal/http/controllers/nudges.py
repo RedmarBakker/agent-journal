@@ -16,3 +16,6 @@ class NudgeController(Controller[Entry]):
 
     def rows(self) -> list[Entry]:
         return list(reversed(self.repository.kind_entries(NUDGE, NUDGE_ENTRIES)))
+
+    def id_rows(self, ids: tuple[int, ...]) -> list:
+        return [row for row in self.rows() if row.row_id in ids]

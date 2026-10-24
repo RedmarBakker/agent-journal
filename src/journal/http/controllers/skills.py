@@ -21,7 +21,7 @@ class SkillController:
         self.nudger = nudger
 
     def index(self, request: Request) -> Response:
-        agent = next(iter(self.agents.numbered(request.query.get("agent", ""))), None)
+        agent = next(iter(self.agents.queried_number(request.query.get("agent", ""))), None)
         loaded = set(agent.skills_loaded.keys()) if agent else set()
         starts, compactions = self.settings.texts(SkillsOptions.START_SKILLS), self.settings.texts(SkillsOptions.COMPACTION_SKILLS)
         return Response.json([{"name": skill.name, "description": skill.description, "loaded": skill.name in loaded, "session_start": skill.name in starts, "after_compaction": skill.name in compactions} for skill in self.registry.skills()])

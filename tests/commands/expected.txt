@@ -1079,7 +1079,9 @@ sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
 workers.builder_handovers = 2
+workers.builder_handovers_over_edits = 3
 workers.orchestrator_lines = 200
+workers.orchestrator_edits_over_handovers = 8
 workers.solo_dispatches = 3
 workers.timeout_minutes = 60
 workers.mode = 'builder'  (the user sets it)
@@ -1497,6 +1499,7 @@ voices.say_you_are_back  [voices]  you are back in an earlier conversation. say 
 voices.the_voice_changed  [voices]  the user changed how you talk to them. from now on: {{voice}} Open your next chat line in the new voice, and say nothing else about it
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported and you have not acted on it. give it its next job, stop it, or mark it done
 workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
+workers.builder_writes_its_share  [workers]  you are the builder: among your last 50 tool uses you handed work out {{count}} times more than you edited files yourself. you have been delegating a lot and writing little: take the next task yourself, and hand one to a worker only when it is better done beside you
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
 workers.check_reminder  [workers]  worker {{n}}, {{name}}: task {{task}} still waits to be checked. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
 workers.clock_in_first  [workers]  your writes wait until you clock in. journal task show <n>, then journal clock-in
@@ -1509,6 +1512,7 @@ workers.now_orchestrating  [workers]  you now work as the orchestrator. hand eve
 workers.now_solo  [workers]  you now work solo. do every job yourself: no worker is dispatched
 workers.open_todos  [workers]  your to-do list has {{count}} open items: {{items}}. finish them, or say why with journal clock-out
 workers.orchestrate  [workers]  {{count}} tasks are open across the plans: {{tasks}}. dispatch a worker on each you can, journal worker dispatch "<Name>" --task <n>; block a task that waits and go on with the rest
+workers.orchestrator_delegates_its_share  [workers]  you are the orchestrator: among your last 50 tool uses you edited files {{count}} times more than you handed work out. you have been writing a lot and delegating little: hand the work to a worker and review what comes back
 workers.orchestrator_hands_the_work_out  [workers]  you are the orchestrator: you changed at least {{limit}} lines of code yourself since your last handover. hand the work to a worker and review what comes back
 workers.own_output_ended  [workers]  output {{n}} ended with code {{status}}. read it with journal output read {{n}} --summary
 workers.own_output_running  [workers]  your output {{n}} still runs, and your run ends when you stop. wait for it, then stop again
@@ -1530,7 +1534,7 @@ workers.worker_place_free  [workers]  worker {{n}}, {{name}}, is done; open: {{t
 workers.worker_quiet  [workers]  worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes. look at its transcript, notify it with `journal worker notify {{n}} "<text>"`, or stop it
 workers.worker_reported  [workers]  worker {{n}}, {{name}}, reported in the chat
 workers.worker_stopped_unreported  [workers]  worker {{n}}, {{name}}, stopped before it reported
-226 nudges
+228 nudges
 
 $ agent: journal worker list
 exit 0

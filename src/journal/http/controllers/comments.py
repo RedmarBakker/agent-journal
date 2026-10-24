@@ -25,6 +25,9 @@ class CommentController(Controller[Message]):
     def rows(self) -> list[Message]:
         return self.repository.comments()
 
+    def id_rows(self, ids: tuple[int, ...]) -> list:
+        return [row for row in self.rows() if row.row_id in ids]
+
     def shown_page(self, rows: list[Message]) -> list[dict]:
         enabled = self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows])
         return [{**ModelFields.build(m), "on": [str(ref) for ref in enabled.get(m.row_id, [])]} for m in rows]

@@ -41,5 +41,6 @@ class ToolUses:
     def used(agent: Agent, call: RecordedCall) -> Agent:
         agent = agent.tool_used()
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
+        agent = agent.file_edited() if call.edited_paths else agent
         agent = agent.subagent_dispatched() if ToolUseCounts.is_subagent_dispatch(call) else agent
         return agent.researched() if ToolUseCounts.is_research(call) else agent

@@ -23,7 +23,8 @@ class Controller(Generic[S]):
 
     def listed(self, listing: Listing) -> RowList:
         if listing.ids:
-            return self.page(listing, self.shown_page)
+            rows = self.id_rows(listing.ids)
+            return RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows))
         with self.repository.listing():
             return self.page(listing, self.index_page)
 
@@ -37,6 +38,9 @@ class Controller(Generic[S]):
 
     def rows(self) -> list[S]:
         return self.repository.all()
+
+    def id_rows(self, ids: tuple[int, ...]) -> list[S]:
+        return self.repository.numbered(sorted(ids))
 
     def is_open(self, row: S) -> bool:
         return True

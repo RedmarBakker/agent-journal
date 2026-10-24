@@ -13,8 +13,8 @@ from journal.models.agent_role import AgentRole
 from journal.models.scoped import Scoped
 
 
-# how many of its newest tool uses an agent's subagent dispatches and its own research are counted over
-RESEARCH_WINDOW_USES = 50
+# how many of its newest tool uses an agent's subagent dispatches, research, handovers and file edits are counted over
+WORK_WINDOW_USES = 50
 
 @dataclass(frozen=True)
 
@@ -40,6 +40,8 @@ class Agent(Scoped):
     last_handover_at: float = 0.0
     subagent_dispatch_uses: tuple[int, ...] = ()
     research_uses: tuple[int, ...] = ()
+    handover_uses: tuple[int, ...] = ()
+    file_edit_uses: tuple[int, ...] = ()
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
@@ -83,7 +85,10 @@ class Agent(Scoped):
         return self.with_(code_edits=self.code_edits + 1, consecutive_handovers=0)
 
     def with_handover(self, time: float) -> "Agent":
-        return self.with_(consecutive_handovers=self.consecutive_handovers + 1, last_handover_at=time)
+        return self.with_(consecutive_handovers=self.consecutive_handovers + 1, last_handover_at=time, handover_uses=self.windowed((*self.handover_uses, self.tool_uses)))
+
+    def file_edited(self) -> "Agent":
+        return self.with_(file_edit_uses=self.windowed((*self.file_edit_uses, self.tool_uses)))
 
     def subagent_dispatched(self) -> "Agent":
         return self.with_(subagent_dispatch_uses=self.windowed((*self.subagent_dispatch_uses, self.tool_uses)))
@@ -92,7 +97,7 @@ class Agent(Scoped):
         return self.with_(research_uses=self.windowed((*self.research_uses, self.tool_uses)))
 
     def windowed(self, uses: tuple[int, ...]) -> tuple[int, ...]:
-        return tuple(use for use in uses if use > self.tool_uses - RESEARCH_WINDOW_USES)
+        return tuple(use for use in uses if use > self.tool_uses - WORK_WINDOW_USES)
 
     def compacted(self) -> "Agent":
         return self.with_(tool_uses=0, inbox_position=0)

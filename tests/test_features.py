@@ -1653,11 +1653,12 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
         app.runtime().deferred.drain()
         return before
 
-    assert "you are the builder" not in handover()
+    in_a_row = "times in a row with no code of your own between"
+    assert in_a_row not in handover()
     edit("a.py", 1)
-    assert "you are the builder" not in handover(), "a code edit of its own between two handovers starts the count again"
-    assert "you are the builder" in handover(), "two handovers in a row with no code between tell the builder to take the next task itself"
-    assert "you are the builder" not in handover(), "and only once within its repeat span"
+    assert in_a_row not in handover(), "a code edit of its own between two handovers starts the count again"
+    assert in_a_row in handover(), "two handovers in a row with no code between tell the builder to take the next task itself"
+    assert in_a_row not in handover(), "and only once within its repeat span"
 
     settings.set("workers.mode", "orchestrator", Actor.user(1))
     settings.set("workers.orchestrator_lines", 5, Actor.user(1))
@@ -1675,6 +1676,35 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
     dispatch = lambda: said("PreToolUse", tool_name="Agent", tool_input={"model": "haiku", "subagent_type": "journal-researcher", "description": "find the footer", "prompt": "find it"})
     assert "you are solo" not in dispatch()
     assert "you are solo" in dispatch() + shell("echo checked"), "subagents past its own reads by the limit tell the solo agent to research itself"
+
+
+def test_the_builder_hands_out_no_more_than_its_share_and_the_orchestrator_writes_no_more_than_its_share(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    settings = app.container.get(SettingRows)
+    said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
+    handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
+    edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
+    delegating = "times more than you edited files yourself"
+    for n in range(4):
+        assert delegating not in edit(f"a{n}.md") + handover(), "a builder that writes about as much as it hands out hears nothing"
+    assert delegating not in handover() + edit("b.md") + handover() + handover()
+    assert delegating in handover(), "handovers past its own file edits by the set number tell the builder it delegates a lot and writes little, though an edit came between"
+
+
+def test_the_orchestrator_is_told_when_it_writes_far_more_than_it_hands_out(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
+    handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
+    edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
+    writing = "times more than you handed work out"
+    handover() + handover()
+    for n in range(9):
+        assert writing not in edit(f"c{n}.md"), "an orchestrator's own edits up to its handovers and the set number are not counted against it"
+    assert writing in edit("d.md"), "its own file edits past its handovers by its larger number tell the orchestrator it writes a lot and delegates little"
+    assert "times more than you edited files yourself" not in handover() + handover() + handover(), "and the builder's line is never said in another mode"
 
 
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
@@ -10500,6 +10530,10 @@ def test_a_second_persons_viewer_and_command_line_writes_are_stamped_with_their_
     (app.config.home / TEAM_FILE).unlink()
 
 
+# how long the team test waits for a change to travel between journals; under the sharded suite's load it can take far longer than alone
+TEAM_SYNC_WAIT_SECONDS = 40
+
+
 def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_and_a_stranger_is_refused(tmp_path, template_journal, monkeypatch):
     import re
     import subprocess
@@ -10564,7 +10598,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             return refused.read().decode()
 
     def eventually(check) -> bool:
-        deadline = timing.monotonic() + 10
+        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
         while timing.monotonic() < deadline:
             if check():
                 return True

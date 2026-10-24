@@ -16,7 +16,7 @@ class Agents(ScopedRepository[Agent]):
     def all_agents(self) -> list[Agent]:
         return self.global_matching()
 
-    def numbered(self, number: str) -> list[Agent]:
+    def queried_number(self, number: str) -> list[Agent]:
         return self.global_matching(id=int(number)) if number.isdigit() else []
 
     def main_agents(self) -> list[Agent]:
