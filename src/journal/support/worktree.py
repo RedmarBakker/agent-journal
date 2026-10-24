@@ -13,6 +13,8 @@ JOURNAL = ".journal"
 SKILL_FOLDERS = (".claude/skills", ".agents/skills")
 # the link a worktree reads the journal's hooks through, never a file of the project's own
 LOCAL_SETTINGS = ".claude/settings.local.json"
+# the settings a worktree reads through a link to a file the main checkout's journal writes, kept out of git in every worktree
+LINKED_SETTINGS = (LOCAL_SETTINGS, ".codex/hooks.json")
 IGNORED_COPIES = (".claude/settings.json", ".codex/hooks.json", ".codex/agents", ".claude/agents", "AGENTS.md", "CLAUDE.md")
 
 
@@ -136,7 +138,7 @@ class Worktree:
 
     def shared(self) -> None:
         wanted = [Path(JOURNAL), *self.untracked(self.skills()), *self.ignored([Path(p) for p in IGNORED_COPIES if (self.root / p).exists()])]
-        self.excluded([*wanted, Path(LOCAL_SETTINGS)])
+        self.excluded([*wanted, *map(Path, LINKED_SETTINGS)])
         self.cleared(self.path / JOURNAL)
         for path in wanted:
             self.linked(self.path / path, self.root / path)

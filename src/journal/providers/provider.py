@@ -275,7 +275,7 @@ class Provider(ABC):
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         self.wire_hooks(folder, script, command)
 
-    def folder_trusted(self, folder: Path) -> None:
+    def folder_trusted(self, root: Path, folder: Path) -> None:
         return
 
     def has_journal_hooks(self, path: Path) -> bool:

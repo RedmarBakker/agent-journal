@@ -399,6 +399,31 @@ def test_a_launch_marks_a_new_worktree_trusted_in_claude_codes_state_and_never_t
     assert (real.stat().st_mtime_ns if real.exists() else 0) == real_time, "and the person's own state file is never touched by a test"
 
 
+def test_codex_in_a_new_worktree_runs_the_main_checkouts_hooks_trusted_without_a_new_trust_step(app: App, monkeypatch, tmp_path):
+    import json
+    import subprocess
+    import tomllib
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.providers.codex import Codex
+    from journal.providers.support.status_line import StatusLine
+    from journal.support.choice import Choice
+    root = app.config.root
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=root, capture_output=True, timeout=30)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), Caller.user("main")).text)
+    home = tmp_path / "codex-home"
+    home.mkdir()
+    monkeypatch.setenv("CODEX_HOME", str(home))
+    main_hooks = root.resolve() / ".codex" / "hooks.json"
+    (home / "config.toml").write_text("".join(f'[hooks.state."{main_hooks}:{kind}:0:0"]\ntrusted_hash = "x"\n\n' for kind in ("session_start", "stop")))
+    folder = Path(Launch.parse(["codex", "--worktree", "calm-river"], root).launch_file(Choice("calm-river"), StatusLine(root))["front"]["folder"])
+    hooks = folder / ".codex" / "hooks.json"
+    assert hooks.is_symlink() and hooks.resolve() == main_hooks and str(root) in hooks.read_text(), "the worktree reads the main checkout's hooks, naming the main root"
+    assert Codex.trusted_kinds(folder.resolve() / ".codex" / "hooks.json") == {"session_start", "stop"}, "and Codex trusts them at the worktree's path as it trusts them in the main checkout"
+    assert tomllib.loads((home / "config.toml").read_text())["hooks"]["state"][f"{main_hooks}:stop:0:0"]["trusted_hash"] == "x", "the main checkout's trust kept"
+
+
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):
     import json
     import subprocess

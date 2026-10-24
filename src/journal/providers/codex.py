@@ -1,4 +1,5 @@
 import json
+import json
 import os
 import re
 import shlex
@@ -31,6 +32,7 @@ from journal.providers.support.codex_event import CodexEvent
 from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
+from journal.support.worktree import Worktree
 
 SCRIPT_FLAGS = ("-c", "-lc")
 # Codex saves a hook's additionalContext past its handler's limit, 2500 tokens by default, to a file and shows the model a preview; 0 sets no limit, so the start briefing reaches the model whole
@@ -84,6 +86,25 @@ class Codex(Provider):
     @staticmethod
     def config_folder() -> Path:
         return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+
+    # a worktree reads the main checkout's hooks file through a link, so its hooks name the main root and nothing is written inside it
+    def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
+        hooks = self.wire_hooks(root, script, command)
+        Worktree.linked(folder / self.home / self.settings_file, hooks)
+
+    # Codex trusts hooks per project path: the main checkout's trust is given to the worktree's path too, as the same hooks
+    def folder_trusted(self, root: Path, folder: Path) -> None:
+        settings = self.config_folder() / "config.toml"
+        states = tomllib.loads(settings.read_text()).get("hooks", {}).get("state", {}) if settings.is_file() else {}
+        source, target = f"{root.resolve() / self.home / self.settings_file}:", f"{folder.resolve() / self.home / self.settings_file}:"
+        added = {target + key.removeprefix(source): state for key, state in states.items() if key.startswith(source) and target + key.removeprefix(source) not in states}
+        if added:
+            settings.write_text(settings.read_text().rstrip("\n") + "\n\n" + "\n".join(self.state_table(key, state) for key, state in added.items()))
+
+    @staticmethod
+    def state_table(key: str, state: dict) -> str:
+        values = "".join(f"{name} = {json.dumps(value)}\n" for name, value in state.items())
+        return f"[hooks.state.{json.dumps(key)}]\n{values}"
 
     @staticmethod
     def trusted_kinds(hooks: Path) -> set[str]:

@@ -238,7 +238,7 @@ class Launch:
         if folder != self.root:
             Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
             self.provider.worktree_hooks(self.root, folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
-            self.provider.folder_trusted(folder)
+            self.provider.folder_trusted(self.root, folder)
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}}
         front_health = {"file": str(self.runtime / "hooks" / f"{choice.environment}.fired"), "stale_seconds": FRONT_STALE_SECONDS, "warning": DEAD_HOOKS_WARNING}
         return {

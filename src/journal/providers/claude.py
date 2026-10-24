@@ -106,7 +106,7 @@ class Claude(Provider):
         configured = os.environ.get("CLAUDE_CONFIG_DIR")
         return Path(configured) / ".claude.json" if configured else Path.home() / ".claude.json"
 
-    def folder_trusted(self, folder: Path) -> None:
+    def folder_trusted(self, root: Path, folder: Path) -> None:
         ClaudeTrust(self.state_file()).trusted(folder)
 
     def profile_model(self, profile: ProfileView) -> str:
