@@ -3409,7 +3409,7 @@ const FLAT = /* glsl */ `
 export const HIDDEN_PARTS = ["headphones"];
 
 export const SCREEN = {
-    gap: 0.16, line: 1, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
+    gap: 0.16, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
     bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.5, soft: 0.65, reach: 2}, glare: {strength: 0.012, from: 0.5},
     // a lit pixel is drawn brighter than its colour, brightest at its middle
     shine: {lift: 1, core: 0.55, tightness: 6},
@@ -3427,7 +3427,6 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform sampler2D pixels;
     uniform vec2 grid;
     uniform float gap;
-    uniform float line;
     uniform float soften;
     uniform float dark;
     uniform vec3 glass;
@@ -3448,9 +3447,9 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float band = step(from.x, across) * step(from.y, open);
         vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
         vec2 cell = fract(place);
-        // the dark lines between the pixels, at least line of the screen's pixels wide past the softening, one being SUPERSAMPLE of the
-        // drawn fragments
-        vec2 lines = clamp(max(vec2(gap), (line + soften) * ${SUPERSAMPLE.toFixed(1)} * fwidth(place)), 0.0, 0.5);
+        // the dark lines between the pixels, gap of each pixel wide and widened only by the softening, so a lit pixel fills most of its
+        // square however small the screen is drawn
+        vec2 lines = clamp(vec2(gap) + soften * fwidth(place), 0.0, 0.5);
         float pixel = step(lines.x, cell.x) * step(lines.y, cell.y);
         vec4 shown = pixelAt(floor(place));
         // how far inside the rounded outline this point is, in the figure's units
@@ -3493,7 +3492,7 @@ export function screenMaterial(mesh) {
     Object.assign(material.uniforms, {
         glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
-        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, line: {value: SCREEN.line}, soften: {value: 0}, dark: {value: SCREEN.dark},
+        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, soften: {value: 0}, dark: {value: SCREEN.dark},
         glass: {value: new THREE.Vector3(...SCREEN.glass)}, off: {value: SCREEN.off},
         bezel: {value: new THREE.Vector3(SCREEN.bezel.width, SCREEN.bezel.shade, SCREEN.bezel.round)},
         halo: {value: new THREE.Vector3(SCREEN.halo.strength, SCREEN.halo.soft, SCREEN.halo.reach)}, glare: {value: new THREE.Vector2(SCREEN.glare.strength, SCREEN.glare.from)},
