@@ -57,3 +57,29 @@ test("scrolled back, the chat keeps every page it loaded while new messages arri
     expect(store.rows.messages.map((m) => m.id)).toEqual(CHAT.slice(-25).map((m) => m.id));
     CHAT.pop();
 });
+
+test("a reconnect reads the chat again but redraws nothing: every message unchanged since is the very row the chat held, a changed one is new", async () => {
+    // each read answers fresh rows, as the server's JSON does
+    vi.spyOn(api, "list").mockImplementation(async (table, options) => {
+        const got = await listed(table, options);
+        return {...got, rows: got.rows.map((row) => structuredClone(row))};
+    });
+    vi.spyOn(api, "entries").mockImplementation(async () => []);
+    vi.spyOn(api, "settings").mockImplementation(async () => ({}));
+    const {reload} = await import("../src/sync/rows.js");
+    store.rows.messages = [];
+    store.paging.size.messages = 0;
+    rows("messages");
+    await load("messages");
+    const before = [...store.rows.messages];
+    const edited = CHAT.length - 3;
+    CHAT[edited - 1] = {...CHAT[edited - 1], text: "edited", updated_at: new Date(10_000_000).toISOString()};
+    await reload();
+    await new Promise((settle) => setTimeout(settle, 80));
+    const after = store.rows.messages;
+    expect(after.map((m) => m.id)).toEqual(before.map((m) => m.id));
+    for (const [index, row] of after.entries()) {
+        if (row.id === edited) expect(row, "a changed message is read anew").not.toBe(before[index]);
+        else expect(row, `message ${row.id} kept as held`).toBe(before[index]);
+    }
+});
