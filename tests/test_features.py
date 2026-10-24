@@ -9803,7 +9803,13 @@ def test_a_run_whose_reader_is_known_shows_its_card_in_the_chat_as_it_starts_bef
     assert watched and watched[0].watch_reader == "pytest", "the run is watched through its reader while it still runs in the foreground"
     assert cards, "and its card is in the chat before any move to the background"
     with app.container.get(Scope).environment(MAIN):
-        assert not app.container.get(Messages).with_key(f"watch:{watched[0].row_id}"), "a run that ends in the foreground takes its card out again, its output being in the answer"
+        kept = app.container.get(Messages).with_key(f"watch:{watched[0].row_id}")
+        assert kept and not kept[0].data["active"] and outputs.find(watched[0].row_id).ended, "a run that ends in the foreground keeps its card, turned to finished, and the output it opens"
+        from journal.chat.process_cards import ProcessCards
+        from journal.features.shell.support.output_process_card import OutputProcessCard
+        final = kept[0]
+        again = app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(watched[0].row_id).with_(summary="written after the end")))
+        assert again.row_id == final.row_id and app.container.get(Messages).find(final.row_id).updated_at == final.updated_at, "a mark that ended is final: nothing writes it again"
 
 
 BARE_COMMANDS = {

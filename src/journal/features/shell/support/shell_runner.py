@@ -195,7 +195,7 @@ class ShellRunner:
         if cap.is_direct() or cap.is_whole():
             folder.remove()
             return
-        if not self.record.is_stored(folder.folder.name, request.line, folder.size(), folder.has_cut()):
+        if not self.record.is_stored(folder.folder.name, request.line, folder.size(), folder.has_cut()) and not self.outputs.chain_output(folder.folder.name).watch_reader:
             self.record.delete_output(folder.folder.name, caller)
 
 
