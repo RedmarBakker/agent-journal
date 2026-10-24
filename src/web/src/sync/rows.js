@@ -123,7 +123,7 @@ watch(
 );
 
 // A list may carry a document or report without its body, or a plan without its phases, tasks and reviews, a summary: one held whole stays whole while it has not changed.
-const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r));
+const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r));
 
 // The rows `arriving` as the viewer keeps them against the rows it `held`: a row that has not changed is the very object it held, so
 // nothing drawn from it is drawn again, as when a reconnect or a refresh reads the chat's rows again; a summary of a row held whole,
@@ -173,7 +173,7 @@ export async function load(table) {
     const arriving = withoutAnswered((store.rows[table] || []).filter((r) => !starting.has(r.id) && !listed.has(r.id)), got.rows);
     took(table, {...got, rows: [...got.rows, ...arriving].sort(orderOf(table))});
     store.paging.size[table] = pageOf(table);
-    if (table === "plans") await openPlansWhole();
+    if (READ_WHOLE.has(table)) await openWhole(table);
     return store.rows[table];
 }
 
@@ -277,19 +277,22 @@ async function counted(table) {
     keptCounts(table, (await api.list(table, {limit: 1, closed: true})).counts);
 }
 
-// The plans still open are read whole once the list has named them, since the bar, the board and the inspector draw from their phases.
-async function openPlansWhole() {
-    const ids = (store.rows.plans || []).filter((r) => isSummary(r) && !isClosed(r)).map((r) => r.id);
+// The tables whose list rows are read whole once the list has named them: the plans still open, since the bar, the board and the inspector
+// draw from their phases, and every reaction, since the message it sits on comes with a reaction read by id.
+const READ_WHOLE = new Set(["plans", "reactions"]);
+
+async function openWhole(table) {
+    const ids = (store.rows[table] || []).filter((r) => isSummary(r) && (table !== "plans" || !isClosed(r))).map((r) => r.id);
     if (!ids.length) return;
-    const got = await api.list("plans", {ids});
+    const got = await api.list(table, {ids});
     const rowsById = new Map(got.rows.map((r) => [r.id, r]));
-    store.rows.plans = (store.rows.plans || []).map((r) => rowsById.get(r.id) || r);
+    store.rows[table] = (store.rows[table] || []).map((r) => rowsById.get(r.id) || r);
 }
 
 async function read(table) {
     if (!watchedTables.has(table)) return counted(table);
     const rows = await ((store.paging.size[table] || pageOf(table)) === pageOf(table) && !keptTables.has(table) ? paged(table) : caughtUp(table));
-    if (table === "plans") await openPlansWhole();
+    if (READ_WHOLE.has(table)) await openWhole(table);
     return rows;
 }
 

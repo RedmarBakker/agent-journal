@@ -29,6 +29,18 @@ beforeEach(async () => {
     localStorage.clear();
 });
 
+describe("reactions", () => {
+    test("a reaction listed without the message it sits on is read whole by id, so the message draws it after the next refresh", async () => {
+        const listed = {table: "reactions", id: 7, emoji: "\u2764\ufe0f", author: "user"};
+        api.list.mockImplementation(async (table, query) =>
+            query.ids ? {rows: [{...listed, message_id: 51452}], is_last_page: true, counts: {}} : {rows: [listed], is_last_page: true, counts: {}}
+        );
+        await load("reactions");
+        expect(api.list.mock.calls.map(([, query]) => query)).toEqual([{limit: PAGE}, {ids: [7]}]);
+        expect(store.rows.reactions.filter((r) => r.message_id === 51452).map((r) => r.emoji)).toEqual(["\u2764\ufe0f"]);
+    });
+});
+
 describe("paging rows", () => {
     test("loading keeps a row that arrived while the page was in flight", async () => {
         store.rows.plans = [row(1, {table: "plans", task_ids: []})];
