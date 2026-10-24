@@ -73,3 +73,6 @@ live*.txt
 
 # the viewer builds from src/web; its dependencies are not the package
 src/web/node_modules/
+
+# written by journal install with this machine's paths
+.claude/settings.json

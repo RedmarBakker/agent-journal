@@ -7,7 +7,7 @@ LSOF_SECONDS = 5
 
 
 class PeerName:
-    """The name of another session a message goes to: the session's own name when it is one, such as project-17-93, or the project folder of the process behind its socket, and the socket's path alone when neither is known."""
+    """The name of another session a message goes to: the session's own name when it is one, such as shop-93, or the project folder of the process behind its socket, and the socket's path alone when neither is known."""
 
     def resolve(self, receiver: str) -> str:
         socket = SOCKET.match(receiver.strip())

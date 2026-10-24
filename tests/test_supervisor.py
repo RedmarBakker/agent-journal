@@ -573,8 +573,8 @@ def test_remote_install_hands_the_host_it_reaches_as_the_team_address():
     assert "TEAM_ADDRESS=203.0.113.5 sh" in RemoteInstall("root@203.0.113.5", "4.55.0", {}).command()[-1]
     assert "TEAM_ADDRESS=team.example.com sh" in RemoteInstall("deploy@team.example.com", "4.55.0", {}).command()[-1]
     assert "TEAM_ADDRESS" not in RemoteInstall("teamserver", "4.55.0", {}).command()[-1], "an ssh alias names no address the team can reach"
-    beside = RemoteInstall.parsed(["install", "app@shop.example.com", "--address", "203.0.113.22", "--https-port", "8443", "--http-port", "8081"]).command()[-1]
-    assert "TEAM_ADDRESS=203.0.113.22 TEAM_HTTPS_PORT=8443 TEAM_HTTP_PORT=8081 sh" in beside, "a server whose 80 and 443 are another service's takes the team server on ports of its own, at the address given"
+    beside = RemoteInstall.parsed(["install", "app@shop.example.com", "--address", "203.0.113.7", "--https-port", "8443", "--http-port", "8081"]).command()[-1]
+    assert "TEAM_ADDRESS=203.0.113.7 TEAM_HTTPS_PORT=8443 TEAM_HTTP_PORT=8081 sh" in beside, "a server whose 80 and 443 are another service's takes the team server on ports of its own, at the address given"
 
 
 class PressedKeys:
@@ -614,3 +614,13 @@ def test_a_release_tag_is_made_in_one_place_and_a_hand_written_one_is_refused_at
     spec.loader.exec_module(check)
     assert check.problems() == [], "no tag is written by hand in the packages"
     assert all(check.HAND_WRITTEN_TAG.search(line) for line in ('url = f"v{version}"', 'tag = "v" + version', '"releases/download/v{version}/install.sh"')), "the guard knows a tag written by hand"
+
+
+def test_the_commit_guard_refuses_a_private_word_or_a_real_machines_address_and_never_quotes_the_word():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("private_data", Path(__file__).resolve().parents[1] / "scripts" / "checks" / "private_data.py")
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    found = guard.problems([("a.py", 3, "ssh root@8.8.8.8 for the Acme shop"), ("b.py", 9, "curl https://203.0.113.5 and 127.0.0.1 and 10.0.0.2")], ["acme"])
+    assert found == ["a.py:3: private word 1 of " + str(guard.WORDS), "a.py:3: the address 8.8.8.8 is a real machine's; use a documentation address such as 203.0.113.5"], found
+    assert all("acme" not in line.lower() for line in found), "the word itself is never printed"

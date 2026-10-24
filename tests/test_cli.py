@@ -437,8 +437,8 @@ def test_a_team_url_is_its_address_or_an_invitation():
     from journal.sync.team_url import TeamUrl
     assert TeamUrl.parse("https://team.example/?setup=ABCD-EFGH").address == "https://team.example", "a bare address claims a server with no code"
     assert TeamUrl.parse("https://team.example/join?code=X&fingerprint=Y").is_invitation()
-    assert TeamUrl.parse("https://203.0.113.21.").address == "https://203.0.113.21", "a sentence's full stop is no part of the address"
-    assert TeamUrl.parse("203.0.113.21").address == "https://203.0.113.21", "a bare IP is reached over HTTPS"
+    assert TeamUrl.parse("https://203.0.113.5.").address == "https://203.0.113.5", "a sentence's full stop is no part of the address"
+    assert TeamUrl.parse("203.0.113.5").address == "https://203.0.113.5", "a bare IP is reached over HTTPS"
     assert TeamUrl.parse("https://team.example/").address == "https://team.example"
     assert TeamUrl.parse("https://team.example.com:8443").has_own_certificate() and TeamUrl.parse("https://203.0.113.5").has_own_certificate()
     assert not TeamUrl.parse("https://team.example.com").has_own_certificate(), "a domain on 443 has a public certificate"

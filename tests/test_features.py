@@ -6541,7 +6541,7 @@ def test_a_line_naming_a_list_that_changes_is_said_once_inside_its_window(app: A
     hook(app, "SessionStart")
     agent, nudger = app.container.get(SessionAgents).agent("s1", 1), app.container.get(Nudger)
     assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15")), "the first naming of the commands still running is said"
-    assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15, 18")) is None, "a command joining the list inside the window says nothing again: project-7's flood"
+    assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15, 18")) is None, "a command joining the list inside the window says nothing again: Ada's flood"
     assert nudger.deliver(agent, TasksNudges.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")), "the blocked ask is said once"
     assert nudger.deliver(agent, TasksNudges.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")) is None, "and not again at the next tick five seconds later"
     assert nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=3)) and nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=4)), "a line about one row is still held by its words: another task is named"
