@@ -32,10 +32,9 @@ import {useScope} from "../composables/scope.js";
 import DumpWindow from "./DumpWindow.vue";
 import TerminalWindow from "./TerminalWindow.vue";
 import OutputDialog from "./OutputDialog.vue";
+import ChatDock from "./ChatDock.vue";
 import DumpDock from "./DumpDock.vue";
 import {dockedDump, dockedRows, streamRows} from "../domain/docks.js";
-import RowDock from "./RowDock.vue";
-import WatchDock from "./WatchDock.vue";
 import {DOCK_MOTION_MS} from "../kit/dockMotion.js";
 import QuestionOverlay from "./QuestionOverlay.vue";
 import UpdateOverlay from "./UpdateOverlay.vue";
@@ -494,12 +493,7 @@ const {colleague, me} = useColleague();
                             <div class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
                                 <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
                                     <template v-for="docked in rowDocks" :key="docked.id">
-                                        <template v-if="docked.data.output">
-                                            <WatchDock :message="docked" :folded="short || !planOpen" :data-figure-closing="docked.data.undock_at ? '' : null" />
-                                        </template>
-                                        <template v-else>
-                                            <RowDock :message="docked" :folded="short || !planOpen" :data-figure-closing="docked.data.undock_at ? '' : null" />
-                                        </template>
+                                        <ChatDock :message="docked" :folded="short || !planOpen" />
                                     </template>
                                 </TransitionGroup>
                                 <Transition name="dock" :duration="DOCK_MOTION_MS">

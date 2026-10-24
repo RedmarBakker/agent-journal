@@ -1,5 +1,6 @@
 <script setup>
 import {computed} from "vue";
+import SwitchCase from "../kit/SwitchCase.vue";
 import {CLAW, CUP, MAGNET, prongsOf} from "../figure/parcels.js";
 
 // The crane that now and then takes the server units away in the UFO's place, its grabbers each taking one box (figure/parcels.js
@@ -56,25 +57,27 @@ const jaws = (open) => {
                 <g :transform="`translate(${reel.across} 0)`" :data-grabber="reel.kind">
                     <line class="claw-crane-chain" x1="0" :y1="TROLLEY.height" x2="0" :y2="reel.hangs" />
                     <g :transform="`translate(0 ${reel.hangs})`">
-                        <template v-if="reel.kind === 'claw'">
-                            <template v-for="(prong, index) in prongs(reel.open)" :key="index">
-                                <path class="claw-crane-prong" :d="prong" />
+                        <SwitchCase :value="reel.kind">
+                            <template #claw>
+                                <template v-for="(prong, index) in prongs(reel.open)" :key="index">
+                                    <path class="claw-crane-prong" :d="prong" />
+                                </template>
+                                <rect class="claw-crane-hub" :x="-CLAW.hub" y="-3" :width="CLAW.hub * 2" height="5" rx="1.5" />
                             </template>
-                            <rect class="claw-crane-hub" :x="-CLAW.hub" y="-3" :width="CLAW.hub * 2" height="5" rx="1.5" />
-                        </template>
-                        <template v-else-if="reel.kind === 'cup'">
-                            <line class="claw-crane-rod" x1="0" y1="0" x2="0" :y2="CUP.rod + 1" />
-                            <path class="claw-crane-cup" :d="cup(reel.open)" />
-                        </template>
-                        <template v-else>
-                            <rect class="claw-crane-hub" :x="-MAGNET.width / 4" y="0" :width="MAGNET.width / 2" :height="MAGNET.block" rx="1" />
-                            <path class="claw-crane-magnet" :d="horseshoe()" />
-                            <rect class="claw-crane-pole" :x="-MAGNET.width / 2" :y="MAGNET.block + MAGNET.height - 2.5" :width="MAGNET.leg" height="2.5" />
-                            <rect class="claw-crane-pole" :x="MAGNET.width / 2 - MAGNET.leg" :y="MAGNET.block + MAGNET.height - 2.5" :width="MAGNET.leg" height="2.5" />
-                            <template v-if="reel.open < 0.5">
-                                <path class="claw-crane-spark" :d="`M-11 ${MAGNET.block + MAGNET.height - 1}l-3 2M11 ${MAGNET.block + MAGNET.height - 1}l3 2M-9 ${MAGNET.block + MAGNET.height + 2}l-2 3M9 ${MAGNET.block + MAGNET.height + 2}l2 3`" />
+                            <template #cup>
+                                <line class="claw-crane-rod" x1="0" y1="0" x2="0" :y2="CUP.rod + 1" />
+                                <path class="claw-crane-cup" :d="cup(reel.open)" />
                             </template>
-                        </template>
+                            <template #default>
+                                <rect class="claw-crane-hub" :x="-MAGNET.width / 4" y="0" :width="MAGNET.width / 2" :height="MAGNET.block" rx="1" />
+                                <path class="claw-crane-magnet" :d="horseshoe()" />
+                                <rect class="claw-crane-pole" :x="-MAGNET.width / 2" :y="MAGNET.block + MAGNET.height - 2.5" :width="MAGNET.leg" height="2.5" />
+                                <rect class="claw-crane-pole" :x="MAGNET.width / 2 - MAGNET.leg" :y="MAGNET.block + MAGNET.height - 2.5" :width="MAGNET.leg" height="2.5" />
+                                <template v-if="reel.open < 0.5">
+                                    <path class="claw-crane-spark" :d="`M-11 ${MAGNET.block + MAGNET.height - 1}l-3 2M11 ${MAGNET.block + MAGNET.height - 1}l3 2M-9 ${MAGNET.block + MAGNET.height + 2}l-2 3M9 ${MAGNET.block + MAGNET.height + 2}l2 3`" />
+                                </template>
+                            </template>
+                        </SwitchCase>
                     </g>
                     <rect class="claw-crane-trolley" :x="-TROLLEY.width / 2" y="1" :width="TROLLEY.width" :height="TROLLEY.height" rx="2" />
                     <circle class="claw-crane-spool" cx="0" :cy="1 + TROLLEY.height / 2" :r="TROLLEY.spool" />
