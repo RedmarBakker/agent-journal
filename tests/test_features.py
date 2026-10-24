@@ -13516,3 +13516,39 @@ def test_a_reader_report_whose_finding_the_runs_output_bears_out_cannot_be_dismi
         [other] = [r for r in app.container.get(ReaderReports).unread("s1") if r.output == silent]
     assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints no progress"], AGENT).code == 0, "a report about output the run never printed can still be dismissed"
     assert console.run(["reader", "add", "fresh", "--about", "nothing yet"], AGENT).code != 0, "a new reader still needs its --pattern or --script, while an existing one is written anew with only the flags that change"
+
+
+def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_reader_is_given_a_guessed_one(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.reader_guess import ReaderGuess
+    from journal.features.shell.support.readers import Readers
+    from journal.repositories.command_outputs import CommandOutputs
+    hook(app, "SessionStart")
+    console, outputs = app.console(), app.container.get(CommandOutputs)
+
+    def ran(name: str, command: str, text: str):
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text(command)
+        (folder / "0.out").write_text(text)
+        app.container.get(OutputLog).start(name, command, folder, Caller.agent("main", "s1", "claude"))
+        return outputs.find(max(output.id for output in outputs.all()))
+
+    add = lambda *arguments: console.run(["reader", "add", "checks", "--commands", "go test", "--about", "the checks", *arguments], AGENT)
+    assert add("--pattern", "^NEVER").code == 0, "with no stored output yet a reader is accepted and tried on its first run"
+    ran("stored", "go test ./...", "[ 50%] building\nFAIL shop/cart\n3 passed, 1 failed in 2.1s\n")
+    nothing = add("--pattern", "^NEVER")
+    assert nothing.code != 0 and "picks no line" in nothing.error and "3 passed" in nothing.error, "a reader that picks nothing from the stored run is refused with the lines it should have matched"
+    silent = add("--pattern", "FAIL", "--finished", "passed")
+    assert silent.code != 0 and "shows no progress" in silent.error and "[ 50%] building" in silent.error, "a reader that misses the printed progress is refused"
+    unended = add("--pattern", "FAIL", "--progress", "(\\d+)%")
+    assert unended.code != 0 and "summary" in unended.error and "3 passed, 1 failed" in unended.error, "a reader that does not end on the printed summary is refused"
+    assert add("--pattern", "FAIL", "--progress", "(\\d+)%", "--finished", "passed").code == 0, "a reader that picks lines, shows the progress and ends on the summary is accepted"
+    guess, readers = app.container.get(ReaderGuess), app.container.get(Readers)
+    unknown = ran("unknown", "make all", "[ 40%] compiling\n3 passed, 1 failed in 2.1s\nFAILED one\n")
+    guessed = guess.reader_for(unknown, "make all")
+    assert guessed is not None and guessed.progress_pattern and guessed.finished_pattern and guessed.failed_pattern, "a run with no reader gets one written from its progress, summary and failure lines"
+    assert readers.reading("make all").name == guessed.name, "it is kept as a reader of the project, so doing nothing keeps it"
+    blank = ran("blank", "cat notes", "just words\nand more words\n")
+    assert guess.reader_for(blank, "cat notes") is None, "a run with nothing to pick is given none"

@@ -11,12 +11,15 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
+from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_judge import ReaderJudge
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.support.rejection import Rejection
 
+# the newest runs looked through for a stored output of the command a new reader reads
+NEWEST_RUNS = 200
 NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
@@ -66,10 +69,18 @@ class ReaderCommand(Command):
         if args.script:
             self.readers.add_script(reader.revised(pattern=""), args.script.read_text())
         else:
-            self.readers.add(reader.revised(pattern=args.pattern))
+            kept = reader.revised(pattern=args.pattern)
+            self.tried(kept)
+            self.readers.add(kept)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
         return 0
+
+    def tried(self, reader: Reader) -> None:
+        stored = next((output for output in self.outputs.newest(NEWEST_RUNS) if reader.commands.is_shown_run(output.command) and OutputFiles(Path(output.folder)).is_stored()), None)
+        misses = self.judge.tried(reader, OutputFiles(Path(stored.folder)).lines()) if stored is not None else []
+        if misses:
+            raise Rejection(f"reader {reader.name} is refused, tried on output {stored.id}: {'; '.join(misses)}")
 
     def report(self, args: Namespace, caller: Caller) -> int:
         report = self.reports.save(self.reports.find(args.n).opened(datetime.fromtimestamp(self.clock.time(), timezone.utc)), caller.actor)

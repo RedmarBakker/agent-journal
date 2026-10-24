@@ -26,6 +26,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
     def recent_unwatched_moves(self, session: str | None, count: int) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True, watch_reader="").order_descending("id").limit(count))
 
+    def newest(self, count: int) -> list[CommandOutput]:
+        return self.selected(self.query().order_descending("id").limit(count))
+
     def backgrounded(self, session: str | None) -> list[CommandOutput]:
         return self.selected(self.query().filter(session=session, moved=True).order("id"))
 

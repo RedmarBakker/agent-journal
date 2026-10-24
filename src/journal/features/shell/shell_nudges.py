@@ -19,6 +19,7 @@ class ShellNudges:
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
     OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "{{outputs}}", "`journal output read {{n}} --summary` says how", repeat=Timeout.seconds(0))
     READER_HINT = Nudge("shell", "use_the_reader", "reader {{reader}} already reads this: {{about}}", "`journal output read N --reader {{reader}}`", repeat=Timeout.seconds(0))
+    READER_GUESSED = Nudge("shell", "guessed_a_reader", "reading it with {{reader}}: {{about}}", "it stays when you do nothing more; write your own with `journal reader add <name> --commands \"{{command}}\" ...`", repeat=Timeout.seconds(0))
     READER_SUGGESTION = Nudge("shell", "add_a_reader", "you read outputs this way again: {{command}}", "`journal reader add <name> --pattern <regex> --about \"<what it picks>\"`, then `journal output read N --reader <name>`", repeat=Timeout.seconds(0))
     PARTIAL_FILE_READ = Nudge("shell", "read_the_file_in_parts", "the file has {{lines}} lines, more than the {{cap}} shown at each end", "read it in parts with offset and limit, or grep for the line you need", repeat=Timeout.seconds(0))
     FOLDER_CHANGE_REFUSAL = Nudge("shell", "folder_change_refused", "cd {{target}} would move your shell for every later command", "use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, an absolute path)", repeat=Timeout.seconds(0))
