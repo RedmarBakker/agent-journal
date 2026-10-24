@@ -20,7 +20,6 @@ from journal.support.worktree import Worktree
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.config import Config
-from journal.sync.team_account import TEAM_FILE
 from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.support.private_folder import PrivateFolder
@@ -104,10 +103,7 @@ class Launch:
         return False
 
     def is_worktree_launch(self, worktree: Worktree) -> bool:
-        return self.worktree_launch or worktree.path.is_dir() or self.is_shared()
-
-    def is_shared(self) -> bool:
-        return (self.root / ".journal" / TEAM_FILE).is_file()
+        return self.worktree_launch or worktree.path.is_dir()
 
     def default_environment(self) -> str:
         return "main"
