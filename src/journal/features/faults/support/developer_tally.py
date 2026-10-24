@@ -1,6 +1,7 @@
 import threading
 
 from journal.features.faults.faults_options import FaultsOptions
+from journal.models.support.request_loads import RequestLoads
 from journal.models.timing import Timing
 from journal.repositories.setting_rows import SettingRows
 from journal.support.stage_times import StageTimes
@@ -8,6 +9,7 @@ from journal.support.stage_times import StageTimes
 STAGES_PREFIX = "developer.stages."
 LOG_ROWS = 1000
 ROLLING_ROWS = 250
+POINTS_GROUP = "developer.points"
 
 
 class DeveloperTally:
@@ -19,6 +21,7 @@ class DeveloperTally:
         self._numbers: dict[str, int] = {}
         self._log: list[Timing] = []
         self._rolling: dict[str, dict[str, list[int]]] = {}
+        self._loads: dict[str, list[RequestLoads]] = {}
 
     def measured(self, prefix: str, ms: int) -> None:
         with self._lock:
@@ -30,6 +33,12 @@ class DeveloperTally:
         with self._lock:
             window = self._rolling.setdefault(group, {}).setdefault(kind, [])
             window.append(ms)
+            del window[:-ROLLING_ROWS]
+
+    def loaded(self, kind: str, loads: RequestLoads) -> None:
+        with self._lock:
+            window = self._loads.setdefault(kind, [])
+            window.append(loads)
             del window[:-ROLLING_ROWS]
 
     def added(self, key: str, amount: int) -> None:
@@ -53,8 +62,28 @@ class DeveloperTally:
 
     def rolling_parts(self, group: str) -> list[dict]:
         with self._lock:
-            parts = [{"name": kind, "average_ms": round(sum(window) / len(window)), "count": len(window)} for kind, window in self._rolling.get(group, {}).items() if window]
-        return sorted(parts, key=lambda part: -part["average_ms"])
+            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.time_details(window)} for kind, window in self._rolling.get(group, {}).items() if window]
+        return sorted(parts, key=lambda part: -part["average"])
+
+    @staticmethod
+    def time_details(window: list[int]) -> list[dict]:
+        return [{"label": "Average", "text": f"{round(sum(window) / len(window))} ms"}, {"label": "Slowest", "text": f"{max(window)} ms"}, {"label": "Newest", "text": f"{window[-1]} ms"}]
+
+    def point_parts(self) -> list[dict]:
+        with self._lock:
+            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.table_details(self._loads.get(kind, []))} for kind, window in self._rolling.get(POINTS_GROUP, {}).items() if window]
+        return sorted(parts, key=lambda part: -part["average"])
+
+    @staticmethod
+    def table_details(answers: list[RequestLoads]) -> list[dict]:
+        totals: dict[str, list[int]] = {}
+        for answer in answers:
+            for load in answer.counts:
+                total = totals.setdefault(load.model, [0, 0, 0])
+                total[0], total[1], total[2] = total[0] + load.rows, total[1] + load.bytes, total[2] + load.writes
+        each = lambda amount: f"{amount / len(answers):.1f}".removesuffix(".0")
+        ranked = sorted(totals.items(), key=lambda item: -(item[1][0] + item[1][2] + item[1][1] / 1024))
+        return [{"label": table, "text": f"{each(rows)} rows, {each(size / 1024)} KB, {each(writes)} writes"} for table, (rows, size, writes) in ranked]
 
     def timings(self) -> list[Timing]:
         with self._lock:
@@ -66,6 +95,7 @@ class DeveloperTally:
             self._numbers.clear()
             self._log.clear()
             self._rolling.clear()
+            self._loads.clear()
 
     def stage_samples(self) -> None:
         samples = self.stages.drained()

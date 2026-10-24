@@ -17,6 +17,7 @@ from journal.repositories.environments import Environments
 from journal.features.faults.support.developer_tally import DeveloperTally
 from journal.models.timing import Timing
 from journal.features.faults.support.developer_numbers import LOADS_PREFIX
+from journal.features.faults.support.developer_tally import POINTS_GROUP
 from journal.models.support.request_loads import RequestLoads
 from journal.repositories.load_tally import LoadTally
 from journal.repositories.setting_rows import SettingRows
@@ -76,14 +77,20 @@ class SlowRequests:
     def counted(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
         self.tally.measured("developer.hooks" if method == HOOK else "developer.requests", ms)
         if method == HOOK:
-            self.tally.windowed("developer.hooks", path.rsplit("/", 1)[-1], ms)
+            self.windowed("developer.hooks", path.rsplit("/", 1)[-1], ms, loads)
         elif not path.startswith(HOOK_ROUTE):
-            self.tally.windowed("developer.requests", f"{method} {self.route(path)}", ms)
+            self.windowed("developer.requests", f"{method} {self.route(path)}", ms, loads)
         self.tally.logged(Timing(method=method, route=path, ms=ms, time=self.clock.time(), loads=loads))
         for count in loads.counts:
             self.tally.added(f"{LOADS_PREFIX}{count.model}", count.rows)
         if method == HOOK:
             self.tally.measured(f"developer.hooks.{path.rsplit('/', 1)[-1]}", ms)
+
+    def windowed(self, group: str, kind: str, ms: int, loads: RequestLoads) -> None:
+        self.tally.windowed(group, kind, ms)
+        if self.settings.option(FaultsOptions.LOADS):
+            self.tally.windowed(POINTS_GROUP, kind, loads.points())
+            self.tally.loaded(kind, loads)
 
     def is_first(self, route: str) -> bool:
         first = route not in self.measured_routes

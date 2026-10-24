@@ -1,4 +1,4 @@
-from journal.features.faults.support.developer_tally import LOG_ROWS, STAGES_PREFIX, DeveloperTally
+from journal.features.faults.support.developer_tally import LOG_ROWS, POINTS_GROUP, STAGES_PREFIX, DeveloperTally
 from journal.http.journal.answer_time import AnswerTime
 from journal.models.support.model_load import ModelLoad
 from journal.models.timing import Timing
@@ -35,6 +35,12 @@ class DeveloperNumbers:
 
     def rolling_request_parts(self) -> list[dict]:
         return self.tally.rolling_parts("developer.requests")
+
+    def rolling_points(self) -> int:
+        return self.tally.rolling_average(POINTS_GROUP)
+
+    def rolling_point_parts(self) -> list[dict]:
+        return self.tally.point_parts()
 
     def hook_averages(self) -> dict[str, AnswerTime]:
         numbers = self.series(HOOKS_PREFIX)

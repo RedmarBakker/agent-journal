@@ -12,7 +12,9 @@ from journal.features.tasks.states.working import Working
 from journal.support.chain import Chain
 from journal.config import Config
 from journal.features.faults.feature import Faults
+from journal.features.faults.faults_options import FaultsOptions
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
+from journal.repositories.setting_rows import SettingRows
 from journal.features.registry import Registry
 from journal.providers.providers import Providers
 from journal.http.agents.current_work import CurrentWork
@@ -46,9 +48,9 @@ ENDED = "ended"
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows) -> None:
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs, self.numbers, self.registry = jobs, numbers, registry
+        self.jobs, self.numbers, self.registry, self.settings = jobs, numbers, registry, settings
 
     def page(self, agents: list[Agent]) -> list[dict]:
         return [self.row(item, [] if item.state == ENDED else self.session_entries(item.session)) for item in agents]
@@ -102,8 +104,11 @@ class AgentActivity:
     def rolling(self) -> dict:
         if not self.registry.is_enabled(Faults):
             return {}
-        return {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
-                "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}
+        times = {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
+                 "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}
+        if not self.settings.option(FaultsOptions.LOADS):
+            return times
+        return {**times, "points_average": self.numbers.rolling_points(), "point_parts": self.numbers.rolling_point_parts()}
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = time.time()

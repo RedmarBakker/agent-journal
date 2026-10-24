@@ -2228,8 +2228,8 @@ def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_l
     slow.counted("HOOK", "/hooks/Stop", 30, RequestLoads())
     slow.counted("GET", f"/journal/tasks/{n}", 100, RequestLoads())
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (20, 41), "each hook kind and each route is averaged on its own, a task's number taken out, and the bar shows the average of those averages, so a frequent cheap request counts once"
-    assert [(part["name"], part["average_ms"], part["count"]) for part in row()["hook_parts"]] == [("Stop", 30, 1), ("PreToolUse", 10, 250)], "the row carries each hook kind by its own name, PreToolUse and not HOOK /hooks/PreToolUse, with its own average and how many timings it has, slowest first"
-    assert [(part["average_ms"], part["count"]) for part in row()["request_parts"]] == [(100, 1), (20, 250), (4, 250)], "and each route the same"
+    assert [(part["name"], part["average"], part["count"]) for part in row()["hook_parts"]] == [("Stop", 30, 1), ("PreToolUse", 10, 250)], "the row carries each hook kind by its own name, PreToolUse and not HOOK /hooks/PreToolUse, with its own average and how many timings it has, slowest first"
+    assert [(part["average"], part["count"]) for part in row()["request_parts"]] == [(100, 1), (20, 250), (4, 250)], "and each route the same"
     app.container.get(DeveloperTally).cleared()
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (0, 0), "a reset clears them"
 
@@ -2243,6 +2243,28 @@ def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
     states = (WorkerState.MERGED, WorkerState.RELEASED, WorkerState.DELIVERED, WorkerState.REPORTED)
     tones = {state: card.standing(workers.save(Worker(environment_id=1, name=f"Worker {state}", brief="b", state=state), Actor.system())).tone for state in states}
     assert tones == {WorkerState.MERGED: "", WorkerState.RELEASED: "", WorkerState.DELIVERED: "", WorkerState.REPORTED: "work"}, "merged, released and ready to check are plain; a report is a quiet blue"
+
+
+def test_the_agent_bars_data_carries_the_average_points_of_each_kind_while_load_counting_is_on(app: App):
+    from collections import Counter
+    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.http.agents.agent_activity import AgentActivity
+    from journal.models.support.request_loads import RequestLoads
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
+    slow = app.container.get(SlowRequests)
+    row = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]
+    slow.counted("HOOK", "/hooks/PreToolUse", 5, RequestLoads.tallied(Counter({"tasks": 60})))
+    assert "points_average" not in row(), "load counting off: the reading is not shown"
+    app.container.get(SettingRows).set("faults.count_loads", True, Actor.user(1))
+    for points in (60, 20):
+        slow.counted("HOOK", "/hooks/PreToolUse", 5, RequestLoads.tallied(Counter({"tasks": points})))
+    slow.counted("GET", "/journal/tasks", 5, RequestLoads.tallied(Counter({"tasks": 10})))
+    assert row()["points_average"] == 25, "each kind is averaged on its own (PreToolUse 40, tasks 10), then those averages"
+    assert [(part["name"], part["average"], part["count"]) for part in row()["point_parts"]] == [("PreToolUse", 40, 2), ("GET /journal/tasks", 10, 1)], "the parts are each kind with its average points and count, highest first"
+    assert row()["point_parts"][0]["details"] == [{"label": "tasks", "text": "40 rows, 0 KB, 0 writes"}], "a part carries each table its kind loads from, with the average rows, kilobytes and writes"
+    assert [(d["label"], d["text"]) for d in row()["hook_parts"][0]["details"]] == [("Average", "5 ms"), ("Slowest", "5 ms"), ("Newest", "5 ms")], "a time part carries its average, slowest and newest"
 
 
 def test_wispr_flow_is_among_the_suggested_mcp_services():
