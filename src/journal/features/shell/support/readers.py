@@ -8,6 +8,7 @@ from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, Read
 from journal.features.shell.support.output_files import OutputFiles
 from journal.models.command_output import CommandOutput
 from journal.support.rejection import Rejection
+from journal.features.plugins.support.plugin_skills import STAMP
 
 JOURNAL = "journal"
 # the readers chosen as their commands' defaults, one name a line, beside the readers
@@ -17,7 +18,7 @@ KINDS = (".pattern", ".sh")
 
 
 class Readers:
-    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made."""
+    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made; one is removed with its files, never one a plugin ships."""
 
     def __init__(self, config: Config, aliases: Aliases) -> None:
         self.config, self.aliases = config, aliases
@@ -71,6 +72,18 @@ class Readers:
         line_readers = next((matched for part in Chain.choosing_parts(line) if (matched := [reader for reader in readers if reader.commands.reads(part)])), [])
         default_names = self.default_names()
         return next((reader for reader in line_readers if reader.name in default_names), None) or min(line_readers, key=self.creation_seconds, default=None)
+
+    def removed(self, name: str) -> None:
+        paths = self.files(name)
+        if not paths:
+            raise Rejection(f"no reader named {name}: `journal reader list` names them")
+        owner = next((line.removeprefix(STAMP) for path in paths for line in path.read_text().splitlines() if line.startswith(STAMP)), "")
+        if owner:
+            raise Rejection(f"the reader {name} is the plugin {owner}'s: it goes when the plugin is removed")
+        for path in paths:
+            path.unlink()
+        remaining = self.default_names() - {name}
+        (self.config.readers / DEFAULTS_FILE).write_text("".join(f"{default}\n" for default in sorted(remaining)))
 
     def default_names(self) -> set[str]:
         path = self.config.readers / DEFAULTS_FILE

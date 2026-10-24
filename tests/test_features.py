@@ -9830,6 +9830,20 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     assert card.data["line"] == "sleep 2", "the card names the line the alias ran, never the alias"
 
 
+def test_a_reader_is_removed_with_its_files_and_an_alias_it_read_for_runs_with_no_reader(app: App):
+    from journal.repositories.aliases import Aliases
+    console = app.console()
+    hook(app, "SessionStart")
+    assert console.run(["reader", "add", "pushes", "--commands", "git", "--pattern", "^To ", "--about", "a push's remote"], AGENT).code == 0
+    assert console.run(["reader", "default", "pushes"], AGENT).code == 0
+    assert console.run(["alias", "add", "ship", "git push -q origin development", "--reader", "pushes"], AGENT).code == 0
+    removed = console.run(["reader", "remove", "pushes"], AGENT)
+    assert removed.code == 0 and "journal ship now run with no reader" in removed.text, removed.text + removed.error
+    assert "pushes" not in console.run(["reader", "list"], AGENT).text and not list(app.config.readers.glob("pushes.*")), "its files are gone, and the list no longer names it"
+    assert "pushes" not in (app.config.readers / "defaults").read_text() and app.container.get(Aliases).single(name="ship").reader == "", "the defaults forget it, and the alias runs with no reader"
+    assert "no reader named pushes" in console.run(["reader", "remove", "pushes"], AGENT).error
+
+
 def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: App):
     import threading
     import time
@@ -10022,6 +10036,8 @@ def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_bot
     judge = aliases.single(name="judge")
     assert judge.plugin == "judging" and judge.command("--changes") == f"PLAIN=1 {folder.resolve() / 'bin' / 'judge'} --changes --plain" and judge.description == "takes --changes, <path>"
     assert (app.config.readers / "verdicts.pattern").read_text().startswith("# the verdict\n^verdict\n")
+    refused = console.run(["reader", "remove", "verdicts"], AGENT)
+    assert refused.code != 0 and "the plugin judging's" in refused.error and (app.config.readers / "verdicts.pattern").exists(), "a reader a plugin ships goes only with its plugin"
     assert judge.background, "a plugin's alias declares that a run moves to the background at once"
     (folder / "journal-plugin.json").write_text(json.dumps({"name": "judging", "version": "1.0.1", "program": "run.py", "aliases": [{"name": "judge", "line": "bin/judge --strict {args}"}]}))
     (folder / ".journal-plugin" / "readers" / "verdicts.pattern").write_text("# the verdict\n^judged\n")

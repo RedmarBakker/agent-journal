@@ -707,6 +707,16 @@ $ agent: journal reader default totals
 exit 0
 reader totals reads its commands, over pytest
 
+$ agent: journal reader remove --help
+exit 0
+usage: journal reader remove [-h] name
+
+positional arguments:
+  name
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal reader report --help
 exit 0
 usage: journal reader report [-h] n

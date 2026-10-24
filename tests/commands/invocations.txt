@@ -136,6 +136,7 @@ agent alias remove greet
 agent reader add totals --pattern "[0-9]+ passed" --about "a test run's totals" --commands pytest
 agent reader list
 agent reader default totals
+agent reader remove --help
 agent reader report --help
 agent reader dismiss --help
 agent output list

@@ -7,6 +7,7 @@ from journal.engine.clock import Clock
 from journal.repositories.reader_reports import ReaderReports
 from journal.events.announcer import Announcer
 from journal.events.moments.reader_added import ReaderAdded
+from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
@@ -24,13 +25,14 @@ NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
 class ReaderCommand(Command):
-    """The project's output readers: add one for a shape of output read again and again, and list them."""
+    """The project's output readers: add one for a shape of output read again and again, list them, and remove one."""
 
     noun = "reader"
     callers = {"list": WORKER_KINDS}
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, aliases: Aliases) -> None:
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
+        self.aliases = aliases
 
     def arguments(self, verbs) -> None:
         addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
@@ -47,6 +49,7 @@ class ReaderCommand(Command):
         addition.add_argument("--failed", help="a pattern for the lines it picks once the command failed, such as its failures; the pattern picks them while it runs")
         addition.add_argument("--commands", help="the commands whose output it reads, comma-separated, such as pytest or dotnet test: a command moved to the background that runs one is told to watch it with this reader")
         self.verb(verbs, "list", "the project's readers, each with what it picks")
+        self.verb(verbs, "remove", "take a reader away, with its files; an alias it read for runs with no reader, and a reader a plugin ships goes only with its plugin").add_argument("name")
         self.verb(verbs, "default", "make a reader the one that reads its commands, over every other reader of them").add_argument("name")
         self.verb(verbs, "report", "read a reader report: what the reader judge found a reader showed poorly, and how to fix it").add_argument("n", type=int)
         dismissal = self.verb(verbs, "dismiss", "set a reader report aside as wrong, saying why; the reason is kept for the user")
@@ -94,6 +97,14 @@ class ReaderCommand(Command):
             raise Rejection(f"reader report {target_report.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {target_report.reader} ...: {'; '.join(findings)}")
         report = self.reports.save(target_report.dismissed(args.why), caller.actor)
         print(f"reader report {report.id} dismissed: {args.why}")
+        return 0
+
+    def remove(self, args: Namespace, caller: Caller) -> int:
+        self.readers.removed(args.name)
+        aliases = self.aliases.reader_rows(args.name)
+        for alias in aliases:
+            self.aliases.save(alias.with_(reader=""), caller.actor)
+        print(f"reader {args.name} removed" + (f"; journal {', journal '.join(alias.name for alias in aliases)} now run with no reader" if aliases else ""))
         return 0
 
     def default(self, args: Namespace, caller: Caller) -> int:
