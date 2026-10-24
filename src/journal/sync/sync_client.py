@@ -131,7 +131,7 @@ class SyncClient:
         return count
 
     def applied(self, answer: PullAnswer) -> int:
-        if answer.copy_needed:
+        if answer.copy_needed and self.account.sequence() < answer.head:
             sys.stderr.write(f"the team asked for its full copy: this journal holds sequence {self.account.sequence()}, the team's head is {answer.head}\n")
             # nothing of this journal's goes out between the team's copy being taken and laid in place of its rows, or the copy would
             # wipe a change sent meanwhile, which no pull sends back, as a journal is never sent its own changes
