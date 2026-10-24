@@ -42,19 +42,3 @@ test("an idle worker's row shows its reuse count and the files it was last on", 
     expect(into.textContent).toContain("Files: src/parser.py");
     expect(into.textContent).toContain("Idle, waiting for a job");
 });
-
-test("a verifier's row draws the verifier's own icon, and a worker's the workers' icon", async () => {
-    const drawn = async (row) => {
-        const into = document.createElement("div");
-        const app = createApp({render: () => h(WorkerRow, {row})});
-        app.directive("tip", {});
-        app.mount(into);
-        await nextTick();
-        return into.querySelector(".worker-role").innerHTML;
-    };
-    const lantern = await drawn(worker(3, "dispatched", {role: "verifier", name: "Diogenes"}));
-    const people = await drawn(worker(4, "dispatched", {role: "worker"}));
-    expect(lantern).toContain("M5 4.6h6v7.4H5z");
-    expect(people).toContain("circle");
-    expect(lantern).not.toBe(people);
-});

@@ -42,7 +42,7 @@ test("the status line keeps its row at the foot, busy or idle, and slides out on
 
 test("the docks and the status line take their own room under the pane, so a bubble never sits behind them and a reader at the foot stays at it", () => {
     const pane = thread.split('ref="scroller"')[1].split('<Transition name="pane">')[0];
-    const [inside, below] = pane.split('<div v-if="rendering" :class="[\'chat-foot\'');
+    const [inside, below] = pane.split(':class="[\'chat-foot\'');
     expect(below).toContain('ref="docks" class="chat-docks"');
     expect(inside).not.toContain("chat-docks");
     expect(rule(".chat-foot")).not.toContain("sticky");
