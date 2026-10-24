@@ -11077,6 +11077,8 @@ def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read():
     from journal.features.shell.support.card_line import CardLine
     assert not CardLine.is_poor("FAILED tests/test_supervisor.py::test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c_and_says_so_in_one_plain_line"), "a failed test's name is the line a person reads, however long"
     assert CardLine.is_poor("x" * 300), "any other long line still reads poorly"
+    vitest = "   × the telephone rings at most once in two minutes, gathering every worker given work into one call that names each in turn 32ms"
+    assert not CardLine.is_poor(CardLine.plain(vitest)) and not CardLine.is_poor(CardLine.plain(" FAIL  tests/figureVisor.test.js > the crosses and the ticks are the pixel pictures on the visor's screen in the run's colour")), "a test vitest or jest marks failed is named however long, as pytest's are"
 
 
 def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):

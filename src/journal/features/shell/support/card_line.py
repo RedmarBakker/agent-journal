@@ -8,8 +8,8 @@ CARD_LINE_CHARACTERS = DETAIL_CHARACTERS
 # the columns a report pads with runs of spaces, which a card line reads as one
 SPACES = re.compile(r"\s{2,}")
 FRAME = re.compile(r"^[=\-*#_~ ]{3,}|[=\-*#_~ ]{3,}$")
-# a failed or errored test named by its id, the line a person reads first however long the test's name
-FAILED_TEST = re.compile(r"^(FAILED|ERROR) \S+::\S+")
+# a failed or errored test named by its id, or marked failed by vitest or jest, the line a person reads first however long the test's name
+FAILED_TEST = re.compile(r"^(FAILED|ERROR) \S+::\S+|^(×|✗|✕|FAIL)\s+\S")
 
 
 class CardLine:
