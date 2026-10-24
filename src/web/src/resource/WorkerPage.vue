@@ -59,6 +59,8 @@ const checked = computed(() => checkedCount(task.value));
 const unchecked = computed(() => task.value.points.length - checked.value);
 const done = computed(() => doneCount(task.value));
 const hasTask = computed(() => Boolean(task.value.task_id));
+// the tasks waiting in the worker's queue, in the order it takes them up
+const queue = computed(() => props.resource.queue || []);
 
 const ACTIONS = {
     send: (id, brief) => api.act("workers", id, "send", {brief}),
@@ -91,7 +93,7 @@ const tab = ref("points");
 const tabs = computed(() => [
     {key: "points", label: "Points", count: `${checked.value} of ${task.value.points.length}`},
     {key: "transcript", label: "Transcript"},
-    {key: "todos", label: "Tasks", count: `${done.value} of ${task.value.todos.length}`},
+    {key: "todos", label: "To-dos", count: `${done.value} of ${task.value.todos.length}`},
 ]);
 
 const message = ref("");
@@ -118,6 +120,26 @@ async function send() {
                 </template>
             </template>
         </InspectorSummary>
+        <template v-if="hasTask || queue.length">
+            <div class="delegated" data-worker-tasks>
+                <template v-if="hasTask">
+                    <div class="delegated-row">
+                        <span class="delegated-label">Working on</span>
+                        <a href="#" class="task-link" @click.prevent="peek('tasks', task.task_id)">Task {{ task.task_id }}<template v-if="held">: {{ held.title }}</template></a>
+                    </div>
+                </template>
+                <template v-if="queue.length">
+                    <div class="delegated-row">
+                        <span class="delegated-label">Queued next</span>
+                        <span class="delegated-queue">
+                            <template v-for="queued in queue" :key="queued.id">
+                                <a href="#" class="task-link" @click.prevent="peek('tasks', queued.id)">Task {{ queued.id }}: {{ queued.title }}</a>
+                            </template>
+                        </span>
+                    </div>
+                </template>
+            </div>
+        </template>
         <template v-if="narrow && hasTask">
             <div class="tabs">
                 <Segmented :options="tabs" :value="tab" @pick="tab = $event" />
@@ -138,7 +160,7 @@ async function send() {
                 </InspectorColumn>
             </template>
             <template v-if="hasTask && (!narrow || tab === 'todos')">
-                <InspectorColumn :title="narrow ? '' : 'Tasks'" :count="`${done} of ${task.todos.length} done`">
+                <InspectorColumn :title="narrow ? '' : 'To-dos'" :count="`${done} of ${task.todos.length} done`">
                     <WorkerTodos :todos="task.todos" />
                 </InspectorColumn>
             </template>
@@ -178,6 +200,31 @@ async function send() {
     height: 100%;
     min-height: 0;
     background: var(--raised);
+}
+
+.delegated {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.delegated-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.delegated-label {
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.delegated-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .task-link {

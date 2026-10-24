@@ -44,7 +44,7 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.replay import catch_typed, drive_the_clock, tick_after
-from tests.in_process import posted
+from tests.in_process import got, posted
 from tests.main_journal import main_journal
 
 AGENT = Caller.agent("main", "s1", "claude")
@@ -7880,6 +7880,9 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
     assert "only an open task" in console.run(["worker", "queue", "1", "2"], AGENT).error, "a task already delegated waits in no second queue"
+    status, page = got(app, "/journal/workers", {"X-Journal-Env": "main"})
+    [shown] = [row for row in page["rows"] if row["id"] == 1]
+    assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
     babbage = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)

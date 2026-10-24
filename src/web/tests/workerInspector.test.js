@@ -134,12 +134,12 @@ test("a transcript reads as who said what, each with the steps it took in words 
     ]);
 });
 
-test("the worker page shows its points, its readable transcript and its tasks side by side, with no empty pane", async () => {
+test("the worker page shows its points, its readable transcript and its to-dos side by side, with no empty pane", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: turns.length, first: 1, turns}))};
     const host = mount(WorkerPage, {resource: worker("clocked in")}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await new Promise((resolve) => setTimeout(resolve, 20));
     await flush();
-    expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "Tasks"]);
+    expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "To-dos"]);
     expect(host.textContent).toContain("1 of 4 checked");
     expect(host.textContent).toContain("1 of 2 done");
     expect(host.querySelector(".tx").textContent).toContain("pytest -k parser");
@@ -154,4 +154,15 @@ test("the worker page shows its points, its readable transcript and its tasks si
     await flush();
     const pool = [...pooled.querySelectorAll(".fact")].find((fact) => fact.querySelector(".label").textContent === "Team's pool");
     expect(pool.querySelector(".value").textContent.trim()).toBe("Runs on machine 2, from request 7");
+});
+
+test("the worker page names the task it works on and the tasks queued for it, in order, so what was delegated shows", async () => {
+    const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
+    const queue = [{id: 8, title: "the docs"}, {id: 9, title: "the help page"}];
+    const host = mount(WorkerPage, {resource: {...worker("clocked in"), queue}}, {scope: {env: "", api, rows: () => [{id: 7, title: "the parser"}], holding: async () => {}}});
+    await flush();
+    const tasks = host.querySelector("[data-worker-tasks]");
+    expect(tasks.textContent).toContain("Working on");
+    expect(tasks.textContent).toContain("Task 7: the parser");
+    expect([...tasks.querySelectorAll(".delegated-queue .task-link")].map((link) => link.textContent.trim())).toEqual(["Task 8: the docs", "Task 9: the help page"]);
 });

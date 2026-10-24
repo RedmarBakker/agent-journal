@@ -5,6 +5,7 @@ from journal.support.response import Response
 from journal.http.controllers.controller import Controller
 from journal.http.support.model_fields import ModelFields
 from journal.features.workers.support.worker_task_view import WorkerTaskView
+from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.proofs import Proofs
@@ -56,8 +57,11 @@ class WorkerController(Controller[Worker]):
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
         views = self.task_views(rows)
-        earlier = self.tasks.earlier_tasks()
-        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": earlier.get(w.row_id)} for w in rows]
+        former_tasks = self.tasks.earlier_tasks()
+        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": self.queued(w)} for w in rows]
+
+    def queued(self, worker: Worker) -> list[dict]:
+        return [{"id": task.id, "title": task.title} for task in self.tasks.queue(Ref.build(worker))]
 
     def task_views(self, rows: list[Worker]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}
