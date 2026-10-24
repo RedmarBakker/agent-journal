@@ -17,6 +17,7 @@ from journal.launcher.support.page_wait import PageWait
 from journal.support.project_command import ProjectCommand
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
+from journal.support.worktree_names import WorktreeNames
 from journal.providers.provider import HOOK_SCRIPT
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_source import ReleaseSource
@@ -35,6 +36,9 @@ JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_second
 FRONT_STALE_SECONDS = 600.0
 DEAD_HOOKS_WARNING = "[journal] This session's hooks have stopped reaching the journal, so it holds your lines and the user's messages: quit this session and start it again from the project's root with journal."
 
+
+# the flags that name a conversation to carry on, whose environment and worktree a bare --worktree then takes
+RESUME_FLAGS = {"--resume", "-r", "--continue", "-c"}
 
 @dataclass(frozen=True)
 class Launch:
@@ -78,6 +82,8 @@ class Launch:
                 continue
             remainder.append(arg)
             i += 1
+        if worktree_launch and not worktree and not environment and not RESUME_FLAGS & set(remainder):
+            worktree = WorktreeNames(root).unused()
         return cls(agent, root, tuple(remainder), environment, "new" in switches, "stashed" in switches, "bypass" in switches, "confirmed" in switches, "browser_off" in switches, "journal_off" in switches, worktree, worktree_launch)
 
     @property

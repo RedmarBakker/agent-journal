@@ -315,7 +315,7 @@ def test_a_worktree_launch_makes_its_worktree_and_never_hands_the_flag_to_the_ag
     assert Worktree(tmp_path, "1012-inventory-page").created().is_dir(), "a worktree whose folder went is made again on its branch, and nothing is lost from the branch"
 
 
-def test_a_bare_worktree_flag_takes_the_chosen_environments_name(tmp_path: Path):
+def test_a_bare_worktree_flag_makes_a_fresh_name_and_a_given_environment_names_its_worktree(tmp_path: Path):
     import subprocess
     git = lambda *args: subprocess.run(["git", "-C", str(tmp_path), *args], capture_output=True, text=True, timeout=30)
     git("init", "-q")
@@ -323,10 +323,11 @@ def test_a_bare_worktree_flag_takes_the_chosen_environments_name(tmp_path: Path)
     (tmp_path / ".claude" / "settings.json").write_text('{"permissions": {}}\n')
     git("add", ".claude/settings.json")
     git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "start")
-    for argv in (["claude", "-w"], ["claude", "--worktree", "--resume", "abc"]):
-        launch = Launch.parse(argv, tmp_path)
-        assert launch.worktree_launch and launch.worktree == "" and "--worktree" not in launch.args and "-w" not in launch.args
-    launch = Launch.parse(["claude", "-w"], tmp_path)
+    fresh = [Launch.parse(["claude", "-w"], tmp_path).worktree for _ in range(5)]
+    assert all(re.fullmatch(r"[a-z]+-[a-z]+", name) for name in fresh), "a bare --worktree makes a fresh two-word name, as version 3 did, so two launches never share one folder"
+    resumed = Launch.parse(["claude", "--worktree", "--resume", "abc"], tmp_path)
+    assert resumed.worktree_launch and resumed.worktree == "" and "--worktree" not in resumed.args, "a bare --worktree carrying a conversation on takes that conversation's environment instead"
+    launch = Launch.parse(["claude", "--env", "calm-river", "-w"], tmp_path)
     produced = launch.launch_file(Choice("calm-river", "", False, False), StatusLine(tmp_path))
     assert produced["front"]["folder"] == str(tmp_path / ".claude" / "worktrees" / "calm-river"), "the worktree is named after the environment the menu chose"
     hooked = json.loads((tmp_path / ".claude" / "worktrees" / "calm-river" / ".claude" / "settings.json").read_text())
