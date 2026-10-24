@@ -2227,6 +2227,15 @@ def test_the_agent_bars_data_carries_the_average_of_the_last_250_hooks_and_reque
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (0, 0), "a reset clears them"
 
 
+def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
+    from journal.features.workers.support.worker_process_card import WorkerProcessCard
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    card = app.container.get(WorkerProcessCard)
+    tones = {state: card.standing(Worker(environment_id=1, name="Dieter Rams", brief="b", state=state)).tone for state in (WorkerState.MERGED, WorkerState.RELEASED, WorkerState.DELIVERED, WorkerState.REPORTED)}
+    assert tones == {WorkerState.MERGED: "", WorkerState.RELEASED: "", WorkerState.DELIVERED: "", WorkerState.REPORTED: "work"}, "merged, released and ready to check are plain; a report is a quiet blue"
+
+
 def test_wispr_flow_is_among_the_suggested_mcp_services():
     from journal.features.mcp.support.mcp_catalogue import SUGGESTED
     suggested = {s.name: s for s in SUGGESTED}
@@ -9153,7 +9162,7 @@ def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: A
         ("Worker 1, Mr. Wedgwood: sent its next job", "", "the jug"),
         ("Worker 1, Mr. Wedgwood: sent a message in its session", "", "a blue glaze"),
         ("Worker 1, Mr. Wedgwood: started again in its last session", "", "the teapot"),
-        ("Worker 1, Mr. Wedgwood: retired, its report acted on", "good", ""),
+        ("Worker 1, Mr. Wedgwood: retired, its report acted on", "", ""),
     ]
     assert all(len(text) <= 80 for text, _, _ in marks())
 

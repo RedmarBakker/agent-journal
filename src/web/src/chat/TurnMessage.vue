@@ -208,9 +208,9 @@ async function drop() {
 }
 
 .thread-turn.report .thread-bubble {
-    border-color: color-mix(in srgb, var(--tone-good, var(--green)) 40%, var(--border-2));
+    border-color: color-mix(in srgb, var(--tone-work) 40%, var(--border-2));
     border-left-width: 3px;
-    background: color-mix(in srgb, var(--tone-good, var(--green)) 7%, #161719);
+    background: color-mix(in srgb, var(--tone-work) 7%, #161719);
 }
 
 .thread-turn.comment-origin .thread-bubble {

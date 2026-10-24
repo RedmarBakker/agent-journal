@@ -100,7 +100,7 @@ onMounted(() =>
 }
 
 .worker-dot.reported {
-    background: var(--tone-good);
+    background: var(--tone-work);
 }
 
 .worker-dot.needs {
@@ -143,7 +143,7 @@ onMounted(() =>
 }
 
 .worker-state.reported {
-    color: var(--tone-good);
+    color: var(--tone-work);
 }
 
 .worker-state.needs {

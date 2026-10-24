@@ -22,7 +22,7 @@ const dock = () => scope.api.act("messages", props.turn.id, "dock");
 const data = computed(() => props.turn.data);
 const skillMark = computed(() => ({
     icon: "book",
-    tone: "good",
+    tone: "",
     label: "Loaded skill",
     name: props.turn.title,
     time: props.turn.time,

@@ -16,7 +16,7 @@ MOMENTS = {
     WorkerReused: ("sent its next job", "", "brief"),
     WorkerRevived: ("started again in its last session", "", "brief"),
     WorkerNotified: ("sent a message in its session", "", "text"),
-    WorkerRetired: ("retired, its report acted on", "good", ""),
+    WorkerRetired: ("retired, its report acted on", "", ""),
     WorkerQueueDrained: ("its queue given back", "", "tasks"),
 }
 
