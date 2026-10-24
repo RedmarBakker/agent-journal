@@ -12671,11 +12671,11 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     released.set()
     first.join(5)
     monkeypatch.setattr(sync_desk, "LOCK_SECONDS", 0.2)
-    holder = threading.Thread(target=lambda: (client.desk.applying.acquire(), timing.sleep(1), client.desk.applying.release()))
+    holder = threading.Thread(target=lambda: (client.doors.desk.applying.acquire(), timing.sleep(1), client.doors.desk.applying.release()))
     holder.start()
     timing.sleep(0.05)
     try:
-        with client.desk.held(client.desk.applying, "apply the team's changes"):
+        with client.doors.desk.held(client.doors.desk.applying, "apply the team's changes"):
             raise AssertionError("the lock was taken while another held it")
     except TimeoutError as fault:
         assert "to apply the team's changes, held by its other loop" in str(fault)
@@ -12759,7 +12759,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     outgoing.clear()
     outgoing.queued(OutgoingChange(row_table="tasks", row=7001, action=UPDATED, fields={"state": "started"}, changed_at={"state": 2.0}, writer="user:1"), Actor.system())
     batch = door("GET", "batch")
-    assert len(batch["ids"]) == 1 and batch["changes"][0]["fields"] == {"state": "started"} and batch["query"]["sequence"] == 5
+    assert len(batch["ids"]) == 1 and batch["changes"][0]["fields"] == {"state": "started"} and door("GET", "query")["sequence"] == 5
     door("POST", "pushed", {"ids": batch["ids"], "answer": {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}}})
     assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
     account.left(0)
@@ -12840,10 +12840,10 @@ def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll
     uploads = app.container.get(PendingUploads)
     upload = uploads.save(PendingUpload(row_table="messages", row=7, name="notes.txt"), Actor.system())
     batch = door("GET", "batch")
-    assert batch["ids"] == [] and [u["id"] for u in batch["uploads"]] == [upload.id] and batch["uploads"][0]["name"] == "notes.txt", "a file waits to go with no change beside it"
+    assert batch["ids"] == [] and [file["id"] for file in batch["files"]] == [upload.id] and batch["files"][0]["place"]["name"] == "notes.txt", "a file waits to go with no change beside it"
     assert blocks.all(), "the poll filled the empty row number blocks from the team server"
-    door("POST", "pushed", {"uploads": [upload.id]})
-    assert uploads.waiting() == [] and door("GET", "batch")["uploads"] == [], "a file reported sent leaves the queue"
+    door("POST", "files-sent", {"ids": [upload.id]})
+    assert uploads.waiting() == [] and door("GET", "batch")["files"] == [], "a file reported sent leaves the queue"
     account.left(0)
     server.shutdown()
 

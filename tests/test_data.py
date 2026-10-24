@@ -746,6 +746,7 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
     from journal.sync.commit_signal import CommitSignal
     from journal.sync.sync_client import SyncClient
     from journal.sync.sync_desk import SyncDesk
+    from journal.sync.server_doors import ServerDoors
     from journal.sync.host_desk import HostDesk
     from journal.sync.hosts import Hosts
     from journal.sync.pull_queries import PullQueries
@@ -795,7 +796,7 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
         uploads = PendingUploads(tasks.connection, tasks.bus)
         status = SyncStatus(account, outgoing)
         desk = SyncDesk(account, outgoing, incoming, rejected, status, uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), Announcer(tasks.bus), SyncStatus(account, outgoing)), Announcer(tasks.bus)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus), team_scopes(tasks.connection, tasks.bus, scope))), JournalCopy(SharedTables(tasks.connection, tasks.bus), team_scopes(tasks.connection, tasks.bus, scope)), BlockSupply(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus)), PullQueries(account, Hosts(account, EnvironmentOwners(links, Users(tasks.connection, tasks.bus), Environments(tasks.connection, tasks.bus)), Environments(tasks.connection, tasks.bus), Hosting(Config(tmp_path / name)), TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), SettingRows(tasks.connection, tasks.bus, scope), PoolJobs(tasks.connection, tasks.bus)), HostDesk(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Environments(tasks.connection, tasks.bus), messages, scope, PoolJobs(tasks.connection, tasks.bus)))
-        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), desk, signal, status)
+        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), ServerDoors(desk, signal), status)
         client.start()
         return scope, tasks, client, messages
 
@@ -831,7 +832,7 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
         # an answer that waits to be applied, as under load, still measures the clock offset as it arrived, so this journal's later
         # edits never go out stamped before its own earlier ones and are rejected against them
         import threading
-        holding = threading.Thread(target=lambda: (client_a.desk.applying.acquire(), time.sleep(1.5), client_a.desk.applying.release()))
+        holding = threading.Thread(target=lambda: (client_a.doors.desk.applying.acquire(), time.sleep(1.5), client_a.doors.desk.applying.release()))
         holding.start()
         time.sleep(0.05)
         client_a.pulled(0)
@@ -840,12 +841,12 @@ def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_wh
         # a full copy taken while a change of this journal is going out waits for it, so the copy never wipes a change sent meanwhile
         from sync_server.pull_answer import PullAnswer
         copied, held = threading.Event(), client_a.account.sequence()
-        with client_a.desk.sending:
-            at_head = threading.Thread(target=lambda: client_a.copied_when_asked(PullAnswer((), held, time.time(), "", True, ())))
+        with client_a.carrying:
+            at_head = threading.Thread(target=lambda: client_a.taken(PullAnswer((), held, time.time(), "", True, ())))
             at_head.start()
             at_head.join(1.0)
             assert not at_head.is_alive(), "a journal already at the team's head never takes the copy, so it never waits for the send"
-            taking = threading.Thread(target=lambda: (client_a.copied_when_asked(PullAnswer((), held + 1, time.time(), "", True, ())), copied.set()))
+            taking = threading.Thread(target=lambda: (client_a.taken(PullAnswer((), held + 1, time.time(), "", True, ())), copied.set()))
             taking.start()
             assert not copied.wait(0.3), "the full copy went ahead while a send was under way"
         assert copied.wait(5.0), "and goes ahead once the send is done"

@@ -8,6 +8,7 @@ from journal.repositories.pending_uploads import PendingUploads
 from journal.support.actor import Actor
 from journal.sync.attachments import Attachments
 from journal.sync.block_supply import BlockSupply
+from journal.sync.desk_answer import DeskAnswer
 from journal.sync.host_desk import HostDesk
 from journal.sync.incoming_changes import IncomingChanges
 from journal.sync.journal_copy import JournalCopy
@@ -81,6 +82,18 @@ class SyncDesk:
 
     def pushed_rows(self, ids: list[int], answer: SyncAnswer) -> int:
         return self.pushed(self.outgoing.sending_rows(ids), answer)
+
+    # a push's result taken for the batch it names: its changes off the queue and the rejected edits put right, then its answer as taken
+    def push_taken(self, ids: list[int], answer: SyncAnswer) -> DeskAnswer:
+        self.outgoing.sent(self.outgoing.sending_rows(ids))
+        self.rejected.apply(answer.settlement.rejected)
+        return self.taken(answer.delivery)
+
+    # an answer applied, or, when it asks for the team's full copy first, left for the carrier to hand again once the copy is laid in
+    def taken(self, answer: PullAnswer) -> DeskAnswer:
+        if self.needs_copy(answer):
+            return DeskAnswer(0, True)
+        return DeskAnswer(self.answered(answer), False)
 
     def answered(self, answer: PullAnswer) -> int:
         count = self.applied(answer)

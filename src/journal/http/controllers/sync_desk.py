@@ -3,8 +3,9 @@ from dataclasses import asdict
 from journal.engine.lifecycle import Lifecycle
 from journal.http.support.request import Request
 from journal.support.response import Response
-from journal.sync.sync_client import BATCH_ROWS, SyncClient
-from journal.sync.sync_desk import SyncDesk
+from journal.sync.server_doors import ServerDoors
+from journal.sync.sync_batch import SyncBatch
+from journal.sync.sync_client import SyncClient
 from journal.sync.sync_secret import SyncSecret
 from sync_server.full_copy import FullCopy
 from sync_server.pull_answer import PullAnswer
@@ -14,8 +15,8 @@ from sync_server.sync_answer import SyncAnswer
 class SyncDeskController:
     """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, the team's full copy laid in when it is past this journal's sequence, and, around an upgrade, the queue drained and the carrier paused, then resumed."""
 
-    def __init__(self, desk: SyncDesk, client: SyncClient, secret: SyncSecret, lifecycle: Lifecycle) -> None:
-        self.desk, self.client, self.secret, self.lifecycle = desk, client, secret, lifecycle
+    def __init__(self, doors: ServerDoors, client: SyncClient, secret: SyncSecret, lifecycle: Lifecycle) -> None:
+        self.doors, self.client, self.secret, self.lifecycle = doors, client, secret, lifecycle
 
     def guarded(self, door):
         return lambda request: self.answered(door, request)
@@ -27,32 +28,38 @@ class SyncDeskController:
             return Response.busy("the journal is starting: try again in a moment")
         return door(request)
 
-    def answer(self, request: Request) -> Response:
-        return Response.json({"applied": self.desk.answered(PullAnswer.parsed(**request.body))})
-
     def query(self, request: Request) -> Response:
-        return Response.json(asdict(self.desk.query(request.queried("wait_seconds"))))
+        return Response.json(asdict(self.doors.query(request.queried("wait_seconds"))))
 
     def batch(self, request: Request) -> Response:
-        self.desk.kept_up()
-        with self.desk.held(self.desk.sending, "take a batch"):
-            changes = self.desk.batch(BATCH_ROWS)
-        uploads = [{"id": upload.id, **asdict(place), "path": str(path)} for upload in self.desk.waiting_files() for place, path in [self.desk.file_place(upload)]]
-        return Response.json({"ids": [change.id for change in changes], "changes": [change.payload() for change in changes], "uploads": uploads, "query": asdict(self.desk.query(0))})
+        return Response.json(asdict(self.doors.batch(request.queried("wait_seconds"))))
+
+    def files_sent(self, request: Request) -> Response:
+        self.doors.files_sent(tuple(request.body.get("ids", ())))
+        return Response.json({})
 
     def pushed(self, request: Request) -> Response:
-        self.desk.files_sent(list(request.body.get("uploads", ())))
-        if "answer" not in request.body:
-            return Response.json({"applied": 0})
-        return Response.json({"applied": self.desk.pushed_rows(list(request.body.get("ids", ())), SyncAnswer.parsed(**request.body["answer"]))})
+        batch = SyncBatch(tuple(request.body.get("ids", ())), (), (), False)
+        return Response.json(asdict(self.doors.pushed(batch, SyncAnswer.parsed(**request.body["answer"]))))
+
+    def answer(self, request: Request) -> Response:
+        return Response.json(asdict(self.doors.answered(PullAnswer.parsed(**request.body))))
 
     def copy(self, request: Request) -> Response:
-        return Response.json({"laid_in": self.desk.copy_laid_in(FullCopy.parsed(**request.body))})
+        return Response.json({"laid_in": self.doors.copied(FullCopy.parsed(**request.body))})
+
+    def upgrade_claimed(self, request: Request) -> Response:
+        self.doors.upgrade_claimed()
+        return Response.json({})
+
+    def upgrade_finished(self, request: Request) -> Response:
+        self.doors.upgrade_finished()
+        return Response.json({})
 
     def drain(self, request: Request) -> Response:
         self.client.prepare_upgrade()
         self.client.stop()
-        return Response.json({"drained": not self.desk.has_waiting(), "paused": True})
+        return Response.json({"drained": self.doors.batch(0).is_empty(), "paused": True})
 
     def pause(self, request: Request) -> Response:
         self.client.stop()
