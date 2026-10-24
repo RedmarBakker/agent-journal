@@ -435,21 +435,20 @@ def test_a_folder_no_worktree_owns_is_moved_aside_never_deleted_and_a_failed_mak
 
 def test_the_boot_screen_offers_a_newer_release_of_the_same_major_before_the_journal_starts(tmp_path: Path, monkeypatch):
     from journal.config import Config
-    from journal.support.release import Release
-    from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
     from journal.launcher.support.update_prompt import UpdatePrompt
     from journal.version import VERSION
     major = VERSION.split(".")[0]
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{VERSION}", f"v{major}.99.0", f"v{int(major) + 1}.0.0"])
-    installed = []
-    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, tag, repository: installed.append(Release(tag).version))
+    asked = tmp_path / "asked"
+    (tmp_path / ".journal" / "src").mkdir(parents=True)
+    (tmp_path / ".journal" / "src" / "journal.sh").write_text(f'echo "$@" >> {asked}\n')
     answers = iter(["2", "1"])
     monkeypatch.setattr("builtins.input", lambda: next(answers))
     proposal = UpdatePrompt(Config(tmp_path), Screen(io.StringIO()), ReleaseSource())
     assert proposal.newest().version == f"{major}.99.0", "the newest of the same major, never the next major"
-    assert not proposal.installed_newer() and installed == [], "Start as it is installs nothing"
-    assert proposal.installed_newer() and installed == [f"{major}.99.0"], "Update installs it before the journal starts"
+    assert not proposal.installed_newer() and not asked.exists(), "Start as it is installs nothing"
+    assert proposal.installed_newer() and asked.read_text() == "update\n", "Update runs journal update, the one route every update takes, before the journal starts"
 
 
 def test_every_start_asks_to_skip_the_permission_prompts_with_skip_selected_even_when_carrying_on(tmp_path: Path, monkeypatch):
