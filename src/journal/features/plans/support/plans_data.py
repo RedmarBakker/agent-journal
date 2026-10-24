@@ -10,4 +10,3 @@ class PlansData:
     approved: tuple[int, ...]
     started: StartedPlan | None
     review_plan: int
-    review_tool_use: int

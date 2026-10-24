@@ -20,4 +20,10 @@ class PlansNudges:
     UNAPPROVED_PLAN = Nudge("plans", "plan_not_approved", "plan {{n}} is not approved", "only the user approves it", repeat_interval=0)
     APPROVED_UNSTARTED = Nudge("plans", "approved_unstarted", "plan {{n}} is approved and not started", "`journal plan start {{n}}` begins its first task", repeat_interval=0)
     REVIEW_ENTRY_REQUEST = Nudge("plans", "put_the_review_into_the_plan", "plan {{n}}'s reviewers are all back", "put their findings in as tasks, then `journal plan ready {{n}} --changed \"<what changed>\"`", repeat_interval=0)
+    REVIEW_COUNTDOWN = Nudge("plans", "writes_held_soon_until_the_review_is_in", "plan {{n}} readied due: {{count}}", repeat_interval=0)
+    REVIEW_LAST_USE = Nudge("plans", "next_write_held_until_the_review_is_in", "plan {{n}} readied due: 0", "your next write waits until it is readied", repeat_interval=0)
     REVIEW_ENTRY_BLOCK = Nudge("plans", "review_write_up_waits", "your writes wait until plan {{n}} is readied", "put the reviewers' findings into it and `journal plan ready {{n}} --changed \"<what changed>\"`", repeat_interval=0)
+
+    @classmethod
+    def review_countdown(cls, plan: int, remaining_uses: int) -> Nudge:
+        return cls.REVIEW_COUNTDOWN.create(n=plan, count=remaining_uses) if remaining_uses else cls.REVIEW_LAST_USE.create(n=plan)

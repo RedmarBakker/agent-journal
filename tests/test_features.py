@@ -11252,9 +11252,9 @@ def test_a_plan_whose_reviewers_are_back_holds_writes_after_ten_tool_uses_until_
     edit = lambda: hook(app, "PreToolUse", tool_name="Edit", tool_input={"file_path": "a.md", "old_string": "a", "new_string": "b"})
     said = told + json.dumps(edit()[1]) + " ".join(keystrokes)
     assert "plan 1's reviewers are all back" in said, "the agent is told to put the review into the plan"
-    statuses = [edit()[0] for _ in range(9)]
+    statuses = [edit()[0] for _ in range(8)]
     held = edit()
-    assert statuses == [200] * 9 and held[0] == 409 and "your writes wait until plan 1 is readied" in held[1]["error"], (statuses, held)
+    assert statuses == [200] * 8 and held[0] == 409 and "your writes wait until plan 1 is readied" in held[1]["error"], (statuses, held)
     assert console.run(["plan", "show", "1"], AGENT).code == 0, "plan commands still go through"
     assert console.run(["plan", "ready", "1", "--changed", "two gaps filled"], AGENT).code == 0
     app.runtime().deferred.drain()

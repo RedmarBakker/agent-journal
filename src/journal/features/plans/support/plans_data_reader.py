@@ -23,7 +23,7 @@ class PlansDataReader:
         review = next(iter(self.plans.reviewed()), None)
         review_line = self.entries.last_line_entry(agent.session, (PlansNudges.REVIEW_ENTRY_REQUEST.key,)) if review else None
         return PlansData(approved=tuple(p.row_id for p in self.plans.approved()), started=self.started_plan(started) if started else None,
-                         review_plan=review.row_id if review_line else 0, review_tool_use=review_line.data.get("tool_use", 0) if review_line else 0)
+                         review_plan=review.row_id if review_line else 0)
 
     def started_plan(self, plan: Plan) -> StartedPlan:
         tree = self.plans.tree(plan)
