@@ -8,6 +8,12 @@ class ShellNudges:
     READER_COUNTDOWN = Nudge("shell", "writes_held_soon_until_read_through_a_reader", "reader due for {{commands}}: {{count}}", "`journal reader add <name> --commands \"<command>\" --about '<what it picks>' --label '<what it does>' --pattern '<the lines worth seeing: failures and summary>' --progress '<a percent or a count of a total>'`", repeat=Timeout.seconds(0))
     READER_LAST_USE = Nudge("shell", "next_write_held_until_read_through_a_reader", "reader due for {{commands}}: 0", "your next write waits until a reader with a label reads it", repeat=Timeout.seconds(0))
     READER_REFUSAL = Nudge("shell", "write_held_until_read_through_a_reader", "no reader reads {{commands}}, run in the background", "`journal reader add <name> --commands \"<command>\" --about '<what it picks>' --label '<what it does>' --pattern '<lines worth seeing>' --progress '<progress>'` before any other write", repeat=Timeout.seconds(0))
+    REPORT_READ_COUNTDOWN = Nudge("shell", "reader_report_to_read", "a reader fell short, read due for reader report {{reports}}: {{count}}", "`journal reader report <n>`", repeat=Timeout.seconds(0))
+    REPORT_READ_LAST_USE = Nudge("shell", "reader_report_read_next", "a reader fell short, read due for reader report {{reports}}: 0", "your next write waits until you read it with `journal reader report <n>`", repeat=Timeout.seconds(0))
+    REPORT_READ_REFUSAL = Nudge("shell", "write_held_until_reader_report_read", "reader report {{reports}} is not read yet", "`journal reader report <n>` before any other write", repeat=Timeout.seconds(0))
+    REPORT_FIX_COUNTDOWN = Nudge("shell", "reader_report_to_act_on", "fix due for reader report {{reports}}: {{count}}", "write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why \"<why the report is wrong>\"`", repeat=Timeout.seconds(0))
+    REPORT_FIX_LAST_USE = Nudge("shell", "reader_report_acted_on_next", "fix due for reader report {{reports}}: 0", "your next write waits until the reader is written anew or the report dismissed", repeat=Timeout.seconds(0))
+    REPORT_FIX_REFUSAL = Nudge("shell", "write_held_until_reader_report_acted_on", "reader report {{reports}} is read but not acted on", "write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why \"<why>\"`, before any other write", repeat=Timeout.seconds(0))
     OUTPUT_STORED = Nudge("shell", "output_kept", "output {{n}}: {{counts}}{{part}}", repeat=Timeout.seconds(0))
     OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also holds part {{part}}: {{counts}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
@@ -27,12 +33,6 @@ class ShellNudges:
     NEW_READER_SUGGESTION = Nudge("shell", "make_its_reader", "no reader reads {{command}} yet", "`journal reader add <name> --commands \"{{command}}\" --pattern '<failures and summary>' --progress '<percent or count of a total>' --label 'Running tests'`", repeat=Timeout.seconds(0))
     ALIAS_TIME_LIMIT = Nudge("shell", "drop_alias_time_limit", "the journal watches alias {{name}}, so it needs no time limit wrapper", "edit it with journal alias edit {{name}} --line and this line: {{line}}", repeat=Timeout.seconds(0))
     LINE_TIME_LIMIT = Nudge("shell", "drop_line_time_limit", "{{command}} needs no time limit wrapper here", repeat=Timeout.seconds(0))
-    READER_FIX = Nudge("shell", "fix_the_reader", "the reader {{reader}} put a line on output {{n}}'s card that does not read well: {{line}}", "narrow its pattern to short lines such as the summary: `journal reader add {{reader}} --pattern '<those lines>' ...`", repeat=Timeout.seconds(0))
-    READER_REWRITE_REQUEST = Nudge("shell", "fix_the_reader_first", "the reader {{reader}} was asked three times to read better", "write it anew first, `journal reader add {{reader}} --pattern '<short lines>' ...`; your other tools wait until then", repeat=Timeout.seconds(0))
-    READER_REWRITE_NOTICE = Nudge("shell", "reader_written_anew", "the reader {{reader}} is written anew, and your tools are free", repeat=Timeout.seconds(0))
-    SUMMARY_REQUEST = Nudge("shell", "make_the_run_print_its_summary", "output {{n}}'s card ends on counts from its dots: the run printed no summary line", "for pytest, take a doubled -q (-qq) out of the command and the project's pytest settings", repeat=Timeout.seconds(0))
-    READER_DETAIL = Nudge("shell", "give_the_reader_its_summary", "output {{n}}'s card showed only its title: the reader {{reader}} picked nothing", "`journal reader add {{reader}} --pattern '<failures and summary>' --progress '<percent or count>' --label '<what it is doing>'`", repeat=Timeout.seconds(0))
-    SILENT_CARD = Nudge("shell", "silent_card", "output {{n}}'s card has shown nothing for 30 seconds{{reader}}", "{{advice}}", repeat=Timeout.seconds(0))
     READER_TOPIC = Nudge("shell", "give_the_reader_a_topic", "{{command}} has run with {{count}} different arguments", "give the reader {{reader}} a --topic pattern over the command line, such as the files or the -k it names", repeat=Timeout.seconds(0))
     READER_WATCH = Nudge("shell", "watched_reader_output", "output {{n}} ({{command}}) is in the background, watched through {{reader}}", repeat=Timeout.seconds(0))
     ALIAS_WATCH = Nudge("shell", "watched_alias_output", "output {{n}}, the run of journal {{name}}, is watched{{reader}}", repeat=Timeout.seconds(0))
@@ -43,3 +43,13 @@ class ShellNudges:
     def reader_countdown(cls, commands: tuple[str, ...], remaining_uses: int) -> Nudge:
         listing = ", ".join(commands)
         return cls.READER_COUNTDOWN.create(count=remaining_uses, commands=listing) if remaining_uses else cls.READER_LAST_USE.create(commands=listing)
+
+    @classmethod
+    def report_read_countdown(cls, reports: tuple[int, ...], remaining_uses: int) -> Nudge:
+        listing = ", ".join(map(str, reports))
+        return cls.REPORT_READ_COUNTDOWN.create(count=remaining_uses, reports=listing) if remaining_uses else cls.REPORT_READ_LAST_USE.create(reports=listing)
+
+    @classmethod
+    def report_fix_countdown(cls, reports: tuple[int, ...], remaining_uses: int) -> Nudge:
+        listing = ", ".join(map(str, reports))
+        return cls.REPORT_FIX_COUNTDOWN.create(count=remaining_uses, reports=listing) if remaining_uses else cls.REPORT_FIX_LAST_USE.create(reports=listing)

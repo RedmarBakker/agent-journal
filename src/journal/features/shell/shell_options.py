@@ -4,6 +4,8 @@ from journal.support.option import Option
 class ShellOptions:
     """The options of the shell feature."""
 
+    REPORT_READ_LIMIT = Option("shell.report_read_after", "Hold the write after a reader report for", "Tool uses the agent may make after the reader judge reports a reader that fell short, each told how many are left, before its next write waits until it reads the report", 5, unit="tool uses")
+    REPORT_FIX_LIMIT = Option("shell.report_fix_after", "Hold the write after a reader report was read for", "Tool uses the agent may make after reading a reader report, each told how many are left, before its next write waits until the reader is written anew or the report dismissed", 10, unit="tool uses")
     READER_LIMIT = Option("shell.reader_after", "Hold the write after", "Tool uses the agent may make after a command first runs in the background with no reader, each told how many are left, before its next write waits for a reader with a label that reads it", 5, unit="tool uses")
     MESSAGE_FOREGROUND_LIMIT = Option("shell.foreground_while_waiting", "In the foreground while a message waits", "The same limit while the user has an unread or unanswered message, so they are not kept waiting", 10, unit="seconds")
     SHOWN = Option("shell.shown_lines", "Show of an output or a file", "The first and last so many lines of a command's output or a file; a file longer than twice this is not read whole", 200, unit="lines")

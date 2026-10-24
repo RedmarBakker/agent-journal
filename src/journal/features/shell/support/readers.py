@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -12,12 +13,14 @@ from journal.models.command_output import CommandOutput
 from journal.support.rejection import Rejection
 
 JOURNAL = "journal"
+# the readers chosen as their commands' defaults, one name a line, beside the readers
+DEFAULTS_FILE = "defaults"
 
 KINDS: dict[str, Callable[[Path], Reader | ScriptReader]] = {".pattern": Reader.loaded, ".sh": ScriptReader.loaded}
 
 
 class Readers:
-    """The readers the project keeps in .journal/readers/, one file each, read by name."""
+    """The readers the project keeps in .journal/readers/, one file each, read by name; of several readers of one command the default reads it: the one the user chose, else the first made."""
 
     def __init__(self, config: Config, aliases: Aliases) -> None:
         self.config, self.aliases = config, aliases
@@ -32,6 +35,9 @@ class Readers:
         if not rows:
             raise Rejection(f"no reader named {name}: `journal reader list` names them")
         return KINDS[rows[0].suffix](rows[0])
+
+    def revisions(self) -> dict[str, datetime]:
+        return {reader.name: datetime.fromtimestamp(self.file_stamp(reader.name), timezone.utc) for reader in self.all()}
 
     def file_stamp(self, name: str) -> float:
         return max((path.stat().st_mtime for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()), default=0.0)
@@ -53,7 +59,24 @@ class Readers:
         return [index[name].line for name in names if name in index]
 
     def reading(self, line: str) -> Reader | ScriptReader | None:
-        return next((reader for reader in self.all() if reader.commands.is_read(line)), None)
+        line_readers = [reader for reader in self.all() if reader.commands.is_read(line)]
+        default_names = self.default_names()
+        return next((reader for reader in line_readers if reader.name in default_names), None) or min(line_readers, key=self.creation_seconds, default=None)
+
+    def default_names(self) -> set[str]:
+        path = self.config.readers / DEFAULTS_FILE
+        return set(path.read_text().split()) if path.is_file() else set()
+
+    def default_choice(self, name: str) -> list[str]:
+        reader = self.lookup(name)
+        sharing_names = {candidate.name for candidate in self.all() if candidate.name != name and set(candidate.commands.programs) & set(reader.commands.programs)}
+        default_names = (self.default_names() - sharing_names) | {name}
+        (self.config.readers / DEFAULTS_FILE).write_text("\n".join(sorted(default_names)) + "\n")
+        return sorted(sharing_names)
+
+    def creation_seconds(self, reader: Reader | ScriptReader) -> float:
+        stats = [path.stat() for suffix in KINDS if (path := self.config.readers / f"{reader.name}{suffix}").is_file()]
+        return min((getattr(stat, "st_birthtime", stat.st_mtime) for stat in stats), default=0.0)
 
     def pattern_reader(self, name: str) -> Reader | None:
         path = self.config.readers / f"{name}.pattern"

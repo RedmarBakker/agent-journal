@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
 import re
 from argparse import Namespace
 from pathlib import Path
 
+from journal.engine.clock import Clock
+from journal.repositories.reader_reports import ReaderReports
 from journal.events.announcer import Announcer
 from journal.events.moments.reader_added import ReaderAdded
 from journal.repositories.command_outputs import CommandOutputs
@@ -22,8 +25,8 @@ class ReaderCommand(Command):
     noun = "reader"
     callers = {"list": WORKER_KINDS}
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer) -> None:
-        self.readers, self.outputs, self.announcer = readers, outputs, announcer
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock) -> None:
+        self.readers, self.outputs, self.announcer, self.reports, self.clock = readers, outputs, announcer, reports, clock
 
     def arguments(self, verbs) -> None:
         addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
@@ -40,6 +43,11 @@ class ReaderCommand(Command):
         addition.add_argument("--failed", help="a pattern for the lines it picks once the command failed, such as its failures; the pattern picks them while it runs")
         addition.add_argument("--commands", help="the commands whose output it reads, comma-separated, such as pytest or dotnet test: a command moved to the background that runs one is told to watch it with this reader")
         self.verb(verbs, "list", "the project's readers, each with what it picks")
+        self.verb(verbs, "default", "make a reader the one that reads its commands, over every other reader of them").add_argument("name")
+        self.verb(verbs, "report", "read a reader report: what the reader judge found a reader showed poorly, and how to fix it").add_argument("n", type=int)
+        dismissal = self.verb(verbs, "dismiss", "set a reader report aside as wrong, saying why; the reason is kept for the user")
+        dismissal.add_argument("n", type=int)
+        dismissal.add_argument("--why", required=True, help="why the report is wrong")
 
     def add(self, args: Namespace, caller: Caller) -> int:
         if not NAME.fullmatch(args.name):
@@ -64,10 +72,26 @@ class ReaderCommand(Command):
             return ReaderCommands.parsed(args.commands)
         return prior.commands if prior else ReaderCommands()
 
+    def report(self, args: Namespace, caller: Caller) -> int:
+        report = self.reports.save(self.reports.find(args.n).opened(datetime.fromtimestamp(self.clock.time(), timezone.utc)), caller.actor)
+        print(report.full_text())
+        return 0
+
+    def dismiss(self, args: Namespace, caller: Caller) -> int:
+        report = self.reports.save(self.reports.find(args.n).dismissed(args.why), caller.actor)
+        print(f"reader report {report.id} dismissed: {args.why}")
+        return 0
+
+    def default(self, args: Namespace, caller: Caller) -> int:
+        replaced_readers = self.readers.default_choice(args.name)
+        print(f"reader {args.name} reads its commands" + (f", over {', '.join(replaced_readers)}" if replaced_readers else ""))
+        return 0
+
     def list(self, args: Namespace, caller: Caller) -> int:
         readers = self.readers.all()
         if not readers:
             print("no reader is kept: journal reader add <name> keeps one")
+        defaults = self.readers.default_names()
         for reader in readers:
-            print(f"{reader.name}: {reader.subject}")
+            print(f"{reader.name}: {reader.subject}" + (" (the default for its commands)" if reader.name in defaults else ""))
         return 0

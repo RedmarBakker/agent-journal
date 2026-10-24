@@ -16,7 +16,6 @@ class ShellData:
     backgrounded_at: float
     unannounced: tuple[EndedOutput, ...]
     unread: tuple[EndedOutput, ...]
-    reader_requests: tuple[str, ...]
     tool_uses: int
     last_ending_line: Moment
     output_reads: tuple[str, ...]
@@ -27,3 +26,5 @@ class ShellData:
     home: str
     unwatched_commands: tuple[str, ...] = ()
     watch_command: str = ""
+    unread_reports: tuple[int, ...] = ()
+    unfixed_reports: tuple[int, ...] = ()

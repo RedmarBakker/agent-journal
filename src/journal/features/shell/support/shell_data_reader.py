@@ -1,3 +1,4 @@
+from journal.repositories.reader_reports import ReaderReports
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 from journal.features.shell.support.ended_output import EndedOutput
@@ -27,7 +28,8 @@ RECENT_MOVES = 10
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes) -> None:
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports) -> None:
+        self.reports = reports
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
 
@@ -37,7 +39,6 @@ class ShellDataReader:
             "backgrounded_at": lambda: min((o.creation_time.timestamp() for o in self.outputs.background(agent.session)), default=0.0),
             "unannounced": lambda: tuple(EndedOutput(o.row_id, o.ending(), o.summary) for o in self.outputs.unannounced(agent.session)),
             "unread": lambda: tuple(EndedOutput(o.row_id, o.ending(), o.summary) for o in self.outputs.unread(agent.session)),
-            "reader_requests": lambda: self.reader_requests(agent),
             "tool_uses": lambda: agent.tool_uses,
             "last_ending_line": lambda: self.last_ending_line(agent),
             "output_reads": lambda: self.output_reads(agent),
@@ -47,6 +48,8 @@ class ShellDataReader:
             "aliases": lambda: tuple(self.aliases.rows()),
             "unwatched_commands": lambda: self.unwatched_commands(agent),
             "watch_command": lambda: self.watch_command(agent),
+            "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session)),
+            "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions())),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
@@ -63,12 +66,8 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.READER_FIX, ShellNudges.READER_DETAIL, ShellNudges.SILENT_CARD, ShellNudges.SUMMARY_REQUEST)
+        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
-
-    def reader_requests(self, agent: Agent) -> tuple[str, ...]:
-        requests = self.entries.line_entries(agent.session, (ShellNudges.READER_FIX.key, ShellNudges.READER_DETAIL.key))
-        return tuple(reader.name for reader in self.readers.all() for entry in requests if f"the reader {reader.name} " in entry.data["line"] and entry.creation_time.timestamp() > self.readers.file_stamp(reader.name))
 
     def last_ending_line(self, agent: Agent) -> Moment:
         entry = self.entries.last_line_entry(agent.session, (ShellNudges.OUTPUTS_ENDED.key, ShellNudges.UNREAD_OUTPUT.key, TasksNudges.WAIT_END.key))

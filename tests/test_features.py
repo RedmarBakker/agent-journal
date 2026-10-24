@@ -7062,8 +7062,8 @@ def test_a_command_is_shown_without_its_variables_on_its_first_line_and_cut_shor
     shown = CommandText.shown("pytest " + "tests/a.py " * 40)
     assert len(shown) == SHOWN_CHARACTERS and shown.endswith("…"), "a long command is cut to the set length"
 
-def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_command_is_named_by_what_it_wraps(app: App):
-    """A reader that puts a line of code on the user's card is named to the agent to tighten, once for its output; a time-limiting wrapper is looked through when a card or the line names what the command does."""
+def test_a_reader_whose_card_line_reads_as_code_is_reported_and_a_wrapped_command_is_named_by_what_it_wraps(app: App):
+    """A reader that puts a line of code on the user's card, or picks nothing, is reported by the reader judge once its run ends; a time-limiting wrapper is looked through when a card or the line names what the command does."""
     from journal.features.shell.support.activity_label import ActivityLabel
     from journal.features.shell.support.output_log import OutputLog
     from journal.repositories.command_outputs import CommandOutputs
@@ -7092,8 +7092,13 @@ def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_com
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
     assert app.console().run(["output", "watch", "1", "--reader", "pytest"], AGENT).code == 0
-    told = [json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) for _ in range(2)]
-    assert "the reader pytest put a line on output 1's card that does not read well" in told[0] and "does not read well" not in told[1], "the agent is told once to tighten the reader"
+    outputs.save(outputs.find(1).ended_with(1, timing.time()), Actor.system())
+    app.runtime().deferred.drain()
+    from journal.repositories.reader_reports import ReaderReports
+    reports = app.container.get(ReaderReports)
+    with app.container.get(Scope).environment(1):
+        first = [report for report in reports.unread("s1") if report.output == 1]
+    assert first and "too long or too much like code" in first[0].findings[0] and "narrow the pattern" in first[0].fixes[0], "a reader that put a line of code on the card is reported with the line and the fix"
     (folder / "0.out").write_text("nothing a reader picks\n")
     folder2 = app.config.root / "w2"
     folder2.mkdir()
@@ -7110,8 +7115,10 @@ def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_com
     app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(2)))
     with app.container.get(Scope).environment(1):
         assert app.container.get(Messages).with_key("watch:2")[0].data["detail"] == "finished", "a finished card with nothing picked still says how it ended"
-    told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
-    assert "output 2's card showed only its title" in told, "the agent is told to give the reader a summary and a progress pattern"
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        second = [report for report in reports.unread("s1") if report.output == 2]
+    assert second and "the card ended with no line of its own" in " ".join(second[0].findings), "a reader that picked nothing is reported with the run's last line and the fix"
 
 
 def test_a_watched_runs_card_says_what_the_run_is_about_from_its_reader_topic(app: App):
@@ -8590,32 +8597,37 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
     assert not card(plain).data.get("docked"), "with the setting off, nothing docks"
 
 
-def test_a_reader_asked_three_times_to_read_better_holds_the_tools_until_it_is_written_anew(app: App):
-    """The third ask to fix a reader pushes Fixing a reader: every tool but a journal command waits, and writing the reader anew pops it."""
-    from journal.features.shell.support.output_log import OutputLog
-    from journal.repositories.command_outputs import CommandOutputs
+def test_a_reader_report_is_owed_a_read_and_then_a_fix_or_a_dismissal_each_counted_down_to_the_write_hold(app: App):
+    from journal.models.reader_report import ReaderReport
+    from journal.repositories.reader_reports import ReaderReports
+    console, reports = app.console(), app.container.get(ReaderReports)
     hook(app, "SessionStart")
-    console, outputs = app.console(), app.container.get(CommandOutputs)
-    app.container.get(SettingRows).set("shell.dock_live_outputs", False, Actor.user(1))
-    assert console.run(["reader", "add", "naps", "--pattern", "slept", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
-    for name in ("one", "two", "three"):
-        folder = app.config.root / name
-        folder.mkdir()
-        (folder / "parts").write_text("R-\n")
-        (folder / "0.part").write_text("sleep 1")
-        (folder / "0.out").write_text("slept " + "x" * 120 + "\n")
-        output = app.container.get(OutputLog).start(name, "sleep 1", folder, Caller.agent("main", "s1", "claude"))
-        outputs.save(outputs.find(output.id).backgrounded(), Actor.system())
-        assert console.run(["output", "watch", str(output.id), "--reader", "naps"], AGENT).code == 0
-        told = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]
-    assert app.container.get(SessionAgents).top("s1").name == "fixing_reader" and "asked three times" in json.dumps(told), "the third ask pushes the state"
-    held = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
-    assert "asked three times" in held.get("error", ""), "a tool waits while the reader is unfixed"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal reader list"})[1].get("hookSpecificOutput", {}).get("permissionDecision") != "deny", "a journal command goes through"
-    console.run(["reader", "add", "naps", "--pattern", "^[0-9]+ naps", "--about", "the naps", "--label", "Taking a nap"], AGENT)
-    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "journal reader add naps"}, tool_response="")
-    assert app.container.get(SessionAgents).top("s1").name != "fixing_reader", "the reader written anew frees the tools"
-
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps"], AGENT).code == 0
+    with app.container.get(Scope).environment(1):
+        report = reports.save(ReaderReport(environment_id=1, reader="naps", output=7, command="sleep 40", session="s1", findings=("the run took 40 seconds and its card showed no progress",), fixes=("make it print its steps",)), Actor.system())
+    read = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    lines = [read() for _ in range(5)]
+    assert all(f"read due for reader report {report.id}" in line for line in lines) and f"read due for reader report {report.id}: 0" in lines[-1], lines
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
+    assert status == 409 and f"reader report {report.id} is not read yet" in body["error"]
+    shown = console.run(["reader", "report", str(report.id)], AGENT).text
+    assert "showed no progress" in shown and "make it print its steps" in shown and "journal reader dismiss" in shown, "the report says what fell short and how to fix it"
+    lines = [read() for _ in range(10)]
+    assert all(f"fix due for reader report {report.id}" in line for line in lines[:9]), "once read, the fix is counted down"
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
+    assert status == 409 and "read but not acted on" in body["error"]
+    timing.sleep(0.01)
+    assert console.run(["reader", "add", "naps", "--pattern", "slept|woke", "--progress", "(\\d+)/(\\d+)"], AGENT).code == 0
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "the reader written anew meets it"
+    with app.container.get(Scope).environment(1):
+        other = reports.save(ReaderReport(environment_id=1, reader="naps", output=8, command="sleep 50", session="s1", findings=("x",), fixes=("y",)), Actor.system())
+    console.run(["reader", "report", str(other.id)], AGENT)
+    assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints nothing to count"], AGENT).code == 0
+    assert "fix due" not in read(), "a dismissal meets it, its reason kept"
+    with app.container.get(Scope).environment(1):
+        assert reports.find(other.id).dismissal == "the run prints nothing to count"
 
 def test_a_pytest_runs_bar_moves_with_each_test_between_the_percentages_it_prints_once_a_row():
     from journal.features.shell.seeds.default_readers import SHIPPED
@@ -10975,26 +10987,28 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
         app.container.get(SyncClient).stop()
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
-def test_a_watched_run_whose_card_shows_nothing_for_30_seconds_is_named_once(app: App, monkeypatch):
+def test_a_long_run_whose_reader_showed_no_progress_is_reported_with_the_tools_streaming_form(app: App):
     from journal.features.shell.support.output_log import OutputLog
     from journal.repositories.command_outputs import CommandOutputs
-    monkeypatch.setattr("journal.features.shell.support.output_views.SILENT_SECONDS", 0)
+    from journal.repositories.reader_reports import ReaderReports
     hook(app, "SessionStart")
     folder = app.config.root / "quiet"
     folder.mkdir()
     (folder / "parts").write_text("R-\n")
     (folder / "0.part").write_text("go test ./...")
-    (folder / "0.out").write_text("")
+    (folder / "0.out").write_text("ok  \tshop/cart\t0.2s\nok  \tshop/pay\t0.4s\n")
     app.container.get(OutputLog).start("quiet", "go test ./...", folder, Caller.agent("main", "s1", "claude"))
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
     assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--about", "each package's end"], AGENT).code == 0
     assert app.console().run(["output", "watch", "1", "--reader", "packages"], AGENT).code == 0
-    told = [json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) for _ in range(2)]
-    assert "output 1's card has shown nothing for 30 seconds: its reader packages picks no line of it yet" in told[0], "a silent watched run is named with the reader that picks nothing"
-    assert "go test -json or -v" in told[0], "and the streaming form of the tool it runs"
-    assert "has shown nothing" not in told[1], "and named once"
-
+    started = outputs.find(1).creation_time.timestamp()
+    outputs.save(outputs.find(1).ended_with(0, started + 45), Actor.system())
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        [report] = app.container.get(ReaderReports).unread("s1")
+    assert report.reader == "packages" and "the run took 45 seconds and its card showed no progress" in report.findings, report.findings
+    assert any("go test -json or -v" in fix for fix in report.fixes), "the fix names the streaming form of the tool it ran"
 
 def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):
     from journal.features.shell.support.readers import Readers
@@ -11136,12 +11150,20 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
 
     dots, folder = run("dots", "....F...                [ 45%]\n")
     assert shown(dots)["figure"] == "Running tests 45% · 7 passed, 1 failed", "a running card shows the counts so far beside its progress"
+    title = lambda: app.container.get(Messages).with_key(f"watch:{dots}")[0].text
+    with app.container.get(Scope).environment(MAIN):
+        running_title = title()
     (folder / "0.out").write_text("....F...                [ 45%]\ntests/test_b.py ........ [100%]\n")
     outputs.save(outputs.find(dots).ended_with(1, 1.0), Actor.system())
     ended = shown(dots)
     assert ended["detail"] == "15 passed, 1 failed" and ended["summary_missing"], "an ended run with no summary ends on the counts of its dots"
-    told = [json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) for _ in range(2)]
-    assert f"output {dots}'s card ends on counts from its dots" in told[0] and "counts from its dots" not in told[1], "the agent is told once how to make the run print its summary"
+    with app.container.get(Scope).environment(MAIN):
+        assert title() == running_title, "a run's card keeps its title from start to end; only its progress, counts and lines change"
+    app.runtime().deferred.drain()
+    from journal.repositories.reader_reports import ReaderReports
+    with app.container.get(Scope).environment(1):
+        reported = [report for report in app.container.get(ReaderReports).unread("s1") if report.output == dots]
+    assert reported and "the card ended with no line of its own" in " ".join(reported[0].findings), "the reader judge reports a run that printed no summary"
     summed, folder = run("summed", "....                    [100%]\n")
     (folder / "0.out").write_text("....                    [100%]\n4 passed in 0.12s\n")
     outputs.save(outputs.find(summed).ended_with(0, 1.0), Actor.system())
@@ -12477,3 +12499,16 @@ def test_a_task_made_without_its_message_names_the_unlinked_one_and_a_linked_tas
         tasks_of = lambda message: [ref.id for ref in links.targets(message, Messages.SUBJECT_LINK) if ref.type == Task.table()]
         assert 4 in tasks_of(reply), "the agent's reply to a task's message is linked to the task too"
         assert tasks_of(messages.find(1)).count(4) == 1 and tasks_of(reply).count(4) == 1, "and each link is made once, the reply naming the task among them"
+
+
+def test_of_several_readers_of_one_command_the_first_made_reads_it_until_another_is_made_its_default(app: App):
+    from journal.features.shell.support.readers import Readers
+    console, readers = app.console(), app.container.get(Readers)
+    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps"], AGENT).code == 0
+    timing.sleep(0.01)
+    assert console.run(["reader", "add", "rests", "--commands", "sleep", "--pattern", "rested", "--about", "the rests"], AGENT).code == 0
+    assert readers.reading("sleep 5").name == "naps", "the first reader made for a command reads it"
+    made = console.run(["reader", "default", "rests"], AGENT)
+    assert made.code == 0 and "over naps" in made.text and readers.reading("sleep 5").name == "rests", "the one made the default takes over"
+    assert "(the default for its commands)" in console.run(["reader", "list"], AGENT).text
+    assert console.run(["reader", "default", "naps"], AGENT).code == 0 and readers.reading("sleep 5").name == "naps", "and back"

@@ -33,6 +33,7 @@ from journal.models.edit import Edit
 from journal.models.reaction import Reaction
 from journal.models.reminder import Reminder
 from journal.models.report import Report
+from journal.models.reader_report import ReaderReport
 from journal.models.rule import Rule
 from journal.models.scoped import Scoped
 from journal.models.secret import Secret
@@ -58,5 +59,5 @@ from journal.models.subagent import Subagent
 class AllModels:
     """Every model with a table, so the schema can create them."""
 
-    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Fact, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Timing, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob)
+    MODELS = (Environment, User, Agent, Task, TaskLog, Plan, PlanReview, Phase, McpServer, Message, Reaction, Edit, Question, Fact, Rule, Reminder, Report, Doc, DocRevision, Dump, Entry, Setting, Link, Sequence, Worker, Subagent, Trigger, Check, Template, Notice, Secret, Plugin, DashboardRow, CommandOutput, Version3Migration, MigratedRow, Share, Statistic, Timing, Phone, PhoneCode, Suggestion, JournalVersion, ReleaseMessage, OutgoingChange, IdBlock, PendingUpload, Alias, Proof, WorkerTodo, Collection, BrowserSession, PoolJob, ScheduledJob, ReaderReport)
     SCOPED = tuple(model for model in MODELS if issubclass(model, Scoped))
