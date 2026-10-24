@@ -46,7 +46,6 @@ from journal.support.host_writer import HostWriter
 from journal.sync.team_account import TeamAccount
 from journal.events.models.purged import Purged
 from journal.console.console import Console
-from journal.support.parent_process import ParentProcess
 
 
 INSTANCE_CHECK_SECONDS = 2.0
@@ -121,17 +120,14 @@ class Runtime:
                 self.jobs.register(self.container.get(job))
 
     def run(self) -> None:
-        parent = ParentProcess.named("SUPERVISOR_PID")
         counterpart = self.standby.other_address()
         if counterpart:
             print(f"a journal of this project answers at {counterpart}: waiting until it is gone", flush=True)
-        while (counterpart or not self.standby.claimed()) and parent.is_alive():
+        while counterpart or not self.standby.claimed():
             time.sleep(INSTANCE_CHECK_SECONDS)
             counterpart = self.standby.other_address()
-        if not parent.is_alive():
-            return
         self.start()
-        while self.server._thread.is_alive() and parent.is_alive():
+        while self.server._thread.is_alive():
             self.server._thread.join(1.0)
         self.stop()
 

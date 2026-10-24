@@ -14,6 +14,7 @@ from supervisor.band_labels import BandLabels
 from supervisor.inbox import Inbox
 from supervisor.launch_resume import LaunchResume
 from supervisor.screen_copy import ScreenCopy
+from supervisor.service_record import ServiceRecord
 from supervisor.services import Services
 from supervisor.source_hash import SourceHash
 from supervisor.terminal import Terminal
@@ -33,10 +34,10 @@ OWNER_CHECK_SECONDS = 3.0
 class Supervisor:
     """One loop: stdin to the agent, the agent to stdout under the band, the inbox's requests answered, the services running; a fault in a turn is written to the faults log and never ends it. It exits ENDED when its agent is done, which ends the launcher's loop, and RESTART, or any other code, to be started again."""
 
-    def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull), owner: int = 0) -> None:
+    def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull), owner: int = 0, record: Path = Path(os.devnull)) -> None:
         self.terminal, self.inbox, self.services, self.stdin, self.stdout, self.faults, self.launch = terminal, inbox, services, stdin, stdout, faults, launch
         self.source = SourceHash.current()
-        self.owner = owner
+        self.owner, self.record = owner, ServiceRecord(record)
         self._owner_checked_at = time.monotonic()
         self.screen_copy = screen_copy
         """The agent's newest output written where the journal reads it; none in a supervisor with nobody to read it."""
@@ -55,6 +56,7 @@ class Supervisor:
             self.inbox.open_mirrored(self.screen_copy.path)
         else:
             self.inbox.open()
+        self.record.ended()
         self.services.start_all()
         self.terminal.start()
         self.fit()
@@ -66,6 +68,7 @@ class Supervisor:
                 self.turn()
         finally:
             self.services.stop_all()
+            self.record.write({})
             self.inbox.close()
             if self.screen_copy:
                 self.screen_copy.close()
@@ -77,6 +80,7 @@ class Supervisor:
         try:
             self.relay_once(0.5)
             self.services.revive_stopped()
+            self.record.write(self.services.running())
             self.check_owner()
         except Exception:
             self.noted(traceback.format_exc())

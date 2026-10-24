@@ -621,17 +621,24 @@ def test_the_commit_guard_refuses_a_private_word_or_a_real_machines_address_and_
     assert all("acme" not in line.lower() for line in found), "the word itself is never printed"
 
 
-def test_a_service_is_told_its_supervisors_process_and_lives_for_it(tmp_path: Path):
+def test_a_supervisor_started_again_ends_the_services_a_supervisor_killed_outright_left_running(tmp_path: Path):
     import time
-    from journal.support.parent_process import ParentProcess
     from supervisor.service import Service
-    told = tmp_path / "told"
-    service = Service("journal", ["sh", "-c", f'echo "$SUPERVISOR_PID" > "{told}"'], tmp_path, {}, tmp_path / "journal.log")
-    service.start()
-    for _ in range(50):
-        if told.is_file() and told.read_text().strip():
-            break
-        time.sleep(0.05)
-    assert told.read_text().strip() == str(os.getpid()), "every service is told the supervisor's own process, to live for it"
-    service.stop()
-    assert ParentProcess(os.getpid()).is_alive() and not ParentProcess(2**22 + 12345).is_alive(), "a process gone is seen gone"
+    from supervisor.service_record import ServiceRecord
+    left = Service("journal", ["sleep", "61"], tmp_path, {"PATH": os.environ["PATH"]}, tmp_path / "journal.log")
+    left.start()
+    stranger = Service("stranger", ["sleep", "62"], tmp_path, {"PATH": os.environ["PATH"]}, tmp_path / "stranger.log")
+    stranger.start()
+    try:
+        record = tmp_path / "main.services"
+        ServiceRecord(record).write({left.pid(): left.command, stranger.pid(): ["sleep", "999"]})
+        ServiceRecord(record).ended()
+        deadline = time.time() + 5
+        while left._process.poll() is None and time.time() < deadline:
+            time.sleep(0.05)
+        assert left._process.poll() is not None, "the service the killed supervisor left is ended by the next"
+        assert stranger.is_active(), "a recorded pid now running another command is left alone"
+        assert ServiceRecord(record).recorded() == {}, "and the record is emptied"
+    finally:
+        left.stop()
+        stranger.stop()

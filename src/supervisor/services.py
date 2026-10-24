@@ -57,6 +57,9 @@ class Services:
     def is_moving(self, name: str) -> bool:
         return name in self._table and self._table[name].is_moving()
 
+    def running(self) -> dict[int, list[str]]:
+        return {service.pid(): service.command for service in self._table.values() if service.is_active()}
+
     def described(self) -> list[dict]:
         return [service.described() for service in self._table.values()]
 

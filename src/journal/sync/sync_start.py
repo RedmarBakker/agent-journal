@@ -26,9 +26,7 @@ class SyncStart:
             self.client.start()
             return
         package = Path(__file__).resolve().parents[2]
-        environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root), "JOURNAL_PARENT_PID": str(os.getpid())}
-        # a carrier left from the journal server before this one lives for that server's process, so it is replaced by one for this
-        self.link.stop_service(host, CARRIER)
+        environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root)}
         reply = self.link.start_child(host, CARRIER, JOURNAL, [sys.executable, str(package / "journal.py"), "sync"], self.config.root, environ, self.config.home / "runtime" / f"{CARRIER}.log")
         if not reply.success:
             # a supervisor from before child services refuses the verb: sync runs in the server's own threads until the supervisor is new

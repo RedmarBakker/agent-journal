@@ -98,7 +98,7 @@ def test_the_inbox_answers_each_request_and_a_stop_ends_the_supervisor_and_takes
     try:
         assert json.loads(inbox.announced_at.read_text()) == {"socket": str(inbox.path), "protocol": 1}
         assert stat.S_IMODE(inbox.path.stat().st_mode) == 0o600 and stat.S_IMODE(inbox.path.parent.stat().st_mode) == 0o700, "only its user can reach the socket"
-        assert ask(supervisor, verb="hello") == {"ok": True, "protocol": 1, "verbs": ["hello", "start", "stop", "restart", "list", "keys", "type", "send", "band"], "outdated": False}
+        assert ask(supervisor, verb="hello") == {"ok": True, "protocol": 1, "verbs": ["hello", "start", "start_child", "stop", "restart", "list", "keys", "type", "send", "band"], "outdated": False}
         assert ask(supervisor, verb="band", left="agent-journal", middle="p · main", right="http://127.0.0.1:8420/") == {"ok": True}, "a supervisor with no band takes new words and shows none"
         sleeper = {"verb": "start", "name": "sleeper", "command": ["sh", "-c", "sleep 30"], "folder": str(tmp_path), "log": str(tmp_path / "sleeper.log")}
         assert ask(supervisor, **sleeper) == {"ok": True, "started": True}
