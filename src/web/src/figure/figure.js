@@ -3477,6 +3477,78 @@ export function screenMaterial(mesh) {
     return material;
 }
 
+// The visor screen set into the head: `depth` of the figure's units behind the head's front surface at its most forward, about half a
+// centimetre on a human head, the head taken as a human's 15 cm across (the head shell is 1.83 units across); and the head's surface
+// within the screen's outline set `behind` it further, so none of the head shows through the screen
+export const SCREEN_INSET = {depth: 0.06, behind: 0.01};
+
+// the meshes the head is made of, which the screen is set into: the head's own shell, and a helmet's shell worn over it
+const isHeadShell = (mesh) => mesh.name === "head_shell" || mesh.name.endsWith("__shell");
+
+// The surface of `geometry` seen from the model's front, along -z: where along z it is at its most forward at `x`, `y`, or null where none
+// of it is there. Its triangles are kept in a grid of `cell` squares across x and y, so each look tests only the few over that point.
+export function frontOf(geometry, cell = 0.05) {
+    const at = geometry.attributes.position;
+    const corner = (index) => (geometry.index ? geometry.index.getX(index) : index);
+    const count = geometry.index ? geometry.index.count : at.count;
+    // a grid square by its column and row, as one number: the rows a figure's head spans stay far under the stride
+    const square = (column, row) => column * 100003 + row;
+    const squares = new Map();
+    for (let first = 0; first < count; first += 3) {
+        const triangle = [0, 1, 2].map((offset) => {
+            const index = corner(first + offset);
+            return {x: at.getX(index), y: at.getY(index), z: at.getZ(index)};
+        });
+        const [a, b, c] = triangle;
+        const [left, right] = [Math.floor(Math.min(a.x, b.x, c.x) / cell), Math.floor(Math.max(a.x, b.x, c.x) / cell)];
+        const [bottom, top] = [Math.floor(Math.min(a.y, b.y, c.y) / cell), Math.floor(Math.max(a.y, b.y, c.y) / cell)];
+        for (let column = left; column <= right; column++) {
+            for (let row = bottom; row <= top; row++) {
+                const key = square(column, row);
+                if (!squares.has(key)) squares.set(key, []);
+                squares.get(key).push(triangle);
+            }
+        }
+    }
+    return (x, y) => (squares.get(square(Math.floor(x / cell), Math.floor(y / cell))) ?? []).reduce((front, triangle) => {
+        const z = heightIn(triangle, x, y);
+        return z === null || (front !== null && front >= z) ? front : z;
+    }, null);
+}
+
+// where along z the triangle `[a, b, c]` is over `x`, `y`, or null when the point is not over it, its edges counted as over it
+function heightIn([a, b, c], x, y) {
+    const area = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+    if (Math.abs(area) < 1e-12) return null;
+    const u = ((b.x - x) * (c.y - y) - (c.x - x) * (b.y - y)) / area;
+    const v = ((c.x - x) * (a.y - y) - (a.x - x) * (c.y - y)) / area;
+    const w = 1 - u - v;
+    return u >= -1e-9 && v >= -1e-9 && w >= -1e-9 ? u * a.z + v * b.z + w * c.z : null;
+}
+
+// the most forward of the surfaces `fronts` (frontOf) at `x`, `y`, or null where none of them is there
+const mostForward = (fronts, x, y) => fronts.map((front) => front(x, y)).reduce((most, z) => (z === null || (most !== null && most >= z) ? most : z), null);
+
+// The `screen` geometry set into the head whose shells are the `shells` geometries, all in the model's own axes: moved back until its
+// most forward point is SCREEN_INSET.depth behind the head's front surface, and every point of the shells within the screen's outline set
+// SCREEN_INSET.behind the screen, the pocket it sits in
+export function setScreenIn(screen, shells) {
+    const head = shells.map((shell) => frontOf(shell));
+    const at = screen.attributes.position;
+    let proud = -Infinity;
+    for (let index = 0; index < at.count; index++) proud = Math.max(proud, at.getZ(index) - (mostForward(head, at.getX(index), at.getY(index)) ?? Infinity));
+    screen.translate(0, 0, -(proud + SCREEN_INSET.depth));
+    const glass = frontOf(screen);
+    for (const shell of shells) {
+        const points = shell.attributes.position;
+        for (let index = 0; index < points.count; index++) {
+            const behind = glass(points.getX(index), points.getY(index));
+            if (behind !== null && points.getZ(index) > behind - SCREEN_INSET.behind) points.setZ(index, behind - SCREEN_INSET.behind);
+        }
+        points.needsUpdate = true;
+    }
+}
+
 // the pictures `lit` the face passes through, each shown in turn for one of the screen's frames, `frame` counting them, FRAMES_PER_SECOND
 // of them a second, or TICKER.fps while words scroll across it: a picture shorter than a frame, such as the shut eye of a blink, still
 // shows, and no more than SCREEN.framesBehind wait to be shown
@@ -3628,6 +3700,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const found = [];
     scene.traverse((node) => node.isSkinnedMesh && found.push(node));
     const meshes = (DRESSES[voice] ?? ((each) => each))(found);
+    setScreenIn(meshes.find((mesh) => mesh.name === VISOR_MESH).geometry, meshes.filter(isHeadShell).map((mesh) => mesh.geometry));
     const screens = [];
     const visorHulls = [];
     for (const mesh of meshes) {
