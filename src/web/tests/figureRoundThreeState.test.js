@@ -22,8 +22,9 @@ test("sleep plays its yawn once, then loops only its sleeping frames", () => {
     for (let frame = sleep.intro; frame < sleep.frames * 8; frame++) expect(frameIn(sleep, frame)).toBeGreaterThanOrEqual(sleep.intro);
 });
 
-test("each voice has its own available, occasional pastime", () => {
-    for (const voice of VOICES) {
+test("each voice but the butler has its own available, occasional pastime", () => {
+    expect(choicesFor({moment: "pastime", free: true, lasted: 1000, voice: "butler"}).filter((entry) => entry.when.voices?.length === 1)).toEqual([]);
+    for (const voice of VOICES.filter((one) => one !== "butler")) {
         const own = choicesFor({moment: "pastime", free: true, lasted: 1000, voice}).filter((entry) => entry.when.voices?.length === 1);
         expect(own.map((entry) => entry.when.voices), voice).toEqual([[voice]]);
         const only = (name) => name === own[0].name && has(voice)(name);

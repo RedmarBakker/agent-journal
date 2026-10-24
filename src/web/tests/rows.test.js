@@ -31,10 +31,10 @@ beforeEach(async () => {
 
 describe("paging rows", () => {
     test("loading keeps a row that arrived while the page was in flight", async () => {
-        store.rows.plans = [row(1, {table: "plans"})];
+        store.rows.plans = [row(1, {table: "plans", task_ids: []})];
         api.list.mockImplementation(async () => {
-            store.rows.plans = [...store.rows.plans, row(9, {table: "plans"})];
-            return {rows: [row(1, {table: "plans"}), row(2, {table: "plans"})], is_last_page: false, counts: {}};
+            store.rows.plans = [...store.rows.plans, row(9, {table: "plans", task_ids: []})];
+            return {rows: [row(1, {table: "plans", task_ids: []}), row(2, {table: "plans", task_ids: []})], is_last_page: false, counts: {}};
         });
         await load("plans");
         expect(hasLoaded("plans")).toBe(true);
