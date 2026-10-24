@@ -14,6 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
+import {arrive} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from "vue";
@@ -326,29 +327,9 @@ function restAtFoot() {
     }, RESTED_MS);
 }
 
-// a turn that arrives while the reader follows the foot grows from nothing to its height over GROW_MS, the pane held at its foot every
-// frame, so the chat slides up under it instead of jumping; one that arrives while the reader is away, or before the chat settled, just
-// appears
-const GROW_MS = 280;
-
-function growIn(el, done) {
-    const s = scroller.value;
-    if (!s || !settledOnce.value || away.value) return done();
-    const height = el.offsetHeight;
-    el.style.height = "0px";
-    el.style.overflow = "hidden";
-    void el.offsetHeight;
-    el.style.transition = `height ${GROW_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.26s ease-out, transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1)`;
-    el.style.height = `${height}px`;
-    const began = performance.now();
-    const hold = () => {
-        if (!away.value) s.scrollTop = s.scrollHeight;
-        if (performance.now() - began < GROW_MS) return requestAnimationFrame(hold);
-        el.style.height = el.style.overflow = el.style.transition = "";
-        done();
-    };
-    requestAnimationFrame(hold);
-}
+// a turn that arrives while the reader follows the foot is pushed in by the chat gliding up first, then faded in (arrival.js); one that
+// arrives while the reader is away, or before the chat settled, just appears
+const growIn = (el, done) => arrive(el, {pane: scroller.value, follows: () => settledOnce.value && !away.value}, done);
 
 function watchScroll() {
     const s = scroller.value;
@@ -605,17 +586,6 @@ const {colleague, me} = useColleague();
 .terminal-leave-to {
     opacity: 0;
     transform: translateY(14px);
-}
-
-.turn-enter-active {
-    transition:
-        opacity 0.26s ease-out,
-        transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.turn-enter-from {
-    opacity: 0;
-    transform: translateY(9px);
 }
 
 .turn-leave-active {
