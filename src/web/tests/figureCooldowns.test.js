@@ -18,7 +18,7 @@ describe("the figure's cooldowns", () => {
         const reloaded = memoryAt(now + 10);
         expect(reloaded.get("messaged"), "read back from the browser's storage").toBe(now);
         expect(reactionTo("messaged", reloaded, now + 10, () => 0), "still cooling down after the reload").toBe(null);
-        expect(reactionTo("messaged", memoryAt(now + 91), now + 91, () => 0).clip, "and plays again once its cooldown is over").toBe("phone_call");
+        expect(reactionTo("messaged", memoryAt(now + 121), now + 121, () => 0).clip, "and plays again once its cooldown is over").toBe("phone_call");
     });
 
     it("keep the thinking act's random cooldown and its parts' through a reload, as wall-clock seconds", () => {

@@ -326,3 +326,15 @@ test("the jump for joy is kept for the end of a run the figure anticipated; an e
     }
     expect(choicesFor({moment: "bar_done"}).map((entry) => entry.name)).toEqual(["joy"]);
 });
+
+test("searching, the magnifying glass and the binoculars each come at most once in five minutes, the other search acts meanwhile", async () => {
+    const {variantOf} = await import("../src/figure/reactions.js");
+    const memory = new Map();
+    const drawn = [];
+    for (let second = 0; second < 600; second += 10) drawn.push({second, clip: variantOf("search", Math.random, () => true, memory, second)});
+    for (const prop of ["search", "binoculars"]) {
+        const times = drawn.filter((each) => each.clip === prop).map((each) => each.second);
+        for (let index = 1; index < times.length; index++) expect(times[index] - times[index - 1], prop).toBeGreaterThanOrEqual(300);
+    }
+    expect(drawn.every((each) => ["search", "binoculars", "flashlight", "peek_under", "rummage"].includes(each.clip))).toBe(true);
+});

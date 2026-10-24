@@ -1,5 +1,5 @@
 // The phone call's speech bubble (chat/ComicBubble.vue), drawn as a comic strip's. It says the call's text a phrase at a time: up to
-// `words` words, or fewer where a sentence ends, the first line a phrase of its own; each phrase up for `base` seconds and `each` a
+// `words` words, or fewer where a sentence ends, each line a phrase of its own; each phrase up for `base` seconds and `each` a
 // character, fading in and out over `fade`. A phrase is wrapped at `columns` characters a row, lettered by hand in `hand`, `size` pixels
 // high on rows `line` apart, `glyph` pixels a character, each letter up to `lift` pixels off the line, `tilt` degrees askew and `grow`
 // larger or smaller, `pad` inside the outline. The outline is inked `ink` pixels thick round a box with corners `round` across, with a
@@ -11,12 +11,11 @@ export const COMIC_BUBBLE = {
     ink: 1.6, round: 16, tail: 14, gap: 4, drawings: 3, every: 2, points: 48, wobble: 1.1,
 };
 
-// The call's lines as the phrases the bubble says one after another, each {rows, seconds}: its rows of text, strong on the first line, and
-// how long it is up
+// The call's lines as the phrases the bubble says one after another, each {rows, seconds}: its rows of text and how long it is up
 export function phrasesOf(lines) {
-    return lines.flatMap((line, index) => groupsOf(line.split(" ").filter(Boolean)).map((words) => {
+    return lines.flatMap((line) => groupsOf(line.split(" ").filter(Boolean)).map((words) => {
         const text = words.join(" ");
-        return {rows: wrapped(text).map((row) => ({text: row, strong: index === 0})), seconds: COMIC_BUBBLE.base + COMIC_BUBBLE.each * text.length};
+        return {rows: wrapped(text).map((row) => ({text: row})), seconds: COMIC_BUBBLE.base + COMIC_BUBBLE.each * text.length};
     }));
 }
 

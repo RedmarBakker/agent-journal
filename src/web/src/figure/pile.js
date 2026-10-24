@@ -62,6 +62,13 @@ const look = (name, weight, when = {}) => ({name, kind: "look", weight, when});
 const pick = (name, weight, when = {}, more = {}) => ({name, kind: "pick", weight, when, ...more});
 const nothing = (weight) => ({name: "nothing", kind: "nothing", weight, when: {}});
 
+// a search act with a prop the figure holds up, waiting PROP_COOLDOWN seconds before it is drawn again
+const PROP_COOLDOWN = 300;
+const prop = (name, weight) => ({...clip(name, weight), cooldown: PROP_COOLDOWN, apart: true});
+
+// the seconds between two telephone calls, whatever workers were given work between them
+export const CALL_COOLDOWN = 120;
+
 // the entries of one moment, each given the moment and whatever the moment says of them all, as its cooldown; one apart from the others
 // with a cooldown of its own still waits the moment's, `moment` seconds after any of them played
 const at = (moment, shared, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}, ...(shared.cooldown && {waits: shared.cooldown})}));
@@ -85,8 +92,9 @@ export const PILE = [
     ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [clip("nod", 2), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
-    // a worker sent off or another session messaged: a call on the telephone, at most one in a minute and a half
-    ...at("messaged", {cooldown: 90}, [clip("phone_call", 1)]),
+    // a worker given work: a call on the telephone, at most one in two minutes, gathering any other worker given work while it waits or
+    // plays (reactions.js joinedCall)
+    ...at("messaged", {cooldown: CALL_COOLDOWN}, [clip("phone_call", 1)]),
     ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), clip("hand_rub", 4), nothing(7)]),
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("look_up", 3), nothing(8)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
@@ -148,7 +156,8 @@ export const PILE = [
     // under a lifted corner of the floor or, now and then, rummaging in an opening and flinging things over its shoulder; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
     // waving up at it; and while the context compacts, packed into a box that shrinks, squashed under a press, vacuuming up words, or
     // squaring a stack of papers
-    ...at("held:search", {}, [clip("search", 3), clip("binoculars", 2), clip("flashlight", 2), clip("peek_under", 1), clip("rummage", 1)]),
+    // the magnifying glass and the binoculars each at most once in five minutes, so neither is in hand at every search
+    ...at("held:search", {}, [prop("search", 3), prop("binoculars", 2), clip("flashlight", 2), clip("peek_under", 1), clip("rummage", 1)]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),

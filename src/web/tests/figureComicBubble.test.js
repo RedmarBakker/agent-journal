@@ -34,7 +34,6 @@ test("the bubble says the call a phrase at a time, three or four words or a shor
     expect(CALL.join("").length).toBe(100);
     const phrases = phrasesOf(CALL);
     expect(phrases[0].rows.map((row) => row.text)).toEqual(["Worker 57"]);
-    expect(phrases[0].rows.every((row) => row.strong)).toBe(true);
     for (const phrase of phrases.slice(1)) {
         const words = phrase.rows.map((row) => row.text).join(" ").split(" ");
         expect(words.length, words.join(" ")).toBeLessThanOrEqual(COMIC_BUBBLE.words + 1);

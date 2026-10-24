@@ -53,7 +53,8 @@ test("only an agent given work starts the call: a worker's dispatch and its next
     reactionTo("messaged", memory, 1000, () => 0);
     expect(reactionTo("messaged", memory, 1010, () => 0)).toBe(null);
     expect(reactionTo("messaged", memory, 1060, () => 0), "a minute later the telephone stays away").toBe(null);
-    expect(reactionTo("messaged", memory, 1100, () => 0).clip, "past ninety seconds it rings again").toBe("phone_call");
+    expect(reactionTo("messaged", memory, 1100, () => 0), "past ninety seconds it still stays away").toBe(null);
+    expect(reactionTo("messaged", memory, 1120, () => 0).clip, "after two minutes it rings again").toBe("phone_call");
 });
 
 test("the call goes in order: the telephone appears, the handset comes up to the ear, the dial turns and springs back, it talks, the handset goes down, the telephone goes", () => {
@@ -244,16 +245,12 @@ test("on the telephone it says whom it calls: the worker and the task it holds, 
     // the call's beat keeps the mark that set it off
     const answer = answerTo({beat: "messaged", time: 1, card: "messages:5"}, "butler", {reacted: new Map(), played: []}, 1000, () => 0, () => true);
     expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
-    // a worker sent off: its number, and the task it holds with its whole title, which the bubble wraps and cuts
+    // a worker given work: two sentences only, its number, then the task it holds, called out, never its title
     const workers = [{id: 57, task: {task_id: 2742}}, {id: 58, task: null}];
-    const tasks = [{id: 2742, title: "Finishing a task, the avatar rubs its hands together"}];
-    const lines = callLines({row: "workers:57", sentTo: ""}, workers, tasks);
-    expect(lines[0]).toBe("Worker 57");
-    expect(lines[1]).toBe(`task 2742: ${tasks[0].title}`);
-    // a worker that holds no task is named alone; a message to another session names that session; any other mark says nothing
-    expect(callLines({row: "workers:58", sentTo: ""}, workers, tasks)).toEqual(["Worker 58"]);
-    expect(callLines({row: "", sentTo: "45-mr-faraday"}, workers, tasks)).toEqual(["Calling 45-mr-faraday"]);
-    expect(callLines({row: "tasks:3", sentTo: ""}, workers, tasks)).toEqual([]);
+    expect(callLines({row: "workers:57"}, workers)).toEqual(["Worker 57", "Task 2742!"]);
+    // a worker that holds no task is named alone; any other mark says nothing
+    expect(callLines({row: "workers:58"}, workers)).toEqual(["Worker 58"]);
+    expect(callLines({row: "tasks:3"}, workers)).toEqual([]);
     // said from the talk's start until the handset is down, never before or after
     expect(callSays(act.talk[0] - 0.01)).toBe(false);
     for (const u of [act.talk[0], (act.talk[0] + act.talk[1]) / 2, act.hang[0], act.hang[1] - 0.001]) expect(callSays(u), `${u}`).toBe(true);
@@ -326,4 +323,39 @@ test("the talk held longer plays round without a jump: the figure stands at the 
             expect(Math.max(...a.map((value, index) => Math.abs(value - b[index]))), `${voice} ${bone}`).toBeLessThan(1e-6);
         }
     }
+});
+
+test("the telephone rings at most once in two minutes, gathering every worker given work into one call that names each in turn", async () => {
+    const {callLines} = await import("../src/domain/figureState.js");
+    const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
+    const {phrasesOf} = await import("../src/figure/comicBubble.js");
+    const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
+    expect(CALL_COOLDOWN).toBe(120);
+    const workers = [{id: 57, task: {task_id: 2742}}, {id: 58, task: {task_id: 2743}}, {id: 59, task: {task_id: 2744}}];
+    const memory = {reacted: new Map(), played: []};
+    const given = (id, time) => ({beat: "messaged", time, card: `workers:${id}:dispatched`});
+    // the first worker given work sets off the call
+    const first = answerTo(given(57, 1000), "butler", memory, 1000, () => 0, () => true);
+    expect(first.beat).toMatchObject({clip: "phone_call", mark: "workers:57:dispatched"});
+    let beats = [first.beat];
+    // the next two, within the minute, while the call waits or plays, join it rather than ring again
+    beats = joinedCall(beats, "workers:58:dispatched");
+    beats = joinedCall(beats, "workers:59:dispatched");
+    expect(beats).toHaveLength(1);
+    expect(beats[0].marks).toEqual(["workers:57:dispatched", "workers:58:dispatched", "workers:59:dispatched"]);
+    expect(joinedCall(beats, "workers:58:dispatched")).toBe(beats);
+    const words = (marks) => phrasesOf(marks.flatMap((mark) => callLines({row: mark.split(":").slice(0, 2).join(":")}, workers))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    expect(words(beats[0].marks)).toEqual(["Worker 57", "Task 2742!", "Worker 58", "Task 2743!", "Worker 59", "Task 2744!"]);
+    // with no call waiting, a worker given work inside the two minutes rings nothing: it waits, held, for the next call
+    expect(joinedCall([], "workers:58:dispatched")).toBeNull();
+    expect(answerTo(given(58, 1060), "butler", memory, 1060, () => 0, () => true)).toBeNull();
+    const held = ["workers:58:dispatched", "workers:59:dispatched"];
+    expect(heldCall(held, [], memory.reacted, 1060)).toBeNull();
+    expect(heldCall(held, [], memory.reacted, 1000 + CALL_COOLDOWN - 1)).toBeNull();
+    // once the two minutes are over, the held workers are called together, and the next call waits two minutes again
+    const later = heldCall(held, [], memory.reacted, 1000 + CALL_COOLDOWN);
+    expect(later).toMatchObject({clip: "phone_call", mark: "workers:58:dispatched", marks: held});
+    expect(heldCall(["workers:57:dispatched"], [], memory.reacted, 1000 + CALL_COOLDOWN + 60)).toBeNull();
+    expect(answerTo(given(57, 1000 + CALL_COOLDOWN + 60), "butler", memory, 1000 + CALL_COOLDOWN + 60, () => 0, () => true)).toBeNull();
+    expect(heldCall([], [], memory.reacted, 2000)).toBeNull();
 });

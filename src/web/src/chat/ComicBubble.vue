@@ -53,7 +53,7 @@ const style = computed(() => ({
         </svg>
         <span class="comic-bubble-words" :style="{opacity: said.shows}">
             <template v-for="(row, index) in rows" :key="`${said.index}-${index}`">
-                <span class="comic-bubble-row" :class="{'comic-bubble-strong': row.strong}">
+                <span class="comic-bubble-row">
                     <template v-for="(letter, at) in row.letters" :key="at">
                         <span class="comic-bubble-letter" :style="letter.style">{{ letter.letter }}</span>
                     </template>
@@ -103,9 +103,5 @@ const style = computed(() => ({
 
 .comic-bubble-letter {
     display: inline-block;
-}
-
-.comic-bubble-strong {
-    font-weight: 700;
 }
 </style>

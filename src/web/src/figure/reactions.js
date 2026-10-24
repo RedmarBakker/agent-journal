@@ -1,5 +1,5 @@
 import {HELD, WORKING, eggFor} from "../domain/figureState.js";
-import {draw} from "./pile.js";
+import {CALL_COOLDOWN, draw} from "./pile.js";
 import {lookAngles, lookWay, upFor} from "./look.js";
 
 // What the figure does about what happens around it, and when. Which animation plays is drawn from the one pile (pile.js); here are the
@@ -9,8 +9,9 @@ import {lookAngles, lookWay, upFor} from "./look.js";
 export const carrierOf = (random) => draw({moment: "carrier"}, random).name;
 export const craneFrom = (random) => draw({moment: "crane_from"}, random).name;
 
-// the clip a held clip is played as for this stretch of it (pile.js held:), itself when it is played one way only
-export const variantOf = (clip, random, has) => draw({moment: `held:${clip}`, has}, random)?.name ?? clip;
+// the clip a held clip is played as for this stretch of it (pile.js held:), itself when it is played one way only; `memory` holds when each
+// variant waiting a cooldown may be drawn again, at `now`
+export const variantOf = (clip, random, has, memory = null, now = 0) => draw({moment: `held:${clip}`, has, memory, now}, random)?.name ?? clip;
 
 // how long the eyes keep a look, counted only while they are shown
 export const LOOK_SECONDS = 3;
@@ -188,6 +189,26 @@ export function queuedFirst(beats, beat, playing) {
 export function playedFrom(beats, name) {
     const at = beats.findIndex((beat) => beat.clip === name);
     return at < 0 ? beats : [...beats.slice(0, at), ...beats.slice(at + 1)];
+}
+
+// The queue with a worker given work, by the chat mark `card` that says so, joined to the telephone call already waiting or playing in
+// `beats`, which then names every worker it gathered, one after another; null when no call is there to join
+export function joinedCall(beats, card) {
+    const at = beats.findIndex((beat) => beat.clip === "phone_call");
+    if (at < 0) return null;
+    const call = beats[at];
+    const marks = call.marks ?? [call.mark];
+    if (marks.includes(card)) return beats;
+    return beats.map((beat, index) => (index === at ? {...call, marks: [...marks, card]} : beat));
+}
+
+// The telephone call to the workers given work while the last call's cooldown ran, `held` their chat marks, once that cooldown is over
+// at `now` and the call may join `beats`, as its beat, noted in `reacted` as the call's time; null while it runs or when no worker waits
+export function heldCall(held, beats, reacted, now) {
+    const call = {clip: "phone_call", card: "", mark: held[0], marks: [...held]};
+    if (!held.length || now - (reacted.get("messaged") ?? -Infinity) < CALL_COOLDOWN || !queues(beats, call)) return null;
+    reacted.set("messaged", now);
+    return call;
 }
 
 // how long a moment, or an act waiting in the queue, stays worth acting on, in seconds: the figure acts on what just happened, never late

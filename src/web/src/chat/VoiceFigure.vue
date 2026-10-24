@@ -56,7 +56,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, answerTo, carrierOf, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, answerTo, carrierOf, heldCall, joinedCall, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -233,6 +233,8 @@ let eager = null;
 let watching = "watch";
 // the clip the held state is played as for this stretch of it (reactions.js variantOf), picked again each time the state changes
 let variant = {state: "", clip: ""};
+// the chat marks of the workers given work while the telephone's cooldown runs, all called together once it is over (reactions.js heldCall)
+let heldCalls = [];
 
 // the clip of this name the figure has, or idle when it has none
 const clipNamed = (name) => clips.find((clip) => clip.name === name) || clips.find((clip) => clip.name === "idle");
@@ -271,7 +273,7 @@ const asleep = () => clipOf(held.value.state) === "sleep";
 
 function heldClip() {
     const {state} = held.value;
-    if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip)};
+    if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip, memory.reacted, now.value)};
     if (body.place.swings) return "rope_swing";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
 }
@@ -799,6 +801,11 @@ function look() {
     const ongoing = stillGoing(beats.value, doings.value.state, beatOnScreen());
     beats.value = freshBeats(ongoing.beats, beatOnScreen(), now.value);
     cutting ||= ongoing.cut;
+    const called = heldCall(heldCalls, beats.value, memory.reacted, now.value);
+    if (called) {
+        beats.value = [...beats.value, {...called, queuedAt: now.value}];
+        heldCalls = [];
+    }
     // only what happened in the last few seconds is acted on
     const recent = Math.max(seenAt, now.value - FRESH_SECONDS);
     const happened = [
@@ -1205,7 +1212,14 @@ const FIRST = new Set(["long_walk", "tickled", "bar_failed"]);
 
 function react(moment) {
     if (!isListening(eager)) return;
+    // a worker given work while a call waits or plays is named in that call instead of ringing again
+    const joined = moment.beat === "messaged" && moment.card ? joinedCall(beats.value, moment.card) : null;
+    if (joined) {
+        beats.value = joined;
+        return;
+    }
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
+    if (moment.beat === "messaged" && moment.card && !answer && !heldCalls.includes(moment.card)) heldCalls = [...heldCalls, moment.card];
     if (answer?.beat && queues(beats.value, answer.beat)) {
         const beat = {...answer.beat, queuedAt: now.value};
         const queued = FIRST.has(moment.beat) ? queuedFirst(beats.value, beat, beatOnScreen()) : {beats: [...beats.value, beat], cut: false};
@@ -1337,11 +1351,15 @@ const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.a
 // What the figure says on the telephone, while it says it (places.js callSays): the lines of the chat mark that set off the call
 // (figureState.js callLines), a phrase at a time from the talk's start, in a comic bubble beside its head on the side where it hides the fewest words, else on the handset's side,
 // that side chosen once a call, its tail to the handset in the free hand, or to the head when the handset is on its other side
-const calling = () => (lead.value?.data?.cards || []).find((card) => card.key === beats.value[0]?.mark);
-const callPhrases = () => {
-    const card = calling();
-    return card ? phrasesOf(callLines(card, rows("workers"), rows("tasks"))) : [];
+// the chat marks of the workers the call on screen is to, the one that set it off and any it gathered since
+const callMarks = () => {
+    const call = beats.value[0];
+    const keys = call?.clip === "phone_call" ? (call.marks ?? [call.mark]) : [];
+    const cards = lead.value?.data?.cards || [];
+    return keys.map((key) => cards.find((card) => card.key === key)).filter(Boolean);
 };
+const calling = () => callMarks()[0];
+const callPhrases = () => phrasesOf(callMarks().flatMap((card) => callLines(card, rows("workers"))));
 let callSide = {mark: "", side: 0};
 const callBubble = computed(() => {
     if (shownClip.value?.name !== "phone_call" || !callSays(shownFrame.value / shownClip.value.frames)) return null;
@@ -1359,15 +1377,12 @@ const callBubble = computed(() => {
     return {phrases, seconds, left: spot.left, top: spot.top, tip: {x: tip.x - spot.left, y: tip.y - spot.top}};
 });
 
-// the rows the call's words are read from, the worker the call is to and the task it holds, fetched as the call is set off
+// the rows the call's words are read from, the workers the call is to, fetched as the call is set off or gathers another
 watch(
-    () => beats.value[0]?.mark,
+    () => callMarks().map((card) => card.key).join(" "),
     async () => {
-        const [table, id] = String(calling()?.row ?? "").split(":");
-        if (table !== "workers") return;
-        await holding("workers", [Number(id)]);
-        const held = rows("workers").find((worker) => worker.id === Number(id))?.task?.task_id;
-        if (held) await holding("tasks", [held]);
+        const ids = callMarks().map((card) => String(card.row).split(":")).filter(([table]) => table === "workers").map(([, id]) => Number(id));
+        if (ids.length) await holding("workers", ids);
     },
 );
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
