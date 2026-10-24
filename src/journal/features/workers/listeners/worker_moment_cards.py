@@ -1,6 +1,7 @@
 from journal.events.listener import Listener
 from journal.events.rows.row_event import RowEvent
 from journal.events.rows.worker_notified import WorkerNotified
+from journal.events.rows.worker_queue_drained import WorkerQueueDrained
 from journal.events.rows.worker_retired import WorkerRetired
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
@@ -15,17 +16,18 @@ MOMENTS = {
     WorkerRevived: ("started again in its last session", "", "brief"),
     WorkerNotified: ("sent a message in its session", "", "text"),
     WorkerRetired: ("retired, its report acted on", "good", ""),
+    WorkerQueueDrained: ("its queue given back", "", "tasks"),
 }
 
 
 class WorkerMomentCards(Listener[RowEvent]):
-    """Each moment of a worker after its dispatch is one new mark in the chat with its own tone: sent its next job, started again, sent a message, retired."""
+    """Each moment of a worker after its dispatch is one new mark in the chat with its own tone: sent its next job, started again, sent a message, retired, its queue given back."""
 
     def __init__(self, cards: MomentCards) -> None:
         self.cards = cards
 
     def handle(self, event: RowEvent) -> None:
-        if not isinstance(event, (WorkerReused, WorkerRevived, WorkerNotified, WorkerRetired)):
+        if not isinstance(event, (WorkerReused, WorkerRevived, WorkerNotified, WorkerRetired, WorkerQueueDrained)):
             return
         text, tone, detail = MOMENTS[type(event)]
         worker = event.worker

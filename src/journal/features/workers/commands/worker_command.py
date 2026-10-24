@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 from journal.features.team.support.start_rule import StartRule
 from journal.providers.support.profile_kind import ProfileKind
@@ -33,8 +34,6 @@ from journal.hooks.command_events import CommandEvents
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
-from journal.chat.moment_cards import MomentCards
-from journal.support.card_kind import CardKind
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
@@ -52,12 +51,11 @@ class WorkerCommand(Command):
     noun = "worker"
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, cards: MomentCards) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount) -> None:
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
         self.runner, self.reports, self.scope, self.profiles = runner, reports, scope, profiles
-        self.cards = cards
         self.pool, self.account = pool, account
 
     def arguments(self, verbs) -> None:
@@ -256,7 +254,7 @@ class WorkerCommand(Command):
         waiting = self.tasks.queue(Ref.build(worker))
         self.tasks.unqueued(Ref.build(worker), caller.actor)
         if waiting:
-            self.cards.show(worker.environment_id, None, f"Worker {worker.id}, {worker.name}: its queue given back", "agents", detail=f"tasks {', '.join(str(task.id) for task in waiting)} are open again", row=Ref.build(worker), actor=caller.actor, shows=CardKind.WORKERS)
+            self.workers.save(worker.queue_drained([task.id for task in waiting], time.time()), caller.actor)
         print(f"worker {worker.id} {worker.name}: {', '.join(f'task {task.id}' for task in waiting)} given back, open again" if waiting else f"worker {worker.id} {worker.name} had nothing queued")
         return 0
 

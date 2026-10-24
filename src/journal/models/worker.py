@@ -16,6 +16,7 @@ from journal.events.rows.worker_notified import WorkerNotified
 from journal.events.rows.worker_retired import WorkerRetired
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
+from journal.events.rows.worker_queue_drained import WorkerQueueDrained
 from journal.models.scoped import Scoped
 from journal.models.support.path_overlap import PathOverlap
 from journal.models.worker_state import WorkerState
@@ -73,6 +74,9 @@ class Worker(Scoped):
 
     def reported(self, time: float, report: int) -> "Worker":
         return self.contacted(time).moved("reported", time).with_(state=WorkerState.REPORTED, adopted=False, pid=0).with_event(WorkerReported(environment_id=self.environment_id, time=time, worker=self.mention(), report=report, ref=self.mention().ref(), outcome=f"{self.mention().title()}, reported"))
+
+    def queue_drained(self, task_ids: list[int], time: float) -> "Worker":
+        return self.with_event(WorkerQueueDrained(environment_id=self.environment_id, time=time, worker=self.mention(), tasks=f"tasks {', '.join(map(str, task_ids))} are open again"))
 
     def ready(self, time: float) -> "Worker":
         return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention()))
