@@ -3,8 +3,11 @@ from typing import Callable, TypeVar
 
 from journal.http.row_list_page import RowListPage
 from journal.models.model import Model
+from journal.repositories.repository import PAGE_ROWS as REPOSITORY_PAGE_ROWS
 
 PAGE_ROWS = 50
+# the most rows a list asks for, one under a repository's page, so the row that says another page follows fits in one read
+LISTING_ROW_LIMIT = REPOSITORY_PAGE_ROWS - 1
 
 M = TypeVar("M", bound=Model)
 
@@ -25,7 +28,7 @@ class Listing:
         ids = tuple(int(n) for n in str(query.get("ids", "")).split(",") if n.strip().isdigit())
         cutoff = float(query["since"]) if query.get("since") else 0.0
         closed = str(query.get("closed", "")).lower() in ("1", "true", "yes")
-        return cls(cls.query_number(query, "limit", PAGE_ROWS), closed, cls.query_number(query, "before", 0), cls.query_number(query, "after", 0), cutoff, ids)
+        return cls(min(cls.query_number(query, "limit", PAGE_ROWS), LISTING_ROW_LIMIT), closed, cls.query_number(query, "before", 0), cls.query_number(query, "after", 0), cutoff, ids)
 
     @staticmethod
     def query_number(query: dict, key: str, default: int) -> int:

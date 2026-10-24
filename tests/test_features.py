@@ -2269,8 +2269,8 @@ def test_an_edit_is_a_row_of_its_own_kept_to_the_last_five_hundred_and_a_shell_p
     assert [e.path for e in stored] == ["a.py", "b.py"] and stored[1].added == 2 and stored[1].removed == 0 and stored[1].command.startswith("sed") and [r["kind"] for r in stored[1].rows] == ["add", "add"], "a shell line's edit is read from the call's written paths when the call ends, against the file as the journal saw it last"
     for i in range(EDIT_ROWS):
         edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
-    assert len(edits.scoped()) == EDIT_ROWS, "the oldest go as new ones come"
-    assert edits.scoped()[0].path == "f0.py" and edits.scoped()[-1].path == f"f{EDIT_ROWS - 1}.py", "the two oldest went"
+    assert edits.stored_count() == EDIT_ROWS, "the oldest go as new ones come"
+    assert edits.rows()[0].path == "f0.py" and edits.rows()[-1].path == f"f{EDIT_ROWS - 1}.py", "the two oldest went"
 
 def test_a_plan_is_done_when_its_last_task_closes_whoever_closes_it(app: App):
     from journal.repositories.plans import Plans

@@ -1,3 +1,4 @@
+from journal.support.large_reads import LargeReads
 from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 from datetime import datetime, timezone
@@ -75,6 +76,20 @@ def test_a_saved_task_gets_an_id_and_the_actor_stamp(connection, bus, scope):
     assert tasks.find(1) == task
 
 
+def test_a_read_asking_more_than_a_page_is_cut_to_a_page_and_a_whole_read_past_a_page_is_recorded(connection, bus, scope):
+    tasks = tasks_of(connection, bus, scope)
+    for n in range(150):
+        tasks.save(Task(environment_id=1, title=f"task {n}"), actor=USER)
+    reads = connection.large_reads
+    with scope.environment(1):
+        assert len(tasks.selected(tasks.query().order("id").limit(50))) == 50 and reads.largest(10) == [], "a read of a page or less is not recorded"
+        assert len(tasks.selected(tasks.query().order("id").limit(500))) == 100, "a read asking 500 rows reads a page of 100"
+        assert len(tasks.rows()) == 150, "a whole-table read reads every row"
+    recorded = reads.largest(10)
+    assert [(read.largest_rows, read.table) for read in recorded] == [(500, "tasks"), (150, "tasks")], recorded
+    assert all(read.caller.startswith("test_data.py:") for read in recorded), "each names the code that asked, outside the repositories"
+
+
 def test_every_model_event_is_heard_in_order_with_its_actor(connection, bus, scope):
     heard = Heard()
     bus.listen(ModelEvent, heard)
@@ -143,7 +158,7 @@ def test_a_column_a_model_gained_is_added_to_a_table_made_before_it(tmp_path):
     from journal.db.connection import Connection
     from journal.db.schema import Schema
     from journal.models.all_models import AllModels
-    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes())
+    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes(), LargeReads())
     with old.transaction() as db:
         db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_id INTEGER)")
     Schema(old, AllModels.MODELS).create()
@@ -173,7 +188,7 @@ def test_a_row_older_than_a_column_loads_with_the_fields_default(tmp_path):
     from journal.repositories.links import Links
     from journal.repositories.environments import Environments
     from journal.repositories.scope import Scope
-    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes())
+    old = Connection(tmp_path / "old.db", Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes(), LargeReads())
     with old.transaction() as db:
         db.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, environment_id INTEGER, author TEXT, text TEXT, created_at TEXT, updated_at TEXT, creator TEXT, updater TEXT)")
         db.execute("INSERT INTO messages (environment_id, author, text, created_at, updated_at, creator, updater) VALUES (1, 'user', 'old', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00', 'user:1', 'user:1')")
@@ -549,7 +564,7 @@ def team_journal(tmp_path, name: str, signal=None):
     config = Config(folder)
     config.home.mkdir(parents=True)
     (config.home / TEAM_FILE).write_text("{}")
-    connection = Connection(folder / "journal.db", Masks(SecretValues(config)), StageTimes(), QueryTimes())
+    connection = Connection(folder / "journal.db", Masks(SecretValues(config)), StageTimes(), QueryTimes(), LargeReads())
     Schema(connection, AllModels.MODELS).create()
     bus = Bus()
     scope = Scope(Environments(connection, bus))

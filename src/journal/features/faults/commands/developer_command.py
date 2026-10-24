@@ -9,6 +9,7 @@ from journal.http.journal.answer_time import AnswerTime
 from journal.models.timing import Timing
 from journal.repositories.query_plans import QueryPlans
 from journal.support.caller import Caller
+from journal.support.large_reads import LargeReads
 from journal.support.query_times import QueryTimes
 
 TOP = 10
@@ -22,8 +23,8 @@ class DeveloperCommand(Command):
 
     noun = "developer"
 
-    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans) -> None:
-        self.numbers, self.sampler, self.statements, self.plans = numbers, sampler, queries, plans
+    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans, large_reads: LargeReads) -> None:
+        self.numbers, self.sampler, self.statements, self.plans, self.large_reads = numbers, sampler, queries, plans, large_reads
 
     def arguments(self, verbs) -> None:
         slowest = self.verb(verbs, "slowest", "the routes of the rolling log grouped, the slowest group first, a page at a time: each with its worst and typical time and how many were logged")
@@ -36,6 +37,8 @@ class DeveloperCommand(Command):
         self.verb(verbs, "averages", "the average and slowest time of hooks, requests, each kind of hook and, while stage timing is on, each stage of a hook")
         queries = self.verb(verbs, "queries", "the SQL statements that took the most time since the last reset, each with its runs and times and the steps of its query plan that read a whole table or sort")
         queries.add_argument("--count", type=int, default=TOP, help="how many statements")
+        reads = self.verb(verbs, "reads", "the reads of more rows than a page since the last reset, the largest first, each with the code that asked: a page read asking more was cut to a page")
+        reads.add_argument("--count", type=int, default=TOP, help="how many reads")
         self.verb(verbs, "reset", "clear the times, the rolling log and the counts")
         profile = self.verb(verbs, "profile", "watch every thread of the server for a while and print where its time goes, the busiest functions first")
         profile.add_argument("seconds", type=float, nargs="?", default=PROFILE_SECONDS, help=f"how long to watch, at most {PROFILE_LIMIT_SECONDS:.0f} seconds")
@@ -98,9 +101,14 @@ class DeveloperCommand(Command):
                 print(f"    {step}")
         return 0
 
+    def reads(self, args: Namespace, caller: Caller) -> int:
+        self.print_lines([read.line() for read in self.large_reads.largest(args.count)], "no read of more rows than a page since the last reset")
+        return 0
+
     def reset(self, args: Namespace, caller: Caller) -> int:
         self.numbers.reset(caller.actor)
         self.statements.clear()
+        self.large_reads.clear()
         print("the times, the rolling log and the counts are cleared")
         return 0
 

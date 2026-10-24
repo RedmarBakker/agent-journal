@@ -3,6 +3,7 @@ from dataclasses import fields
 from datetime import datetime, timezone
 from typing import Callable, Generic, Iterable, TypeVar
 
+from journal.repositories.read_caller import ReadCaller
 from journal.models.support.column import Column
 from journal.repositories.load_tally import LoadTally
 from journal.db.connection import Connection
@@ -33,7 +34,7 @@ from journal.support.missing_row import MissingRow
 M = TypeVar("M", bound=Model)
 
 
-PAGE_ROWS = 500
+PAGE_ROWS = 100
 MATCH_ROWS = 40
 
 
@@ -68,7 +69,13 @@ class Repository(Generic[M]):
         return self.connection.result(*self.query().count())["value"]
 
     def selected(self, query: Query) -> list[M]:
-        return self._loaded(query)
+        if query.row_limit > PAGE_ROWS:
+            self.connection.large_reads.add(self.table, query.select()[0], ReadCaller.found(), query.row_limit)
+            query = query.limit(PAGE_ROWS)
+        rows = self._loaded(query)
+        if query.row_limit == -1 and len(rows) > PAGE_ROWS:
+            self.connection.large_reads.add(self.table, query.select()[0], ReadCaller.found(), len(rows))
+        return rows
 
     def _purged(self, query: Query) -> None:
         self.connection.execute(*query.delete())

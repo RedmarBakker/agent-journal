@@ -18,6 +18,7 @@
         "LongAnswerWaitDetector",
         "HandWrittenIntervalDetector",
         "ImportInFunctionDetector",
+        "UnusedPageSizeDetector",
         "UnpagedViewerListDetector",
         "UnpagedViewerListPageDetector",
         "EngineIndexOnUseDetector",

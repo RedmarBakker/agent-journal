@@ -9,6 +9,7 @@ from typing import Callable, Iterator
 from journal.db.empty_result import EmptyResult
 from journal.db.row_cache import RowCache
 from journal.support.masks import Masks
+from journal.support.large_reads import LargeReads
 from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 
@@ -16,8 +17,8 @@ from journal.support.stage_times import StageTimes
 class Connection:
     """The one place SQL is executed, a secret value masked out of every text it writes. Each thread reads on a sqlite connection leased from a pool, returned with release() or, by any thread that never says so, once the thread is gone, so no thread that ends leaves one open; writes take the one lock, so the threaded server never contends. Reads of rows may be answered from the row cache, which every write and every commit of a table moves on, and a rolled-back transaction clears."""
 
-    def __init__(self, path: Path, masks: Masks, stages: StageTimes, queries: QueryTimes) -> None:
-        self.path, self.masks, self.stages, self.queries = path, masks, stages, queries
+    def __init__(self, path: Path, masks: Masks, stages: StageTimes, queries: QueryTimes, large_reads: LargeReads) -> None:
+        self.path, self.masks, self.stages, self.queries, self.large_reads = path, masks, stages, queries, large_reads
         self._threads = threading.local()
         self._writing = threading.RLock()
         self._pooling = threading.Lock()

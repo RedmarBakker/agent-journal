@@ -8,6 +8,7 @@ from journal.support.masks import Masks
 from journal.db.migrations import MIGRATIONS
 from journal.db.migrator import Migrator
 from journal.db.indexes import Indexes
+from journal.support.large_reads import LargeReads
 from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 from journal.repositories.declared_indexes import INDEXES
@@ -55,7 +56,7 @@ class App:
 
     def connection(self) -> Connection:
         self.config.home.mkdir(parents=True, exist_ok=True)
-        connection = Connection(self.config.database, self.container.get(Masks), self.container.get(StageTimes), self.container.get(QueryTimes))
+        connection = Connection(self.config.database, self.container.get(Masks), self.container.get(StageTimes), self.container.get(QueryTimes), self.container.get(LargeReads))
         schema = Schema(connection, AllModels.MODELS)
         migrator = Migrator(connection, schema, MIGRATIONS)
         if schema.create():
