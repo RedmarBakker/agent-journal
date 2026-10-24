@@ -24,13 +24,17 @@ class ServerDoors:
         with self.desk.held(self.desk.sending, "take a batch"):
             changes = self.desk.batch(BATCH_ROWS)
         files = tuple(WaitingFile(upload.id, place, str(path), place.address()) for upload in self.desk.waiting_files() for place, path in [self.desk.file_place(upload)])
-        return SyncBatch(tuple(change.id for change in changes), files, self.desk.is_upgrader(), self.desk.push_body(changes))
+        return SyncBatch(tuple(change.id for change in changes), files, self.desk.is_upgrader(), self.desk.request_body(changes))
 
     def files_sent(self, ids: tuple[int, ...]) -> None:
         self.desk.files_sent(list(ids))
 
-    def pushed(self, ids: tuple[int, ...], answer: SyncAnswer) -> DeskAnswer:
+    def batch_answered(self, ids: tuple[int, ...], answer: SyncAnswer) -> DeskAnswer:
         return self.desk.push_taken(list(ids), answer)
+
+    # a push's pull handed again once the team's full copy is laid in
+    def delivered(self, answer: SyncAnswer) -> DeskAnswer:
+        return self.desk.taken(answer.delivery)
 
     def answered(self, answer: PullAnswer) -> DeskAnswer:
         return self.desk.taken(answer)

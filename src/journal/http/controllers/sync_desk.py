@@ -15,7 +15,7 @@ from sync_server.sync_answer import SyncAnswer
 
 
 class SyncDeskController:
-    """The doors the sync service comes through to the server's SyncDesk: how to reach the team, the service's word on how it stands, the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, the team's full copy laid in when it is past this journal's sequence, and an upgrade claimed and finished."""
+    """The doors the sync service comes through to the server's SyncDesk: how to reach the team, the service's word on how it stands, the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, the pull a push carried handed again after a full copy, the team's full copy laid in when it is past this journal's sequence, and an upgrade claimed and finished."""
 
     def __init__(self, doors: ServerDoors, secret: SyncSecret, lifecycle: Lifecycle, account: TeamAccount, link: TeamServerLink, status: SyncStatus) -> None:
         self.doors, self.secret, self.lifecycle = doors, secret, lifecycle
@@ -35,10 +35,8 @@ class SyncDeskController:
 
     # whether this journal is in a team, and how the sync service reaches its server: the address, the headers each request carries, the certificate authority it trusts and the least protocol it takes an answer in
     def team(self, request: Request) -> Response:
-        if not self.account.is_joined():
-            return Response.json({"joined": False})
-        root = self.account.root_path()
-        return Response.json({"joined": True, "address": self.account.address(), "headers": self.link.headers(), "authority": str(root) if root.is_file() else "", "protocol": {"header": TEAM_PROTOCOL_HEADER, "least": PROTOCOL}})
+        joined, root = self.account.is_joined(), self.account.root_path()
+        return Response.json({"joined": joined, "address": self.account.address(), "headers": self.link.headers() if joined else {}, "authority": str(root) if root.is_file() else "", "protocol": {"header": TEAM_PROTOCOL_HEADER, "least": PROTOCOL}})
 
     def query(self, request: Request) -> Response:
         query = self.doors.query(request.queried("wait_seconds"))
@@ -56,7 +54,11 @@ class SyncDeskController:
         return Response.json({})
 
     def pushed(self, request: Request) -> Response:
-        return Response.json(asdict(self.doors.pushed(tuple(request.body.get("ids", ())), SyncAnswer.parsed(**request.body["answer"]))))
+        ids = tuple(int(id) for id in str(request.query.get("ids", "")).split(",") if id)
+        return Response.json(asdict(self.doors.batch_answered(ids, SyncAnswer.parsed(**request.body))))
+
+    def delivery(self, request: Request) -> Response:
+        return Response.json(asdict(self.doors.delivered(SyncAnswer.parsed(**request.body))))
 
     def answer(self, request: Request) -> Response:
         return Response.json(asdict(self.doors.answered(PullAnswer.parsed(**request.body))))

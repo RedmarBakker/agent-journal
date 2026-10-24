@@ -30,7 +30,7 @@ from journal.repositories.shared_tables import SharedTables
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.sync.block_supply import BlockSupply
-from journal.services.service_event import TEAM_JOINED, TEAM_LEFT, ServiceEvent
+from journal.services.service_event import TEAM_DEPARTURE, TEAM_JOINED, ServiceEvent
 from journal.services.service_hooks import ServiceHooks
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_server_link import TeamServerLink
@@ -100,7 +100,7 @@ class TeamJoin:
         self.blocks.clear()
         self.outgoing.clear()
         backup = self.account.left(time.time())
-        self.hooks.post(ServiceEvent(TEAM_LEFT))
+        self.hooks.post(ServiceEvent(TEAM_DEPARTURE))
         return f"left the team at {address}: sync stopped, every local row kept, and the team's settings kept in {backup.name}; claim a server or connect with an account to join one again"
 
     def repository_refusal(self, summary: TeamSummary, repository: str) -> str:

@@ -64,7 +64,7 @@ class SyncDesk:
         return self.outgoing.sending_batch(rows)
 
     # what a push of these changes sends the team server, with the clock offset measured so far and the query it pulls with
-    def push_body(self, changes: list) -> dict:
+    def request_body(self, changes: list) -> dict:
         return TeamServerLink.push_body([change.payload() for change in changes], self.offset.seconds, self.query(0))
 
     def waiting_files(self) -> list:
@@ -80,14 +80,6 @@ class SyncDesk:
         for upload in self.uploads.waiting():
             if upload.id in ids:
                 self.file_sent(upload)
-
-    def pushed(self, batch: list, answer: SyncAnswer) -> int:
-        self.outgoing.sent(batch)
-        self.rejected.apply(answer.settlement.rejected)
-        return self.answered(answer.delivery)
-
-    def pushed_rows(self, ids: list[int], answer: SyncAnswer) -> int:
-        return self.pushed(self.outgoing.sending_rows(ids), answer)
 
     # a push's result taken for the batch it names: its changes off the queue and the rejected edits put right, then its answer as taken
     def push_taken(self, ids: list[int], answer: SyncAnswer) -> DeskAnswer:

@@ -31,11 +31,11 @@ class CarriedSync:
         return self.carrier.pulled(self.team(), 0)
 
     def sent(self) -> bool:
-        return self.carrier.carried(self.team(), self.carrier.doors.batch())
+        return self.carrier.push_batch(self.team(), self.carrier.doors.batch())
 
     def drained(self) -> dict:
         return self.carrier.drained()
 
     def upgrade_finished(self) -> None:
         self.carrier.upgrade_finished(self.team())
-        self.carrier.heard({"event": "upgrade_abandoned"})
+        self.carrier.reply("upgrade_abandoned")

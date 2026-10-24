@@ -11,12 +11,12 @@ class EventRequestHandler(BaseHTTPRequestHandler):
         if self.path != "/health":
             self.answered(404, {"error": f"no {self.path} here"})
             return
-        self.answered(200 if self.server.carrier.is_alive() else 503, {"alive": self.server.carrier.is_alive()})
+        self.answered(200 if self.server.carrier.is_working() else 503, {"working": self.server.carrier.is_working()})
 
     def do_POST(self) -> None:
         event = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         try:
-            self.answered(200, self.server.carrier.heard(event))
+            self.answered(200, self.server.carrier.reply(str(event.get("event", ""))))
         except Exception as fault:
             sys.stderr.write(f"the sync service could not take {event.get('event')}:\n{traceback.format_exc()}")
             self.answered(500, {"error": f"{type(fault).__name__}: {fault}"})

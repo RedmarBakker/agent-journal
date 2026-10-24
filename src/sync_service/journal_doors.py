@@ -3,8 +3,12 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from sync_service.desk_answer import DeskAnswer
+from sync_service.desk_batch import DeskBatch
+from sync_service.desk_query import DeskQuery
 from sync_service.journal_busy import JournalBusy
 from sync_service.journal_mismatch import JournalMismatch
+from sync_service.team_address import TeamAddress
 
 SECRET_HEADER = "x-journal-sync-secret"
 PROTOCOL_HEADER = "x-journal-desk-protocol"
@@ -16,7 +20,7 @@ SYNC_PATH = "/journal/sync"
 
 
 class JournalDoors:
-    """The journal server's doors as the sync service reaches them: each call reads the server's port and its service secret anew from the journal's folder, since a server started again takes a new port and a new secret, and a server that is down, starting or on a new secret answers JournalBusy."""
+    """The journal server's doors as the sync service reaches them: each call reads the server's port and its service secret anew from the journal's folder, since a server started again takes a new port and a new secret, and a server that is down, starting or on a new secret answers JournalBusy; the team's answers are handed in as the bytes the team sent."""
 
     def __init__(self, root: Path) -> None:
         self.port_file, self.secret_file = root / ".journal" / "port", root / ".journal" / "runtime" / "sync-secret"
@@ -25,46 +29,56 @@ class JournalDoors:
         return self.secret_file.read_text() if self.secret_file.is_file() else ""
 
     def register(self, name: str, address: str, events: tuple[str, ...]) -> None:
-        self.called("POST", "/journal/services", {"name": name, "address": address, "events": list(events)}, CALL_SECONDS)
+        self.called("POST", "/journal/services", self.encoded({"name": name, "address": address, "events": list(events)}), CALL_SECONDS)
 
-    def team(self) -> dict:
-        return self.called("GET", f"{SYNC_PATH}/team", None, CALL_SECONDS)
+    def team(self) -> TeamAddress:
+        return TeamAddress.parsed(**json.loads(self.called("GET", f"{SYNC_PATH}/team", None, CALL_SECONDS)))
 
     def state(self, fault: str, reached: bool) -> None:
-        self.called("POST", f"{SYNC_PATH}/state", {"fault": fault, "reached": reached}, CALL_SECONDS)
+        self.called("POST", f"{SYNC_PATH}/state", self.encoded({"fault": fault, "reached": reached}), CALL_SECONDS)
 
-    def query(self, wait_seconds: float) -> dict:
-        return self.called("GET", f"{SYNC_PATH}/query?wait_seconds={wait_seconds}", None, CALL_SECONDS)
+    def query(self, wait_seconds: float) -> DeskQuery:
+        query = json.loads(self.called("GET", f"{SYNC_PATH}/query?wait_seconds={wait_seconds}", None, CALL_SECONDS))
+        return DeskQuery(query["path"], query["wait_seconds"])
 
-    def batch(self) -> dict:
-        return self.called("GET", f"{SYNC_PATH}/batch?wait_seconds=0", None, CALL_SECONDS)
+    def batch(self) -> DeskBatch:
+        return DeskBatch.parsed(**json.loads(self.called("GET", f"{SYNC_PATH}/batch", None, CALL_SECONDS)))
 
-    def files_sent(self, ids: list[int]) -> None:
-        self.called("POST", f"{SYNC_PATH}/files-sent", {"ids": ids}, CALL_SECONDS)
+    def files_sent(self, ids: tuple[int, ...]) -> None:
+        self.called("POST", f"{SYNC_PATH}/files-sent", self.encoded({"ids": list(ids)}), CALL_SECONDS)
 
-    def pushed(self, ids: list[int], answer: dict) -> dict:
-        return self.called("POST", f"{SYNC_PATH}/pushed", {"ids": ids, "answer": answer}, CALL_SECONDS)
+    # the team server's answer to a push, handed in for the batch it names
+    def batch_answer(self, ids: tuple[int, ...], answer: bytes) -> DeskAnswer:
+        return DeskAnswer(**json.loads(self.called("POST", f"{SYNC_PATH}/pushed?ids={','.join(map(str, ids))}", answer, CALL_SECONDS)))
 
-    def answered(self, answer: dict) -> dict:
-        return self.called("POST", f"{SYNC_PATH}/answer", answer, CALL_SECONDS)
+    # the pull a push's answer carried, handed in again once the team's full copy is laid in
+    def batch_delivery(self, answer: bytes) -> DeskAnswer:
+        return DeskAnswer(**json.loads(self.called("POST", f"{SYNC_PATH}/delivery", answer, CALL_SECONDS)))
 
-    def copied(self, copy: dict) -> bool:
-        return self.called("POST", f"{SYNC_PATH}/copy", copy, COPY_SECONDS)["laid_in"]
+    def team_answer(self, answer: bytes) -> DeskAnswer:
+        return DeskAnswer(**json.loads(self.called("POST", f"{SYNC_PATH}/answer", answer, CALL_SECONDS)))
+
+    def install_copy(self, copy: bytes) -> None:
+        self.called("POST", f"{SYNC_PATH}/copy", copy, COPY_SECONDS)
 
     def upgrade_claimed(self) -> None:
-        self.called("POST", f"{SYNC_PATH}/upgrade-claimed", {}, CALL_SECONDS)
+        self.called("POST", f"{SYNC_PATH}/upgrade-claimed", b"{}", CALL_SECONDS)
 
     def upgrade_finished(self) -> None:
-        self.called("POST", f"{SYNC_PATH}/upgrade-finished", {}, CALL_SECONDS)
+        self.called("POST", f"{SYNC_PATH}/upgrade-finished", b"{}", CALL_SECONDS)
 
-    def called(self, method: str, path: str, body: dict | None, seconds: float) -> dict:
+    @staticmethod
+    def encoded(fields: dict) -> bytes:
+        return json.dumps(fields).encode()
+
+    def called(self, method: str, path: str, body: bytes | None, seconds: float) -> bytes:
         port, secret = self.port_file.read_text().strip() if self.port_file.is_file() else "", self.secret()
         if not port.isdigit() or not secret:
             raise JournalBusy("the journal server is not running")
-        request = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret, PROTOCOL_HEADER: str(DESK_PROTOCOL)})
+        request = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=body, method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret, PROTOCOL_HEADER: str(DESK_PROTOCOL)})
         try:
             with urllib.request.urlopen(request, timeout=seconds) as answer:
-                return json.loads(answer.read() or b"{}")
+                return answer.read() or b"{}"
         except urllib.error.HTTPError as refusal:
             raise self.refused(refusal) from refusal
         except (ConnectionError, urllib.error.URLError) as down:

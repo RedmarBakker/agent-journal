@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 CHANGE_QUEUED = "change_queued"
 TEAM_JOINED = "team_joined"
-TEAM_LEFT = "team_left"
+TEAM_DEPARTURE = "team_departure"
 UPGRADE_PREPARING = "upgrade_preparing"
 UPGRADE_ABANDONED = "upgrade_abandoned"
 

@@ -12850,7 +12850,7 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     client.stopping.set()
     released.set()
     first.join(5)
-    assert not client.is_alive(), "and the service's health says so once a loop is gone"
+    assert not client.is_working(), "and the service's health says so once a loop is gone"
     monkeypatch.setattr(sync_desk, "LOCK_SECONDS", 0.2)
     desk = app.container.get(SyncDesk)
     holder = threading.Thread(target=lambda: (desk.applying.acquire(), timing.sleep(1), desk.applying.release()))
@@ -12931,7 +12931,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
 
     app.container.get(Bus).listen(SyncedCreation, TaskCreations())
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).read())
     change = {"sequence": 5, "row_table": "tasks", "row": 7001, "action": CREATED, "actor": "user:2", "account_id": 2, "device_id": 2, "fields": {"environment_id": 1, "title": "made on another machine", "state": "open", "created_at": "2026-10-24T10:00:00+00:00", "creator": "user:2", "updated_at": "2026-10-24T10:00:00+00:00", "updater": "user:2"}, "changed_at": {"title": 1.0}}
     assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
     with app.container.get(Scope).environment(1):
@@ -12941,8 +12941,8 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     outgoing.clear()
     outgoing.queued(OutgoingChange(row_table="tasks", row=7001, action=UPDATED, fields={"state": "started"}, changed_at={"state": 2.0}, writer="user:1"), Actor.system())
     batch = door("GET", "batch")
-    assert len(batch["ids"]) == 1 and batch["changes"][0]["fields"] == {"state": "started"} and door("GET", "query")["sequence"] == 5
-    door("POST", "pushed", {"ids": batch["ids"], "answer": {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}}})
+    assert len(batch["ids"]) == 1 and batch["request_body"]["changes"][0]["fields"] == {"state": "started"} and door("GET", "query")["sequence"] == 5
+    door("POST", f"pushed?ids={','.join(map(str, batch['ids']))}", {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}})
     assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
     account.left(0)
     server.shutdown()
@@ -12959,14 +12959,15 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     change(1, "started")
     change(2, "started")
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).read())
     first = door("GET", "batch")
     change(3, "done")
     again = door("GET", "batch")
-    assert again["ids"] == first["ids"] and again["changes"] == first["changes"], "a batch whose result never came is handed out again, the same changes and nothing added"
-    result = {"ids": first["ids"], "answer": {"settlement": {"sequences": [1, 2], "rejected": [], "server_time": 1.0}, "delivery": {"changes": [], "head": 2, "server_time": 1.0}}}
-    door("POST", "pushed", result)
-    door("POST", "pushed", result)
+    assert again["ids"] == first["ids"] and again["request_body"]["changes"] == first["request_body"]["changes"], "a batch whose result never came is handed out again, the same changes and nothing added"
+    result = {"settlement": {"sequences": [1, 2], "rejected": [], "server_time": 1.0}, "delivery": {"changes": [], "head": 2, "server_time": 1.0}}
+    pushed = f"pushed?ids={','.join(map(str, first['ids']))}"
+    door("POST", pushed, result)
+    door("POST", pushed, result)
     assert [c.row for c in outgoing.waiting()] == [3] and door("GET", "batch")["ids"] != first["ids"], "the result posted twice takes the batch off once, and the next batch is the change that waited"
     account.left(0)
     server.shutdown()
@@ -13004,7 +13005,7 @@ def test_a_script_reader_set_on_a_running_output_gives_its_card_the_scripts_prog
     assert contents.label == "Rewriting the history", "the script reader's label titles the card"
 
 
-def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll_keeps_the_blocks_filled(app: App):
+def test_the_sync_service_is_handed_the_pull_query_and_the_waiting_files_and_its_poll_keeps_the_blocks_filled(app: App):
     from dataclasses import asdict
     from journal.models.pending_upload import PendingUpload
     from journal.repositories.id_blocks import IdBlocks
@@ -13012,9 +13013,10 @@ def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll
     from journal.sync.pull_queries import PullQueries
     server, account = joined_team(app)
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).read())
     account.record_sequence(42)
-    assert door("GET", "query?wait_seconds=25") == json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "the query is the server's own, sequence and all"
+    query = door("GET", "query?wait_seconds=25")
+    assert query == {**json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "path": query["path"]} and query["path"].startswith("/pull?after=42&wait=25"), "the query is the server's own, sequence and all, with the pull's path to send"
     assert door("GET", "query")["sequence"] == 42
     blocks = app.container.get(IdBlocks)
     blocks.clear()
@@ -13057,7 +13059,7 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
     assert stat.S_IMODE(secret_file.stat().st_mode) == 0o600 and len(secret_file.read_text()) == 64, "the secret is written at boot for its owner alone"
     def status(headers: dict) -> int:
         try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Desk-Protocol": "1", **headers}), timeout=10).status
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Desk-Protocol": "2", **headers}), timeout=10).status
         except HTTPError as refusal:
             return refusal.code
     secret = secret_file.read_text()
@@ -13094,7 +13096,7 @@ def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_afte
         sync = CarriedSync(app)
         sync.inbox.start()
         sync.carrier.address = sync.inbox.address
-        sync.carrier.beat()
+        sync.carrier.report()
         app.console().run(["task", "create", "made before the upgrade"], USER)
         assert outgoing.waiting(), "the new task waits to go to the team"
         monkeypatch.setattr(Updater, "restart", lambda self: None)
@@ -13130,13 +13132,13 @@ def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_t
     outgoing.queued(OutgoingChange(row_table="tasks", row=edited, action=UPDATED, fields={"title": "edited here meanwhile"}, changed_at={"title": 9e9}, writer="user:1"), Actor.system())
     body = json.dumps({"rows": rows, "head": 50, "server_time": 1.0}).encode()
     assert len(body) > 4_000_000
-    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=60).read())
+    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=60).read())
     tasks = app.container.get(Tasks)
     with app.container.get(Scope).environment(local[0]["environment_id"]):
         assert answer == {"laid_in": True} and len(tasks.find(local[0]["id"]).brief) == 4_000_000, "the copy is laid in, many megabytes as it is"
         assert tasks.find(edited).title == "edited here meanwhile", "the write waiting to go stays on top of the team's copy"
     assert account.sequence() == 50
-    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=60).read())
+    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=60).read())
     assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
     account.left(0)
     server.shutdown()
@@ -13150,7 +13152,7 @@ def test_the_sync_desk_answers_busy_at_once_while_the_journal_boots(app: App):
     lifecycle = app.container.get(Lifecycle)
     def status() -> int:
         try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).status
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).status
         except HTTPError as refusal:
             return refusal.code
     lifecycle.booting()
@@ -13734,13 +13736,13 @@ def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_
         assert abs(desk.offset.seconds) < 1.0, f"the offset was measured after the wait to apply, {desk.offset.seconds:.2f} s off"
         # a full copy taken while a change of this journal is going out waits for it, so the copy never wipes a change sent meanwhile
         copied, held = threading.Event(), a.container.get(TeamAccount).sequence()
-        answer = lambda head: {"changes": [], "head": head, "server_time": timing.time(), "team_version": "", "copy_needed": True, "requests": []}
+        answer = lambda head: json.dumps({"changes": [], "head": head, "server_time": timing.time(), "team_version": "", "copy_needed": True, "requests": []}).encode()
         with carriers[0].carrying:
-            at_head = threading.Thread(target=lambda: carriers[0].taken(team_a, answer(held)))
+            at_head = threading.Thread(target=lambda: carriers[0].applied_count(team_a, answer(held)))
             at_head.start()
             at_head.join(1.0)
             assert not at_head.is_alive(), "a journal already at the team's head never takes the copy, so it never waits for the send"
-            taking = threading.Thread(target=lambda: (carriers[0].taken(team_a, answer(held + 1)), copied.set()))
+            taking = threading.Thread(target=lambda: (carriers[0].applied_count(team_a, answer(held + 1)), copied.set()))
             taking.start()
             assert not copied.wait(0.3), "the full copy went ahead while a send was under way"
         assert copied.wait(5.0), "and goes ahead once the send is done"

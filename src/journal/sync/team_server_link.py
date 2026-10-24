@@ -27,6 +27,7 @@ from sync_server.team_summary import TeamSummary
 from sync_server.upload_answer import UploadAnswer
 from sync_server.lease import Lease
 from journal.version import VERSION
+from sync_service.team_link import TeamLink
 from sync_server.protocol import MIGRATION_HEADER, PROTOCOL, PROTOCOL_HEADER, UNVERSIONED, VERSION_HEADER
 
 REQUEST_SECONDS = 10
@@ -164,17 +165,10 @@ class TeamServerLink:
                 self.checked(answer.headers)
                 return answer.read()
         except urllib.error.HTTPError as refused:
-            raise TeamRefusal(self.refusal_line(refused)) from refused
+            raise TeamRefusal(TeamLink.refusal_line(refused)) from refused
 
     def headers(self) -> dict[str, str]:
         return {"Content-Type": "application/json", "Authorization": f"Bearer {self.account.token()}", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
-
-    @staticmethod
-    def refusal_line(refused: urllib.error.HTTPError) -> str:
-        body = refused.read()
-        if refused.headers.get_content_type() != "application/json":
-            return f"the team server answered {refused.code}: {body.decode(errors='replace').strip()}"
-        return json.loads(body or b"{}").get("error", f"the team server answered {refused.code}")
 
     @staticmethod
     def checked(headers) -> None:

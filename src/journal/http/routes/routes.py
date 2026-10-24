@@ -110,6 +110,7 @@ class Routes:
         router.post_unscoped(f"{API}/sync/answer", get(SyncDeskController).guarded(get(SyncDeskController).answer))
         router.get_unscoped(f"{API}/sync/batch", get(SyncDeskController).guarded(get(SyncDeskController).batch))
         router.post_unscoped(f"{API}/sync/pushed", get(SyncDeskController).guarded(get(SyncDeskController).pushed))
+        router.post_unscoped(f"{API}/sync/delivery", get(SyncDeskController).guarded(get(SyncDeskController).delivery))
         router.post_unscoped(f"{API}/sync/files-sent", get(SyncDeskController).guarded(get(SyncDeskController).files_sent))
         router.post_unscoped(f"{API}/sync/upgrade-claimed", get(SyncDeskController).guarded(get(SyncDeskController).upgrade_claimed))
         router.post_unscoped(f"{API}/sync/upgrade-finished", get(SyncDeskController).guarded(get(SyncDeskController).upgrade_finished))

@@ -10,7 +10,7 @@ POST_SECONDS = 5.0
 
 
 class ServiceHooks:
-    """The services registered with the journal server, each at its address for the events it named: an event is posted to every service that wants it on a thread of its own, so no write waits on a service, and a question waits for each service's answer; a service registers again when the server starts again, so the server keeps none on disk."""
+    """The services registered with the journal server, each at its address for the events it named: an event is posted to every service that wants it on a thread of its own, so no write waits on a service, and a question waits until each service has answered that it did what it asks; a service registers again when the server starts again, so the server keeps none on disk."""
 
     def __init__(self) -> None:
         self._registrations: dict[str, ServiceRegistration] = {}
@@ -31,15 +31,16 @@ class ServiceHooks:
         for registration in self.wanting(event):
             threading.Thread(target=self.sent, args=(registration, event, POST_SECONDS), name=f"post {event.name} to {registration.name}", daemon=True).start()
 
-    def asked(self, event: ServiceEvent, seconds: float) -> list[dict]:
-        return [self.sent(registration, event, seconds) for registration in self.wanting(event)]
+    # whether every service registered for the event has done what it asks, as its 200 says
+    def succeeded(self, event: ServiceEvent, seconds: float) -> bool:
+        return all([self.sent(registration, event, seconds) for registration in self.wanting(event)])
 
     @staticmethod
-    def sent(registration: ServiceRegistration, event: ServiceEvent, seconds: float) -> dict:
+    def sent(registration: ServiceRegistration, event: ServiceEvent, seconds: float) -> bool:
         request = urllib.request.Request(registration.address, data=json.dumps(event.body()).encode(), method="POST", headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(request, timeout=seconds) as answer:
-                return json.loads(answer.read() or b"{}")
+                return answer.status == 200
         except OSError as down:
             sys.stderr.write(f"the {registration.name} service at {registration.address} did not take {event.name}: {down}\n")
-            return {}
+            return False

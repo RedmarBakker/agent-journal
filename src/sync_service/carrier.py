@@ -1,28 +1,28 @@
 import sys
 import threading
-import time
 import traceback
 from pathlib import Path
 
 from sync_service.journal_busy import JournalBusy
 from sync_service.journal_doors import JournalDoors
 from sync_service.journal_mismatch import JournalMismatch
+from sync_service.desk_batch import DeskBatch
 from sync_service.loop import Loop
 from sync_service.team_link import TeamLink
 from sync_service.team_refusal import TeamRefusal
 
 NAME = "sync"
-EVENTS = ("change_queued", "team_joined", "team_left", "upgrade_preparing", "upgrade_abandoned")
+EVENTS = ("change_queued", "team_joined", "team_departure", "upgrade_preparing", "upgrade_abandoned")
 IDLE_SECONDS = 5
 LONG_POLL_SECONDS = 25
 FIRST_RETRY_SECONDS = 1
 LAST_RETRY_SECONDS = 30
-BEAT_SECONDS = 1
-# how often the watchdog looks at the loops, and the longest each may rightly stay silent (a long poll and its request; a
-# batch with its files and a copy)
+REPORT_SECONDS = 1
+# how often the watchdog looks at the loops, and the longest each may rightly go without a step (a long poll and its request;
+# a batch with its files and a copy)
 WATCH_SECONDS = 5
-RECEIVE_SILENCE_SECONDS = LONG_POLL_SECONDS + 35
-SEND_SILENCE_SECONDS = 180
+RECEIVE_LONGEST_STEP_SECONDS = LONG_POLL_SECONDS + 35
+OUTGOING_LONGEST_STEP_SECONDS = 180
 
 
 class Carrier:
@@ -34,32 +34,33 @@ class Carrier:
         self.address, self.registered_secret, self.paused_secret = "", "", ""
         self.carrying = threading.Lock()
         self.stopping = threading.Event()
-        self.sending_loop = Loop("send", self.send, SEND_SILENCE_SECONDS)
-        self.receiving_loop = Loop("receive", self.receive, RECEIVE_SILENCE_SECONDS)
+        self.sending_loop = Loop("send", self.send, OUTGOING_LONGEST_STEP_SECONDS)
+        self.receiving_loop = Loop("receive", self.receive, RECEIVE_LONGEST_STEP_SECONDS)
         self.loops = (self.sending_loop, self.receiving_loop)
-        self.handlers = {"change_queued": self.change_queued, "team_joined": self.team_joined, "team_left": self.ignored, "upgrade_preparing": self.drained, "upgrade_abandoned": self.abandoned}
+        self.handlers = {"change_queued": self.change_queued, "team_joined": self.team_joined, "team_departure": self.ignored, "upgrade_preparing": self.drained, "upgrade_abandoned": self.abandoned}
 
     def run(self, address: str) -> None:
         self.address = address
         for loop in self.loops:
             loop.started(self.repeated)
-        watched_at = time.monotonic()
-        while not self.stopping.wait(BEAT_SECONDS):
-            self.beat()
-            if time.monotonic() - watched_at >= WATCH_SECONDS:
-                self.watch()
-                watched_at = time.monotonic()
+        threading.Thread(target=self.watched, name="sync watchdog", daemon=True).start()
+        while not self.stopping.wait(REPORT_SECONDS):
+            self.report()
+
+    def watched(self) -> None:
+        while not self.stopping.wait(WATCH_SECONDS):
+            self.watch()
 
     def stop(self) -> None:
         self.stopping.set()
         for loop in self.loops:
             loop.wake.set()
 
-    def is_alive(self) -> bool:
+    def is_working(self) -> bool:
         return not self.stopping.is_set() and not any(loop.is_dead() for loop in self.loops)
 
-    def heard(self, event: dict) -> dict:
-        return self.handlers.get(event.get("event", ""), self.ignored)()
+    def reply(self, event: str) -> dict:
+        return self.handlers.get(event, self.ignored)()
 
     def change_queued(self) -> dict:
         self.sending_loop.wake.set()
@@ -78,7 +79,7 @@ class Carrier:
         self.paused_secret = self.doors.secret()
         team = TeamLink(self.doors.team())
         self.doors.upgrade_claimed()
-        while self.carried(team, self.doors.batch()):
+        while self.push_batch(team, self.doors.batch()):
             pass
         while self.pulled(team, 0):
             pass
@@ -91,7 +92,7 @@ class Carrier:
     def is_paused(self) -> bool:
         return bool(self.paused_secret) and self.paused_secret == self.doors.secret()
 
-    def beat(self) -> None:
+    def report(self) -> None:
         try:
             secret = self.doors.secret()
             if secret and secret != self.registered_secret:
@@ -151,7 +152,7 @@ class Carrier:
     # the team as the journal server says to reach it, or none while the journal is in no team or an upgrade holds the sync
     def team(self) -> TeamLink | None:
         team = self.doors.team()
-        if not team["joined"] or self.is_paused():
+        if not team.joined or self.is_paused():
             return None
         return TeamLink(team)
 
@@ -161,26 +162,26 @@ class Carrier:
             self.sending_loop.rest(IDLE_SECONDS)
             return
         batch = self.doors.batch()
-        if batch["upgrader"]:
+        if batch.upgrader:
             self.upgrade_finished(team)
-        if not self.carried(team, batch):
+        if not self.push_batch(team, batch):
             self.sending_loop.rest(IDLE_SECONDS)
 
     # the batch's files sent first, then its changes pushed and the answer handed to the server; whether it held changes to push
-    def carried(self, team: TeamLink, batch: dict) -> bool:
+    def push_batch(self, team: TeamLink, batch: DeskBatch) -> bool:
         with self.carrying:
-            for file in batch["files"]:
-                if Path(file["path"]).is_file():
-                    team.upload(file["address"], Path(file["path"]).read_bytes())
-            if batch["files"]:
-                self.doors.files_sent([file["id"] for file in batch["files"]])
-            if not batch["ids"]:
+            for file in batch.files:
+                if Path(file.path).is_file():
+                    team.upload(file.address, Path(file.path).read_bytes())
+            if batch.files:
+                self.doors.files_sent(tuple(file.id for file in batch.files))
+            if not batch.ids:
                 return False
-            answer = team.push(batch["push"])
+            answer = team.push(batch.request_body)
             self.connected()
-            if self.doors.pushed(batch["ids"], answer)["needs_copy"]:
-                self.laid_in(team)
-                self.doors.answered(answer["delivery"])
+            if self.doors.batch_answer(batch.ids, answer).needs_copy:
+                self.install_team_copy(team)
+                self.doors.batch_delivery(answer)
             return True
 
     def upgrade_finished(self, team: TeamLink) -> None:
@@ -197,18 +198,18 @@ class Carrier:
 
     def pulled(self, team: TeamLink, wait_seconds: float) -> int:
         query = self.doors.query(wait_seconds)
-        answer = team.pull(query["path"], wait_seconds)
+        answer = team.pull(query.path, query.wait_seconds)
         self.connected()
-        return self.taken(team, answer)
+        return self.applied_count(team, answer)
 
     # an answer handed to the server, the team's full copy laid in first when it needs it, while nothing of this journal's goes out
-    def taken(self, team: TeamLink, answer: dict) -> int:
-        taken = self.doors.answered(answer)
-        if taken["needs_copy"]:
+    def applied_count(self, team: TeamLink, answer: bytes) -> int:
+        desk_answer = self.doors.team_answer(answer)
+        if desk_answer.needs_copy:
             with self.carrying:
-                self.laid_in(team)
-                taken = self.doors.answered(answer)
-        return taken["applied"]
+                self.install_team_copy(team)
+                desk_answer = self.doors.team_answer(answer)
+        return desk_answer.applied
 
-    def laid_in(self, team: TeamLink) -> None:
-        self.doors.copied(team.full_copy())
+    def install_team_copy(self, team: TeamLink) -> None:
+        self.doors.install_copy(team.full_copy())

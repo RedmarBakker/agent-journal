@@ -234,7 +234,7 @@ class Updater:
 
     # the sync service has sent the whole queue and pulled the team to its head, under the team's upgrade lease
     def is_drained(self) -> bool:
-        return all(answer.get("drained") for answer in self.hooks.asked(ServiceEvent(UPGRADE_PREPARING), DRAIN_SECONDS))
+        return self.hooks.succeeded(ServiceEvent(UPGRADE_PREPARING), DRAIN_SECONDS)
 
     def lead(self, version: str) -> None:
         if not self.leads_team() or not self.account.is_joined():
