@@ -25,8 +25,10 @@ class RemoteInstall:
         return cls(args.target, args.version)
 
     def command(self) -> list[str]:
+        tag = Release.tagged(self.version)
         settings = "".join(f"{name}={shlex.quote(value)} " for name, value in self.installer_settings().items())
-        return ["ssh", "-t", self.target, f"curl -fsSL {INSTALLER.format(tag=Release.tagged(self.version))} | {settings}sh"]
+        unpublished = f"the {tag} installer is not published yet: GitHub attaches it once the release's team image is built, about ten minutes after the release; run this again in a few minutes"
+        return ["ssh", "-t", self.target, f'installer=$(mktemp) && {{ curl -fsSL {INSTALLER.format(tag=tag)} -o "$installer" || {{ echo {shlex.quote(unpublished)} >&2; exit 1; }}; }} && {settings}sh "$installer"']
 
     def installer_settings(self) -> dict[str, str]:
         host = self.target.rsplit("@", 1)[-1]

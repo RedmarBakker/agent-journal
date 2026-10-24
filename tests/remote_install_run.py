@@ -22,7 +22,20 @@ def test_the_installer_runs_over_ssh_with_a_terminal_and_this_journals_release(t
     assert RemoteInstall.parsed(["install", "root@203.0.113.5"]).run() == 0
     args = seen.read_text().splitlines()
     assert args[:2] == ["-t", "root@203.0.113.5"], "ssh is given a terminal and the machine"
-    assert args[2] == f"curl -fsSL https://github.com/jessegall/agent-journal/releases/download/v{VERSION}/install.sh | TEAM_ADDRESS=203.0.113.5 sh", "and runs this journal's own release of the installer"
+    assert f"curl -fsSL https://github.com/jessegall/agent-journal/releases/download/v{VERSION}/install.sh" in args[2] and 'TEAM_ADDRESS=203.0.113.5 sh "$installer"' in args[2], "and runs this journal's own release of the installer"
+
+
+def test_the_remote_command_says_when_the_releases_installer_is_not_published_yet(tmp_path: Path):
+    bin = tmp_path / "bin"
+    bin.mkdir()
+    remote = RemoteInstall("root@203.0.113.5", "4.55.5").command()[-1]
+    (bin / "curl").write_text("#!/bin/sh\nexit 22\n")
+    (bin / "curl").chmod(0o755)
+    missing = subprocess.run(["sh", "-c", remote], capture_output=True, text=True, env={**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}"}, timeout=20)
+    assert missing.returncode == 1 and "the v4.55.5 installer is not published yet" in missing.stderr, missing.stderr
+    (bin / "curl").write_text('#!/bin/sh\nwhile [ "$1" != -o ]; do shift; done\nprintf \'echo installer ran with $TEAM_ADDRESS\\n\' > "$2"\n')
+    found = subprocess.run(["sh", "-c", remote], capture_output=True, text=True, env={**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}"}, timeout=20)
+    assert found.returncode == 0 and "installer ran with 203.0.113.5" in found.stdout, found.stderr
 
 
 def test_an_agents_shell_with_no_terminal_is_told_to_run_it_in_a_terminal(tmp_path: Path):
