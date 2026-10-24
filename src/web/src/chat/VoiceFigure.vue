@@ -56,7 +56,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, answerTo, carrierOf, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, answerTo, barWatchAt, watchesBar, carrierOf, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -236,6 +236,8 @@ let watching = "watch";
 let variant = {state: "", clip: ""};
 // the chat marks of the workers given work while the telephone's cooldown runs, all called together once it is over (reactions.js heldCall)
 let heldCalls = [];
+// the stretch the figure is in while a progress bar runs, watching it or with its eyes elsewhere (reactions.js barWatchAt), or null
+let barWatch = null;
 
 // the clip of this name the figure has, or idle when it has none
 const clipNamed = (name) => clips.find((clip) => clip.name === name) || clips.find((clip) => clip.name === "idle");
@@ -813,6 +815,8 @@ function look() {
     const ongoing = stillGoing(beats.value, doings.value.state, beatOnScreen());
     beats.value = freshBeats(ongoing.beats, beatOnScreen(), now.value);
     cutting ||= ongoing.cut;
+    const ground = groundEdge();
+    barWatch = barWatchAt(barWatch, Boolean(ground.docked && progressEdge(ground.element)), now.value, Math.random);
     const called = heldCall(heldCalls, beats.value, memory.reacted, now.value);
     if (called) {
         beats.value = [...beats.value, {...called, queuedAt: now.value}];
@@ -1142,7 +1146,8 @@ function stepForward() {
 }
 
 // What the figure looks at on the page: the UFO while it flies, or the crane's claw, else the box it builds, pushes or stacks while it works
-// (parcels.js workLook), else the leading edge of a progress bar running on the bars docked over the compose box, so its head follows the
+// (parcels.js workLook), else, in a stretch it chose to watch it (reactions.js barWatchAt) and with no act played once on screen, the
+// leading edge of a progress bar running on the bars docked over the compose box, so its head follows the
 // edge as it moves, along the bar and never straight down (places.js watchLook): looking down at it, facing the viewer, standing on the
 // bars, and turned to it, its back to the viewer, from the compose box's top under them; null when there is nothing to look at
 function lookedAt(shown) {
@@ -1155,6 +1160,8 @@ function lookedAt(shown) {
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
     if (work) return work.at;
     if (admiring.picture) return {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"};
+    // the bar is watched only in a stretch the figure chose to watch it, and never while an act played once is on screen
+    if (!watchesBar(barWatch, shown)) return null;
     const docks = groundEdge();
     const edge = onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(docks.element) : null;
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());

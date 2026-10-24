@@ -207,6 +207,24 @@ export function joinedCall(beats, card) {
     return beats.map((beat, index) => (index === at ? {...call, marks: [...marks, card]} : beat));
 }
 
+// While a progress bar runs, the figure chooses at each turn whether it watches it, as it likes lines: a stretch of `watch` seconds watching,
+// by far its likeliest pick (`weight` to one), or a short stretch of `away` seconds with its eyes on other things
+export const BAR_WATCH = {weight: 6, watch: [6, 12], away: [2, 4]};
+
+// The stretch the figure is in at `now` while a bar is `running`, {watches, until}: `choice`, the stretch it was in, while it lasts, else a
+// new one drawn with `random`; null with no bar running
+export function barWatchAt(choice, running, now, random) {
+    if (!running) return null;
+    if (choice && now < choice.until) return choice;
+    const watches = random() * (BAR_WATCH.weight + 1) < BAR_WATCH.weight;
+    const [least, most] = watches ? BAR_WATCH.watch : BAR_WATCH.away;
+    return {watches, until: now + least + random() * (most - least)};
+}
+
+// whether the figure looks at the running bar now, in the stretch `choice` and with `shown` on screen: only in a stretch it chose to watch,
+// and never while an act played once, an entrance, an exit or any other, is on screen
+export const watchesBar = (choice, shown) => Boolean(choice?.watches) && !shown.once;
+
 // The telephone call to the workers given work while the last call's cooldown ran, `held` their chat marks, once that cooldown is over
 // at `now` and the call may join `beats`, as its beat, noted in `reacted` as the call's time; null while it runs or when no worker waits
 export function heldCall(held, beats, reacted, now) {
