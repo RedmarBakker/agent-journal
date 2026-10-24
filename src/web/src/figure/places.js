@@ -73,6 +73,10 @@ export function turnStep(from, to) {
 // how long the figure takes to change from one clip, posture or facing to the next, easing out of the pose before it, in seconds
 export const CHANGE_SECONDS = 0.25;
 
+// whether a change from posture `from` to `to` gets up off a seat onto the feet: the seat's drop belongs to the seated poses alone, so it
+// goes at once, the picture never sliding, and the body unfolds on its feet on the floor line (figure.js blendedMoves)
+export const leavesSeat = (from, to) => SEATED.has(from) && POSTURES[to].drop === 0;
+
 // A figure stepping out of the way sprints, at this many times its walking pace and with its steps that much quicker
 export const SPRINT = 2;
 

@@ -1,5 +1,5 @@
 import {SIDES, Stage, reachSide} from "./figure.js";
-import {CHANGE_SECONDS} from "./places.js";
+import {CHANGE_SECONDS, POSTURES, leavesSeat} from "./places.js";
 
 // How many clips' drawn frames are kept; the clip on screen and the few before it, so going back to idle draws nothing again.
 const KEPT_CLIPS = 4;
@@ -18,9 +18,11 @@ export class FigurePlayer {
         this.drawn = new Map();
         this.shown = "";
         this.drawing = null;
-        // the bone moves of the frame on the canvas, its clip, posture and facing, and the change easing out of the moves before it
+        // the bone moves of the frame on the canvas, its clip, posture and facing, and the change easing out of the moves before it, kept on
+        // its feet when it gets up off a seat (places.js leavesSeat), and so while it goes on into another standing pose before it is done
         this.moves = null;
         this.shape = "";
+        this.posture = "";
         this.blend = null;
     }
 
@@ -40,10 +42,11 @@ export class FigurePlayer {
     // `phoneWay` (figure.js seatedCall)
     show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, throws = null, leanWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false, phoneWay = 1}) {
         const shape = `${clip.name}/${posture}/${facing}`;
-        if (shape !== this.shape && this.moves) this.blend = {from: this.moves, began: performance.now()};
+        if (shape !== this.shape && this.moves) this.blend = {from: this.moves, began: performance.now(), plant: leavesSeat(this.posture, posture) || (Boolean(this.blend?.plant) && POSTURES[posture].drop === 0)};
         this.shape = shape;
+        this.posture = posture;
         const k = this.blend ? Math.min((performance.now() - this.blend.began) / 1000 / CHANGE_SECONDS, 1) : 1;
-        const blend = this.blend ? {from: this.blend.from, previous: this.moves, k: smooth(k), settled: false} : null;
+        const blend = this.blend ? {from: this.blend.from, previous: this.moves, k: smooth(k), settled: false, plant: this.blend.plant} : null;
         const key = `${clip.name}/${index}/${facing}/${posture}/${stride}/${this.canvas.width}/${eyes ? `${eyes.mood}@${eyes.seconds}` : ""}/${open}/${screen ? [screen.eyes, screen.across, screen.open, screen.flash, screen.glow].join(",") : ""}/${tilt}/${throws ? throws.map((thrown) => thrown.spin).join(",") : ""}/${leanWay}/${target ? `${target.x},${target.y}` : ""}/${ticker ? `${ticker.step}:${ticker.text}` : ""}`;
         if (key === this.shown && !blend) return;
         const live = eyes || stride !== null || sky || throws || leanWay || at || target || open < 1 || screen || tilt || ticker || grabbed || phoneWay !== 1 || blend || !Number.isInteger(index);

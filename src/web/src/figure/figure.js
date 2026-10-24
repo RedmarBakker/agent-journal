@@ -4942,9 +4942,21 @@ function gripsOf(pose, moves) {
 
 // the figure's bones placed for the pose, turned `facing` degrees, eased from `blend.from` by `blend.k` while a blend is given; the moves
 // placed are returned, so the next change can ease from them
-function place(figure, pose, facing, blend) {
+// The moves drawn for `pose` turned `facing` degrees, eased from those before a change as `blend` says, and whether they have settled;
+// getting up off a seat (`blend.plant`, places.js leavesSeat) the lower sole is kept where the act puts it, so the body unfolds on its feet
+// on the floor line from the first frame
+export function blendedMoves(rig, pose, facing, blend) {
     const target = pose.moves(facing);
-    const result = blend ? blendMoves(figure.rig, blend.from, target, blend.k, blend.previous) : {moves: target, settled: true};
+    if (!blend) return {moves: target, settled: true};
+    const result = blendMoves(rig, blend.from, target, blend.k, blend.previous);
+    if (!blend.plant) return result;
+    const sole = (moves) => Math.min(...Object.keys(SIDES).map((side) => pose.head(`foot_${side}`, moves.get(`foot_${side}`)).z));
+    const lift = new THREE.Matrix4().makeTranslation(0, 0, sole(target) - sole(result.moves));
+    return {moves: new Map([...result.moves].map(([name, move]) => [name, lift.clone().multiply(move)])), settled: result.settled};
+}
+
+function place(figure, pose, facing, blend) {
+    const result = blendedMoves(figure.rig, pose, facing, blend);
     if (blend) blend.settled = result.settled;
     const moves = result.moves;
     const world = new Map();
