@@ -1057,7 +1057,7 @@ def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_
     console.run(["task", "start", "2"], AGENT)
     done = console.run(["task", "complete", "2", "--how", "the grammar is written"], AGENT)
     app.runtime().deferred.drain()
-    assert "task 1 is paused, and paused work comes first" in done.text, done.text
+    assert "task 1, the parser is paused, and paused work comes first" in done.text, done.text
     from journal.models.task_state import TaskState
     from journal.repositories.entries import Entries
     from journal.repositories.tasks import Tasks
