@@ -36,3 +36,23 @@ def test_the_installer_makes_its_own_setup_code_when_none_is_given(tmp_path: Pat
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
     code = ran.stdout.split("Its setup code is ")[1][:9]
     assert ran.returncode == 0 and code[4] == "-" and len(code.replace("-", "")) == 8, ran.stdout
+
+
+def test_the_journal_install_run_from_a_linked_worktree_installs_into_the_project_root(tmp_path: Path):
+    script = (Path(__file__).resolve().parents[1] / "install.sh").read_text()
+    start = script.index("# Run from a linked worktree")
+    block = script[start:script.index("fi\n", start) + 3]
+    project, worktree = tmp_path / "project", tmp_path / "project-worktree"
+    project.mkdir()
+    git = lambda *args, at=project: subprocess.run(["git", *args], cwd=at, capture_output=True, text=True, timeout=30, check=True)
+    git("init", "-q")
+    git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "--allow-empty", "-m", "first")
+    git("worktree", "add", "-q", str(worktree))
+    (project / ".journal").mkdir()
+    (worktree / ".journal").symlink_to(project / ".journal")
+    ran = subprocess.run(["sh", "-c", f"{block}pwd -P"], cwd=worktree, capture_output=True, text=True, timeout=30)
+    assert ran.stdout.strip() == str(project.resolve()), "the hooks and the journal command are written for the project, never the worktree"
+    (worktree / ".journal").unlink()
+    (worktree / ".journal").mkdir()
+    ran = subprocess.run(["sh", "-c", f"{block}pwd -P"], cwd=worktree, capture_output=True, text=True, timeout=30)
+    assert ran.stdout.strip() == str(worktree.resolve()), "a worktree with a journal of its own installs where it is"
