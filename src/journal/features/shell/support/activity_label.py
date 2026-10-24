@@ -1,5 +1,6 @@
 import re
 
+from journal.support.chain import Chain
 from journal.support.command_shape import RUNNERS, TOKEN_PATTERN, CommandShape
 
 
@@ -17,8 +18,18 @@ VALUED_FLAGS = frozenset({"--prefix", "-C", "--cwd"})
 LONG_RUNS = ("testing", "building")
 
 
+# what a part that runs no command of its own is doing, as a loop's do or done is
+IDLE = "running"
+
 class ActivityLabel:
     """What one command is doing, in a word or two, as the bar and the chat show it: git commit is committing, pytest and php artisan test are testing; the words are followed as deep as the table names them."""
+
+    @classmethod
+    def of_chain(cls, part: str, line: str) -> str:
+        label = cls.build(part)
+        if label != IDLE:
+            return label
+        return cls.build(CommandShape.chain_shape(tuple(chained.text for chained in Chain.parts(line))))
 
     @classmethod
     def build(cls, part: str) -> str:
@@ -26,7 +37,7 @@ class ActivityLabel:
         arguments = [w for index, w in enumerate(tokens) if not w.startswith("-") and "=" not in w and (index == 0 or tokens[index - 1] not in VALUED_FLAGS)]
         arguments = arguments[1:] if arguments and arguments[0] in RUNNERS and len(arguments) > 1 else arguments
         if not arguments:
-            return "running"
+            return IDLE
         fallback = f"running {arguments[0]}"
         verb = VERBS.get(arguments[0].rsplit("/", 1)[-1])
         for word in arguments[1:]:

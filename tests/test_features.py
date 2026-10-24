@@ -12673,3 +12673,16 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     except TimeoutError as fault:
         assert "to apply the team's changes, held by its other loop" in str(fault)
     holder.join()
+
+
+def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_or_its_setup():
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.support.chain import Chain
+    from journal.support.command_shape import CommandShape
+    shape = lambda line: CommandShape.chain_shape(tuple(part.text for part in Chain.parts(line)))
+    sweep = 'D=/tmp/sweep; mkdir -p $D; while IFS= read -r word; do found=$(git log --all -S"$word"); done < words.txt'
+    assert shape(sweep).startswith("git log"), shape(sweep)
+    assert CommandShape.command_name("do found=$(git log --all -S foo)").startswith("git log") and CommandShape.command_name("done < words.txt") == ""
+    assert shape("for file in tests/*.py; do python3 -m pytest $file; done").startswith("python3 -m pytest")
+    assert shape("mkdir -p out; pytest -q tests") == "pytest", "a folder made first is setup, not the run"
+    assert ActivityLabel.of_chain("while IFS= read -r word", sweep) != "running while" and "while" not in ActivityLabel.of_chain("while IFS= read -r word", sweep), "the card is named for the loop's work"

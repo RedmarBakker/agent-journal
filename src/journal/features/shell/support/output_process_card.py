@@ -71,7 +71,7 @@ class OutputProcessCard(ProcessCard):
 
     def title(self, output: CommandOutput, part: str) -> str:
         reader = self.readers.lookup(output.watch_reader) if output.watch_reader else None
-        heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.build(part)
+        heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.of_chain(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""
         full = f"{heading}: {topic}" if topic else heading
         return full[:1].upper() + full[1:HEADLINE_CHARACTERS]

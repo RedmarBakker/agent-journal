@@ -13,10 +13,16 @@ WORD_PATTERN = re.compile(r"[A-Za-z][\w.-]*")
 MODULE_FLAG = "-m"
 SHAPE_TOKEN_COUNT = 3
 WRAPPER_PATTERN = re.compile(r"^\s*(?:perl -e '[^']*exec @ARGV[^']*'|timeout \d+[smh]?)\s+")
+# the shell's own words around the commands of a loop or a branch, which a run is never known by: while, do and done,
+# a for or case header, and a value captured from a command, x=$(git log ...), which is that command
+CONTROL_PATTERN = re.compile(r"^\s*(?:(?:while|until|if|elif|then|else|do|!)\s+)+")
+HEADER_PATTERN = re.compile(r"^\s*(?:(?:done|fi|esac|;;)\b.*|(?:for|select|case)\s.*)$")
+LOOP_PATTERN = re.compile(r"^\s*(?:while|until|for|if|case|select)\s")
+CAPTURE_PATTERN = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*=\$\((.*)\)\s*$")
 CONTAINER_PATTERN = re.compile(r"^\s*docker(?:\s+compose|-compose)?\s+exec\s+(?:(?:-[euw]|--(?:env|env-file|user|workdir))[ =]\S+\s+|-{1,2}[\w-]+\s+)*\S+\s+")
 VARIABLE_PATTERN = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|\S*)(?:\s+|$))+")
 # commands that only set the scene for the one that does the work: a line's shape is the first part past them
-SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true"}
+SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read", "test", "[", ":"}
 SEPARATORS = ("&&", "||", ";", "|")
 CHAIN_SEPARATOR = re.compile(r"&&|\|\||;|\|")
 SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true)(?:\s[^&;|]*)?\s*(?:&&|;)\s*)+")
@@ -43,7 +49,12 @@ class CommandShape:
 
     @staticmethod
     def inner(part: str) -> str:
-        return CONTAINER_PATTERN.sub("", WRAPPER_PATTERN.sub("", VARIABLE_PATTERN.sub("", part, count=1), count=1), count=1)
+        unlooped = CONTROL_PATTERN.sub("", part, count=1)
+        if HEADER_PATTERN.match(unlooped):
+            return ""
+        captured = CAPTURE_PATTERN.match(unlooped)
+        command = captured.group(1) if captured else unlooped
+        return CONTAINER_PATTERN.sub("", WRAPPER_PATTERN.sub("", VARIABLE_PATTERN.sub("", command, count=1), count=1), count=1)
 
     @classmethod
     def chain_shape(cls, parts: tuple[str, ...]) -> str:
@@ -52,6 +63,8 @@ class CommandShape:
 
     @classmethod
     def command_name(cls, part: str) -> str:
+        if LOOP_PATTERN.match(part):
+            return cls.command_name(cls.looped(part)) if cls.looped(part) else ""
         if part.strip().startswith("(("):
             return ""
         if part.strip().startswith("("):
@@ -104,7 +117,16 @@ class CommandShape:
         return index
 
     @classmethod
+    def looped(cls, part: str) -> str:
+        commands = cls.commands(part)
+        return next((command for command in commands if (shape := cls.plain_shape(command)) and shape.split()[0] not in SETUP_COMMANDS), "")
+
+    @classmethod
     def build(cls, part: str) -> str:
+        return cls.plain_shape(cls.looped(part)) if LOOP_PATTERN.match(part) else cls.plain_shape(part)
+
+    @classmethod
+    def plain_shape(cls, part: str) -> str:
         tokens = TOKEN_PATTERN.findall(cls.inner(part).split("<<", 1)[0])
         if not tokens:
             return ""
