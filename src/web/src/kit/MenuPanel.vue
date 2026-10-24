@@ -81,7 +81,12 @@ function step(by) {
 const KEYS = {ArrowDown: () => step(1), ArrowUp: () => step(-1), Escape: () => emit("close")};
 const onKey = (e) => KEYS[e.key] && (e.preventDefault(), KEYS[e.key]());
 const measure = () => panel.value && (drawn.value = {w: panel.value.offsetWidth, h: panel.value.scrollHeight});
-const watcher = new ResizeObserver(measure);
+let measuring = 0;
+// measured on the next frame, never inside the observer's own callback, which would resize what it watches and warn of undelivered notifications
+const watcher = new ResizeObserver(() => {
+    cancelAnimationFrame(measuring);
+    measuring = requestAnimationFrame(measure);
+});
 useOutside(panel, (e) => props.anchor && !props.anchor.contains(e.target) && emit("close"));
 const moved = (a, b) => ["top", "left", "right", "bottom"].some((side) => Math.abs(a[side] - b[side]) > 1);
 const offScreen = (r) => r.bottom < 0 || r.top > window.innerHeight;
@@ -106,6 +111,7 @@ onMounted(() => {
 onUnmounted(() => {
     watcher.disconnect();
     cancelAnimationFrame(frame);
+    cancelAnimationFrame(measuring);
 });
 defineExpose({element: panel});
 </script>

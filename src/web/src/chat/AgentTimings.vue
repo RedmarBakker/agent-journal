@@ -15,6 +15,7 @@ defineProps({
     parts: {type: Array, default: () => []},
 });
 const LEAVE_MS = 250;
+const WIDTH = 340;
 const LIST = {maxHeight: "min(420px, 60vh)", overflowY: "auto"};
 const button = ref(null);
 const shown = ref(false);
@@ -31,7 +32,7 @@ const close = () => (pinned.value = shown.value = false) || (drilled.value = nul
     <span ref="button" class="agent-timings" @mouseenter="enter" @mouseleave="leave">
         <AgentFact :class="['agent-fact', 'agent-count', {open: shown}]" :icon="icon" :title="title" :aria-expanded="shown" @click="toggle">{{ average }} {{ unit }}</AgentFact>
         <template v-if="shown">
-            <MenuPanel :anchor="button" :min-width="260" @click.stop @close="close" @mouseenter="enter" @mouseleave="leave">
+            <MenuPanel :anchor="button" :min-width="WIDTH" :max-width="WIDTH" :style="{width: `${WIDTH}px`}" @click.stop @close="close" @mouseenter="enter" @mouseleave="leave">
                 <MenuSlide :second="Boolean(drilled)">
                     <template #first>
                         <p class="timings-head">{{ heading }}, highest first</p>

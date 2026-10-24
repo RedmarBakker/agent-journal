@@ -74,6 +74,7 @@ test("a menu with many parts is no taller than its limit and scrolls its rows, t
     root.querySelector(".agent-timings").dispatchEvent(new Event("mouseenter"));
     await nextTick();
     const [list] = document.body.querySelectorAll(".timings-rows");
+    const widthBefore = document.body.querySelector(".menu-panel").style.width;
     expect(list.querySelectorAll(".timings-row")).toHaveLength(80);
     expect([list.style.maxHeight, list.style.overflowY]).toEqual(["min(420px, 60vh)", "auto"]);
     expect(list.contains(document.body.querySelector(".timings-head"))).toBe(false);
@@ -83,4 +84,10 @@ test("a menu with many parts is no taller than its limit and scrolls its rows, t
     expect(drilledList.querySelectorAll(".timings-detail")).toHaveLength(40);
     expect([drilledList.style.maxHeight, drilledList.style.overflowY]).toEqual(["min(420px, 60vh)", "auto"]);
     expect(drilledList.contains(document.body.querySelector(".timings-back"))).toBe(false);
+    const panel = document.body.querySelector(".menu-panel");
+    expect([panel.style.width, panel.style.minWidth, panel.style.maxWidth]).toEqual([widthBefore, "340px", "340px"]);
+    expect(widthBefore).toBe("340px");
+    document.body.querySelector(".timings-back").click();
+    await nextTick();
+    expect([panel.style.width, document.body.querySelectorAll(".menu-panel").length]).toEqual(["340px", 1]);
 });
