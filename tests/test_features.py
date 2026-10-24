@@ -14150,3 +14150,34 @@ def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_
             carrier.stop()
             inbox.stop()
         server.shutdown()
+
+
+def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several_words_is_not(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    hook(app, "SessionStart")
+    outputs = app.container.get(CommandOutputs)
+
+    def ended(name, printed):
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("pytest -q")
+        (folder / "0.out").write_text(printed)
+        output = app.container.get(OutputLog).start(name, "pytest -q", folder, Caller.agent("main", "s1", "claude"))
+        outputs.save(outputs.find(output.id).backgrounded(), Actor.system())
+        assert app.console().run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
+        outputs.save(outputs.find(output.id).ended_with(0, 1.0), Actor.system())
+        return output.id
+
+    assert app.console().run(["reader", "add", "pytest", "--pattern", "^running$", "--about", "the run"], AGENT).code == 0
+    bare = ended("bare", "running\n")
+    assert app.console().run(["reader", "add", "pytest", "--pattern", "^running tests$", "--about", "the run"], AGENT).code == 0
+    wordy = ended("wordy", "running tests\n")
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        unread = app.container.get(ReaderReports).unread("s1")
+    bare_reports = [report for report in unread if report.output == bare]
+    assert bare_reports and 'a line of one word' in " ".join(bare_reports[0].findings) and '"running"' in " ".join(bare_reports[0].findings), "a card whose line is the bare word running is reported with that line"
+    assert not [report for report in unread if report.output == wordy], "a card with a line of several words gets no report"

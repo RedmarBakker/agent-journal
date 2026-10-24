@@ -35,7 +35,7 @@ class ReaderJudge:
         if reader.script or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
-        shortfalls = [*self.poor_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.missing_summary(reader, output, lines)]
+        shortfalls = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.missing_summary(reader, output, lines)]
         if not shortfalls:
             return None
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
@@ -46,6 +46,12 @@ class ReaderJudge:
             return []
         quoted = "; ".join(f'"{line[:120]}"' for line in poor)
         return [(f"the card showed lines too long or too much like code to read at a glance: {quoted}", "narrow the pattern to the short lines a person reads, such as the failures' names and the summary")]
+
+    def single_word_lines(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
+        single = [line for line in reader.variant(output.stage()).card_lines(lines) if len(CardLine.plain(line).split()) == 1][:QUOTED_LINES]
+        if not single:
+            return []
+        return [(f"the card showed a line of one word, which says nothing of the run: {self.quoted(single)}", "give the reader a pattern that picks a line saying what the run is doing, in several words")]
 
     def missing_progress(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         seconds = (ended_at - output.creation_time).total_seconds()
