@@ -9,7 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 # the list lives outside the repository, so the words themselves are never published
 WORDS = Path(os.environ.get("AGENT_JOURNAL_PRIVATE_WORDS", Path.home() / ".config" / "agent-journal" / "private-words"))
-ADDRESS = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# an address stands apart: numbers run on from a minus sign, a point or a digit are drawing coordinates, as in an SVG path's -3.3.7.7-3.3
+ADDRESS = re.compile(r"(?<![\w.-])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
 DOCUMENTATION = [ipaddress.ip_network(n) for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")]
 
 

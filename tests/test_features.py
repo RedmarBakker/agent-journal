@@ -12521,11 +12521,14 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_with_the_project_is_sent_i
     assert "conflict in platform/app.php" in brief and "rebase your branch onto it" in brief and brief.endswith("finish the job"), brief
 
 
-def test_a_claude_tool_call_refused_carries_its_own_quiet_deny_answer_beside_the_reason(app: App):
+def test_a_refused_claude_shell_command_is_swapped_for_one_that_prints_the_reason_never_a_red_hook_error(app: App):
+    import subprocess
     hook(app, "SessionStart")
-    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "cd /tmp"})
-    assert status == 409 and body["answer"]["hookSpecificOutput"]["permissionDecision"] == "deny", body
-    assert body["answer"]["hookSpecificOutput"]["permissionDecisionReason"] == body["error"], "Claude Code shows the journal's line alone, with no red hook error and no command"
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "cd /tmp", "description": "Move"})
+    answer = body["answer"]["hookSpecificOutput"]
+    assert status == 409 and answer["permissionDecision"] == "allow" and answer["updatedInput"]["description"] == "Move", "a deny shows in Claude Code as a red hook error, so the command is let through, swapped"
+    printed = subprocess.run(answer["updatedInput"]["command"], shell=True, capture_output=True, text=True, timeout=10)
+    assert printed.returncode == 0 and printed.stdout.strip() == body["error"], "for one that only prints the journal's line, quotes and all, which the agent reads as its output"
     assert list(body)[0] == "answer", "the answer comes first, as the hook script reads it"
 
 
@@ -13182,3 +13185,21 @@ def test_a_journal_no_supervisor_hosts_syncs_through_the_carrier_in_its_own_thre
         start.stopped()
         account.left(0)
         server.shutdown()
+
+
+def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_out(app: App):
+    from journal.http.controllers.workers import WorkerController
+    from journal.http.listing import Listing
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.workers import Workers
+    workers = app.container.get(Workers)
+    with app.container.get(Scope).environment(MAIN):
+        for number in range(12):
+            workers.save(Worker(environment_id=MAIN, name=f"Finished {number}", brief="b", state=WorkerState.MERGED if number % 2 else WorkerState.REPORTED), Actor.system())
+        out = workers.save(Worker(environment_id=MAIN, name="Still out", brief="b", state=WorkerState.READY), Actor.system())
+        for number in range(5):
+            workers.save(Worker(environment_id=MAIN, name=f"Newer {number}", brief="b", state=WorkerState.MERGED), Actor.system())
+        listed = app.container.get(WorkerController).listed(Listing(limit=5))
+    names = [row["name"] for row in listed["rows"]]
+    assert names == ["Still out", "Newer 0", "Newer 1", "Newer 2", "Newer 3", "Newer 4"] and out.row_id, "a page of the newest, and beside it only a worker still out, never every finished one"

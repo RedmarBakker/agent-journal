@@ -75,7 +75,7 @@ export const POLLERS = Object.freeze({
     "tour.start": {read: ({clear}) => clear(), every: 800},
     "workers.index": {read: () => api.list("workers", {limit: pageOf("workers")}).then((got) => got.rows || []), every: 5000},
     "workers.every": {read: () => api.list("workers", {limit: 200}).then((got) => got.rows || []), every: 5000},
-    "workers.holding": {read: ({ids}) => api.list("workers", {ids}).then((got) => got.rows || []), every: 5000, by: ({ids}) => ids.join(",")},
+    "workers.holding": {read: ({ids}) => (ids.length ? api.list("workers", {ids}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({ids}) => ids.join(",")},
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},
     "plan.timeline": {read: ({scope, plan}) => scope.api.planTimeline(plan), every: 15000, by: ({scope, plan}) => `${scope.env}:${plan}`},
     "reader.elsewhere": {read: heldElsewhere, every: 5000, by: ({scope, table, id}) => `${scope.env}:${table}:${id}`},

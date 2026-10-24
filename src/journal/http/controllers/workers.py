@@ -6,7 +6,6 @@ from journal.http.controllers.controller import Controller
 from journal.http.support.model_fields import ModelFields
 from journal.features.workers.support.worker_task_view import WorkerTaskView
 from journal.models.worker import Worker
-from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
 from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
@@ -53,7 +52,7 @@ class WorkerController(Controller[Worker]):
         return self.repository.scoped()
 
     def is_open(self, row: Worker) -> bool:
-        return row.state != WorkerState.STOPPED
+        return row.is_active()
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
         holdings = self.tasks.worker_holdings()

@@ -41,6 +41,11 @@ CROSS_SESSION = re.compile(r"^<cross-session-message\s+([^>]*)>(.*?)</cross-sess
 SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"'), re.compile(r'\bfrom="([^"]*)"')
 
 
+# a refused shell command is swapped for one that prints the journal's line, so the agent reads it as the command's output and the
+# program shows no hook error; any other refused tool is denied with the line
+SHELL_TOOL = "Bash"
+
+
 class Claude(Provider):
     user_line_key = "systemMessage"
     name = "claude"
@@ -221,11 +226,18 @@ class Claude(Provider):
         return WorkerOutcome(report, last.session or self.output_session(output, err), report if last.is_error else "")
 
     def refused(self, hook: Hook, decision: Decision) -> Response:
+        if hook.kind == HookKind.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
+            return self.shell_refused(hook, decision)
         if hook.kind == HookKind.PRE_TOOL_USE:
             return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "deny", "permissionDecisionReason": decision.reason}}, "error": decision.reason})
         if hook.kind == HookKind.USER_PROMPT:
             return Response(409, {"answer": {"decision": "block", "reason": decision.reason}, "error": decision.reason})
         return super().refused(hook, decision)
+
+    @staticmethod
+    def shell_refused(hook: Hook, decision: Decision) -> Response:
+        printing = {**hook.input, "command": f"printf '%s\\n' {shlex.quote(decision.reason)}"}
+        return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "allow", "updatedInput": printing}}, "error": decision.reason})
 
     def output_session(self, output: str, err: str) -> str:
         return next((row.session for row in ClaudeStreamRow.lines(output) if row.session), "")
