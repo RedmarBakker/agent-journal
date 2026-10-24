@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
-import {HEAD, LOOKS, SWITCH_SECONDS, headBlend, holdsHead, leadingLook, looksFor} from "../src/figure/looks.js";
+import {HEAD, LINGER_SECONDS, LOOKS, SWITCH_SECONDS, headBlend, holdsHead, leadingLook, looksFor} from "../src/figure/looks.js";
 import {gazeAfter} from "../src/figure/reactions.js";
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -70,9 +70,53 @@ test("the strongest of two looks wins, and a new strongest takes over only once 
     leading = leadingLook(leading, [look("message"), look("run")], 22.6);
     expect(leadingLook(leading, [look("message"), look("run")], 23.5).look.key).toBe("message");
     expect(leadingLook(leading, [look("message"), look("run")], 22.6 + SWITCH_SECONDS).look.key).toBe("run");
-    // the look it is on moves with what it looks at, and once that is gone the strongest left is taken at once
+    // the look it is on moves with what it looks at, and once that has been gone longer than the linger the strongest left is taken at once
     expect(leadingLook(leading, [look("message", 300, 100)], 23).look.point).toEqual({x: 300, y: 100});
-    expect(leadingLook({look: look("run"), challenger: "", since: 0}, [look("glance")], 1).look.key).toBe("glance");
+    expect(leadingLook({look: look("run"), challenger: "", since: 0, seen: 0}, [look("glance")], 1).look.key).toBe("run");
+    expect(leadingLook({look: look("run"), challenger: "", since: 0, seen: 0}, [look("glance")], LINGER_SECONDS).look.key).toBe("glance");
+});
+
+test("a look at what keeps its interest is held: through lapses in it the head stays on it, never back at rest between, and turns only when another wins or the interest ends", () => {
+    const idle = clipNamed("idle");
+    const center = {x: 500, y: 300};
+    // a bar it watches, up to its right, its interest lapsing a moment now and then, its own idle glance coming up in a lapse, and the
+    // agent's new message, stronger, coming at 6 seconds; at 9 seconds all of it is over
+    const bar = (now) => look("bar", 760, 180 + 4 * now);
+    const lapses = [[1, 1.6], [3, 4.5], [5.2, 5.5]];
+    const lapsed = (now) => lapses.some(([from, to]) => now >= from && now < to);
+    const offered = (now) => {
+        if (now >= 9) return [];
+        const looks = lapsed(now) ? [look("glance", 380, 280)] : [bar(now)];
+        return now >= 6 ? [...looks, look("message", 260, 120)] : looks;
+    };
+    let [leading, gaze] = [null, {point: null, toward: null, amount: 0, at: 0}];
+    const frames = [];
+    for (let frame = 0; frame <= 12 * 30; frame++) {
+        const now = frame / 30;
+        leading = leadingLook(leading, offered(now), now);
+        gaze = gazeAfter(gaze, leading.look?.point ?? null, center, now * 1000, null, headBlend(leading.look, idle));
+        frames.push({now, key: leading.look?.key ?? null, amount: gaze.amount, point: gaze.point});
+    }
+    const blend = headBlend(look("bar"), idle);
+    // eased onto the bar within half a second, then held on it through every lapse until the message has led the switch time: the same
+    // look carried on, its head turned all the way it turns and never easing back toward rest
+    const held = frames.filter((each) => each.now >= 0.6 && each.now < 6 + SWITCH_SECONDS);
+    for (const each of held) {
+        expect(each.key, `${each.now}s`).toBe("bar");
+        expect(each.amount, `${each.now}s`).toBe(blend);
+        // on the bar where it is, or through a lapse where it last was
+        const seen = lapses.find(([from, to]) => each.now >= from && each.now < to)?.[0] ?? each.now;
+        expect(Math.hypot(each.point.x - bar(seen).point.x, each.point.y - bar(seen).point.y), `${each.now}s`).toBeLessThan(5);
+    }
+    // the message, stronger, takes over once it has led the switch time, and the head turns to it
+    const turned = frames.find((each) => each.now >= 6 + SWITCH_SECONDS + 0.5);
+    expect(turned.key).toBe("message");
+    expect(Math.hypot(turned.point.x - 260, turned.point.y - 120)).toBeLessThan(5);
+    // the interest over at 9 seconds, the look is held a moment longer, then let go and the head eases back to rest
+    expect(frames.find((each) => each.now >= 9 + LINGER_SECONDS / 2).key).toBe("message");
+    const after = frames.filter((each) => each.now >= 9 + LINGER_SECONDS);
+    expect(after.every((each) => each.key === null)).toBe(true);
+    expect(after.at(-1).amount).toBe(0);
 });
 
 test("in a middle case the head eases to a blend of the look and the act's own head, by their weights", () => {
