@@ -149,13 +149,13 @@ class PluginInstalling:
         plugin = self.plugins.lookup(name)
         self.skills.publish(plugin)
         self.services.start(plugin)
-        return self.plugins.save(plugin.with_(enabled=True, hashes=self.hashes.digest(self.folders.folder(plugin), plugin.manifest)), actor)
+        return self.plugins.save(plugin.with_(enabled=True, off_on_purpose=False, hashes=self.hashes.digest(self.folders.folder(plugin), plugin.manifest)), actor)
 
     def disable(self, name: str, actor: Actor) -> Plugin:
         plugin = self.plugins.lookup(name)
         self.skills.withdraw(plugin)
         self.services.stop(plugin)
-        return self.plugins.save(plugin.with_(enabled=False), actor)
+        return self.plugins.save(plugin.with_(enabled=False, off_on_purpose=True), actor)
 
     def remove(self, name: str, actor: Actor) -> None:
         plugin = self.plugins.lookup(name)

@@ -4079,6 +4079,44 @@ def test_a_plugin_manifest_is_read_and_each_wrong_one_refused_by_name(app: App, 
     with pytest.raises(Rejection, match="skill lint-rules has the name of a skill of plugin lint"):
         reader.read(made({"skills": "skills"}, ("run.py", "skills/lint-rules/SKILL.md")))
 
+def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_every_five_minutes_until_fixed_or_switched_off(app: App, monkeypatch, tmp_path):
+    from journal.engine.clock import Clock
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.models.plugin import Plugin
+    from journal.repositories.plugins import Plugins
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    folder = tmp_path / "lint"
+    folder.mkdir()
+    manifest = folder / "journal-plugin.json"
+    manifest.write_text('{"name": "lint"}')
+    plugins = app.container.get(Plugins)
+    plugins.save(Plugin(name="lint", source=str(folder), linked=True, manifest=PluginManifest(name="lint")), Actor.user(1))
+    now = timing.time()
+
+    def tick(after: float) -> list[str]:
+        monkeypatch.setattr(Clock, "time", lambda self: now + after)
+        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=now + after, silence_seconds=10.0))
+        app.runtime().deferred.drain()
+        return [line for line in keystrokes if "plugin lint" in line]
+
+    assert tick(0) == [], "a plugin that works is not named"
+    manifest.write_text("{ not json")
+    said = tick(10)
+    assert len(said) == 1 and "its manifest does not parse" in said[0], said
+    assert len(tick(60)) == 1, "not again within five minutes"
+    assert len(tick(10 + 301)) == 2, "again after five minutes"
+    manifest.write_text('{"name": "lint"}')
+    assert len(tick(10 + 700)) == 2, "once it is fixed it is named no more"
+    plugins.save(plugins.lookup("lint").with_(enabled=False), Actor.system())
+    assert len(tick(10 + 1100)) == 3 and "nobody switched it off" in keystrokes[-1], "off without the user switching it off is named too"
+    plugins.save(plugins.lookup("lint").with_(enabled=False, off_on_purpose=True), Actor.user(1))
+    assert len(tick(10 + 1500)) == 3, "switched off on purpose it is named no more"
+
+
 def test_a_plugin_is_a_row_and_writes_as_itself(app: App):
     from journal.support.actor_kind import ActorKind
     from journal.models.plugin import Plugin

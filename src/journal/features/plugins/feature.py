@@ -2,6 +2,7 @@ from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.plugins.commands.dashboard_command import DashboardCommand
 from journal.features.plugins.commands.plugin_command import PluginCommand
+from journal.features.plugins.listeners.plugin_broken_notice import PluginBrokenNotice
 from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
 from journal.features.plugins.listeners.plugin_merge_relay import PluginMergeRelay
 from journal.features.plugins.listeners.plugin_moment_cards import PluginMomentCards
@@ -26,10 +27,10 @@ class PluginsFeature(Feature[PluginsData]):
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
     options = (PluginsOptions.PLUGIN_ANSWER_WINDOW,)
     process_cards = (PluginProcessCard,)
-    listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade)
+    listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade, PluginBrokenNotice)
     data = (PluginsDataReader,)
     conduct = (PluginsConduct,)
-    nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP,)
+    nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP, PluginsNudges.PLUGIN_BROKEN)
     commands = (PluginCommand, DashboardCommand)
     seeds = (PluginServicesSeed,)
     skill = Skill("plugins", "Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help", """
