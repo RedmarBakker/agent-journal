@@ -61,7 +61,7 @@ class WorkerController(Controller[Worker]):
         return {**ModelFields.build(worker), "files": worker.files_line(), "conversation": worker.conversation()}
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
-        holdings, reports = self.tasks.worker_holdings(), self.reports.lasts(rows)
+        holdings, reports = self.tasks.worker_task_holdings(rows), self.reports.lasts(rows)
         views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
         former_tasks, queues = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows)

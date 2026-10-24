@@ -25,11 +25,12 @@ class MemoryDataReader:
         return MemoryRow(noun, memory.row_id, memory.text, tuple(memory.keywords), kind, memory.presence, memory.trigger, ready, memory.is_single_use)
 
     def read(self, agent: Agent) -> MemoryData:
-        rows = [*(self.row("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(self.row("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(self.row("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
-        return MemoryData(threshold_due=agent.threshold_due, context_threshold=agent.context_threshold, rows=tuple(rows), stale=self.stale(self.settings.integer(MemoryOptions.STALENESS_LIMIT)), timed=tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()))
+        stored = [*(("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
+        rows = tuple(self.row(noun, memory, kind) for noun, memory, kind in stored)
+        return MemoryData(threshold_due=agent.threshold_due, context_threshold=agent.context_threshold, rows=rows, stale=self.stale([(noun, memory) for noun, memory, _ in stored], self.settings.integer(MemoryOptions.STALENESS_LIMIT)), timed=tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()))
 
-    def stale(self, days: int) -> tuple[str, ...]:
+    @staticmethod
+    def stale(memories: list, days: int) -> tuple[str, ...]:
         moment = datetime.now(timezone.utc)
-        aged = [("fact", row) for row in self.facts.scoped()] + [("rule", row) for row in self.rules.all()] + [("reminder", row) for row in self.reminders.standing()]
-        ages = [(kind, row.row_id, (moment - row.update_time).days) for kind, row in aged]
-        return tuple(f"{kind} {row_id}, {age} days" for kind, row_id, age in ages if age >= days)
+        ages = [(noun, memory.row_id, (moment - memory.update_time).days) for noun, memory in memories]
+        return tuple(f"{noun} {row_id}, {age} days" for noun, row_id, age in ages if age >= days)

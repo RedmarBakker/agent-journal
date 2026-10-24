@@ -35,6 +35,7 @@ CLOSED = (TaskState.FINISHED, TaskState.CANCELLED)
 
 UNAPPROVED_PLAN_STATES = tuple(state.value for state in PlanState if state.is_unapproved())
 
+CLOSED_STATES = (TaskState.FINISHED, TaskState.CANCELLED)
 
 class Tasks(ScopedRepository[Task]):
     model = Task
@@ -86,7 +87,19 @@ class Tasks(ScopedRepository[Task]):
         return ", ".join(part for part in (*matched, row.waiting_reason()) if part)
 
     def unclosed_tasks(self) -> list[Task]:
-        return [task for task in self.selected(self.query().order_descending("priority").order("id")) if not task.is_closed()]
+        return self.selected(self.unclosed_query().order_descending("priority").order("id"))
+
+    def unclosed_page(self, rows: int) -> list[Task]:
+        return self.selected(self.unclosed_query().order_descending("priority").order("id").limit(rows))
+
+    def unclosed_count(self) -> int:
+        return self.counted(self.unclosed_query())
+
+    def closed_count(self) -> int:
+        return self.counted(self.query().filter_listed("state", list(CLOSED_STATES)))
+
+    def unclosed_query(self) -> Query:
+        return self.query().filter_unlisted("state", list(CLOSED_STATES))
 
     def unfinished_ids(self, numbers: list[int]) -> list[int]:
         return [number for number in numbers if self.matching(id=number, state=TaskState.OPEN) or self.matching(id=number, state=TaskState.STARTED) or self.matching(id=number, state=TaskState.DELEGATED)]
@@ -125,8 +138,8 @@ class Tasks(ScopedRepository[Task]):
         return self.holder_task(Ref.build(agent))
 
     def holder_task(self, holder: Ref) -> Task | None:
-        ids = self.holder_task_ids(holder)
-        return next((task for task in [*self.with_state(TaskState.STARTED), *self.with_state(TaskState.DELEGATED)] if task.row_id in ids), None)
+        tasks = [task for task in self.numbered(self.holder_task_ids(holder)) if task.state in (TaskState.STARTED, TaskState.DELEGATED)]
+        return next((task for task in tasks if task.state == TaskState.STARTED), tasks[0] if tasks else None)
 
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
         return tuple(link.target.id for link in self.links.all_matching(source=holder, kind=CURRENT_TASK_LINK))
@@ -205,6 +218,13 @@ class Tasks(ScopedRepository[Task]):
 
     def block_batch(self, start_at: float) -> list[Task]:
         return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]
+
+    def task_worker_holdings(self, task_ids: set[int]) -> dict[int, int]:
+        refs = [Ref(Task.table(), task_id) for task_id in sorted(task_ids)]
+        return {link.target.id: link.source.id for link in self.links.ref_links("target", refs, CURRENT_TASK_LINK) if link.source.type == WORKERS}
+
+    def worker_task_holdings(self, workers: list[Model]) -> dict[int, int]:
+        return {link.target.id: link.source.id for link in self.links.model_links("source", workers, CURRENT_TASK_LINK)}
 
     def worker_holdings(self) -> dict[int, int]:
         return {link.target.id: link.source.id for link in self.links.all_matching(kind=CURRENT_TASK_LINK) if link.source.type == WORKERS}

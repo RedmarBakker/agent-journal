@@ -52,7 +52,7 @@ class TaskController(Controller[Task]):
         return Response.json(self.shown(self.repository.save(rewritten, request.actor)))
 
     def start(self, request: Request) -> Response:
-        if self.repository.find(request.number("id")).row_id in self.repository.worker_holdings():
+        if self.repository.task_worker_holdings({request.number("id")}):
             return Response.json(self.shown(self.repository.find(request.number("id"))))
         task = self.repository.holder_started(self.repository.find(request.number("id")).started(self.time()), self.taking.holder(Caller.user(request.environment)), request.actor)
         return Response.json(self.shown(task))

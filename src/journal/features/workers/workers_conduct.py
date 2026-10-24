@@ -187,7 +187,7 @@ def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     tasks, workers = event.data.part(TasksPart), event.data.part(WorkersPart)
-    if not tasks.open_ids or settings.value(WorkersOptions.MODE) != "orchestrator" or workers.is_full(settings.integer(WorkersOptions.WORKER_LIMIT)):
+    if settings.value(WorkersOptions.MODE) != "orchestrator" or workers.is_full(settings.integer(WorkersOptions.WORKER_LIMIT)) or not tasks.open_ids:
         return state.none()
     return state.none(WorkersNudges.CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_summary))
 
@@ -202,7 +202,7 @@ def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings
 
 def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
     tasks = data.part(TasksPart)
-    if not tasks.open_ids or settings.value(WorkersOptions.MODE) != "orchestrator":
+    if settings.value(WorkersOptions.MODE) != "orchestrator" or not tasks.open_ids:
         return ()
     return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, tasks=tasks.open_summary),)
 

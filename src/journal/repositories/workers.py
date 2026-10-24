@@ -39,8 +39,8 @@ class Workers(ScopedRepository[Worker]):
         return self.matching(state=WorkerState.DISPATCHED)
 
     def containing(self, task_ids: set[int]) -> dict[int, Worker]:
-        holdings = {task: worker for task, worker in self.tasks.worker_holdings().items() if task in task_ids}
-        rows = {worker.id: worker for worker in self.global_matching()} if holdings else {}
+        holdings = self.tasks.task_worker_holdings(task_ids)
+        rows = {worker.id: worker for worker in self.selected_globally(self.query().filter_listed("id", sorted(set(holdings.values()))))} if holdings else {}
         return {task: rows[worker] for task, worker in holdings.items() if worker in rows}
 
     def agent_holder(self, agent: Agent) -> Ref:
@@ -48,4 +48,7 @@ class Workers(ScopedRepository[Worker]):
         return Ref.build(rows[0]) if rows else Ref.build(agent)
 
     def session_worker(self, session: str) -> list[Worker]:
-        return [w for w in self.scoped() if session and session in (w.session, w.resume)]
+        if not session:
+            return []
+        rows = {w.id: w for query in (self.query().filter(session=session), self.query().filter(resume=session)) for w in self.selected(query)}
+        return [rows[n] for n in sorted(rows)]

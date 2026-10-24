@@ -28,6 +28,8 @@ from journal.repositories.tasks import Tasks
 from journal.features.tasks.support.next_open_task import NextOpenTask
 CURRENT = "current"
 
+# the open tasks a plain task list prints, highest priority first; the rest are counted
+LIST_ROWS = 25
 
 class TaskCommand(Command):
     noun = "task"
@@ -205,13 +207,20 @@ state: {task.state}
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:
-        tasks = self.tasks.scoped()
-        shown = tasks if args.all else self.tasks.unclosed_tasks()
-        for task in shown:
-            print(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]"))
-        if len(shown) < len(tasks):
-            print(f"and {len(tasks) - len(shown)} done or cancelled: journal task list --all")
+        if args.all:
+            print(self.task_lines(self.tasks.scoped()))
+            return 0
+        print(self.task_lines(self.tasks.unclosed_page(LIST_ROWS)))
+        unshown, closed = self.tasks.unclosed_count() - LIST_ROWS, self.tasks.closed_count()
+        if unshown > 0:
+            print(f"and {unshown} more open: journal task list --all")
+        if closed:
+            print(f"and {closed} done or cancelled: journal task list --all")
         return 0
+
+    @staticmethod
+    def task_lines(tasks: list[Task]) -> str:
+        return "\n".join(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]") for task in tasks)
 
     def _name_next(self, closed: Task) -> None:
         paused_tasks = self.tasks.paused_tasks()

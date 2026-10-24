@@ -24,9 +24,12 @@ class Links(Repository[Link]):
         return [link.source for link in self.selected(self.query().filter(target=Ref.build(model)).order("id"))]
 
     def model_links(self, column: str, models: Sequence[Model], kind: str) -> list[Link]:
-        if not models:
+        return self.ref_links(column, [Ref.build(model) for model in models], kind)
+
+    def ref_links(self, column: str, refs: Sequence[Ref], kind: str) -> list[Link]:
+        if not refs:
             return []
-        return self.selected(self.query().filter_listed(column, [Ref.build(model) for model in models]).filter(kind=kind).order("id"))
+        return self.selected(self.query().filter_listed(column, list(refs)).filter(kind=kind).order("id"))
 
     def counts_into(self, models: Sequence[Model], kind: str) -> dict[int, int]:
         if not models:
