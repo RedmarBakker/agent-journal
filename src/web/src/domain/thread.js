@@ -9,11 +9,21 @@ const PROMISED_WITHIN = 5;
 // real message, and when, in seconds. A card of the journal's carries what it draws in its data.
 const turnOf = (m, kind, who, extra = {}) => ({...m, kind, who, key: m.key || refOf(m), time: seconds(m.created_at), ...extra});
 
-const spoken = (m) => {
+// a turn depends on its row alone, so a row that has not changed keeps the very turn it had: a new message draws one new item and
+// leaves every other turn as it was
+const turned = new WeakMap();
+const once = (build) => (m) => {
+    if (!turned.has(m)) turned.set(m, build(m));
+    return turned.get(m);
+};
+
+const spoken = once((m) => {
     if (m.data?.kind === "thought") return turnOf(m, "thought", "agent");
     if ((m.comments_on || []).length) return turnOf(m, "comment", m.author);
     return turnOf(m, "message", m.author);
-};
+});
+
+const placeholderTurn = once((p) => turnOf(p, "message", "user"));
 
 const SYSTEM_TURNS = {
     whisper: (card, label) => ({kind: "whisper", title: label, data: {row: card.row, words: ""}}),
@@ -116,14 +126,14 @@ const fromSystem = (m) => m.author === "system";
 
 const byUser = (m) => (m.creator || "").startsWith("user");
 
-const systemTurn = (m) => {
+const systemTurn = once((m) => {
     const card = m.data || {};
     const turn = (SYSTEM_TURNS[card.kind] || ((_, label) => plainTurn(m, label)))(card, m.text, m);
     return turnOf(m, turn.kind, byUser(m) ? "user" : "agent", {
         ...turn,
         data: {...turn.data, shows: card.shows || "", side: byUser(m) ? "user" : ""},
     });
-};
+});
 
 const promisedFor = (p, m) =>
     p.idempotency && m.idempotency
@@ -145,7 +155,7 @@ export function threadTurns(messages, pending, older = false, hidden = []) {
     const turns = [
         ...said.filter((m) => !pending.some((p) => promisedFor(p, m) && !delivered(p, m))).map(spoken),
         ...messages.filter(fromSystem).map(systemTurn),
-        ...pending.filter((p) => !messages.some((m) => promisedFor(p, m) && delivered(p, m))).map((p) => turnOf(p, "message", "user")),
+        ...pending.filter((p) => !messages.some((m) => promisedFor(p, m) && delivered(p, m))).map(placeholderTurn),
     ]
         .filter((t) => t.kind === "message" || t.time >= floor)
         .filter(visibleIn(hidden))

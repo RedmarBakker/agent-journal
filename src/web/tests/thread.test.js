@@ -141,3 +141,21 @@ describe("the two chats", () => {
         expect(keys(turns(rows.filter((m) => m.session === "w1")))).toEqual(["messages:2"]);
     });
 });
+
+describe("a new message", () => {
+    test("adds one turn and leaves every other the very turn it was, so nothing else is drawn again", () => {
+        const held = [message(1, 1), message(2, 2, {author: "agent"}), card(3, 3, {kind: "card", icon: "chat", tone: "", detail: "x", row: "docs:1"}, "A card")];
+        const before = turns(held);
+        const after = turns([...held, message(4, 4)]);
+        expect(after).toHaveLength(before.length + 1);
+        before.forEach((turn, i) => expect(after[i]).toBe(turn));
+    });
+
+    test("a message that changed is a new turn, and the rest are still the turns they were", () => {
+        const held = [message(1, 1), message(2, 2)];
+        const before = turns(held);
+        const after = turns([held[0], {...held[1], text: "edited"}]);
+        expect(after[0]).toBe(before[0]);
+        expect(after[1]).not.toBe(before[1]);
+    });
+});
