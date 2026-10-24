@@ -4,7 +4,7 @@ import * as THREE from "three";
 // straight sides, a flat crown, a narrow brim curled up at the sides and a dark satin band, square on the head; white gloves; a white bow
 // tie on a wing collar, its tips standing up beside the knot; and a tailcoat's two tails hanging behind it to the back of the knees.
 export const BUTLER = {
-    hat: {base: 3.53, crown: 0.86, height: 1.0, brim: 0.2, thick: 0.05, curl: 0.18, band: [0.04, 0.24], bandOut: 0.015, sides: 48},
+    hat: {base: 3.62, crown: 0.86, height: 1.0, brim: 0.2, thick: 0.05, curl: 0.18, band: [0.04, 0.24], bandOut: 0.015, sides: 48},
     white: [0.97, 0.97, 0.95],
     whites: ["hand_shell_l", "hand_shell_r", "butler_bow_tie__knot", "butler_bow_tie__loop_l", "butler_bow_tie__loop_r", "butler_shirt__collar_band", "butler_shirt__collar_point_l", "butler_shirt__collar_point_r"],
     wing: {points: [[0.04, 2.47], [0.19, 2.45], [0.09, 2.36]], z: 0.43, thick: 0.02},
