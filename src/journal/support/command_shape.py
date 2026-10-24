@@ -24,7 +24,7 @@ CONTAINER_PATTERN = re.compile(r"^\s*docker(?:\s+compose|-compose)?\s+exec\s+(?:
 GIT_OPTION_PATTERN = re.compile(r"^(\s*git)(?:\s+(?:-C|-c|--git-dir|--work-tree)\s+\S+|\s+--no-pager)+(?=\s)")
 VARIABLE_PATTERN = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|\S*)(?:\s+|$))+")
 # commands that only set the scene for the one that does the work: a line's shape is the first part past them
-SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read"}
+SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read", "rm"}
 SEPARATORS = ("&&", "||", ";", "|")
 CHAIN_SEPARATOR = re.compile(r"&&|\|\||;|\|")
 SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true)(?:\s[^&;|]*)?\s*(?:&&|;)\s*)+")

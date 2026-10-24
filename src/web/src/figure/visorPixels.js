@@ -1,22 +1,22 @@
 // The visor is a screen of GRID.columns by GRID.rows square pixels, column 0 on the viewer's left and row 0 at the top, each off or lit
 // in a colour; the figure draws whatever is lit (figure.js screenMaterial). The eyes and everything shown in their place are pictures
 // on that grid, and each of their changes steps from one picture to the next: the frames of an animation.
-export const GRID = {columns: 24, rows: 11};
+export const GRID = {columns: 32, rows: 15};
 
 // where an eye's pictures are centred on the grid: the figure's right eye on the viewer's left, its left on the right, both on the
 // middle row; a picture that points one way, as the squeezed eye pointing in toward the nose, is turned round for the eye on the right
 export const EYE_SPOTS = [
-    {column: 6, row: 5, mirrored: false},
-    {column: 17, row: 5, mirrored: true},
+    {column: 8, row: 7, mirrored: false},
+    {column: 23, row: 7, mirrored: true},
 ];
 
 // The pictures, each a list of rows of the same length: "#" lit in its colour, "o" in its highlight, "." off
 export const PICTURES = {
-    eye_wide: ["..###..", ".#...#.", "#.....#", "#.....#", "#.....#"],
-    eye_open: ["..###..", ".#...#.", "#.....#", "#.....#"],
-    eye_narrowed: ["..###..", ".#...#.", "#.....#"],
-    eye_half: [".#####.", "#.....#"],
-    eye_shut: [".#####."],
+    eye_wide: ["..#####..", ".#######.", "##.....##", "#.......#", "#.......#", "#.......#"],
+    eye_open: ["..#####..", ".#######.", "##.....##", "#.......#"],
+    eye_narrowed: ["..#####..", ".##...##.", "##.....##"],
+    eye_half: [".#######.", "##.....##"],
+    eye_shut: [".#######."],
     heart_big: [".##...##.", "#o##.####", "#########", "#########", ".#######.", "..#####..", "...###...", "....#...."],
     heart_small: [".##.##.", "#o#####", "#######", ".#####.", "..###..", "...#..."],
     heart_tiny: ["##.##", "#####", ".###.", "..#.."],
@@ -26,8 +26,8 @@ export const PICTURES = {
     squeezed: ["##....", ".###..", "...##.", "....##", "...##.", ".###..", "##...."],
     z_small: ["###", "..#", ".#.", "#..", "###"],
     z_big: ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
-    cross: ["#.....#", ".#...#.", "..#.#..", "...#...", "..#.#..", ".#...#.", "#.....#"],
-    tick: ["......#", ".....#.", "#...#..", ".#.#...", "..#...."],
+    cross: ["##.....##", "###...###", ".###.###.", "..#####..", "...###...", "..#####..", ".###.###.", "###...###", "##.....##"],
+    tick: [".......##", "......###", ".....###.", "##..###..", "######...", ".####....", "..##....."],
 };
 
 // The frames each picture family steps through, each with the least size it takes: the eyes by how open they are, so a blink, a squint
@@ -67,7 +67,7 @@ export function litPixels(face) {
 }
 
 // where the Z of a figure dozing is centred on the grid: high up between the eyes, toward its left
-export const Z_SPOT = {column: 13, row: 2, mirrored: false};
+export const Z_SPOT = {column: 18, row: 3, mirrored: false};
 
 // the picture shown in each eye's place, its colours, how far it reaches up and down from its middle (1 the whole picture), whether it
 // glances with the eyes, and whether it points one way
