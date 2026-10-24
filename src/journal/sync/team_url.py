@@ -15,9 +15,10 @@ class TeamUrl:
 
     @classmethod
     def parse(cls, text: str) -> "TeamUrl":
-        parts = urlsplit(text.strip())
+        written = text.strip().rstrip(".,;")
+        parts = urlsplit(written if "://" in written else f"https://{written}")
         query = parse_qs(parts.query)
-        return cls(f"{parts.scheme}://{parts.netloc}", query.get("code", [""])[0], query.get("fingerprint", [""])[0])
+        return cls(f"{parts.scheme}://{parts.netloc.rstrip('.')}", query.get("code", [""])[0], query.get("fingerprint", [""])[0])
 
     def invitation(self, code: str, fingerprint: str) -> str:
         return f"{self.address}{JOIN_PATH}?{urlencode({'code': code, 'fingerprint': fingerprint})}"
