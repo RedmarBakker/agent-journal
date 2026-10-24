@@ -1092,9 +1092,10 @@ function clicked(event) {
 }
 
 // The figure handled with the pointer (figure/grab.js), only while it rests where it is: its head pressed and dragged tilts it with the
-// pointer while it stands still, the act on screen stopped on its frame, startled; its body pressed and held a moment is lifted off its
-// perch, dangles under the pointer and is thrown on release, tumbling until its parachute floats it back down onto that perch. A press let
-// go before the body lifts is a click, as ever; one that tilted or threw it is not.
+// pointer while it stands still, the act on screen stopped on its frame, startled; its body pressed and held a moment is lifted off where
+// it rests, dangles under the pointer and on release falls from there, or flies off tumbling as hard as it was thrown, to the nearest floor
+// below where it comes down, or off the top of the screen, to come back from above. A press let go before the body lifts is a click, as
+// ever; one that tilted or threw it is not.
 let grab = null;
 let handled = false;
 let liftTimer = 0;
@@ -1122,7 +1123,7 @@ function dragged(event) {
 function lift() {
     if (!grabbable()) return;
     const [feet, pointer] = [feetOf(body.at), grab.moves.at(-1)];
-    grab.lifted = {perch: {spot: body.place, footing: body.footing}, offset: {x: feet.x - pointer.x, y: feet.y - pointer.y}};
+    grab.lifted = {offset: {x: feet.x - pointer.x, y: feet.y - pointer.y}};
     body.footing = null;
     body.airborne = {...feet, posture: "stand", face: 0, held: true};
 }
@@ -1141,18 +1142,17 @@ function released() {
     const now = performance.now();
     handled = grab.head || Boolean(grab.lifted);
     if (grab.head) playing.started = resumedClock(playing.started, grab.began, now);
-    if (grab.lifted) body.airborne = {...thrownFrom(body.airborne, pointerSpeed(grab.moves, now / 1000), now), perch: grab.lifted.perch};
+    if (grab.lifted) body.airborne = thrownFrom(body.airborne, pointerSpeed(grab.moves, now / 1000), now);
     grab = null;
 }
 
-// thrown, it flies and tumbles, and floats on its parachute back onto its perch where that is now; when the parachute opens below the
-// perch it comes down on it to whatever is under it instead
+// thrown, it flies and tumbles and comes down on the nearest floor below, a bubble's top or the chat's floor, which runs the chat's whole
+// width under it; thrown up past the top of its world, it is gone off the screen, to come back down from above on its parachute (goneOff)
 function thrownOn() {
-    const {perch} = body.airborne;
-    const spot = {...perch.spot, ...(perch.footing && footingNow(perch.footing, figureSize()))};
-    const now = performance.now();
-    const {airborne, landed, lost} = thrownFrame(body.airborne, spot, flightRoom(), SIZE, now);
-    if (lost) return airborneFrom(chuteFrom(airborne.x, airborne.y, SKYWARD.chute * SIZE, now));
+    const room = flightRoom();
+    const floors = latestFloors().floors.map((floor) => (floor.id === "home" ? {...floor, left: room.left, right: room.right} : floor));
+    const {airborne, landed, gone} = thrownFrame(body.airborne, floors, {...room, top: worldBox().top}, performance.now());
+    if (gone) return goneOff();
     body.airborne = airborne;
     if (landed) return landOn(landed, true);
     body.at = placed(airborne, "stand");

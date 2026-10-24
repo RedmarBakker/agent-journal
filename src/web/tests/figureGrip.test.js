@@ -11,6 +11,9 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 // what lies flat on the palm rather than in the closed fingers: the hand is anywhere under the sheet
 const SHEETS = new Set(["papers", "writing_paper", "writing_tablet"]);
+// it poses every frame of every clip that holds a prop for every voice, about nine seconds alone and longer beside the other tests, so it
+// has a minute of its own
+const POSES_EVERY_FRAME = 60_000;
 
 test("every prop a hand holds sits in that hand, in every frame of every clip that holds it, for every voice", () => {
     const held = new Set();
@@ -34,4 +37,4 @@ test("every prop a hand holds sits in that hand, in every frame of every clip th
         }
     }
     expect([...held]).toEqual(expect.arrayContaining(["magnifying_glass", "writing_pen", "hand_whistle", "work_hammer"]));
-});
+}, POSES_EVERY_FRAME);

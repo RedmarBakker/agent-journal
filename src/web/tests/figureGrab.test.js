@@ -4,23 +4,30 @@ const {GRAB, headTiltFor, onHead, pointerSpeed, resumedClock, thrownFrame, throw
 const {CLIPS} = await import("../src/figure/figure.js");
 const {SKYWARD} = await import("../src/figure/skyward.js");
 const {PICTURES, WHOA_SPOT, litPixels} = await import("../src/figure/visorPixels.js");
+const {airborneFrame, chuteFrom} = await import("../src/domain/figureMotion.js");
 
 const SIZE = 112;
-// the feet may go anywhere across a chat 1000 pixels wide, from a line 100 pixels down to the compose box's top at 700
-const ROOM = {left: 56, right: 944, top: 100, bottom: 700};
-// the perch it was lifted from: the compose box's top
-const PERCH = {x: 400, y: 700, posture: "stand", face: 0, view: null, on: null};
+// the feet may go anywhere across a chat from 56 to 944 pixels, whose top is at 100
+const ROOM = {left: 56, right: 944, top: 100};
+// the chat's floor, the compose box's top at 700 under the chat's whole width, and two bubbles above it, one overhanging the other
+const HOME = {id: "home", kind: "compose", left: 56, right: 944, top: 700, element: "home"};
+const UPPER = {id: "upper", kind: "bubble", left: 100, right: 500, top: 300, bottom: 360, element: "upper"};
+const LOWER = {id: "lower", kind: "bubble", left: 300, right: 800, top: 500, bottom: 560, element: "lower"};
+const FLOORS = [HOME, UPPER, LOWER];
 
-// the throw flown at 60 frames a second from its first frame at 0 until it lands or is lost, with every frame it passed through
-function flown(thrown, perch = PERCH) {
+// the throw flown at 60 frames a second from its first frame at 0 until it lands or is gone, with every frame it passed through
+function flown(thrown) {
     const frames = [thrown];
     for (let frame = 1; frame < 60 * 30; frame++) {
-        const next = thrownFrame(frames.at(-1), perch, ROOM, SIZE, (frame * 1000) / 60);
-        if (!next.airborne || next.lost) return {frames, ...next};
+        const next = thrownFrame(frames.at(-1), FLOORS, ROOM, (frame * 1000) / 60);
+        if (!next.airborne || next.gone) return {frames, ...next};
         frames.push(next.airborne);
     }
-    return {frames, landed: null, lost: false};
+    return {frames, landed: null, gone: false};
 }
+
+// the highest floor under `x` whose top is at or below `y`
+const nearestBelow = (x, y) => FLOORS.filter((floor) => floor.left <= x && floor.right >= x && floor.top >= y).sort((a, b) => a.top - b.top)[0];
 
 test("the head dragged across tilts with the pointer, never past the largest angle either way, and only a press above the neck takes the head", () => {
     expect(headTiltFor(0)).toBe(0);
@@ -65,43 +72,55 @@ test("let go, the figure flies off at the pointer's speed and way over its last 
     expect(Math.hypot(hard.x, hard.y)).toBeCloseTo(GRAB.fastest, 6);
     expect(hard.x / hard.y).toBeCloseTo(-0.75, 6);
     // the throw carries that speed: its first frame moves the feet by it
-    const thrown = thrownFrom({x: 400, y: 500}, speed, 0);
-    expect(thrown).toMatchObject({x: 400, y: 500, vx: speed.x, speed: speed.y, chute: false, thrown: true});
-    const next = thrownFrame(thrown, PERCH, ROOM, SIZE, 16).airborne;
+    const thrown = thrownFrom({x: 400, y: 200}, speed, 0);
+    expect(thrown).toMatchObject({x: 400, y: 200, vx: speed.x, speed: speed.y, thrown: true});
+    const next = thrownFrame(thrown, FLOORS, ROOM, 16).airborne;
     expect(next.x - thrown.x).toBeCloseTo(speed.x * 0.016, 6);
     expect(next.y).toBeLessThan(thrown.y);
 });
 
-test("thrown, it tumbles, then its parachute opens and floats it back down onto the perch it was lifted from, never out of its world", () => {
-    for (const speed of [{x: 1200, y: -600}, {x: -900, y: -1500}, {x: 0, y: 0}, {x: GRAB.fastest, y: 0}]) {
-        const {frames, landed, lost} = flown(thrownFrom({x: 400, y: 450}, speed, 0));
+test("let go without a throw, it falls straight down from where it is let go to the nearest floor below: a bubble's top or the chat's floor", () => {
+    // over the upper bubble, onto its top; let go in front of the upper bubble, below its top, onto the lower one; past both, onto the floor
+    for (const [from, onto] of [[{x: 400, y: 200}, UPPER], [{x: 400, y: 350}, LOWER], [{x: 900, y: 200}, HOME], [{x: 200, y: 400}, HOME]]) {
+        const {frames, landed, gone} = flown(thrownFrom(from, {x: 0, y: 0}, 0));
+        const label = `${from.x},${from.y}`;
+        expect(gone, label).toBe(false);
+        expect(landed, label).toEqual({x: from.x, y: onto.top, posture: "stand", face: 0, view: null, on: onto.element});
+        expect(onto, label).toBe(nearestBelow(from.x, from.y));
+        for (const frame of frames) expect(frame.x, label).toBe(from.x);
+    }
+});
+
+test("thrown hard, it flies tumbling, off the chat's sides, and falls to the nearest floor below where it comes down, not where it was let go", () => {
+    for (const speed of [{x: 1200, y: -600}, {x: -900, y: -300}, {x: GRAB.fastest, y: 0}, {x: 400, y: 900}]) {
+        const from = {x: 250, y: 250};
+        const {frames, landed, gone} = flown(thrownFrom(from, speed, 0));
         const label = JSON.stringify(speed);
-        expect(lost, label).toBe(false);
-        expect(landed, label).toBe(PERCH);
-        // it tumbles before the parachute opens, and is righted under it by the time it lands
-        const opened = frames.findIndex((frame) => frame.chute);
-        expect(opened, label).toBeGreaterThan(0);
-        if (speed.x) expect(Math.max(...frames.slice(0, opened).map((frame) => Math.abs(frame.spin))), label).toBeGreaterThan(90);
-        expect(Math.abs(frames.at(-1).spin), label).toBeLessThan(5);
-        // under the canopy it sinks no faster than the parachute lets it and never rises
-        for (const [index, frame] of frames.slice(opened).entries()) {
-            expect(frame.speed, `${label} ${index}`).toBeLessThanOrEqual(SKYWARD.chute * SIZE + 1e-9);
-            if (index) expect(frame.y, `${label} ${index}`).toBeGreaterThanOrEqual(frames[opened + index - 1].y);
-        }
+        expect(gone, label).toBe(false);
+        const last = frames.at(-1);
+        expect(landed.x, label).not.toBe(from.x);
+        expect(landed.y, label).toBe(nearestBelow(landed.x, last.y).top);
+        // it tumbles all the way, a good turn and more on a throw that flies up first
+        const turned = Math.max(...frames.map((frame) => Math.abs(frame.spin)));
+        expect(turned, label).toBeGreaterThan(speed.y < 0 ? 90 : 0);
         for (const frame of frames) {
             expect(frame.x, label).toBeGreaterThanOrEqual(ROOM.left);
             expect(frame.x, label).toBeLessThanOrEqual(ROOM.right);
-            expect(frame.y, label).toBeGreaterThanOrEqual(ROOM.top);
-            expect(frame.y, label).toBeLessThanOrEqual(ROOM.bottom);
         }
-        // the last frame in the air is over the perch, on its way down onto it
-        expect(Math.abs(frames.at(-1).x - PERCH.x), label).toBeLessThan(SIZE);
     }
-    // a perch up on a bubble is come back to just the same
-    const bubble = {...PERCH, x: 700, y: 300};
-    expect(flown(thrownFrom({x: 300, y: 200}, {x: 600, y: -300}, 0), bubble).landed).toBe(bubble);
-    // thrown down from just above it the parachute catches it before it passes the perch; let go below it, thrown down, the parachute
-    // opens below it: lost, to come down to whatever is under it
-    expect(flown(thrownFrom({x: 300, y: 260}, {x: 0, y: 900}, 0), bubble).landed).toBe(bubble);
-    expect(flown(thrownFrom({x: 300, y: 400}, {x: 0, y: 900}, 0), bubble).lost).toBe(true);
+});
+
+test("thrown up hard, it flies past the chat's top and off the screen, and comes back down from above on its parachute to the floor", () => {
+    const {frames, landed, gone} = flown(thrownFrom({x: 400, y: 250}, {x: 300, y: -GRAB.fastest}, 0));
+    expect(gone).toBe(true);
+    expect(landed).toBe(null);
+    // nothing stopped it at the top: it rose on up to it and past
+    const highest = frames.at(-1);
+    expect(highest.y).toBeLessThanOrEqual(ROOM.top + 60);
+    expect(highest.speed).toBeLessThan(0);
+    // the way back is the parachute's from above the screen, as after the run up the bubbles (VoiceFigure goneOff, flyOn), onto the floor
+    let back = chuteFrom(highest.x, ROOM.top - SIZE / 4, SKYWARD.chute * SIZE, 0);
+    let came = null;
+    for (let frame = 1; frame < 60 * 30 && !came; frame++) ({airborne: back, landed: came} = airborneFrame(back, FLOORS, (frame * 1000) / 60));
+    expect(came.spot).toMatchObject({x: highest.x, y: HOME.top, posture: "stand"});
 });
