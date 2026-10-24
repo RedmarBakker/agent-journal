@@ -3087,7 +3087,7 @@ function halo(pose, stance, t) {
 // The big cross held up to ask forgiveness (acts.js repent), in the figure's units, standing upright a little to the right of the face, its top above the head: both hands on its upright, the right one at `low` before
 // the chest and the left one `apart` above it, rising from `pocket`, down by the knees, to `front`, where the cross stands up before the
 // figure; trembling `tremble` while it is held up
-export const CRUCIFIX_HOLD = {pocket: [-0.5, -0.9, 0.3], front: [-0.5, -1.0, 1.35], apart: 0.55, tremble: 0.025};
+export const CRUCIFIX_HOLD = {pocket: [-0.5, -0.9, 0.5], front: [-0.5, -1.0, 1.8], apart: 0.55, tremble: 0.025};
 
 // stands, kneels down onto both knees, brings a big cross up before it and holds it up in both hands, as if asking forgiveness, trembling a
 // little, then lowers it and gets up (acts.js repent); the head turns to the sin's mark with the look at what it admires
@@ -4298,7 +4298,7 @@ export function haloOf(prop) {
 
 // The big cross held up to ask forgiveness, shaded and outlined in brass, in the figure's units: its upright `long` and its crossbar
 // `across` `bar` thick, the crossbar `at` up the upright, held at the upright's lower part in both hands
-export const CRUCIFIX = {long: 3.4, across: 1.9, bar: 0.28, at: 0.45, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
+export const CRUCIFIX = {long: 4.4, across: 2.4, bar: 0.32, at: 0.1, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
 
 export function crucifixOf(prop) {
     const root = poseSpace(prop);
