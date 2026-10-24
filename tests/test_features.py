@@ -13155,6 +13155,9 @@ def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_t
     assert app.container.get(IdBlocks).all() == [] and app.container.get(OutgoingChanges).waiting() == [], "the blocks and the queue only the old team could take are gone"
     assert "kept after leaving" in app.console().run(["task", "list"], USER).text, "every local row stays"
     assert app.console().run(["team", "leave"], USER).code != 0, "a journal in no team has nothing to leave"
+    from journal.sync.block_supply import BlockSupply
+    app.container.get(BlockSupply).refill()
+    assert app.container.get(IdBlocks).all() == [], "a journal out of its team asks no team server for row numbers, so the sync service's last call after leaving fails nothing"
 
 
 def joined_team(app: App):

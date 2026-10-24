@@ -507,7 +507,7 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
     from journal.sync.team_account import TEAM_FILE, TeamAccount
 
     config, blocks, tasks = Config(tmp_path), IdBlocks(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus))))
+    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus), TeamAccount(config))))
     with scope.environment(1):
         assert [tasks.save(Task(environment_id=1, title=title), actor=USER).id for title in "ab"] == [1, 2], "a journal in no team numbers as before"
         config.home.mkdir(parents=True, exist_ok=True)
@@ -576,7 +576,7 @@ def team_journal(tmp_path, name: str):
     for model in AllModels.MODELS:
         if model.shared:
             blocks.add(model.table(), base + 1, base + 99_999)
-    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus))))
+    bus.listen(NumberRequest, BlockNumbers(blocks, TeamAccount(config), BlockSupply(TeamServerLink(TeamAccount(config), Schema(connection, AllModels.MODELS)), blocks, SharedTables(connection, bus), TeamAccount(config))))
     bus.listen(Deleted, UnlinkDeleted(Links(connection, bus)))
     return bus, scope, tasks_of(connection, bus, scope), outgoing, IncomingChanges(SharedTables(connection, bus), outgoing, Links(connection, bus))
 
