@@ -13,4 +13,4 @@ class ReaderOutputCards(Listener[ReaderAdded]):
 
     def handle(self, event: ReaderAdded) -> None:
         for output in self.outputs.reader_outputs(event.reader):
-            self.cards.show(self.card.mark(output))
+            self.cards.show(self.card.card_contents(output))

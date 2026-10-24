@@ -17,4 +17,4 @@ class WatchUpdate(AgentListener[ToolFinished]):
             if self.card.card_view(output).ending:
                 self.outputs.save(output.unwatched(), Actor.system())
                 continue
-            self.cards.show(self.card.mark(output))
+            self.cards.show(self.card.card_contents(output))

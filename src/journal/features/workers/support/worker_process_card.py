@@ -31,7 +31,7 @@ class WorkerProcessCard(ProcessCard):
     def key(worker: Worker) -> str:
         return f"worker:{worker.id}"
 
-    def mark(self, worker: Worker, standing: CardStanding, actor: Actor) -> ProcessMark | None:
+    def card_contents(self, worker: Worker, standing: CardStanding, actor: Actor) -> ProcessMark | None:
         older = self.messages.keyed(self.key(worker), actor)
         if older and older[0].data.get("tone") == standing.tone and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None

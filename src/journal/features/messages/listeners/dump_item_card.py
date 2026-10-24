@@ -17,9 +17,9 @@ class DumpItemCard(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         for message in self.subjects(event.model):
-            mark = self.card.mark(message)
-            if mark:
-                self.cards.show(mark)
+            contents = self.card.card_contents(message)
+            if contents:
+                self.cards.show(contents)
 
     def subjects(self, row) -> list[Message]:
         if isinstance(row, Link) and row.kind == Messages.SUBJECT_LINK and row.source.type == Message.table():

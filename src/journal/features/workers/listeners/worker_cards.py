@@ -27,9 +27,9 @@ class WorkerCards(Listener[ModelEvent]):
             return
         actor = Actor.agent(worker.dispatcher) if worker.dispatcher else Actor.system()
         if worker.state == WorkerState.DISPATCHED or standing.text == FAILED:
-            mark = self.card.mark(worker, standing, actor)
-            if mark:
-                self.processes.show(mark)
+            contents = self.card.card_contents(worker, standing, actor)
+            if contents:
+                self.processes.show(contents)
             return
         key = f"worker:{worker.id}:{worker.state}:{worker.silence.timeout.start}"
         if not self.cards.is_shown(key, actor):

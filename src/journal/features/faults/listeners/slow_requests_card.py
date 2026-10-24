@@ -11,4 +11,4 @@ class SlowRequestsCard(Listener[SlowRequestsReported]):
         self.card, self.cards = card, cards
 
     def handle(self, event: SlowRequestsReported) -> None:
-        self.cards.show(self.card.mark(event))
+        self.cards.show(self.card.card_contents(event))

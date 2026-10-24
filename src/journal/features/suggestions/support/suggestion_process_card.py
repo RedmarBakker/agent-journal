@@ -16,7 +16,7 @@ class SuggestionProcessCard(ProcessCard):
     def key(suggestion: Suggestion) -> str:
         return f"suggestion:{suggestion.id}"
 
-    def mark(self, suggestion: Suggestion, suggester: Suggester, environment_id: int) -> ProcessMark:
+    def card_contents(self, suggestion: Suggestion, suggester: Suggester, environment_id: int) -> ProcessMark:
         data = {"kind": "suggestion", "icon": "bulb", "row": f"suggestions:{suggestion.id}", "accept": suggester.accept_label, "answer": suggestion.answer or "", "description": suggester.detail()}
         return ProcessMark(self.name, environment_id, self.key(suggestion), suggestion.title, data, Actor.system(), CardKind.SUGGESTIONS, False)
 

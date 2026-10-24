@@ -19,4 +19,4 @@ class SuggestionCard(Listener[Saved]):
             return
         environment_id = self.search.card_environment(suggestion)
         with self.scope.environment(environment_id):
-            self.cards.show(self.card.mark(suggestion, self.search.lookup(suggestion.key), environment_id))
+            self.cards.show(self.card.card_contents(suggestion, self.search.lookup(suggestion.key), environment_id))

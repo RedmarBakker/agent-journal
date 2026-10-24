@@ -13,4 +13,4 @@ class QuestionCard(Listener[Saved]):
 
     def handle(self, event: Saved) -> None:
         if isinstance(event.model, Question):
-            self.cards.show(self.card.mark(event.model))
+            self.cards.show(self.card.card_contents(event.model))

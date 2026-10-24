@@ -122,7 +122,9 @@ class ShellRunner:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
 
     def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
-        agent = self.sessions.agent(caller.agent_session, environment)
+        if caller.session is None:
+            return ""
+        agent = self.sessions.agent(caller.session, environment)
         lines = [line for note in notes if (line := self.nudger.deliver(agent, note))]
         if caller.worker_number is not None or caller.subagent:
             return "".join(f"[journal] {line}\n" for line in lines)

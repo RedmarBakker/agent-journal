@@ -15,4 +15,4 @@ class ReportCard(Listener[Created]):
     def handle(self, event: Created) -> None:
         report = event.model
         if isinstance(report, Report) and event.actor.kind == ActorKind.AGENT:
-            self.cards.show(self.card.mark(report.environment_id, report, event.actor))
+            self.cards.show(self.card.card_contents(report.environment_id, report, event.actor))

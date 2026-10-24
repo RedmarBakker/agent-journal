@@ -14,7 +14,7 @@ class QuestionProcessCard(ProcessCard):
     def __init__(self, questions: Questions) -> None:
         self.questions = questions
 
-    def mark(self, question: Question) -> ProcessMark:
+    def card_contents(self, question: Question) -> ProcessMark:
         data = {"kind": "question", "row": f"questions:{question.id}", "n": question.id, "options": list(question.options), "answer": question.answer}
         return ProcessMark(self.name, question.environment_id, f"question:{question.id}", question.text, data, question.creation_actor, CardKind.QUESTIONS, not question.is_answered(), session=question.creation_actor.id)
 

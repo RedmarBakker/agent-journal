@@ -15,7 +15,7 @@ const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).ma
 
 // the pictures approved in place of the eyes' arcs on the visor: the hearts, the stars, the squeezed eyes, and the crosses and the ticks at
 // a run's end (visor.js SIGN)
-const APPROVED = ["cross", "heart_big", "heart_small", "heart_tiny", "squeezed", "star_big", "star_small", "star_twinkle", "tick"];
+const APPROVED = ["cross", "heart_big", "heart_small", "heart_tiny", "squeezed", "star_big", "star_small", "star_twinkle", "tick", "z_big", "z_small"];
 const FRAMES = 12;
 
 describe("the eyes keep their arcs", () => {

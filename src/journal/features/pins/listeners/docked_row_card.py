@@ -12,4 +12,4 @@ class DockedRowCard(Listener[RowDocked]):
         self.docking, self.card, self.cards = docking, card, cards
 
     def handle(self, event: RowDocked) -> None:
-        self.cards.show(self.card.mark_docked(event.environment_id, self.docking.table_row(event.row.type, event.row.id), event.actor))
+        self.cards.show(self.card.docked_contents(event.environment_id, self.docking.table_row(event.row.type, event.row.id), event.actor))

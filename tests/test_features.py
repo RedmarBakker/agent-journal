@@ -107,6 +107,10 @@ def made(output) -> int:
 
 
 
+# a plugin's hold window wide enough for its program to start while the suite's other shards load the machine
+PARALLEL_HOLD_WINDOW_MS = 3000
+
+
 def hook(app, kind: str, **body):
     return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
 
@@ -4051,6 +4055,7 @@ def echo_heard(app, name="echo") -> list[str]:
 
 
 def test_a_plugin_hears_the_events_it_names_and_holds_what_it_may(app: App):
+    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
     from journal.db.connection import Connection
     from journal.support.listener_queue import ListenerQueue
     from journal.repositories.entries import Entries
@@ -4549,7 +4554,7 @@ def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
     from journal.repositories.entries import Entries
     from journal.repositories.messages import Messages
     from journal.repositories.plugins import Plugins
-    from journal.repositories.setting_rows import SettingRows
+    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
     plugins, messages = app.container.get(Plugins), app.container.get(Messages)
     plugins.save(echo(app).with_(settings={"mode": "broken"}), Actor.user(1))
     hook(app, "SessionStart")
@@ -7102,7 +7107,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_com
     from journal.chat.process_cards import ProcessCards
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.repositories.messages import Messages
-    app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).mark(outputs.find(2)))
+    app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(2)))
     with app.container.get(Scope).environment(1):
         assert app.container.get(Messages).with_key("watch:2")[0].data["detail"] == "finished", "a finished card with nothing picked still says how it ended"
     told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
@@ -8557,7 +8562,7 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
 
     def end(n):
         with app.container.get(Scope).environment(MAIN):
-            app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).mark(outputs.find(n)))
+            app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(n)))
         outputs.save(outputs.find(n).ended_with(0, 0.0), Actor.system())
         app.runtime().deferred.drain()
         hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
@@ -11126,7 +11131,7 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
 
     def shown(n):
         with app.container.get(Scope).environment(MAIN):
-            app.container.get(ProcessCards).show(card.mark(outputs.find(n)))
+            app.container.get(ProcessCards).show(card.card_contents(outputs.find(n)))
             return app.container.get(Messages).with_key(f"watch:{n}")[0].data
 
     dots, folder = run("dots", "....F...                [ 45%]\n")

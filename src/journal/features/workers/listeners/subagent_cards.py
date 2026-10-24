@@ -37,9 +37,9 @@ class SubagentCards(AgentListener[AgentEvent]):
         return type(event).__name__ in SUBAGENT_KINDS or (isinstance(event, (ToolStarting, ToolFinished, ToolFailed)) and isinstance(event.call.operation, SubagentDispatch)) or (isinstance(event, PromptSubmitted) and bool(TaskNotification.parsed(event.prompt)))
 
     def carded(self, event: AgentEvent, row: Subagent, agent: int, actor: Actor) -> None:
-        mark = self.card.mark(event.environment_id, event.session, agent, row, actor)
-        if mark:
-            self.processes.show(mark)
+        contents = self.card.card_contents(event.environment_id, event.session, agent, row, actor)
+        if contents:
+            self.processes.show(contents)
         if not row.is_running():
             self.end_card(event, row, agent, actor)
 

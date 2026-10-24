@@ -23,7 +23,7 @@ class SubagentProcessCard(ProcessCard):
     def key(row: Subagent) -> str:
         return f"subagent:{row.dispatch}"
 
-    def mark(self, environment_id: int, session: str, agent: int, row: Subagent, actor: Actor) -> ProcessMark | None:
+    def card_contents(self, environment_id: int, session: str, agent: int, row: Subagent, actor: Actor) -> ProcessMark | None:
         data = {**SubagentCard.built(session, agent, row, SubagentState.ACTIVE, "").as_data(), "dispatch": row.dispatch, "active": row.is_running()}
         older = self.messages.keyed(self.key(row), actor)
         if older and all(older[0].data.get(k) == v for k, v in data.items()):

@@ -133,6 +133,7 @@
       },
       "typed": [],
       "nudges": [
+        "sequences.step_to_follow",
         "tasks.carry_on"
       ],
       "stack": [

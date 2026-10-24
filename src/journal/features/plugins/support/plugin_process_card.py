@@ -11,8 +11,8 @@ class PluginProcessCard(ProcessCard):
 
     name = "plugin"
 
-    def mark(self, asked: PluginCardAsked) -> ProcessMark:
-        return ProcessMark(self.name, asked.environment_id, asked.card_key, asked.label, asked.data, Actor.plugin(asked.plugin), CardKind.PLUGINS, False, asked.detail)
+    def card_contents(self, question: PluginCardAsked) -> ProcessMark:
+        return ProcessMark(self.name, question.environment_id, question.card_key, question.label, question.data, Actor.plugin(question.plugin), CardKind.PLUGINS, False, question.detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

@@ -14,4 +14,4 @@ class OutputCard(Listener[Saved]):
     def handle(self, event: Saved) -> None:
         output = event.model
         if isinstance(output, CommandOutput) and (output.moved or output.is_watched):
-            self.cards.show(self.card.mark(output))
+            self.cards.show(self.card.card_contents(output))

@@ -12,7 +12,7 @@ class SlowRequestProcessCard(ProcessCard):
     KEY = "slow:requests"
     name = "slow_request"
 
-    def mark(self, reported: SlowRequestsReported) -> ProcessMark:
+    def card_contents(self, reported: SlowRequestsReported) -> ProcessMark:
         return ProcessMark(self.name, reported.environment_id, f"{self.KEY}:{int(reported.moment)}", f"Slow requests report ready: {reported.total} over budget, read it with journal developer slowest", reported.data, Actor.system(), CardKind.FAULTS, False, reported.detail)
 
     def refresh(self, message: Message) -> dict:

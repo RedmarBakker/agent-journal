@@ -7,7 +7,7 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 
 
-class PluginAskedCards(Listener[PluginCardAsked]):
+class PluginQuestionCards(Listener[PluginCardAsked]):
     """A card a plugin's answer asks for is a moment card in the chat, or, with a key, a process card that a later card of the key replaces."""
 
     def __init__(self, cards: MomentCards, processes: ProcessCards, card: PluginProcessCard) -> None:
@@ -15,6 +15,6 @@ class PluginAskedCards(Listener[PluginCardAsked]):
 
     def handle(self, event: PluginCardAsked) -> None:
         if event.card_key:
-            self.processes.show_recent(self.card.mark(event))
+            self.processes.show_recent(self.card.card_contents(event))
             return
         self.cards.show_fields(event.environment_id, None, event.label, event.data, Actor.plugin(event.plugin), CardKind.PLUGINS, event.detail)

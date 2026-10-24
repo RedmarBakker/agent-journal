@@ -12,7 +12,8 @@
         "briefing.handle_the_journal_quietly",
         "briefing.the_laws_apply",
         "briefing.look_before_the_first_write",
-        "voices.how_to_talk_to_the_user"
+        "voices.how_to_talk_to_the_user",
+        "sequences.step_to_follow"
       ],
       "stack": [
         "idle"
@@ -44,7 +45,9 @@
       "name": "the phases' command takes the step up",
       "answer": {},
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "sequences.step_to_follow"
+      ],
       "stack": [
         "idle"
       ]
@@ -53,7 +56,9 @@
       "name": "the tasks' command takes the step up",
       "answer": {},
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "sequences.step_to_follow"
+      ],
       "stack": [
         "idle"
       ]
@@ -64,7 +69,10 @@
         "err": "sequence 1 ends when plans:1 is ready or approved or started or done; it is draft. finish it first, or `journal sequence abandon --why \"<why>\"`\n"
       },
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "sequences.step_to_follow",
+        "sequences.following_the_step"
+      ],
       "stack": [
         "idle"
       ]
@@ -75,7 +83,9 @@
         "out": "sequence 1 ran its last step\n"
       },
       "typed": [],
-      "nudges": [],
+      "nudges": [
+        "sequences.sequence_ended"
+      ],
       "stack": [
         "idle"
       ]

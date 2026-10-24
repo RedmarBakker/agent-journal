@@ -17,11 +17,11 @@ class RowProcessCard(ProcessCard):
     def key(row: Model) -> str:
         return f"made:{row.noun()}:{row.id}"
 
-    def mark(self, environment_id: int, row: Model, actor: Actor) -> ProcessMark:
+    def card_contents(self, environment_id: int, row: Model, actor: Actor) -> ProcessMark:
         data = {"kind": "made", "made_type": row.table(), "n": row.id, **RowCard.build(row).as_data()}
         return ProcessMark(self.name, environment_id, self.key(row), row.title_words(), data, actor, CardKind.CREATED, False, session=actor.id)
 
-    def mark_docked(self, environment_id: int, row: Model, actor: Actor) -> ProcessMark:
+    def docked_contents(self, environment_id: int, row: Model, actor: Actor) -> ProcessMark:
         return ProcessMark(self.name, environment_id, self.key(row), row.heading(), {"kind": DOCKED, **RowCard.build(row).as_data()}, actor, CardKind.CREATED, False)
 
     def refresh(self, message: Message) -> dict:
