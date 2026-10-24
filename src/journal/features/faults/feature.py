@@ -1,6 +1,5 @@
 from journal.features.feature import Feature
 from journal.features.faults.commands.developer_command import DeveloperCommand
-from journal.features.faults.jobs.developer_write import DeveloperWrite
 from journal.features.faults.listeners.slow_job_notice import SlowJobNotice
 from journal.features.faults.listeners.slow_requests_card import SlowRequestsCard
 from journal.features.faults.seeds.stale_test_run_files import StaleTestRunFiles
@@ -18,6 +17,5 @@ class Faults(Feature):
     nudges = (FaultsNudges.SLOW_REQUESTS, FaultsNudges.SLOW_JOB)
     listeners = (SlowJobNotice, SlowRequestsCard)
     seeds = (StaleTestRunFiles,)
-    jobs = (DeveloperWrite,)
     process_cards = (SlowRequestProcessCard,)
     commands = (DeveloperCommand,)

@@ -61,7 +61,7 @@ class JournalController:
                               "models": [{"model": total.model, "rows": total.rows} for total in self.numbers.model_totals()]})
 
     def developer_reset(self, request: Request) -> Response:
-        self.numbers.reset(request.actor)
+        self.numbers.reset()
         return self.developer(request)
 
     def summary(self, request: Request) -> Response:

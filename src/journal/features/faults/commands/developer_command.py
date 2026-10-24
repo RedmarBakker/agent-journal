@@ -106,7 +106,7 @@ class DeveloperCommand(Command):
         return 0
 
     def reset(self, args: Namespace, caller: Caller) -> int:
-        self.numbers.reset(caller.actor)
+        self.numbers.reset()
         self.statements.clear()
         self.large_reads.clear()
         print("the times, the rolling log and the counts are cleared")

@@ -17,30 +17,6 @@ class Statistics(Repository[Statistic]):
             row = self.series(key)
             return self.save(row.with_(value=row.value + amount), actor)
 
-    def measured(self, prefix: str, ms: int, actor: Actor) -> None:
-        with self.connection.transaction():
-            self.added(f"{prefix}.count", 1, actor)
-            self.added(f"{prefix}.total_ms", ms, actor)
-            self.raised(f"{prefix}.slowest_ms", ms, actor)
-
-    def raised(self, key: str, value: int, actor: Actor) -> None:
-        with self.connection.transaction():
-            row = self.series(key)
-            if value > row.value:
-                self.save(row.with_(value=value), actor)
-
-    def tallied(self, sums: dict[str, int], slowest: dict[str, int], actor: Actor) -> None:
-        with self.connection.transaction():
-            for key, amount in sums.items():
-                self.added(key, amount, actor)
-            for key, ms in slowest.items():
-                self.raised(key, ms, actor)
-
-    def cleared(self, prefix: str, actor: Actor) -> None:
-        with self.connection.transaction():
-            for row in self.selected(self.query().filter_prefix("key", prefix)):
-                self.delete(row, actor)
-
     def set(self, key: str, value: int, actor: Actor) -> Statistic:
         with self.connection.transaction():
             return self.save(self.series(key).with_(value=value), actor)

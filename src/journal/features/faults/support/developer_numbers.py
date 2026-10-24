@@ -1,14 +1,10 @@
-from journal.features.faults.support.developer_tally import STAGES_PREFIX, DeveloperTally
+from journal.features.faults.support.developer_tally import LOG_ROWS, STAGES_PREFIX, DeveloperTally
 from journal.http.journal.answer_time import AnswerTime
 from journal.models.support.model_load import ModelLoad
 from journal.models.timing import Timing
-from journal.repositories.statistics import Statistics
-from journal.repositories.timings import Timings
-from journal.support.actor import Actor
 from journal.features.faults.support.slow_group import SlowGroup
-from journal.repositories.timings import LOG_ROWS
+from journal.features.faults.support.slow_requests import HOOK
 
-PREFIX = "developer."
 HOOKS_PREFIX = "developer.hooks."
 LOADS_PREFIX = "developer.loads."
 LOG_ENTRIES = 100
@@ -17,16 +13,11 @@ LOG_ENTRIES = 100
 class DeveloperNumbers:
     """What the Developer tab and the journal developer command read of how the journal answers: the average and slowest per kind, the newest and slowest requests from the rolling log, the newest requests with the rows they loaded, and the rows loaded per model since the last reset."""
 
-    def __init__(self, statistics: Statistics, timings: Timings, tally: DeveloperTally) -> None:
-        self.statistics, self.timings, self.tally = statistics, timings, tally
+    def __init__(self, tally: DeveloperTally) -> None:
+        self.tally = tally
 
     def series(self, prefix: str) -> dict[str, int]:
-        self.tally.write()
-        return self.statistics.lower(prefix)
-
-    def log(self) -> Timings:
-        self.tally.write()
-        return self.timings
+        return self.tally.series(prefix)
 
     def hook_time(self) -> AnswerTime:
         return AnswerTime.read(self.series(HOOKS_PREFIX), "developer.hooks")
@@ -45,19 +36,19 @@ class DeveloperNumbers:
         return {stage: AnswerTime.read(numbers, f"{STAGES_PREFIX}{stage}") for stage in stages}
 
     def recent(self) -> list[Timing]:
-        return self.log().recent(LOG_ENTRIES)
+        return self.tally.timings()[:LOG_ENTRIES]
 
     def slowest(self, limit: int = LOG_ENTRIES) -> list[Timing]:
-        return self.log().slowest(limit)
+        return sorted(self.tally.timings(), key=lambda timing: -timing.ms)[:limit]
 
     def groups(self) -> list[SlowGroup]:
-        return SlowGroup.grouped(self.log().slowest(LOG_ROWS))
+        return SlowGroup.grouped(self.slowest(LOG_ROWS))
 
     def slowest_hooks(self, limit: int) -> list[Timing]:
-        return self.log().slowest_hooks(limit)
+        return [timing for timing in self.slowest(LOG_ROWS) if timing.method == HOOK][:limit]
 
     def slowest_requests(self, limit: int) -> list[Timing]:
-        return self.log().slowest_requests(limit)
+        return [timing for timing in self.slowest(LOG_ROWS) if timing.method != HOOK][:limit]
 
     def loaded(self) -> list[Timing]:
         return [timing for timing in self.recent() if timing.loads.counts]
@@ -66,7 +57,5 @@ class DeveloperNumbers:
         totals = [ModelLoad(key.removeprefix(LOADS_PREFIX), rows) for key, rows in self.series(LOADS_PREFIX).items()]
         return sorted(totals, key=lambda total: -total.rows)
 
-    def reset(self, actor: Actor) -> None:
-        self.tally.write()
-        self.statistics.cleared(PREFIX, actor)
-        self.timings.cleared(actor)
+    def reset(self) -> None:
+        self.tally.cleared()

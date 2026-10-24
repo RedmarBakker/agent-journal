@@ -1,35 +1,52 @@
 import threading
+from collections import deque
 
-from journal.models.timing import Timing
-from journal.repositories.statistics import Statistics
-from journal.repositories.setting_rows import SettingRows
-from journal.repositories.timings import Timings
-from journal.support.actor import Actor
-from journal.support.stage_times import StageTimes
 from journal.features.faults.faults_options import FaultsOptions
+from journal.models.timing import Timing
+from journal.repositories.setting_rows import SettingRows
+from journal.support.stage_times import StageTimes
 
 STAGES_PREFIX = "developer.stages."
+LOG_ROWS = 1000
 
 
 class DeveloperTally:
-    """The developer numbers of the requests answered since they were last written, stored in memory and written together: the sums to add to each series, the slowest time of each, and the timings."""
+    """The developer numbers since the server booted, kept in memory and written nowhere: the count, total and slowest time of each series, the rows loaded per model, and the rolling log of the newest thousand timings."""
 
-    def __init__(self, statistics: Statistics, timings: Timings, stages: StageTimes, settings: SettingRows) -> None:
-        self.statistics, self.timings, self.stages, self.settings = statistics, timings, stages, settings
+    def __init__(self, stages: StageTimes, settings: SettingRows) -> None:
+        self.stages, self.settings = stages, settings
         self._lock = threading.Lock()
-        self._sums: dict[str, int] = {}
-        self._slowest: dict[str, int] = {}
-        self._timings: list[Timing] = []
+        self._numbers: dict[str, int] = {}
+        self._log: deque[Timing] = deque(maxlen=LOG_ROWS)
 
     def measured(self, prefix: str, ms: int) -> None:
         with self._lock:
-            self._sums[f"{prefix}.count"] = self._sums.get(f"{prefix}.count", 0) + 1
-            self._sums[f"{prefix}.total_ms"] = self._sums.get(f"{prefix}.total_ms", 0) + ms
-            self._slowest[f"{prefix}.slowest_ms"] = max(ms, self._slowest.get(f"{prefix}.slowest_ms", 0))
+            self._numbers[f"{prefix}.count"] = self._numbers.get(f"{prefix}.count", 0) + 1
+            self._numbers[f"{prefix}.total_ms"] = self._numbers.get(f"{prefix}.total_ms", 0) + ms
+            self._numbers[f"{prefix}.slowest_ms"] = max(ms, self._numbers.get(f"{prefix}.slowest_ms", 0))
 
     def added(self, key: str, amount: int) -> None:
         with self._lock:
-            self._sums[key] = self._sums.get(key, 0) + amount
+            self._numbers[key] = self._numbers.get(key, 0) + amount
+
+    def logged(self, timing: Timing) -> None:
+        with self._lock:
+            self._log.append(timing)
+
+    def series(self, prefix: str) -> dict[str, int]:
+        self.stage_samples()
+        with self._lock:
+            return {key: value for key, value in sorted(self._numbers.items()) if key.startswith(prefix)}
+
+    def timings(self) -> list[Timing]:
+        with self._lock:
+            return list(reversed(self._log))
+
+    def cleared(self) -> None:
+        self.stage_samples()
+        with self._lock:
+            self._numbers.clear()
+            self._log.clear()
 
     def stage_samples(self) -> None:
         samples = self.stages.drained()
@@ -37,15 +54,3 @@ class DeveloperTally:
             return
         for stage, ms in samples:
             self.measured(f"{STAGES_PREFIX}{stage}", ms)
-
-    def logged(self, timing: Timing) -> None:
-        with self._lock:
-            self._timings.append(timing)
-
-    def write(self) -> None:
-        self.stage_samples()
-        with self._lock:
-            sums, slowest, timings = self._sums, self._slowest, self._timings
-            self._sums, self._slowest, self._timings = {}, {}, []
-        self.statistics.tallied(sums, slowest, Actor.system())
-        self.timings.logged_all(timings, Actor.system())
