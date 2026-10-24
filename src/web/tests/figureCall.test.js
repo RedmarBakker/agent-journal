@@ -245,12 +245,11 @@ test("on the telephone it says whom it calls: the worker and the task it holds, 
     // the call's beat keeps the mark that set it off
     const answer = answerTo({beat: "messaged", time: 1, card: "messages:5"}, "butler", {reacted: new Map(), played: []}, 1000, () => 0, () => true);
     expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
-    // a worker given work: two sentences only, its number, then the task it holds, called out, never its title
-    const workers = [{id: 57, task: {task_id: 2742}}, {id: 58, task: null}];
-    expect(callLines({row: "workers:57"}, workers)).toEqual(["Worker 57", "Task 2742!"]);
-    // a worker that holds no task is named alone; any other mark says nothing
-    expect(callLines({row: "workers:58"}, workers)).toEqual(["Worker 58"]);
-    expect(callLines({row: "tasks:3"}, workers)).toEqual([]);
+    // a worker given work: two sentences only, its number, then the task its mark gave it, called out, never its title
+    expect(callLines([{row: "workers:57", task: 2742}])).toEqual(["Worker 57", "Task 2742!"]);
+    // a mark that names no task names the worker alone; any other mark says nothing
+    expect(callLines([{row: "workers:58", task: 0}])).toEqual(["Worker 58"]);
+    expect(callLines([{row: "tasks:3", task: 0}])).toEqual([]);
     // said from the talk's start until the handset is down, never before or after
     expect(callSays(act.talk[0] - 0.01)).toBe(false);
     for (const u of [act.talk[0], (act.talk[0] + act.talk[1]) / 2, act.hang[0], act.hang[1] - 0.001]) expect(callSays(u), `${u}`).toBe(true);
@@ -331,7 +330,7 @@ test("the telephone rings at most once in two minutes, gathering every worker gi
     const {phrasesOf} = await import("../src/figure/comicBubble.js");
     const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
     expect(CALL_COOLDOWN).toBe(120);
-    const workers = [{id: 57, task: {task_id: 2742}}, {id: 58, task: {task_id: 2743}}, {id: 59, task: {task_id: 2744}}];
+    const tasks = {57: 2742, 58: 2743, 59: 2744};
     const memory = {reacted: new Map(), played: []};
     const given = (id, time) => ({beat: "messaged", time, card: `workers:${id}:dispatched`});
     // the first worker given work sets off the call
@@ -344,7 +343,7 @@ test("the telephone rings at most once in two minutes, gathering every worker gi
     expect(beats).toHaveLength(1);
     expect(beats[0].marks).toEqual(["workers:57:dispatched", "workers:58:dispatched", "workers:59:dispatched"]);
     expect(joinedCall(beats, "workers:58:dispatched")).toBe(beats);
-    const words = (marks) => phrasesOf(marks.flatMap((mark) => callLines({row: mark.split(":").slice(0, 2).join(":")}, workers))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    const words = (marks) => phrasesOf(callLines(marks.map((mark) => ({row: mark.split(":").slice(0, 2).join(":"), task: tasks[mark.split(":")[1]]})))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
     expect(words(beats[0].marks)).toEqual(["Worker 57", "Task 2742!", "Worker 58", "Task 2743!", "Worker 59", "Task 2744!"]);
     // with no call waiting, a worker given work inside the two minutes rings nothing: it waits, held, for the next call
     expect(joinedCall([], "workers:58:dispatched")).toBeNull();
@@ -386,4 +385,35 @@ test("a worker's dispatch sets off the call by what its mark is, the worker's pr
     const held = [beats[2].card, beats[3].card];
     expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN - 1)).toBeNull();
     expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN)).toMatchObject({clip: "phone_call", mark: "messages:4", marks: held});
+});
+
+test("jobs handed out in a row make one call: each worker named, then each task given it in turn, then the next worker and its task; after the cooldown a call starts anew", async () => {
+    const {callLines} = await import("../src/domain/figureState.js");
+    const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
+    const {phrasesOf} = await import("../src/figure/comicBubble.js");
+    const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
+    // a worker's dispatch and its next jobs, each mark naming the task it gave (features/workers worker_process_card, worker_moment_cards)
+    const dispatch = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: started on claude opus`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, card_type: "process", process: "worker", active: true, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    const nextJob = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: sent its next job`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    // worker 260 given tasks 200, 201 and 204, and worker 261 dispatched on task 300 in between, all within a few seconds
+    const messages = [dispatch(1, 260, 200), nextJob(2, 260, 201), dispatch(3, 261, 300), nextJob(4, 260, 204)];
+    const lead = withSystemCards({session: "s", data: {}}, messages);
+    const beats = beatsAfter(lead, 0);
+    expect(beats.map((beat) => beat.beat)).toEqual(["messaged", "messaged", "messaged", "messaged"]);
+    // the first rings, every other joins the call while it waits or plays
+    const memory = {reacted: new Map(), played: []};
+    const first = answerTo(beats[0], "butler", memory, beats[0].time, () => 0, () => true);
+    let queue = [first.beat];
+    for (const beat of beats.slice(1)) queue = joinedCall(queue, beat.card);
+    expect(queue).toHaveLength(1);
+    // the call's words, as the figure reads them from the marks it gathered (VoiceFigure callMarks)
+    const words = (call) => phrasesOf(callLines((call.marks ?? [call.mark]).map((key) => lead.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    expect(words(queue[0])).toEqual(["Worker 260", "Task 200!", "Task 201!", "Task 204!", "Worker 261", "Task 300!"]);
+    // the next job inside the cooldown, with no call waiting, rings nothing and is held; once the cooldown is over it makes a call of its own
+    const later = withSystemCards({session: "s", data: {}}, [...messages, nextJob(60, 261, 301)]);
+    const held = beatsAfter(later, 1004).map((beat) => beat.card);
+    expect(answerTo({beat: "messaged", time: 1060, card: held[0]}, "butler", memory, 1060, () => 0, () => true)).toBeNull();
+    expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN - 1)).toBeNull();
+    const anew = heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN);
+    expect(phrasesOf(callLines(anew.marks.map((key) => later.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "))).toEqual(["Worker 261", "Task 301!"]);
 });

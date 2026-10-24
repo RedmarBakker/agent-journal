@@ -277,6 +277,7 @@ export const withSystemCards = (agent, messages) =>
                         processName: m.data.process || "",
                         sentTo: m.data.sent_to || "",
                         row: m.data.row || "",
+                        task: m.data.task || 0,
                         active: Boolean(m.data.active),
                         watch: m.data.output ? {figure: m.data.figure || "", ending: m.data.ending || ""} : null,
                         guesses: {test: Boolean(m.data.is_test), build: Boolean(m.data.is_build), upload: Boolean(m.data.is_upload)},
@@ -326,12 +327,17 @@ export function eggFor(voice, moment, played) {
         : {clip: egg.clip, occurrence: occurrenceOf(moment)};
 }
 
-// What the figure says on the telephone, as the lines of its speech bubble, from the chat mark `card` that set off the call: for a worker sent
-// off its number, and the task it holds by its number and its title, read from the `workers` and `tasks` rows; for a message to another
-// session that session's name; none for any other mark. The bubble wraps them and cuts what it cannot hold (figure/comicBubble.js).
-export function callLines(card, workers) {
-    const [table, id] = String(card.row).split(":");
-    if (table !== "workers") return [];
-    const held = workers.find((worker) => worker.id === Number(id))?.task?.task_id;
-    return [`Worker ${id}`, ...(held ? [`Task ${held}!`] : [])];
+// What the figure says on the telephone, as the lines of its speech bubble, from the chat marks `cards` of the work it gave, in the order
+// they came: each worker by its number, then each task given to it by its number, as its marks name them, before the next worker; a mark
+// of no worker says nothing. The bubble wraps them and cuts what it cannot hold (figure/comicBubble.js).
+export function callLines(cards) {
+    const given = new Map();
+    for (const card of cards) {
+        const [table, id] = String(card.row).split(":");
+        if (table !== "workers") continue;
+        const tasks = given.get(id) ?? new Set();
+        if (card.task) tasks.add(card.task);
+        given.set(id, tasks);
+    }
+    return [...given].flatMap(([id, tasks]) => [`Worker ${id}`, ...[...tasks].map((task) => `Task ${task}!`)]);
 }

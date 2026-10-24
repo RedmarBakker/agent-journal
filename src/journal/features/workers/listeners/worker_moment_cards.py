@@ -10,6 +10,7 @@ from journal.support.card_kind import CardKind
 from journal.chat.moment_cards import MomentCards
 from journal.chat.card_detail import CardDetail
 from journal.models.support.ref import Ref
+from journal.repositories.tasks import Tasks
 
 MOMENTS = {
     WorkerReused: ("sent its next job", "", "brief"),
@@ -21,10 +22,10 @@ MOMENTS = {
 
 
 class WorkerMomentCards(Listener[RowEvent]):
-    """Each moment of a worker after its dispatch is one new mark in the chat with its own tone: sent its next job, started again, sent a message, retired, its queue given back."""
+    """Each moment of a worker after its dispatch is one new mark in the chat with its own tone, naming the task the worker holds: sent its next job, started again, sent a message, retired, its queue given back."""
 
-    def __init__(self, cards: MomentCards) -> None:
-        self.cards = cards
+    def __init__(self, cards: MomentCards, tasks: Tasks) -> None:
+        self.cards, self.tasks = cards, tasks
 
     def handle(self, event: RowEvent) -> None:
         if not isinstance(event, (WorkerReused, WorkerRevived, WorkerNotified, WorkerRetired, WorkerQueueDrained)):
@@ -33,4 +34,6 @@ class WorkerMomentCards(Listener[RowEvent]):
         worker = event.worker
         actor = Actor.agent(worker.dispatcher) if worker.dispatcher else Actor.system()
         label = CardDetail.shortened(f"Worker {worker.id}, {worker.name}: {text}")
-        self.cards.show(event.environment_id, worker.dispatcher, label, "agents", tone=tone, detail=getattr(event, detail) if detail else "", row=Ref("workers", worker.id), actor=actor, shows=CardKind.WORKERS)
+        row = Ref("workers", worker.id)
+        data = {"kind": "card", "icon": "agents", "tone": tone, "row": str(row), "command": "", "task": self.tasks.last_task_id(row)}
+        self.cards.show_fields(event.environment_id, worker.dispatcher, label, data, actor, CardKind.WORKERS, getattr(event, detail) if detail else "")

@@ -102,7 +102,7 @@ import {
 } from "../figure/places.js";
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
-import {holding, rows} from "../sync/rows.js";
+import {rows} from "../sync/rows.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -1508,7 +1508,7 @@ const callMarks = () => {
     return keys.map((key) => cards.find((card) => card.key === key)).filter(Boolean);
 };
 const calling = () => callMarks()[0];
-const callPhrases = () => phrasesOf(callMarks().flatMap((card) => callLines(card, rows("workers"))));
+const callPhrases = () => phrasesOf(callLines(callMarks()));
 let callSide = {mark: "", side: 0};
 const callBubble = computed(() => {
     if (shownClip.value?.name !== "phone_call" || !callSays(shownFrame.value / shownClip.value.frames)) return null;
@@ -1526,14 +1526,6 @@ const callBubble = computed(() => {
     return {phrases, seconds, left: spot.left, top: spot.top, tip: {x: tip.x - spot.left, y: tip.y - spot.top}};
 });
 
-// the rows the call's words are read from, the workers the call is to, fetched as the call is set off or gathers another
-watch(
-    () => callMarks().map((card) => card.key).join(" "),
-    async () => {
-        const ids = callMarks().map((card) => String(card.row).split(":")).filter(([table]) => table === "workers").map(([, id]) => Number(id));
-        if (ids.length) await holding("workers", ids);
-    },
-);
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
 const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
 

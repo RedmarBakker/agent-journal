@@ -8,6 +8,7 @@ from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.messages import Messages
+from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
@@ -19,12 +20,12 @@ FAILED = "failed"
 
 
 class WorkerProcessCard(ProcessCard):
-    """The process card of a worker's dispatch, active while the worker starts and turned red with why when the dispatch failed; each standing the worker reaches is informed in words its card and its later cards share."""
+    """The process card of a worker's dispatch, active while the worker starts and turned red with why when the dispatch failed, naming the task it was given; each standing the worker reaches is informed in words its card and its later cards share."""
 
     name = "worker"
 
-    def __init__(self, workers: Workers, reports: WorkerReports, messages: Messages) -> None:
-        self.workers, self.reports, self.messages = workers, reports, messages
+    def __init__(self, workers: Workers, reports: WorkerReports, messages: Messages, tasks: Tasks) -> None:
+        self.workers, self.reports, self.messages, self.tasks = workers, reports, messages, tasks
 
     @staticmethod
     def key(worker: Worker) -> str:
@@ -34,7 +35,7 @@ class WorkerProcessCard(ProcessCard):
         older = self.messages.keyed(self.key(worker), actor)
         if older and older[0].data.get("tone") == standing.tone and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
-        data = {"kind": "card", "icon": "agents", "tone": standing.tone, "row": str(Ref.build(worker))}
+        data = {"kind": "card", "icon": "agents", "tone": standing.tone, "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
         return ProcessMark(self.name, worker.environment_id, self.key(worker), f"Worker {worker.id}, {worker.name}: {standing.text}", data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
 
     def refresh(self, message: Message) -> dict:

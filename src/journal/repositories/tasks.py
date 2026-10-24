@@ -130,6 +130,10 @@ class Tasks(ScopedRepository[Task]):
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
         return tuple(link.target.id for link in self.links.all_matching(source=holder, kind=CURRENT_TASK_LINK))
 
+    def last_task_id(self, holder: Ref) -> int:
+        task_ids = self.holder_task_ids(holder)
+        return task_ids[-1] if task_ids else 0
+
     def holder(self, task: Task) -> Ref | None:
         holders = self.links.sources(task, CURRENT_TASK_LINK)
         return holders[-1] if holders else None
