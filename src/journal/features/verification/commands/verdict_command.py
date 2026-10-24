@@ -1,7 +1,7 @@
 from argparse import Namespace
 from datetime import datetime, timezone
 
-from journal.console.command import WORKER_KINDS, Command
+from journal.console.command import VERIFIER_KINDS, Command
 from journal.features.verification.support.verifier_dispatch import VerifierDispatch
 from journal.repositories.reader_reports import ReaderReports
 from journal.support.caller import Caller
@@ -15,7 +15,7 @@ class VerdictCommand(Command):
 
     noun = "verdict"
     default_verb = "give"
-    callers = {"give": WORKER_KINDS}
+    callers = {"give": VERIFIER_KINDS}
 
     def __init__(self, dispatch: VerifierDispatch, reports: ReaderReports) -> None:
         self.dispatch, self.reports = dispatch, reports
@@ -26,9 +26,9 @@ class VerdictCommand(Command):
         giving.add_argument("reason")
 
     def give(self, args: Namespace, caller: Caller) -> int:
-        if caller.worker_number is None:
+        if caller.verifier_number is None:
             raise Rejection("only a verifier the journal sent gives a verdict")
-        report = self.reports.find(self.dispatch.judged(caller.worker_number).id)
+        report = self.reports.find(self.dispatch.judged(caller.verifier_number).id)
         moment = datetime.now(timezone.utc)
         judged = report.judged_sound(args.reason, caller.agent_session, moment) if args.verdict == SOUND_VERDICT else report.refuted(args.reason, caller.agent_session, moment)
         self.reports.save(judged, caller.actor)

@@ -110,7 +110,8 @@ def test_a_shells_variables_name_its_caller_by_kind_with_the_provider_that_marks
     assert providers.caller({"CODEX_THREAD_ID": "t1", "CODEX_CI": "1"}) == Caller.agent("main", "t1", "codex"), "an agent knows its own provider from the markers its shell carries"
     assert providers.caller({"CLAUDECODE": "1"}) == Caller.shell("main", "claude"), "a Claude shell names no session, only its provider"
     assert providers.caller({"JOURNAL_PLUGIN": "echo", "JOURNAL_PLUGIN_TOKEN": "x"}) == Caller.plugin("main", "echo")
-    assert providers.caller({"JOURNAL_WORKER": "3", "JOURNAL_AGENT_SHELL": "1", "CLAUDECODE": "1"}) == Caller.worker("main", 3, None, "claude")
+    assert providers.caller({"JOURNAL_ACTOR": "worker:3", "JOURNAL_AGENT_SHELL": "1", "CLAUDECODE": "1"}) == Caller.worker("main", 3, None, "claude")
+    assert providers.caller({"JOURNAL_ACTOR": "verifier:4", "JOURNAL_AGENT_SHELL": "1", "CLAUDECODE": "1"}) == Caller.verifier("main", 4, None, "claude"), "one actor variable names a worker or a verifier by its stamp"
     variables = providers.caller_variables({"JOURNAL_ENV": "development", "CODEX_THREAD_ID": "t1", "JOURNAL_LAUNCH": "l1"})
     assert CallerVariables.parsed(variables.body(), "claude") == variables, "what the shim posts reads back as the variables it posted"
 
@@ -158,7 +159,7 @@ def test_a_workers_shim_never_runs_the_package_when_no_server_answers(app: App):
     import os
     import subprocess
     environ = {key: value for key, value in os.environ.items() if key != "JOURNAL_SESSION"}
-    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="main", JOURNAL_ACTOR="worker-agent", JOURNAL_WORKER="1", JOURNAL_WORKER_TOKEN="tok")
+    environ.update(JOURNAL_ROOT=str(app.config.root), JOURNAL_ENV="main", JOURNAL_ACTOR="worker:1", JOURNAL_ACTOR_TOKEN="tok")
     (app.config.home / "port").unlink(missing_ok=True)
     outcome = subprocess.run(["sh", str(Path(__file__).resolve().parents[1] / "src" / "journal.sh"), "task", "list"], env=environ, capture_output=True, text=True, timeout=10)
     assert outcome.returncode == 1 and "restarting" in outcome.stderr, "a worker's command waits for the server that can check its token"
@@ -273,13 +274,15 @@ def test_any_row_docks_above_the_chat_by_noun_and_number_in_either_order(app: Ap
 
 
 def test_a_workers_environment_carries_no_providers_markers_no_session_and_no_launch(app: App, monkeypatch):
-    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.providers.support.sent_agent_setup import SentAgentSetup
     parents = {*Providers().inherited_markers(), *Providers().session_variables(), "JOURNAL_LAUNCH", "JOURNAL_SESSION"}
     for name in parents:
         monkeypatch.setenv(name, "parent")
-    handed = app.container.get(WorkerRunner).environment_variables("main")
+    from journal.support.agent_token import AgentToken
+    handed = app.container.get(SentAgentSetup).variables("main", Actor.worker(7), AgentToken("tok"))
     assert not parents & set(handed), "a worker carries none of the parent's thread, and never its session, which its report would take as its own"
-    assert handed["JOURNAL_ACTOR"] == "worker-agent" and handed["JOURNAL_ENV"] == "main"
+    assert (handed["JOURNAL_ACTOR"], handed["JOURNAL_ACTOR_TOKEN"], handed["JOURNAL_ENV"]) == ("worker:7", "tok", "main")
+    assert app.container.get(SentAgentSetup).variables("main", Actor.verifier(3), AgentToken("tok"))["JOURNAL_ACTOR"] == "verifier:3", "a verifier's shell names it as a verifier, never a worker"
 
 
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):
@@ -349,13 +352,13 @@ def test_a_hook_whose_launch_id_names_another_environments_launch_is_reported_an
         from journal.models.worker import Worker
         from journal.repositories.workers import Workers
         from journal.support.actor import Actor
-        from journal.support.worker_token import WorkerToken
+        from journal.support.agent_token import AgentToken
         with app.container.get(Scope).environment(1):
-            worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=WorkerToken.hashed("tok")), Actor.system())
+            worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
 
         def worker_started(session: str, token: str) -> int:
             body = json.dumps({"hook_event_name": "SessionStart", "session_id": session, "source": "startup"}).encode()
-            request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": token})
+            request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": token})
             with urlopen(request, timeout=5) as reply:
                 return reply.status
 

@@ -17,7 +17,8 @@ class Hook:
     started_ms: int = 0
     launch: str = ""
     worker: int | None = None
-    worker_token: str | None = None
+    verifier: int | None = None
+    actor_token: str | None = None
     boot_wait_seconds: float = 0.0
 
     @classmethod
@@ -25,7 +26,13 @@ class Hook:
         return cls(HookKind(body["hook_event_name"]), body["session_id"], environment, provider, body, launch=launch)
 
     def worker_hook(self, number: int, token: str | None) -> "Hook":
-        return replace(self, worker=number, worker_token=token)
+        return replace(self, worker=number, actor_token=token)
+
+    def verifier_hook(self, number: int, token: str | None) -> "Hook":
+        return replace(self, verifier=number, actor_token=token)
+
+    def is_sent(self) -> bool:
+        return self.worker is not None or self.verifier is not None
 
     def stamped(self, started_ms: int) -> "Hook":
         return replace(self, started_ms=started_ms)

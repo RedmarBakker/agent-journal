@@ -5,12 +5,13 @@
 #        so the agent shows only the journal's line; otherwise the body's error is the reason, and exit 2 tells the agent to stop
 #   anything else, or no server  go on, silently
 # Nothing is decided here, and a deferred handler never changes the status: the server replies before it runs.
-# Who runs the hook: JOURNAL_ACTOR is agent, sub-agent or worker-agent; the agent's and a worker's own hooks reach the journal.
+# Who runs the hook: JOURNAL_ACTOR is agent, sub-agent, or a sent agent's actor, worker:12 or verifier:3, with the token that proves it in JOURNAL_ACTOR_TOKEN;
+# the agent's and a sent agent's own hooks reach the journal.
 # A hook whose body carries a subagent's id is a sub-agent's, whatever the variable says, since a subagent inherits the agent's shell;
 # only its start, its stop and its PreToolUse reach the server. The server records and judges none of a subagent's PreToolUse and answers it {};
 # it only notes a Bash one's command, to pair with the journal command the shim posts, which then runs only a subagent's reading verbs.
 [ "$AGENT_JOURNAL_ACTIVE" = 1 ] || exit 0
-case "${JOURNAL_ACTOR:-agent}" in agent|worker-agent) ;; *) exit 0 ;; esac
+case "${JOURNAL_ACTOR:-agent}" in agent|worker:*|verifier:*) ;; *) exit 0 ;; esac
 agent=$1
 root=$2
 port=$(cat "$root/.journal/port" 2>/dev/null)
@@ -35,8 +36,8 @@ post() {
         -H "Content-Type: application/json" \
         -H "X-Journal-Env: $(journal_environment)" \
         -H "X-Journal-Launch: ${JOURNAL_LAUNCH:-}" \
-        -H "X-Journal-Worker: ${JOURNAL_WORKER:-}" \
-        -H "X-Journal-Worker-Token: ${JOURNAL_WORKER_TOKEN:-}" \
+        -H "X-Journal-Actor: ${JOURNAL_ACTOR:-agent}" \
+        -H "X-Journal-Actor-Token: ${JOURNAL_ACTOR_TOKEN:-}" \
         -H "X-Journal-Request-At: $started" \
         -H "X-Journal-Boot-Wait-Ms: $waited" \
         --data-binary @"$sent"

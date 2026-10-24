@@ -7,23 +7,23 @@ from journal.support.rejection import Rejection
 LOCAL_USER = 1
 
 AGENT_SHELL = "JOURNAL_AGENT_SHELL"
-WORKER = "JOURNAL_WORKER"
-WORKER_TOKEN = "JOURNAL_WORKER_TOKEN"
+# who runs a shell: agent, sub-agent, or a sent agent as its actor stamp, worker:12 or verifier:3, which proves itself with the token beside it
 ACTOR = "JOURNAL_ACTOR"
-WORKER_ACTOR = "worker-agent"
+ACTOR_TOKEN = "JOURNAL_ACTOR_TOKEN"
 
 AGENT_REQUIRED = "no agent runs this: only an agent's own session can"
 
 
 @dataclass(frozen=True)
 class Caller:
-    """Where a command runs and who runs it: the user, an agent by its session and provider, an agent's shell that names no session, a plugin by its name, a worker by its number, its session when its program names one, and its provider, or a subagent of any of these; its kind says which, and the person is the user's account number on a shared journal."""
+    """Where a command runs and who runs it: the user, an agent by its session and provider, an agent's shell that names no session, a plugin by its name, a worker or a verifier by its number, its session when its program names one, and its provider, or a subagent of any of these; its kind says which, and the person is the user's account number on a shared journal."""
 
     environment: str
     session: str | None = None
     provider: str | None = None
     plugin_name: str | None = None
     worker_number: int | None = None
+    verifier_number: int | None = None
     subagent: bool = False
     person: int = LOCAL_USER
 
@@ -47,6 +47,10 @@ class Caller:
     def worker(cls, environment: str, number: int, session: str | None, provider: str) -> "Caller":
         return cls(environment, session, provider, worker_number=number)
 
+    @classmethod
+    def verifier(cls, environment: str, number: int, session: str | None, provider: str) -> "Caller":
+        return cls(environment, session, provider, verifier_number=number)
+
     def subagent_caller(self) -> "Caller":
         return replace(self, subagent=True)
 
@@ -58,6 +62,8 @@ class Caller:
             return CallerKind.PLUGIN
         if self.worker_number is not None:
             return CallerKind.WORKER
+        if self.verifier_number is not None:
+            return CallerKind.VERIFIER
         return CallerKind.USER if self.session is None and self.provider is None else CallerKind.MAIN_AGENT
 
     @property
@@ -66,6 +72,8 @@ class Caller:
             return Actor.plugin(self.plugin_name)
         if self.worker_number is not None:
             return Actor.worker(self.worker_number)
+        if self.verifier_number is not None:
+            return Actor.verifier(self.verifier_number)
         return Actor.user(self.person) if self.session is None else Actor.agent(self.session)
 
     @property
@@ -81,4 +89,4 @@ class Caller:
         return self.provider
 
     def is_unnamed_agent(self) -> bool:
-        return self.provider is not None and self.session is None and self.worker_number is None
+        return self.provider is not None and self.session is None and self.worker_number is None and self.verifier_number is None

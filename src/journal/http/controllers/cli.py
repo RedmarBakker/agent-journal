@@ -7,7 +7,7 @@ from journal.console.console import Console
 from journal.features.aliases.support.alias_lines import AliasLines
 from journal.support.caller import Caller
 from journal.support.caller_variables import CallerVariables
-from journal.features.workers.support.worker_identity import REFUSAL as WORKER_REFUSAL, WorkerIdentity
+from journal.hooks.support.agent_identity import REFUSAL as IDENTITY_REFUSAL, AgentIdentity
 from journal.providers.providers import Providers
 from journal.support.plugin_tokens import PluginTokens
 from journal.http.support.subagent_commands import SubagentCommands
@@ -28,7 +28,7 @@ EXEC = "__journal_exec"
 class CliController:
     """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's."""
 
-    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: WorkerIdentity, account: TeamAccount) -> None:
+    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, account: TeamAccount) -> None:
         self.account = account
         self.console, self.tokens, self.subagents, self.launches, self.providers, self.aliases = console, tokens, subagents, launches, providers, aliases
         self.identity = identity
@@ -62,7 +62,7 @@ class CliController:
     def token_refusal(self, variables: CallerVariables) -> Outcome:
         if variables.plugin is not None and not self.tokens.matches(variables.plugin, variables.token):
             return Outcome.refused(f"the journal does not know this token for plugin {variables.plugin}\n")
-        return Outcome.refused(WORKER_REFUSAL)
+        return Outcome.refused(IDENTITY_REFUSAL)
 
     def outcome(self, variables: CallerVariables, argv: list[str], request: Request) -> Outcome:
         return self.console.run(argv, self.caller(variables, argv, request))

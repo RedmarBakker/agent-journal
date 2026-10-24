@@ -1,5 +1,7 @@
 from journal.repositories.setting_rows import SettingRows
 from journal.support.announced_commands import AnnouncedCommands
+from journal.support.actor import Actor
+from journal.support.actor_kind import ActorKind
 from journal.support.hook import Hook
 from journal.support.hook_kind import HookKind
 from journal.hooks.hook_arrivals import HookArrivals
@@ -11,8 +13,8 @@ from journal.providers.providers import Providers
 from journal.features.faults.faults_options import FaultsOptions
 
 LAUNCH_HEADER = "x-journal-launch"
-WORKER_HEADER = "x-journal-worker"
-WORKER_TOKEN_HEADER = "x-journal-worker-token"
+ACTOR_HEADER = "x-journal-actor"
+ACTOR_TOKEN_HEADER = "x-journal-actor-token"
 
 
 class HookController:
@@ -24,14 +26,21 @@ class HookController:
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds)
-        worker = request.headers.get(WORKER_HEADER)
-        hook = stamped.worker_hook(int(worker), request.headers.get(WORKER_TOKEN_HEADER)) if worker else stamped
+        hook = self.sender_stamped(stamped, request)
         if hook.subagent and hook.kind == HookKind.PRE_TOOL_USE:
             return self.announce(hook)
         if hook.kind == HookKind.PRE_TOOL_USE:
             self.announced.withdraw(hook.environment, hook.session, self.shell_parts(hook))
         provider, decision = self.providers.lookup(hook.provider), self.receiver.receive(hook)
         return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)
+
+    @staticmethod
+    def sender_stamped(hook: Hook, request: Request) -> Hook:
+        actor, token = request.headers.get(ACTOR_HEADER, ""), request.headers.get(ACTOR_TOKEN_HEADER)
+        worker, verifier = Actor.stamp_number(actor, ActorKind.WORKER), Actor.stamp_number(actor, ActorKind.VERIFIER)
+        if worker is not None:
+            return hook.worker_hook(worker, token)
+        return hook.verifier_hook(verifier, token) if verifier is not None else hook
 
     def is_copy_shown(self) -> bool:
         return bool(self.settings.option(FaultsOptions.HOOK_LINE_COPY))

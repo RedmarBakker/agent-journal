@@ -9,6 +9,7 @@ PRINCIPAL_KINDS = frozenset({CallerKind.MAIN_AGENT, CallerKind.USER, CallerKind.
 HELPER_KINDS = frozenset({CallerKind.WORKER, CallerKind.SUBAGENT})
 WORKER_KINDS = frozenset({CallerKind.WORKER})
 SUBAGENT_KINDS = frozenset({CallerKind.SUBAGENT})
+VERIFIER_KINDS = frozenset({CallerKind.VERIFIER})
 
 
 class Command:

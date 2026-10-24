@@ -1098,7 +1098,7 @@ workers.pool_slots = 0  (the user sets it)
 workers.pool_daily_minutes = 0  (the user sets it)
 workers.pool_profiles = journal-medior  (the user sets it)
 checks.repeat_minutes = 60
-shell.foreground = 30
+shell.foreground = 15
 shell.reader_after = 5
 shell.report_read_after = 5
 shell.report_fix_after = 10
@@ -1437,7 +1437,7 @@ shell.output_part_kept  [shell]  output {{n}} also holds part {{part}}: {{counts
 shell.outputs_ended  [shell]  {{outputs}}. `journal output read {{n}} --summary` says how
 shell.read_the_file_in_parts  [shell]  the file has {{lines}} lines, more than the {{cap}} shown at each end. read it in parts with offset and limit, or grep for the line you need
 shell.reader_report_acted_on_next  [shell]  fix due for reader report {{reports}}: 0. your next write waits until the reader is written anew or the report dismissed
-shell.reader_report_dismissal_refuted  [shell]  the verifier found your dismissal unsound, {{verdicts}}. write the reader anew with `journal reader add`: a refuted report is never dismissed again
+shell.reader_report_dismissal_refuted  [shell]  your dismissal was checked against the run's output and found wrong, {{verdicts}}. write the reader anew with `journal reader add`: a refuted report is never dismissed again
 shell.reader_report_read_next  [shell]  a reader fell short, read due for reader report {{reports}}: 0. your next write waits until you read it with `journal reader report <n>`
 shell.reader_report_to_act_on  [shell]  fix due for reader report {{reports}}: {{count}}. write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why "<why the report is wrong>"`
 shell.reader_report_to_read  [shell]  a reader fell short, read due for reader report {{reports}}: {{count}}. `journal reader report <n>`
@@ -1455,7 +1455,7 @@ shell.watched_reader_output  [shell]  output {{n}} ({{command}}) is in the backg
 shell.write_held_until_read_through_a_reader  [shell]  no reader reads {{commands}}, run in the background. `journal reader add <name> --commands "<command>" --about '<what it picks>' --label '<what it does>' --pattern '<lines worth seeing>' --progress '<progress>'` before any other write
 shell.write_held_until_reader_report_acted_on  [shell]  reader report {{reports}} is read but not acted on. write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why "<why>"`, before any other write
 shell.write_held_until_reader_report_read  [shell]  reader report {{reports}} is not read yet. `journal reader report <n>` before any other write
-shell.write_held_until_refuted_reader_written_anew  [shell]  writes held: the verifier found your dismissal unsound, {{verdicts}}. write the reader anew with `journal reader add` before any other write; a refuted report is never dismissed again
+shell.write_held_until_refuted_reader_written_anew  [shell]  writes held: your dismissal was checked against the run's output and found wrong, {{verdicts}}. write the reader anew with `journal reader add` before any other write; a refuted report is never dismissed again
 shell.writes_held_soon_until_read_through_a_reader  [shell]  reader due for {{commands}}: {{count}}. `journal reader add <name> --commands "<command>" --about '<what it picks>' --label '<what it does>' --pattern '<the lines worth seeing: failures and summary>' --progress '<a percent or a count of a total>'`
 skills.read_the_skill_first  [skills]  read the {{skill}} skill before anything else: {{path}}. every other tool waits until you have
 skills.read_the_skill_now  [skills]  read the {{name}} skill now: {{path}}

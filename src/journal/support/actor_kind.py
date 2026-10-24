@@ -9,3 +9,4 @@ class ActorKind(StrEnum):
     PHONE = "phone"
     EXTERNAL = "external"
     WORKER = "worker"
+    VERIFIER = "verifier"

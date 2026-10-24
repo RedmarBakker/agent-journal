@@ -2793,12 +2793,12 @@ def test_a_chain_is_taken_apart_and_the_shells_wrapping_around_it_is_silent():
     assert [ActivityLabel.build(c) for c in ("npm --prefix src/web run build", "npm run dev", "npx vitest run tests/a.test.js", "make -C src")] == ["building", "running a script", "testing", "building"], "a flag's value is no part of what the command does, and a build or a test through npm is one"
 
 
-def test_the_foreground_limit_is_thirty_seconds_or_ten_while_a_message_waits(app: App):
+def test_the_foreground_limit_is_fifteen_seconds_or_ten_while_a_message_waits(app: App):
     console = app.console()
-    assert ShellVerbs(app).limit() == "30"
+    assert ShellVerbs(app).limit() == "15"
     wrapped = "source /s 2>/dev/null || true && eval 'journal task list && journal message unread' < /dev/null && pwd -P >| /tmp/cwd"
     assert ShellVerbs(app).limit(wrapped) == "0", "a line of journal commands alone is never moved to the background"
-    assert ShellVerbs(app).limit(wrapped.replace("journal message unread", "sleep 60")) == "30"
+    assert ShellVerbs(app).limit(wrapped.replace("journal message unread", "sleep 60")) == "15"
     console.run(["message", "send", "are you there?"], USER)
     assert ShellVerbs(app).limit() == "10"
     console.run(["message", "read", "1"], AGENT)
@@ -3146,7 +3146,7 @@ def test_commands_run_at_the_same_moment_keep_their_own_output(app: App):
         t.start()
     for t in threads:
         t.join()
-    assert all(outs[n] == ("hint 400" if n % 2 else "30") for n in range(20)), "each run's output is its own, though they run side by side"
+    assert all(outs[n] == ("hint 400" if n % 2 else "15") for n in range(20)), "each run's output is its own, though they run side by side"
 
 
 def test_each_agent_has_one_task_in_progress_at_a_time(app: App):
@@ -7257,7 +7257,7 @@ def test_a_subagents_shell_line_is_never_moved_to_the_background(app: App):
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "sleep 60 && echo done"}, agent_id="a1")
     assert ShellVerbs(app).limit(wrapped) == "0", "a subagent is never told a command ended, so its line stays in its foreground"
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "sleep 60 && echo done"})
-    assert ShellVerbs(app).limit(wrapped) == "30", "the same line run by the agent itself moves as ever"
+    assert ShellVerbs(app).limit(wrapped) == "15", "the same line run by the agent itself moves as ever"
 
 
 def test_an_update_holds_its_mark_until_the_journal_runs_the_version_it_went_to(app: App):
@@ -8122,7 +8122,7 @@ def test_a_workers_dispatch_mark_stays_and_each_later_standing_is_a_new_mark(app
     marks = lambda n: [m.text for m in messages.scoped() if str(m.data.get("key", "")).startswith(f"worker:{n}:")]
     assert card(1).text == "Worker 1, Lady Lovelace: started on claude sonnet" and card(1).data["detail"] == "a job for Lady Lovelace" and card(1).data["shows"] == "workers"
     runner, workers = app.container.get(WorkerRunner), app.container.get(Workers)
-    runner.run(workers.find(1), ["sh", "-c", 'echo "the footer is fixed"; test -n "$JOURNAL_WORKER_TOKEN" || exit 9; test "$JOURNAL_ROOT" = "$0" || exit 8', str(app.config.root)], Actor.agent("s1"))
+    runner.run(workers.find(1), ["sh", "-c", 'echo "the footer is fixed"; test -n "$JOURNAL_ACTOR_TOKEN" || exit 9; test "$JOURNAL_ROOT" = "$0" || exit 8', str(app.config.root)], Actor.agent("s1"))
     first_hash = workers.find(1).token_hash
     runner.run(workers.find(2), ["sh", "-c", "echo broken >&2; exit 3"], Actor.agent("s1"))
     runner.run(workers.find(3), ["sh", "-c", "true"], Actor.agent("s1"))
@@ -11974,6 +11974,7 @@ def test_a_started_plans_next_task_is_offered_before_a_loose_one_and_never_one_a
 
 
 def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_and_pushes_its_branch(app: App, tmp_path, monkeypatch):
+    from journal.support.agent_token import AgentToken
     import subprocess
 
     from journal.features.workers.support.worker_branch import WorkerBranch
@@ -12043,7 +12044,7 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         app.container.get(SettingRows).set("workers.preparation_commands", ["touch prepared.txt"], Actor.user(1))
         CarriedSync(app).pulled()
         app.runtime().deferred.drain()
-        variables = app.container.get(WorkerRunner).worker_variables(started[0])
+        variables = app.container.get(WorkerRunner).worker_variables(started[0], AgentToken("tok"))
         assert "PLANTED_CLOUD_KEY" not in variables and "PATH" in variables, "a pool worker gets a short list of the machine's variables, never its keys"
         assert not (root / "prepared.txt").exists() and (app.container.get(WorkerBranch).folder(worker) / "prepared.txt").exists(), "the machine's own commands run inside the pool worktree, never in its checkout"
         (app.container.get(WorkerBranch).folder(worker) / "prepared.txt").unlink()
@@ -13972,12 +13973,16 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     from journal.features.shell.support.output_log import OutputLog
     from journal.models.agent_role import AgentRole
     from journal.models.reader_report import ReaderReport
+    from journal.models.verifier_state import VerifierState
     from journal.repositories.agents import Agents
     from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
     from journal.repositories.reader_reports import ReaderReports
+    from journal.repositories.verifiers import Verifiers
     from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
     hook(app, "SessionStart")
-    console, outputs, reports, workers, sessions = app.console(), app.container.get(CommandOutputs), app.container.get(ReaderReports), app.container.get(Workers), app.container.get(SessionAgents)
+    console, outputs, reports, verifiers, sessions = app.console(), app.container.get(CommandOutputs), app.container.get(ReaderReports), app.container.get(Verifiers), app.container.get(SessionAgents)
     console.run(["environment", "overview"], AGENT)
     assert console.run(["reader", "add", "builds", "--commands", "make", "--pattern", "^(built|failed)", "--about", "each build's end"], AGENT).code == 0
     folder = app.config.root / "build"
@@ -13988,67 +13993,66 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     app.container.get(OutputLog).start("build", "make all", folder, Caller.agent("main", "s1", "claude"))
     output = max(row.id for row in outputs.all())
     write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
+    token = AgentToken("the verifier's token")
 
     def dismissed(why: str) -> tuple[ReaderReport, object]:
         with app.container.get(Scope).environment(MAIN):
             report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=output, command="make all", session="s1", findings=("the card showed lines too long or too much like code to read at a glance: \"cc -O2 -Wall\"",), fixes=("narrow the pattern to the short lines a person reads",)), Actor.system())
-            sent = {worker.id for worker in workers.scoped()}
+            sent = {verifier.id for verifier in verifiers.scoped()}
         console.run(["reader", "report", str(report.id)], AGENT)
         assert console.run(["reader", "dismiss", str(report.id), "--why", why], AGENT).code == 0
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
-            [verifier] = [worker for worker in workers.scoped() if worker.id not in sent]
-            session = f"v-{verifier.id}"
-            workers.save(workers.find(verifier.id).with_(session=session), Actor.system())
-        return report, verifier
+            [verifier] = [verifier for verifier in verifiers.scoped() if verifier.id not in sent]
+            deadline = timing.time() + 10
+            while not verifiers.find(verifier.id).pid and timing.time() < deadline:
+                timing.sleep(0.02)
+            verifiers.save(verifiers.find(verifier.id).with_(token_hash=token.digest()), Actor.system())
+        return report, verifiers.find(verifier.id)
 
-    def verifier_hook(session: str, kind: str, **body):
-        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": session, **body}, {"X-Journal-Env": "main"})
+    def verifier_hook(verifier, kind: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": verifier.session, **body}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
 
+    workers_before = len(app.container.get(Workers).scoped())
     report, verifier = dismissed("the card shows only the short built line")
-    assert (verifier.name, verifier.dispatcher) == ("Diogenes, lamp-bearer of the honest reason", None), "the journal sends the verifier itself, never the agent"
+    assert verifier.name == "Diogenes, lamp-bearer of the honest reason" and verifier.state == VerifierState.VERIFYING and verifier.pid, "the journal sends the verifier itself, and its program runs"
+    assert len(app.container.get(Workers).scoped()) == workers_before and "Diogenes" not in console.run(["worker", "list"], AGENT).text, "a verifier is never a worker: no worker row, nothing in the workers' list"
     assert all(part in verifier.brief for part in ("lines too long", "the card shows only the short built line", "built|failed", "cc -O2 -Wall -Wextra")), "it is handed the report, the agent's reason, the reader and the run's output"
-    session = f"v-{verifier.id}"
-    verifier_hook(session, "SessionStart")
-    assert sessions.top(session).name == "verifying" and app.container.get(Agents).session_agent(session).role == AgentRole.VERIFIER, "a verifier is pushed into Verifying at its start"
-    from journal.features.workers.support.worker_chat import WorkerChat
-    from journal.repositories.messages import Messages
-    chat = app.container.get(WorkerChat)
-    with app.container.get(Scope).environment(MAIN):
-        chat.turn(workers.find(verifier.id), "I read the run's output", f"transcript:{session}:0:0")
-        told = chat.instruction(workers.find(verifier.id), "judge the dismissal", Actor.system())
-        assert [message.agent_role for message in app.container.get(Messages).sent_with(f"transcript:{session}:0:0")] == [AgentRole.VERIFIER] and told.agent_role == AgentRole.VERIFIER, "a verifier's transcript and what it is told are written to the verifier's own chat, never refused as a worker's"
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": verifier.session}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": "a wrong token"})
+    assert not app.container.get(Agents).active_session_agents(verifier.session), "a hook that claims a verifier without its token is not taken in"
+    verifier_hook(verifier, "SessionStart")
+    assert sessions.top(verifier.session).name == "verifying" and app.container.get(Agents).session_agent(verifier.session).role == AgentRole.VERIFIER, "a verifier rests on Verifying from its first hook"
     for tool, tool_input in (("Write", {"file_path": "a.py", "content": "x"}), ("Edit", {"file_path": "a.py", "old_string": "a", "new_string": "b"}), ("Read", {"file_path": "a.py"}), ("Bash", {"command": "journal task list"})):
-        status, body = verifier_hook(session, "PreToolUse", tool_name=tool, tool_input=tool_input, tool_use_id=f"t-{tool}")
+        status, body = verifier_hook(verifier, "PreToolUse", tool_name=tool, tool_input=tool_input, tool_use_id=f"t-{tool}")
         assert status == 409 and "you only give your verdict" in body["error"], (tool, status, body)
-    assert verifier_hook(session, "PreToolUse", tool_name="Bash", tool_input={"command": "journal verdict no 'the card shows the long compiler line'"}, tool_use_id="t-verdict")[0] == 200, "its verdict is the one tool it may use"
-    assert write()[0] == 200, "the main agent goes on working while the verifier judges"
-    verdict = console.run(["verdict", "no", "the first line the card shows is a 120-character compiler command"], Caller.worker("main", verifier.id, session, "claude"))
+    assert verifier_hook(verifier, "PreToolUse", tool_name="Bash", tool_input={"command": "journal verdict no 'the card shows the long compiler line'"}, tool_use_id="t-verdict")[0] == 200, "its verdict is the one tool it may use"
+    status, body = write()
+    stop_status, stop_body = hook(app, "Stop")
+    assert status == 200 and not any(word in str(body) + str(stop_body) for word in ("verifier", "Diogenes", "dismissal")), "the main agent goes on working and hears nothing of the verifier"
+    assert console.run(["verdict", "no", "the first line the card shows is a 120-character compiler command"], Caller.worker("main", 1, verifier.session, "claude")).code != 0, "a worker never gives a verdict"
+    verdict = console.run(["verdict", "no", "the first line the card shows is a 120-character compiler command"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
     assert verdict.code == 0, verdict.error
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        refuted, retired = reports.find(report.id), workers.find(verifier.id)
-    assert refuted.dismissal is None and refuted.is_refuted and retired.retire_reason.startswith("gave its verdict"), "a no opens the report again, and the verdict ends the verifier's run"
-    with app.container.get(Scope).environment(MAIN):
-        sent_card, verdict_card = [app.container.get(Messages).with_key(key)[0] for key in (f"worker:{verifier.id}", f"verdict:{verifier.id}")]
-        stopped_cards = app.container.get(Messages).with_key(f"worker:{verifier.id}:stopped:{retired.silence.timeout.start}")
-    assert sent_card.text.startswith(f"Verifier {verifier.id}, Diogenes") and sent_card.data["icon"] == "verifier", "a verifier's dispatch is marked in the chat as a verifier's, with its own icon"
-    assert verdict_card.text.endswith("the dismissal is refuted") and verdict_card.data["tone"] == "bad" and "120-character compiler command" in verdict_card.text + str(verdict_card.data), "and its verdict, with its reason"
-    assert not stopped_cards, "its stop is its verdict's mark, never a second one"
-    assert sessions.top(session).name == "ended", "and its session"
+        refuted, judged = reports.find(report.id), verifiers.find(verifier.id)
+        card = app.container.get(Messages).with_key(f"verifier:{verifier.id}")[0]
+    assert refuted.dismissal is None and refuted.is_refuted and judged.state == VerifierState.JUDGED and not judged.token_hash, "a no opens the report again, and the verdict ends the verifier"
+    assert card.text.startswith(f"Verifier {verifier.id}, Diogenes") and card.text.endswith("the dismissal is refuted") and card.data["icon"] == "verifier" and card.data["tone"] == "bad" and "120-character compiler command" in str(card.data), "its one card in the chat turns to its verdict, with its reason"
+    assert sessions.top(verifier.session).name == "ended", "and its session ends"
     status, body = write()
-    assert status == 409 and "the verifier found your dismissal unsound" in body["error"] and "120-character compiler command" in body["error"], "the next write is held at once, with the verdict"
+    assert status == 409 and "found wrong" in body["error"] and "120-character compiler command" in body["error"] and "verifier" not in body["error"], "the next write is held at once, with the reason, and never names a verifier"
     assert console.run(["reader", "dismiss", str(report.id), "--why", "it is still wrong"], AGENT).code != 0, "a refuted report is never dismissed again"
     timing.sleep(0.01)
     assert console.run(["reader", "add", "builds", "--pattern", "^(built|failed)\\b"], AGENT).code == 0
     assert write()[0] == 200, "only the reader written anew releases the hold"
     sound, kept_verifier = dismissed("the reader now picks only the line that starts with built")
-    console.run(["verdict", "yes", "the pattern picks the built line alone"], Caller.worker("main", kept_verifier.id, f"v-{kept_verifier.id}", "claude"))
+    console.run(["verdict", "yes", "the pattern picks the built line alone"], Caller.verifier("main", kept_verifier.id, kept_verifier.session, "claude"))
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         kept = reports.find(sound.id)
     assert kept.dismissal == "the reader now picks only the line that starts with built" and not kept.is_refuted and kept.verdict == "the pattern picks the built line alone", "a sound dismissal stays closed"
-    assert write()[0] == 200, "and holds nothing"
+    status, body = write()
+    assert status == 200 and "dismissal" not in str(body), "and the main agent hears nothing of it"
 
 
 def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_team_and_hands_the_teams_back(tmp_path, template_journal, monkeypatch):

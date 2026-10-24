@@ -21,7 +21,7 @@ class StatesCatalogue:
         self._states: dict[str, type[BaseState]] = {}
         for state in [*features.states(), *self.ENGINE_STATES]:
             self._states[state.name] = self.derived(self._states.get(state.name, state), state)
-        self.modes = features.modes()
+        self.modes, self.role_floors = features.modes(), features.floors()
 
     @staticmethod
     def derived(registered: type[BaseState], state: type[BaseState]) -> type[BaseState]:
@@ -61,8 +61,8 @@ class StatesCatalogue:
     def first(self) -> BaseState:
         return self.restored("idle", {})
 
-    def worker_first(self) -> BaseState:
-        return Duty()
+    def sent_first(self, role: AgentRole) -> BaseState:
+        return self.role_floors.get(role, Duty)()
 
     def mode_state(self, settings: Settings) -> type[BaseState]:
         picks = [modes.states.get(str(settings.value(modes.option))) for modes in self.modes]
@@ -72,13 +72,13 @@ class StatesCatalogue:
         return any(type(state) in modes.states.values() for modes in self.modes)
 
     def floor(self, stack: Stack, settings: Settings, role: AgentRole) -> Stack:
-        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.duty_floor(stack)
+        return self.apply_mode(stack, settings) if role == AgentRole.MAIN else self.sent_floor(stack, self.role_floors.get(role, Duty))
 
-    def duty_floor(self, stack: Stack) -> Stack:
+    def sent_floor(self, stack: Stack, floor: type[BaseState]) -> Stack:
         bottom = stack.states[0]
-        if isinstance(bottom, Duty):
+        if isinstance(bottom, floor):
             return stack
-        return Stack((self.worker_first(), *(stack.states[1:] if self.is_bottom(bottom) else stack.states)))
+        return Stack((floor(), *(stack.states[1:] if self.is_bottom(bottom) else stack.states)))
 
     def apply_mode(self, stack: Stack, settings: Settings) -> Stack:
         state = self.mode_state(settings)
@@ -87,7 +87,7 @@ class StatesCatalogue:
         return Stack((state.restored(stack.states[0].serialized()), *stack.states[1:]))
 
     def is_bottom(self, state: BaseState) -> bool:
-        return isinstance(state, (self.bottom_root(), Duty))
+        return isinstance(state, (self.bottom_root(), Duty, *self.role_floors.values()))
 
     def bottom_root(self) -> type[BaseState]:
         return [base for base in type(self.first()).__mro__ if getattr(base, "name", "") == "idle"][-1]

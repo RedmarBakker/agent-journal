@@ -391,6 +391,9 @@ class ServerCatalogue:
     def modes(self):
         return []
 
+    def floors(self):
+        return {}
+
     def silenced(self, nudge):
         return False
 
@@ -577,16 +580,16 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     from journal.repositories.messages import Messages
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     hook(app, "SessionStart")
     scope, workers, tasks, agents = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks), app.container.get(Agents)
     with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         task = tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system())
         tasks.handover(task, Ref.build(worker), Actor.system())
     def worker_hook(kind: str, **body):
         data = json.dumps({"hook_event_name": kind, "session_id": "w1", **body}).encode()
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": "tok"})
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
         try:
             with urlopen(request, timeout=5) as reply:
                 return reply.status, json.loads(reply.read())
@@ -659,11 +662,11 @@ def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
     from journal.models.worker import Worker
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     hook(app, "SessionStart")
     scope, tasks = app.container.get(Scope), app.container.get(Tasks)
     with scope.environment(1):
-        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         task = tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system())
         tasks.handover(task, Ref.build(worker), Actor.system())
     babbage, console = Caller.worker("main", worker.id, "w1", "claude"), app.console()
@@ -676,7 +679,7 @@ def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
         shown = app.container.get(TaskController).shown_page([tasks.find(task.id)])[0]
     assert [(item.text, item.complete) for item in shown["work"].todos] == [("write the grammar", False), ("write the test", True), ("run it", False)], "the task's payload carries the items with their flags"
     data = json.dumps({"hook_event_name": "Stop", "session_id": "w1"}).encode()
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": "tok"})
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
     with urlopen(request, timeout=5) as reply:
         answered = reply.read().decode()
     assert "2 open items: 1. write the grammar; 3. run it" in answered, "the worker's stop is told the items still open"
@@ -688,14 +691,14 @@ def test_a_workers_stop_is_held_while_its_own_output_runs_and_told_its_end(app: 
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.workers import Workers
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     hook(app, "SessionStart")
     scope = app.container.get(Scope)
     with scope.environment(1):
-        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
     def worker_stop() -> dict:
         data = json.dumps({"hook_event_name": "Stop", "session_id": "w1"}).encode()
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": "tok"})
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
         with urlopen(request, timeout=5) as reply:
             return json.loads(reply.read())
     assert "decision" not in worker_stop(), "a worker with nothing running may stop"
@@ -1561,6 +1564,9 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
         def modes(self):
             return [Workers.modes]
 
+        def floors(self):
+            return {}
+
     catalogue = StatesCatalogue(ModeRegistry())
     assert isinstance(catalogue.apply_mode(Stack((PlansReady(),)), settings("orchestrator")).states[0], Orchestrating), "the work mode's state is the bottom of every stack"
     from journal.engine.states.duty import Duty
@@ -1713,7 +1719,7 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
     from journal.repositories.workers import Workers
     from journal.features.workers.support.worker_chat import WorkerChat
     from journal.features.workers.support.worker_runner import WorkerRunner
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
     transcript = home / ".claude" / "projects" / Claude.folder_name(app.config.root) / "w1.jsonl"
@@ -1725,10 +1731,10 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
     app.console().run(["message", "read", "1"], AGENT)
     scope, workers, messages = app.container.get(Scope), app.container.get(Workers), app.container.get(Messages)
     with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         workers.save(workers.find(worker.id).dispatched(1.0), Actor.agent("s1"))
     data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}).encode()
-    urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": "tok"}), timeout=5).read()
+    urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"}), timeout=5).read()
     app.runtime().deferred.drain()
     chat = lambda: [(m.author, m.text) for m in messages.all() if m.agent_role == AgentRole.WORKER and m.session == "w1"]
     with scope.environment(1):
@@ -2004,17 +2010,17 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
     from journal.models.worker import Worker
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     hook(app, "SessionStart")
     scope, workers, tasks = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks)
     with scope.environment(1):
-        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
 
     def worker_runs(command: str):
         data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
-        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": "tok"})
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
         try:
             with urlopen(request, timeout=5) as reply:
                 return reply.status, json.loads(reply.read())

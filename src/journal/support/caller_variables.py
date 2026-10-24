@@ -1,12 +1,14 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from journal.support.caller import ACTOR, AGENT_SHELL, WORKER, WORKER_ACTOR, WORKER_TOKEN, Caller
+from journal.support.actor import Actor
+from journal.support.actor_kind import ActorKind
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL, Caller
 
 
 @dataclass(frozen=True)
 class CallerVariables:
-    """What a shell's variables say about who runs a command in it, as the shim posts them: the environment, the provider whose marks are set, whether the shell is an agent's, the agent's session, the plugin and its token, the worker and the launch the shell runs under."""
+    """What a shell's variables say about who runs a command in it, as the shim posts them: the environment, the provider whose marks are set, whether the shell is an agent's, the agent's session, the plugin and its token, the worker or the verifier its actor names with the token that proves it, and the launch the shell runs under."""
 
     environment: str
     provider: str
@@ -16,27 +18,27 @@ class CallerVariables:
     token: str | None = None
     worker: int | None = None
     launch: str | None = None
-    worker_token: str | None = None
-    worker_shell: bool = False
+    verifier: int | None = None
+    actor_token: str | None = None
 
     @classmethod
     def read(cls, environ: Mapping[str, str], provider: str, session_variables: tuple[str, ...], markers: tuple[str, ...]) -> "CallerVariables":
         set_variables = {name: value for name, value in environ.items() if value}
         session = next((set_variables[name] for name in ("JOURNAL_SESSION", *session_variables) if name in set_variables), None)
-        worker = set_variables.get(WORKER)
+        actor = set_variables.get(ACTOR, "")
         return cls(set_variables.get("JOURNAL_ENV", "main"), provider, any(name in set_variables for name in (*markers, AGENT_SHELL)), session,
-                   set_variables.get("JOURNAL_PLUGIN"), set_variables.get("JOURNAL_PLUGIN_TOKEN"), None if worker is None else int(worker), set_variables.get("JOURNAL_LAUNCH"),
-                   set_variables.get(WORKER_TOKEN), set_variables.get(ACTOR) == WORKER_ACTOR)
+                   set_variables.get("JOURNAL_PLUGIN"), set_variables.get("JOURNAL_PLUGIN_TOKEN"), Actor.stamp_number(actor, ActorKind.WORKER), set_variables.get("JOURNAL_LAUNCH"),
+                   Actor.stamp_number(actor, ActorKind.VERIFIER), set_variables.get(ACTOR_TOKEN))
 
     @classmethod
     def parsed(cls, body: dict, provider: str) -> "CallerVariables":
         fields = {key: value for key, value in body.items() if value not in ("", None)}
         return cls(fields.get("env", "main"), fields.get("provider", provider), bool(fields.get("agent")), fields.get("session"), fields.get("plugin"), fields.get("token"), fields.get("worker"), fields.get("launch"),
-                   fields.get("worker_token"), bool(fields.get("worker_shell")))
+                   fields.get("verifier"), fields.get("actor_token"))
 
     def body(self) -> dict:
         return {"env": self.environment, "provider": self.provider, "agent": self.agent_shell, "session": self.session, "plugin": self.plugin, "token": self.token, "worker": self.worker, "launch": self.launch,
-                "worker_token": self.worker_token, "worker_shell": self.worker_shell}
+                "verifier": self.verifier, "actor_token": self.actor_token}
 
     def caller(self, person: int) -> Caller:
         return replace(self.kind_caller(), person=person)
@@ -46,6 +48,8 @@ class CallerVariables:
             return Caller.plugin(self.environment, self.plugin)
         if self.worker is not None:
             return Caller.worker(self.environment, self.worker, self.session, self.provider)
+        if self.verifier is not None:
+            return Caller.verifier(self.environment, self.verifier, self.session, self.provider)
         if self.session is not None:
             return Caller.agent(self.environment, self.session, self.provider)
         return Caller.shell(self.environment, self.provider) if self.agent_shell else Caller.user(self.environment)

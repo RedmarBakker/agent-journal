@@ -6,7 +6,7 @@ from journal.support.caller_variables import CallerVariables
 from journal.support.chain import Chain
 from journal.features.shell.support.shell_request import ShellRequest
 from journal.features.shell.support.shell_runner import EXIT, ShellRunner
-from journal.features.workers.support.worker_identity import REFUSAL, WorkerIdentity
+from journal.hooks.support.agent_identity import REFUSAL, AgentIdentity
 from journal.http.support.request import Request
 from journal.http.support.stream_response import StreamResponse
 from journal.repositories.scope import Scope
@@ -20,7 +20,7 @@ SHELL_HEADER = "x-journal-shell"
 class ShellController:
     """The shim posts a shell line here with the folder, the shell and the environment it runs in; the runner streams back what the agent sees, the exit code last."""
 
-    def __init__(self, runner: ShellRunner, scope: Scope, providers: Providers, identity: WorkerIdentity, announced: AnnouncedCommands, account: TeamAccount) -> None:
+    def __init__(self, runner: ShellRunner, scope: Scope, providers: Providers, identity: AgentIdentity, announced: AnnouncedCommands, account: TeamAccount) -> None:
         self.account = account
         self.runner, self.scope, self.providers, self.identity, self.announced = runner, scope, providers, identity, announced
 

@@ -182,20 +182,20 @@ def test_a_command_or_a_shell_line_that_says_it_is_a_workers_must_carry_its_toke
     from journal.models.worker import Worker
     from journal.repositories.workers import Workers
     from journal.support.actor import Actor
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     workers = app.container.get(Workers)
     with app.container.get(Scope).environment(1):
-        current = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        current = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
         older = workers.save(Worker(environment_id=1, name="Mr. Pepys", brief="b"), Actor.system())
     as_worker = lambda body: post_command(app, ["fact", "list"], {"X-Journal-Env": "main"}, body=body)
-    assert as_worker({"worker": current.id, "worker_token": "tok"})["code"] == 0, "a worker with its token runs"
-    assert "token" in as_worker({"worker": current.id, "worker_token": "nope"})["error"] and "token" in as_worker({"worker": current.id})["error"], "a wrong or missing token is refused"
+    assert as_worker({"worker": current.id, "actor_token": "tok"})["code"] == 0, "a worker with its token runs"
+    assert "token" in as_worker({"worker": current.id, "actor_token": "nope"})["error"] and "token" in as_worker({"worker": current.id})["error"], "a wrong or missing token is refused"
     assert as_worker({"worker": older.id})["code"] == 0, "a worker from before tokens runs as it did"
     assert post_command(app, ["worker", "report", str(older.id), "the parser is done"], {"X-Journal-Env": "main"}, body={"worker": older.id})["code"] == 0, "and reports as it did"
     completed = post_command(app, ["worker", "complete", str(older.id), "--why", "merged by hand"], {"X-Journal-Env": "main"})
     assert completed["code"] == 0 and "report is acted on" in completed["text"], "and is taken in as it was"
-    assert "token" in as_worker({"worker_shell": True})["error"], "a shell marked as a worker's that names no worker is refused"
-    raw = "JOURNAL_ENV=main\0JOURNAL_ACTOR=worker-agent\0\0ls\n"
+    assert "token" in as_worker({"worker": 0})["error"], "an actor that names a worker but no number is refused"
+    raw = "JOURNAL_ENV=main\0JOURNAL_ACTOR=worker:\0\0ls\n"
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/shell/run", data=raw.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main"})
     with urlopen(request, timeout=5) as reply:
         shown = reply.read().decode()
@@ -207,9 +207,9 @@ def test_every_way_into_the_console_checks_a_workers_kind(app: App):
     from journal.repositories.workers import Workers
     from journal.support.actor import Actor
     from journal.support.caller import Caller
-    from journal.support.worker_token import WorkerToken
+    from journal.support.agent_token import AgentToken
     with app.container.get(Scope).environment(1):
-        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=AgentToken.hashed("tok")), Actor.system())
     from journal.events.moments.row_docked import RowDocked
     from journal.features.pins.listeners.docked_row_card import DockedRowCard
     app.container.get(Bus).listen(RowDocked, app.container.get(DockedRowCard))
@@ -218,14 +218,14 @@ def test_every_way_into_the_console_checks_a_workers_kind(app: App):
     assert console.run(["task", "create", "the parser"], Caller.user("main")).code == 0
 
     def shim(*argv: str) -> str:
-        environ = f"JOURNAL_ENV=main\0JOURNAL_ACTOR=worker-agent\0JOURNAL_WORKER={worker.id}\0JOURNAL_WORKER_TOKEN=tok\0\0" + "".join(f"{word}\0" for word in argv)
+        environ = f"JOURNAL_ENV=main\0JOURNAL_ACTOR=worker:{worker.id}\0JOURNAL_ACTOR_TOKEN=tok\0\0" + "".join(f"{word}\0" for word in argv)
         request = HttpRequest(f"http://127.0.0.1:{app.server().port}/cli/run", data=environ.encode(), method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main"})
         with urlopen(request, timeout=5) as reply:
             return reply.read().decode()
     assert "a worker may not run the alias journal greet" in shim("greet") and "__journal_exec" not in shim("greet"), "an alias is never a worker's"
     assert "a worker may not run journal message send" in shim("message", "send", "hi"), "the shim's route checks the worker's kind"
     assert "a worker may not run journal task dock" in shim("task", "dock", "1"), "and the row verbs, which no worker is declared for"
-    assert "a worker may not run journal message send" in post_command(app, ["message", "send", "hi"], {"X-Journal-Env": "main"}, body={"worker": worker.id, "worker_token": "tok"})["error"], "and so does the JSON route"
+    assert "a worker may not run journal message send" in post_command(app, ["message", "send", "hi"], {"X-Journal-Env": "main"}, body={"worker": worker.id, "actor_token": "tok"})["error"], "and so does the JSON route"
     assert console.run(["message", "send", "hi"], Caller.plugin("main", "linter")).code == 0 and console.run(["task", "dock", "1"], Caller.user("main")).code == 0, "a plugin and the user pass a verb a worker is refused"
 
 
@@ -237,7 +237,7 @@ def test_a_command_under_the_sub_agent_actor_runs_only_the_journals_reads(app: A
     for argv in (["task", "create", "x"], ["message", "send", "hello"], ["plan", "approve", "1"]):
         refused = post_command(app, argv, subagent)
         assert refused["code"] == 1 and refused["error"].startswith(f"a subagent may not run journal {argv[0]} {argv[1]}; a subagent may run ") and "journal task show" in refused["error"] and "journal search find" in refused["error"], f"a subagent writes nothing: {argv}"
-    assert post_command(app, ["task", "list"], {"X-Journal-Actor": "worker-agent"})["code"] == 0
+    assert post_command(app, ["task", "list"], {"X-Journal-Actor": "agent"})["code"] == 0
 
 
 def test_a_codex_command_from_another_thread_than_the_session_started_with_is_a_subagents(app: App):

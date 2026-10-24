@@ -7,6 +7,7 @@ from journal.engine.conduct import Conduct
 from journal.engine.base_state import BaseState
 from journal.engine.job import Job
 from journal.engine.support.modes import Modes
+from journal.models.agent_role import AgentRole
 from journal.events.data_source import DataSource
 from journal.events.listener import Listener
 from journal.engine.nudge import Nudge
@@ -19,7 +20,7 @@ from journal.engine.demand import Demand
 
 
 class Feature[D](DataSource[D]):
-    """One switchable subject. It brings its states, its work modes if it has them, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
+    """One switchable subject. It brings its states, its work modes if it has them, the state a kind of sent agent rests on if it adds one, its nudges, its state-free listeners, its jobs, its live chat marks, the writes it makes when another journal asks this one as host, and its commands; nothing else knows a feature exists. D is the class of the part it reads into the feature data an event carries."""
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
@@ -33,7 +34,7 @@ class Feature[D](DataSource[D]):
     data: ClassVar[tuple[type, ...]] = ()
     conduct: ClassVar[tuple[type[Conduct], ...]] = ()
     worker_conduct: ClassVar[tuple[type[Conduct], ...]] = ()
-    verifier_conduct: ClassVar[tuple[type[Conduct], ...]] = ()
+    floors: ClassVar[dict[AgentRole, type[BaseState]]] = {}
     commands: ClassVar[tuple[type[Command], ...]] = ()
     seeds: ClassVar[tuple[type[Seed], ...]] = ()
     jobs: ClassVar[tuple[type[Job], ...]] = ()

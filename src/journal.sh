@@ -11,7 +11,7 @@ py=$(cat "$here/../python" 2>/dev/null)
 case "$1" in
     claude|codex|serve|setup|remote) cd "$root" && exec "$py" "$here/journal.py" "$@" ;;
 esac
-# Who runs the command: JOURNAL_ACTOR is agent, sub-agent or worker-agent, sent to the server as a header, with a Codex thread's id.
+# Who runs the command: JOURNAL_ACTOR is agent, sub-agent, or a sent agent's actor, worker:12 or verifier:3, sent to the server as a header, with a Codex thread's id.
 # A subagent of Claude Code inherits the agent's shell whole, so nothing in its environment tells it apart here; the server pairs the command with the Bash PreToolUse hook a subagent announced it in (the only subagent hook it keeps).
 . "$here/journal/hooks/environment.sh"
 JOURNAL_ENV=$(journal_environment)
@@ -40,7 +40,7 @@ if [ -n "$port" ]; then
 fi
 # No server answered (none up, or a port file left by one that died): the package runs the command itself, unless a sub-agent
 # or a worker runs it, whose commands only the server can check.
-case "${JOURNAL_ACTOR:-agent}" in sub-agent|worker-agent) echo "the journal is restarting: run the command again in a moment" >&2; exit 1 ;; esac
+case "${JOURNAL_ACTOR:-agent}" in sub-agent|worker:*|verifier:*) echo "the journal is restarting: run the command again in a moment" >&2; exit 1 ;; esac
 # With no journal running, journal update installs the release here at once: an apply hands the install to a server, and there is none.
 case "$#:$1:$2" in 1:update:|2:update:apply) set -- update install ;; esac
 cd "$root" && exec "$py" "$here/journal.py" "$@"

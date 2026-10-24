@@ -27,7 +27,7 @@ class Shell(Feature[ShellData]):
     FOREGROUND = FOREGROUND_OPTION
     name = ShellPart.name
     title = "Shell commands"
-    help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past thirty seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
+    help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past fifteen seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
     options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.REPORT_READ_LIMIT, ShellOptions.REPORT_FIX_LIMIT, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
     listeners = (OutputNotice, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement)
@@ -47,7 +47,7 @@ Every shell command you run goes through the journal's runner.
 
 - A line chained with `&&` or `;` is run part by part; each part is recorded with what it printed and how long it took,
   and a failing part stops the chain where the shell would have.
-- A command that runs past thirty seconds, or ten while a message of the user's is waiting, is moved to the background with
+- A command that runs past fifteen seconds, or ten while a message of the user's is waiting, is moved to the background with
   the rest of its chain: the tool call returns with its output number, and you are informed when output N ends. Until you
   read it, by `journal output read N` or `status N`, it is named again every five tool uses, or after thirty idle seconds.
 - A command whose whole output is under 400 characters, with no pipe in its line, prints as it is and is stored as no

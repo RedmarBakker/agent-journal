@@ -32,7 +32,7 @@ class ReaderReport(Scoped):
 
     def dismissed(self, reason: str) -> "ReaderReport":
         if self.is_refuted:
-            raise Rejection(f"reader report {self.id} was dismissed once and the verifier found the dismissal unsound: {self.verdict}; it is met only by writing the reader {self.reader} anew with journal reader add {self.reader} ...")
+            raise Rejection(f"reader report {self.id} was dismissed once and the dismissal was found wrong: {self.verdict}; it is met only by writing the reader {self.reader} anew with journal reader add {self.reader} ...")
         return self.with_(dismissal=reason).with_event(ReaderReportDismissed(environment_id=self.environment_id, reason=reason))
 
     def judged_sound(self, reason: str, verifier_session: str, time: datetime) -> "ReaderReport":

@@ -43,6 +43,7 @@ export const VISIBILITY_GROUPS = [
             {key: "triggers", label: "Triggers", icon: "bolt"},
             {key: "menus", label: "Menus the journal answered", icon: "bolt"},
             {key: "suggestions", label: "Suggestions", icon: "bulb"},
+            {key: "verifiers", label: "Dismissals a verifier checked", icon: "verifier"},
             {key: "plugins", label: "Plugin notes", icon: "plug"},
             {key: "phones", label: "Phones paired", icon: "phone"},
             {key: "faults", label: "The journal's own faults", icon: "warn"},

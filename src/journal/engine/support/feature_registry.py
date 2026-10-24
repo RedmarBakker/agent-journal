@@ -11,13 +11,15 @@ from journal.engine.demand import Demand
 
 @runtime_checkable
 class FeatureRegistry(Protocol):
-    """What the engine asks of the features without knowing any: the states they add, the work modes they offer, and whether a line of theirs is switched off."""
+    """What the engine asks of the features without knowing any: the states they add, the work modes they offer, the state each kind of sent agent they add rests on, and whether a line of theirs is switched off."""
 
     def states(self) -> list[type[BaseState]]: ...
 
     def demands(self) -> tuple[Demand, ...]: ...
 
     def modes(self) -> list[Modes]: ...
+
+    def floors(self) -> dict[AgentRole, type[BaseState]]: ...
 
     def options(self) -> list[Option]: ...
 

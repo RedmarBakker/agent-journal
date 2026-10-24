@@ -7,13 +7,13 @@ TOKEN_BYTES = 32
 
 
 @dataclass(frozen=True)
-class WorkerToken:
-    """The secret a worker's run uses to prove who it is: created new for each run, with only its hash stored on the worker's row."""
+class AgentToken:
+    """The secret a sent agent's run, a worker's or a verifier's, uses to prove who it is: created new for each run, with only its hash stored on its row."""
 
     text: str
 
     @classmethod
-    def random(cls) -> "WorkerToken":
+    def random(cls) -> "AgentToken":
         return cls(secrets.token_urlsafe(TOKEN_BYTES))
 
     @staticmethod

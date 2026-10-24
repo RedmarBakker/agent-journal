@@ -35,6 +35,7 @@ from journal.db.migrations.worker_silence_fold import WorkerSilenceFold
 from journal.db.migrations.verifier_roles import VerifierRoles
 from journal.db.migrations.plugin_column_names import PluginColumnNames
 from journal.db.migrations.undismissed_reports import UndismissedReports
+from journal.db.migrations.verifier_workers_drop import VerifierWorkersDrop
 from journal.db.migrations.blank_session_nulls import BlankSessionNulls
 from journal.db.migrations.delegated_tasks import DelegatedTasks
 from journal.db.migrations.environment_keys import EnvironmentKeys
@@ -43,4 +44,4 @@ from journal.db.migrations.paused_tasks import PausedTasks
 from journal.db.migrations.user_disabled_plugins import UserDisabledPlugins
 from journal.db.migrations.developer_numbers_drop import DeveloperNumbersDrop
 
-MIGRATIONS = (PauseUnwrapping(), FinishCancelledTasks(), SequenceUnwrapping(), PlanBuildingEnd(), LinkWorkerReports(), AgentSkillObligations(), ChatQuestions(), HotReadIndexes(), LinkIndexes(), DispatchIndex(), OldReportClosure(), FrequentReadIndexes(), CardRowTableNames(), FillAgentsEmptyData(), StackSeed(), ChartDrop(), TimeKeys(), TriggerPhrases(), DashboardSections(), EventRenames(), ColumnRenames(), StateFieldRenames(), TimestampRenames(), OperationDispatchIndex(), AgentProviderFill(), MessageWindowIndex(), WorkerReuseCounts(), DispatcherSessionClear(), WorkerSilenceFold(), BlankSessionNulls(), MessageAgents(), MessageChatIndex(), OverviewReadColumn(), LineToolUses(), OverviewWholeLines(), DelegatedTasks(), EnvironmentKeys(), ReactionEmoji(), PausedTasks(), DeveloperNumbersDrop(), UserDisabledPlugins(), VerifierRoles(), PluginColumnNames(), UndismissedReports())
+MIGRATIONS = (PauseUnwrapping(), FinishCancelledTasks(), SequenceUnwrapping(), PlanBuildingEnd(), LinkWorkerReports(), AgentSkillObligations(), ChatQuestions(), HotReadIndexes(), LinkIndexes(), DispatchIndex(), OldReportClosure(), FrequentReadIndexes(), CardRowTableNames(), FillAgentsEmptyData(), StackSeed(), ChartDrop(), TimeKeys(), TriggerPhrases(), DashboardSections(), EventRenames(), ColumnRenames(), StateFieldRenames(), TimestampRenames(), OperationDispatchIndex(), AgentProviderFill(), MessageWindowIndex(), WorkerReuseCounts(), DispatcherSessionClear(), WorkerSilenceFold(), BlankSessionNulls(), MessageAgents(), MessageChatIndex(), OverviewReadColumn(), LineToolUses(), OverviewWholeLines(), DelegatedTasks(), EnvironmentKeys(), ReactionEmoji(), PausedTasks(), DeveloperNumbersDrop(), UserDisabledPlugins(), VerifierRoles(), PluginColumnNames(), UndismissedReports(), VerifierWorkersDrop())

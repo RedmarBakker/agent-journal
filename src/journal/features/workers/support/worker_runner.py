@@ -1,6 +1,5 @@
 from dataclasses import asdict
 from typing import Callable
-import json
 import os
 from pathlib import Path
 import signal
@@ -9,8 +8,9 @@ import subprocess
 import threading
 
 from journal.config import Config
-from journal.support.caller import ACTOR, AGENT_SHELL, WORKER, WORKER_ACTOR, WORKER_TOKEN
-from journal.support.worker_token import WorkerToken
+from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
+from journal.providers.support.sent_agent_setup import JOURNAL_ACTIVE, SentAgentSetup
+from journal.support.agent_token import AgentToken
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.pool_worker_moves import ENDED, PoolWorkerMoves
 from journal.features.workers.support.worker_end import WorkerEnd
@@ -41,19 +41,17 @@ TIMEOUT_STATUS = -1
 END_UNWATCHED = -2
 ERROR_STATUS = -3
 ENDINGS = {TIMEOUT_STATUS: "stopped after {minutes:g} minutes without ending: {report}", END_UNWATCHED: "{report}", ERROR_STATUS: "failed: {report}"}
-JOURNAL_ACTIVE = "AGENT_JOURNAL_ACTIVE"
-EXCLUDED_VARIABLES = ("JOURNAL_SESSION", "JOURNAL_LAUNCH")
-POOL_VARIABLES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", AGENT_SHELL, JOURNAL_ACTIVE, ACTOR)
+POOL_VARIABLES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", AGENT_SHELL, JOURNAL_ACTIVE, ACTOR, ACTOR_TOKEN)
 POOL_PREFIXES = ("LC_", "JOURNAL_")
 
 
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: SentAgentSetup) -> None:
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
-        self.account, self.moves = account, moves
+        self.account, self.moves, self.setup = account, moves, setup
         self._locks: dict[int, threading.Lock] = {}
         self._locks_lock = threading.Lock()
 
@@ -68,11 +66,8 @@ class WorkerRunner:
         threading.Thread(target=self.run_scoped, args=(worker, command, actor), name=f"worker-{worker.id}", daemon=True).start()
 
     def hook_settings(self, worker: Worker) -> Path:
-        provider, folder = self.providers.lookup(worker.provider), self.branch.place(worker)
-        path = provider.worker_hook_file(folder, self.outputs(worker)[0].with_suffix(".settings.json"))
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"hooks": provider.hook_block(provider.hook_command(self.config.root))}, indent=2) + "\n")
+        folder = self.branch.place(worker)
+        path = self.setup.hook_settings(self.providers.lookup(worker.provider), folder, self.outputs(worker)[0].with_suffix(".settings.json"))
         if worker.worktree and path.is_relative_to(folder):
             Worktree(self.config.root, folder.name).excluded([path.relative_to(folder)])
         return path
@@ -87,9 +82,9 @@ class WorkerRunner:
             self.run(worker, command, actor)
 
     def run(self, worker: Worker, command: list[str], actor: Actor) -> None:
-        token = WorkerToken.random()
+        token = AgentToken.random()
         worker = self.workers.save(worker.with_(token_hash=token.digest()), actor)
-        environ = {**self.worker_variables(worker), WORKER: str(worker.id), WORKER_TOKEN: token.text}
+        environ = self.worker_variables(worker, token)
         output, err = self.outputs(worker)
         output.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -101,15 +96,12 @@ class WorkerRunner:
         worker = self.workers.save(worker.running_as(process.pid, time.time()), actor)
         self.finish(worker, self.waited(worker, process, actor), actor)
 
-    def worker_variables(self, worker: Worker) -> dict[str, str]:
-        variables = self.environment_variables(self.environments.find(worker.environment_id).name)
+    def worker_variables(self, worker: Worker, token: AgentToken) -> dict[str, str]:
+        variables = self.setup.variables(self.environments.find(worker.environment_id).name, Actor.worker(worker.id), token)
         if not worker.pool_request:
             return variables
         return {name: value for name, value in variables.items() if name in POOL_VARIABLES or name.startswith(POOL_PREFIXES)}
 
-    def environment_variables(self, environment: str) -> dict[str, str]:
-        excluded = (*EXCLUDED_VARIABLES, *self.providers.inherited_markers(), *self.providers.session_variables())
-        return {**{k: v for k, v in os.environ.items() if k not in excluded}, AGENT_SHELL: "1", JOURNAL_ACTIVE: "1", ACTOR: WORKER_ACTOR, "JOURNAL_ENV": environment, "JOURNAL_ROOT": str(self.config.root)}
     def waited(self, worker: Worker, process: subprocess.Popen, actor: Actor) -> int:
         while True:
             try:

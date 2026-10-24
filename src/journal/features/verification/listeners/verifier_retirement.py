@@ -1,16 +1,17 @@
 from journal.events.listener import Listener
 from journal.events.rows.reader_report_judged import ReaderReportJudged
-from journal.features.workers.support.worker_actions import WorkerActions
-from journal.repositories.workers import Workers
+from journal.features.verification.support.verifier_runner import VerifierRunner
+from journal.repositories.verifiers import Verifiers
 from journal.support.actor import Actor
 
 
 class VerifierRetirement(Listener[ReaderReportJudged]):
-    """A verifier's verdict retires its worker and stops its process."""
+    """A verifier's verdict marks it judged and stops its process."""
 
-    def __init__(self, workers: Workers, actions: WorkerActions) -> None:
-        self.workers, self.actions = workers, actions
+    def __init__(self, verifiers: Verifiers, runner: VerifierRunner) -> None:
+        self.verifiers, self.runner = verifiers, runner
 
     def handle(self, event: ReaderReportJudged) -> None:
-        for worker in self.workers.session_worker(event.verifier_session):
-            self.actions.retired(worker.row_id, f"gave its verdict: {event.reason}", Actor.system())
+        for verifier in self.verifiers.session_verifier(event.verifier_session):
+            self.verifiers.save(verifier.judged(), Actor.system())
+            self.runner.stop(verifier)

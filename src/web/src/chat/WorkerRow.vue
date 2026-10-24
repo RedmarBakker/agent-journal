@@ -4,7 +4,6 @@ import {nextTick, onMounted, ref} from "vue";
 import {ago} from "../format/time.js";
 import {seconds} from "../domain/row.js";
 import Btn from "../kit/Btn.vue";
-import Icon from "../kit/Icon.vue";
 import TextDisplay from "../kit/TextDisplay.vue";
 
 const props = defineProps({row: {type: Object, required: true}});
@@ -29,7 +28,6 @@ onMounted(() =>
     <div :class="['worker', state()]">
         <div class="worker-head">
             <span :class="['worker-dot', tag().state]" />
-            <Icon class="worker-role" :name="row.role === 'verifier' ? 'verifier' : 'agents'" v-tip="row.role === 'verifier' ? 'A verifier the journal sent' : 'A worker'" />
             <Btn kind="text" class="worker-what" v-tip="'Open this worker'" @click="emit('inspect')">
                 <strong class="worker-name">{{ name() }}</strong>
                 <span class="worker-job" :title="row.brief">{{ row.brief }}</span>
@@ -86,14 +84,6 @@ onMounted(() =>
     align-items: center;
     gap: 8px;
     margin-left: auto;
-}
-
-.worker-role {
-    flex: none;
-    margin-top: 1px;
-    width: 14px;
-    height: 14px;
-    color: var(--text-3);
 }
 
 .worker-dot {

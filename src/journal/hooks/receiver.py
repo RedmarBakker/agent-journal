@@ -17,6 +17,7 @@ from journal.support.decision import Decision
 from journal.support.listener_queue import ListenerQueue
 from journal.support.hook import Hook
 from journal.hooks.support.transcript_turns import TranscriptTurns
+from journal.hooks.support.verifier_hooks import VerifierHooks
 from journal.hooks.support.worker_hooks import WorkerHooks
 from journal.hooks.translation import Translation
 from journal.support.actor import Actor
@@ -37,25 +38,26 @@ UNBOUND_SESSION = "unbound_session"
 
 
 class Receiver:
-    """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id is recorded and reported, and reaches no listener; a verified worker's hook is recorded and answered by the listeners that receive workers' events, the state machine alone, under the worker's own conduct, so none of the main agent's conduct blocks a worker and no recording listener posts it as the main agent's."""
+    """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker or a verifier without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's or verifier's hook is recorded and answered by the listeners that receive sent agents' events, the state machine alone, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, verifier_hooks: VerifierHooks) -> None:
         self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
         self.transcript, self.slow = transcript, slow
-        self.worker_hooks = worker_hooks
+        self.worker_hooks, self.verifier_hooks = worker_hooks, verifier_hooks
 
     def receive(self, raw_hook: Hook) -> Decision:
         self.slow.begin(time.time())
         hook = self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
-            if not self.launches.is_launch(environment.name, hook.launch) and not self.worker_hooks.is_proven(hook):
+            if not self.is_taken_in(hook, environment):
                 return self.unbound(hook, environment)
             self.worker_hooks.bind(hook, environment)
-            if hook.worker is not None:
-                return self.worker_recorded(hook, environment)
+            self.verifier_hooks.bind(hook, environment)
+            if hook.is_sent():
+                return self.sent_recorded(hook, environment)
             with self.stages.timed("hook transcript"):
                 for saved in self.transcript.events(hook, environment):
                     self._immediate(saved)
@@ -69,7 +71,12 @@ class Receiver:
             self._defer(event)
         return decision
 
-    def worker_recorded(self, hook: Hook, environment: Environment) -> Decision:
+    def is_taken_in(self, hook: Hook, environment: Environment) -> bool:
+        if hook.is_sent():
+            return self.worker_hooks.is_proven(hook) or self.verifier_hooks.is_proven(hook)
+        return self.launches.is_launch(environment.name, hook.launch)
+
+    def sent_recorded(self, hook: Hook, environment: Environment) -> Decision:
         event = self.translation.event(hook, environment)
         self.recorded(hook, environment, event)
         blocking, deferred = self._split([listener for listener in self.bus.listeners(type(event)) if listener.is_worker_listener])
