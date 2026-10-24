@@ -317,6 +317,7 @@ def test_a_worktree_launch_takes_name_2_beside_a_live_session_and_reuses_a_crash
 
 
 def test_every_worktree_failure_at_launch_is_one_plain_line_naming_its_cause_and_what_to_do(app: App, monkeypatch, capsys, tmp_path):
+    import os
     import subprocess
     from journal.launcher.launch import Launch
     from journal.launcher.menu import Menu
