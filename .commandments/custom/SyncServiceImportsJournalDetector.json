@@ -1,0 +1,23 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "find": {
+        "select": "import",
+        "where": [
+            {
+                "descendant": {
+                    "resolvesLike": "journal*"
+                }
+            },
+            {
+                "file": "src/sync_service/**"
+            }
+        ]
+    },
+    "sin": {
+        "name": "sync-service-imports-journal",
+        "description": "A module of the sync service imports the journal: the sync service is a program of its own, standard library only, that knows no journal code.",
+        "rule": "What the sync service needs of the journal comes through the journal server's doors and the events it posts. Read it there, never from the journal's code.",
+        "skill": "plain-code-words"
+    }
+}

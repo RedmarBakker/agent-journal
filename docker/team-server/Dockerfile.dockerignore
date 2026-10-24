@@ -2,6 +2,7 @@
 !src/sync_server
 !src/journal
 !src/supervisor
+!src/sync_service
 !src/journal.py
 !src/journal.sh
 !src/web/dist

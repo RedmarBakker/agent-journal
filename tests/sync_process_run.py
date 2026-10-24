@@ -1,4 +1,4 @@
-# This file starts the sync carrier as a process of its own against a journal server and a team server, so it is not in the default run: python3 -m pytest tests/sync_process_run.py
+# This file starts a real supervisor running the journal server and the sync service side by side against a team server, so it is not in the default run: python3 -m pytest tests/sync_process_run.py
 import json
 import os
 import re
@@ -15,28 +15,18 @@ import pytest
 from journal.app import App
 from journal.config import Config
 from journal.engine.agent_launcher import AgentLauncher
-from journal.repositories.outgoing_changes import OutgoingChanges
+from journal.launcher.launch import Launch
 from journal.support.caller import Caller
 from journal.support.supervisor_socket import SupervisorSocket
-from journal.sync.carrier_beat import CarrierBeat
 from journal.sync.sync_secret import SECRET_FILE
-from journal.sync.sync_start import SyncStart
-from journal.sync.sync_status import SyncStatus
-from journal.sync.team_account import TeamAccount
 from journal.sync.team_chat_branch import TEAM_CHAT
-from sync_server.account import ADMIN
-from sync_server.login_request import LoginRequest
 from sync_server.team_server import TeamServer
 
+from carried_sync import CarriedSync
 from main_journal import main_journal
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src"
 USER = Caller.user("main")
-
-
-@pytest.fixture(scope="module")
-def boot():
-    return booted
 
 
 def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
@@ -55,48 +45,6 @@ def eventually(check, seconds: float) -> bool:
     return check()
 
 
-def carrier(app: App) -> subprocess.Popen:
-    environ = {**os.environ, "JOURNAL_ROOT": str(app.config.root), "PYTHONPATH": str(PACKAGE), "PYTHONFAULTHANDLER": "1", "JOURNAL_ENV": "main"}
-    return subprocess.Popen([sys.executable, str(PACKAGE / "journal.py"), "sync"], env=environ, stdout=subprocess.DEVNULL, stderr=open(app.config.root / "carrier.log", "a"))
-
-
-def test_the_carrier_in_a_process_of_its_own_sends_the_journals_changes_once_and_takes_the_teams_through_the_local_doors(app: App):
-    folder = app.config.root / "team-server"
-    folder.mkdir()
-    team = TeamServer(folder)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    server = team.started("127.0.0.1", 0)
-    answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", "ada-laptop"), "127.0.0.1")
-    account = app.container.get(TeamAccount)
-    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": answer.token, "device": answer.device_id, "sequence": 0})
-    app.server()
-    app.container.get(OutgoingChanges).clear()
-    process = carrier(app)
-    try:
-        made = app.console().run(["task", "create", "sent by the carrier"], USER)
-        assert made.code == 0, made.error
-        titles = lambda: [row.fields.get("title") for row in team.log.copied_rows() if row.row_table == "tasks"]
-        sent = eventually(lambda: "sent by the carrier" in titles(), 20)
-        if not sent:
-            process.send_signal(signal.SIGABRT)
-            process.wait(10)
-        assert sent, f"alive {process.poll() is None}, waiting {len(app.container.get(OutgoingChanges).waiting())}, team {titles()}, log {(app.config.root / 'carrier.log').read_text()[:2500]}"
-        process.send_signal(signal.SIGKILL)
-        process.wait(10)
-        status = app.container.get(SyncStatus)
-        assert eventually(lambda: status.line() == "Not connected: the sync process is not running", 15), "a killed carrier shows as not connected within seconds"
-        app.console().run(["task", "create", "made while the carrier was down"], USER)
-        process = carrier(app)
-        assert eventually(lambda: "made while the carrier was down" in titles(), 20), "a carrier started again sends what waited"
-        assert titles().count("made while the carrier was down") == 1, "and sends it once"
-        assert eventually(lambda: app.container.get(OutgoingChanges).waiting() == [], 10), "the queue empties as the team takes it"
-    finally:
-        process.send_signal(signal.SIGTERM)
-        process.wait(10)
-        account.left(0)
-        server.shutdown()
-
-
 def git(*arguments: str) -> None:
     subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
 
@@ -105,6 +53,14 @@ def clean_environ(root: Path, environment: str, home: Path) -> dict[str, str]:
     """The test's own environment without the journal and agent this run is started under, for a journal of its own on root."""
     kept = {key: value for key, value in os.environ.items() if not key.startswith(("JOURNAL_", "SUPERVISOR_", "CLAUDE")) and key != "AGENT_JOURNAL_ACTIVE"}
     return {**kept, "JOURNAL_ROOT": str(root), "JOURNAL_ENV": environment, "JOURNAL_PORT": "0", "HOME": str(home), "PYTHONPATH": str(PACKAGE)}
+
+
+def services(root: Path, home: Path) -> list[dict]:
+    """The journal server and the sync service as the launcher names them in its launch file, run on a port of their own."""
+    launch, environ, runtime = Launch.parse(["claude", "--env", "main"], root), clean_environ(root, "main", home), root / ".journal" / "runtime"
+    journal = {"name": "journal", "command": launch.journal_command(), "folder": str(root), "env": environ, "log": str(runtime / "server.log")}
+    sync = {"name": "sync", "command": launch.sync_command(), "folder": str(root), "env": {**environ, "PYTHONPATH": str(launch.package)}, "log": str(runtime / "sync.log")}
+    return [journal, sync]
 
 
 def supervised(root: Path, environment: str, home: Path, services: list[dict]) -> tuple[subprocess.Popen, str]:
@@ -139,6 +95,16 @@ def journal_post(root: Path, environment: str, path: str, body: dict, headers: d
         return json.loads(answer.read() or b"{}")
 
 
+def sync_line(root: Path) -> str:
+    """The status bar's sync line as the running journal server gives it, or none while no server answers."""
+    port = Config(root).stored_port()
+    try:
+        with urlopen(HttpRequest(f"http://127.0.0.1:{port[0]}/journal/sync", headers={"X-Journal-Env": "main"}), timeout=1) as answer:
+            return json.loads(answer.read())["line"]
+    except (OSError, IndexError, ValueError):
+        return ""
+
+
 def answering(root: Path) -> bool:
     port = Config(root).stored_port()
     try:
@@ -158,7 +124,7 @@ def ended(process: subprocess.Popen) -> None:
         process.wait(5)
 
 
-def test_the_supervisor_runs_the_carrier_as_the_journals_child_through_a_restart_and_types_a_teammates_team_chat_message(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_the_supervisor_runs_the_journal_and_the_sync_service_side_by_side_through_a_kill_and_a_restart_and_a_teammates_team_chat_message_is_typed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("JOURNAL_ENV", raising=False)
     root, clone, home = tmp_path / "a", tmp_path / "b", tmp_path / "home"
     home.mkdir()
@@ -172,14 +138,14 @@ def test_the_supervisor_runs_the_carrier_as_the_journals_child_through_a_restart
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     bob = booted(clone, monkeypatch)
+    bob_sync = CarriedSync(bob).started()
     started: list[subprocess.Popen] = []
     pids: set[int] = set()
     try:
-        # the root is prepared in-process without its runtime, its own sync stopped once the join starts it, since the supervised server is the journal here
+        # the root is prepared in-process without its runtime, as two journals on one root wait for each other; the supervised server is the journal here
         ada = main_journal(Config(root, port=0))
         joined = ada.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
         assert joined.code == 0, joined.text + joined.error
-        ada.container.get(SyncStart).stopped()
         invitation = ada.console().run(["team", "invite", "bob@example.com"], USER).text
         bob_url = re.search(r"(http\S+/join\?code=\S+)", invitation).group(1)
         joined_bob = bob.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
@@ -188,57 +154,54 @@ def test_the_supervisor_runs_the_carrier_as_the_journals_child_through_a_restart
         monkeypatch.setattr(AgentLauncher, "start", lambda self, environment, agent: 1)
         claimed = ada.console().run(["team", "claim"], USER)
         assert claimed.code == 0, claimed.text + claimed.error
-        journal_service = {"name": "journal", "command": [sys.executable, str(PACKAGE / "journal.py"), "serve"], "folder": str(root), "env": clean_environ(root, "main", home), "log": str(root / ".journal" / "runtime" / "server.log")}
-        main, main_socket = supervised(root, "main", home, [journal_service])
+        main, main_socket = supervised(root, "main", home, services(root, home))
         started.append(main)
-        logs = lambda: "\n".join(f"{path.name}: {path.read_text()[-2000:]}" for path in (root / ".journal" / "runtime").glob("*.log") if path.is_file())
+        runtime = root / ".journal" / "runtime"
+        logs = lambda: "\n".join(f"{path.name}: {path.read_text()[-2000:]}" for path in runtime.glob("*.log") if path.is_file())
         assert eventually(lambda: answering(root), 60), logs()
-        beat = CarrierBeat(Config(root))
-        titles = lambda: [row.fields.get("text") for row in team.log.copied_rows() if row.row_table == "messages"]
-        faults: set[str] = set()
+        texts = lambda: [row.fields.get("text") for row in team.log.copied_rows() if row.row_table == "messages"]
+        lines: set[str] = set()
 
-        def carried() -> dict:
+        def running() -> dict[str, dict]:
             listed = processes(main_socket)
-            for process in listed.values():
-                pids.add(process["pid"])
-            if beat.path.is_file():
-                faults.add(json.loads(beat.path.read_text())["fault"])
-            sync = listed.get("sync", {})
-            return sync if sync.get("running") and beat.path.is_file() and json.loads(beat.path.read_text())["pid"] == sync["pid"] else {}
+            pids.update(process["pid"] for process in listed.values())
+            lines.add(sync_line(root))
+            return {name: process for name, process in listed.items() if process["running"]}
 
-        assert eventually(carried, 30), logs()
-        first = carried()
-        assert first["parent"] == "journal", "the server's SyncStart starts the carrier as the journal's child service"
-        journal_post(root, "main", "/journal/messages", {"text": "sent by the supervised carrier"})
-        assert eventually(lambda: "sent by the supervised carrier" in titles(), 30), logs()
+        assert eventually(lambda: {"journal", "sync"} <= set(running()), 30), f"the supervisor runs the journal server and the sync service side by side: {processes(main_socket)}; {logs()}"
+        assert all("parent" not in process for process in processes(main_socket).values()), "neither is the other's child"
+        journal_post(root, "main", "/journal/messages", {"text": "sent by the sync service"})
+        assert eventually(lambda: "sent by the sync service" in texts(), 30), logs()
 
+        first = running()["sync"]
         os.kill(first["pid"], signal.SIGKILL)
-        assert eventually(lambda: carried().get("pid") not in (None, first["pid"]), 30), "the supervisor starts a killed carrier again"
-        revived = carried()
-        assert revived["parent"] == "journal" and revived["restarts"] >= 1
-        journal_post(root, "main", "/journal/messages", {"text": "sent by the revived carrier"})
-        assert eventually(lambda: "sent by the revived carrier" in titles(), 30), logs()
+        journal_post(root, "main", "/journal/messages", {"text": "made while the sync service was down"})
+        assert eventually(lambda: running().get("sync", {}).get("pid") not in (None, first["pid"]), 30), "the supervisor starts a killed sync service again"
+        assert running()["sync"]["restarts"] >= 1
+        assert eventually(lambda: "made while the sync service was down" in texts(), 30), logs()
+        assert texts().count("made while the sync service was down") == 1, "a sync service started again sends what waited, once"
 
-        port, secret = Config(root).stored_port(), (root / ".journal" / "runtime" / SECRET_FILE).read_text()
-        server_pid = processes(main_socket)["journal"]["pid"]
+        port, secret = Config(root).stored_port(), (runtime / SECRET_FILE).read_text()
+        server_pid, sync_pid = running()["journal"]["pid"], running()["sync"]["pid"]
+        lines.clear()
         assert SupervisorSocket.ask(main_socket, {"verb": "restart", "name": "journal", "after": 0}).success
-        moved = lambda: Config(root).stored_port() != port and (root / ".journal" / "runtime" / SECRET_FILE).read_text() != secret and answering(root)
-        assert eventually(lambda: bool(carried()) and moved() and processes(main_socket)["journal"]["pid"] != server_pid, 60), logs()
+        moved = lambda: Config(root).stored_port() != port and (runtime / SECRET_FILE).read_text() != secret and answering(root)
+        assert eventually(lambda: moved() and running()["journal"]["pid"] != server_pid, 60), logs()
         journal_post(root, "main", "/journal/messages", {"text": "sent after the restart"})
-        assert eventually(lambda: bool(carried()) and "sent after the restart" in titles(), 30), logs()
-        assert titles().count("sent after the restart") == 1, "and sent once"
-        assert faults == {""}, f"the carrier waits through a restart on a new port with a new secret and records no team fault: {faults}"
-        assert "trying again" not in (root / ".journal" / "runtime" / "sync.log").read_text(), (root / ".journal" / "runtime" / "sync.log").read_text()[-3000:]
+        assert eventually(lambda: "sent after the restart" in texts(), 30), logs()
+        assert texts().count("sent after the restart") == 1, "and sent once"
+        assert running()["sync"]["pid"] == sync_pid, "the sync service runs on through the journal's restart, never started or stopped by the journal"
+        assert eventually(lambda: sync_line(root) == "In step with the team", 15) and not [line for line in lines if line.startswith("Not connected")], f"the sync service waits through a restart on a new port with a new secret and reports no team fault: {lines}"
+        assert "trying again" not in (runtime / "sync.log").read_text(), (runtime / "sync.log").read_text()[-3000:]
 
         chat, chat_socket = supervised(root, TEAM_CHAT, home, [])
         started.append(chat)
         assert eventually(lambda: "agent" in processes(chat_socket), 20)
         # the agent's hook script posts its session's start with the launch id its supervisor gave it
         journal_post(root, TEAM_CHAT, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "chat1"}, {"X-Journal-Launch": f"test-{TEAM_CHAT}"})
-        bob_port = bob.server().port
-        ask = HttpRequest(f"http://127.0.0.1:{bob_port}/journal/messages", data=json.dumps({"text": "please run the tests"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": TEAM_CHAT})
+        ask = HttpRequest(f"http://127.0.0.1:{bob.server().port}/journal/messages", data=json.dumps({"text": "please run the tests"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": TEAM_CHAT})
         asked = json.loads(urlopen(ask, timeout=10).read())
-        screen = root / ".journal" / "runtime" / "screens" / f"{TEAM_CHAT}.out"
+        screen = runtime / "screens" / f"{TEAM_CHAT}.out"
         typed = lambda: screen.is_file() and f"new message {asked['id']}" in screen.read_bytes().decode(errors="replace")
         assert eventually(typed, 30), f"a teammate's Team chat message is typed to the agent through the server: {screen.read_bytes()[-2000:] if screen.is_file() else 'no screen'}; {logs()}"
     finally:
@@ -249,6 +212,6 @@ def test_the_supervisor_runs_the_carrier_as_the_journals_child_through_a_restart
                 os.kill(pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        bob.container.get(SyncStart).stopped()
+        bob_sync.stop()
         bob.runtime().stop()
         server.shutdown()

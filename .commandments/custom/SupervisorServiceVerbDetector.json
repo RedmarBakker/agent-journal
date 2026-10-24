@@ -1,0 +1,45 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "find": {
+        "select": "call",
+        "where": [
+            {
+                "nameIn": [
+                    "start",
+                    "start_child",
+                    "start_clean",
+                    "stop_service"
+                ]
+            },
+            {
+                "descendant": {
+                    "nameIn": [
+                        "link",
+                        "supervisor"
+                    ]
+                }
+            },
+            {
+                "file": "src/journal/**"
+            }
+        ],
+        "reject": [
+            {
+                "file": "src/journal/features/plugins/support/plugin_services.py"
+            },
+            {
+                "file": "src/journal/features/plugins/support/service_start.py"
+            },
+            {
+                "file": "src/journal/features/sharing/support/tunnel.py"
+            }
+        ]
+    },
+    "sin": {
+        "name": "supervisor-service-verb",
+        "description": "The journal asks the supervisor to start or stop a service: the journal server is one of the supervisor's services and knows nothing of what the supervisor runs beside it.",
+        "rule": "Name the service in the launch file the launcher writes, so the supervisor starts, keeps alive and ends it; reach it through the server's service hooks, never by starting it from the journal. The plugin services and the tunnel are the named exceptions still to move.",
+        "skill": "plain-code-words"
+    }
+}

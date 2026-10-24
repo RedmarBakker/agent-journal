@@ -15,6 +15,7 @@ COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
 COPY src/sync_server /app/src/sync_server
 COPY src/journal /app/src/journal
 COPY src/supervisor /app/src/supervisor
+COPY src/sync_service /app/src/sync_service
 COPY src/journal.py src/journal.sh /app/src/
 COPY src/web/dist /app/src/web/dist
 COPY install.sh /app/install.sh

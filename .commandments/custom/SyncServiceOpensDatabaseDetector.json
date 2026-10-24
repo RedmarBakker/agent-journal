@@ -1,0 +1,23 @@
+{
+    "$schema": "../rule.schema.json",
+    "engine": "python",
+    "find": {
+        "select": "import",
+        "where": [
+            {
+                "descendant": {
+                    "resolvesLike": "sqlite3"
+                }
+            },
+            {
+                "file": "src/sync_service/**"
+            }
+        ]
+    },
+    "sin": {
+        "name": "sync-service-opens-database",
+        "description": "A module of the sync service imports sqlite3: the sync service knows no database, the journal server writes all it brings.",
+        "rule": "Hand what the team sends to the journal server through /journal/sync, which writes it through its repositories so its agents hear it; the sync service reads and writes no database.",
+        "skill": "plain-code-words"
+    }
+}

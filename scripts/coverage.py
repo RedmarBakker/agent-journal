@@ -1,4 +1,4 @@
-"""Measures how much of the journal and supervisor packages the suite runs, the replays and the viewer tests apart, and fails under the floor: python3 scripts/coverage.py."""
+"""Measures how much of the journal, supervisor and sync service packages the suite runs, the replays and the viewer tests apart, and fails under the floor: python3 scripts/coverage.py."""
 import os
 import shutil
 import subprocess
@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = "src/journal,src/supervisor"
+PACKAGES = "src/journal,src/supervisor,src/sync_service"
 FLOOR_PERCENT = 95
 # coverage and the test tools come from uv for this run alone, so nothing is installed into the project's Python
 TOOLS = ("--with", "coverage", "--with", "pytest", "--with", "pytest-timeout")

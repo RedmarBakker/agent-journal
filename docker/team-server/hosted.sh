@@ -1,7 +1,8 @@
 #!/bin/bash
 # The team's hosted journal in /data/journal: installed from the image's own copy at its first start, joined to the team
 # once the team holds a journal, at the team's pinned version, as the service account the team server invites, then
-# served on 127.0.0.1:8421 marked hosted (.journal/hosted), so every browser signs in with a team account and no agent ever starts.
+# served on 127.0.0.1:8421 marked hosted (.journal/hosted), so every browser signs in with a team account and no agent ever starts,
+# with the sync service beside it, which carries its changes to the team server and the team's back.
 # At its first start it turns the auto-update on and checks for a new release every minute, so it installs each release and
 # pins the team to it.
 set -euo pipefail
@@ -25,4 +26,5 @@ if [ ! -f .journal/team.json ]; then
     fi
     journal team join "http://127.0.0.1:8470/join?code=$(field code)" --email "$(field email)" --name "$(field name)" --password "$(field password)"
 fi
+PYTHONPATH=.journal/src python -m sync_service /data/journal &
 exec python .journal/src/journal.py serve

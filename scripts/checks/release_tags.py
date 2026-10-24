@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGES = ("src/journal", "src/supervisor", "src/sync_server")
+PACKAGES = ("src/journal", "src/supervisor", "src/sync_server", "src/sync_service")
 # the one file that turns a version into a release tag
 TAG_MAKER = "src/journal/support/release.py"
 HAND_WRITTEN_TAG = re.compile(r"""f["']v\{|["']v["']\s*\+|download/v\{|refs/tags/v\{""")
