@@ -1489,7 +1489,9 @@ def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_a
     assert starter.run() == [] and transmitted == [], "a journal no supervisor hosts starts nothing"
     monkeypatch.setenv("JOURNAL_ENV", "main")
     assert starter.run() == [SupervisorReply(True)], "an upgrade that brings a new service starts it as the journal boots again, the supervisor still running"
-    assert transmitted[0]["verb"] == "start" and transmitted[0]["name"] == "watcher" and transmitted[0]["command"][1:] == ["-m", "journal.watcher"] and transmitted[0]["log"].endswith("runtime/watcher.log")
+    assert transmitted[0]["verb"] == "start" and transmitted[0]["name"] == "watcher" and transmitted[0]["command"][1:] == ["-m", "journal.watcher", str(app.config.root)] and transmitted[0]["log"].endswith("runtime/watcher.log")
+    package = Path(__file__).resolve().parents[1] / "src"
+    assert transmitted[0]["env"]["PYTHONPATH"] == str(package), "the module is imported from the folder the package is installed in, never from inside the journal package"
 
 
 def test_the_journals_boot_starts_the_sync_service_its_installed_version_names_whatever_the_launch_file_holds(app: App, monkeypatch):
@@ -1500,7 +1502,8 @@ def test_the_journals_boot_starts_the_sync_service_its_installed_version_names_w
     monkeypatch.setenv("JOURNAL_ENV", "main")
     app.container.get(ServiceStart).run()
     [sync] = [request for request in transmitted if request["name"] == "sync"]
-    assert sync["verb"] == "start" and sync["command"][1:] == ["-m", "sync_service"] and sync["folder"] == str(app.config.root) and sync["log"].endswith("runtime/sync.log"), "a supervisor whose launch file, written before an upgrade, names the journal alone is asked at the journal's boot for the sync service the installed version needs"
+    assert sync["verb"] == "start" and sync["command"][1:] == ["-m", "sync_service", str(app.config.root)] and sync["folder"] == str(app.config.root) and sync["log"].endswith("runtime/sync.log"), "a supervisor whose launch file, written before an upgrade, names the journal alone is asked at the journal's boot for the sync service the installed version needs, given the project's folder"
+    assert (Path(sync["env"]["PYTHONPATH"]) / "sync_service" / "__main__.py").is_file(), "with the folder its package is installed in importable, so it starts wherever the journal is installed"
 
 
 def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):
