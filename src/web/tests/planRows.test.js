@@ -1,7 +1,7 @@
 import {effectScope} from "vue";
 import {expect, test, vi} from "vitest";
 
-const api = {env: () => "main", list: vi.fn()};
+const api = {env: () => "main", list: vi.fn(), show: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api, onWrite: vi.fn()}));
 vi.mock("../src/chat/outbox.js", () => ({onOutboxChange: vi.fn()}));
 
@@ -17,8 +17,9 @@ const task = (id, state) => ({table: "tasks", id, title: `t${id}`, state, plan_i
 test("a started plan listed as a summary is read whole, then its tasks, so the bar counts its done tasks and draws its phase with no error", async () => {
     store.rows.plans = [index];
     store.rows.tasks = [];
+    api.show.mockResolvedValue(whole);
     api.list.mockImplementation(async (table, query) => ({
-        rows: table === "plans" ? [whole] : [task(1, "done"), task(2, "done"), task(3, "open")].filter((t) => query.ids.includes(t.id)),
+        rows: table === "plans" ? [query.ids ? whole : index] : [task(1, "done"), task(2, "done"), task(3, "open")].filter((t) => (query.ids || []).includes(t.id)),
         is_last_page: true,
         counts: {},
     }));
@@ -26,7 +27,7 @@ test("a started plan listed as a summary is read whole, then its tasks, so the b
     scope.run(() => usePlanRows(() => rows("plans")));
     await vi.waitFor(() => expect(rows("tasks")).toHaveLength(3));
     const [plan] = rows("plans");
-    expect(api.list.mock.calls).toContainEqual(["plans", {ids: [5]}]);
+    expect(api.show.mock.calls).toContainEqual(["plans", 5]);
     expect(standingOf(plan, rows("tasks")).title).toBe("2 of 3 tasks done");
     expect(planProgress(plan)).toMatchObject({total: 2, phase: 2, finished: 1});
     expect(barPlans(rows("plans"))).toEqual([plan]);

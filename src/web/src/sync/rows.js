@@ -123,7 +123,7 @@ watch(
 );
 
 // A list may carry a document or report without its body, or a plan without its phases, tasks and reviews, a summary: one held whole stays whole while it has not changed.
-const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r));
+const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r)) || (r.table === "reactions" && !("message_id" in r)) || (r.table === "comments" && !("on" in r));
 
 // The rows `arriving` as the viewer keeps them against the rows it `held`: a row that has not changed is the very object it held, so
 // nothing drawn from it is drawn again, as when a reconnect or a refresh reads the chat's rows again; a summary of a row held whole,
@@ -278,8 +278,8 @@ async function counted(table) {
 }
 
 // The tables whose list rows are read whole once the list has named them: the plans still open, since the bar, the board and the inspector
-// draw from their phases, and every reaction, since the message it sits on comes with a reaction read by id.
-const READ_WHOLE = new Set(["plans", "reactions"]);
+// draw from their phases, and every reaction and comment, since the message a reaction sits on and the row a comment is on come with the row read by id.
+const READ_WHOLE = new Set(["plans", "reactions", "comments"]);
 
 async function openWhole(table) {
     const ids = (store.rows[table] || []).filter((r) => isSummary(r) && (table !== "plans" || !isClosed(r))).map((r) => r.id);
