@@ -82,8 +82,23 @@ const close = () => (pinned.value = shown.value = false) || (drilled.value = nul
     font-size: 11px;
 }
 
-.timings-row {
+.timings-rows .timings-row {
+    box-sizing: border-box;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 76px 76px 14px;
+    align-items: baseline;
     gap: 8px;
+}
+
+.timings-rows .timings-row b,
+.timings-rows .timings-row small {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.timings-row :deep(.ico) {
+    align-self: center;
 }
 
 .timings-name {
