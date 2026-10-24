@@ -15,12 +15,14 @@ const UPPER = {id: "upper", kind: "bubble", left: 100, right: 500, top: 300, bot
 const LOWER = {id: "lower", kind: "bubble", left: 300, right: 800, top: 500, bottom: 560, element: "lower"};
 const FLOORS = [HOME, UPPER, LOWER];
 
-// the throw flown at 60 frames a second from its first frame at 0 until it lands or is gone, with every frame it passed through
+// the throw flown at 60 frames a second from its first frame at 0 until it lands or is gone, with every frame it passed through in the air,
+// the one it was gone on the last
 function flown(thrown) {
     const frames = [thrown];
     for (let frame = 1; frame < 60 * 30; frame++) {
         const next = thrownFrame(frames.at(-1), FLOORS, ROOM, (frame * 1000) / 60);
-        if (!next.airborne || next.gone) return {frames, ...next};
+        if (next.gone) return {frames: [...frames, next.airborne], ...next};
+        if (!next.airborne) return {frames, ...next};
         frames.push(next.airborne);
     }
     return {frames, landed: null, gone: false};
@@ -110,13 +112,24 @@ test("thrown hard, it flies tumbling, off the chat's sides, and falls to the nea
     }
 });
 
-test("thrown up hard, it flies past the chat's top and off the screen, and comes back down from above on its parachute to the floor", () => {
+test("thrown up hard, it flies freely past the chat's top, five hundred pixels up and out of sight, and comes back down from above on its parachute to the floor", async () => {
+    const {GRAVITY} = await import("../src/domain/falls.js");
     const {frames, landed, gone} = flown(thrownFrom({x: 400, y: 250}, {x: 300, y: -GRAB.fastest}, 0));
+    expect(GRAB.away).toBe(500);
     expect(gone).toBe(true);
     expect(landed).toBe(null);
-    // nothing stopped it at the top: it rose on up to it and past
+    // nothing stopped it at the top: every frame it rose on, slowed by gravity alone, past the chat's top and on
+    for (let index = 1; index < frames.length; index++) {
+        expect(frames[index].y, `${index}`).toBeLessThan(frames[index - 1].y);
+        expect(frames[index].speed - frames[index - 1].speed, `${index}`).toBeCloseTo(GRAVITY / 60, 6);
+    }
+    // out of sight above the chat, its whole picture past the top, long before it is gone
+    expect(frames.some((frame) => frame.y + SIZE < ROOM.top)).toBe(true);
+    // gone only once five hundred pixels above the chat's top, not before
     const highest = frames.at(-1);
-    expect(highest.y).toBeLessThanOrEqual(ROOM.top + 60);
+    expect(frames.slice(0, -1).every((frame) => frame.y > ROOM.top - GRAB.away)).toBe(true);
+    expect(highest.y).toBeLessThanOrEqual(ROOM.top - GRAB.away);
+    expect(highest.y).toBeGreaterThan(ROOM.top - GRAB.away - 60);
     expect(highest.speed).toBeLessThan(0);
     // the way back is the parachute's from above the screen, as after the run up the bubbles (VoiceFigure goneOff, flyOn), onto the floor
     let back = chuteFrom(highest.x, ROOM.top - SIZE / 4, SKYWARD.chute * SIZE, 0);
