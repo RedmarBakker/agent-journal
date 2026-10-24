@@ -59,7 +59,7 @@ test("the swing is a seat with depth, two ropes and their knots in the figure's 
     for (const voice of Object.keys(stances)) expect(seated(0, voice).at("hips").z, voice).toBeGreaterThan(seated(FRAMES / 2, voice).at("hips").z + 0.2);
 });
 
-test("in every frame the feet and shins hang down before the seat's front, never through it, and the thighs rest on its top while it swings", () => {
+test("in every frame the feet and shins hang down before the seat's front, never through it, and the hips rest on its top while it swings", () => {
     const props = propsOf();
     for (const voice of Object.keys(stances)) {
         for (let frame = 0; frame < FRAMES; frame++) {
@@ -71,8 +71,8 @@ test("in every frame the feet and shins hang down before the seat's front, never
                 expect(at(`foot_${side}`).z + BODY.leg, `${label} ${side} foot under the thighs`).toBeLessThan(at(`thigh_${side}`).z);
             }
             if (frame < act.intro || frame >= act.intro + act.hold) continue;
-            const under = Math.min(...["thigh_l", "shin_l", "thigh_r", "shin_r"].map((bone) => at(bone).z)) - BODY.leg;
-            expect(Math.abs(seat.top - under), `${label} seat at the thighs`).toBeLessThan(PIXEL);
+            const under = Math.min(at("thigh_l").z, at("thigh_r").z) - BODY.leg;
+            expect(Math.abs(seat.top - under), `${label} seat under the hips`).toBeLessThan(PIXEL);
             expect(at("hips").y, `${label} hips over the seat`).toBeGreaterThan(seat.front);
             expect(at("hips").y, `${label} hips over the seat`).toBeLessThan(seat.back);
         }

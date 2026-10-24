@@ -644,8 +644,10 @@ const RUN_STRIDE = [1.84, 0.38, 0.2];
 const WALK_STRIDE = [1.36, 0.6, 0.16];
 const DEPART_TURN = 0.14;
 const SEAT_LIFT = 0.2;
-// how far each knee bends when sitting on an edge; under a right angle the feet reach ahead of the knees, as a person sits on a wall
-const SEAT_SHIN = 66;
+// sitting on an edge, how far each thigh is raised from hanging, so it slopes down a little over the edge from the hips, and how far each
+// knee bends, so the shins hang straight down past the edge, as a person sits on a wall with the legs loose
+const SEAT_THIGH = 66;
+const SEAT_SHIN = 68;
 const PULL_GRIP_X = 1.51;
 const PULL_GRIP_Y = -0.0233463035019455;
 const PULL_GRIP_Z = 3.17;
@@ -722,7 +724,7 @@ function composedLegs(pose) {
 
 function seatedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
-        pose.turn(`thigh_${side}`, {x: -88});
+        pose.turn(`thigh_${side}`, {x: -SEAT_THIGH});
         pose.bend(`shin_${side}`, SEAT_SHIN + sign * 9 * pose.sway);
         pose.turn(`foot_${side}`, {x: -sign * 5 * pose.sway + (side === "r" ? pose.tap : 0)});
     }
@@ -4212,11 +4214,11 @@ export function pocketWatchOf(prop) {
 
 // The rope swing the figure sits on, in its own scene, in the figure's units about the middle of the line the figure sits on (places.js
 // POSTURES sit), its sizes as acts.js rope_swing gives them in shares of the 5.4 units the picture frames: a wooden seat `seat` wide and
-// `thick` thick, its top `under` below that line, where the thighs rest, running from `front` back to `back` (forward is -y), so the
+// `thick` thick, its top `under` below that line, where the hips rest, running from `front` back to `back` (forward is -y), so the
 // shins and the feet hang down before its front and never through it; and a rope `cord` thick up from near either end, `ties` apart,
 // through the seat's middle from front to back, beside the figure and behind its hands, to a knot `knot` round on the bubble's bottom
 // edge, `rope` above that line
-export const SWING = {thick: 0.14, front: -0.22, back: 0.4, cord: 0.035, knot: 0.08, colours: {wood: 0x8a5a2b, rope: 0xc9a56a}};
+export const SWING = {thick: 0.14, front: -0.12, back: 0.4, cord: 0.035, knot: 0.08, colours: {wood: 0x8a5a2b, rope: 0xc9a56a}};
 
 export function ropeSwingOf(prop) {
     const root = poseSpace(prop);
