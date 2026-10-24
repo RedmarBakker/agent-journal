@@ -9,6 +9,7 @@ from journal.features.git.support.branch_environments_reader import BranchEnviro
 from journal.features.git.git_nudges import GitNudges
 from journal.features.git.commands.worktree_command import WorktreeCommand
 from journal.features.git.seeds.old_main_worktree import OldMainWorktree
+from journal.features.git.seeds.worktree_tidying import WorktreeTidying
 
 
 class Git(Feature[GitData]):
@@ -21,6 +22,6 @@ class Git(Feature[GitData]):
     data = (GitDataReader, BranchEnvironmentsReader)
     conduct = (GitConduct,)
     commands = (WorktreeCommand,)
-    seeds = (OldMainWorktree,)
+    seeds = (OldMainWorktree, WorktreeTidying)
 
     nudges = (GitNudges.WORKER_TASK_REFUSAL, GitNudges.BRANCH_CONFLICT)

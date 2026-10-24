@@ -6955,6 +6955,33 @@ def test_a_worktree_held_on_another_machine_is_launched_and_removed_only_there_a
     assert "keen-otter" not in {WorktreeNames(root).unused({environment.name for environment in environments.all()}) for _ in range(60)}, "a made-up name avoids every environment the team knows"
 
 
+def test_the_upgrade_tidies_what_older_launches_left_in_a_worktree_and_names_the_folders_moved_aside(app: App):
+    import subprocess
+    from journal.features.git.seeds.worktree_tidying import WorktreeTidying
+    from journal.repositories.messages import Messages
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    (root / ".claude").mkdir(exist_ok=True)
+    (root / ".claude" / "settings.json").write_text('{"permissions": {}}\n')
+    (root / "notes.txt").write_text("notes\n")
+    for argv in (["init", "-q", "-b", "main"], ["add", ".claude/settings.json", "notes.txt"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "start"]):
+        git(*argv)
+    folder = Worktree(root, "calm-river").created()
+    (folder / ".claude" / "settings.json").write_text(json.dumps({"permissions": {}, "hooks": {"Stop": [{"hooks": [{"type": "command", "command": f"sh {root}/.journal/src/journal/hooks/hook.sh claude {root}"}]}]}}, indent=4))
+    git("update-index", "--skip-worktree", "notes.txt", cwd=folder)
+    (root / ".claude" / "worktrees" / "quiet-heron.moved-aside-1700000000").mkdir()
+    app.container.get(WorktreeTidying).run()
+    assert git("status", "--porcelain", cwd=folder).stdout == "" and "hook.sh" not in (folder / ".claude" / "settings.json").read_text(), "the journal's hooks leave the worktree's own settings, put back as committed"
+    assert not [line for line in git("ls-files", "-v", cwd=folder).stdout.splitlines() if line.startswith("S ")], "the skip-worktree marks are cleared"
+    with app.container.get(Scope).environment(MAIN):
+        cards = [message.text for message in app.container.get(Messages).all() if "moved aside" in message.text]
+    assert len(cards) == 1 and "quiet-heron.moved-aside-1700000000" in cards[0] and (root / ".claude" / "worktrees" / "quiet-heron.moved-aside-1700000000").is_dir(), "a folder moved aside is named once and kept"
+    app.container.get(WorktreeTidying).run()
+    with app.container.get(Scope).environment(MAIN):
+        assert len([message for message in app.container.get(Messages).all() if "moved aside" in message.text]) == 1, "and named only once"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
