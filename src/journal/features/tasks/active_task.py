@@ -6,6 +6,8 @@ from journal.engine.support.session_agents import SessionAgents
 from journal.features.tasks.states.working import Working
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.support.rejection import Rejection
+from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
@@ -32,7 +34,11 @@ class ActiveTask:
     def start(self, task: Task, caller: Caller) -> Task:
         for plan in self.plans.unapproved(task):
             plan.task_startable(task.id)
-        return self.tasks.holder_started(task.started(datetime.now(timezone.utc)), self.holder(caller), caller.actor)
+        holder = self.holder(caller)
+        self.tasks.worker_hold_check(task, holder, caller.actor)
+        if task.state == TaskState.STARTED and self.tasks.holder(task) == holder:
+            raise Rejection(f"task {task.id} is already in hand: it was started already")
+        return self.tasks.holder_started(task.started(datetime.now(timezone.utc)), holder, caller.actor)
 
     def holder(self, caller: Caller) -> Ref | None:
         if caller.worker_number is not None:

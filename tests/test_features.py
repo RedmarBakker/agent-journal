@@ -6897,7 +6897,7 @@ def test_an_old_main_worktree_moves_to_an_environment_of_its_own_and_main_launch
     old = Worktree(root, "main").created()
     git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "work in the old main worktree", cwd=old)
     app.container.get(OldMainWorktree).run()
-    moved = [environment for environment in app.container.get(Environments).all() if environment.branch.startswith("worktree-") and environment.name != "main"]
+    moved = [environment for environment in app.container.get(Environments).all() if (environment.branch or "").startswith("worktree-") and environment.name != "main"]
     assert not old.exists() and len(moved) == 1 and (root / ".claude" / "worktrees" / moved[0].name).is_dir(), "the upgrade moves the old main worktree to a made-up name with an environment of its own"
     assert git("log", "-1", "--format=%s", cwd=root / ".claude" / "worktrees" / moved[0].name).stdout.strip() == "work in the old main worktree", "its work moves with it"
     launch = Launch.parse(["claude"], root)

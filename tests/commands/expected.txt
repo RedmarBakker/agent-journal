@@ -1202,7 +1202,7 @@ no task is in hand
 
 $ agent: journal environment json
 exit 0
-[{"name": "main", "working": true, "last_used": "just now", "last_sessions": {}, "refusal": ""}]
+[{"name": "main", "working": true, "last_used": "just now", "last_sessions": {}, "refusal": "", "worktree": false}]
 
 $ agent: journal environment sessions
 exit 0
@@ -1522,6 +1522,7 @@ team.journal_behind_the_team  [team]  this journal is behind its team: {{line}}.
 triggers.denied  [triggers]  a trigger denies this: {{title}}
 triggers.instruct  [triggers]  do this now: {{title}}
 triggers.nudge  [triggers]  {{title}}
+updates.launch_carried_over  [updates]  the journal now runs version {{version}}: a newer launch replaced the journal server on {{previous}} that your launch had
 updates.release_messages  [updates]  {{count}} unread release messages. `journal update messages`, and do what they ask
 usage.limit_check  [usage]  checking whether the usage limit is over. if it is, carry on with the work in hand
 verification.verifier_gives_only_its_verdict  [verification]  you are a verifier: you only give your verdict, `journal verdict yes|no "<reason>"`. every other tool and every file edit is refused; the evidence is all in your brief
@@ -1565,7 +1566,7 @@ workers.worker_place_free  [workers]  worker {{n}}, {{name}}, is done; open: {{t
 workers.worker_quiet  [workers]  worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes. look at its transcript, notify it with `journal worker notify {{n}} "<text>"`, or stop it
 workers.worker_reported  [workers]  worker {{n}}, {{name}}, reported in the chat
 workers.worker_stopped_unreported  [workers]  worker {{n}}, {{name}}, stopped before it reported
-227 nudges
+228 nudges
 
 $ agent: journal worker list
 exit 0

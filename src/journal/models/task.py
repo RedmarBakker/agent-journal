@@ -81,8 +81,6 @@ class Task(Scoped):
         return self.plan_started(time, 0)
 
     def plan_started(self, time: datetime, plan_id: int) -> "Task":
-        if self.state == TaskState.STARTED:
-            raise Rejection(f"task {self.id} is already in hand: it was started already")
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
         return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="").with_event(event)
 
