@@ -40,6 +40,13 @@ async function heldElsewhere({scope, table, id}) {
 // store with `take`. An on-demand poller (`demand`) has no interval: it reads once when asked, pausing the poller it names
 // in `pauses` for the length of its own read, so the two never pull at the same time. Any poller may declare `least`, the milliseconds
 // between two reads of one run; an on-demand one that does not reads at most once a second.
+// the newest agents, listed as plain rows and then read whole by their ids, since an index carries no row's details
+async function wholeAgents(client, limit) {
+    const page = await client.list("agents", {limit});
+    const ids = page.rows.map((row) => row.id);
+    return ids.length ? client.list("agents", {ids}) : page;
+}
+
 export const POLLERS = Object.freeze({
     "status.bar": {
         read: () => api.bar(),
@@ -47,7 +54,7 @@ export const POLLERS = Object.freeze({
         take: (got) => Array.isArray(got) && (store.bar = got),
         active: () => barOn.value,
     },
-    "agents.index": {read: () => api.list("agents", {limit: LIVE}), every: 1000, take: (got) => (store.agents = got.rows)},
+    "agents.index": {read: () => wholeAgents(api, LIVE), every: 1000, take: (got) => (store.agents = got.rows)},
     "agents.live": {read: () => api.liveAgents(), every: 5000, take: (got) => (store.live = got)},
     "status.summary": {
         read: () => api.summary(),
@@ -79,7 +86,7 @@ export const POLLERS = Object.freeze({
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},
     "plan.timeline": {read: ({scope, plan}) => scope.api.planTimeline(plan), every: 15000, by: ({scope, plan}) => `${scope.env}:${plan}`},
     "reader.elsewhere": {read: heldElsewhere, every: 5000, by: ({scope, table, id}) => `${scope.env}:${table}:${id}`},
-    "inspector.agents": {read: ({client}) => client.list("agents", {limit: 20}), every: 5000, by: ({client}) => client.env()},
+    "inspector.agents": {read: ({client}) => wholeAgents(client, 20), every: 5000, by: ({client}) => client.env()},
     "inspector.rows": {read: ({scope, tables}) => scope.recentAll(tables, 50), every: 5000, by: ({scope}) => scope.env},
     "agent.terminal": {read: ({client, agent, after}) => client.terminal(agent, after), every: 2000, by: ({client, agent}) => `${client.env()}:${agent}`},
     "agent.transcript": {
