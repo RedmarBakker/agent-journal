@@ -3,7 +3,6 @@ from journal.http.journal.answer_time import AnswerTime
 from journal.models.support.model_load import ModelLoad
 from journal.models.timing import Timing
 from journal.features.faults.support.slow_group import SlowGroup
-from journal.features.faults.support.slow_requests import HOOK
 
 HOOKS_PREFIX = "developer.hooks."
 LOADS_PREFIX = "developer.loads."
@@ -45,10 +44,10 @@ class DeveloperNumbers:
         return SlowGroup.grouped(self.slowest(LOG_ROWS))
 
     def slowest_hooks(self, limit: int) -> list[Timing]:
-        return [timing for timing in self.slowest(LOG_ROWS) if timing.method == HOOK][:limit]
+        return [timing for timing in self.slowest(LOG_ROWS) if timing.is_hook()][:limit]
 
     def slowest_requests(self, limit: int) -> list[Timing]:
-        return [timing for timing in self.slowest(LOG_ROWS) if timing.method != HOOK][:limit]
+        return [timing for timing in self.slowest(LOG_ROWS) if not timing.is_hook()][:limit]
 
     def loaded(self) -> list[Timing]:
         return [timing for timing in self.recent() if timing.loads.counts]

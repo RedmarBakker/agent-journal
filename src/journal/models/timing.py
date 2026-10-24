@@ -13,8 +13,11 @@ class Timing:
     time: float = 0.0
     loads: RequestLoads = RequestLoads()
 
+    def is_hook(self) -> bool:
+        return self.method == "HOOK"
+
     def label(self) -> str:
-        return self.route.rsplit("/", 1)[-1] if self.method == "HOOK" else f"{self.method} {self.route}"
+        return self.route.rsplit("/", 1)[-1] if self.is_hook() else f"{self.method} {self.route}"
 
     def load_line(self) -> str:
         return f"{self.label()}: {self.loads.line()}, {self.ms} ms"
