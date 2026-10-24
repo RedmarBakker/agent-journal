@@ -275,6 +275,9 @@ class Provider(ABC):
     def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
         self.wire_hooks(folder, script, command)
 
+    def folder_trusted(self, folder: Path) -> None:
+        return
+
     def has_journal_hooks(self, path: Path) -> bool:
         settings = json.loads(path.read_text()) if path.is_file() else {}
         return any(self.journal_paths(block) for blocks in (settings.get("hooks") or {}).values() for block in blocks)

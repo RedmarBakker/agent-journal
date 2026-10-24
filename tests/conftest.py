@@ -48,12 +48,13 @@ def pytest_sessionfinish(session, exitstatus) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def stand_ins(request):
-    """Every program a module's tests start finds the stand-ins for Claude Code and Codex first, never the real ones, which reach the network and are billed; a live file, which says so on its first line, keeps the real ones."""
+    """Every program a module's tests start finds the stand-ins for Claude Code and Codex first, never the real ones, which reach the network and are billed, and Claude Code's config and state live in a temp folder, never the person's own; a live file, which says so on its first line, keeps the real ones."""
     if request.module.__name__.endswith(LIVE_SUFFIX):
         yield
         return
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("PATH", f"{STAND_INS}{os.pathsep}{os.environ['PATH']}")
+        patch.setenv("CLAUDE_CONFIG_DIR", tempfile.mkdtemp(prefix="claude-config-"))
         yield
 
 

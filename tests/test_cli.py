@@ -377,6 +377,28 @@ def test_a_worktree_reads_the_journals_hooks_through_one_link_and_its_git_status
     assert tracked.read_text() == main_settings and (folder / ".claude" / "settings.json").read_text() == main_settings, "and no settings file of the project is written, in the worktree or in the main checkout"
 
 
+def test_a_launch_marks_a_new_worktree_trusted_in_claude_codes_state_and_never_the_persons_own(app: App, monkeypatch, tmp_path):
+    import json
+    import os
+    import subprocess
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.providers.support.status_line import StatusLine
+    from journal.support.choice import Choice
+    real = Path.home() / ".claude.json"
+    real_time = real.stat().st_mtime_ns if real.exists() else 0
+    root = app.config.root
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=root, capture_output=True, timeout=30)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), Caller.user("main")).text)
+    state = Path(os.environ["CLAUDE_CONFIG_DIR"]) / ".claude.json"
+    state.write_text(json.dumps({"projects": {str(root): {"hasTrustDialogAccepted": True, "allowedTools": ["Bash"]}}}))
+    folder = Launch.parse(["claude", "--worktree", "calm-river"], root).launch_file(Choice("calm-river"), StatusLine(root))["front"]["folder"]
+    projects = json.loads(state.read_text())["projects"]
+    assert projects[folder]["hasTrustDialogAccepted"] and projects[str(root)]["allowedTools"] == ["Bash"], "the new worktree is marked trusted in Claude Code's state, the rest of it kept"
+    assert (real.stat().st_mtime_ns if real.exists() else 0) == real_time, "and the person's own state file is never touched by a test"
+
+
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):
     import json
     import subprocess

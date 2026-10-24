@@ -37,6 +37,7 @@ from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
+from journal.providers.support.claude_trust import ClaudeTrust
 
 CROSS_SESSION = re.compile(r"^<cross-session-message\s+([^>]*)>(.*?)</cross-session-message>$", re.S)
 SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"'), re.compile(r'\bfrom="([^"]*)"')
@@ -98,6 +99,15 @@ class Claude(Provider):
     @staticmethod
     def config_folder() -> Path:
         return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+
+    # Claude Code keeps its state beside its config folder when one is named, else in the home folder
+    @staticmethod
+    def state_file() -> Path:
+        configured = os.environ.get("CLAUDE_CONFIG_DIR")
+        return Path(configured) / ".claude.json" if configured else Path.home() / ".claude.json"
+
+    def folder_trusted(self, folder: Path) -> None:
+        ClaudeTrust(self.state_file()).trusted(folder)
 
     def profile_model(self, profile: ProfileView) -> str:
         return profile["model"]
