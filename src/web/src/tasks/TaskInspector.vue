@@ -8,6 +8,8 @@ import Links from "../resource/Links.vue";
 import TaskLogs from "../resource/TaskLogs.vue";
 import TaskWork from "../resource/TaskWork.vue";
 import {planOf} from "../domain/records.js";
+import {wholePhases} from "../domain/plans.js";
+import {wholePlans} from "../composables/wholePlans.js";
 import {updatedAt} from "../domain/row.js";
 import {nextAct, otherActs, statusOf} from "../domain/taskBoard.js";
 import {ago} from "../format/time.js";
@@ -31,7 +33,8 @@ const setPriority = (priority) => scope.api.change("tasks", props.task.id, {prio
 const next = computed(() => nextAct(props.task));
 const others = computed(() => otherActs(props.task));
 const plan = computed(() => planOf(props.task));
-const phases = computed(() => plan.value?.phases || []);
+const phases = computed(() => (plan.value ? wholePhases(plan.value) : []));
+wholePlans(() => [props.task.plan_id].filter(Boolean));
 const phase = computed(() => phases.value.findIndex((p) => p.task_ids.includes(props.task.id)) + 1);
 const crumb = computed(() => {
     if (!plan.value) return "Not in a plan";

@@ -1,4 +1,5 @@
 <script setup>
+import {wholePlans} from "../composables/wholePlans.js";
 import {delegationOf, NOT_STARTED, phaseCount, phaseOf, planButton, standingOf, statusOf} from "../domain/plans.js";
 import {computed, ref} from "vue";
 import Icon from "../kit/Icon.vue";
@@ -29,6 +30,7 @@ useOutside(withCard, () => (opened.value = ""));
 const delegation = computed(() => delegationOf(props.p, {tasks: rows("tasks"), workers: rows("workers")}));
 const status = computed(() => statusOf(props.p));
 const count = computed(() => phaseCount(props.p));
+wholePlans(() => [props.p.id]);
 const standing = computed(() => standingOf(props.p, rows("tasks")));
 const toggle = (what) => (opened.value = opened.value === what ? "" : what);
 

@@ -2,6 +2,7 @@
 import {computed, nextTick, onMounted, ref} from "vue";
 import Dialog from "../kit/Dialog.vue";
 import Toast from "../kit/Toast.vue";
+import {wholePlans} from "../composables/wholePlans.js";
 import {boardLines, shownTasks, STATUS_WORDS} from "../domain/taskBoard.js";
 import {select, useTaskActs} from "../composables/taskActs.js";
 import {useWindowEvent} from "../composables/windowEvent.js";
@@ -24,6 +25,7 @@ const {toast, asking} = acts;
 const tasks = computed(() => rows("tasks"));
 const plans = computed(() => [...rows("plans")].sort((a, b) => a.id - b.id));
 const shown = computed(() => shownTasks(tasks.value, taskBoard));
+wholePlans(() => [...new Set(shown.value.map((t) => t.plan_id).filter(Boolean))]);
 const lines = computed(() =>
     boardLines(taskBoard.display.grouping, {shown: shown.value, all: tasks.value, plans: plans.value, folded: taskBoard.folded})
 );

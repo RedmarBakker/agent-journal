@@ -1,5 +1,5 @@
 import {GROUPS, groupOf, planned, questionAbout, refParts} from "./records.js";
-import {standingOf} from "./plans.js";
+import {standingOf, wholePhases} from "./plans.js";
 import {isClosed} from "./row.js";
 import {counted} from "../format/number.js";
 
@@ -80,7 +80,7 @@ const head = (key, depth, label, note, extra = {}) => ({type: "head", key, depth
 const rowLines = (tasks, depth) => tasks.map((task) => ({type: "row", key: `t${task.id}`, depth, task}));
 
 function phaseLines(plan, shown, all, folded) {
-    const phases = plan.phases || [];
+    const phases = wholePhases(plan);
     const lines = [];
     phases.forEach((phase, i) => {
         const rows = shown.filter((t) => phase.task_ids.includes(t.id));

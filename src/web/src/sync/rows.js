@@ -1,4 +1,5 @@
 import {remember, remembered} from "../platform/storage.js";
+import {isWholePlan} from "../domain/plans.js";
 import {ref, toRaw, watch} from "vue";
 import {api, onWrite} from "../api/client.js";
 import {onOutboxChange} from "../chat/outbox.js";
@@ -122,7 +123,7 @@ watch(
 );
 
 // A list may carry a document or report without its body, or a plan without its phases, tasks and reviews, a summary: one held whole stays whole while it has not changed.
-const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !("task_ids" in r));
+const isSummary = (r) => ((r.table === "docs" || r.table === "reports") && !("body" in r)) || (r.table === "workers" && !("report" in r)) || (r.table === "plans" && !isWholePlan(r));
 
 // The rows `arriving` as the viewer keeps them against the rows it `held`: a row that has not changed is the very object it held, so
 // nothing drawn from it is drawn again, as when a reconnect or a refresh reads the chat's rows again; a summary of a row held whole,

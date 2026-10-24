@@ -85,8 +85,12 @@ export function othersLine(others) {
     return words.filter(Boolean).join(" · ");
 }
 
+// A plan list row carries the plan alone; its phases and their task ids are read from a plan held whole.
+export const isWholePlan = (p) => "task_ids" in p;
+export const wholePhases = (p) => (isWholePlan(p) ? p.phases || [] : []);
+
 // The phase in hand, counted from 1.
-const phaseAt = (p) => (p.phases || [])[(p.current_phase || 1) - 1] || null;
+const phaseAt = (p) => wholePhases(p)[(p.current_phase || 1) - 1] || null;
 
 // Who works on the phase in hand when the plan is delegated: the workers that hold its open tasks, named on the bar when there is
 // one and said as Delegated when there are more, the list kept for the bar's popover.
@@ -115,7 +119,7 @@ export function phaseOf(p) {
 export const rowsOf = (p) => p.task_ids || [];
 
 // A plan row from the list carries the counts alone; one read whole carries the phases and tasks themselves.
-export const phaseCount = (p) => p.phase_count ?? (p.phases || []).length;
+export const phaseCount = (p) => p.phase_count ?? wholePhases(p).length;
 export const taskCount = (p) => p.task_count ?? rowsOf(p).length;
 
 // a plan's tasks finished as done; a task given up is closed but not done
