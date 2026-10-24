@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {describe, expect, it} from "vitest";
-import {EYE_SHAPES} from "../src/figure/figure.js";
+import {PICTURES} from "../src/figure/visorPixels.js";
 import {SIGN, VISOR, glowTurn, lightOnce, signAt, visorAt, visorFor} from "../src/figure/visor.js";
 import {seeded} from "./support/seeded.js";
 
@@ -33,7 +33,7 @@ describe("a run's end shown in the eyes", () => {
             expect(shown.colour).toEqual(VISOR.colours[tone]);
             expect([shown.glow, shown.eyes]).toEqual([0, 1]);
             expect(shown.sign.name).toBe(name);
-            expect(EYE_SHAPES[name].glows, name).toBe(true);
+            expect(PICTURES[name], name).toBeTruthy();
             expect(glowTurn(shown)).toBe(1);
         }
     });

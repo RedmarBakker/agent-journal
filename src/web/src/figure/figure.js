@@ -5,6 +5,7 @@ import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swing
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {VISOR, glowTurn} from "./visor.js";
+import {GRID, litPixels} from "./visorPixels.js";
 import {LIGHT_COLOURS, PARCEL, UFO, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
 import {BUTLER, dressButler, topHatBandGeometry, topHatGeometry} from "./butler.js";
@@ -272,7 +273,7 @@ export class Posing {
         this.eyeShift = [aside, up];
     }
 
-    // the eyes taking on the shape `name` of EYE_SHAPES, `strength` of the way from their own, aside toward `way`, 1 the figure's left
+    // the eyes taking on the picture `name` of visorPixels.js PICTURES, `strength` of the way from their own, aside toward `way`, 1 the figure's left
     shapeEyes(name, strength = 1, way = 1) {
         this.eyeShape = strength > 0 ? {name, strength, way} : null;
     }
@@ -728,7 +729,7 @@ function handsTo(pose, stance, k, spot, elbow = THINK_ELBOW) {
 }
 
 // The looks the eyes take on, over whatever the body does: how far they open, the colour they turn, whether they are hearts, and the shape
-// of EYE_SHAPES they take on. The helmet hides everything else, so the eyes carry the expression.
+// of the visor's pictures they take on (visorPixels.js). The helmet hides everything else, so the eyes carry the expression.
 export const EYES = {
     hearts: {open: 1, tint: null, hearts: true},
     amused: {open: 0.3, tint: [1, 0.85, 0.4]},
@@ -3212,16 +3213,12 @@ export const CLIPS = [
     {name: "wave_up", frames: 12, fps: 12, loops: true, cuts: true, postures: ["stand", "sit"], pose: wave_up},
 ];
 
-// An eye closes about its own middle before the head carries it, as rig.Figure.shut_eyes scales the eye object
+// A part carried by the bones it is skinned to, its outline's hull pushed out along its own normals by `push`
 const SKINNED = /* glsl */ `
     #include <common>
     #include <skinning_pars_vertex>
     attribute vec3 hullNormal;
     uniform float push;
-    uniform float openness;
-    uniform float eyeMiddle;
-    uniform float eyeHeight;
-    uniform vec2 eyeShift;
     varying vec3 worldNormal;
     varying vec3 worldPosition;
     varying vec3 localPosition;
@@ -3235,8 +3232,6 @@ const SKINNED = /* glsl */ `
         #include <skinbase_vertex>
         #include <skinnormal_vertex>
         #include <begin_vertex>
-        transformed.y = eyeMiddle + (transformed.y - eyeMiddle) * openness;
-        transformed.xy += eyeShift * eyeHeight;
         #include <skinning_vertex>
         transformed += normalize(objectNormal) * push;
         worldNormal = normalize(mat3(modelMatrix) * objectNormal);
@@ -3271,11 +3266,11 @@ const FLAT = /* glsl */ `
     }
 `;
 
-// The visor, shaded as any flat part, and lit as a screen as an old CRT powers up (figure/visor.js): a band about its middle reaching
-// `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`, the rest
-// of it dark. The lit band is a grid of square pixels `pitch` apart, the lines between them `gap` of a pixel wide and darker, as a big
-// screen is seen up close.
-export const SCREEN = {pitch: 0.1, gap: 0.24, dark: 0.3};
+// The visor, shaded as any flat part, is a screen of the grid's pixels (visorPixels.js GRID), each lit in the colour `pixels` holds for
+// it, as the eyes are drawn on it, or dark; the lines between the pixels are `gap` of a pixel wide and `dark` as bright, as a big screen is
+// seen up close. It is lit whole as an old CRT powers up (figure/visor.js): a band about its middle reaching `across` and `open` of the
+// way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
+export const SCREEN = {gap: 0.16, dark: 0.35};
 const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec3 colour;
     uniform vec3 light;
@@ -3289,7 +3284,8 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform float core;
     uniform vec2 middle;
     uniform vec2 extent;
-    uniform float pitch;
+    uniform sampler2D pixels;
+    uniform vec2 grid;
     uniform float gap;
     uniform float dark;
     varying vec3 worldNormal;
@@ -3304,17 +3300,21 @@ const SCREEN_FRAGMENT = /* glsl */ `
         vec3 shaded = colour * mix(shade, vec3(1.0), step(litFrom, dot(normal, light)));
         vec2 from = abs(localPosition.xy - middle) / extent;
         float band = step(from.x, across) * step(from.y, open);
-        vec2 cell = fract(worldPosition.xy / pitch);
+        vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
+        vec2 cell = fract(place);
         float pixel = step(gap, cell.x) * step(gap, cell.y);
+        vec4 shown = texture2D(pixels, (floor(place) + 0.5) / grid);
         float centre = max(1.0 - length(from), 0.0);
         vec3 lit = glow * mix(dark, 1.0, pixel);
         vec3 screen = mix(lit + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
-        gl_FragColor = vec4(mix(shaded * (1.0 - step(0.001, lit + flash) * 0.6), screen, band * max(lit, flash)), 1.0);
+        vec3 drawn = mix(shaded * (1.0 - step(0.001, lit + flash) * 0.6), shown.rgb * mix(dark, 1.0, pixel), shown.a);
+        gl_FragColor = vec4(mix(drawn, screen, band * max(lit, flash)), 1.0);
         #include <colorspace_fragment>
     }
 `;
 
-// the visor's material: a flat part's, which lights as a screen, its band measured from the visor's own middle out to its edges
+// the visor's material: a flat part's, which lights as a screen, its pixels and its band measured across the visor's own bounds; the
+// pixels it shows are the `pixels` texture's, one texel each, filled in by showPixels
 function screenMaterial(mesh) {
     const material = flatMaterial(mesh);
     material.fragmentShader = SCREEN_FRAGMENT;
@@ -3324,9 +3324,25 @@ function screenMaterial(mesh) {
     Object.assign(material.uniforms, {
         glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
-        pitch: {value: SCREEN.pitch}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
+        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
     });
     return material;
+}
+
+// a texture of one texel for each of the grid's pixels, row 0 the top, all of them off
+export function pixelTexture() {
+    const texture = new THREE.DataTexture(new Uint8Array(GRID.columns * GRID.rows * 4), GRID.columns, GRID.rows);
+    texture.magFilter = texture.minFilter = THREE.NearestFilter;
+    texture.needsUpdate = true;
+    return texture;
+}
+
+// the pixels `lit` (visorPixels.js litPixels) shown in `texture`, every other one off
+export function showPixels(texture, lit) {
+    const data = texture.image.data;
+    data.fill(0);
+    for (const {column, row, colour} of lit) data.set([...colour.map((part) => Math.round(part * 255)), 255], (row * GRID.columns + column) * 4);
+    texture.needsUpdate = true;
 }
 
 const LINE = /* glsl */ `
@@ -3338,23 +3354,8 @@ const LINE = /* glsl */ `
     }
 `;
 
-function vertexUniforms(mesh, push) {
-    const position = mesh.geometry.attributes.position;
-    let middle = 0;
-    let [low, high] = [Infinity, -Infinity];
-    for (let i = 0; i < position.count; i++) {
-        middle += position.getY(i) / position.count;
-        [low, high] = [Math.min(low, position.getY(i)), Math.max(high, position.getY(i))];
-    }
-    // a quantized glb scales each mesh up from small units, so the outline is pushed in the mesh's own units
-    return {
-        push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x},
-        openness: {value: 1},
-        eyeMiddle: {value: middle},
-        eyeHeight: {value: high - low},
-        eyeShift: {value: new THREE.Vector2()},
-    };
-}
+// a quantized glb scales each mesh up from small units, so the outline is pushed in the mesh's own units
+const vertexUniforms = (mesh, push) => ({push: {value: push / mesh.getWorldScale(new THREE.Vector3()).x}});
 
 function flatMaterial(mesh) {
     const {r, g, b} = mesh.material.color;
@@ -3464,7 +3465,6 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const found = [];
     scene.traverse((node) => node.isSkinnedMesh && found.push(node));
     const meshes = (DRESSES[voice] ?? ((each) => each))(found);
-    const eyes = {materials: [], shapes: [], hearts: [], stars: [], squeezed: [], over: []};
     const screens = [];
     const visorHulls = [];
     for (const mesh of meshes) {
@@ -3483,18 +3483,8 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
         hull.position.copy(mesh.position);
         hull.quaternion.copy(mesh.quaternion);
         hull.scale.copy(mesh.scale);
-        if (mesh.name.startsWith("eye_")) {
-            mesh.material.userData.colour = mesh.material.uniforms.colour.value.toArray();
-            eyes.materials.push(mesh.material, hull.material);
-            eyes.shapes.push(mesh, hull);
-            eyes.hearts.push(shapeOver(mesh, HEART, HEART_COLOUR));
-            eyes.stars.push(shapeOver(mesh, STAR, STAR_COLOUR));
-            eyes.squeezed.push(Object.assign(shapeOver(mesh, SQUEEZE, SQUEEZE_COLOUR), {userData: {way: mesh.name === "eye_l" ? -1 : 1}}));
-            for (const [name, {geometry, glows}] of Object.entries(EYE_SHAPES)) {
-                eyes.over.push(Object.assign(shapeOver(mesh, geometry, SQUEEZE_COLOUR), {userData: {name, halo: false}}));
-                if (glows) eyes.over.push(Object.assign(haloOver(mesh, geometry), {userData: {name, halo: true}}));
-            }
-        }
+        // the eyes are drawn in the visor's pixels, never as the model's own eye parts
+        if (mesh.name.startsWith("eye_")) mesh.visible = hull.visible = false;
     }
     const carried = meshes.filter((mesh) => mesh.visible);
     const busy = handsHolding(carried, BUSY_ITEMS);
@@ -3519,7 +3509,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
     const hulls = (shown) => shown.flatMap((mesh) => [mesh, mesh.userData.hull]);
     const inHand = carried.filter((mesh) => IN_HAND.has(mesh.userData.item));
     const stowable = hulls(carried.filter((mesh) => mesh.userData.item));
-    return {scene, rig: rigOf(scene), stance, eyes, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand), bulbLight};
+    return {scene, rig: rigOf(scene), stance, screens, visorHulls, laptop, book, propByName, props: [...propByName.values()], stowable, tablet: hulls(tablet), cloth: hulls(cloth), inHand: hulls(inHand), bulbLight};
 }
 
 // A laptop drawn in the flat colours of the chat's own: its hinge at the origin, its keyboard toward the body (-z), its lid opened a little
@@ -4557,72 +4547,6 @@ function lapOf(world) {
     return new THREE.Matrix4().makeBasis(up.clone().cross(forward), up, forward).setPosition(hinge);
 }
 
-// A heart the size of an eye, drawn flat toward the viewer, its point down
-const HEART = (() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, -0.5);
-    shape.bezierCurveTo(-0.16, -0.3, -0.5, -0.16, -0.5, 0.12);
-    shape.bezierCurveTo(-0.5, 0.4, -0.2, 0.5, 0, 0.26);
-    shape.bezierCurveTo(0.2, 0.5, 0.5, 0.4, 0.5, 0.12);
-    shape.bezierCurveTo(0.5, -0.16, 0.16, -0.3, 0, -0.5);
-    return new THREE.ShapeGeometry(shape, 12);
-})();
-const HEART_SIZE = 0.42;
-const HEART_COLOUR = new THREE.Color(1, 0.3, 0.5);
-
-// A five-pointed star the size of an eye, drawn flat toward the viewer, a point up
-const STAR = (() => {
-    const shape = new THREE.Shape();
-    for (let point = 0; point < 10; point++) {
-        const reach = point % 2 ? 0.22 : 0.55;
-        const way = Math.PI / 2 + (point * Math.PI) / 5;
-        shape[point ? "lineTo" : "moveTo"](reach * Math.cos(way), reach * Math.sin(way));
-    }
-    return new THREE.ShapeGeometry(shape);
-})();
-const STAR_SIZE = 0.46;
-const STAR_COLOUR = new THREE.Color(1, 0.86, 0.3);
-// an eye squeezed shut laughing, as a cartoon's kawaii > <: a thick chevron pointing in toward the nose, in the eyes' own ivory, the
-// figure's left eye drawn mirrored so the two point at each other
-const SQUEEZE = (() => {
-    const points = [[-0.4, 0.42], [0.42, 0], [-0.4, -0.42], [-0.4, -0.2], [0.04, 0], [-0.4, 0.2]];
-    return new THREE.ShapeGeometry(new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y))));
-})();
-const SQUEEZE_SIZE = 0.5;
-const SQUEEZE_COLOUR = new THREE.Color(1, 0.94, 0.81);
-// The shapes the eyes take on in place of their arcs, never a filled-in eye: a run's end shown in them (visor.js SIGN), each glowing in the
-// visor's colour with a soft halo about it, a cross and a tick, `size` across and moved `aside` and `up` on the visor
-export const EYE_SHAPES = {
-    cross: {geometry: new THREE.ShapeGeometry([[-1, 1], [1, -1]].map(([from, to]) => new THREE.Shape([[-0.5 * from, 0.5], [-0.5 * from + 0.18 * to, 0.5], [0.5 * from, -0.5], [0.5 * from - 0.18 * to, -0.5]].map(([x, y]) => new THREE.Vector2(x, y))))), size: 0.4, aside: 0, up: 0, glows: true},
-    tick: {geometry: new THREE.ShapeGeometry(new THREE.Shape([[-0.5, 0.02], [-0.32, 0.18], [-0.12, -0.04], [0.36, 0.52], [0.52, 0.36], [-0.12, -0.36]].map(([x, y]) => new THREE.Vector2(x, y)))), size: 0.42, aside: 0, up: 0, glows: true},
-};
-
-// a shape over an eye, a heart or a star, carried by the head as the eye is, hidden until the eyes take it on
-function shapeOver(eye, geometry, colour) {
-    const bounds = new THREE.Box3().setFromBufferAttribute(eye.geometry.attributes.position).applyMatrix4(eye.matrixWorld);
-    const centre = bounds.getCenter(new THREE.Vector3()).setZ(bounds.max.z + 0.01);
-    const head = eye.skeleton.getBoneByName("head");
-    const holder = new THREE.Group();
-    holder.matrixAutoUpdate = false;
-    holder.matrix.copy(head.matrixWorld).invert().multiply(translation(centre));
-    const over = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({color: colour}));
-    over.frustumCulled = false;
-    over.visible = false;
-    holder.add(over);
-    head.add(holder);
-    return over;
-}
-
-// the soft halo about a glowing shape over an eye: the shape again, larger, faint and just behind it
-const HALO = {size: 1.45, opacity: 0.4, behind: 0.004};
-
-function haloOver(eye, geometry) {
-    const halo = shapeOver(eye, geometry, SQUEEZE_COLOUR);
-    halo.material.transparent = true;
-    halo.material.depthWrite = false;
-    return halo;
-}
-
 // where each hand's closed fingers grip, in the figure's own space, for the pose's moves
 function gripsOf(pose, moves) {
     return Object.fromEntries(Object.keys(SIDES).map((side) => [side, pose.grip(side, [0, 0, 0]).applyMatrix4(moves.get(`hand_${side}`)).applyMatrix4(TO_GLB)]));
@@ -4641,11 +4565,6 @@ function place(figure, pose, facing, blend) {
         world.set(bone.name, placed);
         const parentWorld = bone.parent.isBone ? world.get(bone.parent.name) : bone.parent.matrixWorld;
         parentWorld.clone().invert().multiply(placed).decompose(bone.position, bone.quaternion, bone.scale);
-    }
-    for (const material of figure.eyes.materials) {
-        material.uniforms.openness.value = Math.max(pose.eyes * (1 - (pose.eyeShape?.strength ?? 0)), MIN_EYE_HEIGHT);
-        material.uniforms.eyeShift.value.set(...pose.eyeShift);
-        if (material.uniforms.light) material.uniforms.colour.value.set(...(pose.eyeTint ?? material.userData.colour));
     }
     figure.laptop.visible = pose.laptop;
     figure.book.visible = Boolean(pose.book?.visible);
@@ -4666,46 +4585,20 @@ function place(figure, pose, facing, blend) {
         figure.laptop.matrixWorldNeedsUpdate = true;
     }
     const crt = pose.screen ?? DARK_SCREEN;
+    // the eyes go out before a lit visor comes on, a display with nothing on it; a sign glows in the visor's colour, as white as its flash
+    // and as bright as it is lit
+    const sign = pose.eyeShape && {...pose.eyeShape, colour: signColour(pose.screen)};
+    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, sign});
     for (const material of figure.screens) {
         material.uniforms.lit.value = crt.glow;
         material.uniforms.across.value = crt.across;
         material.uniforms.open.value = crt.open;
         material.uniforms.flash.value = crt.flash;
         if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
+        showPixels(material.uniforms.pixels.value, lit);
     }
     // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
     for (const hull of figure.visorHulls) hull.visible = !pose.screen || Boolean(pose.screen.sign);
-    // the eyes go out before a lit visor comes on, a display with nothing on it
-    const eyed = crt.eyes > EYES_GONE;
-    const shaped = pose.eyeShape && !pose.hearts && !pose.stars && !pose.squeezed ? pose.eyeShape : null;
-    for (const shape of figure.eyes.shapes) shape.visible = eyed && !pose.hearts && !pose.stars && !pose.squeezed && !(shaped?.strength >= 1);
-    for (const heart of figure.eyes.hearts) {
-        heart.visible = eyed && pose.hearts > 0;
-        heart.scale.setScalar(HEART_SIZE * pose.hearts);
-    }
-    for (const star of figure.eyes.stars) {
-        star.visible = eyed && pose.stars > 0 && !pose.hearts;
-        star.scale.setScalar(STAR_SIZE * pose.stars);
-        star.rotation.z = 1.2 * (pose.stars - 1);
-    }
-    for (const squeeze of figure.eyes.squeezed) {
-        squeeze.visible = eyed && pose.squeezed > 0 && !pose.hearts && !pose.stars;
-        squeeze.scale.set(SQUEEZE_SIZE * pose.squeezed * squeeze.userData.way, SQUEEZE_SIZE * pose.squeezed, 1);
-    }
-    // a shape the eyes take on opens as their own smile closes, and closes again as the smile comes back
-    // a sign glows in the visor's colour, as white as its flash and as bright as it is lit
-    const sign = pose.screen?.sign;
-    for (const over of figure.eyes.over) {
-        const {name, halo} = over.userData;
-        over.visible = eyed && shaped?.name === name;
-        if (!over.visible) continue;
-        const {size, aside, up} = EYE_SHAPES[name];
-        const grown = size * (halo ? HALO.size : 1);
-        over.scale.set(grown, grown * Math.max(shaped.strength, MIN_EYE_HEIGHT), 1);
-        over.position.set(aside * shaped.way, up, halo ? -HALO.behind : 0);
-        if (sign) over.material.color.setRGB(...pose.screen.colour.map((part) => (part + (1 - part) * sign.white) * sign.lit));
-        if (halo) over.material.opacity = HALO.opacity * (sign?.lit ?? 1);
-    }
     return moves;
 }
 
@@ -4717,11 +4610,16 @@ const BEAT_SECONDS = 0.8;
 export const LOOK_EASE = {into: 0.35, out: 0.45};
 export const lookStrength = ({seconds, lasts}) => partOf(seconds, [0, LOOK_EASE.into]) * (1 - partOf(seconds, [lasts - LOOK_EASE.out, lasts]));
 
+// how big the heart eyes are `seconds` into their look, at its full strength: a strong swell and a weaker one each beat
+export function heartBeat(seconds) {
+    const beat = (seconds % BEAT_SECONDS) / BEAT_SECONDS;
+    return 1 + 0.28 * swell(beat, 0, 0.3) + 0.14 * swell(beat, 0.3, 0.55);
+}
+
 function lookAs(pose, {mood, seconds, lasts}) {
     const strength = lookStrength({seconds, lasts});
     if (EYES[mood].hearts) {
-        const beat = (seconds % BEAT_SECONDS) / BEAT_SECONDS;
-        pose.heartEyes(strength * (1 + 0.28 * swell(beat, 0, 0.3) + 0.14 * swell(beat, 0.3, 0.55)));
+        pose.heartEyes(strength * heartBeat(seconds));
     } else {
         eyesAs(pose, mood, strength);
     }
@@ -4746,6 +4644,12 @@ export function turnToViewer(pose, facing, strength) {
     pose.turn("neck", {z: -0.3 * head * strength});
     pose.turn("head", {z: -0.7 * head * strength});
 }
+
+// the colour of a run's end shown in the eyes on the visor `screen` (visor.js visorAt), as white as its flash and as bright as it is lit
+const signColour = (screen) => {
+    const sign = screen?.sign;
+    return sign ? screen.colour.map((part) => (part + (1 - part) * sign.white) * sign.lit) : [1, 1, 1];
+};
 
 // the visor mesh every voice wears, the black screen its eyes are drawn on, and how lit it is before the eyes are gone from it
 const VISOR_MESH = "face_screen";

@@ -3,7 +3,6 @@ import {readFileSync, readdirSync} from "node:fs";
 import {expect, test} from "vitest";
 import {processEndsAfter, withSystemCards} from "../src/domain/figureState.js";
 import {VISOR, crtAt, lightOnce, visorAt, visorFor} from "../src/figure/visor.js";
-import {SCREEN} from "../src/figure/figure.js";
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
 // a process card as features/shell writes a watched output's: running, then ended with the tone of how it ended
@@ -52,7 +51,7 @@ test("the visor never lights while the figure sleeps, and goes back to its eyes 
     expect(visorAt(lit, 101, false)).not.toBe(null);
 });
 
-test("every voice wears the visor that lights, and its pixels are big enough to see at the chat's 112-pixel figure", () => {
+test("every voice wears the visor that lights", () => {
     const figures = new URL("../public/voices/figures/", import.meta.url);
     const glbs = readdirSync(figures).filter((file) => file.endsWith(".glb"));
     expect(glbs.map((file) => file.split(".")[0]).sort()).toEqual(["butler", "coach", "colleague", "homie", "squire"]);
@@ -61,10 +60,6 @@ test("every voice wears the visor that lights, and its pixels are big enough to 
         const json = JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString());
         expect(json.nodes.filter((node) => "mesh" in node).map((node) => node.name), file).toContain("face_screen");
     }
-    // the picture is 5.4 of the figure's units high; at 112 pixels a pixel of the visor is two of the page's, its gap a half
-    const pagePixels = (SCREEN.pitch * 112) / 5.4;
-    expect(pagePixels).toBeGreaterThanOrEqual(1.8);
-    expect(pagePixels * SCREEN.gap).toBeGreaterThanOrEqual(0.4);
 });
 
 test("the visor comes on as an old CRT powers up: the eyes go out first, a bright line comes on across the middle and widens, it opens out to fill the visor, the white flash turns to the colour, and the eyes come back", () => {
