@@ -6883,6 +6883,28 @@ def test_a_launch_worktree_in_a_folder_of_repositories_holds_a_worktree_of_each_
     assert removed.code == 0 and not Path(folder).exists() and git("rev-parse", "--verify", "-q", "worktree-calm-river", cwd=root / "api").returncode == 0, "and journal worktree remove takes the folder away, each repository's branch kept"
 
 
+def test_an_old_main_worktree_moves_to_an_environment_of_its_own_and_main_launches_in_the_project(app: App):
+    import subprocess
+    from journal.features.git.seeds.old_main_worktree import OldMainWorktree
+    from journal.launcher.launch import Launch
+    from journal.repositories.environments import Environments
+    from journal.support.choice import Choice
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "trunk"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    old = Worktree(root, "main").created()
+    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "work in the old main worktree", cwd=old)
+    app.container.get(OldMainWorktree).run()
+    moved = [environment for environment in app.container.get(Environments).all() if environment.branch.startswith("worktree-") and environment.name != "main"]
+    assert not old.exists() and len(moved) == 1 and (root / ".claude" / "worktrees" / moved[0].name).is_dir(), "the upgrade moves the old main worktree to a made-up name with an environment of its own"
+    assert git("log", "-1", "--format=%s", cwd=root / ".claude" / "worktrees" / moved[0].name).stdout.strip() == "work in the old main worktree", "its work moves with it"
+    launch = Launch.parse(["claude"], root)
+    assert not launch.is_worktree_launch(Worktree(root, "main")), "main launches in the project's own checkout"
+    assert "never a worktree" in Launch.parse(["claude", "--worktree", "main"], root).start_refusal(Choice("main")), "and main can never again be a worktree name"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
