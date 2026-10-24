@@ -14542,3 +14542,20 @@ def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_
         offered.append((offer.id, offer.state))
         tasks.save(replace(tasks.find(offer.id), state=TaskState.FINISHED), Actor.user(1))
     assert offered == [(2, "paused"), (3, "blocked"), (4, "open"), (5, "open"), (6, "paused"), (7, "blocked"), (9, "open"), (8, "open")]
+
+
+def test_a_plan_starts_its_next_task_after_the_finished_mark_and_a_second_start_writes_no_mark(app: App):
+    from journal.repositories.messages import Messages
+    console = app.console()
+    console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
+    console.run(["plan", "add", "1", "write the notes"], USER)
+    console.run(["plan", "add", "1", "tag it"], USER)
+    hook(app, "SessionStart")
+    console.run(["plan", "approve", "1"], USER)
+    assert console.run(["plan", "start", "1"], AGENT).code == 0
+    assert console.run(["task", "complete", "1", "--how", "written"], AGENT).code == 0
+    again = console.run(["task", "start", "2"], AGENT)
+    assert again.code != 0 and "already in hand" in again.error + again.text, again
+    app.runtime().deferred.drain()
+    marks = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
+    assert marks == ["Started task 1: write the notes", "Finished task 1: write the notes", "Started task 2: tag it"], marks
