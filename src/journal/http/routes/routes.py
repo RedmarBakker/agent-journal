@@ -100,6 +100,7 @@ class Routes:
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
         router.get(f"{API}/sync", get(SyncController).show)
+        router.get(f"{API}/sync/query", get(SyncDeskController).query)
         router.post(f"{API}/sync/answer", get(SyncDeskController).answer)
         router.get(f"{API}/sync/batch", get(SyncDeskController).batch)
         router.post(f"{API}/sync/pushed", get(SyncDeskController).pushed)

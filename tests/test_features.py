@@ -12709,6 +12709,23 @@ def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_t
     assert app.console().run(["team", "leave"], USER).code != 0, "a journal in no team has nothing to leave"
 
 
+def joined_team(app: App):
+    """A team server of the test's own, started, and the app's journal joined to it as its admin; the caller shuts the server down."""
+    from sync_server.account import ADMIN
+    from sync_server.login_request import LoginRequest
+    from sync_server.team_server import TeamServer
+    from journal.sync.team_account import TeamAccount
+    folder = app.config.root / "team-server"
+    folder.mkdir()
+    team = TeamServer(folder)
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    server = team.started("127.0.0.1", 0)
+    answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", "ada-laptop"), "127.0.0.1")
+    account = app.container.get(TeamAccount)
+    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": answer.token, "device": answer.device_id, "sequence": 0})
+    return server, account
+
+
 def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_local_doors(app: App):
     from journal.events.bus import Bus
     from journal.events.models.synced_creation import SyncedCreation
@@ -12717,8 +12734,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.repositories.tasks import Tasks
     from journal.sync.team_account import TeamAccount
-    account = app.container.get(TeamAccount)
-    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
+    server, account = joined_team(app)
     heard = []
 
     class TaskCreations:
@@ -12742,14 +12758,14 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     door("POST", "pushed", {"ids": batch["ids"], "answer": {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}}})
     assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
     account.left(0)
+    server.shutdown()
 
 
 def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts_once(app: App):
     from journal.models.outgoing_change import UPDATED, OutgoingChange
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.sync.team_account import TeamAccount
-    account = app.container.get(TeamAccount)
-    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
+    server, account = joined_team(app)
     outgoing = app.container.get(OutgoingChanges)
     outgoing.clear()
     change = lambda row, state: outgoing.queued(OutgoingChange(row_table="tasks", row=row, action=UPDATED, fields={"state": state}, changed_at={"state": float(row)}, writer="user:1"), Actor.system())
@@ -12766,6 +12782,7 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     door("POST", "pushed", result)
     assert [c.row for c in outgoing.waiting()] == [3] and door("GET", "batch")["ids"] != first["ids"], "the result posted twice takes the batch off once, and the next batch is the change that waited"
     account.left(0)
+    server.shutdown()
 
 
 
@@ -12799,3 +12816,29 @@ def test_a_script_reader_set_on_a_running_output_gives_its_card_the_scripts_prog
     contents = app.container.get(OutputProcessCard).card_contents(outputs.find(1))
     assert contents.data["fraction"] == 0.25 and "25%" in contents.data["figure"], "the progress pattern reads what the script prints, so the bar moves"
     assert contents.label == "Rewriting the history", "the script reader's label titles the card"
+
+
+def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll_keeps_the_blocks_filled(app: App):
+    from dataclasses import asdict
+    from journal.models.pending_upload import PendingUpload
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.pending_uploads import PendingUploads
+    from journal.sync.pull_queries import PullQueries
+    server, account = joined_team(app)
+    port = app.server().port
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    account.record_sequence(42)
+    assert door("GET", "query?wait_seconds=25") == json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "the query is the server's own, sequence and all"
+    assert door("GET", "query")["sequence"] == 42
+    blocks = app.container.get(IdBlocks)
+    blocks.clear()
+    uploads = app.container.get(PendingUploads)
+    upload = uploads.save(PendingUpload(row_table="messages", row=7, name="notes.txt"), Actor.system())
+    batch = door("GET", "batch")
+    assert batch["ids"] == [] and [u["id"] for u in batch["uploads"]] == [upload.id] and batch["uploads"][0]["name"] == "notes.txt", "a file waits to go with no change beside it"
+    assert blocks.all(), "the poll filled the empty row number blocks from the team server"
+    door("POST", "pushed", {"uploads": [upload.id]})
+    assert uploads.waiting() == [] and door("GET", "batch")["uploads"] == [], "a file reported sent leaves the queue"
+    account.left(0)
+    server.shutdown()
+

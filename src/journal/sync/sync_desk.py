@@ -69,6 +69,11 @@ class SyncDesk:
     def file_sent(self, upload) -> None:
         self.uploads.delete(upload, Actor.system())
 
+    def files_sent(self, ids: list[int]) -> None:
+        for upload in self.uploads.waiting():
+            if upload.id in ids:
+                self.file_sent(upload)
+
     def pushed(self, batch: list, answer: SyncAnswer) -> int:
         self.outgoing.sent(batch)
         self.rejected.apply(answer.settlement.rejected)
