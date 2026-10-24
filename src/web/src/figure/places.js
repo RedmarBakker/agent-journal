@@ -498,7 +498,7 @@ export function nearestTell(mark, bar, head) {
 // whether the figure says whom it calls at `u` of its call (acts.js phone_call): from the talk's start until the handset is down
 export const callSays = (u) => u >= ACTS.phone_call.talk[0] && u < ACTS.phone_call.hang[1];
 
-// The call's talk held longer so its bubble is up for `seconds` at least (timeline.js stretchedFrame): the talk played round again as
+// The call's talk held longer so its words scroll across the visor for `seconds` at least (timeline.js stretchedFrame): the talk played round again as
 // many more times as that takes, none when the call is long enough as it is; the talk's frames are where the act's own time is in it,
 // its last frame at 1 (figure.js onceTime)
 export function callStretch(seconds) {
@@ -507,49 +507,6 @@ export function callStretch(seconds) {
     const said = ((act.hang[1] - act.talk[0]) * act.frames) / act.fps;
     const rounds = Math.max(Math.ceil(((seconds - said) * act.fps) / (to - from)), 0);
     return {from, to, extra: rounds * (to - from)};
-}
-
-// The speech bubble the figure says something in beside its head at `head`, a page point, `width` by `height` pixels: up and out to one side
-// of the head, toward the side with more `room` before the other, and moved out of the way of what it would cover, as `hides(box)` counts
-// it: on either side as it stands, then raised by `lift` pixels at a time, `lifts` times at most, and moved out by `out` pixels, `outs`
-// times; the first place that covers nothing, else the one that covers least; its box on the page and the side, 1 to the right
-export const BUBBLE = {gap: 10, rise: 14, ear: 0.2, lift: 22, lifts: 4, out: 30, outs: 3};
-export function bubbleSpot(head, width, height, room, hides) {
-    const box = (side, lift, out) => {
-        const left = side > 0 ? head.x + BUBBLE.gap + out * BUBBLE.out : head.x - BUBBLE.gap - width - out * BUBBLE.out;
-        const top = head.y - BUBBLE.rise - height - lift * BUBBLE.lift;
-        return {left, right: left + width, top, bottom: top + height, side};
-    };
-    const sides = room.right >= room.left ? [1, -1] : [-1, 1];
-    const steps = Array.from({length: BUBBLE.lifts + 1}, (_, lift) => Array.from({length: BUBBLE.outs + 1}, (__, out) => [lift, out])).flat();
-    const places = steps.flatMap(([lift, out]) => sides.map((side) => box(side, lift, out)));
-    const counted = places.map((place) => ({place, hidden: hides(place)}));
-    return (counted.find((each) => each.hidden === 0) ?? counted.reduce((best, each) => (each.hidden < best.hidden ? each : best))).place;
-}
-
-// how much of what the figure's words must keep clear of the box `box` on the page covers: the chat's words under it (wordsUnder), and
-// each of the compose box, the cards docked over it and the chat's bubbles it overlaps
-export function coveredBy(box) {
-    const overlaps = (element) => {
-        const other = element.getBoundingClientRect();
-        return box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom;
-    };
-    const kept = [document.querySelector(HOME), document.querySelector(DOCKED_BARS), ...document.querySelectorAll("[data-figure-bubble]")].filter(Boolean);
-    return wordsUnder(box) + kept.filter(overlaps).length;
-}
-
-// the room to hand bubbleSpot for the call's bubble `width` wide: the side of the head the handset at `handset` is on, so the tail is short
-// and never crosses the face, when the bubble fits there on the page `page` wide, else the other side
-export function handsetSide(head, handset, width, page) {
-    const toward = handset.x < head.x ? -1 : 1;
-    const side = (toward > 0 ? page - head.x : head.x) - BUBBLE.gap >= width ? toward : -toward;
-    return side > 0 ? {left: 0, right: 1} : {left: 1, right: 0};
-}
-
-// where the tail of a call bubble standing on `side` of the head ends: at the handset when the handset is on that side, else at the head's
-// edge on that side, `ear` of the figure's `size` out from the eyes, so the tail never crosses the face
-export function tailEnd(head, handset, side, size) {
-    return Math.sign(handset.x - head.x) === side ? handset : {x: head.x + side * BUBBLE.ear * size, y: head.y};
 }
 
 // How near a picture in a message is for the figure to admire it (figure/admire.js), in pixels from the middle of its head on the page:
@@ -570,8 +527,6 @@ export function picturesNear(head) {
 // the middle of the box `box` on the page
 export const middleOf = (box) => ({x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2});
 
-// how many words of the chat the box `box` on the page covers, at the points of a grid over it
-export const wordsUnder = (box) => bodyPoints(box).filter(([x, y]) => onWord(x, y)).length;
 
 // a progress bar marked for the figure, its value how it ended, as the card's tone, and empty while it runs
 export const BAR = "[data-figure-bar]";

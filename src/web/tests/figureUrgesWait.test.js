@@ -5,7 +5,6 @@ const {CLIPS} = await import("../src/figure/figure.js");
 const {givesWay} = await import("../src/figure/pile.js");
 const {EAGER, answerTo, eagerFor, headBeat, heardNow, playedFrom, queuedFirst} = await import("../src/figure/reactions.js");
 const {actOver, closeAt, clipFor} = await import("../src/domain/figureState.js");
-const {bubbleSpot, coveredBy} = await import("../src/figure/places.js");
 
 const has = () => true;
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
@@ -127,27 +126,3 @@ test("the anticipation of a run's end, once started, plays whole through a user'
     expect(eagerFor({...run, share: 1, ended: "bad"}, unseen.eager, () => 0, 500 + EAGER.wait).moment).toEqual({beat: "bar_failed"});
 });
 
-test("the words of the call are placed clear of a bubble they would cover, and of the compose box and the docked cards, while the figure stays where it is", () => {
-    const head = Object.freeze({x: 500, y: 400});
-    // a bubble up to the figure's right where its words would stand, and one to its left
-    const right = {left: 505, right: 800, top: 330, bottom: 395};
-    const left = {left: 200, right: 495, top: 330, bottom: 395};
-    const overlaps = (box, other) => box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom;
-    const hides = (box) => [right, left].filter((other) => overlaps(box, other)).length;
-    const spot = bubbleSpot(head, 120, 40, {left: 0, right: 1}, hides);
-    expect(hides(spot), "clear of both bubbles").toBe(0);
-    expect(head, "the figure has not moved: only its words did").toEqual({x: 500, y: 400});
-    expect(spot.bottom).toBeLessThanOrEqual(right.top);
-    // one side clear, it stands there as it is, raised no further
-    const only = bubbleSpot(head, 120, 40, {left: 0, right: 1}, (box) => (overlaps(box, right) ? 1 : 0));
-    expect([only.side, only.bottom]).toEqual([-1, head.y - 14]);
-    // what the words keep clear of on the page: a chat bubble, the compose box and the cards docked over it, as well as the words
-    const element = (box) => ({getBoundingClientRect: () => box});
-    globalThis.document = {
-        querySelector: (selector) => (selector === "[data-figure-home]" ? element({left: 100, right: 900, top: 600, bottom: 700}) : selector === "[data-figure-docked-bars]" ? element({left: 100, right: 900, top: 540, bottom: 600}) : null),
-        querySelectorAll: (selector) => (selector === "[data-figure-bubble]" ? [element(right)] : []),
-    };
-    expect(coveredBy({left: 520, right: 640, top: 340, bottom: 380})).toBe(1);
-    expect(coveredBy({left: 300, right: 420, top: 560, bottom: 650})).toBe(2);
-    expect(coveredBy({left: 300, right: 420, top: 200, bottom: 240})).toBe(0);
-});

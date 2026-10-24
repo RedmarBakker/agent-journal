@@ -327,10 +327,9 @@ export function eggFor(voice, moment, played) {
         : {clip: egg.clip, occurrence: occurrenceOf(moment)};
 }
 
-// What the figure says on the telephone, as the lines of its speech bubble, from the chat marks `cards` of the work it gave, in the order
-// they came: each worker by its number, then each task given to it by its number, as its marks name them, before the next worker; a mark
-// of no worker, or one that names no task, says nothing, so no worker is ever named without a task. The bubble wraps them and cuts what it
-// cannot hold (figure/comicBubble.js).
+// What the figure says on the telephone, the lines its visor scrolls (figure/visorPixels.js tickerAt), from the chat marks `cards` of the
+// work it gave, in the order they came: each worker by its number, then each task given to it by its number, as its marks name them, before
+// the next worker; a mark of no worker, or one that names no task, says nothing, so no worker is ever named without a task.
 export function callLines(cards) {
     const given = new Map();
     for (const card of cards) {

@@ -238,10 +238,11 @@ test("the hand holds the handset from behind: its palm at the back of the grip, 
     }
 });
 
-test("on the telephone it says whom it calls: the worker and the task it holds, or the session messaged, in a bubble while it talks and until the handset is down", async () => {
+test("on the telephone it says whom it calls on its visor: the worker and the task scroll across in place of the eyes while it talks, and the eyes come back once they have passed", async () => {
     const {callLines} = await import("../src/domain/figureState.js");
     const {answerTo} = await import("../src/figure/reactions.js");
-    const {bubbleSpot, callSays, handsetSide, tailEnd} = await import("../src/figure/places.js");
+    const {callSays} = await import("../src/figure/places.js");
+    const {GRID, litPixels, tickerAt, tickerSteps, tickerSeconds, TICKER, FRAMES_PER_SECOND} = await import("../src/figure/visorPixels.js");
     // the call's beat keeps the mark that set it off
     const answer = answerTo({beat: "messaged", time: 1, card: "messages:5"}, "butler", {reacted: new Map(), played: []}, 1000, () => 0, () => true);
     expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
@@ -255,28 +256,19 @@ test("on the telephone it says whom it calls: the worker and the task it holds, 
     expect(callSays(act.talk[0] - 0.01)).toBe(false);
     for (const u of [act.talk[0], (act.talk[0] + act.talk[1]) / 2, act.hang[0], act.hang[1] - 0.001]) expect(callSays(u), `${u}`).toBe(true);
     expect(callSays(act.hang[1])).toBe(false);
-    // the bubble stands up beside the head, on the side where it hides fewer of the chat's words, else toward the more room
-    const head = {x: 500, y: 400};
-    const text = {left: 520, right: 800, top: 300, bottom: 400};
-    const hides = (box) => (box.left < text.right && text.left < box.right && box.top < text.bottom && text.top < box.bottom ? 5 : 0);
-    const spot = bubbleSpot(head, 120, 40, {left: 100, right: 600}, hides);
-    expect(spot.side).toBe(-1);
-    expect(spot.right).toBeLessThan(head.x);
-    expect(spot.bottom).toBeLessThan(head.y);
-    expect(bubbleSpot(head, 120, 40, {left: 100, right: 600}, () => 0).side).toBe(1);
-    expect(bubbleSpot(head, 120, 40, {left: 600, right: 100}, () => 0).side).toBe(-1);
-    // hiding no more words either way, on the handset's side so its tail is short, unless the page has no room for it there
-    for (const way of [1, -1]) {
-        const handset = {x: head.x + way * 20, y: head.y + 10};
-        expect(bubbleSpot(head, 120, 40, handsetSide(head, handset, 120, 1000), () => 0).side, `${way}`).toBe(way);
-    }
-    expect(bubbleSpot(head, 120, 40, handsetSide(head, {x: head.x + 20, y: head.y}, 120, 1000), hides).side).toBe(-1);
-    expect(bubbleSpot({x: 60, y: 400}, 120, 40, handsetSide({x: 60, y: 400}, {x: 40, y: 410}, 120, 1000), () => 0).side).toBe(1);
-    // its tail ends at the handset on its side, else at the head's edge on its own side, never across the face
-    expect(tailEnd(head, {x: 520, y: 410}, 1, 112)).toEqual({x: 520, y: 410});
-    const short = tailEnd(head, {x: 480, y: 410}, 1, 112);
-    expect(short.x).toBeGreaterThan(head.x);
-    expect(short.y).toBe(head.y);
+    // the words come in at the right edge and move left a step each of the screen's frames, the eyes gone while they show
+    const text = "Worker 57   Task 2742!";
+    const face = {eyed: true, eyes: 1, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign: null};
+    const columns = (seconds) => litPixels({...face, ticker: tickerAt(text, seconds)}).map((pixel) => pixel.column);
+    expect(columns(0)).toEqual([]);
+    const later = columns(1 / FRAMES_PER_SECOND);
+    expect(later.length).toBeGreaterThan(0);
+    expect(Math.min(...later)).toBe(GRID.columns - TICKER.columnsPerFrame * 1);
+    expect(Math.min(...columns(3 / FRAMES_PER_SECOND))).toBe(GRID.columns - TICKER.columnsPerFrame * 3);
+    // once the words have passed, the eyes are back
+    expect(tickerAt(text, tickerSeconds(text))).toBe(null);
+    expect(tickerSteps(text)).toBeGreaterThan(GRID.columns);
+    expect(litPixels({...face, ticker: tickerAt(text, tickerSeconds(text))}).length).toBe(litPixels(face).length);
 });
 
 test("drawn after the reference picture: a large cream dial plate fills most of the sloped front, with the dark wheel, its white holes, the marks round it and the label, and the handset has round ends", () => {
@@ -328,7 +320,6 @@ test("the talk held longer plays round without a jump: the figure stands at the 
 test("the telephone rings at most once in two minutes, gathering every worker given work into one call that names each in turn", async () => {
     const {callLines} = await import("../src/domain/figureState.js");
     const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
-    const {phrasesOf} = await import("../src/figure/comicBubble.js");
     const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
     expect(CALL_COOLDOWN).toBe(120);
     const tasks = {57: 2742, 58: 2743, 59: 2744};
@@ -344,7 +335,7 @@ test("the telephone rings at most once in two minutes, gathering every worker gi
     expect(beats).toHaveLength(1);
     expect(beats[0].marks).toEqual(["workers:57:dispatched", "workers:58:dispatched", "workers:59:dispatched"]);
     expect(joinedCall(beats, "workers:58:dispatched")).toBe(beats);
-    const words = (marks) => phrasesOf(callLines(marks.map((mark) => ({row: mark.split(":").slice(0, 2).join(":"), task: tasks[mark.split(":")[1]]})))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    const words = (marks) => callLines(marks.map((mark) => ({row: mark.split(":").slice(0, 2).join(":"), task: tasks[mark.split(":")[1]]})));
     expect(words(beats[0].marks)).toEqual(["Worker 57", "Task 2742!", "Worker 58", "Task 2743!", "Worker 59", "Task 2744!"]);
     // with no call waiting, a worker given work inside the two minutes rings nothing: it waits, held, for the next call
     expect(joinedCall([], "workers:58:dispatched")).toBeNull();
@@ -391,7 +382,6 @@ test("a worker's dispatch sets off the call by what its mark is, the worker's pr
 test("jobs handed out in a row make one call: each worker named, then each task given it in turn, then the next worker and its task; after the cooldown a call starts anew", async () => {
     const {callLines} = await import("../src/domain/figureState.js");
     const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
-    const {phrasesOf} = await import("../src/figure/comicBubble.js");
     const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
     // a worker's dispatch and its next jobs, each mark naming the task it gave (features/workers worker_process_card, worker_moment_cards)
     const dispatch = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: started on claude opus`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, card_type: "process", process: "worker", active: true, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
@@ -408,7 +398,7 @@ test("jobs handed out in a row make one call: each worker named, then each task 
     for (const beat of beats.slice(1)) queue = joinedCall(queue, beat.card);
     expect(queue).toHaveLength(1);
     // the call's words, as the figure reads them from the marks it gathered (VoiceFigure callMarks)
-    const words = (call) => phrasesOf(callLines((call.marks ?? [call.mark]).map((key) => lead.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    const words = (call) => callLines((call.marks ?? [call.mark]).map((key) => lead.data.cards.find((card) => card.key === key)));
     expect(words(queue[0])).toEqual(["Worker 260", "Task 200!", "Task 201!", "Task 204!", "Worker 261", "Task 300!"]);
     // the next job inside the cooldown, with no call waiting, rings nothing and is held; once the cooldown is over it makes a call of its own
     const later = withSystemCards({session: "s", data: {}}, [...messages, nextJob(60, 261, 301)]);
@@ -416,12 +406,11 @@ test("jobs handed out in a row make one call: each worker named, then each task 
     expect(answerTo({beat: "messaged", time: 1060, card: held[0]}, "butler", memory, 1060, () => 0, () => true)).toBeNull();
     expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN - 1)).toBeNull();
     const anew = heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN);
-    expect(phrasesOf(callLines(anew.marks.map((key) => later.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "))).toEqual(["Worker 261", "Task 301!"]);
+    expect(callLines(anew.marks.map((key) => later.data.cards.find((card) => card.key === key)))).toEqual(["Worker 261", "Task 301!"]);
 });
 
 test("a worker is called only once a task is given to it: a mark that names none rings nothing, a dispatch on a task rings a call saying the worker and the task, and no call is ever spoken without a task", async () => {
     const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
-    const {phrasesOf} = await import("../src/figure/comicBubble.js");
     const {callLines} = await import("../src/domain/figureState.js");
     const mark = (id, label, data) => ({table: "messages", id, author: "system", session: "s", text: `Worker 260, Mr. Muybridge, motion photographer: ${label}`, data: {kind: "card", icon: "agents", tone: "", row: "workers:260", ...data}, created_at: new Date((1000 + id) * 1000).toISOString()});
     const process = {card_type: "process", process: "worker", active: true};
@@ -434,7 +423,7 @@ test("a worker is called only once a task is given to it: a mark that names none
     const beats = beatsAfter(lead, 0);
     expect(beats.map((beat) => [beat.beat, beat.card])).toEqual([["messaged", "messages:4"]]);
     const call = answerTo(beats[0], "butler", {reacted: new Map(), played: []}, beats[0].time, () => 0, () => true).beat;
-    const words = (marks) => phrasesOf(callLines(marks.map((key) => lead.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    const words = (marks) => callLines(marks.map((key) => lead.data.cards.find((card) => card.key === key)));
     expect(words(call.marks ?? [call.mark])).toEqual(["Worker 260", "Task 200!"]);
     // whatever marks a call gathers or holds, a worker without a task is never named: every worker it says is followed by a task
     for (const marks of [["messages:1", "messages:4"], ["messages:2", "messages:3"], ["messages:4", "messages:2"]]) {

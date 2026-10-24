@@ -57,8 +57,7 @@ import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import {KeptTimes} from "../figure/keptTimes.js";
 import {environment} from "../state/environment.js";
-import ComicBubble from "./ComicBubble.vue";
-import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
+import {tickerAt, tickerSeconds} from "../figure/visorPixels.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
@@ -83,14 +82,10 @@ import {
     gripIn,
     groundEdge,
     progressEdge,
-    bubbleSpot,
     middleOf,
     picturesNear,
-    handsetSide,
-    tailEnd,
     callSays,
     callStretch,
-    coveredBy,
     agentWordsAt,
     asideOf,
     watchLook,
@@ -323,9 +318,9 @@ const RUMMAGE_STAY_SECONDS = 25;
 // what a held clip is played as while the figure sits on the edge of a floor facing the viewer: standing idle, it leans back on its hands
 const LEANING = {idle: "ledge_sit"};
 
-// how a beat's clip is held longer: the telephone's talk, until the bubble has said all it says (places.js callStretch); null for any other
+// how a beat's clip is held longer: the telephone's talk, until its words have scrolled across the visor (places.js callStretch); null for any other
 // and the bug shot's turn, once for each of its bugs (acts.js bugShotFrame)
-const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(phrasesSeconds(callPhrases())) : beat.clip === "bug_shot" ? bugShotFrame(0, beat.bugs.length).stretch : null);
+const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(tickerSeconds(callText())) : beat.clip === "bug_shot" ? bugShotFrame(0, beat.bugs.length).stretch : null);
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
 function current() {
@@ -458,6 +453,7 @@ function step() {
         open: blinked(),
         screen: lit,
         tilt: shown.clip.name === "idle" ? Math.round(tiltAt(headTilt, seconds) * 4) / 4 : 0,
+        ticker: callTicker(),
     });
     headAt.value = player.headAt();
     handAt.value = player.handAt();
@@ -1705,9 +1701,9 @@ const wallBugsDrawn = computed(() => (shooting.value?.bugs ?? []).map((bug) => (
 const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.value.name, u: shownFrame.value / shownClip.value.frames} : null));
 const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
 
-// What the figure says on the telephone, while it says it (places.js callSays): the lines of the chat mark that set off the call
-// (figureState.js callLines), a phrase at a time from the talk's start, in a comic bubble beside its head on the side where it hides the fewest words, else on the handset's side,
-// that side chosen once a call, its tail to the handset in the free hand, or to the head when the handset is on its other side
+// What the figure says on the telephone, while it says it (places.js callSays): whom it calls, from the chat marks that set off the call
+// (figureState.js callLines), scrolled across its visor from the talk's start in place of its eyes (visorPixels.js tickerAt), which come
+// back once the words have passed
 // the chat marks of the workers the call on screen is to, the one that set it off and any it gathered since
 const callMarks = () => {
     const call = beats.value[0];
@@ -1715,24 +1711,12 @@ const callMarks = () => {
     const cards = lead.value?.data?.cards || [];
     return keys.map((key) => cards.find((card) => card.key === key)).filter(Boolean);
 };
-const calling = () => callMarks()[0];
-const callPhrases = () => phrasesOf(callLines(callMarks()));
-let callSide = {mark: "", side: 0};
-const callBubble = computed(() => {
-    if (shownClip.value?.name !== "phone_call" || !callSays(shownFrame.value / shownClip.value.frames)) return null;
-    const card = calling();
-    const phrases = callPhrases();
-    if (!phrases.length) return null;
-    const {width, height} = bubbleSize(phrases);
+const callText = () => callLines(callMarks()).join("   ");
+function callTicker() {
     const clip = shownClip.value;
-    const seconds = (rawFrameOf(playing.shown) - ACTS.phone_call.talk[0] * clip.frames) / fpsOf(playing.shown);
-    const head = {x: body.at.x + headAt.value.x * SIZE, y: body.at.y + headAt.value.y * SIZE};
-    const handset = {x: body.at.x + handAt.value.x * SIZE, y: body.at.y + handAt.value.y * SIZE};
-    if (callSide.mark !== card.key) callSide = {mark: card.key, side: bubbleSpot(head, width, height, handsetSide(head, handset, width, window.innerWidth), coveredBy).side};
-    const spot = bubbleSpot(head, width, height, callSide.side > 0 ? {left: 0, right: 1} : {left: 1, right: 0}, coveredBy);
-    const tip = tailEnd(head, handset, spot.side, SIZE);
-    return {phrases, seconds, left: spot.left, top: spot.top, tip: {x: tip.x - spot.left, y: tip.y - spot.top}};
-});
+    if (clip?.name !== "phone_call" || !callSays(shownFrame.value / clip.frames)) return null;
+    return tickerAt(callText(), (rawFrameOf(playing.shown) - ACTS.phone_call.talk[0] * clip.frames) / fpsOf(playing.shown));
+}
 
 // the picture squeezed by the act on screen, as the box it is packed in shrinks, or null
 const squeezed = computed(() => acting.value && squeezeOf(acting.value.name, acting.value.u));
@@ -1845,9 +1829,6 @@ const style = computed(() => {
     </Transition>
     <template v-if="crane">
         <ClawCrane :box="crane.box" :grabbers="crane.grabbers" />
-    </template>
-    <template v-if="callBubble">
-        <ComicBubble :phrases="callBubble.phrases" :seconds="callBubble.seconds" :left="callBubble.left" :top="callBubble.top" :tip="callBubble.tip" :frame="shownFrame" />
     </template>
     <template v-if="saucer && saucerPicture">
         <FlyingSaucer :x="saucer.x" :y="saucer.y" :saucer="saucerPicture" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />

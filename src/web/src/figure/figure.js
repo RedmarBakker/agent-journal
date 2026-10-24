@@ -5,7 +5,7 @@ import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogo
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {VISOR, glowTurn} from "./visor.js";
-import {GRID, litPixels} from "./visorPixels.js";
+import {FRAMES_PER_SECOND, GRID, litPixels} from "./visorPixels.js";
 import {HEAD, holdsHead} from "./looks.js";
 import {LIGHT_COLOURS, PARCEL, UFO, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -3410,11 +3410,9 @@ export const HIDDEN_PARTS = ["headphones"];
 
 export const SCREEN = {
     gap: 0.16, line: 1, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
-    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.3, soft: 0.5, reach: 2}, glare: {strength: 0.012, from: 0.5},
+    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.5, soft: 0.65, reach: 2}, glare: {strength: 0.012, from: 0.5},
     // a lit pixel is drawn brighter than its colour, brightest at its middle
     shine: {lift: 1, core: 0.55, tightness: 6},
-    // how many times a second the pixels change, slow like a small real screen, while the figure moves at the page's frame rate
-    framesPerSecond: 6,
     framesBehind: 6,
 };
 const SCREEN_FRAGMENT = /* glsl */ `
@@ -4800,14 +4798,14 @@ function place(figure, pose, facing, blend) {
     // the eyes go out before a lit visor comes on, a display with nothing on it; a sign glows in the visor's colour, as white as its flash
     // and as bright as it is lit
     const sign = pose.eyeShape && {...pose.eyeShape, colour: signColour(pose.screen)};
-    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, sign});
+    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, sign, ticker: pose.ticker});
     for (const material of figure.screens) {
         material.uniforms.lit.value = crt.glow;
         material.uniforms.across.value = crt.across;
         material.uniforms.open.value = crt.open;
         material.uniforms.flash.value = crt.flash;
         if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
-        screenFrame(material, lit, Math.floor(performance.now() * SCREEN.framesPerSecond / 1000));
+        screenFrame(material, lit, Math.floor(performance.now() * FRAMES_PER_SECOND / 1000));
     }
     // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
     for (const hull of figure.visorHulls) hull.visible = !pose.screen || Boolean(pose.screen.sign);
@@ -4921,8 +4919,9 @@ export class Stage {
 // way it walks to meet the mallet's bug (bug_smash), `at` is where
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
+        pose.ticker = ticker;
         pose.sky = sky;
         pose.throws = throws;
         pose.leanWay = leanWay;

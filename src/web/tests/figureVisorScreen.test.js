@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {SCREEN, pixelTexture, screenFrame, screenMaterial, showPixels} from "../src/figure/figure.js";
-import {GRID, litPixels} from "../src/figure/visorPixels.js";
+import {FRAMES_PER_SECOND, GRID, litPixels} from "../src/figure/visorPixels.js";
 
 // the visor's material made for a visor the size of every voice's, 1.53 by 0.72 of the figure's units
 function visor() {
@@ -50,7 +50,7 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     expect(SCREEN.shine.lift).toBeGreaterThan(0);
     expect(SCREEN.shine.core).toBeGreaterThan(0);
     // the pixels change six times a second, like a small real screen
-    expect(SCREEN.framesPerSecond).toBe(6);
+    expect(FRAMES_PER_SECOND).toBe(6);
     // an off pixel: a touch brighter than the glass, far fainter than any lit one
     expect(material.uniforms.off.value).toBe(SCREEN.off);
     expect(SCREEN.off).toBeGreaterThan(0);

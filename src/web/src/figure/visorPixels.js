@@ -1,7 +1,12 @@
 // The visor is a screen of GRID.columns by GRID.rows square pixels, column 0 on the viewer's left and row 0 at the top, each off or lit
 // in a colour; the figure draws whatever is lit (figure.js screenMaterial). The eyes and everything shown in their place are pictures
 // on that grid, and each of their changes steps from one picture to the next: the frames of an animation.
+import {LETTER, LETTERS} from "./visorFont.js";
+
 export const GRID = {columns: 32, rows: 15};
+
+// how many times a second the screen's pixels change, slow like a small real screen, while the figure moves at the page's frame rate
+export const FRAMES_PER_SECOND = 6;
 
 // where an eye's pictures are centred on the grid: the figure's right eye on the viewer's left, its left on the right, both on the
 // middle row; a picture that points one way, as the squeezed eye pointing in toward the nose, is turned round for the eye on the right
@@ -59,6 +64,7 @@ const EYE_HEIGHT = PICTURES.eye_open.length;
 // `stars` or `squeezed` at their size, or a run's end as a `sign` ({name, colour, strength}), shown as far up and down from the middle
 // as its strength; and a Z above them while it is `dozing`, at its size
 export function litPixels(face) {
+    if (face.ticker) return tickerPixels(face.ticker.text, face.ticker.step, COLOURS.eyes);
     if (!face.eyed) return [];
     const shown = shownPicture(face);
     const eyes = shown ? EYE_SPOTS.flatMap((spot) => placed(shown, spot, face)) : [];
@@ -102,3 +108,36 @@ function placed(shown, spot, face) {
     });
     return pixels;
 }
+
+// Text scrolled across the screen right to left in the visor's letters (visorFont.js), on the rows from TICKER.row down, moved
+// TICKER.columnsPerFrame columns each of the screen's frames: it comes in at the right edge and has passed once it leaves at the left
+export const TICKER = {row: 4, columnsPerFrame: 2};
+
+// the width of `text` in the visor's letters, in columns, a gap after each letter
+export const tickerWidth = (text) => text.length * (LETTER.width + LETTER.gap);
+
+// how many columns `text` moves to pass the whole screen, and how many seconds that takes
+export const tickerSteps = (text) => GRID.columns + tickerWidth(text);
+export const tickerSeconds = (text) => tickerSteps(text) / TICKER.columnsPerFrame / FRAMES_PER_SECOND;
+
+// the ticker `seconds` into scrolling `text`, or null once it has passed
+export function tickerAt(text, seconds) {
+    const step = TICKER.columnsPerFrame * Math.floor(Math.max(0, seconds) * FRAMES_PER_SECOND);
+    return text && step < tickerSteps(text) ? {text, step} : null;
+}
+
+// the lit pixels of `text` moved `step` columns in from the right edge, in `colour`
+export function tickerPixels(text, step, colour) {
+    const pixels = [];
+    [...text.toUpperCase()].forEach((character, index) => {
+        const left = GRID.columns - step + index * (LETTER.width + LETTER.gap);
+        (LETTERS[character] ?? []).forEach((line, y) => {
+            [...line].forEach((mark, x) => {
+                const column = left + x;
+                if (mark === "#" && column >= 0 && column < GRID.columns) pixels.push({column, row: TICKER.row + y, colour});
+            });
+        });
+    });
+    return pixels;
+}
+
