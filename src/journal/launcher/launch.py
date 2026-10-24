@@ -18,6 +18,7 @@ from journal.support.project_command import ProjectCommand
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
 from journal.support.worktree_names import WorktreeNames
+from journal.support.worktree_failure import WorktreeFailure
 from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.providers.provider import HOOK_SCRIPT
 from journal.launcher.support.update_prompt import UpdatePrompt
@@ -187,6 +188,10 @@ class Launch:
                 peers.restore()
             self.log(f"ended: the supervisor's loop exited with {code}")
             return code
+        except WorktreeFailure as failed:
+            self.log(f"refused: {failed}")
+            print(failed, file=sys.stderr)
+            return 1
         except BaseException as failed:
             self.log(f"failed: {traceback.format_exc() if not isinstance(failed, KeyboardInterrupt) else 'interrupted'}")
             raise

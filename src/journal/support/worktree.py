@@ -17,8 +17,8 @@ IGNORED_COPIES = (".claude/settings.json", ".claude/settings.local.json", ".code
 class Worktree:
     """The git worktree a launch works in, at .claude/worktrees/<name> on the branch worktree-<name>, where Claude Code keeps its own: made when it is not there, and never removed by the journal or handed to the agent to remove."""
 
-    def __init__(self, root: Path, name: str) -> None:
-        self.root, self.name = root, name
+    def __init__(self, root: Path, name: str, git_seconds: float = GIT_SECONDS) -> None:
+        self.root, self.name, self.git_seconds = root, name, git_seconds
 
     @property
     def path(self) -> Path:
@@ -41,6 +41,7 @@ class Worktree:
         return self.run_git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
 
     def created(self) -> Path:
+        self.project_check()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with (self.path.parent / f".{self.name}.lock").open("w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
@@ -72,6 +73,13 @@ class Worktree:
     def local_branch(self) -> str:
         return self.run_git("rev-parse", "HEAD").stdout.strip()
 
+    # what must hold before git is asked for a worktree, each refused with its cause and what to do
+    def project_check(self) -> None:
+        if self.git("rev-parse", "--git-dir").returncode != 0:
+            raise WorktreeFailure(self.name, f"{self.root} is not a git repository, so there is no branch to work on: run git init and make a first commit, or launch without --worktree")
+        if not self.has("HEAD"):
+            raise WorktreeFailure(self.name, "the project has no commit yet, so there is nothing to cut a worktree from: make a first commit, then launch again")
+
     def added(self) -> None:
         self.registration_dropped()
         if self.has(f"refs/heads/{self.branch}"):
@@ -84,7 +92,12 @@ class Worktree:
             self.registration_dropped()
             if self.path.exists():
                 shutil.rmtree(self.path)
-            raise WorktreeFailure(self.name, added.stderr.strip())
+            raise WorktreeFailure(self.name, self.add_refusal(added.stderr.strip()))
+
+    def add_refusal(self, error: str) -> str:
+        if "already checked out" in error or "already used by worktree" in error:
+            return f"its branch {self.branch} is checked out in another folder (git worktree list names it): switch that folder to another branch, or launch with another --worktree name"
+        return error.splitlines()[-1] if error else "git refused it without saying why"
 
     # git's record of this worktree alone, when its folder is gone; a prune would drop every other launch's whose folder is briefly away
     def registration_dropped(self) -> None:
@@ -157,10 +170,16 @@ class Worktree:
         os.replace(recent, place)
 
     def run_git(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", "-C", str(self.path), *args], capture_output=True, text=True, timeout=GIT_SECONDS)
+        return self.answered(["git", "-C", str(self.path), *args])
 
     def has(self, ref: str) -> bool:
         return self.git("rev-parse", "--verify", "--quiet", ref).returncode == 0
 
     def git(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", "-C", str(self.root), *args], capture_output=True, text=True, timeout=GIT_SECONDS)
+        return self.answered(["git", "-C", str(self.root), *args])
+
+    def answered(self, argv: list[str]) -> subprocess.CompletedProcess:
+        try:
+            return subprocess.run(argv, capture_output=True, text=True, timeout=self.git_seconds)
+        except subprocess.TimeoutExpired:
+            raise WorktreeFailure(self.name, f"git gave no answer within {self.git_seconds:g} seconds: check that git works in {self.root} (a lock left in .git, a slow disk), then launch again") from None

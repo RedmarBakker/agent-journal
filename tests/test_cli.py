@@ -316,6 +316,41 @@ def test_a_worktree_launch_takes_name_2_beside_a_live_session_and_reuses_a_crash
     assert crashed.choice().environment == "beta", "a crashed session, its launcher gone, holds nothing, so its name is taken again"
 
 
+def test_every_worktree_failure_at_launch_is_one_plain_line_naming_its_cause_and_what_to_do(app: App, monkeypatch, capsys, tmp_path):
+    import subprocess
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.support.worktree import Worktree
+    from journal.support.worktree_failure import WorktreeFailure
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), Caller.user("main")).text)
+
+    def launched(name: str) -> str:
+        code = Launch.parse(["claude", "--worktree", name], root).run()
+        error = capsys.readouterr().err.strip()
+        assert code == 1 and len(error.splitlines()) == 1 and "Traceback" not in error, error
+        return error
+
+    assert "is not a git repository" in launched("no-git") and "git init" in launched("no-git"), "a folder with no git says so, and what to do"
+    git("init", "-q", "-b", "main")
+    assert "has no commit yet" in launched("no-commit"), "a repository with no commit says so"
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "start")
+    git("checkout", "-q", "-b", "worktree-taken")
+    assert "is checked out in another folder" in launched("taken"), "a branch checked out elsewhere says so, and what to do"
+    git("checkout", "-q", "main")
+    stand_ins = tmp_path / "slow-git"
+    stand_ins.mkdir()
+    (stand_ins / "git").write_text("#!/bin/sh\nexec sleep 5\n")
+    (stand_ins / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{stand_ins}:{os.environ['PATH']}")
+    try:
+        Worktree(root, "slow", git_seconds=0.5).created()
+        raise AssertionError("a git that never answers fails the launch")
+    except WorktreeFailure as failed:
+        assert "git gave no answer within 0.5 seconds" in str(failed) and len(str(failed).splitlines()) == 1, "and a git that hangs is cut off with one line"
+
+
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):
     import json
     import subprocess
