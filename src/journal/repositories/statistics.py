@@ -29,6 +29,13 @@ class Statistics(Repository[Statistic]):
             if value > row.value:
                 self.save(row.with_(value=value), actor)
 
+    def tallied(self, sums: dict[str, int], slowest: dict[str, int], actor: Actor) -> None:
+        with self.connection.transaction():
+            for key, amount in sums.items():
+                self.added(key, amount, actor)
+            for key, ms in slowest.items():
+                self.raised(key, ms, actor)
+
     def cleared(self, prefix: str, actor: Actor) -> None:
         with self.connection.transaction():
             for row in self.selected(self.query().filter_prefix("key", prefix)):

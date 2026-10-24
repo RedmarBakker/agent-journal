@@ -6755,8 +6755,11 @@ def test_the_record_is_a_rolling_log_of_its_newest_entries_and_the_projects_rows
     for _ in range(4):
         hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     app.console().run(["message", "send", "keep me"], USER)
+    from journal.features.record.jobs.record_trim import RecordTrim
+    assert len(entries.selected_globally(entries.query())) > 5, "nothing is deleted as entries are written"
+    app.container.get(RecordTrim).tick(0.0)
     kept = entries.selected_globally(entries.query())
-    assert len([e for e in kept if e.kind != "nudge"]) <= 5 and len([e for e in kept if e.kind == "nudge"]) <= 5, "every entry written trims the record to the setting's newest, the lines said to the agents kept apart as many of their own"
+    assert len([e for e in kept if e.kind != "nudge"]) <= 5 and len([e for e in kept if e.kind == "nudge"]) <= 5, "the trim job keeps the record to the setting's newest, the lines said to the agents kept apart as many of their own"
     assert [m.text for m in app.container.get(Messages).all()][-1] == "keep me", "a message is the project's own and stays"
 
 

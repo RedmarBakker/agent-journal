@@ -18,6 +18,13 @@ class Timings(Repository[Timing]):
             self._purged(self.query().filter_less_equal("id", row.row_id - LOG_ROWS))
         return row
 
+    def logged_all(self, timings: list[Timing], actor: Actor) -> None:
+        if not timings:
+            return
+        with self.connection.transaction():
+            rows = [self.save(timing, actor) for timing in timings]
+            self._purged(self.query().filter_less_equal("id", rows[-1].row_id - LOG_ROWS))
+
     def recent(self, limit: int) -> list[Timing]:
         return list(reversed(self.newest(self.query())))[:limit]
 

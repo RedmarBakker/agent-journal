@@ -47,9 +47,5 @@ class DeveloperTally:
         with self._lock:
             sums, slowest, timings = self._sums, self._slowest, self._timings
             self._sums, self._slowest, self._timings = {}, {}, []
-        for key, amount in sums.items():
-            self.statistics.added(key, amount, Actor.system())
-        for key, ms in slowest.items():
-            self.statistics.raised(key, ms, Actor.system())
-        for timing in timings:
-            self.timings.logged(timing, Actor.system())
+        self.statistics.tallied(sums, slowest, Actor.system())
+        self.timings.logged_all(timings, Actor.system())
