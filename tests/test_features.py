@@ -6679,6 +6679,33 @@ def test_a_failed_worktree_add_leaves_another_launch_worktree_registered_and_mov
     assert Worktree(root, "calm-river").created() == calm and calm.is_dir(), "a launch whose own folder is gone drops only its own record and makes it again"
 
 
+def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_removes_none(app: App, monkeypatch):
+    import subprocess
+    from journal.repositories.environments import Environments
+    from journal.support.worktree import Worktree
+    from journal.sync.hosting import Hosting
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    console = app.console()
+    for name in ("calm-river", "quiet-heron"):
+        Worktree(root, name).created()
+        console.run(["environment", "create", name], USER)
+    Worktree(root, "team").created()
+    environment = app.container.get(Environments).existing("calm-river")
+    assert posted(app, f"/journal/environments/{environment.row_id}/remove", {}, {"X-Journal-Env": "main"})[0] == 200
+    listed = console.run(["worktree", "list"], USER).text
+    assert "calm-river: on worktree-calm-river; its environment is gone" in listed and "quiet-heron: on worktree-quiet-heron\n" in listed and "team" not in listed, listed
+    status, answer = got(app, "/journal/worktrees", {"X-Journal-Env": "main"})
+    assert status == 200 and answer["worktrees"] == [{"name": "calm-river", "branch": "worktree-calm-river"}], "the viewer lists the worktree whose environment is gone, and no other"
+    status, removed = posted(app, "/journal/worktrees/calm-river/removal", {}, {"X-Journal-Env": "main"})
+    assert status == 200 and "removed the worktree" in removed["line"] and not (root / ".claude" / "worktrees" / "calm-river").exists(), "and removes it through the same checks"
+    monkeypatch.setattr(Hosting, "is_hosted", lambda self: True)
+    assert got(app, "/journal/worktrees", {"X-Journal-Env": "main"})[1]["worktrees"] == [], "the hosted journal lists none"
+    assert "hosted journal has no checkout" in console.run(["worktree", "remove", "quiet-heron"], USER).error, "and refuses to remove one with a plain line"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree

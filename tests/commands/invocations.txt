@@ -289,4 +289,5 @@ agent team versions --help
 agent setup hooks --help
 agent setup project --help
 agent setup restart --help
+agent worktree list
 agent worktree remove calm-river

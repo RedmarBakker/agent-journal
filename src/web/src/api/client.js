@@ -507,6 +507,14 @@ export class ApiClient {
         return this.act("environments", environment, "unshare");
     }
 
+    leftWorktrees() {
+        return this.get(this.here("/worktrees"));
+    }
+
+    removeLeftWorktree(name) {
+        return this.post(this.here(`/worktrees/${encodeURIComponent(name)}/removal`));
+    }
+
     removeWorktree(environment) {
         return this.act("environments", environment, "worktree-removal");
     }

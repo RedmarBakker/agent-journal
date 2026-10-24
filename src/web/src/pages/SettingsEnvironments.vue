@@ -1,7 +1,7 @@
 <script setup>
 import {countsOf, envState, isActive, removeWords, STATE_WORDS, worktreeWords} from "../domain/journals.js";
 import {rows} from "../sync/rows.js";
-import {computed, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
 import EmptyState from "../kit/EmptyState.vue";
@@ -15,6 +15,10 @@ import {matches} from "../domain/settingsCatalog.js";
 import {colleagueOwner} from "../domain/people.js";
 
 const props = defineProps({query: {type: String, default: ""}});
+const hosted = computed(() => Boolean(store.people && store.people.hosted));
+const leftTrees = ref([]);
+const loadLeftTrees = async () => (leftTrees.value = (await api.leftWorktrees()).worktrees);
+onMounted(loadLeftTrees);
 const ask = ref({});
 const here = (name) => name === route.value.env;
 
@@ -28,7 +32,7 @@ const envRows = computed(() =>
             state: envState(standing),
             counts: countsOf(standing),
             work: standing.task ? `· ${standing.task.title}` : "",
-            worktree: (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
+            worktree: hosted.value ? "" : (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
             shareable: Boolean(store.people.device) && !standing.environment.is_team_chat && !colleagueOwner(standing.environment.id, store.people),
             shared: Boolean(standing.environment.is_shared_with_team),
         }))
@@ -52,6 +56,20 @@ async function removeTree(row) {
     try {
         const removed = await api.removeWorktree(row.id);
         say(row, "done", removed.line);
+    } catch (error) {
+        say(row, "refused", error.message);
+    }
+}
+
+const treeRow = (tree) => ({id: `worktree:${tree.name}`});
+const treeAsk = (tree) => askOf(treeRow(tree));
+
+async function removeLeftTree(tree) {
+    const row = treeRow(tree);
+    if (treeAsk(tree)?.kind !== "worktree") return say(row, "worktree", worktreeWords(tree.name));
+    try {
+        say(row, "done", (await api.removeLeftWorktree(tree.name)).line);
+        await loadLeftTrees();
     } catch (error) {
         say(row, "refused", error.message);
     }
@@ -117,6 +135,23 @@ async function remove(row) {
                             >
                                 Remove environment
                             </Btn>
+                        </template>
+                    </template>
+                </SettingRow>
+            </template>
+        </ListBox>
+    </template>
+    <template v-if="leftTrees.length">
+        <ListBox sticky title="Worktrees with no environment" :count="leftTrees.length">
+            <template v-for="tree in leftTrees" :key="tree.name">
+                <SettingRow :title="tree.name" :text="treeAsk(tree)?.text || `On ${tree.branch}; its environment was removed, the worktree stayed`" :alert="Boolean(treeAsk(tree))">
+                    <template #control>
+                        <template v-if="treeAsk(tree)?.kind === 'worktree'">
+                            <Btn small @click="say(treeRow(tree))">Keep it</Btn>
+                            <Btn kind="danger" small @click="removeLeftTree(tree)">Yes, remove the worktree</Btn>
+                        </template>
+                        <template v-else>
+                            <Btn small v-tip="'Remove this worktree folder, keeping its branch'" @click="removeLeftTree(tree)">Remove worktree</Btn>
                         </template>
                     </template>
                 </SettingRow>

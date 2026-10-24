@@ -13,8 +13,11 @@ class WorktreeRemoval:
     def __init__(self, config: Config, environments: Environments, agents: Agents, hosting: Hosting) -> None:
         self.config, self.environments, self.agents, self.hosting = config, environments, agents, hosting
 
+    def worktree(self, name: str) -> Worktree:
+        return Worktree(self.config.root, name)
+
     def removed(self, name: str) -> str:
-        tree = Worktree(self.config.root, name)
+        tree = self.worktree(name)
         refusal = self.refusal(tree)
         if refusal:
             raise Rejection(refusal)
