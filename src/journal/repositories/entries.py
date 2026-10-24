@@ -156,6 +156,9 @@ class Entries(ScopedRepository[Entry]):
     def last_id(self) -> int:
         return self.maximum(self.query(), "id", 0)
 
+    def global_last_id(self) -> int:
+        return self.maximum_globally(self.query(), "id", 0)
+
     def dispatches(self, session: str) -> list[Entry]:
         return self.selected(DISPATCHES.filter_json("data->session_id", session).order("id"))
 

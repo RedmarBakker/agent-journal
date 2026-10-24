@@ -14,5 +14,5 @@ class RecordTrim(Job):
 
     def tick(self, time: float) -> None:
         stored = self.settings.integer(RecordOptions.RECORD_LENGTH)
-        self.entries.trim(self.entries.last_id(), stored)
+        self.entries.trim(self.entries.global_last_id(), stored)
         self.entries.trim_lines(stored)

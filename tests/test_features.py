@@ -2530,6 +2530,17 @@ def test_a_keyword_brings_a_fact_back_once_as_a_whisper_and_a_fresh_rule_is_ques
     assert any("does rule 1 apply to the whole project?" in line for line in keystrokes), "the question is typed to the agent that made the rule"
 
 
+def test_the_record_trim_runs_on_the_clock_outside_any_environment_and_keeps_the_newest_entries_of_all(app: App):
+    from journal.features.record.jobs.record_trim import RecordTrim
+    from journal.repositories.entries import Entries
+    hook(app, "SessionStart")
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, tool_use_id="t-1")
+    entries = app.container.get(Entries)
+    newest = entries.global_last_id()
+    app.container.get(RecordTrim).tick(timing.time())
+    assert entries.global_last_id() == newest and newest > 0, "the trim job reads the newest entry of every environment without one in scope, and keeps it"
+
+
 def test_a_whisper_is_said_once_though_the_record_is_trimmed_past_it_and_a_struck_fact_is_never_whispered(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)
@@ -11227,6 +11238,9 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         app.container.get(IdBlocks).add("settings", 800000, 800100)
         (app.config.home / "hosted").touch()
         assert sent("/journal/people")[0] == 401, "a hosted journal refuses the API to a browser that has not signed in"
+        from journal.sync.sync_secret import SECRET_HEADER, SyncSecret
+        with opener.open(HttpRequest(journal + "/journal/sync/team", headers={SECRET_HEADER: app.container.get(SyncSecret).value, "X-Journal-Desk-Protocol": "2"}), timeout=10) as desk:
+            assert desk.status == 200, "the sync service beside the hosted journal reaches its doors with the journal's secret, signed in or not, so the hosted journal's changes go out"
         assert sent("/")[1]["Location"] == "/sign-in", "and sends a page request to the sign-in"
         assert b'<form method="post" action="/sign-in"' in sent("/sign-in")[2], "which answers with its own form, never the viewer's page, so a browser is not sent round in a loop"
         built = sorted(path.name for path in (Path(__file__).resolve().parents[1] / "src" / "web" / "dist" / "assets").iterdir())
