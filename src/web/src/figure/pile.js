@@ -66,7 +66,8 @@ const nothing = (weight) => ({name: "nothing", kind: "nothing", weight, when: {}
 // with a cooldown of its own still waits the moment's, `moment` seconds after any of them played
 const at = (moment, shared, entries) => entries.map((entry) => ({...shared, ...entry, when: {moment, ...entry.when}, ...(shared.cooldown && {waits: shared.cooldown})}));
 
-// the way the figure celebrates: a jump for joy with its hands up
+// the way the figure celebrates: a jump for joy with its hands up, kept for the end of a run it anticipated; an everyday success
+// gets a nod
 const celebrations = () => [clip("joy", 2)];
 
 // the idle acts, while the figure has nothing to do: each once the state has lasted `lasted` seconds, apart from the others, and so
@@ -79,18 +80,18 @@ const showpiece = (entry) => ({...entry, cooldown: SHOWPIECES[entry.name], apart
 export const PILE = [
     // a test run's end: celebrated on its card, or a start at a failure; a pass soon after a failure is the bug solved, most often shot
     // as it crawls into the chat instead of the visor's glow
-    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [...celebrations(), nothing(1)]),
-    ...at("tests_fixed", {cooldown: 20, toward: "card", onto: true}, [{...showpiece(clip("bug_shot", 3)), toward: "", onto: false}, ...celebrations()]),
+    ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [clip("nod", 2), nothing(1)]),
+    ...at("tests_fixed", {cooldown: 20, toward: "card", onto: true}, [{...showpiece(clip("bug_shot", 3)), toward: "", onto: false}, clip("nod", 2)]),
     ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
-    ...at("committed", {cooldown: 30, toward: "card", onto: true}, [...celebrations(), nothing(2)]),
+    ...at("committed", {cooldown: 30, toward: "card", onto: true}, [clip("nod", 2), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
     // a worker sent off or another session messaged: a call on the telephone, at most one in a minute and a half
     ...at("messaged", {cooldown: 90}, [clip("phone_call", 1)]),
-    ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), clip("hand_rub", 4), ...celebrations(), nothing(7)]),
+    ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), clip("hand_rub", 4), nothing(7)]),
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("look_up", 3), nothing(8)]),
     ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
-    ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [...celebrations(), nothing(9)]),
+    ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [clip("nod", 2), nothing(9)]),
     // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes;
     // either holds, playing to its end whatever comes, as the eagerness before it does (figure.js eager)
     ...at("bar_done", {holds: true}, celebrations()),

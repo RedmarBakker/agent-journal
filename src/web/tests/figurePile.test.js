@@ -323,3 +323,10 @@ test("the butler's hat tip is never cut off by what comes next", async () => {
     expect(tip.holds).toBe(true);
     expect(givesWay({clip: tip, once: true}, 0.1, {urgent: false})).toBe(false);
 });
+
+test("the jump for joy is kept for the end of a run the figure anticipated; an everyday success gets a nod at most", () => {
+    for (const moment of ["tests_passed", "tests_fixed", "committed", "task_finished", "check_passed"]) {
+        expect(choicesFor({moment}).some((entry) => entry.name === "joy"), moment).toBe(false);
+    }
+    expect(choicesFor({moment: "bar_done"}).map((entry) => entry.name)).toEqual(["joy"]);
+});
