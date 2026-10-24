@@ -189,7 +189,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         ].map((fire) => fire.beat)
     );
     // every reaction's moment: the pile's moments but those of the figure's own choices, drawn where it chooses them
-    const choices = ["pastime", "spell", "eager", "jump", "carrier", "run_end", "thought_cloud", "light_bulb", "crane_from", "perch", "fall", "digit", "roam", "ledge_at", "unit", "climb", "tickled", "laptop"];
+    const choices = ["pastime", "spell", "eager", "jump", "carrier", "run_end", "thought_cloud", "light_bulb", "crane_from", "perch", "digit", "roam", "ledge_at", "unit", "climb", "tickled", "laptop"];
     for (const moment of new Set(PILE.map((entry) => entry.when.moment)))
         if (!choices.includes(moment) && !moment.startsWith("held:")) expect(made.has(moment), moment).toBe(true);
 });

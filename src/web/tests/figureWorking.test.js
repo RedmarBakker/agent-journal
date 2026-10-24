@@ -50,7 +50,7 @@ test("now and then, bored of its spot, the working figure takes its work elsewhe
     // on the page: the compose box at home and a bubble just above it, where the figure sits on the edge at its laptop
     const box = (rect) => ({...rect, width: rect.right - rect.left, height: rect.bottom - rect.top});
     const bubble = {getBoundingClientRect: () => box({left: 300, right: 600, top: 700, bottom: 740})};
-    const scroll = {querySelectorAll: () => [bubble], getBoundingClientRect: () => box({left: 236, right: 778, top: 0, bottom: 760})};
+    const scroll = {querySelectorAll: () => [bubble], querySelector: () => null, getBoundingClientRect: () => box({left: 236, right: 778, top: 0, bottom: 760})};
     const thread = {querySelector: (selector) => (selector === ".thread-scroll" ? scroll : null), getBoundingClientRect: () => box({left: 236, right: 778, top: 0, bottom: 900})};
     const home = {getBoundingClientRect: () => box({left: 258, right: 754, top: 768, bottom: 888}), closest: () => thread, querySelector: () => null};
     document.querySelector = (selector) => (selector === "[data-figure-home]" ? home : null);

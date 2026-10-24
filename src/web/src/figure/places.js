@@ -9,6 +9,8 @@ export const HOME = "[data-figure-home]";
 
 // the bars docked over the main chat's compose box, such as a report's, which the figure is pushed up onto while they are there
 export const DOCKED_BARS = "[data-figure-docked-bars]";
+// the foot of the chat, the docks and the line of what the agent is doing, which stays over the bubbles at the bottom of the chat's view
+export const CHAT_FOOT = "[data-figure-chat-foot]";
 
 // how far along its edge the figure may stand, as shares of the edge's width, the one it prefers first
 const HOME_ALONG = [0.85, 0.6, 0.35, 0.15];

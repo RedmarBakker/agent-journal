@@ -18,7 +18,7 @@ import {
     legEnded,
     liftedLegs,
     slideAt,
-    catching,
+    fallFloors,
     underWalker,
 } from "../domain/figureMotion.js";
 import {floorNamed, footingNow, footingOn, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors} from "../figure/floors.js";
@@ -504,7 +504,7 @@ function walkToBug(floor, dx) {
 }
 
 // the top of the ground at home under the point `x`, `y` on the page, else below the bottom of the window, where a falling bug goes out of sight
-const groundAt = (x, y) => Math.min(window.innerHeight + SIZE, ...catching(latestFloors().floors, false).filter((floor) => floor.left <= x && x <= floor.right && floor.top >= y).map((floor) => floor.top));
+const groundAt = (x, y) => Math.min(window.innerHeight + SIZE, ...fallFloors(latestFloors().floors).filter((floor) => floor.left <= x && x <= floor.right && floor.top >= y).map((floor) => floor.top));
 
 // the mallet's bug as the page draws it (act/FixedRunBug.vue): where it is, climbing up behind its floor's box to its top edge, walking or
 // fallen, and the way it walks; whole while it falls, as the blow misses it
@@ -766,18 +766,18 @@ function flyOn() {
     const world = worldBox();
     const x = world.left + SIZE / 2 + Math.random() * Math.max(world.right - world.left - SIZE, 0);
     flight = null;
-    body.airborne = chuteFrom(x, world.top - SIZE / 4, SKYWARD.chute * SIZE, now, Math.random);
+    body.airborne = chuteFrom(x, world.top - SIZE / 4, SKYWARD.chute * SIZE, now);
     body.at = placed(body.airborne, "stand");
     step();
 }
 
-// when the figure last landed from a fall, on the page's clock; a fall within SETTLED_MS of it is no new fall onto a bubble, and a drop of
-// the bars under it then carries it down rather than playing the fall again
+// when the figure last landed from a fall, on the page's clock; a drop of the bars under it within SETTLED_MS of it carries it down
+// rather than playing the fall again
 let landedAt = -Infinity;
 const SETTLED_MS = 1500;
 
 function fallFrom(spot, to) {
-    airborneFrom(fallingFrom(spot, to, latestFloors().floors, performance.now(), Math.random, performance.now() - landedAt >= SETTLED_MS));
+    airborneFrom(fallingFrom(spot, to, latestFloors().floors, performance.now()));
 }
 
 // the figure in the air from this frame, as `airborne` has it

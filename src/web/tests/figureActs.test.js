@@ -182,8 +182,8 @@ test("now and then while idle the figure hops up the bubbles above it very fast,
 
 test("it floats back down on a parachute, never faster than the parachute lets it, and lands as from any fall", () => {
     const most = SKYWARD.chute * 112;
-    const chute = chuteFrom(400, -28, most, 0, () => 0.9);
-    expect(chute).toMatchObject({posture: "stand", chute: true, most, catches: false});
+    const chute = chuteFrom(400, -28, most, 0);
+    expect(chute).toMatchObject({posture: "stand", chute: true, most});
     let body = {y: chute.y, speed: 0};
     for (let frame = 0; frame < 200 && body.y < 700; frame++) {
         const stepped = fallStep(body, 700, 1 / 60, chute.most);

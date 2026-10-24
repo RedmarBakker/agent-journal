@@ -1,5 +1,4 @@
 import {ACTS, pogoBounces, pogoHop} from "../figure/acts.js";
-import {draw} from "../figure/pile.js";
 import {fallStep} from "./falls.js";
 
 // How far, in pixels, a figure's feet may be from a floor's top and still stand on it: a floor that moves away under the figure must move
@@ -40,9 +39,9 @@ export function underWalker(floors, id, x, y) {
     return {falls: false, dx: Math.min(Math.max(x, floor.left), floor.right) - x, dy: floor.top - y};
 }
 
-// The floors a fall can end on: every floor when the figure lets a bubble catch it, else only the floors at home (the user's ruling: it is
-// up to the avatar, fall by fall)
-export const catching = (floors, bubblesCatch) => (bubblesCatch ? floors : floors.filter((floor) => HOME_FLOORS.includes(floor.kind)));
+// The floors a fall can end on: only the floors at home, the docks, the compose box and the foot of the window, since the chat's bubbles
+// are on another plane and a fall passes them; the figure stands on a bubble only by a jump of its own
+export const fallFloors = (floors) => floors.filter((floor) => HOME_FLOORS.includes(floor.kind));
 
 // The share of the way a leg with `easing` has gone at `share` of its time: as the browser eases a transition, so a CSS cubic-bezier
 // steps the same in code; "linear" or any other easing goes at an even pace
@@ -105,6 +104,8 @@ export function pogoFall(leg, from) {
 // the chat moves during the fall it lands on that floor where it is now: one that came up past its feet meets it at once, on its top,
 // and one that went down is met later, never fallen through.
 export function fallFrame(body, floors, seconds, still = false) {
+    const risen = risenHome(floors, body);
+    if (risen) return {x: body.x, y: risen.top, speed: 0, onto: risen.id, landed: risen};
     const peak = peakFrame(body, floors);
     if (peak) return peak;
     const aimed = body.onto ? floors.find((floor) => floor.id === body.onto && holds(floor, body.x)) : null;
@@ -115,6 +116,10 @@ export function fallFrame(body, floors, seconds, still = false) {
     const step = fallStep({y: body.y, speed: body.speed}, floor.top, seconds, body.most);
     return {x: body.x, y: step.y, speed: step.speed, onto: floor.id, landed: step.landed ? floor : null};
 }
+
+// The ground at home risen past the feet of a figure falling over it, as docks unfolding under it do: it lands on it, never left inside
+// or under it, as a fall never starts below it (fallingFrom)
+const risenHome = (floors, body) => (body.speed >= 0 ? (floors.find((floor) => floor.id === "home" && holds(floor, body.x) && floor.top < body.y) ?? null) : null);
 
 // The floor just above a figure's feet at the top of its jump: one whose top is SNAP_WITHIN pixels above them at most
 const shelfAbove = (floors, x, y) => floors.filter((floor) => holds(floor, x) && floor.top < y && y - floor.top <= SNAP_WITHIN).sort((a, b) => b.top - a.top)[0] ?? null;
@@ -159,25 +164,21 @@ export function chaseRoom(floors, world, feet, picture, most) {
     return Math.max(0, Math.min(most, floor.right - feet.x, world.right - picture.right));
 }
 
-// whether a bubble a figure falls past catches it, rather than its dropping straight home, as the pile draws it (pile.js fall): never
-// for a fall that comes soon after another, `settled` false, so a fall onto a bubble that then goes from under it never chains on
-export const catches = (settled, random) => draw({moment: "fall", settled}, random).name === "caught";
-
 // A fall from the line a figure rests on at `spot`, in its posture there and turned the way it faces there, starting at `now`: never from
-// below the floor at home, going on to `to` once it lands, and caught by a bubble it falls past when the pile draws so
-export function fallingFrom(spot, to, floors, now, random, settled) {
+// below the floor at home, going on to `to` once it lands, past every bubble (fallFloors)
+export function fallingFrom(spot, to, floors, now) {
     const home = floors.find((floor) => floor.id === "home");
     const y = home ? Math.min(spot.y, home.top) : spot.y;
-    return {x: spot.x, y, posture: spot.posture, face: spot.face, speed: 0, at: now, to, catches: catches(settled, random)};
+    return {x: spot.x, y, posture: spot.posture, face: spot.face, speed: 0, at: now, to};
 }
 
-// A parachute's descent from `top`, above the screen, at `x`, starting at `now`: a fall no faster than `most` pixels a second, caught by a
-// bubble it comes down past when `random()` says so
-export const chuteFrom = (x, top, most, now, random) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, catches: catches(true, random), most, chute: true});
+// A parachute's descent from `top`, above the screen, at `x`, starting at `now`: a fall no faster than `most` pixels a second, past every
+// bubble to the floors at home
+export const chuteFrom = (x, top, most, now) => ({x, y: top, posture: "stand", speed: 0, at: now, to: null, most, chute: true});
 
 // A launch from the feet at `spot` off a bubble flung up by a fast scroll, starting at `now`: the figure thrown up standing at `speed`
 // pixels a second (up is less than 0), its momentum carrying it up until it falls back home, past every bubble
-export const launchFrom = (spot, speed, now) => ({x: spot.x, y: spot.y, posture: "stand", face: spot.face, speed, at: now, to: null, catches: false, peak: 0});
+export const launchFrom = (spot, speed, now) => ({x: spot.x, y: spot.y, posture: "stand", face: spot.face, speed, at: now, to: null, peak: 0});
 
 // whether a figure in the air has gone up past `top`, the top of its world, off the screen, to come back down on its parachute: only
 // while it rises, so a parachute coming down from above the top is never sent off again
@@ -186,7 +187,7 @@ export const goneUp = (airborne, top) => airborne.speed < 0 && airborne.y <= top
 // One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
 // fell in and turned as it was, where it goes on to and whether it landed on its feet
 export function airborneFrame(airborne, floors, now, still = false) {
-    const fell = fallFrame(airborne, catching(floors, airborne.catches), (now - airborne.at) / 1000, still);
+    const fell = fallFrame(airborne, fallFloors(floors), (now - airborne.at) / 1000, still);
     if (!fell.landed) return {airborne: {...airborne, ...fell, at: now}, landed: null};
     const spot = {x: fell.x, y: fell.landed.top, posture: airborne.posture, face: airborne.face, view: null, on: fell.landed.element ?? null};
     return {airborne: null, landed: {spot, to: airborne.to, standing: airborne.posture === "stand"}};

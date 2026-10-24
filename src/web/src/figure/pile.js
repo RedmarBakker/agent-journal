@@ -221,8 +221,6 @@ export const PILE = [
     // a perch on a bubble: a hang from its corner by a free hand while it has nothing to do, at most once every HANG.every, or a stand on
     // its corner
     ...at("perch", {}, [{...pick("hang", 1, {hands: true, free: true}), cooldown: HANG.every}, pick("stand", 5)]),
-    // a falling figure caught by a bubble it falls past, but never soon after another fall, or dropping straight home
-    ...at("fall", {}, [pick("caught", 1, {settled: true}), pick("home", 1)]),
     // a digit a blow's dust lets out
     ...at("digit", {}, [pick("0", 1), pick("1", 1)]),
     // where the figure goes when nothing calls it, and how long it stays, in seconds between the two: rests on a corner of the edge, sits on

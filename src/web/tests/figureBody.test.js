@@ -19,24 +19,21 @@ function fallen(airborne, floors) {
 
 describe("a body in the air", () => {
     it("falls frame by frame from where it was and lands on its feet on the floor under it, going on where it was headed", () => {
-        const airborne = fallingFrom({x: 400, y: 440, posture: "stand"}, {x: 700, y: 500, posture: "stand"}, [floor("home", 500)], 0, () => 0.9);
+        const airborne = fallingFrom({x: 400, y: 440, posture: "stand"}, {x: 700, y: 500, posture: "stand"}, [floor("home", 500)], 0);
         const {landed, heights} = fallen(airborne, [floor("home", 500)]);
         expect(heights.length).toBeGreaterThan(3);
         expect(landed).toMatchObject({spot: {x: 400, y: 500, posture: "stand"}, to: {x: 700}, standing: true});
     });
 
     it("never starts its fall below the floor at home, and keeps a seated posture when it drops with its seat", () => {
-        expect(fallingFrom({x: 400, y: 520, posture: "stand"}, null, [floor("home", 500)], 0, () => 0.9).y).toBe(500);
-        const {landed} = fallen(fallingFrom({x: 400, y: 456, posture: "sit"}, null, [floor("home", 500)], 0, () => 0.9), [floor("home", 500)]);
+        expect(fallingFrom({x: 400, y: 520, posture: "stand"}, null, [floor("home", 500)], 0).y).toBe(500);
+        const {landed} = fallen(fallingFrom({x: 400, y: 456, posture: "sit"}, null, [floor("home", 500)], 0), [floor("home", 500)]);
         expect(landed).toMatchObject({spot: {posture: "sit", y: 500}, standing: false});
     });
 
-    it("is caught by a bubble it falls past only when the roll lets one catch it", () => {
+    it("falls past a bubble under it to the floor at home, every time", () => {
         const floors = [floor("b1", 300), floor("home", 500)];
-        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.1, true), floors).landed.spot.y).toBe(300);
-        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.9, true), floors).landed.spot.y).toBe(500);
-        // a fall soon after another is never caught, so falls onto bubbles that go from under it never chain on
-        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0, () => 0.1, false), floors).landed.spot.y).toBe(500);
+        expect(fallen(fallingFrom({x: 400, y: 200, posture: "stand"}, null, floors, 0), floors).landed.spot.y).toBe(500);
     });
 });
 
@@ -71,7 +68,7 @@ describe("letting go of a hang", () => {
         expect(footingNow(hanging, figure, floorsWith(460))).toBe(null);
         const box = boxAt({x: 320, y: 460, posture: "hang"}, figure);
         const feet = {x: 320, y: box.top + (1 - figure.below) * figure.size, posture: "stand"};
-        const {landed} = fallen(fallingFrom(feet, null, [floor("home", 500)], 0, () => 0.9), [floor("home", 500)]);
+        const {landed} = fallen(fallingFrom(feet, null, [floor("home", 500)], 0), [floor("home", 500)]);
         expect(landed).toMatchObject({spot: {x: 320, y: 500, posture: "stand"}, standing: true});
     });
 });

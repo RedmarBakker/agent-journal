@@ -3,17 +3,17 @@ import {describe, expect, it} from "vitest";
 import {airborneFrame, fallingFrom} from "../src/domain/figureMotion.js";
 
 const FRAME_MS = 1000 / 60;
-// a bubble the figure falls onto, its top at `top`, and the window's foot far below it
-const bubble = (top) => ({id: "floor-7", kind: "bubble", left: 100, right: 600, top});
+// a dock the figure falls onto, its top at `top`, and the window's foot far below it
+const dock = (top) => ({id: "floor-7", kind: "dock", left: 100, right: 600, top});
 const FOOT = {id: "foot", kind: "foot", left: 0, right: 1200, top: 2000};
 
-// A fall from 100 pixels down the page onto the bubble, the bubble's top each frame as `topAt(frame)` says, as the chat moves under it:
+// A fall from 100 pixels down the page onto the dock, the dock's top each frame as `topAt(frame)` says, as the chat moves under it:
 // the frames of the fall and where it landed
-function fallOnto(topAt, catches = true) {
-    let airborne = {...fallingFrom({x: 300, y: 100, posture: "stand", face: 0}, null, [bubble(topAt(0)), FOOT], 0, () => 0, true), catches};
+function fallOnto(topAt) {
+    let airborne = fallingFrom({x: 300, y: 100, posture: "stand", face: 0}, null, [dock(topAt(0)), FOOT], 0);
     const seen = [];
     for (let frame = 1; frame < 600; frame++) {
-        const floors = [bubble(topAt(frame)), FOOT];
+        const floors = [dock(topAt(frame)), FOOT];
         const {airborne: next, landed} = airborneFrame(airborne, floors, frame * FRAME_MS);
         if (landed) return {seen, landed, frame, top: topAt(frame)};
         seen.push({y: next.y, top: topAt(frame)});

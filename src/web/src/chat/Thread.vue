@@ -489,7 +489,7 @@ const {colleague, me} = useColleague();
                                 @grew="settled"
                             />
                         </TransitionGroup>
-                        <div :class="['chat-foot', {docked: dockCount}]">
+                        <div :class="['chat-foot', {docked: dockCount}]" data-figure-chat-foot>
                             <div class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
                                 <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
                                     <template v-for="docked in rowDocks" :key="docked.id">

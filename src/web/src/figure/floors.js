@@ -1,4 +1,4 @@
-import {FEET_INBOARD, HOME, boxAt, composeEdge, groundEdge, inWorld, worldBox} from "./places.js";
+import {CHAT_FOOT, FEET_INBOARD, HOME, boxAt, composeEdge, groundEdge, inWorld, worldBox} from "./places.js";
 import {GRAVITY} from "../domain/falls.js";
 
 // the chat's bubbles, which the figure walks, sits and hangs on
@@ -27,13 +27,21 @@ const inView = (box, view) => box.top >= view.top && box.top <= view.bottom && b
 // the thread the main chat shows, whose bubbles are floors
 const threadOf = () => document.querySelector(HOME)?.closest(".thread")?.querySelector(".thread-scroll") ?? null;
 
-// The tops of the chat's bubbles in the thread's view and of the page's tabs, each a floor named by its element, with its bottom too
+// What the chat shows of its bubbles: the thread's view down to the top of its foot, which stays over the bubbles that scroll behind it, so
+// a bubble's top hidden behind the docks is no floor and a figure is never stood inside them
+function seenOf(thread, view) {
+    const foot = thread.querySelector(CHAT_FOOT)?.getBoundingClientRect();
+    return {left: view.left, right: view.right, top: view.top, bottom: foot ? Math.min(view.bottom, foot.top) : view.bottom};
+}
+
+// The tops of the chat's bubbles it shows (seenOf) and of the page's tabs, each a floor named by its element, with its bottom too
 function elementFloors(thread, view) {
+    const seen = thread && seenOf(thread, view);
     const bubbles = thread ? [...thread.querySelectorAll(BUBBLE)].map((element) => ({element, kind: "bubble"})) : [];
     const tabs = [...document.querySelectorAll("[data-tab]")].map((element) => ({element, kind: "tab"}));
     return [...bubbles, ...tabs]
         .map(({element, kind}) => ({element, kind, box: element.getBoundingClientRect()}))
-        .filter(({kind, box}) => box.width > 0 && box.height > 0 && (kind !== "bubble" || inView(box, view)))
+        .filter(({kind, box}) => box.width > 0 && box.height > 0 && (kind !== "bubble" || inView(box, seen)))
         .map(({element, kind, box}) => ({id: floorOf(element), kind, element, left: box.left, right: box.right, top: box.top, bottom: box.bottom}));
 }
 

@@ -6,7 +6,7 @@ const {footingOn, readFloors} = await import("../src/figure/floors.js");
 const CHAT = {left: 200, top: 100, right: 900, bottom: 800};
 const VIEW = {left: 200, top: 100, right: 900, bottom: 540};
 
-const element = (box) => ({getBoundingClientRect: () => ({width: box.right - box.left, height: box.bottom - box.top, ...box})});
+const element = (box) => ({getBoundingClientRect: () => ({width: box.right - box.left, height: box.bottom - box.top, ...box}), querySelector: () => null});
 
 // a page with a compose box, the bars docked over it while there are any, and the chat's bubbles and the page's tabs at their boxes
 const page = ({docked = null, bubbles = [], tabs = []} = {}) => {

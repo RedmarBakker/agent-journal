@@ -101,7 +101,7 @@ test("thrown off, its momentum carries it up and it falls back home on its feet,
 test("a figure coming down on its parachute from above the top of the screen is never taken for one thrown off it again", async () => {
     const {chuteFrom} = await import("../src/domain/figureMotion.js");
     const top = 100;
-    const chute = chuteFrom(400, top - 30, 200, 0, () => 0.5);
+    const chute = chuteFrom(400, top - 30, 200, 0);
     expect(goneUp(chute, top), "starting above the top, falling").toBe(false);
     const rising = launchFrom({x: 400, y: top - 5, face: 0}, -900, 0);
     expect(goneUp(rising, top), "still rising past the top").toBe(true);

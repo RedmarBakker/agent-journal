@@ -38,7 +38,7 @@ test("a figure sitting on a docked card that closes falls with its seat, lands f
     const floors = readFloors().floors;
     expect(groundUnder(footing, seat, FIGURE, floors).motion).toBe("dropping");
     let now = 0;
-    let step = {airborne: fallingFrom(seat, null, floors, now, () => 0.9, true), landed: null};
+    let step = {airborne: fallingFrom(seat, null, floors, now), landed: null};
     for (let frame = 0; frame < 300 && !step.landed; frame++) {
         now += FRAME_MS;
         step = airborneFrame(step.airborne, floors, now);

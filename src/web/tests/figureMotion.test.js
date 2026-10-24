@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {KEPT_WITHIN, SNAP_WAIT_FRAMES, aimedAt, catching, chaseRoom, eased, fallFrame, floorAt, floorBelow, legAt, underWalker} from "../src/domain/figureMotion.js";
+import {KEPT_WITHIN, SNAP_WAIT_FRAMES, aimedAt, chaseRoom, fallFloors, eased, fallFrame, floorAt, floorBelow, legAt, underWalker} from "../src/domain/figureMotion.js";
 
 const floor = (id, top, left = 0, right = 1000, kind = id === "home" ? "compose" : id) => ({id, kind, left, right, top, vy: 0});
 const FRAME = 1 / 60;
@@ -49,10 +49,9 @@ describe("a walking figure and the floor under it", () => {
         expect(underWalker(scrolled, "b1", 400, 500)).toEqual({falls: false, dx: 0, dy: 300});
     });
 
-    it("lands on a bubble it passes only when it lets a bubble catch it, else falls home", () => {
+    it("falls past a bubble it passes and lands home", () => {
         const floors = [floor("b1", 600, 0, 1000, "bubble"), floor("home", 800)];
-        expect(fallTo({x: 400, y: 500}, catching(floors, true)).landed.id).toBe("b1");
-        expect(fallTo({x: 400, y: 500}, catching(floors, false)).landed.id).toBe("home");
+        expect(fallTo({x: 400, y: 500}, fallFloors(floors)).landed.id).toBe("home");
     });
 });
 

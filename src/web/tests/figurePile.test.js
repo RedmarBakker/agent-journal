@@ -206,8 +206,6 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "pick right ×1 when moment=crane_from",
         "pick hang ×1 when moment=perch hands=true free=true, cools 120s",
         "pick stand ×5 when moment=perch",
-        "pick caught ×1 when moment=fall settled=true",
-        "pick home ×1 when moment=fall",
         "pick 0 ×1 when moment=digit",
         "pick 1 ×1 when moment=digit",
         "pick rest ×35 when moment=roam",
