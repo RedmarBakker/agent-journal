@@ -5,7 +5,6 @@ from journal.support.response import Response
 from journal.http.controllers.controller import Controller
 from journal.http.support.model_fields import ModelFields
 from journal.features.workers.support.worker_task_view import WorkerTaskView
-from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.agents import Agents
@@ -57,17 +56,15 @@ class WorkerController(Controller[Worker]):
         return row.state != WorkerState.STOPPED
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
-        views = self.task_views(rows)
+        holdings = self.tasks.worker_holdings()
+        views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
-        former_tasks = self.tasks.earlier_tasks()
-        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": self.queued(w), "agent": agent_ids.get(w.session, 0)} for w in rows]
+        former_tasks, queues, reports = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.reports.lasts(rows)
+        return [{**ModelFields.build(w), "report": reports[w.row_id], "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "agent": agent_ids.get(w.session, 0)} for w in rows]
 
-    def queued(self, worker: Worker) -> list[dict]:
-        return [{"id": task.id, "title": task.title} for task in self.tasks.queue(Ref.build(worker))]
-
-    def task_views(self, rows: list[Worker]) -> dict[int, WorkerTaskView]:
+    def task_views(self, rows: list[Worker], holdings: dict[int, int]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}
-        worker_tasks = {worker: task for task, worker in self.tasks.worker_holdings().items() if worker in numbers}
+        worker_tasks = {worker: task for task, worker in holdings.items() if worker in numbers}
         tasks = {task.row_id: task for task in self.tasks.numbered(worker_tasks.values())}
         todos, proofs = self.todos.task_lists(set(tasks)), self.proofs.grouped(set(tasks))
         return {worker: WorkerTaskView.built(tasks[task], todos.get(task, []), proofs.get(task, [])) for worker, task in worker_tasks.items() if task in tasks}

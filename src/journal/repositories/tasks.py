@@ -6,6 +6,7 @@ from journal.events.bus import Bus
 from journal.models.agent import Agent
 from journal.models.check import Check
 from journal.models.link import Link
+from journal.models.model import Model
 from journal.models.plan import Plan
 from journal.models.question import Question
 from journal.models.support.ref import Ref
@@ -205,10 +206,20 @@ class Tasks(ScopedRepository[Task]):
     def worker_holdings(self) -> dict[int, int]:
         return {link.target.id: link.source.id for link in self.links.all_matching(kind=CURRENT_TASK_LINK) if link.source.type == WORKERS}
 
-    def earlier_tasks(self) -> dict[int, int]:
-        worker_tasks = {worker: task for task, worker in self.worker_holdings().items()}
-        work_links = sorted(self.links.all_matching(kind=WORKED_LINK), key=lambda link: link.row_id)
-        return {link.source.id: link.target.id for link in work_links if link.source.type == WORKERS and worker_tasks.get(link.source.id) != link.target.id}
+    # the task each of the workers worked on before the one it holds, read from their own links alone
+    def earlier_tasks(self, workers: list[Model], holdings: dict[int, int]) -> dict[int, int]:
+        worker_tasks = {worker: task for task, worker in holdings.items()}
+        return {link.source.id: link.target.id for link in self.links.model_links("source", workers, WORKED_LINK) if worker_tasks.get(link.source.id) != link.target.id}
+
+    # the tasks queued for each of the workers, in the order they were queued
+    def queues(self, workers: list[Model]) -> dict[int, list[Task]]:
+        links = self.links.model_links("source", workers, QUEUED_LINK)
+        tasks = {task.row_id: task for task in self.numbered({link.target.id for link in links})}
+        queued: dict[int, list[Task]] = {}
+        for link in links:
+            if link.target.id in tasks and tasks[link.target.id] not in queued.setdefault(link.source.id, []):
+                queued[link.source.id].append(tasks[link.target.id])
+        return queued
 
     def previous_creation(self, task: Task) -> datetime:
         previous = self.selected(self.query().filter_less("id", task.id).order_descending("id").limit(1))

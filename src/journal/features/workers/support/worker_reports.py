@@ -31,6 +31,12 @@ class WorkerReports:
         self.links.save(Link(source=Ref.build(worker), target=Ref.build(message), kind=REPORTED), actor)
         return message
 
+    # the last report of each of the workers, read with one query for their links and one for the messages
+    def lasts(self, workers: list[Worker]) -> dict[int, str]:
+        latest = {link.source.id: link.target.id for link in self.links.model_links("source", workers, REPORTED)}
+        texts = {message.row_id: message.text for message in self.messages.numbered(latest.values())}
+        return {worker.row_id: texts.get(latest.get(worker.row_id, 0), "").removeprefix(self.lead(worker)) if worker.state != WorkerState.DISPATCHED else "" for worker in workers}
+
     def last(self, worker: Worker) -> str:
         reports = self.links.targets(worker, REPORTED)
         if worker.state == WorkerState.DISPATCHED or not reports:

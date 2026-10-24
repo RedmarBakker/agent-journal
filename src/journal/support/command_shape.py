@@ -1,3 +1,4 @@
+import itertools
 import re
 
 RUNNERS = {"python", "python3", "node", "bash", "sh", "zsh", "env", "time", "nohup"}
@@ -11,6 +12,8 @@ LAUNCHER_SUBCOMMANDS = {"uv": "run", "poetry": "run", "pipenv": "run", "bundle":
 TOKEN_PATTERN = re.compile(r"[^\s|<>&;]+")
 WORD_PATTERN = re.compile(r"[A-Za-z][\w.-]*")
 MODULE_FLAG = "-m"
+# a launcher's flags that hand it code inline, so the run is known by the launcher: node -e "..." is node -e
+INLINE_CODE_FLAGS = {"-e", "-c", "--eval", "-p", "--print"}
 # a script handed to a runner by its path, which a run is known by: python3 /tmp/scan.py is python3 scan.py
 # the package managers whose flags may stand before their subcommand: pnpm -r build, yarn --silent test
 PACKAGE_MANAGERS = {"npm", "pnpm", "yarn", "bun"}
@@ -138,6 +141,8 @@ class CommandShape:
         index = 0
         while index < len(tokens):
             name = tokens[index].rsplit("/", 1)[-1]
+            if name in LAUNCHERS and CommandShape.is_inline_code(tokens[index + 1:]):
+                return index
             if name in LAUNCHERS and index + 1 < len(tokens):
                 index += 2 if tokens[index + 1] == MODULE_FLAG else 1
             elif LAUNCHER_SUBCOMMANDS.get(name) == (tokens[index + 1] if index + 1 < len(tokens) else ""):
@@ -147,6 +152,11 @@ class CommandShape:
             else:
                 return index
         return index
+
+    @staticmethod
+    def is_inline_code(arguments: list[str]) -> bool:
+        flags = itertools.takewhile(lambda argument: argument.startswith("-"), arguments)
+        return any(flag in INLINE_CODE_FLAGS for flag in flags)
 
     @classmethod
     def looped(cls, part: str) -> str:

@@ -1125,6 +1125,28 @@ def test_a_supervisor_found_outdated_at_boot_is_restarted_once_at_the_end_of_its
     assert asked == [], "it is restarted once; the journal it restarts asks again at its own boot"
 
 
+def test_a_check_left_marked_running_by_a_journal_that_stopped_runs_again(app: App):
+    from journal.features.checks.support.check_runner import CheckRunner
+    from journal.models.check import RUN_LIMIT_SECONDS
+    from journal.repositories.checks import Checks
+    app.console().run(["check", "create", "spikes", "--command", "true", "--every", "1"], USER)
+    checks, runner = app.container.get(Checks), app.container.get(CheckRunner)
+    left = checks.save(checks.find(1).started(timing.time() - RUN_LIMIT_SECONDS - 60), Actor.system())
+    assert not left.is_running(timing.time()), "a run marked longer ago than a run may last belongs to no live run"
+    runner.run(left, Actor.system())
+    assert checks.find(1).last_passed is True and checks.find(1).progress is None, "so it runs again"
+    running = checks.save(checks.find(1).started(timing.time()), Actor.system())
+    assert runner.start(running, Actor.system()) == running, "a run under way is not started twice"
+
+
+def test_a_launcher_handed_inline_code_names_the_run_by_the_launcher():
+    from journal.support.command_shape import CommandShape
+    assert CommandShape.command_name('node --input-type=module -e " import x from y"') == "node"
+    assert CommandShape.command_name('python3 -c "print(1)"') == "python3"
+    assert CommandShape.command_name("python3 -m pytest -q") == "pytest", "a module is still the run's name"
+    assert CommandShape.command_name("perl -e 'alarm 120; exec @ARGV' node src/web/tests/chatScroll.browser.mjs") == "chatScroll.browser.mjs", "a timeout wrapper is still read through"
+
+
 def test_a_due_check_starts_on_the_clock_and_runs_on_a_thread_of_its_own(app: App):
     from journal.engine.clock import Clock
     from journal.repositories.checks import Checks
@@ -4341,8 +4363,13 @@ def test_a_plugin_is_upgraded_with_its_changes_shown_switched_off_and_removed(ap
     app.container.get(ListenerQueue).drain()
     assert echo_heard(app) == ["tool_finished"]
     data = app.config.home / "plugin-data" / "echo"
+    from journal.models.check import Check
+    from journal.repositories.checks import Checks
+    checks = app.container.get(Checks)
+    made = checks.save(Check(title="Check for echoes", command="true", interval=5), Actor.plugin("echo"))
     console.run(["plugin", "remove", "echo"], USER)
     assert plugins.all() == [] and data.is_dir() and folder.is_dir(), "removed, its data and a linked folder kept"
+    assert checks.find(made.row_id).is_retired, "a check the plugin made is retired with it"
     console.run(["plugin", "install", str(folder), "--yes"], USER)
     console.run(["plugin", "remove", "echo", "--purge"], USER)
     assert plugins.all() == [] and not data.exists(), "purged with its data"
@@ -7992,7 +8019,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=app.config.root, capture_output=True, text=True, timeout=30).stdout.strip()
         assert subprocess.run(["git", "rev-parse", "HEAD"], cwd=folder, capture_output=True, text=True, timeout=30).stdout.strip() == head, "moved up to the branch it was merged into"
         assert (workers.find(1).branch, workers.find(2).branch) == ("worker/1-Lady-Lovelace", ""), "a worker in a worktree keeps the branch it commits on; one in the project has none of its own"
-        assert tasks.earlier_tasks() == {1: 1}, "a merged worker keeps the task it worked on, while one still holding its task has none before it"
+        assert tasks.earlier_tasks(workers.scoped(), tasks.worker_holdings()) == {1: 1}, "a merged worker keeps the task it worked on, while one still holding its task has none before it"
         assert [move for move, _ in workers.find(1).moves.steps][-1] == "merged"
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)

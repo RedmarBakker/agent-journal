@@ -422,12 +422,11 @@ function insideWorld(spot, {size, below}) {
 const homeCorners = (edge, figure) => Object.keys(CORNER_SIDES).map((side) => insideWorld(cornerAt(edge, side, figure), figure));
 const homeStands = (edge, figure) => alongTop(edge, HOME_ALONG).map((spot) => insideWorld(spot, figure));
 
-// Where the figure rests at home: on a corner of the edge it stands on, beside the pile (freeEdge), on its feet; with no corner
-// free, where it stands
+// Where the figure rests at home: on a corner of the edge it stands on, beside the pile (freeEdge), on its feet; with nothing there, on the
+// foot of its world
 export function restOf(figure, near) {
     const {element, edge} = freeEdge();
-    const corner = freeSpot(homeCorners(edge, figure), figure, near);
-    return corner ? {...corner, view: null, on: element} : near;
+    return {...freeSpot(homeCorners(edge, figure), figure, near), view: null, on: element};
 }
 
 // Where a figure that steps out of the way goes at home, its picture clear of `box`, the one it stepped aside from: a corner while it

@@ -11,18 +11,17 @@ from journal.config import Config
 from journal.features.checks.support.check_output import CheckOutput
 from journal.features.checks.support.finished_run import FinishedRun
 from journal.support.actor import Actor
-from journal.models.check import Check
+from journal.models.check import RUN_LIMIT_SECONDS, Check
 from journal.support.check_report import CheckReport
 from journal.repositories.checks import Checks
 
-TIMEOUT_SECONDS = 600
 FAULTS = {126: "the command cannot be run", 127: "the command is not there"}
 OUTPUT_CHARACTERS = 4000
 INTERVAL_SECONDS = 1.0
 
 
 class CheckRunner:
-    """Runs one check in the project root, with its progress on its row while it runs, and stores its result and report; the run is a row event the check carries, and what the agent is informed about a failure is the checks conduct's."""
+    """Runs one check in the project root, with its progress on its row while it runs, a run left marked past its time limit by a journal that stopped taken as over, and stores its result and report; the run is a row event the check carries, and what the agent is informed about a failure is the checks conduct's."""
 
     def __init__(self, config: Config, checks: Checks) -> None:
         self.config, self.checks = config, checks
@@ -32,7 +31,7 @@ class CheckRunner:
         return self.finished(self.checks.save(check.started(started), actor), started, actor)
 
     def start(self, check: Check, actor: Actor) -> Check:
-        if check.progress is not None:
+        if check.is_running(timing.time()):
             return check
         started = timing.time()
         commenced = self.checks.save(check.started(started), actor)
@@ -54,7 +53,7 @@ class CheckRunner:
                                    env={**os.environ, "JOURNAL_REPORT": str(report)}, start_new_session=True)
         if process.stdout is None:
             raise OSError(f"check {check.row_id} started without its output pipe")
-        late = threading.Timer(TIMEOUT_SECONDS, os.killpg, (process.pid, signal.SIGKILL))
+        late = threading.Timer(RUN_LIMIT_SECONDS, os.killpg, (process.pid, signal.SIGKILL))
         late.start()
         output_text, saved = [], timing.time()
         for line in process.stdout:
@@ -66,7 +65,7 @@ class CheckRunner:
         late.cancel()
         output = "".join(output_text)
         if code == -signal.SIGKILL:
-            return FinishedRun(False, f"{output}\ntimed out after {TIMEOUT_SECONDS}s", f"it timed out after {TIMEOUT_SECONDS}s")
+            return FinishedRun(False, f"{output}\ntimed out after {RUN_LIMIT_SECONDS}s", f"it timed out after {RUN_LIMIT_SECONDS}s")
         return FinishedRun(code == 0, output, FAULTS.get(code, ""))
 
     @staticmethod

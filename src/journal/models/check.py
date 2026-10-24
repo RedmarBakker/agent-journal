@@ -8,6 +8,8 @@ from journal.events.rows.check_completed import CheckCompleted
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.model import Model
 
+RUN_LIMIT_SECONDS = 600
+
 
 @dataclass(frozen=True)
 class Check(Model):
@@ -35,6 +37,9 @@ class Check(Model):
 
     def started(self, time: float) -> "Check":
         return self.with_(progress=CheckProgress(time))
+
+    def is_running(self, moment: float) -> bool:
+        return self.progress is not None and moment - self.progress.time < RUN_LIMIT_SECONDS
 
     def completed(self, passed: bool, output: str, time: datetime, elapsed: float, report: CheckReport | None, fault: str) -> "Check":
         executed = CheckCompleted(environment_id=0, time=time.timestamp(), check_id=self.row_id, title=self.title, passed=passed, output=output, prior_failure=self.last_passed is False, wait_target=self.wait_target, failure_reported_at=self.failure_reported_at)
