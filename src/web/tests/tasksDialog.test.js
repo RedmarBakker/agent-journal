@@ -214,6 +214,15 @@ describe("the tasks dialog's rules", () => {
         expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Blocked", 2, "Open", "Done", 3]);
     });
 
+    test("grouped by plan, only tasks without a plan are under not in a plan, even when their plan row is not loaded", () => {
+        const all = [task(1, "in loaded", {plan_id: 31}), task(2, "in unloaded", {plan_id: 1028}), task(3, "loose a"), task(4, "loose b")];
+        const lines = boardLines("plan", {shown: all, all, plans: [plan], folded: {}});
+        const at = lines.findIndex((l) => l.type === "head" && l.label === "Not in a plan");
+        expect(lines[at].note).toBe("2 tasks");
+        expect(lines.slice(at + 1).map((l) => l.task.id)).toEqual([3, 4]);
+        expect(lines.some((l) => l.type === "head" && l.number === "Plan 1028")).toBe(true);
+    });
+
     test("the graph points a waiting task at what it waits on and folds a long chain to its two ends", () => {
         store.rows = {tasks: [], questions: [], checks: []};
         const chain = [10, 11, 12, 13].map((id) => blocked(id, `link ${id}`, [`tasks:${id + 1}`]));

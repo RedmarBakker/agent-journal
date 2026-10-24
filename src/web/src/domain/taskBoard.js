@@ -104,7 +104,14 @@ function phaseLines(plan, shown, all, folded) {
     return [...lines, ...rowLines(loose, 1)];
 }
 
-function byPlan(shown, all, plans, folded) {
+// A task's plan is its plan_id, whether or not the plan's own row has reached the list yet.
+const withUnloaded = (plans, shown) => {
+    const ids = [...new Set(shown.map((t) => t.plan_id).filter((id) => id && !plans.some((p) => p.id === id)))].sort((a, b) => a - b);
+    return [...plans, ...ids.map((id) => ({table: "plans", id, title: `Plan ${id}`}))];
+};
+
+function byPlan(shown, all, rows, folded) {
+    const plans = withUnloaded(rows, shown);
     const lines = [];
     for (const plan of plans) {
         const mine = shown.filter((t) => t.plan_id === plan.id);
@@ -122,7 +129,7 @@ function byPlan(shown, all, plans, folded) {
                 )
             );
     }
-    const loose = shown.filter((t) => !plans.some((p) => p.id === t.plan_id));
+    const loose = shown.filter((t) => !t.plan_id);
     if (loose.length) {
         lines.push(head("p0", 0, "Not in a plan", counted(loose.length, "task")));
         if (!folded.p0) lines.push(...rowLines(loose, 1));
