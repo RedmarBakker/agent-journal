@@ -16,7 +16,7 @@ class SyncStatus:
         self.account, self.outgoing = account, outgoing
         self.fault = ""
         self.reached = False
-        self.reported_at = time.monotonic()
+        self.reported_at: float | None = None
 
     def connected(self) -> None:
         self.fault = ""
@@ -31,9 +31,10 @@ class SyncStatus:
         self.reached = self.reached or reached
         self.reported_at = time.monotonic()
 
-    # the fault the sync service last reported, or that it is gone when it has said nothing for a while
+    # the fault the sync service last reported, or that it is gone when it has reported and then said nothing for a while; before
+    # its first report the journal is still connecting
     def current_fault(self) -> str:
-        if time.monotonic() - self.reported_at > STALE_SECONDS:
+        if self.reported_at is not None and time.monotonic() - self.reported_at > STALE_SECONDS:
             return "the sync service is not running"
         return self.fault
 

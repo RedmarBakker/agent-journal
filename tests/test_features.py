@@ -13267,10 +13267,12 @@ def test_the_sync_services_report_shows_on_the_status_line_and_a_service_gone_qu
     from journal.sync import sync_status
     from journal.sync.sync_status import SyncStatus
     from journal.sync.team_account import TeamAccount
+    from journal.repositories.outgoing_changes import OutgoingChanges
     account = app.container.get(TeamAccount)
     account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
     status = app.container.get(SyncStatus)
     try:
+        assert SyncStatus(account, app.container.get(OutgoingChanges)).state() == "connecting", "a journal whose sync service has not yet reported is connecting, however long ago the server started"
         status.reported("the team server refused the push: the device was revoked", True)
         assert status.line() == "Not connected: the team server refused the push: the device was revoked", "the sync service's refusal shows on the line"
         status.reported("", True)
@@ -13279,6 +13281,7 @@ def test_the_sync_services_report_shows_on_the_status_line_and_a_service_gone_qu
         assert status.line() == "Not connected: the sync service is not running" and status.state() == "not_connected", "a sync service gone quiet shows as not connected"
     finally:
         status.reported("", True)
+        status.reported_at = None
         account.left(0)
 
 
