@@ -56,8 +56,12 @@ test("the figure never backs past the margin from the end of its floor, and neve
     expect(leg.to, "backed as far as the margin allows, short of the angle").toBe(margin);
     const [past] = backPlan([bug("top", 0.5)], WORLD, {...AT, x: 790, y: 600}, SIZE);
     expect(past.to, "a figure already past the margin stays where it is").toBe(790);
-    const [aside] = backPlan([bug("top", 0.02)], WORLD, {...AT, x: 20}, SIZE);
-    expect(aside.to, "away from a bug just on its right is away from it").toBeGreaterThan(aside.from);
+    // a bug across the top at 144 pixels (wallBugAt turns a bug's 0.02 back to 0.18 of the way), just on the right of a figure at 100: away
+    // from it is to the left, as far as the floor's margin allows
+    const [aside] = backPlan([bug("top", 0.02)], WORLD, {...AT, x: 100}, SIZE);
+    expect(aside.to, "away from a bug on its right is to the left, stopping at the margin").toBe(ACTS.bug_shot.back.margin * SIZE);
+    const [held] = backPlan([bug("top", 0.02)], WORLD, {...AT, x: 20}, SIZE);
+    expect(held.to, "a figure already past the left margin is held where it is, not walked toward the bug").toBe(20);
 });
 
 test("it steps back only between the walk and the aim of its bug's turn, one way, its stride growing as it goes", () => {
