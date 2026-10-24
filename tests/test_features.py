@@ -12363,7 +12363,6 @@ def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drill
             slow.counted("GET", f"/journal/route{n}", 100 + n, RequestLoads())
         for ms in (900, 300, 200):
             slow.counted("GET", "/journal/messages/12/read", ms, RequestLoads())
-        slow.tally.write()
     listed = console.run(["developer", "slowest"], AGENT)
     first = listed.text.splitlines()[0]
     assert "GET /journal/messages/{n}/read" in first and "900 ms worst" in first and "300 ms typical" in first and "3 logged" in first, listed.text
@@ -12383,7 +12382,6 @@ def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_tim
         slow.measured("GET", "/cli/developer slowest", 900)
         slow.measured("GET", "/journal/sync/batch", 5000)
         slow.measured("GET", "/journal/tasks", 40)
-        slow.tally.write()
     routes = [timing.route for timing in app.container.get(DeveloperNumbers).recent()]
     assert "/journal/tasks" in routes and not [route for route in routes if "developer" in route or "/sync/" in route], "nor the sync carrier's doors, whose batch waits for a commit"
 

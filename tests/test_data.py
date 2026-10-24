@@ -916,3 +916,12 @@ def test_a_transaction_reads_its_own_writes_even_when_another_thread_stored_the_
         reader.join()
         taken.append(blocks.next_id("links"))
     assert taken == [100, 101], "the second number follows the first, whatever another thread read in between"
+
+
+def test_the_developer_numbers_drop_removes_the_timings_table_and_the_numbers_but_not_other_statistics(connection):
+    from journal.db.migrations.developer_numbers_drop import DeveloperNumbersDrop
+    connection.execute("CREATE TABLE IF NOT EXISTS timings (id INTEGER PRIMARY KEY)")
+    connection.execute("INSERT INTO statistics (key, value, created_at, creator) VALUES ('developer.hooks.count', 3, '2026-10-24', 'system'), ('profiles.x.uses', 2, '2026-10-24', 'system')")
+    DeveloperNumbersDrop().apply(connection)
+    assert connection.one("SELECT name FROM sqlite_master WHERE name = 'timings'") is None
+    assert [row["key"] for row in connection.all("SELECT key FROM statistics")] == ["profiles.x.uses"]

@@ -1,5 +1,4 @@
 import threading
-from collections import deque
 
 from journal.features.faults.faults_options import FaultsOptions
 from journal.models.timing import Timing
@@ -17,7 +16,7 @@ class DeveloperTally:
         self.stages, self.settings = stages, settings
         self._lock = threading.Lock()
         self._numbers: dict[str, int] = {}
-        self._log: deque[Timing] = deque(maxlen=LOG_ROWS)
+        self._log: list[Timing] = []
 
     def measured(self, prefix: str, ms: int) -> None:
         with self._lock:
@@ -32,6 +31,7 @@ class DeveloperTally:
     def logged(self, timing: Timing) -> None:
         with self._lock:
             self._log.append(timing)
+            del self._log[:-LOG_ROWS]
 
     def series(self, prefix: str) -> dict[str, int]:
         self.stage_samples()
