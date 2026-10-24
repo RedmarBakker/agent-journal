@@ -24,7 +24,6 @@ const STANCE = {
     carried: new Set(),
     free: new Set(["r"]),
     tablet: new Set(),
-    cloth: new Set(),
     shield: new Set(),
 };
 

@@ -8,7 +8,7 @@ const atRest = (make) => ({get: () => make(), has: () => true, set() {}, forEach
 const RIG = {parents: atRest(() => ""), heads: atRest(() => new THREE.Vector3()), tails: atRest(() => new THREE.Vector3(0, 0, 0.1)),
     rest: atRest(() => new THREE.Matrix4()), along: atRest(() => new THREE.Vector3(0, 1, 0)), order: [], eyes: []};
 // a butler's stance: a tray level in its left hand, the right free
-const STANCE = {voice: "butler", level: new Set(["l"]), busy: new Set(["l"]), carried: new Set(), free: new Set(["r"]), tablet: new Set(), cloth: new Set(), shield: new Set()};
+const STANCE = {voice: "butler", level: new Set(["l"]), busy: new Set(["l"]), carried: new Set(), free: new Set(["r"]), tablet: new Set(), shield: new Set()};
 
 test("a figure that falls puts the clip's props away, the book, the glass, the laptop and the pens, and keeps what it carries in hand", () => {
     const fall = CLIPS.find((clip) => clip.name === "fall");

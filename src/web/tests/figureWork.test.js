@@ -18,7 +18,7 @@ const RIG = {
     order: [],
     eyes: [],
 };
-const STANCE = {voice: "butler", level: new Set(["l"]), busy: new Set(["l"]), carried: new Set(), free: new Set(["r"]), tablet: new Set(), cloth: new Set(), shield: new Set()};
+const STANCE = {voice: "butler", level: new Set(["l"]), busy: new Set(["l"]), carried: new Set(), free: new Set(["r"]), tablet: new Set(), shield: new Set()};
 // a few poses for each blow, enough to see each come down and lift back
 const STEPS_A_BLOW = 16;
 

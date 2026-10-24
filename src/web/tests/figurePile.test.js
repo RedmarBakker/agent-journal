@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {expect, test} from "vitest";
 import {PILE, SEQUENCES, SHENANIGAN, SHOWPIECES, choicesFor, draw, givesWay, lineOf, sequenceLineOf} from "../src/figure/pile.js";
-import {CLIPS} from "../src/figure/figure.js";
+import {CLIPS, LEFT_OUT} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {unitGranted} from "../src/figure/parcels.js";
 import {carrierOf, flips} from "../src/figure/reactions.js";
@@ -168,7 +168,6 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip stretch ×3 when moment=pastime free=true lasted=90, plays out, cools 90s",
         "clip rest ×3 when moment=pastime free=true lasted=180, plays out, cools 120s",
         "clip yawn ×2 when moment=pastime free=true lasted=60, plays out, cools 60s",
-        "clip polish ×4 when moment=pastime free=true lasted=45 voices=butler, plays out, cools 60s",
         "clip whistle ×4 when moment=pastime free=true lasted=45 voices=coach, plays out, cools 60s",
         "clip sip ×4 when moment=pastime free=true lasted=45 voices=colleague, plays out, cools 60s",
         "clip groove ×4 when moment=pastime free=true lasted=45 voices=homie, plays out, cools 60s",
@@ -318,6 +317,13 @@ test("the butler's hat tip is never cut off by what comes next", async () => {
     const tip = CLIPS.find((clip) => clip.name === "hat_tip");
     expect(tip.holds).toBe(true);
     expect(givesWay({clip: tip, once: true}, 0.1, {urgent: false})).toBe(false);
+});
+
+test("the butler never carries a cloth over his arm: no clip or act polishes with it, and his model's cloth is left out like the platter", () => {
+    expect(CLIPS.some((clip) => clip.name === "polish")).toBe(false);
+    expect(PILE.some((entry) => entry.name === "polish")).toBe(false);
+    for (const lasted of [45, 1000]) expect(names(choicesFor({moment: "pastime", free: true, room: Infinity, lasted, voice: "butler"}))).not.toContain("polish");
+    expect([...LEFT_OUT].sort()).toEqual(["butler_towel", "butler_tray"]);
 });
 
 test("the jump for joy is kept for the end of a run the figure anticipated; an everyday success gets a nod at most", () => {

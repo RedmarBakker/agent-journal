@@ -174,7 +174,6 @@ export const PILE = [
         // after a long quiet it lies down on its back for a while, whistling, on any floor it stands on
         pastime("rest", 3, 180, 120),
         pastime("yawn", 2, 60, 60),
-        pastime("polish", 4, 45, 60, {when: {voices: ["butler"]}}),
         pastime("whistle", 4, 45, 60, {when: {voices: ["coach"]}}),
         pastime("sip", 4, 45, 60, {when: {voices: ["colleague"]}}),
         pastime("groove", 4, 45, 60, {when: {voices: ["homie"]}}),

@@ -93,7 +93,7 @@ test("once eager for a run's end nothing calls it off but that end: the roll, a 
 // the page draws it (chat/VoiceFigure.vue lookingAt): where its head faces, and how far down and round it is turned, in degrees
 function headLooking(corner, point, amount = 1) {
     const pose = new Posing(RIG, "stand", 0);
-    CLIPS.find((clip) => clip.name === "idle").pose(pose, {voice: "butler", level: new Set(), busy: new Set(), carried: new Set(), free: new Set(HANDS), tablet: new Set(), cloth: new Set(), shield: new Set()}, 0);
+    CLIPS.find((clip) => clip.name === "idle").pose(pose, {voice: "butler", level: new Set(), busy: new Set(), carried: new Set(), free: new Set(HANDS), tablet: new Set(), shield: new Set()}, 0);
     if (point && amount) lookToward(pose, {x: (point.x - corner.x) / FIGURE.size, y: (point.y - corner.y) / FIGURE.size, amount});
     const faces = new THREE.Vector3(0, -1, 0).transformDirection(pose.moves(0).get("head"));
     return {faces, down: THREE.MathUtils.radToDeg(Math.asin(-faces.z)), round: THREE.MathUtils.radToDeg(Math.atan2(faces.x, -faces.y))};
