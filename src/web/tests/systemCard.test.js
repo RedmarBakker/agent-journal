@@ -1,6 +1,10 @@
 import {createApp, h, nextTick} from "vue";
 import {expect, test} from "vitest";
+import {ui} from "../src/state/ui.js";
 import {threadTurns} from "../src/domain/thread.js";
+
+// these read a mark's second line, which the compact chat folds until a click
+ui.compactMarks = false;
 
 globalThis.ResizeObserver ??= class {
     observe() {}

@@ -1,14 +1,30 @@
 <script setup>
-import {computed, useAttrs} from "vue";
+import {computed, ref, useAttrs} from "vue";
 import ChatMarkStatus from "./ChatMarkStatus.vue";
 import Icon from "./Icon.vue";
 import TextDisplay from "./TextDisplay.vue";
 import {clock} from "../format/time.js";
+import {ui} from "../state/ui.js";
 
+defineOptions({inheritAttrs: false});
 const props = defineProps({mark: {type: Object, required: true}});
 
 const attrs = useAttrs();
-const tag = computed(() => (attrs.onClick ? "button" : "span"));
+const passed = computed(() => Object.fromEntries(Object.entries(attrs).filter(([name]) => name !== "onClick")));
+// in the compact chat a mark is one line: its second line shows once a click opens it, and a second click folds it again
+const expanded = ref(false);
+const hasSecondLine = computed(() => Boolean(props.mark.detail || props.mark.command));
+const folded = computed(() => ui.compactMarks && hasSecondLine.value && !expanded.value);
+const tag = computed(() => (attrs.onClick || (ui.compactMarks && hasSecondLine.value) ? "button" : "span"));
+
+function clicked(event) {
+    if (folded.value) {
+        expanded.value = true;
+        return;
+    }
+    if (attrs.onClick) attrs.onClick(event);
+    else expanded.value = false;
+}
 const shade = computed(() => props.mark.color || (props.mark.tone ? `var(--tone-${props.mark.tone})` : ""));
 // a mark's progress bar is drawn in the mark's own tint, and in the working colour on a mark with none
 const barShade = computed(() => shade.value || "var(--tone-work)");
@@ -24,11 +40,14 @@ const tint = computed(() => ({
 <template>
     <component
         :is="tag"
+        v-bind="passed"
         :type="tag === 'button' ? 'button' : undefined"
         :class="['mark', {tinted: shade, console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
         :style="tint"
         :title="hover"
         :data-figure-mark="mark.key"
+        :data-folded="folded ? '' : null"
+        @click="clicked"
     >
         <Icon :name="mark.icon || 'dot'" />
         <span class="head">
@@ -49,10 +68,10 @@ const tint = computed(() => ({
         <template v-if="mark.settled">
             <span class="settled">{{ mark.settled }}</span>
         </template>
-        <template v-if="mark.detail">
+        <template v-if="mark.detail && !folded">
             <TextDisplay class="detail" :text="mark.detail" inline :row-names="false" />
         </template>
-        <template v-if="mark.command">
+        <template v-if="mark.command && !folded">
             <code class="detail command" :title="mark.command">{{ mark.command }}</code>
         </template>
         <template v-if="mark.card">
