@@ -3422,9 +3422,9 @@ export const HIDDEN_PARTS = ["headphones"];
 
 export const SCREEN = {
     gap: 0.16, line: 1, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
-    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.85, soft: 0.8, reach: 2}, glare: {strength: 0.012, from: 0.5},
+    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.3, soft: 0.5, reach: 2}, glare: {strength: 0.012, from: 0.5},
     // a lit pixel is drawn brighter than its colour, brightest at its middle
-    shine: {lift: 0.3, core: 0.45, tightness: 7},
+    shine: {lift: 0.6, core: 0.3, tightness: 7},
     // how many times a second the pixels change, slow like a small real screen, while the figure moves at the page's frame rate
     framesPerSecond: 6,
 };

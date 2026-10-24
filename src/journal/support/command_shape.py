@@ -20,6 +20,8 @@ HEADER_PATTERN = re.compile(r"^\s*(?:(?:done|fi|esac|;;)\b.*|(?:for|select|case)
 LOOP_PATTERN = re.compile(r"^\s*(?:while|until|for|if|case|select)\s")
 CAPTURE_PATTERN = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*=\$\((.*)\)\s*$")
 CONTAINER_PATTERN = re.compile(r"^\s*docker(?:\s+compose|-compose)?\s+exec\s+(?:(?:-[euw]|--(?:env|env-file|user|workdir))[ =]\S+\s+|-{1,2}[\w-]+\s+)*\S+\s+")
+# git's own options before its subcommand, which a run is never known by: git -C repo push is git push
+GIT_OPTION_PATTERN = re.compile(r"^(\s*git)(?:\s+(?:-C|-c|--git-dir|--work-tree)\s+\S+|\s+--no-pager)+(?=\s)")
 VARIABLE_PATTERN = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|\S*)(?:\s+|$))+")
 # commands that only set the scene for the one that does the work: a line's shape is the first part past them
 SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read"}
@@ -54,7 +56,7 @@ class CommandShape:
             return ""
         captured = CAPTURE_PATTERN.match(unlooped)
         command = CommandShape.past_setup(captured.group(1)) if captured else unlooped
-        return CONTAINER_PATTERN.sub("", WRAPPER_PATTERN.sub("", VARIABLE_PATTERN.sub("", command, count=1), count=1), count=1)
+        return GIT_OPTION_PATTERN.sub(r"\1", CONTAINER_PATTERN.sub("", WRAPPER_PATTERN.sub("", VARIABLE_PATTERN.sub("", command, count=1), count=1), count=1), count=1)
 
     @staticmethod
     def past_setup(chain: str) -> str:
