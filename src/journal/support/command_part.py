@@ -18,6 +18,9 @@ class CommandPart:
                    reads_output=bool(data.get("reads_output")), read_shape=data.get("read_shape", ""))
 
     @property
+    def is_folder_change(self) -> bool:
+        return self.text.split()[:1] == ["cd"]
+
     def journal_noun(self) -> str:
         tokens = self.text.split()
         return tokens[1] if self.is_journal and len(tokens) > 1 else ""

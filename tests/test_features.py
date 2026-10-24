@@ -2858,7 +2858,7 @@ def test_a_shell_line_that_writes_is_a_write_to_the_gates(app: App):
 def test_a_journal_command_chained_with_anything_else_is_refused(app: App):
     hook(app, "SessionStart")
     status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "cd src && journal task log 1 'x' && python3 -m pytest -q"})
-    assert status == 409 and "You cannot mix journal commands with other commands." in body["error"]
+    assert status == 409 and "You cannot mix journal commands with other commands." in body["error"], body
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task log 1 'x'; journal message unread"})[0] == 200
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 -m pytest -q && git commit -m x"})[0] == 200
 

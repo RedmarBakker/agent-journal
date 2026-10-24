@@ -65,4 +65,5 @@ class ToolCall:
         return bool(self.parts) and all(AliasCall.parsed(part.text).name == PANIC for part in self.parts)
 
     def journal_parts(self) -> tuple[int, int]:
-        return sum(1 for part in self.parts if part.is_journal), len(self.parts)
+        commands = [part for part in self.parts if not part.is_folder_change]
+        return sum(1 for part in commands if part.is_journal), len(commands)

@@ -1097,6 +1097,8 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     assert [n.key for n in big.nudges] == ["laws.cap_the_output"]
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": "a.py"}, operation=Claude().operation("Read", {"file_path": "a.py"}), file_lines=201)).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "shell.read_the_file_in_parts"
     assert Ready().respond(ToolStarting(call=shell("journal task list && ls")).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "shell.journal_command_runs_alone"
+    chained = Ready().respond(ToolStarting(call=shell("cd /project && journal output read 9 --summary; journal output status 9")).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
+    assert chained.refusal is None or chained.refusal.key != "shell.journal_command_runs_alone", "journal commands chain with each other, a folder change before them counting as no command"
     reader = Ready().respond(ToolStarting(call=shell("journal output read 9 --grep FAILED")).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     shell_lines = lambda answered: [n.key for n in answered.nudges if n.key.startswith("shell.")]
     assert shell_lines(reader) == ["shell.use_the_reader"]
