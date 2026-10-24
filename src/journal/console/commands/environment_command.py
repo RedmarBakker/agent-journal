@@ -140,7 +140,8 @@ class EnvironmentCommand(Command):
         return 0
 
     def branch(self, args: Namespace, caller: Caller) -> int:
-        environment = self.environments.save(self.environments.existing(args.name).with_(branch=args.branch), caller.actor)
+        host = self.account.device_name() if args.branch == Worktree(self.config.root, args.name).branch else ""
+        environment = self.environments.save(self.environments.existing(args.name).with_(branch=args.branch, worktree_host=host), caller.actor)
         print(f"environment {environment.name} works on branch {environment.branch}")
         return 0
 

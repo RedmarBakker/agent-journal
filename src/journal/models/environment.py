@@ -8,12 +8,13 @@ from journal.support.environment_key import EnvironmentKey
 
 @dataclass(frozen=True)
 class Environment(Model):
-    """A place an agent works. Its key, made at random when it is made, never changes and is how this machine and the team server match it; its name is this machine's own and never changes when the journal joins a team; its team name, the owner's name before it, is the one the team server and every other machine know it by, and is absent until a team knows it; one its owner shares with the team is in every member's sidebar and its chat open to all."""
+    """A place an agent works. Its key, made at random when it is made, never changes and is how this machine and the team server match it; its name is this machine's own and never changes when the journal joins a team; its team name, the owner's name before it, is the one the team server and every other machine know it by, and is absent until a team knows it; one its owner shares with the team is in every member's sidebar and its chat open to all; one that works in a worktree names the machine that holds its folder."""
 
     local_fields: ClassVar[tuple[str, ...]] = ("name",)
 
     name: str = ""
     branch: str | None = None
+    worktree_host: str = ""
     is_team_chat: bool = False
     team_name: str | None = None
     is_shared_with_team: bool = False

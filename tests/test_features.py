@@ -6929,6 +6929,32 @@ def test_an_environment_that_records_a_worktree_has_its_lost_folder_remade_from_
         assert produced["front"]["folder"] == str(folder) and folder.is_dir(), f"launched as {argv}, the environment's lost worktree is made again from its kept tip"
 
 
+def test_a_worktree_held_on_another_machine_is_launched_and_removed_only_there_and_shown_as_on_it(app: App):
+    import subprocess
+    from journal.features.team.support.start_rule import StartRule
+    from journal.repositories.environments import Environments
+    from journal.support.worktree import Worktree
+    from journal.support.worktree_names import WorktreeNames
+    from journal.sync.team_account import TeamAccount
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    console, environments = app.console(), app.container.get(Environments)
+    mine = Worktree(root, "calm-river")
+    mine.created()
+    console.run(["environment", "create", "calm-river"], USER)
+    console.run(["environment", "branch", "calm-river", mine.branch], USER)
+    assert environments.existing("calm-river").worktree_host == app.container.get(TeamAccount).device_name(), "an environment launched in a worktree names the machine holding its folder"
+    synced = environments.save(environments.lookup("keen-otter").with_(branch="worktree-keen-otter", worktree_host="ada-laptop"), Actor.system())
+    Worktree(root, "keen-otter").created()
+    assert "is on the machine ada-laptop: launch it there" in app.container.get(StartRule).refusal(synced, 1), "only the machine holding its folder launches into it"
+    assert "is on the machine ada-laptop: remove it there" in console.run(["worktree", "remove", "keen-otter"], USER).error, "or removes it"
+    listed = {row["name"]: row["worktree"] for row in got(app, "/journal/environments", {"X-Journal-Env": "main"})[1]["rows"]}
+    assert listed["keen-otter"] == "worktree on ada-laptop" and listed["calm-river"] == "worktree on worktree-calm-river", "the viewer shows a colleague's worktree as on their machine"
+    assert "keen-otter" not in {WorktreeNames(root).unused({environment.name for environment in environments.all()}) for _ in range(60)}, "a made-up name avoids every environment the team knows"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree

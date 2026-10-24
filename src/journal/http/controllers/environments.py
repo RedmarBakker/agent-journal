@@ -14,6 +14,7 @@ from journal.repositories.environment_owners import EnvironmentOwners
 from journal.support.rejection import Rejection
 from journal.features.team.support.start_rule import StartRule
 from journal.features.git.support.worktree_removal import WorktreeRemoval
+from journal.features.git.support.worktree_hosts import WorktreeHosts
 from journal.features.team.support.environment_sharing import EnvironmentSharing
 
 
@@ -23,9 +24,9 @@ class EnvironmentController(Controller[Environment]):
     repository: Environments
 
     def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, starts: StartRule,
-                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing) -> None:
+                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing, hosts: WorktreeHosts) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
-        self.owners, self.starts, self.hydration, self.removal, self.sharing = owners, starts, hydration, removal, sharing
+        self.owners, self.starts, self.hydration, self.removal, self.sharing, self.hosts = owners, starts, hydration, removal, sharing, hosts
 
     def rows(self) -> list[Environment]:
         return self.repository.all()
@@ -34,7 +35,11 @@ class EnvironmentController(Controller[Environment]):
         return self.shown_page(rows)
 
     def shown_page(self, rows: list[Environment]) -> list[dict]:
-        return [{**ModelFields.build(row), "worktree": next(iter(Worktree(self.config.root, row.name).badges()), "")} for row in rows]
+        return [{**ModelFields.build(row), "worktree": self.worktree_badge(row)} for row in rows]
+
+    def worktree_badge(self, environment: Environment) -> str:
+        host = self.hosts.elsewhere(environment)
+        return f"worktree on {host}" if host else next(iter(Worktree(self.config.root, environment.name).badges()), "")
 
     def store(self, request: Request) -> Response:
         name, session = request.body.get("name", "").strip(), request.body.get("session", "")
