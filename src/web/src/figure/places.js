@@ -320,6 +320,31 @@ export function seatedFacing(clip, face) {
     return turn < 0 ? 360 - ASIDE : ASIDE;
 }
 
+// A figure seated facing `face` shifts on its seat now and then, every `every` seconds or so, turning over `seconds` to one of `turns`
+// degrees either side of the viewer, its legs over the front of what it sits on or a little to one side, or back to the way its seat faces,
+// as along the edge at a corner; so it is never turned further round than its seat
+export const SEAT_SHIFT = {every: [8, 20], seconds: 1.2, turns: [-20, -10, 0, 10, 20]};
+
+// the ways a figure on a seat facing `face` may sit, in degrees
+export const seatFacings = (face) => [...new Set([face, ...SEAT_SHIFT.turns.map((turn) => (turn + 360) % 360)])];
+
+// The shift `shift` ({face, from, to, since, next}) of a figure seated facing `face` at `now`: kept until its time is up, then the next,
+// drawn with `random`, from the way it sits now; a new seat starts from the way it faces
+export function shiftAfter(shift, face, now, random) {
+    const same = shift?.face === face;
+    if (same && now < shift.next) return shift;
+    const facings = seatFacings(face);
+    const every = SEAT_SHIFT.every[0] + random() * (SEAT_SHIFT.every[1] - SEAT_SHIFT.every[0]);
+    return {face, from: same ? shiftedFacing(shift, now) : face, to: facings[Math.floor(random() * facings.length)], since: now, next: now + every};
+}
+
+// the way a figure shifting on its seat by `shift` faces at `now`, in degrees, eased the short way round from where it sat to where it turns
+export function shiftedFacing(shift, now) {
+    const share = Math.min(1, Math.max(0, (now - shift.since) / SEAT_SHIFT.seconds));
+    const turn = ((((shift.to - shift.from + 180) % 360) + 360) % 360) - 180;
+    return (shift.from + turn * share * share * (3 - 2 * share) + 360) % 360;
+}
+
 // Where the figure sits at home: on a corner of the edge it stands on, beside the pile (freeEdge), whose seat is inside its world and hides
 // nothing, the one nearest `near`; null when neither corner holds a seat
 export function seatOf(figure, near) {

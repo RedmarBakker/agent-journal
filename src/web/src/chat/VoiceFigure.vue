@@ -98,6 +98,8 @@ import {
     spotOf,
     SEATED,
     seatedFacing,
+    shiftAfter,
+    shiftedFacing,
     tripTo,
     turnStep,
 } from "../figure/places.js";
@@ -106,7 +108,7 @@ import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
-import {MESSAGE_SECONDS, WALKING, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
+import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -440,7 +442,7 @@ function step() {
     shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
     const seconds = performance.now() / 1000;
     headTilt = tiltAfter(headTilt, seconds, Math.random);
-    player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, posed.facing, {
+    player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, shiftedOnSeat(shown, seconds), {
         posture: drawn,
         eyes: look.eyes,
         stride,
@@ -478,6 +480,14 @@ function endAct(shown) {
     else beats.value = playedFrom(beats.value, shown.clip.name);
     playing = {name: "", started: 0, shown: null, index: 0, closing: null};
     return step();
+}
+
+// The way the figure is drawn facing at `now`: as it is posed, but sitting settled on an edge, not turned aside at its laptop, it shifts on
+// its seat now and then (places.js shiftAfter)
+let seatShift = null;
+function shiftedOnSeat(shown, now) {
+    seatShift = posed.posture === "sit" && !posed.turning && !shown.clip.aside ? shiftAfter(seatShift, posed.facing, now, Math.random) : null;
+    return seatShift ? shiftedFacing(seatShift, now) : posed.facing;
 }
 
 // The posture and facing the figure is drawn in, on its way to those of the clip on screen, `target`, through standing whenever it turns
@@ -1337,10 +1347,11 @@ function haltAfter() {
     halt = null;
 }
 
-// the figure's own idle glance, now and then to one side of its head (looks.js glanceAfter), while it lasts, or null
+// the figure's own idle glance, now and then to one side of its head, or seated a little to one side or at the viewer (looks.js glanceAfter),
+// while it lasts, or null
 let glance = null;
 function glanceLook() {
-    glance = glanceAfter(glance, now.value, Math.random);
+    glance = glanceAfter(glance, now.value, Math.random, drawn === "sit" ? SEATED_GLANCE : GLANCE);
     return glancePoint(glance, now.value, headCenter(), SIZE);
 }
 

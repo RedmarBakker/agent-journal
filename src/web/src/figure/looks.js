@@ -61,18 +61,21 @@ export const haltsWalk = (look) => look?.kind === "said";
 // whether the figure, its halt over, goes over to the message it halted for rather than on its way, drawn with `random`
 export const visitsAfterHalt = (random) => random() < LOOKS.said / (LOOKS.said + WALKING.purpose);
 
-// The figure's own idle glances: every `every` seconds or so, a glance of `lasts` seconds to a point `aside` of its picture to one side
-// of its head and `up` of it above, as shares of the picture
-export const GLANCE = {every: [6, 14], lasts: 1.6, aside: 0.9, up: 0.12};
+// The figure's own idle glances: every `every` seconds or so, a glance of `lasts` seconds to a point `aside` of its picture to one of
+// `sides` of its head (0 straight out of the page, at the viewer) and `up` of it above, as shares of the picture; seated it glances
+// less far, a little to one side or at the viewer
+export const GLANCE = {every: [6, 14], lasts: 1.6, aside: 0.9, up: 0.12, sides: [-1, 1]};
+export const SEATED_GLANCE = {every: [4, 10], lasts: 2.4, aside: 0.2, up: 0.04, sides: [-1, 0, 1]};
 
-// The glance `glance` ({at, side}, `at` the seconds it begins) as it is at `now`: kept until it is over, then the next drawn with `random`
-export function glanceAfter(glance, now, random) {
-    if (glance && now < glance.at + GLANCE.lasts) return glance;
-    return {at: now + GLANCE.every[0] + random() * (GLANCE.every[1] - GLANCE.every[0]), side: random() < 0.5 ? -1 : 1};
+// The glance `glance` ({at, side, kind}, `at` the seconds it begins) as it is at `now`: kept until it is over, then the next of `kind`,
+// GLANCE or SEATED_GLANCE, drawn with `random`
+export function glanceAfter(glance, now, random, kind) {
+    if (glance && now < glance.at + glance.kind.lasts) return glance;
+    return {at: now + kind.every[0] + random() * (kind.every[1] - kind.every[0]), side: kind.sides[Math.floor(random() * kind.sides.length)], kind};
 }
 
 // the point a glance looks at `now` beside a head at `head` on the page, in a picture `size` pixels high, or null outside it
 export function glancePoint(glance, now, head, size) {
-    if (!glance || now < glance.at || now >= glance.at + GLANCE.lasts) return null;
-    return {x: head.x + glance.side * GLANCE.aside * size, y: head.y - GLANCE.up * size};
+    if (!glance || now < glance.at || now >= glance.at + glance.kind.lasts) return null;
+    return {x: head.x + glance.side * glance.kind.aside * size, y: head.y - glance.kind.up * size};
 }
