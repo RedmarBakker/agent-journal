@@ -5011,6 +5011,25 @@ def test_a_commit_trailer_of_an_old_head_or_a_closed_task_closes_nothing(app: Ap
     assert app.container.get(Tasks).find(1).state == "done" and app.container.get(Tasks).find(2).state == "paused"
 
 
+def test_a_commit_made_in_a_linked_worktree_closes_the_tasks_it_names_once(app: App):
+    import subprocess
+    from journal.repositories.tasks import Tasks
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "-b", "trunk")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    linked = root / ".claude" / "worktrees" / "main"
+    git("worktree", "add", "-q", str(linked), "-b", "worktree-main")
+    hook(app, "SessionStart")
+    app.console().run(["task", "create", "the parser", "--start"], AGENT)
+    git("commit", "-q", "--allow-empty", "-m", "the parser\n\nJournal: tasks done 1", cwd=linked)
+    command = dict(tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})
+    first = json.dumps(hook(app, "PostToolUse", **command)[1])
+    assert app.container.get(Tasks).find(1).state == "done", "a commit in the linked worktree closes the task its message names"
+    again = json.dumps(hook(app, "PostToolUse", **command)[1])
+    assert "closed task 1" in first and "closed task 1" not in again, "the same commit noticed twice closes it once"
+
+
 def test_a_task_a_worker_holds_is_never_closed_by_a_hand_merge_or_a_trailer(app: App, monkeypatch):
     import subprocess
     from journal.features.workers.support.worker_runner import WorkerRunner
@@ -6258,7 +6277,7 @@ def test_the_viewer_lists_an_environments_worktree_with_its_branch(app: App):
     assert [(r["name"], r["worktree"]) for r in rows] == [("main", ""), ("calm-river", "worktree on worktree-calm-river")]
 
 
-def test_a_commit_made_in_a_worktree_closes_its_task_when_a_merge_lands_it_and_never_twice(app: App):
+def test_a_commit_made_in_a_worktree_closes_its_task_at_once_and_the_merge_that_lands_it_closes_nothing_twice(app: App):
     import subprocess
     from journal.repositories.tasks import Tasks
     from journal.repositories.scope import Scope
@@ -6280,11 +6299,11 @@ def test_a_commit_made_in_a_worktree_closes_its_task_when_a_merge_lands_it_and_n
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m 'the page'"}, tool_response={})
     state = lambda: app.container.get(Tasks).find(1).state.value
     with app.container.get(Scope).environment(1):
-        assert state() != "done", "a commit made in the worktree closes nothing before it lands"
+        assert state() == "done", "a commit made in the worktree closes the task its trailer names"
     git("merge", "-q", "worktree-main")
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git merge worktree-main"}, tool_response={})
     with app.container.get(Scope).environment(1):
-        assert state() == "done", "the merge that lands it closes the task its trailer names"
+        assert state() == "done", "the merge that lands it leaves it closed"
     git("merge", "-q", "worktree-main")
     status, _ = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git merge worktree-main"}, tool_response={})
     assert status == 200, "a merge that brings nothing new closes nothing twice"
