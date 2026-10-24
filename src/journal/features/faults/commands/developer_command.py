@@ -7,7 +7,9 @@ from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.features.faults.support.thread_sampler import ThreadSampler
 from journal.http.journal.answer_time import AnswerTime
 from journal.models.timing import Timing
+from journal.repositories.query_plans import QueryPlans
 from journal.support.caller import Caller
+from journal.support.query_times import QueryTimes
 
 TOP = 10
 PROFILE_SECONDS = 20.0
@@ -20,8 +22,8 @@ class DeveloperCommand(Command):
 
     noun = "developer"
 
-    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler) -> None:
-        self.numbers, self.sampler = numbers, sampler
+    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans) -> None:
+        self.numbers, self.sampler, self.statements, self.plans = numbers, sampler, queries, plans
 
     def arguments(self, verbs) -> None:
         slowest = self.verb(verbs, "slowest", "the routes of the rolling log grouped, the slowest group first, a page at a time: each with its worst and typical time and how many were logged")
@@ -32,6 +34,8 @@ class DeveloperCommand(Command):
         self.verb(verbs, "loads", "the newest requests with the records each read, by kind, while load counting is on")
         self.verb(verbs, "models", "the records read per kind since the last reset")
         self.verb(verbs, "averages", "the average and slowest time of hooks, requests, each kind of hook and, while stage timing is on, each stage of a hook")
+        queries = self.verb(verbs, "queries", "the SQL statements that took the most time since the last reset, each with its runs and times and the steps of its query plan that read a whole table or sort")
+        queries.add_argument("--count", type=int, default=TOP, help="how many statements")
         self.verb(verbs, "reset", "clear the times, the rolling log and the counts")
         profile = self.verb(verbs, "profile", "watch every thread of the server for a while and print where its time goes, the busiest functions first")
         profile.add_argument("seconds", type=float, nargs="?", default=PROFILE_SECONDS, help=f"how long to watch, at most {PROFILE_LIMIT_SECONDS:.0f} seconds")
@@ -87,8 +91,16 @@ class DeveloperCommand(Command):
     def shares(places, sample_count: int) -> list[str]:
         return [f"{100 * count / sample_count:5.1f}%  {place}" for place, count in places.most_common(PROFILE_LINES)]
 
+    def queries(self, args: Namespace, caller: Caller) -> int:
+        for query in self.statements.slowest(args.count):
+            print(query.line())
+            for step in QueryPlans.slow_steps(self.plans.steps(query)):
+                print(f"    {step}")
+        return 0
+
     def reset(self, args: Namespace, caller: Caller) -> int:
         self.numbers.reset(caller.actor)
+        self.statements.clear()
         print("the times, the rolling log and the counts are cleared")
         return 0
 

@@ -23,11 +23,11 @@ class CommentController(Controller[Message]):
         self.repository, self.links, self.references = messages, links, rows
 
     def rows(self) -> list[Message]:
-        enabled = self.repository.linked(Messages.COMMENT_LINK)
+        enabled = self.repository.table_links(Messages.COMMENT_LINK)
         return self.repository.comments(tuple(enabled)) if enabled else []
 
     def shown_page(self, rows: list[Message]) -> list[dict]:
-        enabled = self.repository.linked(Messages.COMMENT_LINK)
+        enabled = self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows])
         return [{**ModelFields.build(m), "on": [str(ref) for ref in enabled.get(m.row_id, [])]} for m in rows]
 
     def store(self, request: Request) -> Response:

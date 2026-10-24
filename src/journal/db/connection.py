@@ -1,5 +1,6 @@
 import sqlite3
 import threading
+import time
 import weakref
 from contextlib import contextmanager
 from pathlib import Path
@@ -8,14 +9,15 @@ from typing import Callable, Iterator
 from journal.db.empty_result import EmptyResult
 from journal.db.row_cache import RowCache
 from journal.support.masks import Masks
+from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 
 
 class Connection:
     """The one place SQL is executed, a secret value masked out of every text it writes. Each thread reads on a sqlite connection leased from a pool, returned with release() or, by any thread that never says so, once the thread is gone, so no thread that ends leaves one open; writes take the one lock, so the threaded server never contends. Reads of rows may be answered from the row cache, which every write and every commit of a table moves on, and a rolled-back transaction clears."""
 
-    def __init__(self, path: Path, masks: Masks, stages: StageTimes) -> None:
-        self.path, self.masks, self.stages = path, masks, stages
+    def __init__(self, path: Path, masks: Masks, stages: StageTimes, queries: QueryTimes) -> None:
+        self.path, self.masks, self.stages, self.queries = path, masks, stages, queries
         self._threads = threading.local()
         self._writing = threading.RLock()
         self._pooling = threading.Lock()
@@ -36,10 +38,10 @@ class Connection:
             self._free.append(local)
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        return self._local().execute(sql, self.masks.masked(params))
+        return self.timed(sql, params, lambda cursor: cursor)
 
     def one(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
-        return self.execute(sql, params).fetchone()
+        return self.timed(sql, params, lambda cursor: cursor.fetchone())
 
     def result(self, sql: str, params: tuple = ()) -> sqlite3.Row:
         row = self.one(sql, params)
@@ -48,7 +50,17 @@ class Connection:
         return row
 
     def all(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        return self.execute(sql, params).fetchall()
+        return self.timed(sql, params, lambda cursor: cursor.fetchall())
+
+    def timed(self, sql: str, params: tuple, cursor_reader: Callable[[sqlite3.Cursor], object]):
+        began = time.perf_counter()
+        try:
+            return cursor_reader(self._local().execute(sql, self.masks.masked(params)))
+        finally:
+            self.queries.add(sql, params, time.perf_counter() - began)
+
+    def plan(self, sql: str, params: tuple) -> list[str]:
+        return [row["detail"] for row in self._local().execute(f"EXPLAIN QUERY PLAN {sql}", self.masks.masked(params)).fetchall()]
 
     def cached(self, tables: tuple[str, ...], sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
         return self.cache.rows(tables, (sql, params), lambda: self.loaded_rows(tables[0], sql, params, reader))

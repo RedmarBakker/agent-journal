@@ -19,5 +19,5 @@ class ReactionController(Controller[Reaction]):
         return Counts(all=all_items, open=all_items, unread=self.repository.authored(Author.AGENT))
 
     def shown_page(self, rows: list[Reaction]) -> list[dict]:
-        enabled = self.repository.linked(REACTS)
+        enabled = self.repository.linked(REACTS, [r.row_id for r in rows])
         return [{**ModelFields.build(r), "message_id": enabled[r.id][0].id if r.id in enabled else None} for r in rows]

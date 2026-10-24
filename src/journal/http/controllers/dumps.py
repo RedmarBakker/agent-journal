@@ -22,7 +22,7 @@ class DumpController(Controller[Dump]):
         return not row.is_completed
 
     def shown_page(self, rows: list[Dump]) -> list[dict]:
-        filed = self.repository.linked_rows()
+        filed = self.repository.linked_rows(d.row_id for d in rows)
         return [{**ModelFields.build(d), "filed": list(dict.fromkeys(str(ref) for ref in filed.get(d.row_id, [])))} for d in rows]
 
     def store(self, request: Request) -> Response:

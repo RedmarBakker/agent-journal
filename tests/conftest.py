@@ -1,3 +1,4 @@
+from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 import os
 import shutil
@@ -57,7 +58,7 @@ def stand_ins(request):
 
 @pytest.fixture
 def connection(tmp_path: Path) -> Connection:
-    connection = Connection(tmp_path / "journal.db", Masks(SecretValues(Config(tmp_path))), StageTimes())
+    connection = Connection(tmp_path / "journal.db", Masks(SecretValues(Config(tmp_path))), StageTimes(), QueryTimes())
     Schema(connection, AllModels.MODELS).create()
     yield connection
     connection.close()

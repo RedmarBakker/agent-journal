@@ -39,7 +39,7 @@ class TaskController(Controller[Task]):
         return Counts(all=self.repository.count(), open=self.repository.unfinished_count(), unread=self.repository.unviewed())
 
     def shown_page(self, rows: list[Task]) -> list[dict]:
-        plans, holders, waits = self.repository.linked(PLAN_LINK), self.workers.containing({t.row_id for t in rows}), self.repository.open_wait_refs(rows)
+        plans, holders, waits = self.repository.linked(PLAN_LINK, [t.row_id for t in rows]), self.workers.containing({t.row_id for t in rows}), self.repository.open_wait_refs(rows)
         task_holders, todos, proofs = self.repository.holders(), self.todos.task_lists({t.row_id for t in rows}), self.proofs.grouped({t.row_id for t in rows})
         return [{**ModelFields.build(t), "plan_id": plans[t.row_id][0].id if t.row_id in plans else None, "worker_id": holders[t.row_id].id if t.row_id in holders else None,
                  "waits": [str(ref) for ref in waits.get(t.row_id, [])], "held_by": self.task_holders.name(task_holders[t.row_id]) if t.row_id in task_holders else "",

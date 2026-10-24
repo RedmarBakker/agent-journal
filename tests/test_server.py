@@ -16,6 +16,8 @@ from journal.engine.support.session_agents import SessionAgents
 from journal.config import Config
 from journal.support.actor import Actor
 from journal.repositories.entries import Entries
+from journal.repositories.query_plans import QueryPlans
+from journal.support.query_times import QueryTimes
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from tests.main_journal import main_journal
@@ -358,6 +360,32 @@ def test_the_main_chat_and_a_workers_chat_each_page_their_own_rows(app: App, ser
         if got["is_last_page"]:
             break
     assert [r["text"] for r in worker] == [f"step {i}" for i in range(600)], "the worker's chat pages back to its first row"
+
+
+def test_the_reads_of_the_chat_page_and_of_a_hook_find_their_messages_and_entries_by_an_index(tmp_path: Path):
+    """No statement on messages or entries that the chat page or a tool's hooks run reads the whole table or sorts in a temporary tree, as SQLite plans them."""
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    unowed(app)
+    server = app.server()
+    hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
+    def hook(kind, **extra):
+        urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
+    try:
+        hook("SessionStart")
+        call(server, "POST", "/journal/messages", {"text": "hello agent"})
+        times = app.container.get(QueryTimes)
+        times.clear()
+        hook("PreToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_use_id="t-1")
+        hook("PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "a"}, tool_use_id="t-1")
+        assert call(server, "GET", "/journal/messages?limit=60")[0] == 200
+        plans = app.container.get(QueryPlans)
+        statements = [query for query in times.slowest(500) if re.search(r"FROM (messages|entries)\b", query.sql)]
+        assert statements, "the hooks and the page read messages and entries"
+        slow = {query.sql: steps for query in statements if (steps := QueryPlans.slow_steps(plans.steps(query)))}
+        assert slow == {}, slow
+    finally:
+        app.runtime().stop()
 
 
 def test_a_shell_calls_parts_are_its_terminal_lines_with_the_output_the_shell_kept(tmp_path: Path):

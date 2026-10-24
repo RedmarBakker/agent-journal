@@ -1,6 +1,6 @@
 from dataclasses import fields
 from datetime import datetime, timezone
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, Iterable, TypeVar
 
 from journal.models.support.column import Column
 from journal.repositories.load_tally import LoadTally
@@ -78,15 +78,18 @@ class Repository(Generic[M]):
         self._purged(query)
         self.bus.dispatch(Purged(model=model, ids=ids, actor=actor))
 
-    def linked(self, kind: str) -> dict[int, list[Ref]]:
-        return self._linked(self.link_query.filter(kind=kind))
+    def linked(self, kind: str, ids: Iterable[int]) -> dict[int, list[Ref]]:
+        return self._linked(self.link_query.filter(kind=kind).filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
 
-    def linked_rows(self) -> dict[int, list[Ref]]:
-        return self._linked(self.link_query)
+    def linked_rows(self, ids: Iterable[int]) -> dict[int, list[Ref]]:
+        return self._linked(self.link_query.filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
+
+    def table_links(self, kind: str) -> dict[int, list[Ref]]:
+        return self._linked(self.link_query.filter(kind=kind).filter_prefix("source", f"{self.table}:"))
 
     def _linked(self, query: Query) -> dict[int, list[Ref]]:
         rows: dict[int, list[Ref]] = {}
-        for link in self.connection.all(*query.filter_prefix("source", f"{self.table}:").order("id").select()):
+        for link in self.connection.all(*query.order("id").select()):
             targets = rows.setdefault(Ref.parse(link["source"]).id, [])
             if (target := Ref.parse(link["target"])) not in targets:
                 targets.append(target)
