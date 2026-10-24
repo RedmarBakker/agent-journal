@@ -1,9 +1,26 @@
+import {rows} from "../sync/rows.js";
+
 const transformers = [];
+// the renders kept, newest last, each with the rows it read, so a text drawn again is scanned once until one of them changes
+const RENDERS_KEPT = 2000;
+const renders = new Map();
 
 export function register(fn, {first = false} = {}) {
     if (first) transformers.unshift(fn);
     else transformers.push(fn);
+    renders.clear();
 }
+
+// a row a transformer shows, read through the render so a kept render is drawn again once the store holds a new copy of it
+export function rowOf(context, table, id) {
+    const row = rows(table).find((r) => r.id === id);
+    context.reads?.push({table, id, row});
+    return row;
+}
+
+const isCurrent = (read) => rows(read.table).find((r) => r.id === read.id) === read.row;
+
+const renderKey = (text, context) => [context.env ?? "", context.inline ? "inline" : "block", context.rowNames === false ? "plain" : "names", text].join("\u0000");
 
 export function escape(text) {
     return String(text ?? "")
@@ -150,8 +167,19 @@ function markdown(text) {
 }
 
 export function render(text, context = {env: ""}) {
-    return transformed(text, context)
+    const key = renderKey(text, context);
+    const kept = renders.get(key);
+    renders.delete(key);
+    if (kept && kept.reads.every(isCurrent)) {
+        renders.set(key, kept);
+        return kept.html;
+    }
+    const reads = [];
+    const html = transformed(text, {...context, reads})
         .map((b) => (b.kind === "text" ? markdown(b.text) : b.html))
         .filter(Boolean)
         .join("");
+    renders.set(key, {html, reads});
+    if (renders.size > RENDERS_KEPT) renders.delete(renders.keys().next().value);
+    return html;
 }

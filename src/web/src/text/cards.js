@@ -1,6 +1,5 @@
 import {withoutChips} from "./words.js";
-import {escape, register} from "./index.js";
-import {rows} from "../sync/rows.js";
+import {escape, register, rowOf} from "./index.js";
 import {meta, tableOfWord} from "../domain/tables.js";
 import {bodyOf, titleOf} from "../domain/row.js";
 import "./cards.css";
@@ -16,20 +15,20 @@ function alone(text) {
     return table ? {at: plain.index, length: plain[0].length, table, id: Number(plain[2]), label: plain[0]} : null;
 }
 
-function card(table, id, label) {
-    const row = rows(table).find((r) => r.id === id);
+function card(table, id, label, context) {
+    const row = rowOf(context, table, id);
     const title = withoutChips(row ? titleOf(row) : label);
     const line = row ? withoutChips(bodyOf(row).split("\n")[0]).slice(0, 160) : "";
     return `<a class="row-card" href="#" data-peek="${table}:${id}"><span class="row-card-kind">${escape(meta(table).title)} ${id}</span><span class="row-card-title">${escape(title)}</span>${line ? `<span class="row-card-line">${escape(line)}</span>` : ""}</a>`;
 }
 
 register(
-    (text) => {
+    (text, context) => {
         const found = alone(text);
         if (!found) return null;
         return [
             {kind: "text", text: text.slice(0, found.at)},
-            {kind: "html", html: card(found.table, found.id, found.label)},
+            {kind: "html", html: card(found.table, found.id, found.label, context)},
             {kind: "text", text: text.slice(found.at + found.length)},
         ];
     },

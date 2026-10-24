@@ -1,7 +1,6 @@
-import {escape, register} from "./index.js";
+import {escape, register, rowOf} from "./index.js";
 import {api} from "../api/client.js";
 import {isPicture} from "../format/files.js";
-import {rows} from "../sync/rows.js";
 import {meta, tableOfWord} from "../domain/tables.js";
 import "./cards.css";
 
@@ -12,7 +11,7 @@ function attachment(text, context) {
     const found = ATTACHMENT.exec(text);
     const [, markedType, markedNumber, word, number, name] = found || [];
     const table = found && tableOfWord(markedType || word);
-    const row = table && rows(table).find((r) => r.id === Number(markedNumber || number));
+    const row = table && rowOf(context, table, Number(markedNumber || number));
     if (!row || !(row.files || []).includes(name)) return null;
     const url = api.in(context.env).fileUrl(table, row.id, name);
     const label = `${meta(table).title} ${row.id} · ${escape(name)}`;
