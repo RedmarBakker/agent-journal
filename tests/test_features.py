@@ -15,6 +15,7 @@ import pytest
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
+from journal.events.announcer import Announcer
 from journal.providers.claude import Claude
 from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.tool_call import ToolCall
@@ -6961,6 +6962,7 @@ def test_a_command_left_running_by_a_restart_is_ended_as_cut_off_at_boot(app: Ap
     folder = app.config.root / "chain"
     folder.mkdir()
     (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("make")
     app.container.get(OutputLog).start("chain", "make all", folder, Caller.agent("main", "s1", "claude"))
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
@@ -6972,6 +6974,7 @@ def test_a_command_left_running_by_a_restart_is_ended_as_cut_off_at_boot(app: Ap
     foreground = app.config.root / "foreground"
     foreground.mkdir()
     (foreground / "parts").write_text("R-\n")
+    (foreground / "0.part").write_text("make")
     app.container.get(OutputLog).start("foreground", "ssh host check", foreground, Caller.agent("main", "s1", "claude"))
     app.container.get(CutOffOutputs).run()
     assert outputs.find(2).ended and outputs.active_outputs(1, "") == [], "a command cut off in the foreground is ended too, so no restart ever waits on it"
@@ -7095,6 +7098,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_com
     outputs.save(outputs.find(2).backgrounded(), Actor.system())
     assert app.console().run(["output", "watch", "2", "--reader", "pytest"], AGENT).code == 0
     outputs.save(outputs.find(2).ended_with(0, 1.0), Actor.system())
+    from journal.chat.process_cards import ProcessCards
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.repositories.messages import Messages
     app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).mark(outputs.find(2)))
@@ -8436,6 +8440,7 @@ def test_output_status_says_running_finished_or_failed_and_lists_the_background_
         folder = app.config.root / chain
         folder.mkdir()
         (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("make")
         if status is not None:
             (folder / "0.status").write_text(status)
         log.start(chain, f"make {chain}", folder, Caller.agent("main", "s1", "claude"))
@@ -8511,10 +8516,12 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     (folder / "0.out").write_text("collecting\nFAILED test_b\n[100%] test_d\n")
     outputs.save(outputs.find(1).ended_with(0, 0.0), Actor.system())
     deferred.drain()
-    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
-    deferred.drain()
-    ended = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
-    assert "which you watched, finished" in ended and "the tests 100%" in ended, "the end is said once, with the last view"
+    said = []
+    for _ in range(3):
+        said.append(json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]))
+        deferred.drain()
+    ended = [line for line in said if "which you watched, finished" in line]
+    assert len(ended) == 1 and "the tests 100%" in ended[0], "the end is said once, with the last view"
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Messages).with_key("watch:1")[0].data["tone"] == "good", "its card turns green once the run finished"
     deferred.drain()
@@ -8525,6 +8532,7 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
 def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_user_docked_it(app: App):
     """With Dock live outputs on, a watched run's card is docked as it goes live and taken down once it ends; a card docked by hand stays; off, nothing docks."""
     from journal.chat.docking import Docking
+    from journal.chat.process_cards import ProcessCards
     from journal.features.shell.support.output_log import OutputLog
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.repositories.command_outputs import CommandOutputs
@@ -10491,7 +10499,7 @@ def test_the_team_chat_holder_pushes_its_quiet_files_and_another_machine_takes_t
         pushed = git("ls-tree", "--name-only", "journal/team-chat", cwd=remote)
         assert "plan.txt" in pushed and "secret.env" not in pushed, "quiet files are committed and pushed, never an ignored one"
 
-        follower = TeamChatBranch(dataclasses.replace(app.config, root=clone), account, app.container.get(Environments), app.container.get(MomentCards), app.container.get(SyncStatus))
+        follower = TeamChatBranch(dataclasses.replace(app.config, root=clone), account, app.container.get(Environments), app.container.get(Announcer), app.container.get(SyncStatus))
         follower.pull()
         copy = Worktree(clone, TEAM_CHAT).path
         assert (copy / "plan.txt").read_text() == "the agent's work\n", "another machine's worktree of the Team chat takes the holder's files"

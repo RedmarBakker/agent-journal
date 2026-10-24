@@ -1,5 +1,3 @@
-import threading
-
 from journal.chat.card_detail import CardDetail
 from journal.chat.card_category import CardCategory
 from journal.chat.process_mark import ProcessMark
@@ -16,25 +14,19 @@ DOCK_TIME_KEY = "dock_at"
 
 
 class ProcessCards:
-    """Writes every process card: one message per process, found again by its key and updated in place, written under a lock of its own key so two shows of one card at once never make two while other cards are written meanwhile, its data naming the process card class that refreshes it and whether its process still runs."""
+    """Writes every process card: one message per process, found again by its key and updated in place, found and written in one transaction so two shows of one card at once never make two, its data naming the process card class that refreshes it and whether its process still runs."""
 
     def __init__(self, messages: Messages, agents: Agents) -> None:
         self.messages, self.agents = messages, agents
-        self.key_locks: dict[str, threading.Lock] = {}
-        self.key_locks_lock = threading.Lock()
 
     def show(self, mark: ProcessMark) -> Message:
         data = {"row": "", **mark.data, **CardDetail.parts(mark.detail), **CardCategory.read(mark.label).fields(), "key": mark.key, "shows": str(mark.shows), "card_type": PROCESS, "process": mark.process, "active": mark.active}
-        with self.key_lock(mark.key):
+        with self.messages.writing():
             older = self.messages.keyed(mark.key, mark.actor)
             if older:
                 return self.messages.save(older[0].with_(text=mark.label, session=mark.session or older[0].session, data=self.docked_data(older[0], data)), mark.actor)
             roles = self.agents.session_roles(mark.session) if mark.session else []
             return self.messages.save(Message(environment_id=mark.environment_id, author=Author.SYSTEM, session=mark.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=mark.label, data=data), mark.actor)
-
-    def key_lock(self, key: str) -> threading.Lock:
-        with self.key_locks_lock:
-            return self.key_locks.setdefault(key, threading.Lock())
 
     def show_recent(self, mark: ProcessMark) -> Message:
         older = self.messages.keyed(mark.key, mark.actor)

@@ -143,7 +143,10 @@ class Raising(AgentListener[ToolStarting]):
 def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     from journal.hooks.receiver import GUARD_FAILED
     from journal.repositories.messages import Messages
+    from journal.events.moments.fault_moment import FaultMoment
+    from journal.features.faults.listeners.fault_cards import FaultCards
     app.container.get(Bus).listen(ToolStarting, Raising())
+    app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
     assert status == 200 and "a guard failed and let this through: Raising raised RuntimeError: the guard broke" in body["hookSpecificOutput"]["additionalContext"], "the tool runs and the agent is told"
     failed = [e for e in app.container.get(Entries).scoped() if e.kind == GUARD_FAILED]
@@ -201,6 +204,9 @@ def test_every_way_into_the_console_checks_a_workers_kind(app: App):
     from journal.support.worker_token import WorkerToken
     with app.container.get(Scope).environment(1):
         worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", token_hash=WorkerToken.hashed("tok")), Actor.system())
+    from journal.events.moments.row_docked import RowDocked
+    from journal.features.pins.listeners.docked_row_card import DockedRowCard
+    app.container.get(Bus).listen(RowDocked, app.container.get(DockedRowCard))
     console = app.console()
     assert console.run(["alias", "add", "greet", "echo hello"], Caller.user("main")).code == 0
     assert console.run(["task", "create", "the parser"], Caller.user("main")).code == 0

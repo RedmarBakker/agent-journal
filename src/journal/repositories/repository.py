@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from dataclasses import fields
 from datetime import datetime, timezone
 from typing import Callable, Generic, Iterable, TypeVar
@@ -133,6 +134,11 @@ class Repository(Generic[M]):
 
     def scoped_page(self, limit: int, previous: int | None = None) -> list[M]:
         return self.page(limit, previous)
+
+    @contextmanager
+    def writing(self):
+        with self.connection.transaction():
+            yield
 
     def save(self, row: M, actor: Actor) -> M:
         with self.connection.transaction():
