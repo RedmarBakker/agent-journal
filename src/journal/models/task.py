@@ -8,6 +8,7 @@ from journal.events.rows.task_briefed import TaskBriefed
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
+from journal.events.rows.task_released import TaskReleased
 from journal.events.rows.task_wait_ended import TaskWaitEnded
 from journal.events.rows.task_delegated import TaskDelegated
 from journal.events.rows.task_started import TaskStarted
@@ -85,7 +86,7 @@ class Task(Scoped):
         return self.with_(state=TaskState.DELEGATED, started_at=self.started_at or time, pause_reason="", block_reason="").with_event(event)
 
     def released(self, time: float) -> "Task":
-        return self.unblocked("its worker let it go", time)
+        return self.with_(state=TaskState.OPEN, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
 
     def paused(self, reason: str, time: datetime) -> "Task":
         if self.state != TaskState.STARTED:

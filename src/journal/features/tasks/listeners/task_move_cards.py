@@ -4,6 +4,7 @@ from journal.events.listener import Listener
 from journal.events.rows.row_event import RowEvent
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
+from journal.events.rows.task_released import TaskReleased
 from journal.events.rows.task_started import TaskStarted
 from journal.models.support.ref import Ref
 from journal.models.task_state import TaskState
@@ -24,7 +25,7 @@ MOVES = {
 
 
 class TaskMoveCards(Listener[RowEvent]):
-    """A task started, resumed, finished, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task and why it moved."""
+    """A task started, resumed, finished, paused, blocked or unblocked is one small mark in the chat, as a filed one is, naming the task and why it moved; a task given back by its worker is named by the worker's own mark instead."""
 
     def __init__(self, cards: MomentCards, tasks: Tasks, scope: Scope) -> None:
         self.cards, self.tasks, self.scope = cards, tasks, scope
@@ -34,7 +35,7 @@ class TaskMoveCards(Listener[RowEvent]):
             self.show_move(event, "resumed" if event.prior_state == TaskState.PAUSED else "started", "")
         if isinstance(event, TaskClosed) and event.outcome in MOVES:
             self.show_move(event, event.outcome, "")
-        if isinstance(event, TaskReopened):
+        if isinstance(event, TaskReopened) and not isinstance(event, TaskReleased):
             self.show_move(event, "unblocked", event.reason)
 
     def show_move(self, event: TaskStarted | TaskClosed | TaskReopened, move: str, reason: str) -> None:

@@ -7882,9 +7882,9 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     assert merged.code == 0 and "it went straight on to task 2 from its queue" in merged.text, merged.error or merged.text
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).state == TaskState.DELEGATED, "the merge sends the worker its next queued task by itself; the one after waits"
-    given = console.run(["worker", "unqueue", "1"], AGENT)
+    given = console.run(["worker", "drain", "1"], AGENT)
     with app.container.get(Scope).environment(MAIN):
-        assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "unqueue gives back what waits, never the task in hand"
+        assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "drain gives back what waits, never the task in hand"
     with app.container.get(Scope).environment(MAIN):
         workers.save(workers.find(1).with_(state=WorkerState.STOPPED), Actor.system())
     assert console.run(["worker", "release", "1"], AGENT).code == 0
@@ -11925,3 +11925,23 @@ def test_a_test_run_piped_into_a_filter_is_refused_and_a_whole_run_or_another_pi
         assert status == 409 and "hides the lines its reader reads" in body["error"] and "journal suite" in body["error"], line
     for line in ("python3 -m pytest -q tests/x.py", "git log --oneline | head -3", "npm test | tee out.txt", "grep -n 'a|b' src/x.py"):
         assert bash(line)[0] == 200, line
+
+
+def test_draining_a_worker_queue_writes_one_mark_and_no_unblocked_mark_per_task(app: App, monkeypatch):
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.messages import Messages
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the notes", "--brief", "the notes are written"], AGENT)
+    console.run(["worker", "dispatch", "Mr. Babbage", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    for title in ("the docs", "the help page", "the index"):
+        console.run(["task", "create", title], AGENT)
+    console.run(["worker", "queue", "1", "2", "3", "4"], AGENT)
+    drained = console.run(["worker", "drain", "1"], AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        texts = [m.text for m in app.container.get(Messages).all()]
+    assert "task 2, task 3, task 4 given back" in drained.text, drained.error
+    assert sum("its queue given back" in text for text in texts) == 1, "one mark for the whole queue"
+    assert not [text for text in texts if text.startswith("Unblocked task")], "a task given back was never blocked, so no Unblocked mark"
