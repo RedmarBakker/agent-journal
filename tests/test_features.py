@@ -9283,6 +9283,7 @@ def test_a_command_run_in_the_background_that_no_reader_reads_is_owed_a_reader_c
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
     from journal.repositories.command_outputs import CommandOutputs
+    from journal.models.command_output import CommandOutput
     console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
@@ -9302,6 +9303,9 @@ def test_a_command_run_in_the_background_that_no_reader_reads_is_owed_a_reader_c
     output = app.container.get(CommandOutputs).find(int(re.search(r"output (\d+)", again).group(1)))
     assert output.is_watched and output.watch_reader == "naps", "the next run moves at once and is watched through its reader"
     assert "reader due" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a command a reader reads is never asked for again"
+    outputs = app.container.get(CommandOutputs)
+    outputs.save(CommandOutput(environment_id=output.environment_id, chain="j", command="journal sins --changes", session=output.session, folder=output.folder, moved=True), Actor.system())
+    assert "reader due" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a journal command run in the background is never owed a reader"
 
 
 def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_waits_its_foreground_limit(app: App):
