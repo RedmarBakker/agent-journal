@@ -1,4 +1,4 @@
-import {expect, test} from "vitest";
+import {expect, test, vi} from "vitest";
 import {createApp, h, ref} from "vue";
 import {settle} from "./settle.js";
 
@@ -102,5 +102,23 @@ test("words put in without an input event are read from the box on coming back t
     box.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}));
     await settle();
     expect(sent).toEqual(["dictated words"]);
+    unmount();
+});
+
+test("files attached with no words are sent, and the send button is ready for them", async () => {
+    const send = vi.fn();
+    const {box, unmount} = await mounted(ref({send}));
+    const form = box.closest("form");
+    const picture = new File(["png"], "image.png", {type: "image/png"});
+    const drop = new Event("drop", {bubbles: true, cancelable: true});
+    drop.dataTransfer = {files: [picture]};
+    form.dispatchEvent(drop);
+    await settle();
+    expect(form.querySelector(".compose-send").disabled).toBe(false);
+    form.dispatchEvent(new Event("submit", {cancelable: true}));
+    await settle();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0]).toBe("");
+    expect(send.mock.calls[0][1].map((file) => file.name)).toEqual(["image.png"]);
     unmount();
 });

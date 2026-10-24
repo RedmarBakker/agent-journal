@@ -82,7 +82,7 @@ function typed(event) {
 }
 const kept = ref(0);
 const resting = computed(() => Boolean(props.idle) && !draft.text.trim() && !draft.files.length);
-const ready = computed(() => Boolean(draft.text.trim()));
+const ready = computed(() => Boolean(draft.text.trim()) || draft.files.length > 0);
 const label = computed(() => (resting.value ? props.idle.label : props.submit));
 const measures = ref(null);
 const widths = reactive({idle: 0, submit: 0});
@@ -237,7 +237,7 @@ function focusText(e) {
 
 async function go() {
     takeFromBox();
-    if (!draft.text.trim()) return;
+    if (!ready.value) return;
     const text = draft.text.trim();
     const files = draft.files;
     draft.error = "";

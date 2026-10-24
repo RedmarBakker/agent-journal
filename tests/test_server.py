@@ -1744,3 +1744,15 @@ def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_w
         service.shutdown()
         app.server().stop()
         app.runtime().stop()
+
+
+def test_a_message_of_attachments_alone_is_accepted_without_words(tmp_path):
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    server = app.server()
+    try:
+        status, message = call(server, "POST", "/journal/messages", {"text": "", "idempotency": "k-files"})
+        assert status == 201 and message["text"] == "", "the server accepts a message with no words, which is how attachments alone arrive"
+        assert [m["id"] for m in call(server, "GET", "/journal/messages?limit=20")[1]["rows"]] == [message["id"]]
+    finally:
+        app.runtime().stop()
