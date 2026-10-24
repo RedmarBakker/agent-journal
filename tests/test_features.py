@@ -12512,3 +12512,37 @@ def test_of_several_readers_of_one_command_the_first_made_reads_it_until_another
     assert made.code == 0 and "over naps" in made.text and readers.reading("sleep 5").name == "rests", "the one made the default takes over"
     assert "(the default for its commands)" in console.run(["reader", "list"], AGENT).text
     assert console.run(["reader", "default", "naps"], AGENT).code == 0 and readers.reading("sleep 5").name == "naps", "and back"
+
+
+def test_a_plugins_service_that_drops_its_socket_leaves_the_event_to_its_program_and_the_plugin_on(app: App):
+    import socket
+    import threading
+    from journal.features.plugins.support.plugin_folders import PluginFolders
+    from journal.repositories.plugins import Plugins
+    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    plugin = echo(app, services=[{"name": "answers", "command": ["serve.py"], "answers": True}])
+    path = app.container.get(PluginFolders).socket(plugin, "main")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.unlink(missing_ok=True)
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(path))
+    listener.listen()
+
+    def dropping():
+        for _ in range(2):
+            connection, _ = listener.accept()
+            connection.close()
+
+    dropper = threading.Thread(target=dropping, daemon=True)
+    dropper.start()
+    hook(app, "SessionStart")
+    for _ in range(2):
+        status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})
+        assert status == 409 and "echo refuses a forbidden tool" in body["error"], "a service that drops the connection leaves the event to the program"
+    dropper.join(5)
+    listener.close()
+    status, _ = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})
+    assert status == 409, "a socket nobody listens on leaves it to the program too"
+    row = app.container.get(Plugins).lookup("echo")
+    assert row.enabled and row.fault_streak == 0, "the plugin stays on, with no fault"
+    path.unlink(missing_ok=True)

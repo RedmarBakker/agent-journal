@@ -15,10 +15,12 @@ from journal.models.plugin import Plugin
 from journal.features.plugins.support.plugin_answer import PluginAnswer
 
 PASSED_VARIABLES = ("HOME", "LANG", "LC_ALL", "TMPDIR", "USER")
+# a service socket that is gone or dropped the connection, as a service exiting or restarting leaves it: the plugin's program answers instead
+SOCKET_FAILURES = (ConnectionRefusedError, FileNotFoundError, BrokenPipeError, ConnectionResetError)
 
 
 class PluginRunner:
-    """Runs a plugin's program for one event: the line on its input, in its own folder and process group, with a clean environment that names the journal and the plugin, and at most the time it is given."""
+    """Runs a plugin's program for one event: the line on its input, in its own folder and process group, with a clean environment that names the journal and the plugin, and at most the time it is given; a plugin with a service is asked on its socket first, and its program answers when the socket is gone or drops the connection, the supervisor starting the service again by its restart rule."""
 
     def __init__(self, config: Config, folders: PluginFolders, tokens: PluginTokens, protocol: Protocol, settings: PluginSettings) -> None:
         self.config, self.folders, self.tokens, self.protocol, self.settings = config, folders, tokens, protocol, settings
@@ -28,21 +30,26 @@ class PluginRunner:
         if any(s.answers for s in plugin.manifest.services) and subscribed.is_socket():
             try:
                 return self.service_run(subscribed, line, window)
-            except (ConnectionRefusedError, FileNotFoundError):
+            except SOCKET_FAILURES:
                 return self.program_run(plugin, environment, line, window)
         return self.program_run(plugin, environment, line, window)
 
     def service_run(self, subscribed, line: str, window: float) -> PluginAnswer:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as link:
             link.settimeout(window)
-            link.connect(str(subscribed))
             try:
+                link.connect(str(subscribed))
                 link.sendall((line + "\n").encode())
-                return self.protocol.parsed_answer(link.makefile("rb").readline().decode())
+                answer = link.makefile("rb").readline().decode()
             except TimeoutError as late:
                 raise WindowMissed(f"its service gave no answer within {window * 1000:.0f} ms, its hold window") from late
+            except SOCKET_FAILURES:
+                raise
             except OSError as failed:
                 raise PluginFault(f"its service did not answer on its socket: {failed}") from failed
+            if not answer:
+                raise ConnectionResetError("the service closed its socket without an answer")
+            return self.protocol.parsed_answer(answer)
 
     def program_run(self, plugin: Plugin, environment: str, line: str, window: float) -> PluginAnswer:
         folder = self.folders.folder(plugin)
