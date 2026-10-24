@@ -247,6 +247,8 @@ class WorkerCommand(Command):
         for n in args.tasks:
             self.tasks.queued(self.tasks.find(n), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it")
+        if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
+            print(self.actions.next_job(worker.id, caller.actor))
         return 0
 
     def drain(self, args: Namespace, caller: Caller) -> int:

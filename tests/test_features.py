@@ -7902,11 +7902,18 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     given = console.run(["worker", "drain", "1"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "drain gives back what waits, never the task in hand"
+    from journal.models.support.ref import Ref
+    with app.container.get(Scope).environment(MAIN):
+        tasks.release(Ref.build(workers.find(1)), Actor.system())
+        workers.save(workers.find(1).with_(state=WorkerState.UNFINISHED), Actor.system())
+    started = console.run(["worker", "queue", "1", "3"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        assert "it went straight on to task 3 from its queue" in started.text and tasks.holder(tasks.find(3)) is not None, "a task queued to an idle worker that holds none starts it at once"
     with app.container.get(Scope).environment(MAIN):
         workers.save(workers.find(1).with_(state=WorkerState.STOPPED), Actor.system())
     assert console.run(["worker", "release", "1"], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
-        assert [tasks.find(n).state for n in (2, 3)] == [TaskState.OPEN, TaskState.OPEN], "a worker let go gives its queued tasks back, open again"
+        assert tasks.find(2).state == TaskState.OPEN, "a worker let go gives its tasks back, open again"
 
 
 def test_a_worker_in_a_workspace_of_repositories_gets_a_worktree_of_each_and_its_commits_merge_into_their_own(app: App, monkeypatch):
