@@ -56,3 +56,27 @@ def test_the_journal_install_run_from_a_linked_worktree_installs_into_the_projec
     (worktree / ".journal").mkdir()
     ran = subprocess.run(["sh", "-c", f"{block}pwd -P"], cwd=worktree, capture_output=True, text=True, timeout=30)
     assert ran.stdout.strip() == str(worktree.resolve()), "a worktree with a journal of its own installs where it is"
+
+
+def test_a_daemon_that_never_starts_is_reported_with_its_own_last_lines(tmp_path: Path):
+    bin = tmp_path / "bin"
+    bin.mkdir()
+    fake(bin, "docker", 'case "$1" in info) exit 1 ;; esac; exit 0')
+    fake(bin, "systemctl", "exit 1")
+    fake(bin, "service", "exit 1")
+    fake(bin, "sudo", '"$@"')
+    fake(bin, "sleep", "exit 0")
+    fake(bin, "journalctl", 'echo "dockerd: iptables (nf_tables): Could not fetch rule set generation id: Invalid argument"')
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
+    ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
+    assert ran.returncode == 1 and "its daemon does not start. Its last lines:" in ran.stderr and "Could not fetch rule set generation id" in ran.stderr, ran.stderr
+
+
+def test_a_rescue_system_is_named_as_one_before_any_wait(tmp_path: Path):
+    bin = tmp_path / "bin"
+    bin.mkdir()
+    fake(bin, "docker", "exit 0")
+    fake(bin, "hostname", "echo rescue")
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
+    ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
+    assert ran.returncode == 1 and "This machine runs a rescue system, which cannot run Docker: install an operating system" in ran.stderr, ran.stderr

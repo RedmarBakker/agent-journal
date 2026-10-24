@@ -36,6 +36,11 @@ if ! command -v docker >/dev/null; then
     curl -fsSL https://get.docker.com | $as_root sh >&2 || { echo "Docker could not be installed: install it by hand, then run this again." >&2; exit 1; }
     command -v docker >/dev/null || { echo "Docker was installed but is not on the path: open a new shell and run this again." >&2; exit 1; }
 fi
+# A rescue system, booted from memory to repair a machine, has no kernel support for Docker's network: say so before waiting on a daemon that cannot start.
+if [ "$(hostname 2>/dev/null)" = "rescue" ] || [ -d /root/.oldroot ]; then
+    echo "This machine runs a rescue system, which cannot run Docker: install an operating system and boot into it (installimage on a Hetzner machine), then run this again." >&2
+    exit 1
+fi
 # Docker's daemon is started, and kept starting at boot, when it is not running yet, as right after its install.
 if ! docker info >/dev/null 2>&1; then
     if [ "$(id -u)" = "0" ]; then as_root=""; else as_root="sudo"; fi
@@ -43,7 +48,12 @@ if ! docker info >/dev/null 2>&1; then
     tries=0
     until docker info >/dev/null 2>&1; do
         tries=$((tries + 1))
-        [ "$tries" -lt 15 ] || { echo "Docker is installed but its daemon does not start: start it (systemctl start docker), then run this again." >&2; exit 1; }
+        if [ "$tries" -ge 15 ]; then
+            echo "Docker is installed but its daemon does not start. Its last lines:" >&2
+            if command -v journalctl >/dev/null 2>&1; then journalctl -u docker -n 5 --no-pager 2>/dev/null | sed 's/^/  /' >&2; fi
+            echo "Fix what they name, start it (systemctl start docker), then run this again." >&2
+            exit 1
+        fi
         sleep 2
     done
 fi
