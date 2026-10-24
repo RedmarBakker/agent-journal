@@ -7882,6 +7882,9 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     assert merged.code == 0 and "it went straight on to task 2 from its queue" in merged.text, merged.error or merged.text
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).state == TaskState.DELEGATED, "the merge sends the worker its next queued task by itself; the one after waits"
+    given = console.run(["worker", "unqueue", "1"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "unqueue gives back what waits, never the task in hand"
     with app.container.get(Scope).environment(MAIN):
         workers.save(workers.find(1).with_(state=WorkerState.STOPPED), Actor.system())
     assert console.run(["worker", "release", "1"], AGENT).code == 0

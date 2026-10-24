@@ -87,9 +87,10 @@ class WorkerCommand(Command):
         line.add_argument("n", type=int)
         line.add_argument("brief")
         line.add_argument("--task", type=int, help="the task this job works on, which its plan then leaves to it")
-        queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order: each is delegated to it at once, and you are told the next when its work is merged")
+        queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
+        self.verb(verbs, "unqueue", "give back the tasks waiting in a worker's queue, open again; the task it works on stays its").add_argument("n", type=int)
         notify = self.verb(verbs, "notify", "give a running worker a message in its live session")
         notify.add_argument("n", type=int)
         notify.add_argument("text")
@@ -245,6 +246,13 @@ class WorkerCommand(Command):
         for n in args.tasks:
             self.tasks.queued(self.tasks.find(n), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it")
+        return 0
+
+    def unqueue(self, args: Namespace, caller: Caller) -> int:
+        worker = self.workers.find(args.n)
+        waiting = self.tasks.queue(Ref.build(worker))
+        self.tasks.unqueued(Ref.build(worker), caller.actor)
+        print(f"worker {worker.id} {worker.name}: {', '.join(f'task {task.id}' for task in waiting) or 'nothing'} given back, open again")
         return 0
 
     def release(self, args: Namespace, caller: Caller) -> int:
