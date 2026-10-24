@@ -11,9 +11,9 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
-from journal.features.shell.support.reader import LABEL_PREFIX, PROGRESS_PREFIX, Reader
+from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.readers import Readers
-from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, ReaderCommands
+from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.support.rejection import Rejection
 
 NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
@@ -52,28 +52,19 @@ class ReaderCommand(Command):
     def add(self, args: Namespace, caller: Caller) -> int:
         if not NAME.fullmatch(args.name):
             raise Rejection(f"a reader's name is lowercase words joined by -, such as failed-tests, not {args.name}")
-        prior = self.readers.pattern_reader(args.name)
+        prior = self.readers.named(args.name)
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
+        reader = (prior or Reader(args.name, args.about, "")).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
+        for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):
+            re.compile(pattern)
         if args.script:
-            if args.progress:
-                re.compile(args.progress)
-            notes = {COMMANDS_PREFIX: self.commands(args, prior).text(), LABEL_PREFIX: ActivityTitle.checked(args.label) if args.label else "", PROGRESS_PREFIX: args.progress or ""}
-            self.readers.add_script(args.name, args.about or prior.subject, args.script, notes)
+            self.readers.add_script(reader.revised(pattern=""), args.script.read_text())
         else:
-            reader = (prior or Reader(args.name, args.about, args.pattern)).revised(subject=args.about, pattern=args.pattern, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
-            for pattern in (reader.pattern, reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):
-                re.compile(pattern)
-            self.readers.add(reader)
+            self.readers.add(reader.revised(pattern=args.pattern))
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
         return 0
-
-    @staticmethod
-    def commands(args: Namespace, prior: Reader | None) -> ReaderCommands:
-        if args.commands is not None:
-            return ReaderCommands.parsed(args.commands)
-        return prior.commands if prior else ReaderCommands()
 
     def report(self, args: Namespace, caller: Caller) -> int:
         report = self.reports.save(self.reports.find(args.n).opened(datetime.fromtimestamp(self.clock.time(), timezone.utc)), caller.actor)

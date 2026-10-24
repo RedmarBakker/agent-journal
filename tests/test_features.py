@@ -12993,3 +12993,22 @@ def test_a_command_with_a_reader_stays_in_the_foreground_unless_it_is_known_to_r
     began = time.monotonic()
     b"".join(runner.run(request("sleep 1.3"), AGENT, MAIN))
     assert time.monotonic() - began < 0.9, "its next run moves at once, its last run having gone past the limit"
+    with app.container.get(Scope).environment(MAIN):
+        for _ in range(40):
+            if not outputs.unended():
+                break
+            time.sleep(0.1)
+
+
+def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
+    from journal.features.shell.support.readers import Readers
+    script = app.config.root / "counts.sh"
+    script.write_text("grep -o 'done [0-9]*/[0-9]*' | tail -1; echo \"stage $JOURNAL_OUTPUT_STAGE\"\n")
+    made = app.console().run(["reader", "add", "counts", "--script", str(script), "--about", "how far the run is", "--label", "Counting", "--progress", r"(\d+)/(\d+)", "--commands", "make check", "--step", "[.F]", "--topic", r"--suite (\S+)"], AGENT)
+    assert made.code == 0, made.error
+    reader = app.container.get(Readers).lookup("counts")
+    assert (reader.label, reader.commands.text(), reader.step_pattern, reader.subject) == ("Counting", "make check", "[.F]", "how far the run is"), "every setting is kept with the script"
+    assert reader.topic("make check --suite fast") == "fast", "its topic is read off the command line"
+    assert reader.progress(["done 3/12"]).fraction() == 0.25, "its progress is read on what the script prints"
+    assert reader.variant("finished").card_lines(["done 12/12"]) == ["done 12/12", "stage finished"], "its script is told the stage"
+    assert app.container.get(Readers).reading("make check --suite fast").name == "counts", "it reads the commands it names"

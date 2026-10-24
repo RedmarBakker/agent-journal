@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.reader import Reader
-from journal.features.shell.support.script_reader import ScriptReader
 from journal.models.alias import Alias
 from journal.support.moment import Moment
 
@@ -19,7 +18,7 @@ class ShellData:
     tool_uses: int
     last_ending_line: Moment
     output_reads: tuple[str, ...]
-    readers: tuple[Reader | ScriptReader, ...]
+    readers: tuple[Reader, ...]
     tipped: tuple[str, ...]
     watch: OutputView
     aliases: tuple[Alias, ...]

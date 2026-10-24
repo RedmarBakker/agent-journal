@@ -1467,8 +1467,8 @@ def test_the_shim_posts_a_shell_line_and_the_server_runs_it_part_by_part_and_str
         began = time.monotonic()
         from journal.supervisor_link import SupervisorLink
         app.container.get(SupervisorLink).working(1)
-        moved = run("sleep 2 --a-value; echo slept") + app.container.get(SupervisorLink).pending_lines(1)
-        assert "is in the background, watched through naps" in moved and time.monotonic() - began < 1.5, "a command a reader reads, whatever its values, goes to the background at once, watched through it"
+        answered = run("sleep 0.2; echo slept") + app.container.get(SupervisorLink).pending_lines(1)
+        assert "slept" in answered and "in the background" not in answered and time.monotonic() - began < 1.5, "a quick command a reader reads answers in the foreground like any other"
     finally:
         app.runtime().stop()
 

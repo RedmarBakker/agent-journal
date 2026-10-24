@@ -1,12 +1,9 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
-
 from journal.config import Config
 from journal.repositories.aliases import Aliases
 from journal.support.chain import Chain
 from journal.features.shell.support.reader import Reader
-from journal.features.shell.support.script_reader import ScriptReader
 from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, ReaderCommands
 from journal.features.shell.support.output_files import OutputFiles
 from journal.models.command_output import CommandOutput
@@ -16,7 +13,7 @@ JOURNAL = "journal"
 # the readers chosen as their commands' defaults, one name a line, beside the readers
 DEFAULTS_FILE = "defaults"
 
-KINDS: dict[str, Callable[[Path], Reader | ScriptReader]] = {".pattern": Reader.loaded, ".sh": ScriptReader.loaded}
+KINDS = (".pattern", ".sh")
 
 
 class Readers:
@@ -24,22 +21,22 @@ class Readers:
 
     def __init__(self, config: Config, aliases: Aliases) -> None:
         self.config, self.aliases = config, aliases
-        self.loaded: tuple[tuple, list[Reader | ScriptReader]] = ((), [])
+        self.loaded: tuple[tuple, list[Reader]] = ((), [])
 
-    def all(self) -> list[Reader | ScriptReader]:
+    def all(self) -> list[Reader]:
         if not self.config.readers.is_dir():
             return []
         paths = [path for path in sorted(self.config.readers.iterdir()) if path.suffix in KINDS]
         stamp = tuple((path.name, path.stat().st_mtime_ns) for path in paths)
         if stamp != self.loaded[0]:
-            self.loaded = (stamp, [KINDS[path.suffix](path) for path in paths])
+            self.loaded = (stamp, [Reader.loaded(path) for path in paths])
         return self.loaded[1]
 
-    def lookup(self, name: str) -> Reader | ScriptReader:
+    def lookup(self, name: str) -> Reader:
         rows = [path for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()]
         if not rows:
             raise Rejection(f"no reader named {name}: `journal reader list` names them")
-        return KINDS[rows[0].suffix](rows[0])
+        return Reader.loaded(rows[0])
 
     def revisions(self) -> dict[str, datetime]:
         return {reader.name: datetime.fromtimestamp(self.file_stamp(reader.name), timezone.utc) for reader in self.all()}
@@ -47,7 +44,7 @@ class Readers:
     def file_stamp(self, name: str) -> float:
         return max((path.stat().st_mtime for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()), default=0.0)
 
-    def reading_output(self, name: str, output: CommandOutput) -> Reader | ScriptReader:
+    def reading_output(self, name: str, output: CommandOutput) -> Reader:
         reader = self.lookup(name)
         if reader.commands.programs and not any(reader.commands.is_read(line) for line in self.run_lines(output)):
             raise Rejection(f"the reader {name} reads {reader.commands.text()}, and output {output.id} is {output.headline()}: check the output's number with journal output list")
@@ -63,7 +60,7 @@ class Readers:
         names = [segment.text.split()[1] for command in commands for segment in Chain.parts(command) if segment.text.split()[:1] == [JOURNAL] and len(segment.text.split()) > 1]
         return [index[name].line for name in names if name in index]
 
-    def reading(self, line: str) -> Reader | ScriptReader | None:
+    def reading(self, line: str) -> Reader | None:
         readers = self.all()
         line_readers = next((found for part in Chain.choosing_parts(line) if (found := [reader for reader in readers if reader.commands.reads(part)])), [])
         default_names = self.default_names()
@@ -80,19 +77,23 @@ class Readers:
         (self.config.readers / DEFAULTS_FILE).write_text("\n".join(sorted(default_names)) + "\n")
         return sorted(sharing_names)
 
-    def creation_seconds(self, reader: Reader | ScriptReader) -> float:
+    def creation_seconds(self, reader: Reader) -> float:
         stats = [path.stat() for suffix in KINDS if (path := self.config.readers / f"{reader.name}{suffix}").is_file()]
         return min((getattr(stat, "st_birthtime", stat.st_mtime) for stat in stats), default=0.0)
 
-    def pattern_reader(self, name: str) -> Reader | None:
-        path = self.config.readers / f"{name}.pattern"
-        return Reader.loaded(path) if path.is_file() else None
+    def named(self, name: str) -> Reader | None:
+        rows = [path for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()]
+        return Reader.loaded(rows[0]) if rows else None
 
     def add(self, reader: Reader) -> None:
-        self.config.readers.mkdir(parents=True, exist_ok=True)
-        (self.config.readers / f"{reader.name}.pattern").write_text(reader.text())
+        self.written(reader.name, ".pattern", reader.text())
 
-    def add_script(self, name: str, topic: str, script: Path, notes: dict[str, str]) -> None:
+    def add_script(self, reader: Reader, body: str) -> None:
+        self.written(reader.name, ".sh", reader.script_text(body))
+
+    # a reader written as one kind replaces one of the other kind by its name
+    def written(self, name: str, suffix: str, text: str) -> None:
         self.config.readers.mkdir(parents=True, exist_ok=True)
-        lines = "".join(f"# {prefix}{value}\n" for prefix, value in notes.items() if value)
-        (self.config.readers / f"{name}.sh").write_text(f"# {topic}\n{lines}{script.read_text()}")
+        for other in KINDS:
+            (self.config.readers / f"{name}{other}").unlink(missing_ok=True)
+        (self.config.readers / f"{name}{suffix}").write_text(text)

@@ -12,7 +12,6 @@ from journal.supervisor_link import SupervisorLink
 from journal.support.command_shape import CommandShape
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.readers import Readers
-from journal.features.shell.support.script_reader import ScriptReader
 from journal.config import Config
 from journal.features.aliases.support.alias_lines import AliasLines
 from journal.features.shell.support.watch_suggestions import WatchSuggestions
@@ -140,7 +139,7 @@ class ShellRunner:
             self.supervisor.remark(environment, line)
         return ""
 
-    def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | ScriptReader | None, caller: Caller) -> list[Nudge]:
+    def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | None, caller: Caller) -> list[Nudge]:
         if alias is not None:
             return [*self.watched(number, alias, caller), *self.alias_wrapper_lines(alias)]
         wrapper = self.line_wrapper_lines(part)
@@ -163,7 +162,7 @@ class ShellRunner:
         self.wrappers_told.add(shape)
         return [ShellNudges.LINE_TIME_LIMIT.create(command=shape)]
 
-    def reader_watched(self, number: int, part: str, reader: Reader | ScriptReader, caller: Caller) -> list[Nudge]:
+    def reader_watched(self, number: int, part: str, reader: Reader, caller: Caller) -> list[Nudge]:
         self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor)
         shape = CommandShape.build(part)
         watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name)]
