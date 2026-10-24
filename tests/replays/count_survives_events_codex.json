@@ -148,7 +148,8 @@
         "messages.next_write_held_until_read"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "demand_block"
       ]
     },
     {
@@ -164,7 +165,8 @@
         "messages.next_write_held_until_read"
       ],
       "stack": [
-        "idle"
+        "idle",
+        "demand_block"
       ]
     }
   ]

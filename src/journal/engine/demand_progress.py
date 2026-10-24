@@ -24,7 +24,7 @@ class DemandProgress:
 
     def balance(self, settings: Settings) -> int:
         span = self.demand.span(settings)
-        return int(span.amount - (self.moment.value(span.unit) - self.start.value(span.unit))) - 1
+        return max(int(span.amount - (self.moment.value(span.unit) - self.start.value(span.unit))) - 1, 0)
 
     def has_announcement(self, settings: Settings) -> bool:
         return not self.is_expired(settings) and (self.demand.silence is None or self.demand.silence(settings).reset(self.start).has_passed(self.moment))

@@ -15,10 +15,11 @@ class DemandConduct(Conduct):
         active = [entry for entry in event.data.part(DemandsPart) if entry.is_active() and not entry.exempts(event)]
         expired = next((entry for entry in active if entry.is_expired(settings)), None)
         if expired is not None and self != DemandBlock(key=expired.demand.key):
-            return block_transition(self, expired, event)
+            return block_transition(self, expired, event, settings)
         return self.none(*(entry.line(settings) for entry in active if entry.has_announcement(settings)))
 
 
-def block_transition(state: BaseState, expired: DemandProgress, event: ToolStarting) -> Transition:
-    pushed = state.push(DemandBlock(key=expired.demand.key))
-    return Transition.merged(state, [pushed, state.refuse(expired.refusal())]) if expired.blocks(event) else pushed
+def block_transition(state: BaseState, expired: DemandProgress, event: ToolStarting, settings: Settings) -> Transition:
+    if expired.blocks(event):
+        return Transition.merged(state, [state.push(DemandBlock(key=expired.demand.key)), state.refuse(expired.refusal())])
+    return state.push(DemandBlock(key=expired.demand.key), expired.line(settings))

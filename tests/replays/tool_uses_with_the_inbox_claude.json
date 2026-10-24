@@ -113,7 +113,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -130,7 +131,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -147,7 +149,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -164,7 +167,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -181,7 +185,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -198,7 +203,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -215,7 +221,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -232,7 +239,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -249,7 +257,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -266,7 +275,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -283,7 +293,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -300,12 +311,20 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
       "name": "a write at 17",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "you have 1 unread messages. `journal message unread` before any other write"
+          }
+        },
         "error": "you have 1 unread messages. `journal message unread` before any other write"
       },
       "typed": [],
@@ -314,7 +333,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -324,7 +344,8 @@
       "nudges": [],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {

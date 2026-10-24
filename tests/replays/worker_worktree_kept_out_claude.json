@@ -21,6 +21,13 @@
     {
       "name": "a write in the worker's worktree",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "that file is in worker 1's worktree. `journal worker send 1 \"<job>\"`, or wait for its report and merge"
+          }
+        },
         "error": "that file is in worker 1's worktree. `journal worker send 1 \"<job>\"`, or wait for its report and merge"
       },
       "typed": [],

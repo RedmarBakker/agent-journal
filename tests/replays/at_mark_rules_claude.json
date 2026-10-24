@@ -37,6 +37,13 @@
     {
       "name": "a write at the mark",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "writes wait until you decide what to keep from the context. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"`"
+          }
+        },
         "error": "writes wait until you decide what to keep from the context. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"`"
       },
       "typed": [],
@@ -97,6 +104,13 @@
     {
       "name": "a write at the second mark",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "writes wait until you decide what to keep from the context. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"`"
+          }
+        },
         "error": "writes wait until you decide what to keep from the context. `journal fact create`, `journal rule create`, or `journal memory skip \"<why>\"`"
       },
       "typed": [],

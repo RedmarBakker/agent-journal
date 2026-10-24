@@ -12259,3 +12259,11 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_with_the_project_is_sent_i
     assert sent.code == 0, sent.error
     brief = worker_row(app).brief
     assert "conflict in platform/app.php" in brief and "rebase your branch onto it" in brief and brief.endswith("finish the job"), brief
+
+
+def test_a_claude_tool_call_refused_carries_its_own_quiet_deny_answer_beside_the_reason(app: App):
+    hook(app, "SessionStart")
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "cd /tmp"})
+    assert status == 409 and body["answer"]["hookSpecificOutput"]["permissionDecision"] == "deny", body
+    assert body["answer"]["hookSpecificOutput"]["permissionDecisionReason"] == body["error"], "Claude Code shows the journal's line alone, with no red hook error and no command"
+    assert list(body)[0] == "answer", "the answer comes first, as the hook script reads it"

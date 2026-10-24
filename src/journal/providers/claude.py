@@ -13,6 +13,10 @@ from journal.events.agent.peer_message import PeerMessage
 from journal.providers.support.claude_row import ClaudeRow
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.provider import TAIL_BYTES, Provider
+from journal.support.decision import Decision
+from journal.support.hook import Hook
+from journal.support.hook_kind import HookKind
+from journal.support.response import Response
 from journal.providers.support.turn import Turn
 from journal.providers.support.capability import Capability
 from journal.models.mcp_server import McpServer
@@ -215,6 +219,13 @@ class Claude(Provider):
         text, last = answers[-1]
         report = text.strip() or err.strip()
         return WorkerOutcome(report, last.session or self.output_session(output, err), report if last.is_error else "")
+
+    def refused(self, hook: Hook, decision: Decision) -> Response:
+        if hook.kind == HookKind.PRE_TOOL_USE:
+            return Response(409, {"answer": {"hookSpecificOutput": {"hookEventName": hook.kind.value, "permissionDecision": "deny", "permissionDecisionReason": decision.reason}}, "error": decision.reason})
+        if hook.kind == HookKind.USER_PROMPT:
+            return Response(409, {"answer": {"decision": "block", "reason": decision.reason}, "error": decision.reason})
+        return super().refused(hook, decision)
 
     def output_session(self, output: str, err: str) -> str:
         return next((row.session for row in ClaudeStreamRow.lines(output) if row.session), "")

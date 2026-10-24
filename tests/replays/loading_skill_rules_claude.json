@@ -26,6 +26,13 @@
     {
       "name": "a write before the skill is read",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "read the journal skill before anything else: .claude/skills/journal/SKILL.md. every other tool waits until you have\nbefore your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders"
+          }
+        },
         "error": "read the journal skill before anything else: .claude/skills/journal/SKILL.md. every other tool waits until you have\nbefore your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders"
       },
       "typed": [],
@@ -49,6 +56,13 @@
     {
       "name": "a write before the look",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "read the etiquette skill before anything else: .claude/skills/journal-etiquette/SKILL.md. every other tool waits until you have\nbefore your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders"
+          }
+        },
         "error": "read the etiquette skill before anything else: .claude/skills/journal-etiquette/SKILL.md. every other tool waits until you have\nbefore your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders"
       },
       "typed": [],
@@ -100,6 +114,13 @@
     {
       "name": "a write before the plans skill is read",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "read the plans skill before anything else: .claude/skills/journal-plans/SKILL.md. every other tool waits until you have\nread due, message 2: 3"
+          }
+        },
         "error": "read the plans skill before anything else: .claude/skills/journal-plans/SKILL.md. every other tool waits until you have\nread due, message 2: 3"
       },
       "typed": [],
@@ -123,6 +144,13 @@
     {
       "name": "a write after",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "read the etiquette skill before anything else: .claude/skills/journal-etiquette/SKILL.md. every other tool waits until you have\nread due, message 2: 2"
+          }
+        },
         "error": "read the etiquette skill before anything else: .claude/skills/journal-etiquette/SKILL.md. every other tool waits until you have\nread due, message 2: 2"
       },
       "typed": [],

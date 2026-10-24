@@ -12,7 +12,7 @@ ENDED_REASON = "the session that held it ended"
 
 
 class EndedAgentTasks(AgentListener[SessionStarted]):
-    """When a main session starts, a task still started in the hand of a main agent of the environment whose session has ended is paused, so the agent that starts can resume it and no task is held by a session that will never work again."""
+    """When a main session starts, a task still started in the hand of a main agent of the environment whose session has ended is paused, so the agent that starts can resume it and no task is held by a session that will never work again; a session that starts again finds a task paused for its own end started again."""
 
     blocking = True
 
@@ -22,12 +22,20 @@ class EndedAgentTasks(AgentListener[SessionStarted]):
     def handle(self, event: SessionStarted) -> None:
         if event.subagent:
             return
-        ended = {agent.id for agent in self.agents.ended_main_agents(event.environment_id)} - {self.agents.session_agent(event.session).id}
+        starting = self.agents.session_agent(event.session).id
+        ended = {agent.id for agent in self.agents.ended_main_agents(event.environment_id)} - {starting}
         for task_id, holder in self.tasks.holders().items():
             if holder.type == Agent.table() and holder.id in ended:
                 self.paused(task_id, event.time)
+            elif holder.type == Agent.table() and holder.id == starting:
+                self.resumed(task_id, event.time)
 
     def paused(self, task_id: int, time: float) -> None:
         task = self.tasks.find(task_id)
         if task.state == TaskState.STARTED:
             self.tasks.save(task.paused(ENDED_REASON, datetime.fromtimestamp(time, timezone.utc)), Actor.system())
+
+    def resumed(self, task_id: int, time: float) -> None:
+        task = self.tasks.find(task_id)
+        if task.state == TaskState.PAUSED and task.pause_reason == ENDED_REASON:
+            self.tasks.save(task.started(datetime.fromtimestamp(time, timezone.utc)), Actor.system())

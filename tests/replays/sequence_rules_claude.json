@@ -19,6 +19,13 @@
     {
       "name": "a write before the step is taken up",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "a write waits for sequence 5, step 1: tag it. `journal sequence follow`, or `journal sequence pause --why \"<why>\"`"
+          }
+        },
         "error": "a write waits for sequence 5, step 1: tag it. `journal sequence follow`, or `journal sequence pause --why \"<why>\"`"
       },
       "typed": [],

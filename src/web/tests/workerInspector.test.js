@@ -204,13 +204,13 @@ test("the worker inspector's columns are a pane grid whose dividers resize them,
     expect(JSON.parse(sessionStorage.getItem("journal.worker-layout")).tree.r).toBe(0.3);
 });
 
-test("the worker page names the task it works on and the tasks queued for it, in order, so what was delegated shows", async () => {
+test("the worker page names the task it works on above its name and the tasks queued for it at the top of its to-do list, in order", async () => {
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
     const queue = [{id: 8, title: "the docs"}, {id: 9, title: "the help page"}];
     const host = mount(WorkerPage, {resource: {...worker("clocked in"), queue}}, {scope: {env: "", api, rows: () => [{id: 7, title: "the parser"}], holding: async () => {}}});
     await flush();
-    const tasks = host.querySelector("[data-worker-tasks]");
-    expect(tasks.textContent).toContain("Working on");
-    expect(tasks.textContent).toContain("Task 7: the parser");
-    expect([...tasks.querySelectorAll(".delegated-queue .task-link")].map((link) => link.textContent.trim())).toEqual(["Task 8: the docs", "Task 9: the help page"]);
+    expect(host.querySelector(".stamp").textContent).toContain("Task 7: the parser");
+    expect(host.querySelector("[data-worker-tasks]")).toBe(null);
+    const queued = host.querySelector(".todos [data-worker-queue]");
+    expect([...queued.querySelectorAll(".queued-task")].map((link) => link.textContent.trim())).toEqual(["Task 8: the docs", "Task 9: the help page"]);
 });

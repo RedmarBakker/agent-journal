@@ -233,13 +233,16 @@ class Provider(ABC):
         if kind == HookKind.STOP and (not decision.allowed or decision.context):
             return Response(200, {"decision": "block", "reason": "\n".join(part for part in (decision.reason, decision.context) if part)})
         if not decision.allowed:
-            return Response(409, {"error": decision.reason})
+            return self.refused(hook, decision)
         if not decision.context:
             return Response(200, {})
         if kind in CONTEXT_HOOKS:
             shown = {copy_key: decision.context} if copy_key else {}
             return Response(200, {"hookSpecificOutput": {"hookEventName": kind.value, "additionalContext": decision.context}, **shown})
         return Response(200, {})
+
+    def refused(self, hook: Hook, decision: Decision) -> Response:
+        return Response(409, {"error": decision.reason})
 
     def hook_command(self, root: Path) -> str:
         return f"test -f {shlex.quote(str(HOOK_SCRIPT))} && exec {shlex.join(['sh', str(HOOK_SCRIPT), self.name, str(root)])}; exit 0"

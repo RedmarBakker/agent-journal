@@ -80,7 +80,7 @@ def test_a_blocking_listener_refuses_with_409_and_tells_with_context(app: App):
     app.container.get(Bus).listen(ToolStarting, RefuseWrites())
     hook = {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}}
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
-    assert status == 409 and body == {"error": "no work declared"}
+    assert status == 409 and body["error"] == "no work declared"
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
     assert status == 200 and body["hookSpecificOutput"]["additionalContext"] == "carry on"
 
@@ -350,7 +350,10 @@ def test_each_providers_tool_calls_decode_into_the_operations_the_features_read(
 def test_a_hold_answers_409_and_a_refused_stop_the_block_json_for_both_providers(app: App, provider: str):
     app.container.get(Bus).listen(ToolStarting, RefuseWrites())
     app.container.get(Bus).listen(Stop, RefuseEveryStop())
-    assert post_as(app, provider, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}}) == (409, {"error": "no work declared"})
+    status, body = post_as(app, provider, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
+    assert status == 409 and body["error"] == "no work declared"
+    quiet = {"claude": {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "no work declared"}}}
+    assert body.get("answer") == quiet.get(provider), "Claude is handed its own quiet deny beside the reason; Codex keeps the plain refusal"
     status, body = post_as(app, provider, {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": False})
     assert status == 200 and body["decision"] == "block" and body["reason"].startswith("finish the task in hand first") and "continue" not in body, "a refused stop goes on working; continue:false would end a Codex turn"
 

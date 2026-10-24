@@ -113,26 +113,6 @@ async function send() {
                 </template>
             </template>
         </InspectorSummary>
-        <template v-if="hasTask || queue.length">
-            <div class="delegated" data-worker-tasks>
-                <template v-if="hasTask">
-                    <div class="delegated-row">
-                        <span class="delegated-label">Working on</span>
-                        <a href="#" class="task-link" @click.prevent="peek('tasks', task.task_id)">Task {{ task.task_id }}<template v-if="held">: {{ held.title }}</template></a>
-                    </div>
-                </template>
-                <template v-if="queue.length">
-                    <div class="delegated-row">
-                        <span class="delegated-label">Queued next</span>
-                        <span class="delegated-queue">
-                            <template v-for="queued in queue" :key="queued.id">
-                                <a href="#" class="task-link" @click.prevent="peek('tasks', queued.id)">Task {{ queued.id }}: {{ queued.title }}</a>
-                            </template>
-                        </span>
-                    </div>
-                </template>
-            </div>
-        </template>
         <template v-if="narrow && hasTask">
             <div class="tabs">
                 <Segmented :options="tabs" :value="tab" @pick="tab = $event" />
@@ -150,7 +130,7 @@ async function send() {
                                 <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
                             </template>
                             <template #todos>
-                                <WorkerTodos :todos="task.todos" />
+                                <WorkerTodos :todos="task.todos" :queue="queue" />
                             </template>
                         </SwitchCase>
                     </InspectorColumn>
@@ -171,7 +151,7 @@ async function send() {
                 </template>
                 <template v-if="hasTask && tab === 'todos'">
                     <InspectorColumn title="" :count="counts.todos">
-                        <WorkerTodos :todos="task.todos" />
+                        <WorkerTodos :todos="task.todos" :queue="queue" />
                     </InspectorColumn>
                 </template>
             </div>
@@ -211,31 +191,6 @@ async function send() {
     height: 100%;
     min-height: 0;
     background: var(--raised);
-}
-
-.delegated {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-}
-
-.delegated-row {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.delegated-label {
-    font-size: 11px;
-    color: var(--text-3);
-}
-
-.delegated-queue {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
 }
 
 .task-link {

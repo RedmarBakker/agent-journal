@@ -21,6 +21,13 @@
     {
       "name": "a write before the goal is taken up",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "a write waits for sequence 1, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Agree on the plan's goal: settle with the user what is true when the plan is done, and put it in the plan's brief with `journal plan brief <plan n> \"<goal>\"`. `journal sequence follow`, or `journal sequence pause --why \"<why>\"`"
+          }
+        },
         "error": "a write waits for sequence 1, step 1: Write what this asks for in the user's own language in plain words, plain English or plain Dutch as the user speaks, never in the voice you speak in. Agree on the plan's goal: settle with the user what is true when the plan is done, and put it in the plan's brief with `journal plan brief <plan n> \"<goal>\"`. `journal sequence follow`, or `journal sequence pause --why \"<why>\"`"
       },
       "typed": [],

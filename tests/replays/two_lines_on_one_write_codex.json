@@ -51,7 +51,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     }
   ]

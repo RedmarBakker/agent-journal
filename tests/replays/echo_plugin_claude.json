@@ -19,6 +19,13 @@
     {
       "name": "a forbidden read",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "[plugin echo] echo refuses a forbidden tool"
+          }
+        },
         "error": "[plugin echo] echo refuses a forbidden tool"
       },
       "typed": [],

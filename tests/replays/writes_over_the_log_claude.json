@@ -823,6 +823,13 @@
     {
       "name": "write 51 after the log",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "50 edits since you logged task 1. journal task log 1 \"<what was decided or done>\" before any other write"
+          }
+        },
         "error": "50 edits since you logged task 1. journal task log 1 \"<what was decided or done>\" before any other write"
       },
       "typed": [],

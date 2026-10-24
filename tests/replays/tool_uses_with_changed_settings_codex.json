@@ -75,7 +75,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -89,7 +90,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -99,7 +101,8 @@
       "nudges": [],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {

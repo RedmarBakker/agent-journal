@@ -1,7 +1,8 @@
 #!/bin/sh
 # The agent's hooks run this: the hook body on stdin goes to the running server, and the server's status decides.
 #   200  go on; the body is JSON in the agent's own hook shape, printed for it to read
-#   409  refused; the body's error is the reason, and exit 2 is how the agent is told to stop (or, on Stop, not to stop)
+#   409  refused; a body that starts with the agent's own answer (a Claude tool call denied, a prompt blocked) is printed as it is,
+#        so the agent shows only the journal's line; otherwise the body's error is the reason, and exit 2 tells the agent to stop
 #   anything else, or no server  go on, silently
 # Nothing is decided here, and a deferred handler never changes the status: the server replies before it runs.
 # Who runs the hook: JOURNAL_ACTOR is agent, sub-agent or worker-agent; the agent's and a worker's own hooks reach the journal.
@@ -53,7 +54,8 @@ fi
 rm -f "$sent"
 case "$status" in
     200) cat "$body" ;;
-    409) sed -e 's/^{"error": *"//' -e 's/"}$//' -e 's/\\n/\n/g' "$body" >&2; rm -f "$body"; exit 2 ;;
+    409) if grep -q '^{"answer": ' "$body"; then sed -e 's/^{"answer": \(.*\), "error": ".*$/\1/' "$body"; rm -f "$body"; exit 0; fi
+         sed -e 's/^{"error": *"//' -e 's/"}$//' -e 's/\\n/\n/g' "$body" >&2; rm -f "$body"; exit 2 ;;
 esac
 rm -f "$body"
 exit 0

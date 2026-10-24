@@ -67,6 +67,13 @@
     {
       "name": "read 4 while owed",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "answer or react to message 2 first. your tool calls wait until you do"
+          }
+        },
         "error": "answer or react to message 2 first. your tool calls wait until you do"
       },
       "typed": [],
@@ -75,12 +82,20 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
       "name": "read 5 while owed",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "answer or react to message 2 first. your tool calls wait until you do"
+          }
+        },
         "error": "answer or react to message 2 first. your tool calls wait until you do"
       },
       "typed": [],
@@ -89,7 +104,8 @@
       ],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -99,7 +115,8 @@
       "nudges": [],
       "stack": [
         "idle",
-        "working"
+        "working",
+        "demand_block"
       ]
     },
     {
@@ -186,6 +203,13 @@
     {
       "name": "write 7",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "6 edits since you logged task 1. journal task log 1 \"<what was decided or done>\" before any other write"
+          }
+        },
         "error": "6 edits since you logged task 1. journal task log 1 \"<what was decided or done>\" before any other write"
       },
       "typed": [],

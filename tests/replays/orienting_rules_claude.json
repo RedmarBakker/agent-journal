@@ -24,6 +24,13 @@
     {
       "name": "a write before the look",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "before your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders"
+          }
+        },
         "error": "before your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders"
       },
       "typed": [],
@@ -84,6 +91,13 @@
     {
       "name": "a write before the second look",
       "answer": {
+        "answer": {
+          "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "after the compaction, run `journal environment overview` first\nbefore your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders\nread due, message 2: 3"
+          }
+        },
         "error": "after the compaction, run `journal environment overview` first\nbefore your first write, run `journal environment overview`: it lists the task in hand, the open tasks, the facts and the reminders\nread due, message 2: 3"
       },
       "typed": [],
