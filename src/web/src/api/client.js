@@ -499,6 +499,14 @@ export class ApiClient {
         return this.act("environments", environment, "remove");
     }
 
+    shareEnvironment(environment) {
+        return this.act("environments", environment, "share");
+    }
+
+    unshareEnvironment(environment) {
+        return this.act("environments", environment, "unshare");
+    }
+
     removeWorktree(environment) {
         return this.act("environments", environment, "worktree-removal");
     }

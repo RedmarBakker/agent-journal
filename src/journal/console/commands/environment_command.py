@@ -35,6 +35,7 @@ from journal.repositories.environment_owners import EnvironmentOwners
 from journal.sync.team_account import TeamAccount
 from journal.features.team.support.start_rule import StartRule
 from journal.features.hydration.support.session_hydration import SessionHydration
+from journal.features.team.support.environment_sharing import EnvironmentSharing
 
 TAKEOVER_WINDOW = timedelta(hours=12)
 
@@ -42,8 +43,8 @@ TAKEOVER_WINDOW = timedelta(hours=12)
 class EnvironmentCommand(Command):
     noun = "environment"
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration) -> None:
-        self.owners, self.account, self.starts, self.hydration = owners, account, starts, hydration
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing) -> None:
+        self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
         self.memory, self.overview_commands, self.taking = memory, overview_commands, taking
@@ -62,6 +63,8 @@ class EnvironmentCommand(Command):
         branch.add_argument("name")
         branch.add_argument("branch")
         self.verb(verbs, "delete", "an environment and everything recorded in it").add_argument("name")
+        self.verb(verbs, "share", "show one of your environments in every team member's sidebar, its chat open to all").add_argument("name")
+        self.verb(verbs, "unshare", "take an environment you shared back to your own sidebar").add_argument("name")
         rename = self.verb(verbs, "rename", "give an environment a new name; everything recorded in it stays")
         rename.add_argument("name")
         rename.add_argument("new")
@@ -160,6 +163,16 @@ class EnvironmentCommand(Command):
         self.environments.wipe(rows[0], caller.actor)
         worktree_line = Worktree(self.config.root, rows[0].name).worktree_note()
         print(f"deleted environment {rows[0].id}: {rows[0].name}, with everything recorded in it" + (f"; {worktree_line}" if worktree_line else ""))
+        return 0
+
+    def share(self, args: Namespace, caller: Caller) -> int:
+        environment = self.sharing.shared(self.environments.existing(args.name), caller.actor)
+        print(f"environment {environment.name} is shared with the team: it shows in every member's sidebar, its chat open to all; journal environment unshare {environment.name} takes it back")
+        return 0
+
+    def unshare(self, args: Namespace, caller: Caller) -> int:
+        environment = self.sharing.unshared(self.environments.existing(args.name), caller.actor)
+        print(f"environment {environment.name} is yours alone again: it shows only in your sidebar, and colleagues comment in its chat")
         return 0
 
     def rename(self, args: Namespace, caller: Caller) -> int:

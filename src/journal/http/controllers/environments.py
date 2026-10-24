@@ -14,17 +14,18 @@ from journal.repositories.environment_owners import EnvironmentOwners
 from journal.support.rejection import Rejection
 from journal.features.team.support.start_rule import StartRule
 from journal.features.git.support.worktree_removal import WorktreeRemoval
+from journal.features.team.support.environment_sharing import EnvironmentSharing
 
 
 class EnvironmentController(Controller[Environment]):
-    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, or the environment removed with everything in it; the project's stored conversations are listed for the form."""
+    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, the environment shared with the team or taken back, or removed with everything in it; the project's stored conversations are listed for the form."""
 
     repository: Environments
 
     def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, starts: StartRule,
-                 hydration: SessionHydration, removal: WorktreeRemoval) -> None:
+                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
-        self.owners, self.starts, self.hydration, self.removal = owners, starts, hydration, removal
+        self.owners, self.starts, self.hydration, self.removal, self.sharing = owners, starts, hydration, removal, sharing
 
     def rows(self) -> list[Environment]:
         return self.repository.all()
@@ -63,6 +64,12 @@ class EnvironmentController(Controller[Environment]):
             raise Rejection(refusal)
         self.supervisor.stop(environment.row_id)
         return Response.json(environment)
+
+    def share(self, request: Request) -> Response:
+        return Response.json(self.sharing.shared(self.repository.find(request.number("id")), request.actor))
+
+    def unshare(self, request: Request) -> Response:
+        return Response.json(self.sharing.unshared(self.repository.find(request.number("id")), request.actor))
 
     def worktree_removal(self, request: Request) -> Response:
         return Response.json({"line": self.removal.removed(self.repository.find(request.number("id")).name)})

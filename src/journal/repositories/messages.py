@@ -34,7 +34,7 @@ class Messages(ScopedRepository[Message]):
 
     def save(self, row: Message, actor: Actor) -> Message:
         authored = self._placed(row.authored(actor.agent_session()))
-        if authored.is_unsaved_user_message() and self.owners.is_colleague(actor, authored.environment_id):
+        if authored.is_unsaved_user_message() and self.owners.is_commenter(actor, authored.environment_id):
             authored = authored.commented(self.owners.person_name(actor.number()), actor.number())
         if authored.is_unsaved_user_message() and self.owners.is_teammate(actor, authored.environment_id):
             authored = authored.with_merged("data", {Message.TEAMMATE: self.owners.person_name(actor.number())})

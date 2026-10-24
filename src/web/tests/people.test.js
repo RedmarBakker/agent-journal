@@ -1,7 +1,7 @@
 import {expect, test} from "vitest";
 import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import {actorName, agentName, colleagueOwner, isMe, ownEnvironments, personName} from "../src/domain/people.js";
+import {actorName, agentName, colleagueOwner, environmentLabel, isMe, personName, sidebarEnvironments} from "../src/domain/people.js";
 import {workerActions} from "../src/domain/workers.js";
 
 const team = (me) => ({me, device: me === 3 ? "d3" : "d7", people: [{id: 3, name: "Jesse Gall"}, {id: 7, name: "Anna de Vries"}], owners: {12: 7, 13: 3}});
@@ -70,7 +70,8 @@ test("a colleague's command card is drawn from its message, and opening it says 
 
 test("the Team chat is named so in the sidebar, and each person's message there is named by its writer", () => {
     const sidebar = readFileSync(resolve(__dirname, "../src/layout/Sidebar.vue"), "utf8");
-    expect(sidebar).toMatch(/e\.is_team_chat \? "Team chat" : e\.name/);
+    expect(sidebar).toMatch(/environmentLabel\(e, store\.people\)/);
+    expect(environmentLabel({id: 13, name: "team", is_team_chat: true}, team(3))).toBe("Team chat");
     const header = readFileSync(resolve(__dirname, "../src/chat/TurnHeader.vue"), "utf8");
     expect(header).toMatch(/mine && !isMe\(turn\.creator, store\.people\)/);
     expect(actorName("user:7", team(3))).toBe("Anna de Vries");
@@ -88,9 +89,20 @@ test("the Team chat's bar names who holds it and offers a Claim", () => {
 test("the sidebar lists the viewer's own environments and the Team chat", () => {
     const people = {me: 1, device: "d1", people: [{id: 1, name: "Ada"}, {id: 2, name: "Bob"}], owners: {"10": 1, "11": 2, "12": 2, "13": 0}};
     const rows = [{id: 10, name: "ada-main"}, {id: 11, name: "bob-main"}, {id: 12, name: "bob-docs"}, {id: 13, name: "team"}];
-    expect(ownEnvironments(rows, people).map((row) => row.name)).toEqual(["ada-main", "team"]);
+    expect(sidebarEnvironments(rows, people).map((row) => row.name)).toEqual(["ada-main", "team"]);
     const sidebar = readFileSync(resolve(__dirname, "../src/layout/Sidebar.vue"), "utf8");
-    expect(sidebar).toMatch(/ownEnvironments\(rows\("environments"\), store\.people\)/);
+    expect(sidebar).toMatch(/sidebarEnvironments\(rows\("environments"\), store\.people\)/);
+});
+
+test("an environment a colleague shares with the team shows in the sidebar with their name, and leaves it once taken back", () => {
+    const people = {me: 1, device: "d1", people: [{id: 1, name: "Ada"}, {id: 2, name: "Bob"}], owners: {"10": 1, "12": 2}};
+    const shared = {id: 12, name: "bob-docs", is_shared_with_team: true};
+    expect(sidebarEnvironments([{id: 10, name: "ada-main"}, shared], people).map((row) => environmentLabel(row, people))).toEqual(["ada-main", "bob-docs · Bob"]);
+    expect(sidebarEnvironments([{id: 10, name: "ada-main"}, {...shared, is_shared_with_team: false}], people).map((row) => row.name)).toEqual(["ada-main"]);
+    const sidebar = readFileSync(resolve(__dirname, "../src/layout/Sidebar.vue"), "utf8");
+    expect(sidebar).toMatch(/v-if="!onPhone && !colleagueOwner\(e\.id, store\.people\)"/);
+    const settings = readFileSync(resolve(__dirname, "../src/pages/SettingsEnvironments.vue"), "utf8");
+    expect(settings).toMatch(/row\.shared \? api\.unshareEnvironment\(row\.id\) : api\.shareEnvironment\(row\.id\)/);
 });
 
 test("the Team page lists each person with their environments and opens a colleague's in place", () => {

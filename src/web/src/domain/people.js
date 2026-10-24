@@ -36,5 +36,13 @@ export function colleagueOwner(environmentId, people = NOBODY) {
     return owner && owner !== people.me ? owner : 0;
 }
 
-// The environments the sidebar lists: the viewer's own and the Team chat, never a colleague's, which open from the Team page.
-export const ownEnvironments = (rows, people = NOBODY) => rows.filter((row) => !colleagueOwner(row.id, people));
+// The environments the sidebar lists: the viewer's own, the Team chat and those a colleague shares with the team; a colleague's
+// other environments open from the Team page.
+export const sidebarEnvironments = (rows, people = NOBODY) => rows.filter((row) => row.is_shared_with_team || !colleagueOwner(row.id, people));
+
+// The name the sidebar gives an environment: Team chat, one a colleague shares with their name after it, else its own name.
+export function environmentLabel(row, people = NOBODY) {
+    if (row.is_team_chat) return "Team chat";
+    const owner = colleagueOwner(row.id, people);
+    return owner ? `${row.name} · ${personName(owner, people)}` : row.name;
+}

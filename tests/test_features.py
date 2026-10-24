@@ -11227,6 +11227,87 @@ def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_serve
         team.close(server)
 
 
+def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_all_until_it_is_taken_back(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.environment_owners import EnvironmentOwners
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    def keyed(journal, key: str):
+        return next(iter(journal.container.get(Environments).keyed(key)), None)
+
+    def written(journal, environment_id: int, text: str, actor: Actor) -> Message:
+        with journal.container.get(Scope).environment(environment_id):
+            return journal.container.get(Messages).save(Message(environment_id=environment_id, author=Author.USER, text=text), actor)
+
+    def texts(journal, environment_id: int) -> list[str]:
+        return [message.text for message in journal.container.get(Messages).global_matching(environment_id=environment_id)]
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    a = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    b = booted(copied(template_journal, tmp_path / "b"), monkeypatch)
+    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    journals, carriers = [a, b], [CarriedSync(a).started(), CarriedSync(b).started()]
+    bob = replace(USER, person=2)
+    try:
+        claimed = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert claimed.code == 0, claimed.error
+        bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
+        joined = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        assert joined.code == 0, joined.error
+        assert a.console().run(["environment", "create", "docs"], USER).code == 0
+        docs = a.container.get(Environments).existing("docs")
+        assert eventually(lambda: keyed(b, docs.key) is not None and b.container.get(EnvironmentOwners).owner_number(keyed(b, docs.key).id) == 1), "Bob's journal holds Ada's docs as hers"
+        assert not keyed(b, docs.key).is_shared_with_team, "an environment is its owner's alone until they share it"
+        assert written(b, keyed(b, docs.key).id, "before the share", bob.actor).is_comment(), "in a colleague's environment Bob only comments"
+        assert "the Team chat is the whole team's already" in a.console().run(["environment", "share", "team"], USER).error
+        shared = a.console().run(["environment", "share", "docs"], USER)
+        assert shared.code == 0 and "is shared with the team" in shared.text, shared.error
+        assert eventually(lambda: keyed(b, docs.key).is_shared_with_team), "the share reaches every member's journal, whose sidebar then lists it"
+        on_b = keyed(b, docs.key)
+        refused = b.console().run(["environment", "share", on_b.name], bob)
+        assert refused.code == 1 and "only its owner shares it" in refused.error, refused.error
+        written(a, docs.id, "from Ada in docs", Actor.user(1))
+        assert eventually(lambda: "from Ada in docs" in texts(b, on_b.id)), "Bob reads the shared environment's chat"
+        message = written(b, on_b.id, "from Bob in docs", bob.actor)
+        assert not message.is_comment() and message.data.get(Message.TEAMMATE) == "Bob", "Bob writes in its chat as in the Team chat, his message reaching its agent"
+        assert eventually(lambda: "from Bob in docs" in texts(a, docs.id)), "and Ada's journal holds what Bob wrote"
+        unshared = a.console().run(["environment", "unshare", "docs"], USER)
+        assert unshared.code == 0, unshared.error
+        assert eventually(lambda: not keyed(b, docs.key).is_shared_with_team), "unsharing takes it out of every other member's sidebar"
+        assert written(b, on_b.id, "after the unshare", bob.actor).is_comment(), "and Bob comments there again"
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
 def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
     from journal.features.etiquette.feature import Etiquette
     from journal.features.messages.feature import Messages as MessagesFeature
