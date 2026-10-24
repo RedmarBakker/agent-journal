@@ -168,3 +168,15 @@ test("a joined Team page offers Disconnect and names the team server's address",
     expect(page).toMatch(/`team server \$\{standing\.value\.address\}`/);
 });
 
+
+test("each colleague's messages carry their own steady colour, never the viewer's blue, and the viewer's own stay unmarked", async () => {
+    const {colleagueColour, COLLEAGUE_COLOURS} = await import("../src/domain/people.js");
+    const people = {me: 1, device: "", people: [], owners: {}};
+    const ada = colleagueColour("user:2", people);
+    const bob = colleagueColour("user:3", people);
+    expect(colleagueColour("user:1", people)).toBe("");
+    expect(colleagueColour("agent:s1", people)).toBe("");
+    expect(ada).not.toBe(bob);
+    expect(COLLEAGUE_COLOURS).toContain(ada);
+    expect(colleagueColour("user:2", {...people, me: 3})).toBe(ada);
+});
