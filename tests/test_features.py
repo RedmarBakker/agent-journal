@@ -13976,6 +13976,7 @@ def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_
             b.container.get(Tasks).save(b.container.get(Tasks).find(task.id).with_(title="renamed by b"), Actor.user(1))
         assert eventually(lambda: a.container.get(Tasks).find(task.id).title == "renamed by b"), "and back the other way"
         carriers[1].stop()
+        assert eventually(carriers[1].sending_loop.is_dead), "the second journal's sending is down before its edit, so no round still under way sends it"
         with b.container.get(Scope).environment(MAIN):
             b.container.get(Tasks).save(b.container.get(Tasks).find(task.id).with_(title="b's older title"), Actor.user(1))
         timing.sleep(0.01)
