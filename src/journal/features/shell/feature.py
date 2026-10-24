@@ -3,7 +3,7 @@ from journal.features.feature import Feature
 from journal.features.shell.listeners.output_notice import OutputNotice
 from journal.features.shell.listeners.watch_update import WatchUpdate
 from journal.features.shell.listeners.output_card import OutputCard
-from journal.features.shell.jobs.run_mark_start import RunMarkStart
+from journal.features.shell.jobs.run_card_start import RunCardStart
 from journal.features.shell.listeners.changed_output_card import ChangedOutputCard
 from journal.features.shell.listeners.reader_output_cards import ReaderOutputCards
 from journal.features.shell.listeners.reader_judgement import ReaderJudgement
@@ -33,7 +33,7 @@ class Shell(Feature[ShellData]):
     options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.REPORT_READ_LIMIT, ShellOptions.REPORT_FIX_LIMIT, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
     listeners = (OutputNotice, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement)
     seeds = (CutOffOutputs, DefaultReaders)
-    jobs = (WatchRefresh, RestartWait, RunMarkStart)
+    jobs = (WatchRefresh, RestartWait, RunCardStart)
     process_cards = (OutputProcessCard,)
     data = (ShellDataReader,)
     conduct = (ShellConduct,)

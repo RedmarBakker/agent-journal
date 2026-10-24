@@ -19,8 +19,6 @@ from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.support.rejection import Rejection
 
-# the newest runs looked through for a stored output of the command a new reader reads
-NEWEST_RUNS = 200
 NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
@@ -66,7 +64,7 @@ class ReaderCommand(Command):
             raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
-        reader = (prior or Reader(args.name, args.about, "")).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
+        reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
         for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):
             re.compile(pattern)
         if args.script:
@@ -80,7 +78,7 @@ class ReaderCommand(Command):
         return 0
 
     def tried(self, reader: Reader) -> None:
-        stored = next((output for output in self.outputs.latest(NEWEST_RUNS) if reader.commands.is_shown_run(output.command) and OutputFiles(Path(output.folder)).is_stored()), None)
+        stored = self.judge.latest_stored_run(reader)
         misses = self.judge.misses(reader, OutputFiles(Path(stored.folder)).lines()) if stored is not None else []
         if misses:
             raise Rejection(f"reader {reader.name} is refused, tried on output {stored.id}: {'; '.join(misses)}")

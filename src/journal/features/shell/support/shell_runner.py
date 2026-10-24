@@ -198,7 +198,7 @@ class ShellRunner:
         if not (output.watch_reader or output.is_watched):
             return False
         with self.scope.environment(output.environment_id):
-            return output.is_past_mark(time.time()) or self.card.is_shown(output)
+            return output.has_run_long(time.time()) or self.card.is_shown(output)
 
     def closed(self, folder: OutputFiles, request: ShellRequest, caller: Caller, cap: Cap) -> None:
         if cap.is_direct() or cap.is_whole():

@@ -22,4 +22,4 @@ class VerifierHooks:
         verifier = self.verifiers.find(hook.verifier)
         if not verifier.session:
             self.verifiers.save(verifier.with_(session=hook.session), Actor.system())
-        self.agents.sent_agent(hook.session, environment.row_id, hook.provider, AgentRole.VERIFIER)
+        self.agents.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.VERIFIER)

@@ -18,7 +18,7 @@ from journal.repositories.environment_owners import EnvironmentOwners
 
 
 # the most rows one page of the chat holds, its written messages and the marks between them together
-PAGE_ROW_LIMIT = 400
+CHAT_PAGE_ROWS = 400
 
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
@@ -125,9 +125,9 @@ class Messages(ScopedRepository[Message]):
         query = self.bounded(chat, previous, following)
         person_messages = self.latest_rows(query.filter_unequal("author", Author.SYSTEM.value), count + 1)
         if len(person_messages) <= count:
-            return self.latest_rows(query, PAGE_ROW_LIMIT), False
+            return self.latest_rows(query, CHAT_PAGE_ROWS), False
         oldest = person_messages[1]
-        return self.latest_rows(query.filter_greater_equal("created_at", oldest.created_at.isoformat()), PAGE_ROW_LIMIT), True
+        return self.latest_rows(query.filter_greater_equal("created_at", oldest.created_at.isoformat()), CHAT_PAGE_ROWS), True
 
     def bounded(self, chat: Query, previous: int, following: int) -> Query:
         query = chat

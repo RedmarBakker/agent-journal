@@ -586,7 +586,27 @@ def test_a_stop_whose_child_was_reaped_by_a_nested_stop_never_signals_pid_minus_
     assert terminal.stop(0.1) == 0
     assert sent == [(4242, signal.SIGTERM)], "only the child the stop began with hears a signal, and no SIGKILL follows once another caller reaped it"
     assert terminal.stop(0.1) == 0 and sent == [(4242, signal.SIGTERM)], "a terminal with no child signals nothing"
-    assert Supervisor.is_running(-1) is False and Supervisor.is_running(0) is False, "an owner pid of zero or below is never probed"
+
+
+def test_an_owner_pid_of_zero_or_below_is_never_probed_and_a_gone_owner_ends_the_supervisor(monkeypatch):
+    probed = []
+    monkeypatch.setattr(os, "kill", lambda pid, kind: probed.append(pid))
+    for owner in (-1, 0):
+        supervisor = Supervisor.__new__(Supervisor)
+        supervisor.owner, supervisor._owner_checked_at = owner, float("-inf")
+        supervisor.check_owner()
+    assert probed == [], "an owner pid of zero or below is never probed"
+
+    def gone(pid: int, kind: int) -> None:
+        raise ProcessLookupError
+
+    monkeypatch.setattr(os, "kill", gone)
+    ended = []
+    supervisor = Supervisor.__new__(Supervisor)
+    supervisor.owner, supervisor._owner_checked_at = 4242, float("-inf")
+    supervisor.noted, supervisor.stop = lambda line: None, lambda: ended.append(True)
+    supervisor.check_owner()
+    assert ended == [True], "an owner that is gone ends the supervisor"
 
 
 def test_remote_install_hands_the_host_it_reaches_as_the_team_address():

@@ -9,7 +9,7 @@ import threading
 
 from journal.config import Config
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
-from journal.providers.support.sent_agent_setup import JOURNAL_ACTIVE, SentAgentSetup
+from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.support.agent_token import AgentToken
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.pool_worker_moves import ENDED, PoolWorkerMoves
@@ -48,7 +48,7 @@ POOL_PREFIXES = ("LC_", "JOURNAL_")
 class WorkerRunner:
     """Runs a dispatched worker: its provider headless on the brief, in the project or in a worktree of its own, with the journal's hooks off; what it prints is its report, filed when it ends."""
 
-    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: SentAgentSetup) -> None:
+    def __init__(self, config: Config, providers: Providers, reports: WorkerReports, scope: Scope, branch: WorkerBranch, settings: SettingRows, workers: Workers, environments: Environments, profiles: ProfileFiles, agents: Agents, chat: WorkerChat, libraries: WorkerLibraries, commands: WorktreeCommands, account: TeamAccount, moves: PoolWorkerMoves, setup: HelperSetup) -> None:
         self.config, self.providers, self.reports, self.scope, self.branch, self.settings, self.workers = config, providers, reports, scope, branch, settings, workers
         self.environments, self.profiles, self.agents, self.chat, self.libraries, self.commands = environments, profiles, agents, chat, libraries, commands
         self.account, self.moves, self.setup = account, moves, setup

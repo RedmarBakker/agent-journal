@@ -274,15 +274,15 @@ def test_any_row_docks_above_the_chat_by_noun_and_number_in_either_order(app: Ap
 
 
 def test_a_workers_environment_carries_no_providers_markers_no_session_and_no_launch(app: App, monkeypatch):
-    from journal.providers.support.sent_agent_setup import SentAgentSetup
+    from journal.providers.support.helper_setup import HelperSetup
     parents = {*Providers().inherited_markers(), *Providers().session_variables(), "JOURNAL_LAUNCH", "JOURNAL_SESSION"}
     for name in parents:
         monkeypatch.setenv(name, "parent")
     from journal.support.agent_token import AgentToken
-    handed = app.container.get(SentAgentSetup).variables("main", Actor.worker(7), AgentToken("tok"))
+    handed = app.container.get(HelperSetup).variables("main", Actor.worker(7), AgentToken("tok"))
     assert not parents & set(handed), "a worker carries none of the parent's thread, and never its session, which its report would take as its own"
     assert (handed["JOURNAL_ACTOR"], handed["JOURNAL_ACTOR_TOKEN"], handed["JOURNAL_ENV"]) == ("worker:7", "tok", "main")
-    assert app.container.get(SentAgentSetup).variables("main", Actor.verifier(3), AgentToken("tok"))["JOURNAL_ACTOR"] == "verifier:3", "a verifier's shell names it as a verifier, never a worker"
+    assert app.container.get(HelperSetup).variables("main", Actor.verifier(3), AgentToken("tok"))["JOURNAL_ACTOR"] == "verifier:3", "a verifier's shell names it as a verifier, never a worker"
 
 
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):

@@ -24,7 +24,7 @@ class SessionAgents:
             first = self.states.first()
             return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=first.name, data=first.serialized()), Actor.system())
 
-    def sent_agent(self, session: str, environment_id: int, provider: str, role: AgentRole) -> Agent:
+    def helper_agent(self, session: str, environment_id: int, provider: str, role: AgentRole) -> Agent:
         try:
             return self.agents.session_agent(session)
         except MissingRow:

@@ -27,7 +27,7 @@ class Reader:
 
     name: str
     subject: str
-    pattern: str
+    pattern: str = ""
     progress_pattern: str = ""
     label: str = ""
     commands: ReaderCommands = ReaderCommands()

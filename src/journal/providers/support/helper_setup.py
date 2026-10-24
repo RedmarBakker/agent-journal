@@ -13,7 +13,7 @@ JOURNAL_ACTIVE = "AGENT_JOURNAL_ACTIVE"
 EXCLUDED_VARIABLES = ("JOURNAL_SESSION", "JOURNAL_LAUNCH")
 
 
-class SentAgentSetup:
+class HelperSetup:
     """What a sent agent's program runs with, a worker's and a verifier's alike: the variables of its shell, its actor and the token that proves it, and the settings file that wires the journal's hooks into its run."""
 
     def __init__(self, config: Config, providers: Providers) -> None:

@@ -17,5 +17,5 @@ class OutputCard(Listener[Saved]):
             return
         if not (output.moved or output.is_watched or output.watch_reader):
             return
-        if self.card.is_shown(output) or output.is_past_mark(output.update_time.timestamp()):
+        if self.card.is_shown(output) or output.has_run_long(output.update_time.timestamp()):
             self.cards.show(self.card.card_contents(output))

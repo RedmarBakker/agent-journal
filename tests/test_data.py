@@ -282,7 +282,7 @@ def test_the_verifiers_once_kept_as_workers_go_with_their_links_their_role_colum
 
 
 def test_workers_and_verifiers_move_into_the_one_table_of_sent_agents_each_keeping_what_names_it(connection):
-    from journal.db.migrations.sent_agent_rows import SentAgentRows
+    from journal.db.migrations.helper_rows import HelperRows
     from journal.db.schema import Schema
     from journal.models.verifier import Verifier
     legacy_workers(connection)
@@ -293,7 +293,7 @@ def test_workers_and_verifiers_move_into_the_one_table_of_sent_agents_each_keepi
     connection.execute("INSERT INTO verifiers (environment_id, name, state, created_at, creator) VALUES (1, 'Diogenes', 'judged', '2026-10-25', 'system')")
     connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('verifiers:1', 'reader_reports:4', 'verifies', '2026-10-25', 'system')")
     connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at, creator) VALUES (1, 'system', 'card', ?, '2026-10-25', 'system')", (json.dumps({"key": "verifier:1"}),))
-    SentAgentRows().apply(connection)
+    HelperRows().apply(connection)
     rows = [(row["id"], row["name"], row["kind"]) for row in connection.all("SELECT id, name, kind FROM sent_agents ORDER BY id")]
     assert rows == [(1, "Ada", "worker"), (2, "Grace", "worker"), (3, "Diogenes", "verifier")], "each worker keeps its number, and a verifier takes one after the last so none meets a worker's"
     assert connection.one("SELECT source FROM links")["source"] == "verifiers:3" and json.loads(connection.one("SELECT data FROM messages")["data"]) == {"key": "verifier:3"}, "its link and its card follow its new number"

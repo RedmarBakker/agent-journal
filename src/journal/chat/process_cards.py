@@ -26,17 +26,18 @@ class ProcessCards:
             older = self.messages.keyed(contents.key, contents.actor)
             if older and older[0].data.get(FINAL):
                 return older[0]
-            return self.written(contents, older)
+            return self.save_card(contents, older)
 
     # a finished card read again by a reader written anew, while the output it shows is still kept
     def reread(self, contents: ProcessCardContents) -> Message:
         with self.messages.writing():
-            return self.written(contents, self.messages.keyed(contents.key, contents.actor))
+            return self.save_card(contents, self.messages.keyed(contents.key, contents.actor))
 
-    def written(self, contents: ProcessCardContents, older: list[Message]) -> Message:
+    def save_card(self, contents: ProcessCardContents, older: list[Message]) -> Message:
         data = {"row": "", **contents.data, **CardDetail.parts(contents.detail), **CardCategory.read(contents.label).fields(), "key": contents.key, "shows": str(contents.shows), "card_type": PROCESS, "process": contents.process, "active": contents.active}
         if older:
-            ended = {FINAL: True} if (older[0].data.get("active") or older[0].data.get(FINAL)) and not contents.active else {}
+            open_card = older[0].data.get("active") or older[0].data.get(FINAL)
+            ended = {FINAL: True} if open_card and not contents.active else {}
             return self.messages.save(older[0].with_(text=contents.label, session=contents.session or older[0].session, data={**self.docked_data(older[0], data), **ended}), contents.actor)
         roles = self.agents.session_roles(contents.session) if contents.session else []
         return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data=data), contents.actor)

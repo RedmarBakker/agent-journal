@@ -18,6 +18,7 @@ from sync_server.blocks_request import BlocksRequest
 from sync_server.file_answer import FileAnswer
 from sync_server.file_place import FilePlace
 from sync_server.lease_request import LeaseRequest
+from sync_server.json_reply import JsonReply
 from sync_server.leases import UPGRADE_LEASE
 from sync_server.login_request import LoginRequest
 from sync_server.protocol import MIGRATION_HEADER, PROTOCOL, PROTOCOL_HEADER, UNVERSIONED, VERSION_HEADER
@@ -109,7 +110,7 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         client_protocol = int(self.headers.get(PROTOCOL_HEADER, UNVERSIONED))
         if client_protocol >= PROTOCOL:
             return False
-        self.sent(426, {"error": f"this journal speaks protocol {client_protocol} and the team server {PROTOCOL}: upgrade the journal with journal update apply"})
+        JsonReply.send(self, 426, {"error": f"this journal speaks protocol {client_protocol} and the team server {PROTOCOL}: upgrade the journal with journal update apply"})
         return True
 
     def push_reply(self, team) -> SyncAnswer:
@@ -142,12 +143,12 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
 
     def answered(self, route) -> None:
         if route is None:
-            self.sent(404, {"error": f"no such path: {self.path}"})
+            JsonReply.send(self, 404, {"error": f"no such path: {self.path}"})
             return
         try:
-            self.sent(200, asdict(route()))
+            JsonReply.send(self, 200, asdict(route()))
         except Refusal as refusal:
-            self.sent(403, {"error": str(refusal)})
+            JsonReply.send(self, 403, {"error": str(refusal)})
 
     def file_place(self, path: str) -> FilePlace:
         self.server.team.devices.device(self.token())
@@ -157,21 +158,13 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         try:
             data = read()
         except Refusal as refusal:
-            self.sent(404, {"error": str(refusal)})
+            JsonReply.send(self, 404, {"error": str(refusal)})
             return
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
-
-    def sent(self, status: int, body: dict) -> None:
-        text = json.dumps(body).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(text)))
-        self.end_headers()
-        self.wfile.write(text)
 
     def lease_state(self, name: str):
         self.server.team.devices.device(self.token())

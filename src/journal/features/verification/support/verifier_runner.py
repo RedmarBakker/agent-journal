@@ -8,7 +8,7 @@ import time
 from journal.config import Config
 from journal.models.verifier import Verifier
 from journal.providers.providers import Providers
-from journal.providers.support.sent_agent_setup import SentAgentSetup
+from journal.providers.support.helper_setup import HelperSetup
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
@@ -23,7 +23,7 @@ VERIFIER_SECONDS = 600
 class VerifierRunner:
     """Runs a verifier the journal sent: its program headless on its brief in the project, its shell marked a verifier's with its own number and token and the journal's hooks wired in; a process that ends, or runs past its ten minutes, without a verdict ends the verifier, and a verdict stops its process."""
 
-    def __init__(self, config: Config, providers: Providers, setup: SentAgentSetup, verifiers: Verifiers, environments: Environments, agents: Agents, scope: Scope) -> None:
+    def __init__(self, config: Config, providers: Providers, setup: HelperSetup, verifiers: Verifiers, environments: Environments, agents: Agents, scope: Scope) -> None:
         self.config, self.providers, self.setup, self.verifiers = config, providers, setup, verifiers
         self.environments, self.agents, self.scope = environments, agents, scope
 
@@ -41,8 +41,8 @@ class VerifierRunner:
             output = self.output(verifier)
             output.parent.mkdir(parents=True, exist_ok=True)
             try:
-                with output.open("w") as printed:
-                    process = subprocess.Popen(command, cwd=self.config.root, env=environ, stdin=subprocess.DEVNULL, stdout=printed, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+                with output.open("w") as log_file:
+                    process = subprocess.Popen(command, cwd=self.config.root, env=environ, stdin=subprocess.DEVNULL, stdout=log_file, stderr=subprocess.STDOUT, text=True, start_new_session=True)
             except OSError:
                 self.ended(verifier)
                 return

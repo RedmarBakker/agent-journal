@@ -218,24 +218,16 @@ class Supervisor:
             self.band.end()
 
     def check_owner(self) -> None:
-        if not self.owner or time.monotonic() - self._owner_checked_at < OWNER_CHECK_SECONDS:
+        if self.owner <= 0 or time.monotonic() - self._owner_checked_at < OWNER_CHECK_SECONDS:
             return
         self._owner_checked_at = time.monotonic()
-        if not self.is_running(self.owner):
+        try:
+            os.kill(self.owner, 0)
+        except ProcessLookupError:
             self.noted(f"its owner, process {self.owner}, is gone: ending")
             self.stop()
-
-    @staticmethod
-    def is_running(pid: int) -> bool:
-        if pid <= 0:
-            return False
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return False
         except PermissionError:
-            return True
-        return True
+            return
 
     def handle_hangup(self) -> None:
         self.band = None

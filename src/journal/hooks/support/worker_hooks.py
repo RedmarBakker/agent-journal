@@ -29,4 +29,4 @@ class WorkerHooks:
         worker = self.workers.find(hook.worker)
         if not worker.session:
             self.workers.save(worker.with_(session=hook.session), Actor.system())
-        self.agents.sent_agent(hook.session, environment.row_id, hook.provider, AgentRole.WORKER)
+        self.agents.helper_agent(hook.session, environment.row_id, hook.provider, AgentRole.WORKER)

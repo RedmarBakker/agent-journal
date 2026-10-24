@@ -16,6 +16,8 @@ from journal.support.command_shape import CommandShape
 PROGRESS_SECONDS = 30
 # the poor lines a report quotes
 QUOTED_LINES = 3
+# the newest runs looked through for a stored output of the command a new reader reads
+NEWEST_RUNS = 200
 COUNT_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
 PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]")
 SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
@@ -28,6 +30,10 @@ class ReaderJudge:
 
     def __init__(self, readers: Readers, outputs: CommandOutputs) -> None:
         self.readers, self.outputs = readers, outputs
+
+    def latest_stored_run(self, reader: Reader) -> CommandOutput | None:
+        runs = self.outputs.latest(NEWEST_RUNS)
+        return next((run for run in runs if reader.commands.is_shown_run(run.command) and OutputFiles(Path(run.folder)).is_stored()), None)
 
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.lookup(output.watch_reader)

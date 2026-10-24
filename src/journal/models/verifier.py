@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from journal.models.sent_agent import SentAgent
+from journal.models.helper import Helper
 from journal.models.verifier_state import VerifierState
 
 
 @dataclass(frozen=True)
-class Verifier(SentAgent):
+class Verifier(Helper):
     """An agent the journal sends itself to judge one dismissal on the evidence in its brief, never a worker and never known to the main agent: its program and model, its session, the hash of the token its run proves itself with, its process, and whether it is still judging, gave its verdict or ended without one."""
 
     shared: ClassVar[bool] = False

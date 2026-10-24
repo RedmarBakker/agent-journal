@@ -33,10 +33,10 @@ class Chain:
 
     @classmethod
     def choosing_parts(cls, line: str) -> list[str]:
-        pieces = [segment for part in cls.parts(line) if part.recorded for segment in cls.commands(part.text)]
-        shaped = [(segment, shape.split()[0]) for segment in pieces if (shape := CommandShape.build(segment))]
-        working = [text for text, program in shaped if program not in SETUP_COMMANDS and program not in IDLE_COMMANDS]
-        return working or [text for text, _ in shaped]
+        commands = [segment for part in cls.parts(line) if part.recorded for segment in cls.commands(part.text)]
+        with_programs = [(segment, shape.split()[0]) for segment in commands if (shape := CommandShape.build(segment))]
+        working = [text for text, program in with_programs if program not in SETUP_COMMANDS and program not in IDLE_COMMANDS]
+        return working or [text for text, _ in with_programs]
 
     # the commands of a part a reader may read, one by one: its alternatives after ||, the commands of a pipe, and the first line of a
     # heredoc's command, its comment lines passed over; a loop or a group stays whole, as its shape names what it runs

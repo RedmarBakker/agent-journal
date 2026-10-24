@@ -9896,7 +9896,7 @@ def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: 
     import threading
     import time
     from journal.chat.process_cards import ProcessCards
-    from journal.features.shell.jobs.run_mark_start import RunMarkStart
+    from journal.features.shell.jobs.run_card_start import RunCardStart
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
@@ -9928,7 +9928,7 @@ def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: 
         with app.container.get(Scope).environment(MAIN):
             slow = next((output for output in outputs.watched(AGENT.session) if not output.ended and output.row_id not in quick), None)
         time.sleep(0.05)
-    job = app.container.get(RunMarkStart)
+    job = app.container.get(RunCardStart)
     job.tick(time.time())
     assert slow is not None and not cards(slow), "a run still within its first 3 seconds shows no card"
     job.tick(time.time() + 3.5)
@@ -10796,8 +10796,8 @@ def test_a_watch_or_wait_through_a_reader_is_refused_on_an_output_its_reader_doe
     (folder / "0.out").write_text("")
     app.container.get(OutputLog).start("alias", "journal suite tests/test_server.py", folder, Caller.agent("main", "s1", "claude"))
     assert console.run(["output", "watch", "3", "--reader", "pytest"], AGENT).code == 0, "a run whose typed line is an alias is read by what it ran"
-    from journal.features.shell.jobs.run_mark_start import RunMarkStart
-    app.container.get(RunMarkStart).tick(timing.time() + 4)
+    from journal.features.shell.jobs.run_card_start import RunCardStart
+    app.container.get(RunCardStart).tick(timing.time() + 4)
     assert console.run(["output", "undock", str(tests.id)], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
         assert not app.container.get(Messages).with_key(f"watch:{tests.id}")[0].data.get("docked"), "and its card, once shown, can be taken down"

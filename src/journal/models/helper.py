@@ -2,13 +2,13 @@ from dataclasses import dataclass, fields
 
 from journal.models.scoped import Scoped
 
-SENT_AGENTS = "sent_agents"
+HELPERS_TABLE = "sent_agents"
 # a verifier, kept on one machine, still numbers its rows from the workers' block, so its number never meets a worker's in the one table
 WORKER_POOL = "workers"
 
 
 @dataclass(frozen=True)
-class SentAgent(Scoped):
+class Helper(Scoped):
     """An agent sent on one job, a worker or a verifier, stored in the one table of sent agents, its kind saying which: its name and brief, its program and model, its session, the hash of the token its run proves itself with, and its process."""
 
     name: str = ""
@@ -22,7 +22,7 @@ class SentAgent(Scoped):
 
     @classmethod
     def storage(cls) -> str:
-        return SENT_AGENTS
+        return HELPERS_TABLE
 
     @classmethod
     def kind_filter(cls) -> dict[str, str]:

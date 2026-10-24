@@ -49,8 +49,8 @@ class Actor:
 
     @staticmethod
     def stamp_number(stamp: str, kind: ActorKind) -> int | None:
-        named, colon, number = stamp.partition(":")
-        if named != kind.value or not colon:
+        prefix, colon, number = stamp.partition(":")
+        if prefix != kind.value or not colon:
             return None
         return int(number) if number.isdigit() else 0
 

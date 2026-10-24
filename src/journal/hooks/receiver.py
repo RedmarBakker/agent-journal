@@ -52,7 +52,7 @@ class Receiver:
         hook = self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
-            if not self.is_taken_in(hook, environment):
+            if not self.is_accepted(hook, environment):
                 return self.unbound(hook, environment)
             self.worker_hooks.bind(hook, environment)
             self.verifier_hooks.bind(hook, environment)
@@ -71,7 +71,7 @@ class Receiver:
             self._defer(event)
         return decision
 
-    def is_taken_in(self, hook: Hook, environment: Environment) -> bool:
+    def is_accepted(self, hook: Hook, environment: Environment) -> bool:
         if hook.is_sent():
             return self.worker_hooks.is_proven(hook) or self.verifier_hooks.is_proven(hook)
         return self.launches.is_launch(environment.name, hook.launch)

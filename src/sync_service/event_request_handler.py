@@ -3,31 +3,25 @@ import sys
 import traceback
 from http.server import BaseHTTPRequestHandler
 
+from sync_server.json_reply import JsonReply
+
 
 class EventRequestHandler(BaseHTTPRequestHandler):
     """One event the journal server posts to the sync service, handed to its carrier, whose answer goes back as the reply; and the service's health, 200 while its loops live."""
 
     def do_GET(self) -> None:
         if self.path != "/health":
-            self.answered(404, {"error": f"no {self.path} here"})
+            JsonReply.send(self, 404, {"error": f"no {self.path} here"})
             return
-        self.answered(200 if self.server.carrier.is_working() else 503, {"working": self.server.carrier.is_working()})
+        JsonReply.send(self, 200 if self.server.carrier.is_working() else 503, {"working": self.server.carrier.is_working()})
 
     def do_POST(self) -> None:
         event = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         try:
-            self.answered(200, self.server.carrier.reply(str(event.get("event", ""))))
+            JsonReply.send(self, 200, self.server.carrier.reply(str(event.get("event", ""))))
         except Exception as fault:
             sys.stderr.write(f"the sync service could not take {event.get('event')}:\n{traceback.format_exc()}")
-            self.answered(500, {"error": f"{type(fault).__name__}: {fault}"})
-
-    def answered(self, status: int, body: dict) -> None:
-        data = json.dumps(body).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+            JsonReply.send(self, 500, {"error": f"{type(fault).__name__}: {fault}"})
 
     def log_message(self, format: str, *args) -> None:
         return
