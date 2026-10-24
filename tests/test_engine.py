@@ -2029,13 +2029,19 @@ def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_he
     from journal.models.agent_role import AgentRole
     from journal.models.author import Author
     from journal.models.message import Message
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
     from journal.models.worker import Worker
     from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     scope = app.container.get(Scope)
     with scope.environment(1):
-        app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w9"), Actor.system())
+        workers, tasks = app.container.get(Workers), app.container.get(Tasks)
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w9"), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
         app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text="for the main agent"), Actor.user(1))
     writes = [hook(app, "PreToolUse", session_id="w9", tool_name="Write", tool_input={"file_path": f"w{n}.py"}) for n in range(8)]
     assert all(status == 200 for status, _ in writes), "a worker's write is allowed with the user's messages unread"
