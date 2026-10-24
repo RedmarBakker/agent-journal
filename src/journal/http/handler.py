@@ -16,6 +16,8 @@ from journal.http.support.stream_response import StreamResponse
 
 # the one question answered while the journal boots: which phase it is in
 UNHELD_PATHS = ("/journal/health",)
+# the sync carrier's doors answer busy while the journal boots, so the carrier waits and tries again, never held on a thread
+UNHELD_PREFIXES = ("/journal/sync/",)
 
 
 class Handler(PooledHandler):
@@ -60,7 +62,7 @@ class Handler(PooledHandler):
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
         request = RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity)
-        if request.path in UNHELD_PATHS:
+        if request.path in UNHELD_PATHS or request.path.startswith(UNHELD_PREFIXES):
             return request
         boot_wait = self.lifecycle.boot_wait_seconds()
         return request.boot_delayed(boot_wait) if boot_wait else request

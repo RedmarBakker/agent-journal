@@ -22,6 +22,10 @@ class Response:
         return cls.absent(str(error))
 
     @classmethod
+    def busy(cls, reason: str) -> "Response":
+        return cls(503, {"error": reason})
+
+    @classmethod
     def forbidden(cls, reason: str) -> "Response":
         return cls(403, {"error": reason})
 

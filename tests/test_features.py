@@ -12944,3 +12944,21 @@ def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_t
     assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
     account.left(0)
     server.shutdown()
+
+
+def test_the_sync_desk_answers_busy_at_once_while_the_journal_boots(app: App):
+    import time as clock
+    from urllib.error import HTTPError
+    from journal.engine.lifecycle import Lifecycle
+    port = app.server().port
+    lifecycle = app.container.get(Lifecycle)
+    def status() -> int:
+        try:
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).status
+        except HTTPError as refusal:
+            return refusal.code
+    lifecycle.booting()
+    began = clock.monotonic()
+    assert status() == 503 and clock.monotonic() - began < 2, "booting, the carrier is told to wait at once, never held"
+    lifecycle.booted()
+    assert status() == 200

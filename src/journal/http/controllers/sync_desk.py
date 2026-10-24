@@ -1,5 +1,6 @@
 from dataclasses import asdict
 
+from journal.engine.lifecycle import Lifecycle
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.sync.sync_client import BATCH_ROWS, SyncClient
@@ -13,11 +14,18 @@ from sync_server.sync_answer import SyncAnswer
 class SyncDeskController:
     """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, the team's full copy laid in when it is past this journal's sequence, and, around an upgrade, the queue drained and the carrier paused, then resumed."""
 
-    def __init__(self, desk: SyncDesk, client: SyncClient, secret: SyncSecret) -> None:
-        self.desk, self.client, self.secret = desk, client, secret
+    def __init__(self, desk: SyncDesk, client: SyncClient, secret: SyncSecret, lifecycle: Lifecycle) -> None:
+        self.desk, self.client, self.secret, self.lifecycle = desk, client, secret, lifecycle
 
     def guarded(self, door):
-        return lambda request: door(request) if self.secret.allows(request) else Response.forbidden("the sync desk answers its carrier alone: a request carries the server's sync secret and comes straight, never through a proxy")
+        return lambda request: self.answered(door, request)
+
+    def answered(self, door, request: Request) -> Response:
+        if not self.secret.allows(request):
+            return Response.forbidden("the sync desk answers its carrier alone: a request carries the server's sync secret and comes straight, never through a proxy")
+        if not self.lifecycle.is_booted():
+            return Response.busy("the journal is starting: try again in a moment")
+        return door(request)
 
     def answer(self, request: Request) -> Response:
         return Response.json({"applied": self.desk.answered(PullAnswer.parsed(**request.body))})
