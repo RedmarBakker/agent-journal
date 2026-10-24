@@ -49,8 +49,9 @@ test("from a seat the figure is drawn standing for it at once, never waiting out
     expect(clip.postures, "no seated posture, so a seated figure stands up for it").toEqual(["stand"]);
     const perched = {seated: true, until: 1000};
     expect(playsSeated(clip, "sit", perched, 10), "it does not wait for the seat's stay").toBe(true);
-    const nod = CLIPS.find((each) => each.name === "nod");
-    expect(playsSeated(nod, "sit", perched, 10), "an ordinary act still waits").toBe(false);
+    const standing = CLIPS.find((each) => each.name === "bug_shot");
+    expect(standing.postures, "an ordinary act that only stands").not.toContain("sit");
+    expect(playsSeated(standing, "sit", perched, 10), "an ordinary standing act still waits").toBe(false);
     expect(turnStep({posture: "sit", facing: 0}, {posture: "stand", facing: 0})).toEqual({posture: "stand", facing: 0});
     expect(act.stand[1], "it holds standing before it kneels").toBeLessThanOrEqual(act.kneel[0]);
     expect(act.stand[1] - act.stand[0]).toBeGreaterThan(0);
@@ -75,9 +76,10 @@ test("the cross is far bigger than the little one was and is held up before it i
     const root = new THREE.Group();
     crucifixOf(root);
     root.updateMatrixWorld(true);
+    // built in the pose's own axes, turned upright by poseSpace: the upright runs along y here, the crossbar along x
     const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
-    expect(size.z).toBeGreaterThanOrEqual(2);
-    expect(size.x).toBeGreaterThanOrEqual(1);
+    expect(size.y, "its upright").toBeGreaterThanOrEqual(CRUCIFIX.long);
+    expect(size.x, "its crossbar").toBeGreaterThanOrEqual(CRUCIFIX.across);
     for (const voice of VOICES) {
         const {pose, at} = posed((act.hold[0] + act.hold[1]) / 2, voice);
         expect(pose.props.get("crucifix"), voice).toMatchObject({bone: "hand_r"});
