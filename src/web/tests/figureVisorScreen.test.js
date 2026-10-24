@@ -12,7 +12,7 @@ function visor() {
     return screenMaterial(mesh);
 }
 
-test("the visor's glass is one flat near-black colour, unshaded by the light, with a thin darker bezel round its rounded edge and a faint glare at the top", () => {
+test("the visor's face is one plain near-black colour, unshaded, with nothing laid over it: no faint grid of unlit pixels, no glare, no rim and no halo", () => {
     const material = visor();
     const glass = material.uniforms.glass.value.toArray();
     expect(glass).toEqual(SCREEN.glass);
@@ -20,30 +20,20 @@ test("the visor's glass is one flat near-black colour, unshaded by the light, wi
     expect(Math.max(...glass) - Math.min(...glass), "no colour cast").toBeLessThan(0.01);
     // flat: the screen's colour reads neither the light nor the normal, so no gradient falls across it
     expect(material.fragmentShader).not.toMatch(/dot\(normal|uniform vec3 shade|uniform vec3 light/);
-    // the bezel: a few hundredths of a unit wide, a good deal darker than the glass, round the visor's own rounded outline
-    const [width, shade, round] = material.uniforms.bezel.value.toArray();
-    expect(width).toBeGreaterThan(0.01);
-    expect(width).toBeLessThan(0.08);
-    expect(shade).toBeGreaterThan(0.5);
-    expect(round).toBeCloseTo(SCREEN.bezel.round, 6);
-    // the glare: faint, and only across the top of the glass
-    const [glare, from] = material.uniforms.glare.value.toArray();
-    expect(glare).toBeGreaterThan(0);
-    expect(glare).toBeLessThan(Math.max(...glass) * 3);
-    expect(from).toBeGreaterThanOrEqual(0.3);
+    // the face is the glass alone, and a point of it is that colour wherever no lit pixel is, the eyes the only thing drawn on it
+    expect(material.fragmentShader).toMatch(/vec3 screen = glass;/);
+    expect(material.fragmentShader).toMatch(/vec3 drawn = mix\(screen, glowing, shown\.a \* pixel\);/);
+    // nothing else tints it: no unlit pixels showing as a grid, no glare, no darker rim round its edge, no halo spilled from the eyes
+    for (const gone of ["off", "glare", "bezel", "halo"]) {
+        expect(material.uniforms[gone], gone).toBeUndefined();
+        expect(SCREEN[gone], gone).toBeUndefined();
+        expect(material.fragmentShader, gone).not.toMatch(new RegExp(`uniform \\w+ ${gone};`));
+    }
+    expect(material.fragmentShader).not.toMatch(/spill|rim/);
 });
 
-test("each lit pixel glows in its own colour with a soft halo on the black about it, and the pixels that are off show only faintly as a grid", () => {
+test("each lit pixel glows in its own colour, brighter than it and brightest at its middle, the only thing on the face", () => {
     const material = visor();
-    // the halo: as bright as a good share of the pixel, fading over most of a pixel and reaching beyond its neighbours
-    const [strength, soft, reach] = material.uniforms.halo.value.toArray();
-    expect(strength).toBeGreaterThanOrEqual(0);
-    expect(strength).toBeLessThan(1);
-    expect(soft).toBeGreaterThan(0.3);
-    expect(reach).toBeGreaterThanOrEqual(2);
-    // the screen gathers the glow of the lit pixels around each point, fading with their distance, and draws a lit pixel in its own colour
-    expect(material.fragmentShader).toMatch(/for \(int dx = -2; dx <= 2; dx\+\+\)/);
-    expect(material.fragmentShader).toMatch(/spill \+= near\.rgb \* near\.a \* exp\(/);
     // a lit pixel is drawn brighter than its colour, brightest at its middle
     expect(material.fragmentShader).toMatch(/mix\(screen, glowing, shown\.a \* pixel\)/);
     expect(material.uniforms.shine.value.toArray()).toEqual([SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness]);
@@ -51,10 +41,6 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     expect(SCREEN.shine.core).toBeGreaterThan(0);
     // the pixels change six times a second, like a small real screen
     expect(FRAMES_PER_SECOND).toBe(6);
-    // an off pixel: a touch brighter than the glass, far fainter than any lit one
-    expect(material.uniforms.off.value).toBe(SCREEN.off);
-    expect(SCREEN.off).toBeGreaterThan(0);
-    expect(SCREEN.off).toBeLessThan(Math.max(...SCREEN.glass));
     // the pixels it glows with are the lit pixels of the screen's texture, one texel each, and only those
     const texture = material.uniforms.pixels.value;
     expect([texture.image.width, texture.image.height]).toEqual([GRID.columns, GRID.rows]);
@@ -62,6 +48,7 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     showPixels(texture, lit);
     const on = [...Array(GRID.columns * GRID.rows).keys()].filter((index) => texture.image.data[index * 4 + 3]);
     expect(on.length).toBe(lit.length);
+    // a new screen is all off: the whole face the glass alone
     expect(pixelTexture().image.data.every((part) => part === 0), "a new screen is all off").toBe(true);
 });
 

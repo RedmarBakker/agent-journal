@@ -3450,21 +3450,19 @@ const FLAT = /* glsl */ `
     }
 `;
 
-// The visor reads as a screen of the grid's pixels (visorPixels.js GRID): its glass a flat `glass`, near-black and unshaded, with a thin
-// `bezel`, `width` of the figure's units, darker round its edge, whose outline is a box rounded `round` of each half of the visor; each
-// pixel lit in the colour `pixels` holds for it glows, casting a soft halo `halo.strength` as bright on the black about it, fading over
-// `halo.soft` of a pixel and reaching `halo.reach` pixels; the pixels that are off show `off` brighter than the glass, a faint grid; the
-// lines between the pixels are the dark glass, the halo kept off them, `gap` of a pixel wide and never under `line` of the screen's own
-// pixels however small the figure is drawn, widened by the softening the frame is drawn with so they are still dark after it
-// (Stage.draw), nor over half a pixel, so each pixel reads on its own, and lit pixels are `dark` as bright there under a dance's band;
-// and a faint glare `glare.strength` lies across the top of the glass from `glare.from` of the way up. It is lit whole by a dance (visor.js discoScreen): a band about its middle reaching
-// `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
+// The visor reads as a screen of the grid's pixels (visorPixels.js GRID): its face one plain `glass` colour, near-black and unshaded, with
+// nothing laid over it, no grid of unlit pixels, no glare and no rim, so only the lit pixels show on it; each lit pixel glows in the colour
+// `pixels` holds for it, drawn brighter than that colour and brightest at its middle (`shine`); the lines between the pixels are the
+// glass, `gap` of a pixel wide and never under `line` of the screen's own pixels however small the figure is drawn, widened by the
+// softening the frame is drawn with so they are still dark after it (Stage.draw), nor over half a pixel, so each pixel reads on its own,
+// and lit pixels are `dark` as bright there under a dance's band. Its outline is drawn crisp, on whole pixels (Stage.crispScreen). It is
+// lit whole by a dance (visor.js discoScreen): a band about its middle reaching `across` and `open` of the way to its sides and its top
+// and bottom, white with `flash` and else `glow`, as strong as `lit`.
 // parts of a voice's model the figure never shows: the homie's headphones, until they are modelled again
 export const HIDDEN_PARTS = ["headphones"];
 
 export const SCREEN = {
-    gap: 0.16, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
-    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0, soft: 0.55, reach: 2}, glare: {strength: 0.012, from: 0.5},
+    gap: 0.16, dark: 0.35, glass: [0.006, 0.007, 0.01],
     // a lit pixel is drawn brighter than its colour, brightest at its middle
     shine: {lift: 1, core: 0.55, tightness: 6},
     framesBehind: 6,
@@ -3484,10 +3482,6 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform float soften;
     uniform float dark;
     uniform vec3 glass;
-    uniform float off;
-    uniform vec3 bezel;
-    uniform vec3 halo;
-    uniform vec2 glare;
     uniform vec3 shine;
     varying vec3 localPosition;
 
@@ -3509,24 +3503,8 @@ const SCREEN_FRAGMENT = /* glsl */ `
         vec2 edges = smoothstep(lines * 0.5 - blend, lines * 0.5 + blend, border);
         float pixel = edges.x * edges.y;
         vec4 shown = pixelAt(floor(place));
-        // how far inside the rounded outline this point is, in the figure's units
-        vec2 corner = from - (1.0 - bezel.z);
-        float outside = length(max(corner, 0.0)) + min(max(corner.x, corner.y), 0.0) - bezel.z;
-        vec2 way = corner.x > 0.0 && corner.y > 0.0 ? normalize(corner) : (corner.x > corner.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
-        float inside = -outside / length(way / extent);
-        // the glow the lit pixels about it spill here
-        vec3 spill = vec3(0.0);
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dy = -2; dy <= 2; dy++) {
-                vec2 other = floor(place) + vec2(float(dx), float(dy));
-                vec4 near = pixelAt(other);
-                float apart = length(place - other - 0.5);
-                spill += near.rgb * near.a * exp(-apart * apart / (2.0 * halo.y * halo.y)) * step(apart, halo.z + 0.5);
-            }
-        }
-        float rim = 1.0 - smoothstep(bezel.x * 0.5, bezel.x, inside);
-        vec3 screen = glass * (1.0 - bezel.y * rim) + (off + halo.x * spill) * pixel * (1.0 - rim);
-        screen += glare.x * smoothstep(glare.y, 1.0, (localPosition.y - middle.y) / extent.y) * (1.0 - rim);
+        // the face: the glass alone, one plain colour, the lit pixels the only thing on it
+        vec3 screen = glass;
         vec2 offMiddle = cell - 0.5;
         vec3 glowing = shown.rgb * (1.0 + shine.x) + shine.y * exp(-dot(offMiddle, offMiddle) * shine.z) * mix(shown.rgb, vec3(1.0), 0.5);
         vec3 drawn = mix(screen, glowing, shown.a * pixel);
@@ -3538,7 +3516,7 @@ const SCREEN_FRAGMENT = /* glsl */ `
     }
 `;
 
-// the visor's material: a flat part's, drawn as a screen, its pixels, its bezel and its band measured across the visor's own bounds; the
+// the visor's material: a flat part's, drawn as a screen, its pixels and its band measured across the visor's own bounds; the
 // pixels it shows are the `pixels` texture's, one texel each, filled in by showPixels
 export function screenMaterial(mesh) {
     const material = flatMaterial(mesh);
@@ -3550,9 +3528,7 @@ export function screenMaterial(mesh) {
         glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
         pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, soften: {value: 0}, dark: {value: SCREEN.dark},
-        glass: {value: new THREE.Vector3(...SCREEN.glass)}, off: {value: SCREEN.off},
-        bezel: {value: new THREE.Vector3(SCREEN.bezel.width, SCREEN.bezel.shade, SCREEN.bezel.round)},
-        halo: {value: new THREE.Vector3(SCREEN.halo.strength, SCREEN.halo.soft, SCREEN.halo.reach)}, glare: {value: new THREE.Vector2(SCREEN.glare.strength, SCREEN.glare.from)},
+        glass: {value: new THREE.Vector3(...SCREEN.glass)},
         shine: {value: new THREE.Vector3(SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness)},
     });
     return material;
@@ -3560,8 +3536,9 @@ export function screenMaterial(mesh) {
 
 // The visor screen set into the head: `depth` of the figure's units behind the head's front surface at its most forward, about half a
 // centimetre on a human head, the head taken as a human's 15 cm across (the head shell is 1.83 units across); and the head's surface
-// within the screen's outline set `behind` it further, so none of the head shows through the screen
-export const SCREEN_INSET = {depth: 0.06, behind: 0.01};
+// within the screen's outline set `behind` it further, further than the outline drawn round the head stands out from it (OUTLINE_WIDTH),
+// so neither the head nor its outline shows through the screen
+export const SCREEN_INSET = {depth: 0.06, behind: OUTLINE_WIDTH + 0.014};
 
 // the meshes the head is made of, which the screen is set into: the head's own shell, and a helmet's shell worn over it
 const isHeadShell = (mesh) => mesh.name === "head_shell" || mesh.name.endsWith("__shell");
@@ -5043,6 +5020,10 @@ export class Stage {
         this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
         this.renderer.setPixelRatio(1);
         this.renderer.setClearColor(0x000000, 0);
+        // the visor drawn on its own, one sample to a canvas pixel, never smoothed (crispScreen)
+        this.sharp = new THREE.WebGLRenderer({antialias: false, alpha: true, preserveDrawingBuffer: true});
+        this.sharp.setPixelRatio(1);
+        this.sharp.setClearColor(0x000000, 0);
     }
 
     headAt(figure, moves) {
@@ -5112,13 +5093,39 @@ export class Stage {
         if (this.renderer.domElement.width !== size) {
             this.renderer.setSize(size, size, false);
         }
+        // the figure drawn softened, as Blender draws it, all but its visor, which is laid over it crisp
+        for (const material of figure.screens) material.visible = false;
         this.renderer.render(figure.scene, this.camera);
+        for (const material of figure.screens) material.visible = true;
         const context = canvas.getContext("2d");
         context.clearRect(0, 0, canvas.width, canvas.height);
+        context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = "high";
         context.filter = `blur(${softenOn(canvas)}px)`;
         context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
+        this.crispScreen(figure, canvas, context);
         return moves;
+    }
+
+    // The visor laid over the softened picture crisp: the scene drawn once more at the canvas's own size, one sample to a pixel and never
+    // blurred, every part but the visor writing no colour, though still hiding what lies behind it, so only the visor's own pixels where it
+    // shows are drawn, and laid on the picture pixel for pixel, its outline on whole pixels with nothing blended across it
+    crispScreen(figure, canvas, context) {
+        if (this.sharp.domElement.width !== canvas.width) this.sharp.setSize(canvas.width, canvas.height, false);
+        const muted = new Set();
+        figure.scene.traverse((node) => {
+            for (const material of [node.material ?? []].flat()) if (material.colorWrite && !figure.screens.includes(material)) muted.add(material);
+        });
+        for (const material of muted) material.colorWrite = false;
+        // the screen's own outline, which pokes through its curved middle, is left to the softened picture, so it never hides the screen
+        const outlined = figure.visorHulls.map((hull) => hull.visible);
+        for (const hull of figure.visorHulls) hull.visible = false;
+        this.sharp.render(figure.scene, this.camera);
+        figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
+        for (const material of muted) material.colorWrite = true;
+        context.filter = "none";
+        context.imageSmoothingEnabled = false;
+        context.drawImage(this.sharp.domElement, 0, 0);
     }
 
     // A parcel's block of server units (serverBlockOf) with its lights `lit` at step `phase` of their blink, drawn through the figure's own
