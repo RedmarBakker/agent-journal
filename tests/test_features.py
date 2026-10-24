@@ -12601,3 +12601,28 @@ def test_a_plugins_service_that_drops_its_socket_leaves_the_event_to_its_program
     row = app.container.get(Plugins).lookup("echo")
     assert row.enabled and row.fault_streak == 0, "the plugin stays on, with no fault"
     path.unlink(missing_ok=True)
+
+
+def test_claiming_checks_the_servers_address_before_it_asks_for_the_account(app: App, tmp_path):
+    from journal.features.team.support.team_join import TeamJoin
+    from journal.sync.team_url import TeamUrl
+    from sync_server.install_request import InstallRequest
+    from sync_server.team_server import TeamServer
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    check = lambda url: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/team/check", data=json.dumps({"url": url}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    try:
+        assert check(address + "/.") == {"address": address, "refusal": ""}, "a server with no admin can be claimed, its address made plain"
+        team.logins.installed(InstallRequest("ada@example.com", "Ada", "correct horse battery staple", "laptop"), "127.0.0.1")
+        assert "has its admin already" in check(address)["refusal"], "a claimed server is said to be one before the account is asked"
+        assert app.container.get(TeamJoin).claim_refusal(TeamUrl.parse(address)) != ""
+        try:
+            check("http://127.0.0.1:9")
+            raise AssertionError("an unreachable address went on")
+        except HTTPError as refused:
+            assert "could not be reached" in refused.read().decode()
+    finally:
+        server.shutdown()
+        team.store.close()

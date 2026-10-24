@@ -22,6 +22,21 @@ const failure = ref("");
 
 onMounted(() => (email.value = props.email));
 
+async function check() {
+    busy.value = true;
+    failure.value = "";
+    try {
+        const got = await api.checkTeam({url: url.value});
+        url.value = got.address;
+        if (got.refusal) failure.value = got.refusal;
+        else step.value = "account";
+    } catch (e) {
+        failure.value = e.message;
+    } finally {
+        busy.value = false;
+    }
+}
+
 function open(next) {
     failure.value = "";
     step.value = next;
@@ -56,13 +71,19 @@ async function join() {
             </div>
         </template>
         <template v-else-if="step === 'claim'">
-            <form class="team-block" @submit.prevent="open('account')">
+            <form class="team-block" @submit.prevent="check">
                 <span class="team-section">Claim a server</span>
                 <FormField label="Server address" for="team-url" help="The URL or IP address the installer printed. The first journal to claim a new server becomes its admin.">
                     <TextInput id="team-url" :value="url" placeholder="https://203.0.113.5" @input="url = $event.target.value" />
                 </FormField>
+                <template v-if="failure">
+                    <p class="team-refusal">
+                        <StateDot state="failed" />
+                        <span>{{ failure }}</span>
+                    </p>
+                </template>
                 <div class="team-choices">
-                    <Btn kind="primary" :disabled="!url.trim()" @click="open('account')">Next</Btn>
+                    <Btn kind="primary" :busy="busy" :disabled="!url.trim()" @click="check">{{ busy ? "Checking" : "Next" }}</Btn>
                     <Btn @click="open('choice')">Back</Btn>
                 </div>
             </form>

@@ -395,6 +395,11 @@ export class ApiClient {
         return this.post("/team/join", fields, LONG_WAIT_MS);
     }
 
+    // whether a team server's address can be claimed: its address made plain, and why not when it cannot
+    checkTeam(fields) {
+        return this.post("/team/check", fields, LONG_WAIT_MS);
+    }
+
     // the team's people, each with their role, when they were last seen and their environments
     teamPeople() {
         return this.get("/team/people");

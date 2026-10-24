@@ -110,6 +110,12 @@ class TeamJoin:
         return (f"this journal holds {tasks} tasks and {messages} messages of its own, and the team at {address} holds a journal already, which a join would put in place of this one: "
                 "join from a fresh clone of the repository, or take the team's journal in place of this one with journal team join --replace-mine, this journal kept in a backup file beside it")
 
+    def claim_refusal(self, url: TeamUrl) -> str:
+        self.trusted(url)
+        if self.link.summary(url.address).has_admin:
+            return f"the team server at {url.address} has its admin already: connect with your account, or with the invitation URL an admin shares"
+        return ""
+
     def trusted(self, url: TeamUrl) -> None:
         if url.fingerprint:
             self.trust(url.address, url.fingerprint)

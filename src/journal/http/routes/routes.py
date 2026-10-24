@@ -101,6 +101,7 @@ class Routes:
         router.get(f"{API}/sync", get(SyncController).show)
         router.get(f"{API}/team", get(TeamController).show)
         router.post(f"{API}/team/join", get(TeamController).join)
+        router.post(f"{API}/team/check", get(TeamController).check)
         router.post(f"{API}/team/invite", get(TeamController).invite)
         router.post(f"{API}/team/open", get(TeamController).opening)
         router.post(f"{API}/team/password", get(TeamController).password)

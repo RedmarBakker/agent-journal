@@ -35,6 +35,11 @@ class TeamController:
         outcome = TeamRequests.reached(lambda: self.joining.join(TeamUrl.parse(str(body.get("url", ""))), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
         return Response.json({"outcome": outcome, "environment": request.environment}, 201)
 
+    def check(self, request: Request) -> Response:
+        url = TeamUrl.parse(str(request.body.get("url", "")))
+        refusal = TeamRequests.reached(lambda: self.joining.claim_refusal(url))
+        return Response.json({"address": url.address, "refusal": refusal})
+
     def pool(self, request: Request) -> Response:
         lent = self.pool_overview.lent()
         slots = self.pool_overview.slots()

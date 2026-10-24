@@ -115,6 +115,8 @@ test("connecting opens on two choices: claiming a server asks its address and th
     expect(form).not.toMatch(/[Ss]etup code|setup_code/);
     expect(form).toMatch(/<Btn @click="generate">Generate<\/Btn>/);
     expect(form).not.toMatch(/ListBox/);
+    expect(form).toMatch(/const got = await api\.checkTeam\(\{url: url\.value\}\);[\s\S]*?if \(got\.refusal\) failure\.value = got\.refusal;\s*else step\.value = "account";/);
+    expect(form).toMatch(/\{\{ busy \? "Checking" : "Next" \}\}/);
     const page = readFileSync(resolve(__dirname, "../src/pages/TeamPage.vue"), "utf8");
     expect(page).toMatch(/\.team-page-content\.flush \{\s*gap: 0;\s*padding: 0;/);
     const {strongPassword} = await import("../src/domain/passwords.js");
