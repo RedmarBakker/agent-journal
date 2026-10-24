@@ -14,7 +14,7 @@ class Ended(BaseState):
 
     name = "ended"
     title = "Ended"
-    session_over = True
+    final = True
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.pop()

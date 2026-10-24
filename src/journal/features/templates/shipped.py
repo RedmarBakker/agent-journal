@@ -1,7 +1,6 @@
-from journal.models.template import Template
+from journal.models.template import TESTING, Template
 
 CRITIQUE = "critique"
-TESTING = "testing"
 
 FUNCTIONAL = Template(
     title="Functional design",

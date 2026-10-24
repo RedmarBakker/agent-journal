@@ -7,6 +7,7 @@ from journal.support.command_shape import CommandShape
 from journal.support.command_part import CommandPart
 from journal.support.operation import Operation
 from journal.support.recorded_call import RecordedCall
+from journal.support.writes import Writes
 
 
 PANIC = "panic"
@@ -58,7 +59,6 @@ class ToolCall:
         return self.writes and any((root / Path(path).expanduser()).resolve().is_relative_to(folder) for path in self.edited_paths)
 
     def is_script(self) -> bool:
-        from journal.support.writes import Writes
         return any(Writes.is_script(part.text) for part in self.parts)
 
     def is_panic_line(self) -> bool:

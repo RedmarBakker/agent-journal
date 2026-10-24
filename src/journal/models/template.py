@@ -3,6 +3,9 @@ from dataclasses import dataclass
 
 from journal.models.model import Model
 
+# the purpose of a template that says how a plan's agent tests its work
+TESTING = "testing"
+
 
 @dataclass(frozen=True)
 class Template(Model):

@@ -22,7 +22,7 @@ class BaseState:
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
-    session_over: ClassVar[bool] = False
+    final: ClassVar[bool] = False
     allows: ClassVar[frozenset[Permission]] = frozenset()
 
     def respond(self, event: Event, settings: Settings, conducts: tuple[type[BaseState], ...] = ()) -> Transition:
