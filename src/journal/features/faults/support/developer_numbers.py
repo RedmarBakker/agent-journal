@@ -5,6 +5,8 @@ from journal.models.timing import Timing
 from journal.repositories.statistics import Statistics
 from journal.repositories.timings import Timings
 from journal.support.actor import Actor
+from journal.features.faults.support.slow_group import SlowGroup
+from journal.repositories.timings import LOG_ROWS
 
 PREFIX = "developer."
 HOOKS_PREFIX = "developer.hooks."
@@ -47,6 +49,9 @@ class DeveloperNumbers:
 
     def slowest(self, limit: int = LOG_ENTRIES) -> list[Timing]:
         return self.log().slowest(limit)
+
+    def groups(self) -> list[SlowGroup]:
+        return SlowGroup.grouped(self.log().slowest(LOG_ROWS))
 
     def slowest_hooks(self, limit: int) -> list[Timing]:
         return self.log().slowest_hooks(limit)

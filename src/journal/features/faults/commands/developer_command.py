@@ -1,3 +1,4 @@
+import sys
 from argparse import Namespace
 from datetime import datetime
 
@@ -23,11 +24,11 @@ class DeveloperCommand(Command):
         self.numbers, self.sampler = numbers, sampler
 
     def arguments(self, verbs) -> None:
-        slowest = self.verb(verbs, "slowest", "the slowest requests and hooks of the rolling log, with their path, kind and milliseconds")
-        kinds = slowest.add_mutually_exclusive_group()
-        kinds.add_argument("--hooks", action="store_true", help="hooks only")
-        kinds.add_argument("--requests", action="store_true", help="requests only")
-        slowest.add_argument("--top", type=int, default=TOP, help="how many, the slowest first")
+        slowest = self.verb(verbs, "slowest", "the routes of the rolling log grouped, the slowest group first, a page at a time: each with its worst and typical time and how many were logged")
+        slowest.add_argument("--page", type=int, default=1, help="which page of groups, from 1")
+        inspect = self.verb(verbs, "inspect", "one group of journal developer slowest: its logged requests, the slowest first, with when, how long and what each read")
+        inspect.add_argument("group", help="the group as slowest names it, such as 'GET /journal/messages'")
+        inspect.add_argument("--page", type=int, default=1, help="which page of its requests, from 1")
         self.verb(verbs, "loads", "the newest requests with the records each read, by kind, while load counting is on")
         self.verb(verbs, "models", "the records read per kind since the last reset")
         self.verb(verbs, "averages", "the average and slowest time of hooks, requests, each kind of hook and, while stage timing is on, each stage of a hook")
@@ -36,15 +37,29 @@ class DeveloperCommand(Command):
         profile.add_argument("seconds", type=float, nargs="?", default=PROFILE_SECONDS, help=f"how long to watch, at most {PROFILE_LIMIT_SECONDS:.0f} seconds")
 
     def slowest(self, args: Namespace, caller: Caller) -> int:
-        self.print_lines([f"{t.ms:>6} ms  {t.method:<5} {t.route}" for t in self.slowest_kind(args)], "nothing logged yet")
+        groups = self.numbers.groups()
+        self.print_lines([group.line() for group in self.paged(groups, args.page)], "nothing logged yet")
+        self.print_lines([self.pages_line(len(groups), args.page, "journal developer slowest", "journal developer inspect '<group>' for one group's requests")], "")
         return 0
 
-    def slowest_kind(self, args: Namespace) -> list[Timing]:
-        if args.hooks:
-            return self.numbers.slowest_hooks(args.top)
-        if args.requests:
-            return self.numbers.slowest_requests(args.top)
-        return self.numbers.slowest(args.top)
+    def inspect(self, args: Namespace, caller: Caller) -> int:
+        group = next((candidate for candidate in self.numbers.groups() if candidate.name == args.group), None)
+        if group is None:
+            print(f"no group {args.group} in the rolling log: journal developer slowest names them", file=sys.stderr)
+            return 1
+        self.print_lines([f"{self.clock(t)}  {t.ms:>6} ms  {t.route}  {t.loads.line()}" for t in self.paged(list(group.timings), args.page)], "")
+        self.print_lines([self.pages_line(len(group.timings), args.page, f"journal developer inspect '{args.group}'", group.line())], "")
+        return 0
+
+    @staticmethod
+    def paged(items: list, page: int) -> list:
+        return items[(page - 1) * TOP : page * TOP]
+
+    @staticmethod
+    def pages_line(count: int, page: int, command: str, footer: str) -> str:
+        pages = max(1, -(-count // TOP))
+        next_page = f"; {command} --page {page + 1} for the next" if page < pages else ""
+        return f"page {page} of {pages}{next_page}. {footer}"
 
     def loads(self, args: Namespace, caller: Caller) -> int:
         self.print_lines([f"{self.clock(t)}  {t.load_line()}" for t in self.numbers.loaded()], "nothing counted: turn on faults.count_loads in the Developer tab")

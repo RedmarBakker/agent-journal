@@ -1242,7 +1242,7 @@ def test_a_task_the_reply_names_is_linked_to_the_message_it_answers_however_old(
     assert [ref.id for ref in app.container.get(Links).targets(requested, Messages.SUBJECT_LINK)] == [1], "your message carries the task the reply names, whenever it was filed"
 
 
-def test_slow_requests_are_counted_in_memory_and_written_as_one_mark_only_when_the_agent_is_told(app: App, monkeypatch):
+def test_slow_requests_are_counted_in_memory_and_reported_at_most_every_five_minutes_with_a_new_mark_and_one_line(app: App, monkeypatch):
     from journal.engine.clock import Clock
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.repositories.messages import Messages
@@ -1253,8 +1253,8 @@ def test_slow_requests_are_counted_in_memory_and_written_as_one_mark_only_when_t
     app.container.get(SettingRows).set("faults.report", True, Actor.user(1))
     slow = app.container.get(SlowRequests)
     monkeypatch.setattr("os.getloadavg", lambda: (0.0, 0.0, 0.0))
-    marks = lambda: [m for m in app.container.get(Messages).all() if m.text.startswith("Slow request")]
-    lines = lambda: [t for t in keystrokes if "slow requests" in t]
+    marks = lambda: [m for m in app.container.get(Messages).all() if m.text.startswith("Slow requests report")]
+    lines = lambda: [t for t in keystrokes if "slow requests report" in t]
     with app.container.get(Scope).environment(MAIN):
         slow.measured("GET", "/journal/plans", 80)
         slow.measured("GET", "/journal/messages/12/read", 70)
@@ -1280,26 +1280,26 @@ def test_slow_requests_are_counted_in_memory_and_written_as_one_mark_only_when_t
     flagged_at = slow.slow_tally.flagged_at
     with app.container.get(Scope).environment(MAIN):
         slow.report_gathered(flagged_at + 31)
-    assert lines() == ["[journal] 4 slow requests, the worst GET /journal/messages/{n}/read at 400 ms: journal developer slowest"], "thirty seconds without another, the agent is told once how many gathered and the worst"
-    assert [(m.text, m.data["routes"]) for m in marks()] == [("Slow requests: 4 over budget", {"GET /journal/plans": [2, 95], "GET /journal/messages/{n}/read": [2, 400]})], "and the one mark is written then, each route with its count and worst time"
+    assert len(lines()) == 1 and lines()[0].startswith("[journal] a slow requests report is ready: 4 over budget, the worst GET /journal/messages/{n}/read at 400 ms") and "journal developer slowest" in lines()[0], "thirty seconds without another, the agent is told once that a report is ready, how many and the worst, and how to read it"
+    assert [(m.text, m.data["routes"]) for m in marks()] == [("Slow requests report ready: 4 over budget, read it with journal developer slowest", {"GET /journal/plans": [2, 95], "GET /journal/messages/{n}/read": [2, 400]})], "and the one mark is written then, each route with its count and worst time"
     assert "GET /journal/messages/{n}/read worst 400 ms, 2 times" in marks()[0].data["detail"], "the mark names the slowest routes"
     told_at = flagged_at + 31
-    for minutes, said in ((10, 1), (16, 2)):
+    for minutes, said in ((3, 1), (6, 2)):
         monkeypatch.setattr(Clock, "time", lambda self, at=told_at + minutes * 60: at)
         with app.container.get(Scope).environment(MAIN):
             slow.measured("GET", "/journal/plans", 60 + minutes)
             app.runtime().deferred.drain()
             slow.report_gathered(told_at + minutes * 60 + 31)
-        assert len(lines()) == said, f"{minutes} minutes after it was told, the gathered requests are told {said} times: again once fifteen minutes have passed, and not before"
-    assert lines()[-1].startswith("[journal] 2 slow requests"), "the second line counts what gathered since the first"
-    assert len(marks()) == 1, "the mark is one message, written again in place at each report"
+        assert len(lines()) == said, f"{minutes} minutes after it was told, the agent is told {said} times: again once five minutes have passed, and not before"
+    assert lines()[-1].startswith("[journal] a slow requests report is ready: 2 over budget"), "the second report counts what gathered since the first"
+    assert len(marks()) == 2, "each report is a new mark in the chat, where it is seen"
     monkeypatch.setattr(Clock, "time", lambda self, at=told_at + 3600: at)
     with app.container.get(Scope).environment(MAIN):
         for _ in range(10):
             slow.measured("GET", "/journal/plans", 90)
         app.runtime().deferred.drain()
         slow.report_gathered(told_at + 3600)
-    assert lines()[-1].startswith("[journal] 10 slow requests"), "ten gathered are told at once, without waiting for them to go quiet"
+    assert lines()[-1].startswith("[journal] a slow requests report is ready: 10 over budget"), "ten gathered are told at once, without waiting for them to go quiet"
     app.container.get(SettingRows).set("faults.repeat_minutes", 0, Actor.user(1))
     monkeypatch.setattr(Clock, "time", lambda self, at=told_at + 7200: at)
     with app.container.get(Scope).environment(MAIN):
@@ -5194,6 +5194,8 @@ def test_the_same_hand_read_of_outputs_coming_back_among_the_last_reads_brings_o
     assert "write" not in tip("journal output read 12 --grep FAILED") + tip("ls src") + tip("journal output read 40 --reader failed") + tip("journal output read 3") + tip("journal output read 4"), "a plain read of a summary is no shape"
     assert "you read outputs this way again: journal output read <output> --grep FAILED" in tip("journal output read 31 --grep FAILED"), "a different output, the same read"
     assert "this way again" not in tip("journal output read 33 --grep FAILED"), "once for each shape"
+    tip("journal output read 50 --head 12")
+    assert "this way again" not in tip("journal output read 51 --head 12"), "a plain head, tail or lines read again is no shape worth a reader"
 
 
 def test_a_hand_read_that_does_a_readers_work_is_pointed_at_the_reader(app: App):
@@ -11956,3 +11958,37 @@ def test_draining_a_worker_queue_writes_one_mark_and_no_unblocked_mark_per_task(
     assert "task 2, task 3, task 4 given back" in drained.text, drained.error
     assert sum("its queue given back" in text for text in texts) == 1, "one mark for the whole queue"
     assert not [text for text in texts if text.startswith("Unblocked task")], "a task given back was never blocked, so no Unblocked mark"
+
+
+def test_a_message_sent_by_command_with_a_reply_tag_is_refused_and_nothing_is_posted(app: App):
+    from journal.repositories.messages import Messages
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["message", "send", "a question"], USER)
+    with app.container.get(Scope).environment(MAIN):
+        [asked] = [m.id for m in app.container.get(Messages).all() if m.text == "a question"]
+    sent = console.run(["message", "send", f"[!reply:{asked}]\nAnswered."], AGENT)
+    assert sent.code != 0 and "--reply-to" in sent.error, sent.text
+    with app.container.get(Scope).environment(MAIN):
+        assert not [m for m in app.container.get(Messages).all() if "Answered." in m.text], "nothing is posted"
+
+
+def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drills_into_one(app: App):
+    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.models.support.request_loads import RequestLoads
+    console = app.console()
+    slow = app.container.get(SlowRequests)
+    with app.container.get(Scope).environment(MAIN):
+        for n in range(14):
+            slow.counted("GET", f"/journal/route{n}", 100 + n, RequestLoads())
+        for ms in (900, 300, 200):
+            slow.counted("GET", "/journal/messages/12/read", ms, RequestLoads())
+        slow.tally.write()
+    listed = console.run(["developer", "slowest"], AGENT)
+    first = listed.text.splitlines()[0]
+    assert "GET /journal/messages/{n}/read" in first and "900 ms worst" in first and "300 ms typical" in first and "3 logged" in first, listed.text
+    assert "page 1 of 2" in listed.text and "--page 2" in listed.text, "the groups come a page at a time"
+    assert "route0" in console.run(["developer", "slowest", "--page", "2"], AGENT).text
+    inspected = console.run(["developer", "inspect", "GET /journal/messages/{n}/read"], AGENT)
+    assert inspected.code == 0 and [line.split()[1] for line in inspected.text.splitlines()[:3]] == ["900", "300", "200"], inspected.text
+    assert console.run(["developer", "inspect", "GET /nowhere"], AGENT).code != 0

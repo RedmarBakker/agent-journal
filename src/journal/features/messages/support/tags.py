@@ -18,3 +18,7 @@ class Tags:
     @classmethod
     def hidden(cls, text: str) -> bool:
         return any(name in cls.SILENT_TAGS or (name == "reply" and numbers) for name, numbers, _ in cls.tags(text))
+
+    @classmethod
+    def replies(cls, text: str) -> list[int]:
+        return [int(n) for name, numbers, _ in cls.tags(text) if name == "reply" and numbers for n in numbers.split(",")]

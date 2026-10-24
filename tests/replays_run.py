@@ -80,7 +80,7 @@ def tool_uses_with_the_inbox(app, replay: Replay, provider: str) -> None:
     replay.step("a read while owed", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
     replay.step("a journal command while owed", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].shell, tool_input={"command": "journal task list"})[1])
     replay.step("a look at its files", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": str(app.config.home / "files" / "message" / "2" / "a.png")})[1])
-    console.run(["message", "send", "[!reply:2] here", "--reply-to", "2"], AGENT)
+    console.run(["message", "send", "here", "--reply-to", "2"], AGENT)
     replay.step("the reply")
     replay.step("a read after the reply", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
 
@@ -265,7 +265,7 @@ def tool_uses_with_changed_settings(app, replay: Replay, provider: str) -> None:
     replay.step("message 2 read")
     for i in range(1, 6):
         replay.step(f"read {i} while owed", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].read, tool_input={"file_path": "a.py", "limit": 1})[1])
-    console.run(["message", "send", "[!reply:2] here", "--reply-to", "2"], AGENT)
+    console.run(["message", "send", "here", "--reply-to", "2"], AGENT)
     replay.step("the reply")
     for i in range(1, 8):
         replay.step(f"write {i}", hook_as(app, provider, "PreToolUse", tool_name=TOOLS[provider].write, tool_input={"file_path": "a.py"})[1])

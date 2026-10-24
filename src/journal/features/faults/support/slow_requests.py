@@ -107,10 +107,10 @@ class SlowRequests:
                 return
             self.nudges.type_line(agent, Faults.SLOW_REQUESTS.create(count=tally.gathered, route=tally.slowest_route, ms=tally.slowest_ms))
             self.slow_tally = tally.reported(moment)
-            self.show(tally, self.budget("GET"))
+            self.show(tally, self.budget("GET"), moment)
 
-    def show(self, tally: SlowRequestTally, budget: int) -> None:
-        self.card.show(tally.total(), {"kind": "card", "icon": "gauge", "tone": "bad", "row": "", **tally.serialized()}, tally.detail(budget))
+    def show(self, tally: SlowRequestTally, budget: int, moment: float) -> None:
+        self.card.show(tally.total(), {"kind": "card", "icon": "gauge", "tone": "bad", "row": "", **tally.serialized()}, tally.detail(budget), moment)
 
     def is_reportable(self, reported_at: float, moment: float) -> bool:
         if not reported_at:

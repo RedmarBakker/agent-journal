@@ -7,7 +7,7 @@ from journal.support.card_kind import CardKind
 
 
 class SlowRequestProcessCard(ProcessCard):
-    """The process card of the slow requests: how many went over their budget, and the slowest routes with their worst time and count, written each time the agent is told of them."""
+    """The process card of the slow requests: how many went over their budget, and the slowest routes with their worst time and count, a new mark in the chat each time the agent is told of them."""
 
     KEY = "slow:requests"
     name = "slow_request"
@@ -15,8 +15,8 @@ class SlowRequestProcessCard(ProcessCard):
     def __init__(self, cards: ProcessCards, scope: Scope) -> None:
         self.cards, self.scope = cards, scope
 
-    def show(self, total: int, data: dict, detail: str) -> None:
-        self.cards.show(self.name, self.scope.id, self.KEY, f"Slow requests: {total} over budget", data, Actor.system(), CardKind.FAULTS, False, detail)
+    def show(self, total: int, data: dict, detail: str, moment: float) -> None:
+        self.cards.show(self.name, self.scope.id, f"{self.KEY}:{int(moment)}", f"Slow requests report ready: {total} over budget, read it with journal developer slowest", data, Actor.system(), CardKind.FAULTS, False, detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

@@ -15,6 +15,10 @@ from journal.repositories.reports import Reports
 from journal.repositories.messages import Messages
 from journal.repositories.links import Links
 from journal.repositories.reactions import Reactions
+from journal.features.messages.support.tags import Tags
+from journal.support.rejection import Rejection
+
+REPLY_TAG_REFUSED = "a [!reply:N] tag answers in your turn's text; a message sent by command answers with --reply-to N, the tag left out"
 
 RECENT_MESSAGES = 20
 
@@ -46,6 +50,8 @@ class MessageCommand(Command):
 
     def send(self, args: Namespace, caller: Caller) -> int:
         author = Author.build(caller.actor)
+        if Tags.replies(args.text):
+            raise Rejection(REPLY_TAG_REFUSED)
         if args.reply_to and author == Author.AGENT:
             return self.reply(args, caller)
         draft = Message(author=author, text=args.text, reply_target=args.reply_to, data={"kind": "plugin", "plugin": caller.plugin_name} if caller.plugin_name else {})

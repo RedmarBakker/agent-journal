@@ -20,6 +20,9 @@ from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.moment import Moment
 from journal.support.timeout import Timeout
 
+# the flag of an output read that picks lines by a pattern, the one kind of read a reader can stand for
+PATTERN_READ = "--grep"
+
 SILENCE_SECONDS = 5.0
 BACKGROUND_CHECK_DELAY_SECONDS = 300.0
 ALIAS_RUNS = 3
@@ -153,7 +156,8 @@ def readers_check(state: BaseState, event: ToolStarting, settings: Settings) -> 
         return state.none()
     shell = event.data.part(Shell)
     tips = [Shell.READER_HINT.create(reader=r.name, about=r.subject) for r in shell.readers if r.matches(reads[0].text)]
-    if shell.output_reads.count(reads[0].read_shape) >= 2:
+    # only a pattern read again is worth a reader; a plain --head, --tail or --lines read never is
+    if PATTERN_READ in reads[0].read_shape and shell.output_reads.count(reads[0].read_shape) >= 2:
         tips.append(Shell.READER_SUGGESTION.create(command=reads[0].read_shape))
     new_tips = [tip for tip in tips if tip.rendered() not in shell.tipped]
     return state.none(new_tips[0]) if new_tips else state.none()
