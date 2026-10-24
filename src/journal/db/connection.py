@@ -59,6 +59,13 @@ class Connection:
         finally:
             self.queries.add(sql, params, time.perf_counter() - began)
 
+    def execute_many(self, sql: str, rows: list[tuple]) -> None:
+        began = time.perf_counter()
+        try:
+            self._local().executemany(sql, [self.masks.masked(params) for params in rows])
+        finally:
+            self.queries.add(sql, rows[0] if rows else (), time.perf_counter() - began)
+
     def plan(self, sql: str, params: tuple) -> list[str]:
         return [row["detail"] for row in self._local().execute(f"EXPLAIN QUERY PLAN {sql}", self.masks.masked(params)).fetchall()]
 

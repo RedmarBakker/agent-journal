@@ -681,8 +681,10 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
     settings_b.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make mine"], USER)
     copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus), team_scopes(tasks_b.connection, tasks_b.bus, scope_b))
     stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersOptions.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
-    copy_b.replace_whole(tuple(copied) + tuple(stray))
+    former = [CopiedRow("tasks", 901, {"environment_id": 1, "title": "kept from before the rename", "state": "parked"}, {})]
+    copy_b.replace_whole(tuple(copied) + tuple(stray) + tuple(former))
     assert settings_b.project(WorkersOptions.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersOptions.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
+    assert tasks_b.find(901).state == TaskState.PAUSED, "a team row in a state's former name is read in its new one"
 
 
 def test_an_environment_deleted_on_one_journal_is_gone_from_the_other_with_everything_in_it(tmp_path):

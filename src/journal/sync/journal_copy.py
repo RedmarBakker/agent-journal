@@ -34,11 +34,12 @@ class JournalCopy:
         machine_settings = self.machine_settings()
         for table in self.tables.names():
             self.tables.rows(table).clear()
+        tables: dict[str, list[tuple[int, dict]]] = {table: [] for table in self.tables.names()}
         for row in rows:
-            if self.tables.has(row.row_table):
-                self.tables.rows(row.row_table).restored(row.row, {**row.fields, **local.get((row.row_table, row.row), {})})
-        for table in self.tables.names():
-            self.tables.rows(table).stored()
+            if row.row_table in tables:
+                tables[row.row_table].append((row.row, {**row.fields, **local.get((row.row_table, row.row), {})}))
+        for table, table_rows in tables.items():
+            self.tables.rows(table).restored(table_rows)
         settings = self.tables.rows(Setting.table())
         for setting in self.machine_settings():
             settings.delete(setting, Actor.system())

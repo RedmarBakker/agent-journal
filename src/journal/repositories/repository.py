@@ -191,8 +191,10 @@ class Repository(Generic[M]):
             self.bus.dispatch(SyncedCreation(model=row, actor=actor))
             return self.dispatched(row.with_events(row.creation_events()), actor)
 
-    def restored(self, id: int, fields: dict) -> None:
-        self.connection.execute(*self.query().upsert(id=id, **self._column_values(self._team_row(id, fields))))
+    def restored(self, rows: list[tuple[int, dict]]) -> None:
+        statements = [self.query().upsert(id=id, **self._column_values(self._team_row(id, fields))) for id, fields in rows]
+        if statements:
+            self.connection.execute_many(statements[0][0], [params for _, params in statements])
         self.stored()
 
     def _team_row(self, id: int, fields: dict) -> M:
