@@ -62,7 +62,7 @@ class ShellRecord:
 
     def foreground_end(self, chain: str, status: int, caller: Caller) -> None:
         output = self.outputs.chain_output(chain)
-        self.outputs.save(output.ended_with(status, datetime.now(timezone.utc).timestamp()), caller.actor)
+        self.outputs.save(output.ended_with(status, datetime.now(timezone.utc).timestamp()).unwatched(), caller.actor)
 
     def wait_covers(self, output: CommandOutput, agent: Agent) -> bool:
         top = self.states.stack(agent).top() if agent.session == output.session else None

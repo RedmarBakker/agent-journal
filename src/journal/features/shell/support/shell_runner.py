@@ -101,6 +101,8 @@ class ShellRunner:
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
         at_once = bool(background) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
+        if limit > 0 and not at_once and not cap.is_whole():
+            self.card_at_start(folder, request.line, reader, caller)
         shown, tick, began = 0, 0, time.monotonic()
         while True:
             raise_first(faults)
@@ -122,6 +124,13 @@ class ShellRunner:
             tick += 1
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
+
+    # a run whose reader is known shows its card in the chat as it starts, before any move to the background
+    def card_at_start(self, folder: OutputFiles, line: str, reader: Reader | None, caller: Caller) -> None:
+        alias = self.aliases.line_alias(line)
+        known = alias.reader if alias is not None else reader.name if reader is not None else ""
+        if known:
+            self.outputs.watch(self.outputs.chain_output(folder.folder.name), known, "", caller.actor)
 
     # a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit;
     # any other runs in the foreground until it passes the limit

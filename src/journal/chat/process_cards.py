@@ -1,3 +1,4 @@
+from journal.support.actor import Actor
 from journal.chat.card_detail import CardDetail
 from journal.chat.card_category import CardCategory
 from journal.chat.process_card_contents import ProcessCardContents
@@ -27,6 +28,10 @@ class ProcessCards:
                 return self.messages.save(older[0].with_(text=contents.label, session=contents.session or older[0].session, data=self.docked_data(older[0], data)), contents.actor)
             roles = self.agents.session_roles(contents.session) if contents.session else []
             return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data=data), contents.actor)
+
+    def withdraw(self, key: str, actor: Actor) -> None:
+        for card in self.messages.keyed(key, actor):
+            self.messages.delete(card, actor)
 
     def show_recent(self, contents: ProcessCardContents) -> Message:
         older = self.messages.keyed(contents.key, contents.actor)

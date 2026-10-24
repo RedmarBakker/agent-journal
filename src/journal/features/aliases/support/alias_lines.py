@@ -24,5 +24,8 @@ class AliasLines:
     def running(self, part: str) -> Alias | None:
         return self.aliases.longest_alias(part)
 
+    def line_alias(self, line: str) -> Alias | None:
+        return next((alias for part in Chain.self_parts(line) if (alias := self.running(part)) is not None), None)
+
     def background_part(self, line: str) -> str:
         return next((part for part in Chain.self_parts(line) if (alias := self.running(part)) is not None and alias.background), "")

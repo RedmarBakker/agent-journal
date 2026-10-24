@@ -9721,6 +9721,34 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     assert card.data["line"] == "sleep 2", "the card names the line the alias ran, never the alias"
 
 
+def test_a_run_whose_reader_is_known_shows_its_card_in_the_chat_as_it_starts_before_any_move(app: App):
+    import threading
+    import time
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    console, runner = app.console(), app.container.get(ShellRunner)
+    hook(app, "SessionStart")
+    assert console.run(["alias", "add", "nap", "sleep", "--reader", "pytest", "--about", "waits"], AGENT).code == 0
+    request = ShellRequest(line=wrapped_line("journal nap 1"), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+    shown: list[bytes] = []
+    run = threading.Thread(target=lambda: shown.extend(runner.run(request, AGENT, MAIN)))
+    run.start()
+    outputs = app.container.get(CommandOutputs)
+    deadline, watched, cards = time.monotonic() + 5, [], []
+    while not cards and time.monotonic() < deadline:
+        with app.container.get(Scope).environment(MAIN):
+            watched = [output for output in outputs.watched(AGENT.session) if not output.moved and not output.ended]
+            cards = app.container.get(Messages).with_key(f"watch:{watched[0].row_id}") if watched else []
+        time.sleep(0.05)
+    run.join(10)
+    assert watched and watched[0].watch_reader == "pytest", "the run is watched through its reader while it still runs in the foreground"
+    assert cards, "and its card is in the chat before any move to the background"
+    with app.container.get(Scope).environment(MAIN):
+        assert not app.container.get(Messages).with_key(f"watch:{watched[0].row_id}"), "a run that ends in the foreground takes its card out again, its output being in the answer"
+
+
 BARE_COMMANDS = {
     "python3 -m pytest -q tests/a.py": "pytest", "npx vitest run tests/": "vitest run", "$S/calibrate5.sh --fast": "calibrate5.sh",
     "sh install.sh": "install.sh", "(cd src/web && npx vitest run tests/)": "vitest run", "REPLAY_FREEZE=1 python3 -m pytest -q": "pytest",
@@ -13394,7 +13422,7 @@ def test_a_command_with_a_reader_stays_in_the_foreground_unless_it_is_known_to_r
     quick = b"".join(runner.run(request("sleep 0.2"), AGENT, MAIN)).decode()
     outputs = app.container.get(CommandOutputs)
     with app.container.get(Scope).environment(MAIN):
-        assert outputs.reader_outputs("naps") == [] and "background" not in quick + link.pending_lines(MAIN), "a quick run with a reader answers in the foreground"
+        assert not [output for output in outputs.reader_outputs("naps") if output.is_watched] and "background" not in quick + link.pending_lines(MAIN), "a quick run with a reader answers in the foreground"
     app.container.get(SettingRows).set("shell.foreground", 1, Actor.system())
     b"".join(runner.run(request("sleep 1.3"), AGENT, MAIN))
     with app.container.get(Scope).environment(MAIN):
