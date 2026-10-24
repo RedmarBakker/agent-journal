@@ -97,9 +97,14 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
     if [ "$HTTPS_PORT" = "443" ]; then url="https://$address"; else url="https://$address:$HTTPS_PORT"; fi
     # The team server answers /team to a client that names the journal's protocol once Caddy holds a certificate the client
     # accepts; the hosted journal behind the other paths starts only once the team holds a journal.
-    step "Waiting for $url to answer over HTTPS, while the server gets its certificate: up to a minute."
+    if [ -n "$certificate" ]; then
+        step "Waiting for $url to answer over HTTPS with the server's own certificate, which an IP address gets: up to a minute."
+    else
+        step "Waiting for $url to answer over HTTPS, while the server gets a certificate for $address: up to a minute."
+    fi
     tries=0
-    until [ "$(curl -s ${certificate:+-k} --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-Journal-Protocol: 1' "$url/team")" = "200" ]; do
+    # any answer of the team server counts, an older protocol's "upgrade first" (426) as much as a welcome (200)
+    until case "$(curl -s ${certificate:+-k} --max-time 5 -o /dev/null -w '%{http_code}' -H 'X-Journal-Protocol: 1' "$url/team")" in 200|426) true ;; *) false ;; esac; do
         tries=$((tries + 1))
         if [ "$tries" -ge 30 ]; then
             echo "The server runs, but $url does not answer over HTTPS: the certificate for $address could not be got." >&2

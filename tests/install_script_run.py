@@ -111,3 +111,15 @@ def test_a_piped_installer_asks_on_the_terminal_and_runs_to_its_end(tmp_path: Pa
     assert piped.returncode == 0, text
     assert "Pulling the team server's image" in text and "Starting the team server in the container agent-journal-shop" in text and "Waiting for https://203.0.113.5 to answer" in text, text
     assert "Its setup code is ABCD-EFGH" in text, "the script ran to its end after the answer"
+
+
+def test_a_team_server_that_asks_for_a_newer_protocol_counts_as_answering(tmp_path: Path):
+    """The check at the end asks in protocol 1; a newer team server answers 426, upgrade first, which still means it runs behind its certificate."""
+    bin = tmp_path / "bin"
+    bin.mkdir()
+    fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
+    fake(bin, "curl", 'printf 426')
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5", "TEAM_SETUP_CODE": "ABCD-EFGH"}
+    ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
+    assert ran.returncode == 0 and "Its setup code is ABCD-EFGH" in ran.stdout, ran.stderr
+    assert "with the server's own certificate, which an IP address gets" in ran.stderr, ran.stderr
