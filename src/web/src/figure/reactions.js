@@ -20,7 +20,15 @@ export function variantOf(clip, random, has, scene = {}) {
 
 // The figure reading along a message's bubble: for `seconds`, line by line down at most `lines` of them `line` pixels apart, its look
 // sweeping each from `inset` pixels in from the bubble's left to as far in from its right over `sweep` seconds, and back to the next
-export const READING = {seconds: 5, lines: 3, line: 18, sweep: 1.4, inset: 14};
+export const READING = {seconds: 5, lines: 3, line: 18, sweep: 1.4, inset: 14, turn: 60, ahead: 0.25};
+
+// The way a figure standing with the middle of its picture at page `x` faces to read the bubble `box`: its whole body turned READING turn
+// degrees toward it, 1 to its right and -1 to its left, so its head then only follows the lines; facing the viewer for a bubble less than
+// READING ahead of the picture's `size` to either side
+export function readingFacing(box, x, size) {
+    const off = (box.left + box.right) / 2 - x;
+    return Math.abs(off) < READING.ahead * size ? 0 : Math.sign(off) * READING.turn;
+}
 
 // Where the figure looks `t` seconds into reading the bubble `box` (its left, right, top and bottom on the page), with the eyes' reading
 // look: along the line it is on, left to right, a line further down each sweep and back to the first after the last, as many as the

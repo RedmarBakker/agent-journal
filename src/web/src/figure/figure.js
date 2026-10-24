@@ -131,6 +131,7 @@ export class Posing {
         this.throws = null;
         this.leanWay = 0;
         this.screen = null;
+        this.facing = 0;
     }
 
     standing(name) {
@@ -1258,10 +1259,11 @@ function search(pose, stance, t) {
 // there; the figure leaning `lean` degrees toward it, the glass drawn `size` times as large
 export const GLASS_BUBBLE = {depth: 0.3, ahead: [1.6, 0.3, 0.2], out: 1.25, share: 0.8, lean: 8, size: 1.2};
 
-// The point of the page the look is at (pose.at), in the figure's units, or null with no look
+// The point of the page the look is at (pose.at), in the figure's units turned with its body (pose.facing), or null with no look
 export function lookedPoint(pose, depth) {
     if (!pose.at) return null;
-    return new THREE.Vector3((pose.at.x - 0.5) * FRAMED_HEIGHT, depth, FRAMED_MIDDLE + (0.5 - pose.at.y) * FRAMED_HEIGHT);
+    const point = new THREE.Vector3((pose.at.x - 0.5) * FRAMED_HEIGHT, depth, FRAMED_MIDDLE + (0.5 - pose.at.y) * FRAMED_HEIGHT);
+    return point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-pose.facing));
 }
 
 // leans against a wall to rest (acts.js lean), the wall out to the way it is (pose.leanWay, 1 the right): the ankles crossed, the outer
@@ -4711,6 +4713,7 @@ export class Stage {
         pose.leanWay = leanWay;
         pose.screen = screen;
         pose.at = at;
+        pose.facing = facing;
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);
         if (tilt) trunk(pose, {tilt});

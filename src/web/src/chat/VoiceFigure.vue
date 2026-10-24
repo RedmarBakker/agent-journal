@@ -59,7 +59,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, READING, answerTo, barWatchAt, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, READING, answerTo, barWatchAt, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -332,6 +332,7 @@ function current() {
         eager: Boolean(eager?.on),
         chute: Boolean(body.airborne?.chute),
         composeFacing: composeFacing(),
+        readingFacing: readingTurn(),
     };
     const wanted = clipFor(scene, canDraw);
     return {...wanted, clip: clipNamed(wanted.clip)};
@@ -1247,12 +1248,23 @@ function scanningAt(bubble) {
 // the message the figure reads along, its chat mark, while it reads, {card, began, until} in seconds, or null
 let reading = null;
 
-// where the figure looks reading its message's bubble now (reactions.js readingAt), or null once its time is up or the bubble is not on
-// the page
-function readingNow() {
+// the box of the message's bubble the figure reads now, or null once its time is up or the bubble is not on the page
+function readBubble() {
     if (!reading || now.value >= reading.until) return (reading = null);
-    const bubble = document.querySelector(`[data-figure-mark="${CSS.escape(reading.card)}"]`);
-    return bubble ? readingAt(bubble.getBoundingClientRect(), Date.now() / 1000 - reading.began) : null;
+    return document.querySelector(`[data-figure-mark="${CSS.escape(reading.card)}"]`)?.getBoundingClientRect() ?? null;
+}
+
+// where the figure looks reading its message's bubble now (reactions.js readingAt), or null while it reads none
+function readingNow() {
+    const bubble = readBubble();
+    return bubble && readingAt(bubble, Date.now() / 1000 - reading.began);
+}
+
+// the way the figure turns to the bubble it reads, its message's or the one it holds its glass up to (reactions.js readingFacing), or null
+// while it reads none
+function readingTurn() {
+    const bubble = readBubble() ?? (heldClip() === "glass_bubble" ? nearBubble() : null);
+    return bubble && readingFacing(bubble, body.at.x + SIZE / 2, SIZE);
 }
 
 // What told the figure of the run whose end the visor waits to light (figure/visor.js lightOnce), which the head turns to first, whatever

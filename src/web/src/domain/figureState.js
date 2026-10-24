@@ -86,8 +86,8 @@ export const waitingSinceAt = (counts, since, now) => (counts.question + counts.
 // while it hangs, the clip it watches the UFO with while it is `watching` one, its eagerness for the bar under it to end while it is `eager`, a beat until it is done, pointing once it stands at a tab while the agent waits
 // on the user, else what its body is doing,
 // drawn in its place. `scene` says where things stand, `doing` being the clip of the stretch it is in and `doingFacing` the way it faces for
-// it, as toward a parcel it pushes, else the viewer; `canDraw(name, posture)` whether a clip is drawn in a posture. A beat comes with the way
-// it faces.
+// it, as toward a parcel it pushes, else the viewer, and `readingFacing` the way it turns standing to read a bubble beside it (reactions.js
+// readingFacing), null while it reads none; `canDraw(name, posture)` whether a clip is drawn in a posture. A beat comes with the way it faces.
 // A trip has `started` once the figure stands ready to travel and `moves` while a leg carries it; the hop of a leg or the walk is named
 // only then, so the walk is never drawn on the spot. The clip of a leg that waits is marked `startsLeg`: the leg sets off the moment it is on screen.
 // The body's mode, highest first: in the air, landing, on its way, or resting on its floor
@@ -106,7 +106,7 @@ export function clipFor(scene, canDraw) {
 }
 
 function wantedClip(scene, canDraw) {
-    const {mode, leaving, arriving, trip, landing, place, beat, state, doing, doingFacing = 0} = scene;
+    const {mode, leaving, arriving, trip, landing, place, beat, state, doing, doingFacing = 0, readingFacing = null} = scene;
     // a figure in the air on its feet falls before anything else, leaving included: it lands first, and then goes; one dropping with its
     // seat stays seated
     if (mode === AIRBORNE && place.posture === "stand") return {clip: scene.chute ? "chute" : "fall", facing: 0};
@@ -129,8 +129,10 @@ function wantedClip(scene, canDraw) {
     // standing at the tab of what waits on the user it points up at it; anywhere else it waits turned toward the compose box
     if (place.view && state === "asking") return {clip: "point", facing: 0};
     // building a box and pushing it go on while the agent waits as well
-    if (["asking", "waiting"].includes(state) && !["work", "push"].includes(doing)) return {clip: "waiting", facing: scene.composeFacing ?? 0};
-    return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: place.posture === "sit" ? place.face : doingFacing};
+    // reading a bubble beside it, it stands turned to it whatever it does meanwhile, but for a push, which faces the parcel
+    const reads = readingFacing !== null && place.posture === "stand" && doing !== "push";
+    if (["asking", "waiting"].includes(state) && !["work", "push"].includes(doing)) return {clip: "waiting", facing: reads ? readingFacing : (scene.composeFacing ?? 0)};
+    return {clip: canDraw(doing, place.posture) ? doing : clipOf(state), facing: reads ? readingFacing : place.posture === "sit" ? place.face : doingFacing};
 }
 
 // the clip of a leg: its hop, or the walk, walked on with what the body is doing where that can be drawn on the move, its steps as much
