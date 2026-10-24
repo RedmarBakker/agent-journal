@@ -368,10 +368,15 @@ test("a sitting figure takes a call sitting, wherever it sits, the telephone bes
                     expect(phone.x, `${label} at ${u}: beside it on its side`).toBeCloseTo(way * beside, 6);
                     expect(phone.y, `${label} at ${u}`).toBeCloseTo(behind, 6);
                     expect(phone.z, `${label} at ${u}: on the seat`).toBeCloseTo(surface, 6);
-                    // the handset in the hand nearer the telephone once it has reached it, at its ear as it talks
+                    // the handset taken off the telephone into the hand on the telephone's side of it, as it faces (at a corner the one toward the
+                    // viewer), held at its ear as it talks, its cord running from the telephone to it
                     if (u >= reach[1] && u < act.hang[1]) {
-                        const nearer = ["l", "r"].sort((a, b) => at(`upper_arm_${a}`).distanceTo(phone) - at(`upper_arm_${b}`).distanceTo(phone))[0];
-                        expect(pose.props.get("telephone_handset").bone, `${label} at ${u}`).toBe(`hand_${nearer}`);
+                        const nearer = way * Math.cos((facing * Math.PI) / 180) >= 0 ? "l" : "r";
+                        const ear = at("head");
+                        const held = pose.props.get("telephone_handset");
+                        expect(held.bone, `${label} at ${u}: off the telephone, in the hand`).toBe(`hand_${nearer}`);
+                        expect(at(`hand_${nearer}`).distanceTo(ear), `${label} at ${u}: at its ear`).toBeLessThan(1.6);
+                        expect(pose.props.get("telephone_cord"), `${label} at ${u}: its cord`).toBeTruthy();
                         // the other hand, sitting composed, still flat on the floor beside it
                         const other = nearer === "l" ? "r" : "l";
                         if (posture === "composed" && facing === 0) expect(Math.abs(at(`hand_${other}`).z - surface), `${label} at ${u}: the other hand flat`).toBeLessThan(0.12);

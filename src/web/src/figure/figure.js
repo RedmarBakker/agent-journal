@@ -2484,7 +2484,8 @@ function seatedCall(pose, stance, t) {
     const page = new THREE.Vector3(pose.phoneWay * beside, behind, POSTURES[pose.posture].drop * FRAMED_HEIGHT);
     // the place on the page in the figure's own axes, the way it faces turned back
     const base = page.applyAxisAngle(new THREE.Vector3(0, 0, 1), -radians(pose.facing));
-    const side = base.x >= 0 ? "l" : "r";
+    // the hand on the page's side of it the telephone stands, as it faces: at a corner, turned along the edge, the one toward the viewer
+    const side = pose.phoneWay * Math.cos(radians(pose.facing)) >= 0 ? "l" : "r";
     const dialling = partOf(u, finger) * (1 - partOf(u, back));
     const lifted = partOf(u, lift) * (1 - partOf(u, [act.hang[0], act.hang[0] + (act.hang[1] - act.hang[0]) * 0.7]));
     const talking = span(u, ...act.talk);

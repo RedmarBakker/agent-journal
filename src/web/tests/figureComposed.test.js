@@ -228,7 +228,8 @@ test("wherever it sits and leans on a hand, on an edge, lounging or sitting comp
                 const tip = (name) => RIG.heads.get(name).clone().add(RIG.along.get(name)).applyMatrix4(moves.get(name));
                 // the surface, carried up with the whole body by a clip that lifts it, as a startle does
                 const surface = LOUNGE.floor + at("hips").z - 1.55;
-                for (const side of hands) {
+                // a hand the act holds in use, as the one taking a call made seated, is the act's; every other lies flat
+                for (const side of hands.filter((each) => !pose.inUse.has(each))) {
                     const label = `${posture} ${voice} ${clip.name} ${side}`;
                     const [wrist, fingers] = [at(`hand_${side}`), tip(`hand_${side}`)];
                     for (const point of [wrist, fingers]) {
@@ -237,6 +238,7 @@ test("wherever it sits and leans on a hand, on an edge, lounging or sitting comp
                     }
                     expect(Math.abs(fingers.z - wrist.z), `${label} level`).toBeLessThan(0.05);
                 }
+                expect(pose.inUse.size, `${posture} ${voice} ${clip.name}: at most one hand in use, the other left flat`).toBeLessThanOrEqual(clip.name === "phone_call" ? 1 : 0);
                 // seated in any way, the tails hanging behind are sat on, never through the seat
                 for (const tail of BUTLER.satOn) expect(pose.stowed.has(tail), `${posture} ${clip.name} ${tail}`).toBe(true);
             }
