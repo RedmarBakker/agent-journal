@@ -53,7 +53,16 @@ export function useSighted(mark, onSight, {root = null, margin = "0px"} = {}) {
 // How near the top of the scroller the mark must stand for the reader to be at the top.
 const NEAR_PX = 200;
 
-export function useScrollback(scroller, mark, load, {ready = () => true, margin = "200px 0px 0px 0px"} = {}) {
+// How many pages a chat too short to scroll may take to fill its window, at most.
+const FILL_PAGES = 5;
+
+// A window with no height is hidden and asks for nothing; one the rows do not fill asks until they do; one that scrolls asks only
+// when the reader has scrolled up into its top screenful.
+const shows = (box) => box.clientHeight > 0;
+const filling = (box) => shows(box) && box.scrollHeight <= box.clientHeight;
+const atTop = (box) => shows(box) && box.scrollHeight > box.clientHeight && box.scrollTop < box.clientHeight;
+
+export function useScrollback(scroller, mark, load, {ready = () => true, scrolled = () => true, margin = "200px 0px 0px 0px"} = {}) {
     const loading = ref(false);
     let spent = false;
     // whether the mark still stands near the top of the scroller, so the reader is still at the top
@@ -66,11 +75,16 @@ export function useScrollback(scroller, mark, load, {ready = () => true, margin 
     function leftTheTop() {
         if (spent && !inSight()) spent = false;
     }
+    const page = () => keepingPlace(scroller, load);
     async function older() {
-        if (loading.value || spent || !ready()) return false;
+        const box = unref(scroller);
+        if (loading.value || spent || !ready() || !box) return false;
+        if (!(filling(box) || (scrolled() && atTop(box)))) return false;
         loading.value = true;
         try {
-            return await keepingPlace(scroller, load);
+            let grew = await page();
+            for (let pages = 1; grew && pages < FILL_PAGES && filling(box); pages++) grew = await page();
+            return grew;
         } finally {
             loading.value = false;
             spent = true;

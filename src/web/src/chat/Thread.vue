@@ -11,6 +11,7 @@ import WaitingPanel from "./WaitingPanel.vue";
 import {DEFAULT_HIDDEN} from "../domain/chatVisibility.js";
 import Dot from "../kit/Dot.vue";
 import RunningCommand from "./RunningCommand.vue";
+import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
@@ -223,8 +224,9 @@ onMounted(() => {
 // scrolled back, the chat keeps every row it holds while it refreshes; back at the foot it trims to its newest page
 watch(away, (back) => (back ? scope.keepRows("messages") : scope.releaseRows("messages")));
 
-const {loading: loadingOlder, older} = useScrollback(scroller, topMark, () => scope.earlier("messages"), {
-    ready: () => ready.value && settledOnce.value && scrolledUp.value && Boolean(scroller.value),
+const {loading: loadingOlder, older} = useScrollback(scroller, topMark, () => demand("rows.older", {scope, table: "messages"}), {
+    ready: () => ready.value && settledOnce.value,
+    scrolled: () => scrolledUp.value,
     margin: AHEAD,
 });
 

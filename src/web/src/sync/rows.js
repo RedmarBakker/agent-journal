@@ -163,30 +163,15 @@ const oldest = (held) => {
 
 const beforeKey = (held) => (Number.isFinite(oldest(held)) ? oldest(held) : 0);
 
-async function rebuilt(table, size) {
-    const first = await api.list(table, {limit: pageOf(table)});
-    let rows = first.rows;
-    let more = !first.is_last_page;
-    while (more && rows.length < size) {
-        const page = await api.list(table, {limit: pageOf(table), before: beforeKey(rows)});
-        const known = new Set(rows.map((r) => r.id));
-        const fresh = page.rows.filter((r) => !known.has(r.id));
-        more = !page.is_last_page;
-        if (!fresh.length) break;
-        rows = [...fresh, ...rows];
-    }
-    return {rows, more, counts: first.counts};
-}
-
+// The newest page alone, whatever pages were held before it: a reconnect reads one page and redraws no row that has not changed.
 export async function load(table) {
-    const held = store.paging.size[table] || 0;
     const starting = new Set((store.rows[table] || []).map((r) => r.id));
-    const got = await rebuilt(table, held);
+    const got = await api.list(table, {limit: pageOf(table)});
     keptCounts(table, got.counts);
     const listed = new Set(got.rows.map((r) => r.id));
     const arriving = withoutAnswered((store.rows[table] || []).filter((r) => !starting.has(r.id) && !listed.has(r.id)), got.rows);
     took(table, {...got, rows: [...got.rows, ...arriving].sort(orderOf(table))});
-    store.paging.size[table] = Math.max(held, pageOf(table));
+    store.paging.size[table] = pageOf(table);
     return store.rows[table];
 }
 

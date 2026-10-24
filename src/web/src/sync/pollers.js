@@ -38,7 +38,8 @@ async function heldElsewhere({scope, table, id}) {
 // params its users hand it, and how often in milliseconds (or a function of the moment). One that runs per agent or per row
 // names in `by` the part of its params that tells one run from another. One the whole app holds keeps its answer in the
 // store with `take`. An on-demand poller (`demand`) has no interval: it reads once when asked, pausing the poller it names
-// in `pauses` for the length of its own read, so the two never pull at the same time.
+// in `pauses` for the length of its own read, so the two never pull at the same time. Any poller may declare `least`, the milliseconds
+// between two reads of one run; an on-demand one that does not reads at most once a second.
 export const POLLERS = Object.freeze({
     "status.bar": {
         read: () => api.bar(),
@@ -86,6 +87,7 @@ export const POLLERS = Object.freeze({
         every: 3000,
         by: ({client, agent, session}) => `${client.env()}:${agent}:${session || ""}`,
     },
+    "rows.older": {read: ({scope, table}) => scope.earlier(table), demand: true, by: ({scope, table}) => `${scope.env}:${table}`},
     "agent.transcript.older": {read: ({client, agent, session, before}) => client.transcript(agent, session, {before, last: PAGE}), demand: true, pauses: "agent.transcript"},
     "agent.edits": {read: ({client, agent, cursor}) => client.edits(agent, cursor), every: 2000, by: ({client, agent}) => `${client.env()}:${agent}`},
     "agent.edits.older": {read: ({client, agent, before}) => client.edits(agent, 0, {before}), demand: true, pauses: "agent.edits"},

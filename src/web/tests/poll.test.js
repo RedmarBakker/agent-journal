@@ -225,6 +225,28 @@ describe("pausing a poller and an on-demand one", () => {
     });
 });
 
+describe("the least time between reads of an on-demand poller", () => {
+    test("a run reads at most once a second unless it declares its own least, and each place has its own", async () => {
+        const read = vi.fn(async ({page}) => page);
+        const key = declared(read, undefined, {demand: true, by: ({place}) => place});
+        const quick = declared(read, undefined, {demand: true, least: 100});
+        const first = demand(key, {place: "a", page: 1});
+        const second = demand(key, {place: "a", page: 2});
+        const other = demand(key, {place: "b", page: 3});
+        await passed(0);
+        expect(read.mock.calls.map(([params]) => params.page)).toEqual([1, 3]);
+        await passed(999);
+        expect(read).toHaveBeenCalledTimes(2);
+        await passed(1);
+        expect(read).toHaveBeenCalledTimes(3);
+        expect(await Promise.all([first, second, other])).toEqual([1, 2, 3]);
+        demand(quick, {page: 4});
+        demand(quick, {page: 5});
+        await passed(100);
+        expect(read.mock.calls.map(([params]) => params.page).slice(3)).toEqual([4, 5]);
+    });
+});
+
 describe("the key a poller is used by", () => {
     test("a user that comes to name another agent moves to that agent's run", async () => {
         const read = vi.fn(async ({agent}) => agent);

@@ -10,6 +10,8 @@ const WAKE_SPREAD_MS = 300;
 const POKE_GAP_MS = 1000;
 const UNSEEN_FACTOR = 10;
 const FALLBACK_EVERY_MS = 5000;
+// The least time between two reads of one on-demand poller's run, unless the poller declares its own `least`.
+const LEAST_MS = 1000;
 
 // the runs of the declared pollers, one per poller, or one per agent or row for a poller declared with `by`
 const runs = new Map();
@@ -114,9 +116,21 @@ export function resumePoller(paused) {
     });
 }
 
-// An on-demand poller's one read, made while the poller it pauses is quiet, so the two never pull at the same time.
+// when each on-demand run may next read: a read asked for sooner than that waits for it, so a run never reads twice within its least
+const openAt = new Map();
+
+async function spaced(place, entry) {
+    const now = Date.now();
+    const free = Math.max(now, openAt.get(place) ?? 0);
+    openAt.set(place, free + (entry.least ?? LEAST_MS));
+    if (free > now) await new Promise((resolve) => setTimeout(resolve, free - now));
+}
+
+// An on-demand poller's one read, made while the poller it pauses is quiet, so the two never pull at the same time, and no sooner
+// after the run's last read than its least interval.
 export async function demand(key, params = {}) {
     const entry = entryOf(key);
+    await spaced(placeOf(key, params), entry);
     const paused = entry.pauses ? await pausePoller(entry.pauses, params) : [];
     try {
         return await transport.attemptOnce(() => entry.read(params));

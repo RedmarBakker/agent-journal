@@ -22,7 +22,7 @@ describe("the poller table", () => {
         for (const [key, poller] of Object.entries(POLLERS)) {
             expect(key, key).toMatch(/^[a-z]+(\.[a-z]+)+$/);
             expect(typeof poller.read, key).toBe("function");
-            expect(poller.demand ? poller.pauses in POLLERS : poller.every !== undefined, key).toBe(true);
+            expect(poller.demand ? !poller.pauses || poller.pauses in POLLERS : poller.every !== undefined, key).toBe(true);
         }
         expect(Object.isFrozen(POLLERS)).toBe(true);
     });

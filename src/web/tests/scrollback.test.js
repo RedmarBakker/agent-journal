@@ -11,12 +11,21 @@ beforeEach(() => {
     globalThis.IntersectionObserver = window.IntersectionObserver;
 });
 
-function paged(load, ready = () => true) {
+// a scroller of the given sizes, as the browser measures them
+function sized(client, scroll, top = 0) {
+    const box = window.document.createElement("div");
+    const sizes = {clientHeight: client, scrollHeight: scroll, scrollTop: top};
+    for (const name of Object.keys(sizes)) Object.defineProperty(box, name, {get: () => sizes[name], set: (v) => (sizes[name] = v), configurable: true});
+    box.sizes = sizes;
+    return box;
+}
+
+function paged(load, ready = () => true, box = sized(800, 3000)) {
     const made = {};
     const host = window.document.createElement("div");
     createApp({
         setup() {
-            Object.assign(made, useScrollback(ref(null), ref(null), load, {ready}));
+            Object.assign(made, useScrollback(ref(box), ref(null), load, {ready}));
             return () => h("div", made.loading.value ? "loading" : "idle");
         },
     }).mount(host);
@@ -54,7 +63,7 @@ describe("paging back in a chat", () => {
     });
 
     test("loads one older page at the top and the next only after the reader leaves the top and returns", async () => {
-        const box = window.document.createElement("div");
+        const box = sized(800, 3000);
         const mark = window.document.createElement("div");
         let markTop = 0;
         box.getBoundingClientRect = () => ({top: 0});
@@ -76,8 +85,51 @@ describe("paging back in a chat", () => {
         box.dispatchEvent(new Event("scroll"));
         markTop = 0;
         await made.older();
+        await made.older();
         expect(load).toHaveBeenCalledTimes(2);
         await made.older();
         expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    function pagedIn(box, load, options = {}) {
+        const made = {};
+        createApp({
+            setup() {
+                Object.assign(made, useScrollback(ref(box), ref(null), load, options));
+                return () => h("div");
+            },
+        }).mount(window.document.createElement("div"));
+        return made;
+    }
+
+    test("a first page too short to scroll fills the window with just the pages it takes to scroll, then stops", async () => {
+        const box = sized(800, 300);
+        const load = vi.fn(async () => (box.sizes.scrollHeight += 300) > 0);
+        const made = pagedIn(box, load);
+        await made.older();
+        expect(load).toHaveBeenCalledTimes(2);
+        expect(box.sizes.scrollHeight).toBeGreaterThan(800);
+    });
+
+    test("a chat that never grows past its window asks for no more than five pages", async () => {
+        const load = vi.fn(async () => true);
+        await pagedIn(sized(800, 300), load).older();
+        expect(load).toHaveBeenCalledTimes(5);
+    });
+
+    test("a chat that scrolls pages back only when the reader has scrolled up into its top screenful", async () => {
+        const load = vi.fn(async () => true);
+        expect(await pagedIn(sized(800, 3000, 2200), load).older()).toBe(false);
+        expect(await pagedIn(sized(800, 3000, 800), load).older()).toBe(false);
+        expect(await pagedIn(sized(800, 3000, 0), load, {scrolled: () => false}).older()).toBe(false);
+        expect(load).not.toHaveBeenCalled();
+        await pagedIn(sized(800, 3000, 799), load).older();
+        expect(load).toHaveBeenCalledTimes(1);
+    });
+
+    test("a window with no height asks for nothing", async () => {
+        const load = vi.fn(async () => true);
+        expect(await pagedIn(sized(0, 0), load).older()).toBe(false);
+        expect(load).not.toHaveBeenCalled();
     });
 });

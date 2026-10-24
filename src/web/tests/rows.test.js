@@ -42,18 +42,22 @@ describe("paging rows", () => {
         expect([store.paging.size.plans, store.paging.more.plans]).toEqual([PAGE, true]);
     });
 
-    test("loading a window held past a page asks one page at a time and keeps the scrollback", async () => {
+    test("loading a window held past a page reads the newest page alone and redraws no row that has not changed", async () => {
         const all = Array.from({length: 2 * PAGE + 10}, (_, i) => done(i + 1));
-        store.rows.tasks = all.slice(10);
+        const held = all.slice(10).map((r) => ({...r}));
+        store.rows.tasks = held;
+        const before = new Map(store.rows.tasks.map((r) => [r.id, r]));
         store.paging.size.tasks = 2 * PAGE;
         api.list.mockImplementation(async (table, query) => {
             const below = all.filter((r) => !query.before || r.id < query.before);
             const page = below.slice(-query.limit);
-            return {rows: page, more: below.length > page.length, counts: {}};
+            return {rows: page, is_last_page: below.length === page.length, counts: {}};
         });
         await load("tasks");
-        expect(api.list.mock.calls.map(([, query]) => query.limit)).toEqual([PAGE, PAGE]);
-        expect(store.rows.tasks.map((r) => r.id)).toEqual(all.slice(10).map((r) => r.id));
+        expect(api.list.mock.calls.map(([, query]) => query)).toEqual([{limit: PAGE}]);
+        expect(store.rows.tasks.map((r) => r.id)).toEqual(all.slice(-PAGE).map((r) => r.id));
+        expect(store.rows.tasks.every((r) => r === before.get(r.id))).toBe(true);
+        expect([store.paging.size.tasks, store.paging.more.tasks]).toEqual([PAGE, true]);
     });
 
     test("an earlier page goes in front, sorted, with no row twice, asked before the oldest closed row", async () => {

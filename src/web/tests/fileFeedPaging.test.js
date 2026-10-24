@@ -13,6 +13,7 @@ const ALL = Array.from({length: 120}, (_, i) => edit(i + 1));
 const client = {
     env: () => "main",
     edits: vi.fn(async (agent, since, fields = {}) => {
+        if (since && !fields.before) return {cursor: since, edits: [], older: false};
         const below = fields.before ? ALL.filter((e) => e.id < fields.before) : ALL;
         const page = below.slice(-50);
         return {cursor: 1, edits: page, older: Boolean(page.length) && page[0].id > 1};
