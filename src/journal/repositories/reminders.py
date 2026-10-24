@@ -8,5 +8,8 @@ class Reminders(ScopedRepository[Reminder]):
     def standing(self) -> list[Reminder]:
         return self.selected(self.query().filter_null("due_at"))
 
+    def triggered(self) -> list[Reminder]:
+        return self.selected(self.query().filter_null("due_at").filter_unlisted("trigger", [""]).order("id"))
+
     def timed(self) -> list[Reminder]:
         return self.selected(self.query().filter_present("due_at").order("due_at"))

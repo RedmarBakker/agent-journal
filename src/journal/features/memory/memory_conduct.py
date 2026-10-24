@@ -53,7 +53,7 @@ class MemoryConduct(Conduct):
 
 
 def triggered_lines(event, trigger: MemoryTrigger) -> list:
-    return [MemoryNudges.MEMORY_TRIGGERED.create(noun=row.noun, n=row.id, single_use=int(row.is_single_use)) for row in event.data.part(MemoryPart).rows if row.trigger == trigger and row.ready]
+    return [MemoryNudges.MEMORY_TRIGGERED.create(noun=row.noun, n=row.id, single_use=int(row.is_single_use)) for row in event.data.part(MemoryPart).triggered if row.trigger == trigger and row.ready]
 
 
 def due_lines(event: AgentEvent) -> list:

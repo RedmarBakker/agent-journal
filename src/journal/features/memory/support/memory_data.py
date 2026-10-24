@@ -13,3 +13,4 @@ class MemoryData:
     rows: tuple[MemoryRow, ...]
     stale: tuple[str, ...]
     timed: tuple[TimedReminder, ...] = ()
+    triggered: tuple[MemoryRow, ...] = ()

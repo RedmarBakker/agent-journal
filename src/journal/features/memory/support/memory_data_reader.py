@@ -31,11 +31,15 @@ class MemoryDataReader:
             "threshold_due": lambda: agent.threshold_due,
             "context_threshold": lambda: agent.context_threshold,
             "memories": self.memories,
+            "triggered": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in self.triggered_memories()),
             "rows": lambda: tuple(self.row(noun, memory, kind) for noun, memory, kind in facts.memories),
             "stale": lambda: self.stale([(noun, memory) for noun, memory, _ in facts.memories], self.settings.integer(MemoryOptions.STALENESS_LIMIT)),
             "timed": lambda: tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
+
+    def triggered_memories(self) -> list[tuple]:
+        return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.triggered()), *(("rule", rule, CardKind.RULES) for rule in self.rules.triggered()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.triggered())]
 
     def memories(self) -> list[tuple]:
         return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
