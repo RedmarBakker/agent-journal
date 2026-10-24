@@ -1,5 +1,6 @@
 import re
 
+from journal.support.timeout import Timeout
 from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
@@ -29,8 +30,8 @@ class EtiquetteConduct(Conduct):
         return self.none(*rows)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        edits = settings.integer(EtiquetteOptions.PLAIN_CODE_INTERVAL)
-        if event.subagent or edits <= 0 or not CodeFiles.has_code(event.call.edited_paths) or event.data.part(EtiquettePart).code_edits % edits:
+        span = Timeout.edits(settings.integer(EtiquetteOptions.PLAIN_CODE_INTERVAL))
+        if event.subagent or span.amount <= 0 or not CodeFiles.has_code(event.call.edited_paths) or not span.started(0).is_period_start(event.data.part(EtiquettePart).code_edits):
             return self.none()
         return self.none(EtiquetteNudges.PLAIN_CODE.create())
 
