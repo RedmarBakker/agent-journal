@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {describe, expect, it} from "vitest";
-import {CLIPS, GLASS, INSPECTING, Posing, SEARCHING, boxSeen} from "../src/figure/figure.js";
+import {CLIPS, GLASS, INSPECTING, Posing, SEARCHING, boxSeen, glassOf} from "../src/figure/figure.js";
 import {INSPECT, PARCEL} from "../src/figure/parcels.js";
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -58,7 +58,7 @@ describe("inspecting a box with the magnifying glass", () => {
                 expect(share, `${voice} ${t}`).toBeLessThan(1);
                 expect(off, `${voice} ${t}: on the line from the eyes to the box`).toBeLessThan(GLASS.radius * glass.size);
                 expect(lens.y, `${voice} ${t}: before the figure, toward the viewer`).toBeLessThan(-0.5);
-                expect(glass.magnifies, `${voice} ${t}: showing the box magnified`).toBeGreaterThan(0.5);
+                expect(glass.magnifies, `${voice} ${t}: held up to the eye`).toBeGreaterThan(0.5);
             }
         }
     });
@@ -93,23 +93,23 @@ describe("inspecting a box with the magnifying glass", () => {
 });
 
 describe("searching the ground with the magnifying glass", () => {
-    it("bows over the floor with the glass held before its eyes, on its line of sight to the floor ahead, the floor magnified behind the lens as it sweeps along", () => {
+    it("stretches its arm out and looks through the glass at arm's length, the glass before its eyes on its line of sight to the floor ahead, as it sweeps along", () => {
         for (const voice of Object.keys(stances)) {
             const across = [];
             for (let step = 0; step < 20; step++) {
                 const t = step / 20;
                 const {eyes, glass, lens, faces} = posed(searchClip, t, voice);
-                expect(glass, `${voice} ${t}`).toMatchObject({shows: "ground", size: SEARCHING.size});
+                expect(glass, `${voice} ${t}`).toMatchObject({size: SEARCHING.size});
                 expect(glass.magnifies, `${voice} ${t}`).toBeGreaterThan(0.5);
-                // the line from the eyes through the lens comes down on the floor just ahead of the figure: the lens is before its eyes
+                // the line from the eyes through the lens comes down on the floor well ahead of the figure: the lens is before its eyes,
+                // held out at arm's length, never tucked under its head
                 const sight = lens.clone().sub(eyes);
-                expect(sight.z, `${voice} ${t}: below the eyes`).toBeLessThan(-0.2);
-                expect(sight.length(), `${voice} ${t}: close before the eyes`).toBeLessThan(1.4);
+                expect(sight.z, `${voice} ${t}: a little below the eyes`).toBeLessThan(0);
+                expect(sight.length(), `${voice} ${t}: as far out as the arm reaches`).toBeGreaterThan(0.4);
+                expect(Math.hypot(sight.x, sight.y), `${voice} ${t}: out ahead of the face, not under it`).toBeGreaterThan(Math.abs(sight.z));
                 const floor = eyes.clone().addScaledVector(sight, -eyes.z / sight.z);
-                const reach = Math.hypot(floor.x, floor.y);
-                expect(reach, `${voice} ${t}: looking at the floor ahead of its feet`).toBeGreaterThan(0.5);
-                expect(reach, `${voice} ${t}: near the figure`).toBeLessThan(3);
-                expect(faces.z, `${voice} ${t}: the lens facing down at the ground`).toBeLessThan(-0.5);
+                expect(Math.hypot(floor.x, floor.y), `${voice} ${t}: looking at the floor well ahead of its feet`).toBeGreaterThan(2);
+                expect(faces.z, `${voice} ${t}: the lens tipped toward the floor ahead`).toBeLessThan(-0.2);
                 expect(slantOf(faces), `${voice} ${t}: skewed from the viewer`).toBeGreaterThan(40);
                 expect(slantOf(faces), `${voice} ${t}: its lens still seen`).toBeLessThan(80);
                 across.push(lens.clone().setZ(0));
@@ -119,8 +119,15 @@ describe("searching the ground with the magnifying glass", () => {
         }
     });
 
-    it("shows the box behind the lens while it inspects the box, and the ground while it searches", () => {
-        expect(inspecting((INSPECTING.along[0] + INSPECTING.along[1]) / 2).glass.shows).toBe("box");
-        expect(posed(searchClip, 0.5, "butler").glass.shows).toBe("ground");
+    it("has a clear lens: nothing drawn in it, whatever it looks at", () => {
+        const root = new THREE.Group();
+        root.name = "magnifying_glass";
+        glassOf(root);
+        root.userData.shape({magnifies: 1, size: 1.3, roll: 20});
+        const flats = [];
+        root.traverse((part) => part.isMesh && part.geometry.type === "CircleGeometry" && flats.push(part));
+        expect(flats, "one lens, no picture over it").toHaveLength(1);
+        expect(flats[0].material.map ?? null).toBe(null);
+        expect(flats[0].material.opacity, "see-through").toBeLessThan(0.3);
     });
 });
