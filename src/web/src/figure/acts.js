@@ -174,6 +174,11 @@ export function flungAt(index, u, throws = MIDDLE_THROWS) {
     return {at, turn: thrown.spin * time, landed: Math.max(0, seconds - flight) / lies};
 }
 
+// The act whose things are drawn over the figure's picture (chat/FigureAct.vue) while the figure is drawn playing `clip` at `frame`, the
+// clip the picture is drawn in, never one waiting to play meanwhile, as while it turns at a seat drawn idle: its name and how far through
+// it it is, 0 to 1; none for a clip that is no act
+export const actDrawn = (clip, frame) => (clip && ACTS[clip.name] ? {name: clip.name, u: frame / clip.frames} : null);
+
 // Where a run of hops on the pogo stick is `share` of the way through its time, as {index, s, height}: hop `index` of `heights`, `s` of
 // the way through it, and how high above its foot it is then. One gravity times them all: a hop lasts as the square root of its height,
 // so a higher one takes longer, and its height goes as 4s(1 - s), rising fast off the ground, slowing to the top and falling faster

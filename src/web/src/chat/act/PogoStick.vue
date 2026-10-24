@@ -34,7 +34,7 @@ const stick = computed(() => {
 
 <template>
     <template v-if="stick.shown">
-        <g :transform="`translate(${middle} ${stick.foot + stick.fall}) rotate(${stick.turn}) scale(${stick.shown})`">
+        <g :transform="`translate(${middle} ${stick.foot + stick.fall}) rotate(${stick.turn}) scale(${stick.shown})`" data-pogo-stick>
             <line x1="0" :y1="stick.top" x2="0" :y2="stick.bottom" :stroke="COLOURS.silver" stroke-width="2.6" stroke-linecap="round" />
             <line :x1="-stick.bar" :y1="stick.top" :x2="stick.bar" :y2="stick.top" :stroke="COLOURS.silver" stroke-width="3" stroke-linecap="round" />
             <line :x1="-stick.peg" y1="-1" :x2="stick.peg" y2="-1" :stroke="COLOURS.red" stroke-width="2.4" stroke-linecap="round" />

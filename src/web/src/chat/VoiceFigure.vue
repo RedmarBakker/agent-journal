@@ -64,7 +64,7 @@ import {tickerAt, tickerSeconds} from "../figure/visorPixels.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
+import {ACTS, actDrawn, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
 import FixedRunBug from "./act/FixedRunBug.vue";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter, admiringLook} from "../figure/admire.js";
@@ -239,6 +239,9 @@ const drawnParcels = ref([]);
 // how the figure watching the UFO stands this frame (figure.js watch), or null
 let sky = null;
 const shownFrame = ref(0);
+// the clip and frame the picture is drawn in: the one on screen, or idle while the figure turns at a seat (places.js turnStep)
+const drawnClip = ref(null);
+const drawnFrame = ref(0);
 const headAt = ref({x: 0.5, y: 0.3});
 const handAt = ref({x: 0.75, y: 0.6, out: 1, other: {x: 0.25, y: 0.6}});
 // The figure's run up the bubbles and off the top of the screen (figure/skyward.js), or null: when it set off, its hops, and once it is out of
@@ -440,9 +443,11 @@ function step() {
     const stride = drawn === "walk" ? strideNow(pace) : null;
     walking.value = stride !== null || shown.clip.name === "walk";
     shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
+    drawnClip.value = posed.turning ? clipNamed("idle") : shown.clip;
+    drawnFrame.value = posed.turning ? 0 : shownFrame.value;
     const seconds = performance.now() / 1000;
     headTilt = tiltAfter(headTilt, seconds, Math.random);
-    player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, posedOnSeat(shown, seconds), {
+    player.show(drawnClip.value, drawnFrame.value, posedOnSeat(shown, seconds), {
         posture: drawn,
         eyes: look.eyes,
         stride: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : backing.value?.at.way ? -backing.value.at.steps : stride,
@@ -1198,7 +1203,7 @@ function flightRoom() {
 
 // held by the head it stands still, the act on screen stopped on its frame, startled, its head tilted as the pointer pulls it
 function holdStill() {
-    player.show(playing.shown.clip, shownFrame.value, posed.facing, {posture: drawn, tilt: grab.tilt, grabbed: true});
+    player.show(drawnClip.value, drawnFrame.value, posed.facing, {posture: drawn, tilt: grab.tilt, grabbed: true});
     frameTimer = requestAnimationFrame(step);
 }
 
@@ -1843,7 +1848,7 @@ const wallBugsDrawn = computed(() => (shooting.value?.bugs ?? []).map((bug) => (
 const slushDrawn = computed(() => (shooting.value?.slush ?? []).map((each) => ({...each, x: each.x - body.at.x, y: each.y - body.at.y})));
 const cameraDrawn = computed(() => (shooting.value?.camera ?? []).map((each) => ({...each, from: {x: each.from.x - body.at.x, y: each.from.y - body.at.y}})));
 
-const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.value.name, u: shownFrame.value / shownClip.value.frames} : null));
+const acting = computed(() => actDrawn(drawnClip.value, drawnFrame.value));
 const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
 
 // What the figure says on the telephone, while it says it (places.js callSays): whom it calls, from the chat marks that set off the call
