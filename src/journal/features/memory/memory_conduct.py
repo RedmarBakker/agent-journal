@@ -1,3 +1,5 @@
+import re
+
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
@@ -51,11 +53,11 @@ class MemoryConduct(Conduct):
 
 
 def triggered_lines(event, trigger: MemoryTrigger) -> list:
-    return [MemoryNudges.MEMORY_TRIGGERED.create(noun=row.noun, n=row.id, single_use=int(row.is_single_use)) for row in event.data.part(MemoryPart).trigger_rows(trigger)]
+    return [MemoryNudges.MEMORY_TRIGGERED.create(noun=row.noun, n=row.id, single_use=int(row.is_single_use)) for row in event.data.part(MemoryPart).rows if row.trigger == trigger and row.ready]
 
 
 def due_lines(event: AgentEvent) -> list:
-    return [MemoryNudges.REMINDER_DUE.create(n=reminder.id, text=reminder.text) for reminder in event.data.part(MemoryPart).due(event.time)]
+    return [MemoryNudges.REMINDER_DUE.create(n=reminder.id, text=reminder.text) for reminder in event.data.part(MemoryPart).timed if reminder.due_at <= event.time]
 
 
 
@@ -69,5 +71,6 @@ def threshold_check(state: BaseState, event: AgentEvent, settings: Settings) -> 
 def hint_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
     if not event.content:
         return state.none()
-    rows = event.data.part(MemoryPart).hinted(event.content)
+    terms = set(re.findall(r"[a-z][a-z0-9_-]*", event.content.lower()))
+    rows = [row for row in event.data.part(MemoryPart).rows if terms & set(row.keywords) and not row.presence]
     return state.none().typing(*(MemoryNudges.MEMORY_READ_REQUEST.create(noun=row.noun, n=row.id) for row in rows))

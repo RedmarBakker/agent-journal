@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 
 from journal.support.moment import Moment
@@ -135,6 +136,12 @@ class Entries(ScopedRepository[Entry]):
 
     def undelivered_lines(self, kind: str, session: str) -> list[Entry]:
         return [entry for entry in self.selected(self.query().filter(kind=kind).filter_json("data->session", session).order_descending("id").limit(200)) if not entry.data.get("delivered")]
+
+    def agent_kinds_newest(self, session: str, kinds: Sequence[str], last: int) -> list[Entry]:
+        return self.selected(self.query().filter(actor=Actor.agent(session)).filter_listed("kind", list(kinds)).order_descending("id").limit(last))
+
+    def session_kind_newest(self, session: str, kind: str, last: int) -> list[Entry]:
+        return self.selected(self.query().filter(kind=kind).filter_json("data->session", session).order_descending("id").limit(last))
 
     def kind_entries_scoped(self, last: int = 400) -> list[Entry]:
         return self.selected(self.query().order_descending("id").limit(last))

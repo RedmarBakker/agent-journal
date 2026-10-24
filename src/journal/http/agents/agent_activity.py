@@ -37,22 +37,27 @@ from journal.support.command_text import CommandText
 from journal.features.thinking.support.thinking_window import WORKING_STATES
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
-ENTRY_COUNT = 400
 HISTORY_ENTRIES = 5
+TOOL_KINDS = ("ToolStarting", "ToolFinished")
 OPERATION_VERBS = {FileRead.kind: "reading a file", FileEdit.kind: "editing files", FileWrite.kind: "writing a file", SubagentDispatch.kind: "waiting for a subagent", SkillLoad.kind: "reading a skill", AgentMessage.kind: "messaging an agent", UserQuestion.kind: "asking you"}
 ENDED = "ended"
 
 
 class AgentActivity:
-    """An agent with what it is doing, read from the timeline: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
+    """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
     def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry) -> None:
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
         self.jobs, self.numbers, self.registry = jobs, numbers, registry
 
     def page(self, agents: list[Agent]) -> list[dict]:
-        recent = list(reversed(self.entries.kind_entries_scoped(ENTRY_COUNT))) if any(item.state != ENDED for item in agents) else []
-        return [self.row(item, [] if item.state == ENDED else [e for e in recent if e.data.get("session") == item.session or (e.actor and e.actor.id == item.session)]) for item in agents]
+        return [self.row(item, [] if item.state == ENDED else self.session_entries(item.session)) for item in agents]
+
+    def session_entries(self, session: str) -> list:
+        newest = [*self.entries.agent_kinds_newest(session, list(STATUS), 1), *self.entries.agent_kinds_newest(session, [*TOOL_KINDS, PART_START, PART_END], 1),
+                  *self.entries.agent_kinds_newest(session, [PART_START, PART_END], 1), *self.entries.agent_kinds_newest(session, ["TurnDisplayed"], 1),
+                  *self.entries.session_kind_newest(session, StackHistory.KIND, HISTORY_ENTRIES), *self.entries.session_kind_newest(session, RUN, HISTORY_ENTRIES)]
+        return sorted({entry.id: entry for entry in newest}.values(), key=lambda entry: entry.id)
 
     def work(self, entry, entries) -> str:
         call = entry.recorded_call()
@@ -73,15 +78,15 @@ class AgentActivity:
             **ModelFields.build(agent),
             "status": "stopped" if agent.state == ENDED else self.status(agent.state, STATUS.get(kind, "idle")),
             "heard_at": last.created_at if last else agent.updated_at,
-            "tool": last.data.get("tool_name", "") if last and kind in ("ToolStarting", "ToolFinished") else "",
-            "tool_work": self.work(last, entries) if last and kind in ("ToolStarting", "ToolFinished") else "",
+            "tool": last.data.get("tool_name", "") if last and kind in TOOL_KINDS else "",
+            "tool_work": self.work(last, entries) if last and kind in TOOL_KINDS else "",
             "tool_running": kind == "ToolStarting" or self.unended_part(entries) is not None,
             "part_started_at": self.part_start(entries),
             "awaiting": waiting_state, "wait_refs": enabled, "awaiting_since": agent.updated_at if waiting_state else None,
             "model": status.model, "effort": status.effort, "usage": [asdict(window) for window in status.windows], "capabilities": sorted(provider.capabilities),
             "branch": self.files.branch(), "context": round(status.context * 100) if status.context is not None else None,
             "question_id": agent.data.get("question_id", 0) if agent.state == "waiting" else 0,
-            "doing": self.activity(state, [e for e in entries if e.kind in ("ToolStarting", "ToolFinished", PART_START, PART_END)]),
+            "doing": self.activity(state, [e for e in entries if e.kind in (*TOOL_KINDS, PART_START, PART_END)]),
             "thinking": self.thinking(agent.session, hooks) if agent.state != ENDED else "",
             "thinking_at": agent.thinking_at if agent.state != ENDED else 0.0,
             "last_message": next((e.data.get("delta", "") for e in reversed(hooks) if e.kind == "TurnDisplayed"), ""),

@@ -1,4 +1,3 @@
-import re
 from dataclasses import dataclass
 
 from journal.features.memory.support.memory_row import MemoryRow
@@ -14,13 +13,3 @@ class MemoryData:
     rows: tuple[MemoryRow, ...]
     stale: tuple[str, ...]
     timed: tuple[TimedReminder, ...] = ()
-
-    def due(self, time: float) -> list[TimedReminder]:
-        return [reminder for reminder in self.timed if reminder.due_at <= time]
-
-    def trigger_rows(self, trigger: str) -> list[MemoryRow]:
-        return [row for row in self.rows if row.trigger == trigger and row.ready]
-
-    def hinted(self, text: str) -> list[MemoryRow]:
-        terms = set(re.findall(r"[a-z][a-z0-9_-]*", text.lower()))
-        return [row for row in self.rows if terms & set(row.keywords) and not row.presence]

@@ -21,11 +21,11 @@ class PlanOutline:
         return self.open_outline(plan)
 
     def open_outline(self, plan: Plan) -> dict:
-        tasks = self.plans.plan_tasks(plan)
+        task_ids = self.plans.plan_task_ids(plan)
         phased = self.plans.phased(plan)
         phases = [{**ModelFields.build(phase.phase), "task_ids": [t.id for t in phase.tasks]} for phase in phased]
         checkpoint_pause = plan.state == PlanState.STARTED and plan.checkpoint_phase(phased) is not None
-        return self.outline(plan, [t.id for t in tasks], phases, plan.current_phase(phased), checkpoint_pause, bool(self.workers.containing({t.row_id for t in tasks})))
+        return self.outline(plan, task_ids, phases, plan.current_phase(phased), checkpoint_pause, bool(self.workers.containing(set(task_ids))))
 
     def closed_outline(self, plan: Plan) -> dict:
         phases = self.plans.plan_phases(plan)
