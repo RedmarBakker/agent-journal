@@ -63,6 +63,7 @@ The journal's own tests run this plugin, from `tests/plugins/echo`.
   or `.deleted`. The secrets, users and MCP server rows are
   never sent, nor a row the plugin wrote itself. A subagent's events come with `subagent` set and are held only at
   `tool_starting`.
+- `reaches`: for an event it hears, who besides the main agent it reaches: `{"file_edited": ["workers"]}`. A worker's event goes only to the plugins that name `workers` for it; a plugin with no `reaches` hears the main agent alone as before. A worker's file edits are recorded, so `file_edited` is heard for them. `subagents` is accepted and changes nothing yet: a subagent's events reach every plugin that hears them, as before.
 - `holds`: the events it hears that it answers before the agent goes on, each with the window in milliseconds it
   answers in: `[{"event": "tool_starting", "window_ms": 5}]`; a bare name takes the journal's ceiling, the setting
   `plugins.hold_window_ms` (50), and a window above the ceiling is cut to it. `tool_starting`, `command_starting`, `file_edited` and `idle` may be refused,
