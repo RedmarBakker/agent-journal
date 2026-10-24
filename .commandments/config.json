@@ -59,7 +59,9 @@
         "LifecycleHandlerNotFirstDetector",
         "SqlOutsideDatabaseLayerDetector",
         "RequestOutsideTransportDetector",
-        "PollerKeyNotWrittenDetector"
+        "PollerKeyNotWrittenDetector",
+        "MarkWrittenOutsideListenerDetector",
+        "SystemMessageOutsideListenerDetector"
     ],
     "parallel": 2,
     "configure": {

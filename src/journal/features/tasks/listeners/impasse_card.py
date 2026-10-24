@@ -1,0 +1,14 @@
+from journal.chat.moment_cards import MomentCards
+from journal.events.agent.impasse_report import ImpasseReport
+from journal.events.agent_listener import AgentListener
+from journal.support.card_kind import CardKind
+
+
+class ImpasseCard(AgentListener[ImpasseReport]):
+    """An agent that says it is stuck is one mark in the chat with its reason."""
+
+    def __init__(self, cards: MomentCards) -> None:
+        self.cards = cards
+
+    def handle(self, event: ImpasseReport) -> None:
+        self.cards.show(event.environment_id, event.session, "Agent stuck", "warn", "bad", event.reason, shows=CardKind.IMPASSE)
