@@ -2,7 +2,7 @@
 import {computed, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import Skeleton from "../kit/Skeleton.vue";
-import {useOpenSet} from "../composables/openSet.js";
+import {useToggledSet} from "../composables/toggledSet.js";
 import {saidTurns} from "../domain/transcript.js";
 import {clock} from "../format/time.js";
 import {render} from "../text/index.js";
@@ -17,7 +17,7 @@ const props = defineProps({
 const {turns, folded, bodies, opening, loading, atStart, toggle, earlier, scrolled} = props.transcript;
 const said = computed(() => saidTurns(turns.value, props.speakers));
 // the turns whose steps are shown, each folded under its message until opened
-const {opened: unfolded, flip} = useOpenSet();
+const {members: unfolded, toggle: flip} = useToggledSet();
 const stepsWord = (n) => `Show ${n} ${n === 1 ? "step" : "steps"}`;
 const scroller = ref(null);
 defineExpose({scroller});

@@ -7,6 +7,7 @@ import {route} from "../route.js";
 import Btn from "../kit/Btn.vue";
 import ChoiceList from "../kit/ChoiceList.vue";
 import Dialog from "../kit/Dialog.vue";
+import {pageOf} from "../sync/paging.js";
 
 const props = defineProps({plan: {type: Object, required: true}});
 const emit = defineEmits(["close"]);
@@ -28,7 +29,7 @@ const templateChoices = computed(() => [
 
 async function loadTemplates() {
     try {
-        templates.value = critiqueTemplates((await scope.api.list("templates")).rows);
+        templates.value = critiqueTemplates((await scope.api.list("templates", {limit: pageOf("templates")})).rows);
         unloaded.value = false;
     } catch {
         unloaded.value = true;

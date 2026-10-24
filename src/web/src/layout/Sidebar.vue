@@ -22,7 +22,7 @@ const pages = computed(() => pluginPages(rows("plugins")));
 const openPage = (page) => (store.pluginPage = {plugin: page.plugin, open: page.open, settled: null});
 const release = computed(() => store.spec.version || "");
 const creating = ref(false);
-onMounted(async () => (creating.value = !(await api.list("environments")).rows.length));
+onMounted(async () => (creating.value = !(await api.list("environments", {limit: 1})).rows.length));
 const folded = reactive({});
 const fold = (key) => {
     folded[key] = !folded[key];

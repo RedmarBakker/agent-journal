@@ -11,6 +11,7 @@ import Icon from "../kit/Icon.vue";
 import ListBox from "../kit/ListBox.vue";
 import Notice from "../kit/Notice.vue";
 import {hasLoaded, rows} from "../sync/rows.js";
+import {pageOf} from "../sync/paging.js";
 
 const emit = defineEmits(["open", "new"]);
 const {failure, attempt} = useAttempt();
@@ -21,7 +22,7 @@ const secrets = computed(() => rows("secrets").filter((row) => !row.deleted_at))
 const waiting = computed(() => asking(secrets.value));
 
 async function load() {
-    const got = await api.list("secrets", {closed: true});
+    const got = await api.list("secrets", {closed: true, limit: pageOf("secrets")});
     kept.value = got.rows.filter((row) => row.deleted_at);
 }
 

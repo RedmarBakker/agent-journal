@@ -2,7 +2,7 @@
 import {computed, ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import ProofIcon from "./ProofIcon.vue";
-import {useOpenSet} from "../composables/openSet.js";
+import {useToggledSet} from "../composables/toggledSet.js";
 import {isCheckable, pointRows, PROOF_WORDS, proofState} from "../domain/workerShift.js";
 
 const props = defineProps({task: {type: Object, required: true}, worker: {type: Number, required: true}, api: {type: Object, required: true}, checking: Boolean});
@@ -23,7 +23,7 @@ async function act(name, body) {
 }
 
 // the points whose proof is shown: the ones opened, and on their own the ones a check waits on
-const {opened, flip} = useOpenSet();
+const {members: opened, toggle: flip} = useToggledSet();
 const waits = (row) => props.checking && isCheckable(row.proof);
 const shown = (row) => opened.value.has(row.point) || waits(row);
 

@@ -2,6 +2,7 @@ import {computed, ref, watch} from "vue";
 import {api} from "../api/client.js";
 import {seconds} from "../domain/row.js";
 import {rows} from "../sync/rows.js";
+import {pageOf} from "../sync/paging.js";
 
 // Each setting's kind as the settings form draws it.
 const TYPES = {choice: "options", flag: "flag", number: "number", list: "list", secret: "secret", text: "text"};
@@ -39,7 +40,7 @@ export const pluginFrom = (p) => ({
 
 export function installedPlugins() {
     const whole = ref([]);
-    const load = () => api.list("plugins").then((got) => (whole.value = got.rows || []));
+    const load = () => api.list("plugins", {limit: pageOf("plugins")}).then((got) => (whole.value = got.rows || []));
     watch(() => rows("plugins").map((p) => `${p.id}:${p.updated_at}`).join(","), load, {immediate: true});
     return computed(() => whole.value.map(pluginFrom));
 }

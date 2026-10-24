@@ -13,7 +13,7 @@ describe("installed plugins", () => {
         const {installedPlugins} = await import("../src/composables/plugins.js");
         const plugins = effectScope().run(installedPlugins);
         await vi.waitFor(() => expect(plugins.value.length).toBe(1));
-        expect(list).toHaveBeenCalledWith("plugins");
+        expect(list).toHaveBeenCalledWith("plugins", {limit: 50});
         expect(plugins.value.map((p) => [p.name, p.title, p.settings.length])).toEqual([["standup", "Standup", 1]]);
     });
 });

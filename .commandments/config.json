@@ -18,6 +18,8 @@
         "LongAnswerWaitDetector",
         "HandWrittenIntervalDetector",
         "ImportInFunctionDetector",
+        "UnpagedViewerListDetector",
+        "UnpagedViewerListPageDetector",
         "EngineIndexOnUseDetector",
         "SentenceLabelDetector",
         "SentenceLabelScriptDetector",

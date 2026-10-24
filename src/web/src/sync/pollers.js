@@ -8,6 +8,7 @@ import {PAGE, takeEntries} from "./rows.js";
 import {barOn} from "../composables/settings.js";
 import {loadPhones} from "../composables/phones.js";
 import {checkTunnel} from "../composables/shares.js";
+import {pageOf} from "./paging.js";
 
 const LIVE = 5;
 const BUSY_EVERY = 500;
@@ -71,7 +72,7 @@ export const POLLERS = Object.freeze({
     "share.page": {read: () => sharedData(), every: 20000},
     "outbox.retry": {read: ({retry}) => retry(), every: 5000},
     "tour.start": {read: ({clear}) => clear(), every: 800},
-    "workers.index": {read: () => api.list("workers", {}).then((got) => got.rows || []), every: 5000},
+    "workers.index": {read: () => api.list("workers", {limit: pageOf("workers")}).then((got) => got.rows || []), every: 5000},
     "workers.every": {read: () => api.list("workers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "workers.holding": {read: ({ids}) => api.list("workers", {ids}).then((got) => got.rows || []), every: 5000, by: ({ids}) => ids.join(",")},
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},
