@@ -28,7 +28,7 @@ useOutside(withCard, () => (opened.value = ""));
 
 const delegation = computed(() => delegationOf(props.p, {tasks: rows("tasks"), workers: rows("workers")}));
 const status = computed(() => statusOf(props.p));
-const count = computed(() => props.p.phases.length);
+const count = computed(() => phaseCount(props.p));
 const standing = computed(() => standingOf(props.p, rows("tasks")));
 const toggle = (what) => (opened.value = opened.value === what ? "" : what);
 

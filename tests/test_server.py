@@ -588,6 +588,34 @@ def test_the_viewers_start_takes_the_plans_first_task_in_hand_and_its_pause_post
         app.runtime().stop()
 
 
+def test_the_plans_list_carries_counts_and_reads_no_link_while_a_plan_read_by_id_comes_whole(tmp_path: Path):
+    from journal.repositories.links import Links
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    unowed(app)
+    server = app.server()
+    try:
+        console, user = app.console(), Caller.user("main")
+        for n in range(50):
+            console.run(["plan", "create", f"p{n}", "--brief", "b"], user)
+        console.run(["plan", "add", "1", "first"], user)
+        console.run(["plan", "add", "1", "second"], user)
+        console.run(["plan", "phase", "1", "one", "--when", "w"], user)
+        links, read = app.container.get(Links), []
+        selected = links.selected
+        links.selected = lambda query: read.extend(rows := selected(query)) or rows
+        listed = call(server, "GET", "/journal/plans?limit=50")[1]["rows"]
+        links.selected = selected
+        assert len(listed) == 50 and read == [], "the list reads no link"
+        first = next(row for row in listed if row["id"] == 1)
+        assert (first["phase_count"], first["task_count"]) == (1, 2)
+        assert not {"phases", "task_ids", "reviews", "testing"} & set(first), "the list carries no phases, task ids or reviews"
+        whole = call(server, "GET", "/journal/plans?ids=1")[1]["rows"][0]
+        assert whole["task_ids"] == [1, 2] and whole["phases"][0]["title"] == "one" and "reviews" in whole and "testing" in whole
+    finally:
+        app.runtime().stop()
+
+
 def test_a_started_plans_phase_shown_advances_when_its_tasks_are_all_done(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()

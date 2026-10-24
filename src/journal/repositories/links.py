@@ -28,6 +28,12 @@ class Links(Repository[Link]):
             return []
         return self.selected(self.query().filter_listed(column, [Ref.build(model) for model in models]).filter(kind=kind).order("id"))
 
+    def counts_into(self, models: Sequence[Model], kind: str) -> dict[int, int]:
+        if not models:
+            return {}
+        counted = self.grouped_counts(self.query().filter_listed("target", [Ref.build(model) for model in models]).filter(kind=kind), "target")
+        return {Ref.parse(ref).id: total for ref, total in counted.items()}
+
     def targets_except(self, model: Model, kind: str, refs: set[Ref]) -> list[Ref]:
         return [ref for ref in self.targets(model, kind) if ref not in refs]
 

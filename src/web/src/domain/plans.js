@@ -99,9 +99,9 @@ export function delegationOf(p, {tasks, workers}) {
 }
 
 export function sizeOf(p) {
-    const phases = (p.phases || []).length;
+    const phases = phaseCount(p);
     if (PLANNED.includes(statusOf(p)) && statusOf(p) !== "ready") return phases ? `${counted(phases, "phase")} so far` : "No phases yet";
-    return `${counted(phases, "phase")} · ${counted(rowsOf(p).length, "task")}`;
+    return `${counted(phases, "phase")} · ${counted(taskCount(p), "task")}`;
 }
 
 export function stoppedOf(p, tasks) {
@@ -114,6 +114,10 @@ export function phaseOf(p) {
 
 export const rowsOf = (p) => p.task_ids || [];
 
+// A plan row from the list carries the counts alone; one read whole carries the phases and tasks themselves.
+export const phaseCount = (p) => p.phase_count ?? (p.phases || []).length;
+export const taskCount = (p) => p.task_count ?? rowsOf(p).length;
+
 // a plan's tasks finished as done; a task given up is closed but not done
 function doneOf(p, tasks) {
     return rowsOf(p).filter((id) => tasks.find((t) => t.id === id)?.state === "done").length;
@@ -122,7 +126,7 @@ function doneOf(p, tasks) {
 // How a plan's tasks stand: how many are done and how many there are, with the words and the bar's width.
 export function standingOf(p, tasks) {
     const done = doneOf(p, tasks);
-    const rows = rowsOf(p).length;
+    const rows = taskCount(p);
     return {done, waiting: 0, rows, donePart: (100 * done) / Math.max(1, rows), waitingPart: 0, title: `${done} of ${rows} tasks done`};
 }
 
@@ -133,8 +137,8 @@ export function planButton(p) {
 
 export function planProgress(row) {
     if (row.table !== "plans") return null;
-    const phases = row.phases || [];
+    const total = phaseCount(row);
     const current = row.current_phase || 1;
     const status = statusOf(row);
-    return {total: phases.length, finished: status === "done" ? phases.length : Math.max(0, current - 1), phase: Math.min(current, phases.length) || 1, status};
+    return {total, finished: status === "done" ? total : Math.max(0, current - 1), phase: Math.min(current, total) || 1, status};
 }

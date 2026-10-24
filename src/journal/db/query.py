@@ -116,6 +116,10 @@ class Query:
     def count(self) -> tuple[str, tuple]:
         return self._read("count(*) AS value")
 
+    def grouped(self, column: str) -> tuple[str, tuple]:
+        text, params = self._read(f"{self.expression(column)} AS value, count(*) AS total")
+        return f"{text} GROUP BY value", params
+
     def maximum(self, column: str, empty_value) -> tuple[str, tuple]:
         return self._read(f"COALESCE(MAX({self.expression(column)}), {Condition.literal(empty_value)}) AS value")
 

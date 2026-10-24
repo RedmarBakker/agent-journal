@@ -6,6 +6,7 @@ from journal.features.tasks.active_task import ActiveTask
 from journal.http.controllers.controller import Controller
 from journal.http.plans.plan_outline import PlanOutline
 from journal.http.plans.plan_timeline import PlanTimeline
+from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.caller import Caller
 from journal.support.response import Response
@@ -35,6 +36,10 @@ class PlanController(Controller[Plan]):
 
     def shown_page(self, rows: list[Plan]) -> list[dict]:
         return [self.outline.build(plan) for plan in rows]
+
+    def index_page(self, rows: list[Plan]) -> list[dict]:
+        phases, tasks = self.repository.phase_counts(rows), self.repository.task_counts(rows)
+        return [{**ModelFields.build(plan), "phase_count": phases.get(plan.id, 0), "task_count": tasks.get(plan.id, 0)} for plan in rows]
 
     def timeline(self, request: Request) -> Response:
         return Response.json(self.moments.build(self.repository.find(request.number("id"))))

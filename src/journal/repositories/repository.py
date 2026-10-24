@@ -68,6 +68,9 @@ class Repository(Generic[M]):
     def stored_count(self) -> int:
         return self.connection.result(*self.query().count())["value"]
 
+    def grouped_counts(self, query: Query, column: str) -> dict[str, int]:
+        return {row["value"]: row["total"] for row in self.connection.all(*query.grouped(column))}
+
     def selected(self, query: Query) -> list[M]:
         if query.row_limit > PAGE_ROWS:
             self.connection.large_reads.add(self.table, query.select()[0], ReadCaller.found(), query.row_limit)
