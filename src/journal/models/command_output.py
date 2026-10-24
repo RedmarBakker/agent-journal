@@ -30,6 +30,9 @@ class CommandOutput(Scoped):
     watch_title: str = ""
     summary: str | None = None
 
+    def run_seconds(self) -> float:
+        return (self.update_time - self.creation_time).total_seconds()
+
     def headline(self) -> str:
         first, *remainder = self.command.splitlines() or [""]
         return f"{first} (and {len(remainder)} more lines)" if remainder else first

@@ -19,6 +19,7 @@ from journal.features.shell.support.watch_suggestions import WatchSuggestions
 from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
 from journal.models.alias import Alias
 from journal.repositories.command_outputs import CommandOutputs
+from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.features.shell.support.cap import Cap
 from journal.features.shell.support.chain_worker import ChainWorker
 from journal.features.shell.support.foreground_limit import ForegroundLimit
@@ -99,6 +100,7 @@ class ShellRunner:
         limit = self.limits.build(request.line, caller.environment, caller.session)
         reader = self.readers.reading(request.line) if limit > 0 else None
         background = self.aliases.background_part(request.line)
+        at_once = bool(background) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
         shown, tick, began = 0, 0, time.monotonic()
         while True:
             raise_first(faults)
@@ -108,7 +110,7 @@ class ShellRunner:
             if folder.is_finished():
                 yield self.send_notes(caller, environment, display.notes).encode()
                 return
-            if limit > 0 and (reader is not None or background or time.monotonic() - began >= limit):
+            if limit > 0 and (at_once or time.monotonic() - began >= limit):
                 folder.moved()
                 part = reader.commands.read_part(request.line) if reader is not None else background or folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)
@@ -120,6 +122,12 @@ class ShellRunner:
             tick += 1
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
+
+    # a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit;
+    # any other runs in the foreground until it passes the limit
+    def is_long_run(self, part: str, limit: int) -> bool:
+        last = self.outputs.last_run(part)
+        return ActivityLabel.build(part) in LONG_RUNS or (last is not None and last.run_seconds() >= limit)
 
     def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
         if caller.session is None:

@@ -9412,7 +9412,8 @@ def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to
         hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"sleep {seconds}"})
     link.working(MAIN)
     request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    b"".join(runner.run(request("sleep 0.4"), AGENT, MAIN))
+    app.container.get(SettingRows).set("shell.foreground", 1, Actor.system())
+    b"".join(runner.run(request("sleep 1.5"), AGENT, MAIN))
     said = link.pending_lines(MAIN)
     import time as clock
     from journal.repositories.command_outputs import CommandOutputs
@@ -12962,3 +12963,31 @@ def test_the_sync_desk_answers_busy_at_once_while_the_journal_boots(app: App):
     assert status() == 503 and clock.monotonic() - began < 2, "booting, the carrier is told to wait at once, never held"
     lifecycle.booted()
     assert status() == 200
+
+
+def test_a_command_with_a_reader_stays_in_the_foreground_unless_it_is_known_to_run_long(app: App):
+    import time
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.repositories.command_outputs import CommandOutputs
+    console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
+    hook(app, "SessionStart")
+    assert console.run(["reader", "add", "naps", "--pattern", "slept", "--about", "the naps", "--commands", "sleep", "--label", "Taking a nap"], AGENT).code == 0
+    link.working(MAIN)
+    request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+    quick = b"".join(runner.run(request("sleep 0.2"), AGENT, MAIN)).decode()
+    outputs = app.container.get(CommandOutputs)
+    with app.container.get(Scope).environment(MAIN):
+        assert outputs.reader_outputs("naps") == [] and "background" not in quick + link.pending_lines(MAIN), "a quick run with a reader answers in the foreground"
+    app.container.get(SettingRows).set("shell.foreground", 1, Actor.system())
+    b"".join(runner.run(request("sleep 1.3"), AGENT, MAIN))
+    with app.container.get(Scope).environment(MAIN):
+        first = outputs.last_run("sleep 1.3")
+        for _ in range(40):
+            if (first := outputs.last_run("sleep 1.3")) is not None:
+                break
+            time.sleep(0.1)
+        assert first is not None and first.run_seconds() >= 1, "a run past the limit moves there and is remembered ended"
+    began = time.monotonic()
+    b"".join(runner.run(request("sleep 1.3"), AGENT, MAIN))
+    assert time.monotonic() - began < 0.9, "its next run moves at once, its last run having gone past the limit"

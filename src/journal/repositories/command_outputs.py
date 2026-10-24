@@ -50,6 +50,10 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
             self.save(watched.unwatched(), actor)
         return self.save(output.watched(reader, title), actor)
 
+    def last_run(self, command: str) -> CommandOutput | None:
+        rows = self.selected(self.query().filter(command=command, ended=True).order_descending("id").limit(1))
+        return rows[0] if rows else None
+
     def previous_run(self, output: CommandOutput) -> CommandOutput | None:
         rows = self.selected(self.query().filter(command=output.command, ended=True).filter_less("id", output.row_id).order_descending("id").limit(1))
         return rows[0] if rows else None
