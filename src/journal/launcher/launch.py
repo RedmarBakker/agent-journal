@@ -89,7 +89,7 @@ class Launch:
         return Path(__file__).resolve().parents[2]
 
     def choice(self) -> Choice:
-        menu = Menu(self.root, self.package / "journal.py")
+        menu = Menu(self.root, self.package / "journal.sh")
         matched = self.environment or self.worktree or self.resume_folder(menu)
         if not sys.stdin.isatty():
             menu.environment_rows(matched or self.default_environment(), menu.environments())
@@ -115,7 +115,7 @@ class Launch:
         return "main"
 
     def start_refusal(self, choice: Choice) -> str:
-        return next((row.refusal for row in Menu(self.root, self.package / "journal.py").environments() if row.name == choice.environment), "")
+        return next((row.refusal for row in Menu(self.root, self.package / "journal.sh").environments() if row.name == choice.environment), "")
 
     def is_skipping(self) -> bool:
         return self.bypass or any(flag in self.args for flag in self.provider.prompt_flags)
@@ -192,7 +192,7 @@ class Launch:
         worktree = Worktree(self.root, self.worktree or choice.environment)
         folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
         if folder != self.root:
-            Menu(self.root, self.package / "journal.py").journal("environment", "branch", choice.environment, worktree.branch)
+            Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)
             self.provider.wire_hooks(folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}}
         front_health = {"file": str(self.runtime / "hooks" / f"{choice.environment}.fired"), "stale_seconds": FRONT_STALE_SECONDS, "warning": DEAD_HOOKS_WARNING}

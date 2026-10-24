@@ -1,6 +1,5 @@
 import json
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import TypeVar
@@ -25,8 +24,8 @@ ListedRow = TypeVar("ListedRow", EnvironmentRow, PastSessionRow)
 class Menu:
     """What journal claude asks before it launches, one question at a time, the last answer as the default: the environment, for a new one a past conversation of the project to continue from, whether to continue its last conversation, whether the agent asks before each tool, and whether the hooks that are not the journal's are set aside for the run."""
 
-    def __init__(self, root: Path, journal_py: Path, screen: Screen | None = None) -> None:
-        self.root, self.journal_py = root, journal_py
+    def __init__(self, root: Path, journal_sh: Path, screen: Screen | None = None) -> None:
+        self.root, self.journal_sh = root, journal_sh
         self.screen = screen or Screen()
         self.remembered = LauncherMemory(root)
 
@@ -46,7 +45,7 @@ class Menu:
             return ""
 
     def command(self, argv: tuple[str, ...]) -> list[str]:
-        return [sys.executable, str(self.journal_py), *argv]
+        return ["sh", str(self.journal_sh), *argv]
 
     def command_environment(self) -> dict[str, str]:
         return {"JOURNAL_ROOT": str(self.root), "PATH": "/usr/bin:/bin:/usr/local/bin"}

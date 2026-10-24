@@ -38,7 +38,7 @@ def settings_with_other_hooks(root: Path) -> Path:
 def menu_answering(tmp_path: Path, monkeypatch, answers: list[str]) -> Menu:
     value = iter(answers)
     monkeypatch.setattr("builtins.input", lambda: next(value))
-    menu = Menu(tmp_path, tmp_path / "journal.py", Screen(io.StringIO()))
+    menu = Menu(tmp_path, tmp_path / "journal.sh", Screen(io.StringIO()))
     menu.environments = lambda: ROWS
     return menu
 
@@ -674,7 +674,7 @@ def test_the_left_arrow_in_the_boot_menu_asks_the_question_before_again(tmp_path
     screen = Screen(printed, PressedKeys(left, enter, left, enter, down, enter, enter, enter, enter, enter))
     screen.interactive = True
     screen._pick_with_keys = screen.key_choice
-    menu = Menu(tmp_path, tmp_path / "journal.py", screen)
+    menu = Menu(tmp_path, tmp_path / "journal.sh", screen)
     menu.environments = lambda: ROWS
     choice = menu.choose("claude")
     assert choice.environment == "main" and choice.resume == "" and choice.prompt_flags, choice
