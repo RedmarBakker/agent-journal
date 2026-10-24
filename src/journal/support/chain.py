@@ -15,7 +15,7 @@ CONTROL_KEYWORDS = {"do", "then", "else", "time", "!"}
 COMPOUND = {"if", "elif", "else", "then", "for", "while", "until", "do", "case", "select", "{", "("}
 HEREDOC_WORD = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 # commands that only wait or print, which choose a line's reader only when no other part does work
-IDLE_COMMANDS = {"sleep", "echo", "printf"}
+IDLE_COMMANDS = {"sleep", "echo", "printf", "wait"}
 
 
 class Chain:
