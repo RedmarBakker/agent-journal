@@ -29,7 +29,7 @@ class PushHandler:
         changes = [(change.local_number, self.stamped(change, person, device.id, request.clock_offset)) for change in request.changes]
         numbered = [local_number for local_number, _ in changes if local_number]
         if numbered:
-            self.results.settled_below(device.id, min(numbered))
+            self.results.drop_older(device.id, min(numbered))
         settlements = [self.outcome(device.id, local_number, change) for local_number, change in changes]
         return PushAnswer(tuple(settlement.change.sequence for settlement in settlements), tuple(field for settlement in settlements for field in settlement.rejected), received_at)
 

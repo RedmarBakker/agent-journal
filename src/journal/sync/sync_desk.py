@@ -42,7 +42,7 @@ class SyncDesk:
 
     @staticmethod
     @contextmanager
-    def held(lock, purpose: str):
+    def locked(lock, purpose: str):
         if not lock.acquire(timeout=LOCK_SECONDS):
             raise TimeoutError(f"the sync waited {LOCK_SECONDS} seconds to {purpose}, held by its other loop all that time")
         try:
@@ -53,7 +53,7 @@ class SyncDesk:
     def query(self, wait_seconds: float) -> PullQuery:
         return self.queries.query(wait_seconds)
 
-    def kept_up(self) -> None:
+    def refresh(self) -> None:
         self.chat.renew()
         self.refill()
 
@@ -82,13 +82,13 @@ class SyncDesk:
                 self.file_sent(upload)
 
     # a push's result taken for the batch it names: its changes off the queue and the rejected edits put right, then its answer as taken
-    def push_taken(self, ids: list[int], answer: SyncAnswer) -> DeskAnswer:
+    def outgoing_reply(self, ids: list[int], answer: SyncAnswer) -> DeskAnswer:
         self.outgoing.sent(self.outgoing.sending_rows(ids))
         self.rejected.apply(answer.settlement.rejected)
-        return self.taken(answer.delivery)
+        return self.delivery_reply(answer.delivery)
 
     # an answer applied, or, when it asks for the team's full copy first, left for the sync service to hand again once the copy is laid in
-    def taken(self, answer: PullAnswer) -> DeskAnswer:
+    def delivery_reply(self, answer: PullAnswer) -> DeskAnswer:
         self.offset.measured(answer.server_time)
         if self.needs_copy(answer):
             return DeskAnswer(0, True)
@@ -106,7 +106,7 @@ class SyncDesk:
     def applied(self, answer: PullAnswer) -> int:
         if self.needs_copy(answer):
             return 0
-        with self.held(self.applying, "apply the team's changes"):
+        with self.locked(self.applying, "apply the team's changes"):
             sequence = self.account.sequence()
             changes = [TeamChange.logged(change) for change in answer.changes if change.sequence > sequence]
             self.incoming.apply(changes)
@@ -114,17 +114,17 @@ class SyncDesk:
             return len(changes)
 
     @contextmanager
-    def laying_in(self):
+    def copy_window(self):
         sys.stderr.write(f"the team asked for its full copy: this journal holds sequence {self.account.sequence()}\n")
         # nothing of this journal's goes out between the team's copy being taken and laid in place of its rows, or the copy would
         # wipe a change sent meanwhile, which no pull sends back, as a journal is never sent its own changes
-        with self.held(self.sending, "lay in the team's copy"), self.held(self.applying, "lay in the team's copy"):
+        with self.locked(self.sending, "lay in the team's copy"), self.locked(self.applying, "lay in the team's copy"):
             yield
 
-    def copy_laid_in(self, copy: FullCopy) -> bool:
+    def apply_copy(self, copy: FullCopy) -> bool:
         if copy.head <= self.account.sequence():
             return False
-        with self.laying_in():
+        with self.copy_window():
             self.copied(copy)
         return True
 

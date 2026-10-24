@@ -99,7 +99,7 @@ class TeamJoin:
         address = self.account.address()
         self.blocks.clear()
         self.outgoing.clear()
-        backup = self.account.left(time.time())
+        backup = self.account.leave(time.time())
         self.hooks.post(ServiceEvent(TEAM_DEPARTURE))
         return f"left the team at {address}: sync stopped, every local row kept, and the team's settings kept in {backup.name}; claim a server or connect with an account to join one again"
 
@@ -132,7 +132,7 @@ class TeamJoin:
     def trusted(self, url: TeamUrl) -> None:
         if url.fingerprint:
             self.trust(url.address, url.fingerprint)
-        elif url.has_own_certificate():
+        elif url.has_self_signed_certificate():
             self.account.root_path().write_text(self.link.root_certificate(url.address))
 
     def login(self, url: TeamUrl, summary: TeamSummary, email: str, name: str, password: str) -> LoginAnswer:

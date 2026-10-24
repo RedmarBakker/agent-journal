@@ -48,7 +48,7 @@ class Receiver:
 
     def receive(self, raw_hook: Hook) -> Decision:
         self.slow.begin(time.time())
-        hook = self.worker_hooks.named(raw_hook)
+        hook = self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
             if not self.launches.is_launch(environment.name, hook.launch) and not self.worker_hooks.is_proven(hook):

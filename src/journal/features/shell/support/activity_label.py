@@ -28,7 +28,7 @@ class ActivityLabel:
     """What one command is doing, in a word or two, as the bar and the chat show it: git commit is committing, pytest and php artisan test are testing; the words are followed as deep as the table names them."""
 
     @classmethod
-    def of_chain(cls, part: str, line: str) -> str:
+    def chain_label(cls, part: str, line: str) -> str:
         label = cls.build(part)
         if label != IDLE:
             return label

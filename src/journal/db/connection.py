@@ -78,11 +78,11 @@ class Connection:
 
     def cached(self, tables: tuple[str, ...], sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
         self._guarded(sql)
-        if self.is_written_here(tables):
+        if self.is_thread_writing(tables):
             return self.loaded_rows(tables[0], sql, params, reader)
         return self.cache.rows(tables, (sql, params), lambda: self.loaded_rows(tables[0], sql, params, reader))
 
-    def is_written_here(self, tables: tuple[str, ...]) -> bool:
+    def is_thread_writing(self, tables: tuple[str, ...]) -> bool:
         return self._local().in_transaction and bool(set(tables) & getattr(self._threads, "written", set()))
 
     def loaded_rows(self, table: str, sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:

@@ -20,24 +20,24 @@ class ReaderGuess:
     def __init__(self, readers: Readers, judge: ReaderJudge) -> None:
         self.readers, self.judge = readers, judge
 
-    def reader_for(self, output: CommandOutput, part: str) -> Reader | None:
+    def guessed(self, output: CommandOutput, part: str) -> Reader | None:
         files = OutputFiles(Path(output.folder))
         lines = files.lines() if files.is_stored() else []
         name = CommandShape.command_name(part)
         if not lines or not name:
             return None
-        reader = self.similar(name, lines) or self.written(name, lines)
-        if reader is None or self.judge.tried(reader, lines):
+        reader = self.similar(name, lines) or self.built(name, lines)
+        if reader is None or self.judge.misses(reader, lines):
             return None
-        if self.readers.named(reader.name) is None:
+        if self.readers.stored_reader(reader.name) is None:
             self.readers.add(reader)
-        return self.readers.named(reader.name)
+        return self.readers.stored_reader(reader.name)
 
     def similar(self, name: str, lines: list[str]) -> Reader | None:
         program = name.split()[0]
-        return next((reader for reader in self.readers.all() if any(own.split()[0] == program for own in reader.commands.programs) and not self.judge.tried(reader, lines)), None)
+        return next((reader for reader in self.readers.all() if any(own.split()[0] == program for own in reader.commands.programs) and not self.judge.misses(reader, lines)), None)
 
-    def written(self, name: str, lines: list[str]) -> Reader | None:
+    def built(self, name: str, lines: list[str]) -> Reader | None:
         progress = PERCENT_PROGRESS if any(PERCENT_PATTERN.search(line) for line in lines) else COUNT_PROGRESS if any(COUNT_PATTERN.search(line) for line in lines) else ""
         summary = f"(?i:{SUMMARY_PATTERN.pattern})" if any(SUMMARY_PATTERN.search(line) for line in lines) else ""
         failures = f"(?i:{FAILURE_PATTERN.pattern})" if any(FAILURE_PATTERN.search(line) for line in lines) else ""

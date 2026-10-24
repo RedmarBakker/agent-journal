@@ -19,7 +19,7 @@ class OfficialInstall:
     def __init__(self, config: Config) -> None:
         self.config = config
 
-    def ran(self, ref: str) -> subprocess.CompletedProcess:
+    def installation(self, ref: str) -> subprocess.CompletedProcess:
         environ = {**os.environ, "AGENT_JOURNAL_REPO": REPOSITORY, "AGENT_JOURNAL_REF": ref, "AGENT_JOURNAL_YES": "1"}
         try:
             with urlopen(OFFICIAL_SCRIPT, timeout=DOWNLOAD_SECONDS) as answer:

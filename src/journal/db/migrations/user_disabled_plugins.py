@@ -3,7 +3,7 @@ from typing import ClassVar
 from journal.db.migration import Migration
 
 
-class PluginsOffOnPurpose(Migration):
+class UserDisabledPlugins(Migration):
     """A plugin already off when the journal learned to tell a switch-off on purpose from a plugin it stopped is taken as switched off on purpose."""
 
     number: ClassVar[int] = 44

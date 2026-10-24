@@ -88,18 +88,18 @@ class Reader:
 
     # the lines picked with their numbers in the output; a script's lines are its own, so they carry none
     def read(self, lines: list[str]) -> list[str]:
-        return self.printed(lines) if self.script else [f"{i}: {line}" for i, line in self.picked_lines(lines)]
+        return self.script_lines(lines) if self.script else [f"{i}: {line}" for i, line in self.picked_lines(lines)]
 
     def card_lines(self, lines: list[str]) -> list[str]:
         return [line for _, line in self.picked_lines(lines)]
 
     def picked_lines(self, lines: list[str]) -> list[tuple[int, str]]:
         if self.script:
-            return list(enumerate(self.printed(lines), 1))
+            return list(enumerate(self.script_lines(lines), 1))
         rows = re.compile(self.pattern)
         return [(i, line) for i, line in enumerate(lines, 1) if rows.search(line)]
 
-    def printed(self, lines: list[str]) -> list[str]:
+    def script_lines(self, lines: list[str]) -> list[str]:
         try:
             completed = subprocess.run(["sh", self.script], input="\n".join(lines) + "\n", env={**os.environ, STAGE_VARIABLE: self.stage}, capture_output=True, text=True, timeout=SCRIPT_SECONDS)
         except subprocess.TimeoutExpired as late:
@@ -110,7 +110,7 @@ class Reader:
 
     # the lines its progress and steps are read on: the output itself, or what its script prints of it
     def measured(self, lines: list[str]) -> list[str]:
-        return self.printed(lines) if self.script else lines
+        return self.script_lines(lines) if self.script else lines
 
     def progress(self, lines: list[str]) -> Progress:
         return Progress.found(self.progress_pattern, self.label, self.measured(lines), self.step_pattern) if self.progress_pattern else Progress.empty()

@@ -25,7 +25,7 @@ class PluginReleases:
         try:
             tag = self.fitting_tag(plugin, Release(version))
             if tag is None:
-                self.hold(plugin)
+                self.record_wait(plugin)
                 return
             environment = self.environments.all()[0]
             self.installing.upgrade(plugin.name, tag, environment.name, actor)
@@ -34,7 +34,7 @@ class PluginReleases:
             return
         self.announcer.announce(PluginUpgraded(environment_id=environment.row_id, plugin=plugin.name, previous=plugin.release, tag=tag, version=version))
 
-    def hold(self, plugin: Plugin) -> None:
+    def record_wait(self, plugin: Plugin) -> None:
         newer = [release for release in reversed(Release.lookup(self.source.release_tags(plugin.source))) if release.is_newer(Release(plugin.release))]
         if not newer:
             return

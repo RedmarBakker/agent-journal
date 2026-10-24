@@ -12,14 +12,14 @@ class WorkerHooks:
     def __init__(self, identity: WorkerIdentity, workers: Workers, agents: SessionAgents) -> None:
         self.identity, self.workers, self.agents = identity, workers, agents
 
-    def named(self, hook: Hook) -> Hook:
+    def attributed(self, hook: Hook) -> Hook:
         owners = self.workers.global_matching(session=hook.session) if hook.worker is None and hook.session else []
         return hook.worker_hook(owners[0].id, None) if owners else hook
 
     def is_proven(self, hook: Hook) -> bool:
-        return hook.worker is not None and (self.identity.is_token(hook.worker, hook.worker_token) or self.is_own_session(hook))
+        return hook.worker is not None and (self.identity.is_token(hook.worker, hook.worker_token) or self.is_worker_session(hook))
 
-    def is_own_session(self, hook: Hook) -> bool:
+    def is_worker_session(self, hook: Hook) -> bool:
         return any(row.session == hook.session for row in self.workers.global_matching(id=hook.worker))
 
     def bind(self, hook: Hook, environment: Environment) -> None:

@@ -26,7 +26,7 @@ class TeamUrl:
     def is_invitation(self) -> bool:
         return bool(self.code)
 
-    def has_own_certificate(self) -> bool:
+    def has_self_signed_certificate(self) -> bool:
         parts = urlsplit(self.address)
         if parts.scheme != "https":
             return False

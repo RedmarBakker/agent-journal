@@ -147,13 +147,13 @@ class Updater:
 
     def update_immediately(self, actor: Actor) -> None:
         self.read()
-        self.card.taken(self.label(), self.target().label)
+        self.card.begin(self.label(), self.target().label)
         if not self.separate(lambda: self.install_newest(actor)):
             raise Rejection("an update is under way already")
 
     def install(self, actor: Actor) -> None:
         self.read()
-        self.card.taken(self.label(), self.target().label)
+        self.card.begin(self.label(), self.target().label)
         self.install_newest(actor)
         if self.problem:
             raise Rejection(self.problem)
@@ -190,7 +190,7 @@ class Updater:
         try:
             if self.branch():
                 self.head = self.source.head_commit(self.repository(), self.branch())
-                self.is_head_ahead = self.head != self.installed_commit() and self.ancestry.is_ahead(self.head, self.installed_commit(), self.repository(), self.branch())
+                self.is_head_ahead = self.head != self.installed_commit() and self.ancestry.is_newer(self.head, self.installed_commit(), self.repository(), self.branch())
             else:
                 self.releases = Release.lookup(self.source.tags(Release.major_prefix(self.running().major)))
             self.problem = ""
@@ -220,7 +220,7 @@ class Updater:
         try:
             self.installer.run(target.ref, self.repository(), target.reason or f"updating to {target.label}")
         except Exception as broken:
-            fallback = self.official.ran(target.ref)
+            fallback = self.official.installation(target.ref)
             if fallback.returncode != 0:
                 self.refused_install(target, drained, f"the update could not install ({broken}), nor could the official install command: {(fallback.stderr or fallback.stdout).strip()[-300:]}")
                 return

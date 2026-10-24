@@ -20,7 +20,7 @@ class PushResults:
         return Settlement(replace(change, sequence=stored["sequence"]), tuple(RejectedField(**field) for field in json.loads(stored["rejected"])))
 
     # a device sends its unanswered changes oldest first, so a push whose lowest local number is this one can no longer be retried below it
-    def settled_below(self, device_id: int, local_number: int) -> None:
+    def drop_older(self, device_id: int, local_number: int) -> None:
         self.rows.delete_older(device_id, local_number)
 
     def record(self, device_id: int, local_number: int, settlement: Settlement) -> None:

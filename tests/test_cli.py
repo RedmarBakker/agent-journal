@@ -440,5 +440,5 @@ def test_a_team_url_is_its_address_or_an_invitation():
     assert TeamUrl.parse("https://203.0.113.5.").address == "https://203.0.113.5", "a sentence's full stop is no part of the address"
     assert TeamUrl.parse("203.0.113.5").address == "https://203.0.113.5", "a bare IP is reached over HTTPS"
     assert TeamUrl.parse("https://team.example/").address == "https://team.example"
-    assert TeamUrl.parse("https://team.example.com:8443").has_own_certificate() and TeamUrl.parse("https://203.0.113.5").has_own_certificate()
-    assert not TeamUrl.parse("https://team.example.com").has_own_certificate(), "a domain on 443 has a public certificate"
+    assert TeamUrl.parse("https://team.example.com:8443").has_self_signed_certificate() and TeamUrl.parse("https://203.0.113.5").has_self_signed_certificate()
+    assert not TeamUrl.parse("https://team.example.com").has_self_signed_certificate(), "a domain on 443 has a public certificate"

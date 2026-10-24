@@ -10,7 +10,7 @@ from journal.features.plugins.support.protocol import Protocol
 from journal.features.plugins.support.plugin_relay import PluginRelay
 from journal.features.plugins.support.plugin_queue import PluginQueue
 from journal.features.plugins.support.plugin_text import PluginText
-from journal.features.plugins.support.plugin_hold_streaks import PluginHoldStreaks
+from journal.features.plugins.support.plugin_block_streaks import PluginBlockStreaks
 from journal.support.decision import Decision
 from journal.support.listener_queue import ListenerQueue
 from journal.features.plugins.support.plugin_refusal_exemption import PluginRefusalExemption
@@ -32,7 +32,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
     free_request = True
     last_request = True
 
-    def __init__(self, relay: PluginRelay, deferred: ListenerQueue, settings: SettingRows, exemption: PluginRefusalExemption, text: PluginText, queue: PluginQueue, edits: Edits, streaks: PluginHoldStreaks) -> None:
+    def __init__(self, relay: PluginRelay, deferred: ListenerQueue, settings: SettingRows, exemption: PluginRefusalExemption, text: PluginText, queue: PluginQueue, edits: Edits, streaks: PluginBlockStreaks) -> None:
         self.relay, self.deferred, self.settings, self.exemption, self.text, self.queue, self.edits = relay, deferred, settings, exemption, text, queue, edits
         self.streaks = streaks
 
@@ -64,12 +64,12 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
                 self.deferred.add_bounded(partial(self.relay.postponed, plugin, event, event.environment_id), f"{plugin.name} relay {Protocol.published_name(event)}")
         return decision
 
-    def held(self, plugin: Plugin, event: AgentEvent, answer: PluginAnswer) -> Decision:
+    def block_decision(self, plugin: Plugin, event: AgentEvent, answer: PluginAnswer) -> Decision:
         if self.streaks.is_paused(plugin.name, event.session, event.time):
             self.relay.unanswered(plugin, event, event.environment_id, f"passed over, as it held the agent too many times in a row: {answer.reason}")
             return Decision()
         limit, minutes = self.settings.integer(PluginsOptions.STREAK_LIMIT), self.settings.integer(PluginsOptions.IGNORE_MINUTES)
-        if self.streaks.held(plugin.name, event.session, event.time, limit, minutes * 60):
+        if self.streaks.exceeds_limit(plugin.name, event.session, event.time, limit, minutes * 60):
             text = f"held the agent {limit} times in a row, so its holds are passed over for {minutes} minutes; this one goes through"
             self.relay.line(plugin, event, event.environment_id, "told", text)
             return Decision.allowed_with(self.text.line(plugin, text))
@@ -92,7 +92,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
             self.relay.unanswered(plugin, event, event.environment_id, answer.reason)
             return Decision()
         if answer.answer == "refuse" and Protocol.published_name(event) in REFUSABLE:
-            return self.held(plugin, event, answer)
+            return self.block_decision(plugin, event, answer)
         self.streaks.passed(plugin.name, event.session)
         text = answer.reason if answer.answer == "refuse" else answer.message
         if not text:

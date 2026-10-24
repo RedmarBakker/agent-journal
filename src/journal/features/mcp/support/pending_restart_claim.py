@@ -1,4 +1,4 @@
-from journal.features.mcp.support.agent_idle import AgentIdle
+from journal.features.mcp.support.restart_readiness import RestartReadiness
 from journal.repositories.agents import Agents
 from journal.support.pending_restarts import PendingRestarts
 from journal.supervisor_link import SupervisorLink
@@ -7,7 +7,7 @@ from journal.supervisor_link import SupervisorLink
 class PendingRestartClaim:
     """Restarts the agent of a session whose restart is waiting, once it is idle."""
 
-    def __init__(self, pending: PendingRestarts, idle: AgentIdle, agents: Agents, supervisor: SupervisorLink) -> None:
+    def __init__(self, pending: PendingRestarts, idle: RestartReadiness, agents: Agents, supervisor: SupervisorLink) -> None:
         self.pending, self.idle, self.agents, self.supervisor = pending, idle, agents, supervisor
 
     def restarted(self, session: str) -> None:

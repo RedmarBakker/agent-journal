@@ -6096,7 +6096,7 @@ def test_an_update_whose_installer_fails_for_whatever_reason_runs_the_official_i
             raise TypeError("ReleaseInstaller.run() missing 1 required positional argument: 'reason'")
 
     official = []
-    monkeypatch.setattr(OfficialInstall, "ran", lambda self, ref: official.append(ref) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(OfficialInstall, "installation", lambda self, ref: official.append(ref) or SimpleNamespace(returncode=0, stdout="", stderr=""))
     monkeypatch.setattr(Updater, "restart", lambda self: None)
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Broken(), auto=False)
     updating.read()
@@ -6119,7 +6119,7 @@ def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and
     updating.install(Actor.user(1))
     assert fetched == ["https://raw.githubusercontent.com/jessegall/agent-journal/v4.99.0/install.sh"] and ran == [("sh", "v4.99.0")] and updating.problem == "", "the updater calls the real installer with every argument it asks for, which fetches the release's install script and runs it"
     monkeypatch.setattr(release_installer.subprocess, "run", lambda command, **options: SimpleNamespace(returncode=1))
-    monkeypatch.setattr("journal.features.updates.support.official_install.OfficialInstall.ran", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="offline"))
+    monkeypatch.setattr("journal.features.updates.support.official_install.OfficialInstall.installation", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="offline"))
     updating.card.clear()
     source = updating.source
     source.rows.append("v4.100.0")
@@ -11061,7 +11061,7 @@ def test_the_team_chat_holder_pushes_its_quiet_files_and_another_machine_takes_t
         follower.pull()
         copy = Worktree(clone, TEAM_CHAT).path
         assert not copy.exists(), "a machine that never claimed the Team chat has no worktree of it"
-        follower.taken()
+        follower.claim()
         assert (copy / "plan.txt").read_text() == "the agent's work\n", "claimed, its worktree is made and takes the holder's files"
 
         (copy / "local.txt").write_text("a change of this machine's own\n")
@@ -13104,7 +13104,7 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     holder.start()
     timing.sleep(0.05)
     try:
-        with desk.held(desk.applying, "apply the team's changes"):
+        with desk.locked(desk.applying, "apply the team's changes"):
             raise AssertionError("the lock was taken while another held it")
     except TimeoutError as fault:
         assert "to apply the team's changes, held by its other loop" in str(fault)
@@ -13121,7 +13121,7 @@ def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_o
     assert CommandShape.command_name("do found=$(git log --all -S foo)").startswith("git log") and CommandShape.command_name("done < words.txt") == ""
     assert shape("for file in tests/*.py; do python3 -m pytest $file; done").startswith("python3 -m pytest")
     assert shape("mkdir -p out; pytest -q tests") == "pytest", "a folder made first is setup, not the run"
-    assert ActivityLabel.of_chain("while IFS= read -r word", sweep) != "running while" and "while" not in ActivityLabel.of_chain("while IFS= read -r word", sweep), "the card is named for the loop's work"
+    assert ActivityLabel.chain_label("while IFS= read -r word", sweep) != "running while" and "while" not in ActivityLabel.chain_label("while IFS= read -r word", sweep), "the card is named for the loop's work"
 
 
 def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_team_settings(app: App):
@@ -13191,7 +13191,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
     assert len(batch["ids"]) == 1 and batch["request_body"]["changes"][0]["fields"] == {"state": "started"} and door("GET", "query")["sequence"] == 5
     door("POST", f"pushed?ids={','.join(map(str, batch['ids']))}", {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}})
     assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
-    account.left(0)
+    account.leave(0)
     server.shutdown()
 
 
@@ -13216,7 +13216,7 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     door("POST", pushed, result)
     door("POST", pushed, result)
     assert [c.row for c in outgoing.waiting()] == [3] and door("GET", "batch")["ids"] != first["ids"], "the result posted twice takes the batch off once, and the next batch is the change that waited"
-    account.left(0)
+    account.leave(0)
     server.shutdown()
 
 
@@ -13274,7 +13274,7 @@ def test_the_sync_service_is_handed_the_pull_query_and_the_waiting_files_and_its
     assert blocks.all(), "the poll filled the empty row number blocks from the team server"
     door("POST", "files-sent", {"ids": [upload.id]})
     assert uploads.waiting() == [] and door("GET", "batch")["files"] == [], "a file reported sent leaves the queue"
-    account.left(0)
+    account.leave(0)
     server.shutdown()
 
 
@@ -13320,7 +13320,7 @@ def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_afte
     app.container.get(SyncStatus).connected()
     from types import SimpleNamespace
     from journal.features.updates.support.official_install import OfficialInstall
-    monkeypatch.setattr(OfficialInstall, "ran", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="no network in the tests"))
+    monkeypatch.setattr(OfficialInstall, "installation", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="no network in the tests"))
     from journal.features.updates.support.updater import Updater
     from journal.models.outgoing_change import CREATED, OutgoingChange
     from journal.repositories.outgoing_changes import OutgoingChanges
@@ -13359,7 +13359,7 @@ def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_afte
         assert "the install was refused" in updating.problem and eventually(lambda: not sync.carrier.is_paused()), "a refused install, its official install command failing too, has the sync service carry on"
     finally:
         sync.stop()
-        account.left(0)
+        account.leave(0)
         server.shutdown()
 
 
@@ -13392,7 +13392,7 @@ def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_t
     assert account.sequence() == 50
     stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=60).read())
     assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
-    account.left(0)
+    account.leave(0)
     server.shutdown()
 
 
@@ -13511,7 +13511,7 @@ def test_a_journal_in_a_team_installs_the_version_its_team_pins_by_itself_and_no
         except Rejection as refused:
             assert "the team decides its version" in str(refused) and VERSION in str(refused), str(refused)
     finally:
-        account.left(0)
+        account.leave(0)
 
 
 def test_the_sync_services_report_shows_on_the_status_line_and_a_service_gone_quiet_shows_as_not_running(app: App):
@@ -13534,7 +13534,7 @@ def test_the_sync_services_report_shows_on_the_status_line_and_a_service_gone_qu
     finally:
         status.reported("", True)
         status.reported_at = None
-        account.left(0)
+        account.leave(0)
 
 
 def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_doors(app: App, tmp_path):
@@ -13837,11 +13837,11 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
     assert add("--pattern", "FAIL", "--progress", "(\\d+)%", "--finished", "passed").code == 0, "a reader that picks lines, shows the progress and ends on the summary is accepted"
     guess, readers = app.container.get(ReaderGuess), app.container.get(Readers)
     unknown = ran("unknown", "make all", "[ 40%] compiling\n3 passed, 1 failed in 2.1s\nFAILED one\n")
-    guessed = guess.reader_for(unknown, "make all")
+    guessed = guess.guessed(unknown, "make all")
     assert guessed is not None and guessed.progress_pattern and guessed.finished_pattern and guessed.failed_pattern, "a run with no reader gets one written from its progress, summary and failure lines"
     assert readers.reading("make all").name == guessed.name, "it is kept as a reader of the project, so doing nothing keeps it"
     blank = ran("blank", "cat notes", "just words\nand more words\n")
-    assert guess.reader_for(blank, "cat notes") is None, "a run with nothing to pick is given none"
+    assert guess.guessed(blank, "cat notes") is None, "a run with nothing to pick is given none"
 
 
 def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_holds_the_agents_next_write(app: App):

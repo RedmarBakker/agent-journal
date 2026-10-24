@@ -58,8 +58,7 @@ class ReaderJudge:
             return []
         return [(f"{SUMMARY_MISSING}; the run's last line was \"{lines[-1][:120]}\"", "give the reader a --finished and a --failed pattern for the summary line, or make the run print one")]
 
-    def tried(self, reader: Reader, lines: list[str]) -> list[str]:
-        """What a reader misses of a run's lines: it picks none, it shows no progress the run printed, or it does not end on the summary the run printed; each with the lines it should have matched."""
+    def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
         if lines and not any(reader.variant(stage).card_lines(lines) for stage in (ACTIVE, FINISHED, FAILED)):
             misses.append(f"it picks no line of the run, whose last lines were {self.quoted(lines[-QUOTED_LINES:])}")
@@ -76,9 +75,8 @@ class ReaderJudge:
         return "; ".join(f'"{line[:120]}"' for line in lines)
 
     def run_findings(self, report: ReaderReport) -> list[str]:
-        """What the report's findings say the card missed that the run's own output printed, each with the fix, while the reader still misses it."""
         stored = self.outputs.matching(id=report.output)
-        reader = self.readers.named(report.reader)
+        reader = self.readers.stored_reader(report.reader)
         if not stored or reader is None or not OutputFiles(Path(stored[0].folder)).is_stored():
             return []
         output = stored[0]

@@ -36,7 +36,7 @@ class UpdatePrompt:
         if self.screen.pick(f"Version {newest.version} is out", [f"This journal runs {VERSION}."], options, 0) != 0:
             return False
         updated = subprocess.run(["sh", str(self.config.home / "src" / "journal.sh"), "update"], cwd=self.config.root, env={**os.environ, "JOURNAL_ROOT": str(self.config.root)}, capture_output=True, text=True, timeout=UPDATE_SECONDS)
-        if updated.returncode == 0 or OfficialInstall(self.config).ran(newest.tag).returncode == 0:
+        if updated.returncode == 0 or OfficialInstall(self.config).installation(newest.tag).returncode == 0:
             return True
         self.screen.pick("The update did not finish", [(updated.stderr or updated.stdout).strip()[-300:], f"The journal starts with {VERSION}."], [Option("Start")], 0)
         return False

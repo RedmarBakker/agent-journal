@@ -20,7 +20,7 @@ class HookController:
         self.receiver, self.providers, self.announced, self.calls, self.settings, self.arrivals = receiver, providers, announced, calls, settings, arrivals
 
     def receive(self, request: Request) -> Response:
-        self.arrivals.took(request.environment)
+        self.arrivals.record_arrival(request.environment)
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds)

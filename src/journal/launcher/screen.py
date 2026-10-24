@@ -7,7 +7,7 @@ import tty
 from typing import NoReturn
 
 from journal.launcher.support.keys import Keys
-from journal.launcher.support.menu_back import MenuBack
+from journal.launcher.support.menu_return import MenuReturn
 from journal.launcher.support.option import Option
 
 BOLD, DIM, ACCENT, GOOD, BADGE, RESET = "\x1b[1m", "\x1b[2m", "\x1b[38;5;111m", "\x1b[38;5;114m", "\x1b[38;5;176m", "\x1b[0m"
@@ -89,7 +89,6 @@ class Screen:
 
     @staticmethod
     def fitted(line: str) -> str:
-        """A line cut to the terminal's width, its colour codes kept, so it never wraps and a redraw moves up exactly the rows it drew."""
         room, output_parts, shown = shutil.get_terminal_size().columns - 1, [], 0
         for part in re.split(r"(\x1b\[[0-9;]*m)", line):
             if part.startswith("\x1b["):
@@ -127,7 +126,7 @@ class Screen:
                     if key == Keys.ESCAPE:
                         self.leave(0)
                     if key in Keys.RETURN:
-                        raise MenuBack()
+                        raise MenuReturn()
                     time = self._moved(time, key, len(options))
         except KeyboardInterrupt:
             self.leave(INTERRUPTED)

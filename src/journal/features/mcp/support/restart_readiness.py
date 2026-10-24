@@ -5,7 +5,7 @@ from journal.repositories.subagents import Subagents
 from journal.repositories.workers import Workers
 
 
-class AgentIdle:
+class RestartReadiness:
     """Whether an agent can be restarted: its turn has ended and no subagent of it and no worker in its environment is running."""
 
     def __init__(self, turn: Turn, subagents: Subagents, workers: Workers, scope: Scope) -> None:

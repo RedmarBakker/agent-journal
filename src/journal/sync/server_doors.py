@@ -20,8 +20,8 @@ class ServerDoors:
         return self.desk.query(wait_seconds)
 
     def batch(self) -> SyncBatch:
-        self.desk.kept_up()
-        with self.desk.held(self.desk.sending, "take a batch"):
+        self.desk.refresh()
+        with self.desk.locked(self.desk.sending, "take a batch"):
             changes = self.desk.batch(BATCH_ROWS)
         files = tuple(WaitingFile(upload.id, place, str(path), place.address()) for upload in self.desk.waiting_files() for place, path in [self.desk.file_place(upload)])
         return SyncBatch(tuple(change.id for change in changes), files, self.desk.is_upgrader(), self.desk.request_body(changes))
@@ -30,17 +30,17 @@ class ServerDoors:
         self.desk.files_sent(list(ids))
 
     def batch_answered(self, ids: tuple[int, ...], answer: SyncAnswer) -> DeskAnswer:
-        return self.desk.push_taken(list(ids), answer)
+        return self.desk.outgoing_reply(list(ids), answer)
 
     # a push's pull handed again once the team's full copy is laid in
     def delivered(self, answer: SyncAnswer) -> DeskAnswer:
-        return self.desk.taken(answer.delivery)
+        return self.desk.delivery_reply(answer.delivery)
 
     def answered(self, answer: PullAnswer) -> DeskAnswer:
-        return self.desk.taken(answer)
+        return self.desk.delivery_reply(answer)
 
     def copied(self, copy: FullCopy) -> bool:
-        return self.desk.copy_laid_in(copy)
+        return self.desk.apply_copy(copy)
 
     def upgrade_claimed(self) -> None:
         self.desk.upgrade_claimed()

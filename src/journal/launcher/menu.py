@@ -12,7 +12,7 @@ from journal.support.past_session_row import PastSessionRow
 from journal.launcher.support.option import Option
 from journal.launcher.support.foreign_hooks import ForeignHooks
 from journal.launcher.support.launcher_memory import LauncherMemory
-from journal.launcher.support.menu_back import MenuBack
+from journal.launcher.support.menu_return import MenuReturn
 from journal.launcher.screen import Screen
 from journal.providers.providers import Providers
 
@@ -58,7 +58,7 @@ class Menu:
 
     def choose(self, agent: str, environment: str = "", new: bool = False, stashed: bool = False, omit: bool = False, confirmed: bool = False) -> Choice:
         self.screen.banner(agent, str(self.root))
-        choice = self.confirmed(agent, environment, new, stashed) if confirmed else self.asked(agent, environment, new, stashed, omit)
+        choice = self.confirmed(agent, environment, new, stashed) if confirmed else self.menu_choice(agent, environment, new, stashed, omit)
         self.remembered.write(Answers(choice.prompt_flags, choice.stashed_hooks))
         self._summary(choice)
         return choice
@@ -70,7 +70,7 @@ class Menu:
         return Choice(selection, "" if new else last, stashed or self.remembered.read().stashed_hooks, True)
 
     # the questions in order, each skipped where it does not apply; the left arrow asks again the last one that was asked before it
-    def asked(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
+    def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
         answers = {"agent": agent, "environment": environment, "new": new, "stashed": stashed, "omit": omit, "rows": self.environments(), "previous": self.remembered.read()}
         steps = (self._environment_step, self._session_step, self._continuation_step, self._prompts_step, self._hooks_step, self._trust_step)
         shown: list[int] = []
@@ -78,7 +78,7 @@ class Menu:
         while index < len(steps):
             try:
                 was_asked = steps[index](answers)
-            except MenuBack:
+            except MenuReturn:
                 index = shown.pop() if shown else index
                 continue
             shown += [index] if was_asked else []

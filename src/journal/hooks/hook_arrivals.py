@@ -16,17 +16,17 @@ class HookArrivals:
         self.taken: dict[str, float] = {}
         self.lock = threading.Lock()
 
-    def took(self, environment: str) -> None:
+    def record_arrival(self, environment: str) -> None:
         with self.lock:
             self.taken[environment] = time.time()
 
     def lost(self) -> list[str]:
-        return [file.stem for file in sorted(self.folder.glob("*.fired")) if self.fired_at(file.read_text()) - self.last_arrival(file.stem) > ARRIVAL_LIMIT_SECONDS]
+        return [file.stem for file in sorted(self.folder.glob("*.fired")) if self.timestamp(file.read_text()) - self.last_arrival(file.stem) > ARRIVAL_LIMIT_SECONDS]
 
     def last_arrival(self, environment: str) -> float:
         with self.lock:
             return self.taken.get(environment, self.started_at)
 
     @staticmethod
-    def fired_at(text: str) -> float:
+    def timestamp(text: str) -> float:
         return float(text.strip()) if text.strip().isdigit() else 0.0

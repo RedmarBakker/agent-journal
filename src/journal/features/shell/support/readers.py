@@ -87,18 +87,18 @@ class Readers:
         stats = [path.stat() for suffix in KINDS if (path := self.config.readers / f"{reader.name}{suffix}").is_file()]
         return min((getattr(stat, "st_birthtime", stat.st_mtime) for stat in stats), default=0.0)
 
-    def named(self, name: str) -> Reader | None:
+    def stored_reader(self, name: str) -> Reader | None:
         rows = self.files(name)
         return Reader.loaded(rows[0]) if rows else None
 
     def add(self, reader: Reader) -> None:
-        self.written(reader.name, ".pattern", reader.text())
+        self.stored_file(reader.name, ".pattern", reader.text())
 
     def add_script(self, reader: Reader, body: str) -> None:
-        self.written(reader.name, ".sh", reader.script_text(body))
+        self.stored_file(reader.name, ".sh", reader.script_text(body))
 
     # a reader written as one kind replaces one of the other kind by its name
-    def written(self, name: str, suffix: str, text: str) -> None:
+    def stored_file(self, name: str, suffix: str, text: str) -> None:
         self.config.readers.mkdir(parents=True, exist_ok=True)
         for kind in KINDS:
             (self.config.readers / f"{name}{kind}").unlink(missing_ok=True)

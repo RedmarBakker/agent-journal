@@ -12,7 +12,7 @@ class CommitAncestry:
     def __init__(self, config: Config) -> None:
         self.config = config
 
-    def is_ahead(self, head: str, installed: str, repository: str, branch: str) -> bool:
+    def is_newer(self, head: str, installed: str, repository: str, branch: str) -> bool:
         if not installed:
             return True
         code = self.ancestor_code(installed, head)

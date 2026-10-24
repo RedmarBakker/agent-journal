@@ -131,7 +131,6 @@ class PluginInstalling:
             return saved
 
     def waiting(self, plugin: Plugin, folder: Path) -> bool:
-        """Whether the staged version needs a newer journal than this one; the plugin then stays as it is installed and its row says which journal it waits for."""
         least = self.reader.least_journal(folder)
         if self.reader.is_fitting(least):
             return False

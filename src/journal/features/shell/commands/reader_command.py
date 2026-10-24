@@ -56,7 +56,7 @@ class ReaderCommand(Command):
     def add(self, args: Namespace, caller: Caller) -> int:
         if not NAME.fullmatch(args.name):
             raise Rejection(f"a reader's name is lowercase words joined by -, such as failed-tests, not {args.name}")
-        prior = self.readers.named(args.name)
+        prior = self.readers.stored_reader(args.name)
         if prior is None and not (args.pattern or args.script):
             raise Rejection("a new reader says what it picks with --pattern or --script")
         if prior is not None and prior.script and not args.script and args.pattern is None:
@@ -78,7 +78,7 @@ class ReaderCommand(Command):
 
     def tried(self, reader: Reader) -> None:
         stored = next((output for output in self.outputs.latest(NEWEST_RUNS) if reader.commands.is_shown_run(output.command) and OutputFiles(Path(output.folder)).is_stored()), None)
-        misses = self.judge.tried(reader, OutputFiles(Path(stored.folder)).lines()) if stored is not None else []
+        misses = self.judge.misses(reader, OutputFiles(Path(stored.folder)).lines()) if stored is not None else []
         if misses:
             raise Rejection(f"reader {reader.name} is refused, tried on output {stored.id}: {'; '.join(misses)}")
 

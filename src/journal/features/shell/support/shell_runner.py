@@ -102,7 +102,7 @@ class ShellRunner:
         background = self.aliases.background_part(request.line)
         immediate = bool(background) or (reader is not None and self.is_long_run(reader.commands.read_part(request.line), limit))
         if limit > 0 and not immediate and not cap.is_whole():
-            self.card_at_start(folder, request.line, reader, caller)
+            self.start_card(folder, request.line, reader, caller)
         shown, tick, began = 0, 0, time.monotonic()
         while True:
             raise_first(faults)
@@ -126,7 +126,7 @@ class ShellRunner:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
 
     # a run whose reader is known shows its card in the chat as it starts, before any move to the background
-    def card_at_start(self, folder: OutputFiles, line: str, reader: Reader | None, caller: Caller) -> None:
+    def start_card(self, folder: OutputFiles, line: str, reader: Reader | None, caller: Caller) -> None:
         alias = self.aliases.line_alias(line)
         reader_name = alias.reader if alias is not None else reader.name if reader is not None else ""
         if reader_name:
@@ -155,7 +155,7 @@ class ShellRunner:
         wrapper = self.line_wrapper_lines(part)
         if reader is not None:
             return [*self.reader_watched(number, part, reader, caller), *wrapper]
-        guessed = self.guess.reader_for(self.outputs.find(number), part)
+        guessed = self.guess.guessed(self.outputs.find(number), part)
         if guessed is not None:
             return [ShellNudges.READER_GUESSED.create(reader=guessed.name, about=guessed.subject, command=CommandShape.command_name(part)), *self.reader_watched(number, part, guessed, caller), *wrapper]
         return [*self.suggestions.lines(number, part), *wrapper]
