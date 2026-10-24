@@ -74,4 +74,15 @@ export const visibleIn = (hidden) => (turn) => !hidden.includes(kindOf(turn)) &&
 export const visibilityChoices = (hidden) =>
     VISIBILITY_GROUPS.map((group) => ({...group, kinds: group.kinds.map((kind) => ({...kind, on: !hidden.includes(kind.key)}))}));
 
+// every chat mark kind, which the Only chat preset hides all at once, leaving the user's and the agent's words, the docks and the pins
+export const ALL_MARKS = VISIBILITY_GROUPS.flatMap((group) => group.kinds.map((kind) => kind.key));
+
+// the presets the Show in chat menu offers, each the marks it hides
+export const PRESETS = [
+    {key: "chat", label: "Only chat", icon: "chat", hidden: ALL_MARKS},
+    {key: "context", label: "Chat with context", icon: "list", hidden: DEFAULT_HIDDEN},
+];
+
+export const presetOf = (hidden) => PRESETS.find((preset) => preset.hidden.length === hidden.length && preset.hidden.every((key) => hidden.includes(key)))?.key ?? "";
+
 export const toggled = (hidden, key) => (hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key]);

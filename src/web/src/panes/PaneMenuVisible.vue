@@ -1,31 +1,23 @@
 <script setup>
 import {computed} from "vue";
-import Icon from "../kit/Icon.vue";
-import MenuItem from "../kit/MenuItem.vue";
-import MenuLabel from "../kit/MenuLabel.vue";
 import PaneMenuBack from "./PaneMenuBack.vue";
 import PaneMenuLine from "./PaneMenuLine.vue";
+import PaneMenuLink from "./PaneMenuLink.vue";
 import PaneMenuToggle from "./PaneMenuToggle.vue";
-import {visibilityChoices, toggled} from "../domain/chatVisibility.js";
+import {PRESETS, presetOf} from "../domain/chatVisibility.js";
 
 const props = defineProps({hidden: {type: Array, required: true}});
-const emit = defineEmits(["back", "hide"]);
-const choices = computed(() => visibilityChoices(props.hidden));
+const emit = defineEmits(["back", "hide", "open"]);
+const preset = computed(() => presetOf(props.hidden));
 </script>
 
 <template>
     <PaneMenuBack @click="emit('back')">Show in chat</PaneMenuBack>
-    <template v-for="group in choices" :key="group.title">
-        <MenuLabel>{{ group.title }}</MenuLabel>
-        <template v-for="kind in group.kinds" :key="kind.key">
-            <PaneMenuToggle :on="kind.on" :icon="kind.icon" @click="emit('hide', toggled(hidden, kind.key))">
-                {{ kind.label }}
-            </PaneMenuToggle>
-        </template>
+    <template v-for="choice in PRESETS" :key="choice.key">
+        <PaneMenuToggle :on="preset === choice.key" :icon="choice.icon" @click="emit('hide', choice.hidden)">
+            {{ choice.label }}
+        </PaneMenuToggle>
     </template>
     <PaneMenuLine />
-    <MenuItem :disabled="!hidden.length" @click="emit('hide', [])">
-        <Icon name="restore" :size="14" />
-        Show everything
-    </MenuItem>
+    <PaneMenuLink icon="eye" label="Chat marks" :note="hidden.length ? `${hidden.length} hidden` : ''" @click="emit('open')" />
 </template>
