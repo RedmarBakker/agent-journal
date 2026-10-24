@@ -2,6 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
+import {holdsHead} from "../src/figure/looks.js";
 import {CLIPS, HEAD_TURN, Posing, SHOVE, blowsLandAt, leanOf, lookToward} from "../src/figure/figure.js";
 import {BLINK, BUILD, CLAW, DIGITS, ENDS, GRAB, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, digitsOf, grabberAt, grabsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stopsOf, buildRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
@@ -409,8 +410,8 @@ test("a running build builds boxes one after another from 5 seconds in, a test r
 
 test("pushing, the head looks ahead past the box, raised against the lean: never nodded down over the box, turned or tilted by itself, and no look turns it", () => {
     const clip = CLIPS.find((each) => each.name === "push");
-    // it keeps its own look: the page's looks and the turn toward the viewer leave its head alone
-    expect(clip.ownLook).toBe(true);
+    // it holds its own head: the page's looks hardly turn it and the turn toward the viewer leaves it alone
+    expect(holdsHead(clip)).toBe(true);
     const degrees = (a, b) => THREE.MathUtils.radToDeg(a.angleTo(b));
     for (const voice of Object.keys(stances)) {
         for (const posture of clip.postures) {

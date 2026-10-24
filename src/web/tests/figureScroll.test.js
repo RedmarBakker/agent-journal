@@ -4,6 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
+import {holdsHead} from "../src/figure/looks.js";
 import {CLIPS, Posing, REPORT_SCROLL, reportScrollOf} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import FigureAct from "../src/chat/FigureAct.vue";
@@ -82,7 +83,7 @@ describe("the report scroll, read by the figure itself", () => {
         expect(Math.abs((top.z + bottom.z) / 2 - RIG.heads.get("chest").z), "the parchment's middle at the chest").toBeLessThan(0.15);
         expect(eyes.z - top.z, "the eyes over the top edge").toBeGreaterThan(0.3);
         expect(looks.z, "looking down into it").toBeLessThan(-0.2);
-        expect(clip.ownLook, "the head stays on the scroll, never turned to the viewer").toBe(true);
+        expect(holdsHead(clip), "the head stays on the scroll, never turned to the viewer").toBe(true);
     });
 
     it("turns its head slowly from its left to its right along the lines a few times while it reads, and down from line to line", () => {

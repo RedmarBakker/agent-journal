@@ -103,6 +103,8 @@ import {
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
+import {createdAt, refOf} from "../domain/row.js";
+import {MESSAGE_SECONDS, glanceAfter, glancePoint, headBlend, holdsHead, leadingLook} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -1208,30 +1210,52 @@ function stepForward() {
     sky = back ? {shade: 0, back, at: now} : null;
 }
 
-// What the figure looks at on the page: the UFO while it flies, or the crane's claw, else the box it builds, pushes or stacks while it works
-// (parcels.js workLook), else, in a stretch it chose to watch it (reactions.js barWatchAt) and with no act played once on screen, the
-// leading edge of a progress bar running on the bars docked over the compose box, so its head follows the
-// edge as it moves, along the bar and never straight down (places.js watchLook): looking down at it, facing the viewer, standing on the
-// bars, and turned to it, its back to the viewer, from the compose box's top under them; null when there is nothing to look at
-function lookedAt(shown) {
-    if (shown.clip.name === "tickle_swat") return pointerAt;
-    if (shown.clip.ownLook) return null;
-    const mark = waitingMark();
-    if (mark) return mark;
-    const flying = saucer.value ?? crane.value?.look;
-    if (flying) return flying;
-    const read = readingNow();
-    if (read) return read;
+// The looks the figure could take this frame (looks.js), each {key, kind, point} with its point on the page: the pointer tickling it, the
+// mark or the docked bar of the run whose end the visor waits to light, the UFO or the crane's claw, the bubble it reads or holds its glass
+// to, a new message, the box it builds, pushes or stacks while it works (parcels.js workLook), a picture it admires, the leading edge of a
+// progress bar on the docks in a stretch it chose to watch it (reactions.js barWatchAt, places.js watchLook), and its own idle glances
+function lookCandidates(shown) {
     const scanned = shown.clip.name === "glass_bubble" && nearBubble();
-    if (scanned) return scanningAt(scanned);
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
-    if (work) return work.at;
-    if (admiring.picture) return {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"};
-    // the bar is watched only in a stretch the figure chose to watch it, and never while an act played once is on screen
+    const looks = [
+        ["pointer", "pointer", shown.clip.name === "tickle_swat" ? pointerAt : null],
+        ["run", "run", waitingMark()],
+        ["carrier", "carrier", saucer.value ?? crane.value?.look],
+        [`reading:${reading?.card}`, "reading", readingNow()],
+        ["glass", "reading", scanned && scanningAt(scanned)],
+        ["message", "message", newMessage()],
+        ["work", "work", work?.at],
+        ["picture", "picture", admiring.picture && {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"}],
+        ["bar", "bar", barLook(shown)],
+        ["glance", "glance", glanceLook()],
+    ];
+    return looks.filter(([, , point]) => point).map(([key, kind, point]) => ({key, kind, point}));
+}
+
+// the leading edge of a progress bar on the docks the figure stands by, in a stretch it chose to watch it and with no act played once on
+// screen, so its head follows the edge along the bar and never straight down (places.js watchLook), or null
+function barLook(shown) {
     if (!watchesBar(barWatch, shown)) return null;
     const docks = groundEdge();
     const edge = onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(docks.element) : null;
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
+}
+
+// the bubble of the newest message said in the chat, the user's or the agent's, for its first seconds there (looks.js MESSAGE_SECONDS), or
+// null
+function newMessage() {
+    const said = rows("messages").filter((message) => ["user", "agent"].includes(message.author) && !message.data?.kind && createdAt(message) > watchedSince);
+    const newest = said.reduce((last, message) => (!last || createdAt(message) > createdAt(last) ? message : last), null);
+    if (!newest || now.value - createdAt(newest) > MESSAGE_SECONDS) return null;
+    const bubble = document.querySelector(`[data-figure-mark="${CSS.escape(refOf(newest))}"]`);
+    return bubble && middleOf(bubble.getBoundingClientRect());
+}
+
+// the figure's own idle glance, now and then to one side of its head (looks.js glanceAfter), while it lasts, or null
+let glance = null;
+function glanceLook() {
+    glance = glanceAfter(glance, now.value, Math.random);
+    return glancePoint(glance, now.value, headCenter(), SIZE);
 }
 
 // the bubble within reach of where the figure stands to hold its magnifying glass up to (perches.js bubbleNear), or null
@@ -1282,7 +1306,7 @@ function waitingMark() {
 // or the mark not on the page
 function facesMark(shown) {
     const mark = waitingMark();
-    return !mark || Boolean(shown.clip.ownLook) || (gaze.amount === 1 && Boolean(gaze.point) && faces(gaze.point, mark, headCenter()));
+    return !mark || holdsHead(shown.clip) || (gaze.amount === lookBlend && Boolean(gaze.point) && faces(gaze.point, mark, headCenter()));
 }
 
 // whether the figure is at rest by the bars docked over the compose box
@@ -1297,12 +1321,17 @@ let gaze = {point: null, toward: null, amount: 0, at: 0};
 let lookHead = null;
 let lookPivot = HEAD_HEIGHT;
 
+// the look the head is on (looks.js leadingLook) and how far it turns from the act's own head toward it (looks.js headBlend)
+let leading = null;
+let lookBlend = 0;
+
 // where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
 function lookingAt(shown) {
-    gaze = gazeAfter(gaze, lookedAt(shown), {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead);
+    leading = leadingLook(leading, lookCandidates(shown), performance.now() / 1000);
+    lookBlend = headBlend(leading.look, shown.clip);
+    gaze = gazeAfter(gaze, leading.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead, lookBlend);
     if (!gaze.amount || !gaze.point) return null;
-    const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
-    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind), mood: gaze.point.mood ?? ""};
+    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: gaze.amount, behind: Boolean(gaze.point.behind), mood: gaze.point.mood ?? ""};
 }
 
 // the middle of the figure's head on the page, about which its look turns

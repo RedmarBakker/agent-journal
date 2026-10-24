@@ -307,17 +307,18 @@ export const queues = (beats, beat) => !beat.during || !beats.some((each) => eac
 export const LOOK_TURN_SPEED = 2 * Math.PI;
 
 // The look on the page, {point, toward, amount, at}, `at` milliseconds `now` with `point` to look at or null, about `center`, the point on
-// the page the head turns about: it eases in over LOOK_EASE_MS once there is something to look at, and back out over as long from the last
-// place looked at once there is not, as the UFO goes or the bar ends, so the head never snaps, `amount` how far into it the figure is, 0
-// to 1. The look is kept as `toward`, its way from `center` on the page, so the figure walking never swings it, and turns toward `point`
+// the page the head turns about: it eases in over LOOK_EASE_MS once there is something to look at, as far as `blend` (looks.js headBlend),
+// and back out over as long from the last place looked at once there is not, as the UFO goes or the bar ends, so the head never snaps,
+// `amount` how far into it the figure is, 0 to 1. The look is kept as `toward`, its way from `center` on the page, so the figure walking never swings it, and turns toward `point`
 // no faster than LOOK_TURN_SPEED: with `head`, {depth, above, tip}, the head looking at the page from `depth` pixels before it, its eyes
 // `above` its pivot and tipping no further than `tip` (figure.js LOOK_REACH, eyesAboveOf, HEAD_TIP), the head's own turn (look.js), else
 // the look's turn about `center` on the page
 export const LOOK_EASE_MS = 500;
-export function gazeAfter(gaze, point, center, now, head = null) {
+export function gazeAfter(gaze, point, center, now, head = null, blend = 1) {
     const elapsedMs = now - (gaze.at || now);
     const step = elapsedMs / LOOK_EASE_MS;
-    const amount = Math.min(Math.max(gaze.amount + (point ? step : -step), 0), 1);
+    const goal = point ? blend : 0;
+    const amount = gaze.amount < goal ? Math.min(gaze.amount + step, goal) : Math.max(gaze.amount - step, goal);
     const largest = (LOOK_TURN_SPEED * elapsedMs) / 1000;
     const from = gaze.toward ? {...gaze.point, x: center.x + gaze.toward.x, y: center.y + gaze.toward.y} : gaze.point;
     const turned = point && from ? (head && !point.behind && !from.behind ? lookTurned(from, point, center, largest, head) : headTurned(from, point, center, largest)) : point;

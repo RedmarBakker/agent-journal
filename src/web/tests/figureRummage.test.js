@@ -1,6 +1,7 @@
 // @vitest-environment node
 import {readFileSync} from "node:fs";
 import {expect, test} from "vitest";
+import {holdsHead} from "../src/figure/looks.js";
 import * as THREE from "three";
 import {CLIPS, Posing, RUMMAGE_THINGS, SIDES} from "../src/figure/figure.js";
 import {ACTS, RUMMAGED, flungAt} from "../src/figure/acts.js";
@@ -27,7 +28,8 @@ function rummagingAt(voice, u) {
 
 test("rummaging is taken out of the searches for now, its clip kept for a later revision", () => {
     expect(choicesFor({moment: "held:search", home: true}).map((each) => each.name)).toEqual(["search", "binoculars"]);
-    expect(CLIPS.find((clip) => clip.name === "rummage")).toMatchObject({ownLook: true, postures: ["stand"]});
+    const clip = CLIPS.find((each) => each.name === "rummage");
+    expect([holdsHead(clip), clip.postures]).toEqual([true, ["stand"]]);
 });
 
 test("it leans in past the edge and digs about, then pulls back out having found nothing, no key or anything else held up", () => {
