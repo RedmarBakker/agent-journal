@@ -56,7 +56,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, answerTo, carrierOf, heldCall, joinedCall, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, answerTo, carrierOf, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -88,6 +88,7 @@ import {
     watchLook,
     progressOf,
     hiddenAt,
+    USER_TURN,
     roomToStepAside,
     spotOf,
     SEATED,
@@ -571,7 +572,7 @@ function restOn(spot) {
 function settle(spot, held = footingOn(spot)) {
     body.place = spot;
     body.footing = held;
-    covering = hiddenAt(spot, figureSize());
+    covering = hiddenAt(spot, figureSize(), USER_TURN);
 }
 
 // Each frame the figure keeps to what it rests on as that moves (figure/floors.js groundUnder), falling with the bars under it or lifted by them;
@@ -844,7 +845,7 @@ function look() {
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
-    if (coveredSince() && !body.airborne && !body.place.stays && roomToStepAside(body.place)) stepOutOf(boxAt(body.place, figureSize(), drawn));
+    if (coveredSince() && !body.airborne && !body.place.stays && !uncut(beats.value, beatOnScreen()) && roomToStepAside(body.place)) stepOutOf(boxAt(body.place, figureSize(), drawn));
     grantUnit();
     clearLeftPile();
     const target = targetFor({
@@ -892,8 +893,9 @@ function stepOutOf(box) {
     hurried = true;
 }
 
-// whether something has appeared under the figure since it came to rest, as a new message under its feet
-const coveredSince = () => !body.trip && body.footing && hiddenAt(body.place, figureSize()) > covering;
+// whether something has appeared under the figure since it came to rest, as a new message of the agent's under its feet; the user's own
+// messages never send it aside
+const coveredSince = () => !body.trip && body.footing && hiddenAt(body.place, figureSize(), USER_TURN) > covering;
 
 function clicked(event) {
     stepOutOf(event.currentTarget.parentElement.getBoundingClientRect());

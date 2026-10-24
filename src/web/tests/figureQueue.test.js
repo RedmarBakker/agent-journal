@@ -112,3 +112,11 @@ describe("what the figure acts on", () => {
         expect(freshBeats(beats, "", 100 + FRESH_SECONDS).map((beat) => beat.clip), "ten seconds is still fresh").toEqual(["joy", "phone_call", "nod", "ponder"]);
     });
 });
+
+it("stepping out of the way waits while an act that may not be cut plays, and goes at once otherwise", async () => {
+    const {uncut} = await import("../src/figure/reactions.js");
+    expect(uncut([{clip: "hat_tip", holds: true}], "hat_tip")).toBe(true);
+    expect(uncut([{clip: "nod"}], "nod")).toBe(false);
+    expect(uncut([{clip: "hat_tip", holds: true}], ""), "waiting in the queue, not yet on screen").toBe(false);
+    expect(uncut([], "")).toBe(false);
+});

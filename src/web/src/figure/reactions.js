@@ -174,6 +174,10 @@ export function pastimeFor(scene, waited, memory, now, random, has, tally = null
     return drawn && {clip: drawn.name, card: "", flies: Boolean(drawn.flies)};
 }
 
+// whether the beat at the head of `beats`, on screen as the clip `playing` ("" while none plays), may not be cut (pile.js holds), so stepping
+// out of the way waits for it to end as any other act does
+export const uncut = (beats, playing) => Boolean(playing) && beats[0]?.clip === playing && Boolean(beats[0].holds);
+
 // The beat queue once `beat` comes first, as a stumble, a tickle or a fume does: put before every beat waiting, and the beat on screen, at
 // the queue's head while it plays as the clip `playing`, broken off and dropped, never queued again; unless that one holds (pile.js
 // holds), when `beat` waits behind it. `cut` says whether the beat on screen is broken off.

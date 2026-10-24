@@ -188,10 +188,15 @@ export function clickedBody(posture, below) {
     return {...BODY, bottom: Math.min(BODY.bottom, 1 - below - POSTURES[posture].drop)};
 }
 
-// whether a word is drawn at this point of the page: the character the page has there holds ink, is drawn, and its box holds the point
-function onWord(x, y) {
+// the user's own messages, whose words the user knows, so the figure need not step out of their way
+export const USER_TURN = ".thread-turn.mine";
+
+// whether a word is drawn at this point of the page: the character the page has there holds ink, is drawn, and its box holds the point;
+// a word inside an element `passed` names is not counted
+function onWord(x, y, passed = "") {
     const caret = document.caretRangeFromPoint?.(x, y);
     if (!caret || caret.startContainer.nodeType !== Node.TEXT_NODE || !visible(caret.startContainer.parentElement)) return false;
+    if (passed && caret.startContainer.parentElement.closest(passed)) return false;
     const text = caret.startContainer;
     const at = Math.min(caret.startOffset, text.length - 1);
     for (const from of [at - 1, at].filter((each) => each >= 0)) {
@@ -211,8 +216,9 @@ const bodyPoints = (box) =>
     );
 
 // How many of the points of its body a figure at this spot draws over a control or a word: the part of it above the line it stands or
-// sits on, as below that line it only hangs over the thing it rests on, and all of a figure hanging from its line
-export function hiddenAt(spot, figure) {
+// sits on, as below that line it only hangs over the thing it rests on, and all of a figure hanging from its line; words inside an element
+// `passed` names left out
+export function hiddenAt(spot, figure, passed = "") {
     const picture = boxAt(spot, figure);
     const box = spot.posture === "hang" ? picture : {...picture, bottom: Math.min(picture.bottom, spot.y)};
     const controls = [...document.querySelectorAll(CONTROLS)]
@@ -221,7 +227,7 @@ export function hiddenAt(spot, figure) {
         .map(({rect}) => rect);
     const onControl = (x, y) =>
         controls.some((control) => x >= control.left && x <= control.right && y >= control.top && y <= control.bottom);
-    return bodyPoints(box).filter(([x, y]) => onControl(x, y) || onWord(x, y)).length;
+    return bodyPoints(box).filter(([x, y]) => onControl(x, y) || onWord(x, y, passed)).length;
 }
 
 // The spot of those inside the figure's world that hides the fewest controls and words, none where it can, or null when none is inside

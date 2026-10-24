@@ -6,7 +6,7 @@ import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
 import {store} from "../state/store.js";
-import {RELOAD_AFTER, useStaleReload} from "../composables/staleReload.js";
+import {useStaleReload} from "../composables/staleReload.js";
 import {runUpdate} from "../composables/updates.js";
 import {clear, updating} from "../state/updating.js";
 
@@ -22,7 +22,7 @@ const stale = computed(() => {
     return !onPhone && !!serving && !!mine && !mine.endsWith(serving);
 });
 
-const {remaining: left, waiting, reload} = useStaleReload(stale, () => store.drafting > 0);
+const {waiting, reload} = useStaleReload(stale, () => store.drafting > 0);
 
 // the phone shows no band, so it never asks
 onMounted(async () => {
@@ -71,11 +71,9 @@ async function retry() {
     <template v-if="stale">
         <div class="band reloading">
             <span class="text">
-                A newer version of the viewer is running.
-                {{ waiting ? "The reload waits while you write a message." : `This page reloads when you switch away from it, or after ${left}s untouched.` }}
+                A newer version of the viewer is ready. Reload this page when it suits you{{ waiting ? "; it waits until your message is sent" : "" }}.
             </span>
-            <Btn kind="primary" small @click="reload">Reload now</Btn>
-            <span class="drain" :style="{width: `${(100 * left) / RELOAD_AFTER}%`}" />
+            <Btn kind="primary" small @click="reload">Reload</Btn>
         </div>
     </template>
     <template v-if="updating.failure">
@@ -136,15 +134,6 @@ async function retry() {
 .offline {
     border-bottom-color: color-mix(in srgb, var(--danger, #d9534f) 45%, var(--border));
     background: color-mix(in srgb, var(--danger, #d9534f) 12%, var(--bg));
-}
-
-.drain {
-    position: absolute;
-    left: 0;
-    bottom: -1px;
-    height: 2px;
-    background: var(--accent);
-    transition: width 1s linear;
 }
 
 .text {

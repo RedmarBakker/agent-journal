@@ -12,6 +12,7 @@ const {
     facingToward,
     groundEdge,
     hiddenAt,
+    USER_TURN,
     inWorld,
     postureOf,
     restOf,
@@ -362,4 +363,15 @@ test("the figure rests on its feet on every corner, never with its legs over the
     }
     page({left: 300, top: 600, width: 400, height: 120});
     expect(restOf(FIGURE, {x: 700, y: 600}).posture).toBe("stand");
+});
+
+test("the user's own messages never send the figure out of the way: only the agent's words under it count", () => {
+    page({left: 300, top: 600, width: 400, height: 120});
+    const spot = restOf(FIGURE, {x: 500, y: 600});
+    const words = {left: spot.x - 30, right: spot.x + 30, top: 600 - 60, bottom: 600 - 40};
+    write([{...words, within: USER_TURN}]);
+    expect(hiddenAt(spot, FIGURE), "a user's message is counted where the figure looks for a place to rest").toBeGreaterThan(0);
+    expect(hiddenAt(spot, FIGURE, USER_TURN), "but never as words to step out of the way of").toBe(0);
+    write([words]);
+    expect(hiddenAt(spot, FIGURE, USER_TURN), "the agent's words are").toBeGreaterThan(0);
 });
