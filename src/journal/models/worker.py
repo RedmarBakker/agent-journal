@@ -129,7 +129,7 @@ class Worker(Scoped):
     def is_running(self) -> bool:
         return self.state in (WorkerState.DISPATCHED, WorkerState.READY)
 
-    def is_mid_shift(self) -> bool:
+    def is_mid_turn(self) -> bool:
         return bool(self.token_hash) and self.is_running()
 
     def is_active(self) -> bool:

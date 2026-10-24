@@ -1,7 +1,7 @@
 <script setup>
 import {computed} from "vue";
 import SwitchCase from "../kit/SwitchCase.vue";
-import {PROOF_WORDS} from "../domain/workerShift.js";
+import {PROOF_WORDS} from "../domain/workerTurn.js";
 
 const props = defineProps({state: {type: String, required: true}});
 const SHAPES = {checked: "checked", "checked, not done": "checked", shown: "proved", "not done": "proved", short: "short"};

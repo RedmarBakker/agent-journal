@@ -35,7 +35,7 @@ def test_setup_wires_hooks_skills_and_the_law(app: App, monkeypatch):
     assert agents.startswith("# my project") and "My own rules." in agents and "L9 - A subagent only reads" in agents
     assert "L10 - A worker's work is merged only once each point of its task's brief has a proof you checked." in agents, "the law says a worker's work is merged only once its proofs are checked"
     workers_skill = (root / ".claude/skills/journal-workers/SKILL.md").read_text()
-    assert "journal clock-in" in workers_skill and "journal worker check" in workers_skill and "journal worker merge" in workers_skill, "and the workers skill says the shift"
+    assert "journal clock-in" in workers_skill and "journal worker check" in workers_skill and "journal worker merge" in workers_skill, "and the workers skill says the turn"
     assert "journal worker merge" in (root / ".claude/skills/journal/SKILL.md").read_text(), "as the journal skill does"
     assert (root / "CLAUDE.md").read_text().strip() == "@AGENTS.md"
     assert "hooks   .claude/settings.json" in output

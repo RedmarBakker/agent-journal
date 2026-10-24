@@ -16,7 +16,7 @@ import {useInspectorActions} from "../composables/inspectorActions.js";
 import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
-import {checkedCount, doneCount} from "../domain/workerShift.js";
+import {checkedCount, doneCount} from "../domain/workerTurn.js";
 import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";

@@ -3,7 +3,7 @@ import {computed, ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import ProofIcon from "./ProofIcon.vue";
 import {useToggledSet} from "../composables/toggledSet.js";
-import {isCheckable, pointRows, PROOF_WORDS, proofState} from "../domain/workerShift.js";
+import {isCheckable, pointRows, PROOF_WORDS, proofState} from "../domain/workerTurn.js";
 
 const props = defineProps({task: {type: Object, required: true}, worker: {type: Number, required: true}, api: {type: Object, required: true}, checking: Boolean});
 const points = computed(() => pointRows(props.task));

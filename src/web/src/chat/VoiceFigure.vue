@@ -96,8 +96,8 @@ import {
     spotOf,
     SEATED,
     seatedFacing,
-    shiftAfter,
-    shiftedFacing,
+    poseAfter,
+    posedFacing,
     tripTo,
     turnStep,
 } from "../figure/places.js";
@@ -442,7 +442,7 @@ function step() {
     shownFrame.value = frameIn(shown.clip, exactFrameOf(shown), playing.closing);
     const seconds = performance.now() / 1000;
     headTilt = tiltAfter(headTilt, seconds, Math.random);
-    player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, shiftedOnSeat(shown, seconds), {
+    player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, posedOnSeat(shown, seconds), {
         posture: drawn,
         eyes: look.eyes,
         stride: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : stride,
@@ -533,12 +533,12 @@ function endAct(shown) {
     return step();
 }
 
-// The way the figure is drawn facing at `now`: as it is posed, but sitting settled on an edge, not turned aside at its laptop, it shifts on
-// its seat now and then (places.js shiftAfter)
-let seatShift = null;
-function shiftedOnSeat(shown, now) {
-    seatShift = posed.posture === "sit" && !posed.turning && !shown.clip.aside ? shiftAfter(seatShift, posed.facing, now, Math.random) : null;
-    return seatShift ? shiftedFacing(seatShift, now) : posed.facing;
+// The way the figure is drawn facing at `now`: as it is posed, but sitting settled on an edge, not turned aside at its laptop, it poses on
+// its seat now and then (places.js poseAfter)
+let seatPose = null;
+function posedOnSeat(shown, now) {
+    seatPose = posed.posture === "sit" && !posed.turning && !shown.clip.aside ? poseAfter(seatPose, posed.facing, now, Math.random) : null;
+    return seatPose ? posedFacing(seatPose, now) : posed.facing;
 }
 
 // The posture and facing the figure is drawn in, on its way to those of the clip on screen, `target`, through standing whenever it turns

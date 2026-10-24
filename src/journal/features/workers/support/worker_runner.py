@@ -173,10 +173,10 @@ class WorkerRunner:
 
     @staticmethod
     def awaits_report(current: Worker) -> bool:
-        return not current.is_mid_shift() and current.state == WorkerState.DISPATCHED
+        return not current.is_mid_turn() and current.state == WorkerState.DISPATCHED
 
     def close(self, current: Worker, outcome: str, actor: Actor) -> None:
-        self.workers.save(current.unfinished(time.time(), outcome) if current.is_mid_shift() else current, actor)
+        self.workers.save(current.unfinished(time.time(), outcome) if current.is_mid_turn() else current, actor)
 
     def reported(self, current: Worker, outcome: str, summary: str, actor: Actor) -> None:
         self.reports.file(current, f"{outcome}\n\n{summary}" if summary else outcome, actor)

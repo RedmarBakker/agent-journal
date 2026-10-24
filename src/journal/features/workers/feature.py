@@ -98,7 +98,7 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
   in a row with no code of its own between, the orchestrator past 200 lines of code of its own since its last handover,
   the solo agent sending subagents instead of reading itself; the limits are settings (workers.builder_handovers,
   workers.orchestrator_lines, workers.solo_dispatches).
-- A worker works a shift on its task: it clocks in with `journal clock-in`, maintains its own list with `journal todo`,
+- A worker works a turn on its task: it clocks in with `journal clock-in`, maintains its own list with `journal todo`,
   proves each point of the brief with `journal proof <point> "<file:line, and the test>"` or says why not with
   `--not-done`, commits its work, and clocks out with `journal clock-out "<report>"`, its one report. You are informed when
   it clocks in, and once when its work is ready to check; your stops name the work still waiting.

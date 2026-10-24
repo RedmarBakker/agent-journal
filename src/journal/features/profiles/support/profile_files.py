@@ -13,13 +13,13 @@ UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
 REPORTS = ("You only read: change no file, run no tests and write nothing to the journal; the agent that started you does the writing. "
            "Read narrowly: search for the line, read the range you need, never a whole large file. Answer in a short report written to "
            "the agent that started you, with the files and lines that show each point and what you could not check.")
-SHIFT = ("You work the one task the agent that sent you assigned to you, whose brief follows. Clock in with journal clock-in once you have read it; "
+TURN = ("You work the one task the agent that sent you assigned to you, whose brief follows. Clock in with journal clock-in once you have read it; "
          "it starts the task and names its number. Maintain your own to-do list with journal todo add, check and list. Prove each point of the brief with "
          "journal proof <point> \"<file:line, and the test that shows it>\", or say why it is not done with journal proof <point> --not-done \"<why>\". "
          "Commit your work, then clock out with journal clock-out \"<what you changed, file by file, and what you could not do>\": that is your one report, "
          "to the agent that sent you, never to the user.")
 WRITES = ("You write: change what the job needs and nothing beyond it. Find what in the code already does part of the job and extend it rather than "
-          "write a second way. Write the test that proves your change and name it in a proof; do not run the suite, the agent that sent you runs it. " + SHIFT)
+          "write a second way. Write the test that proves your change and name it in a proof; do not run the suite, the agent that sent you runs it. " + TURN)
 
 
 class ProfileFiles:
@@ -65,7 +65,7 @@ class ProfileFiles:
 
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
-        return profile["body"] if profile["shipped"] else f"{SHIFT}\n\n{profile['body']}"
+        return profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
 
     def kind(self, name: str) -> str:
         return self.read(name)["kind"] if (self.folder() / f"{name}.md").is_file() else ""

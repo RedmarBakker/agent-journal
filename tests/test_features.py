@@ -789,11 +789,11 @@ def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: 
     assert refused.code != 0 and "no worker profile" in refused.error and "Agent tool" in refused.error
     assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
     assert "on claude sonnet" in dispatched(app.console(), ["Mr. Brunel", "write it", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "builder"], AGENT).text, "the profile names the model"
-    from journal.features.profiles.support.profile_files import SHIFT
+    from journal.features.profiles.support.profile_files import TURN
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.repositories.workers import Workers
     worker = app.container.get(Workers).scoped()[-1]
-    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{SHIFT}\n\nYou write.\nSay \"done\".\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: Run only the tests that cover your change, by name, and the new tests you write. Never run the full suite: the agent that sent you runs it once your work is back.", "the first job comes after the shift and the custom profile's instructions"
+    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: Run only the tests that cover your change, by name, and the new tests you write. Never run the full suite: the agent that sent you runs it once your work is back.", "the first job comes after the shift and the custom profile's instructions"
     assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == "write it\n\nYou change: the files of its task\n\nHow you test: Run only the tests that cover your change, by name, and the new tests you write. Never run the full suite: the agent that sent you runs it once your work is back.", "a resumed worker remembers them"
     status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "builder", "model": "fast", "description": "x", "prompt": "y"})
     assert status == 409 and "worker profile" in body["error"] and "--profile builder" in body["error"]
@@ -7858,17 +7858,17 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
         assert tasks.holder(tasks.find(1)) is None and app.container.get(Workers).find(1).state == WorkerState.RELEASED, "a release frees the task"
 
 
-def test_the_worker_profiles_teach_the_shift_and_a_custom_one_starts_with_it(app: App):
-    from journal.features.profiles.support.profile_files import SHIFT, ProfileFiles
+def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
+    from journal.features.profiles.support.profile_files import TURN, ProfileFiles
     from journal.providers.support.profile import Profile
     from journal.providers.support.profile_kind import ProfileKind
     files = app.container.get(ProfileFiles)
     files.write_all()
     for name in ("journal-senior", "journal-medior"):
         body = files.read(name)["body"]
-        assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the shift"
+        assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the turn"
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileKind.WORKER), "sonnet", "")
-    assert files.worker_instructions("cartographer").startswith(SHIFT + "\n\nYou draw the map"), "a worker on a custom profile is told the shift first"
+    assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
     assert files.worker_instructions("journal-medior") == files.read("journal-medior")["body"], "a shipped one says it once"
 
 

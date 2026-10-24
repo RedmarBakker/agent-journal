@@ -3,7 +3,7 @@ import {afterEach, expect, test, vi} from "vitest";
 import {flush} from "./flush.js";
 import {saidTurns} from "../src/domain/transcript.js";
 import {workerActions, workerMoves, workerReusesLine, workerState} from "../src/domain/workers.js";
-import {checkedCount, doneCount, pointRows} from "../src/domain/workerShift.js";
+import {checkedCount, doneCount, pointRows} from "../src/domain/workerTurn.js";
 
 globalThis.ResizeObserver = globalThis.ResizeObserver || class {
     observe() {}
