@@ -10628,7 +10628,9 @@ def test_the_team_chat_holder_pushes_its_quiet_files_and_another_machine_takes_t
         follower = TeamChatBranch(dataclasses.replace(app.config, root=clone), account, app.container.get(Environments), app.container.get(Announcer), app.container.get(SyncStatus))
         follower.pull()
         copy = Worktree(clone, TEAM_CHAT).path
-        assert (copy / "plan.txt").read_text() == "the agent's work\n", "another machine's worktree of the Team chat takes the holder's files"
+        assert not copy.exists(), "a machine that never claimed the Team chat has no worktree of it"
+        follower.taken()
+        assert (copy / "plan.txt").read_text() == "the agent's work\n", "claimed, its worktree is made and takes the holder's files"
 
         (copy / "local.txt").write_text("a change of this machine's own\n")
         (held / "plan.txt").write_text("more work\n")

@@ -53,15 +53,21 @@ class TeamChatBranch:
             return
         self.remote_head = head
 
+    # this machine claims the Team chat: its worktree is made now, never on joining, and brought to the holder's last push
+    def taken(self) -> None:
+        self.worktree.created()
+        self.pull()
+
     def pull(self) -> None:
+        if not self.worktree.path.is_dir():
+            return
         listed = self.worktree.git("ls-remote", "--heads", REMOTE, SHARED_BRANCH)
         if listed.returncode != 0:
             self.status.failed(f"the Team chat's files were not fetched from {REMOTE}: {listed.stderr.strip()}")
             return
         tip = listed.stdout.split("\t")[0].strip()
-        if not tip or (self.worktree.path.is_dir() and tip == self.worktree.local_branch()):
+        if not tip or tip == self.worktree.local_branch():
             return
-        self.worktree.created()
         self.worktree.run_git("fetch", "-q", REMOTE, SHARED_BRANCH)
         if self.worktree.run_git("status", "--porcelain").stdout.strip():
             self.warn(tip)

@@ -28,7 +28,7 @@ class TeamChat:
         lease = self.link.acquire_lease(CHAT_LEASE)
         if former.holder and former.device_id != lease.device_id:
             self.announcer.announce(TeamChatClaimed(environment_id=self.team_chat_id(), holder=lease.holder, former=former.holder))
-        self.branch.pull()
+        self.branch.taken()
         self.account.write({**self.account.contents(), "holds_chat": True, "chat_device": lease.device_id})
         self.renewed_at = time.monotonic()
         self.launcher.start(TEAM_CHAT, agent)
