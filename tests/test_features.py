@@ -3268,7 +3268,7 @@ def test_a_server_set_up_in_claude_itself_is_removed_from_the_page_through_claud
     monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
     monkeypatch.setattr(Health, "probe", lambda self: HealthReport({"blender": ServerCatalogue("blender", "uvx blender-mcp", "connected", "")}))
-    monkeypatch.setattr(Health, "remove", lambda self, name: removed.append(name) or name == "blender")
+    monkeypatch.setattr(Health, "remove", lambda self, name, provider: removed.append(name) or name == "blender")
     app.container.get(Health).recheck()
     hook(app, "SessionStart")
     port = app.server().port
@@ -13291,3 +13291,65 @@ def test_the_viewers_console_errors_tell_the_agent_at_once_remind_it_every_fifty
     assert "no console errors" in app.console().run(["developer", "client-errors"], AGENT).text
     for _ in range(60):
         assert "still unhandled:" not in str(use()), "a cleared store ends the reminders"
+
+
+def test_a_server_is_added_and_removed_through_the_agent_programs_cli_from_the_pages_routes_and_the_journal_keeps_answering(app: App, monkeypatch, tmp_path):
+    import json as j
+    import subprocess
+    from urllib.request import Request as R, urlopen
+    from journal.features.mcp.support.agent_cli import AgentCli
+    from journal.features.mcp.support.health import Health
+    from journal.features.mcp.support.health_report import HealthReport
+    from journal.support.keys import Keys
+    ran = []
+    monkeypatch.setattr(app.container.get(Keys), "path", tmp_path / "keys.json")
+    monkeypatch.setattr(Health, "probe", lambda self: HealthReport())
+    monkeypatch.setattr(AgentCli, "run", lambda self, command: ran.append(command) or subprocess.CompletedProcess(command, 1 if command[-1] == "local" else 0, "", ""))
+    port = app.server().port
+    post = lambda path, body: j.loads(urlopen(R(f"http://127.0.0.1:{port}{path}", data=j.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read())
+    assert post("/journal/mcp/add", {"name": "docs", "url": "https://mcp.example.com/mcp"}) == {"added": "docs"}
+    assert post("/journal/mcp/add", {"name": "tools", "command": "npx", "args": ["-y", "tools-mcp"]}) == {"added": "tools"}
+    assert ["claude", "mcp", "add", "-s", "local", "--transport", "http", "docs", "https://mcp.example.com/mcp"] in ran and ["claude", "mcp", "add", "-s", "local", "tools", "--", "npx", "-y", "tools-mcp"] in ran, "each is added by the program's own command"
+    assert post("/journal/mcp/docs/remove", {}) == {"removed": "docs"}
+    assert ran[-2:] == [["claude", "mcp", "remove", "docs", "-s", "local"], ["claude", "mcp", "remove", "docs", "-s", "project"]], "a removal tries each scope until the program takes it"
+    with urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/health", headers={"X-Journal-Env": "main"}), timeout=5) as answer:
+        assert j.loads(answer.read())["answering"] is True, "the journal still answers"
+    try:
+        post("/journal/mcp/add", {"name": "bad name", "url": "https://x.example"})
+    except HTTPError as refused:
+        assert refused.code in (400, 409, 422)
+    else:
+        raise AssertionError("a name with a space is refused")
+
+
+def test_the_agent_programs_command_line_runs_with_no_terminal_to_read_and_a_missing_program_is_a_refusal(app: App):
+    from journal.features.mcp.support.agent_cli import AgentCli
+    from journal.support.rejection import Rejection
+    cli = app.container.get(AgentCli)
+    assert cli.run(["sh", "-c", "read answer; echo done"]).stdout.strip() == "done", "standard input is closed, so a program that asks something is never waiting on the journal's own terminal"
+    try:
+        cli.run(["no-such-agent-program", "mcp", "list"])
+    except Rejection as refused:
+        assert "could not be run" in str(refused)
+    else:
+        raise AssertionError("a missing program is a refusal, never a fault")
+
+
+def test_a_pending_mcp_restart_waits_for_the_subagents_and_workers_to_end_and_then_restarts_the_agent(app: App, monkeypatch):
+    from journal.features.mcp.support.pending_restart_claim import PendingRestartClaim
+    from journal.support.pending_restarts import PendingRestarts
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
+    hook(app, "SubagentStart", agent_id="a1", agent_type="Explore")
+    pending = app.container.get(PendingRestarts)
+    pending.add("s1", 1, ("--resume", "s1"))
+    hook(app, "Stop")
+    app.runtime().deferred.drain()
+    assert transmitted == [] and pending.sessions() == ["s1"], "the turn ended but a subagent still runs: no restart"
+    hook(app, "SubagentStop", agent_id="a1")
+    app.container.get(PendingRestartClaim).restarted("s1")
+    assert [(t["verb"], t["name"], t["resume"]) for t in transmitted] == [("restart", "agent", ["--resume", "s1"])] and pending.sessions() == [], "the next tick that finds it idle restarts it once"

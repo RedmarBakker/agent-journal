@@ -9,7 +9,7 @@ from journal.models.mcp_server import McpServer
 from journal.support.rejection import Rejection
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
-from journal.chat.turn import Turn
+from journal.features.mcp.support.agent_idle import AgentIdle
 from journal.repositories.mcp_servers import McpServers
 from journal.supervisor_link import SupervisorLink
 from journal.models.agent import Agent
@@ -17,11 +17,11 @@ from journal.features.mcp.mcp_nudges import McpNudges
 
 
 class McpInstalling:
-    """The one way a server is added, keyed, removed or checked: the row, the configuration the agents read, and, for an added or removed server, a restart of the agents running, so it applies at once."""
+    """The one way a server is added, keyed, removed or checked: the row, the configuration the agents read, and, for an added or removed server, a restart of each agent running once it is idle, so it applies as soon as it can."""
 
-    def __init__(self, servers: McpServers, config_files: ProviderConfig, keys: Keys, health: Health, agents: Agents, providers: Providers, supervisor: SupervisorLink, turn: Turn, pending: PendingRestarts, nudger: Nudger) -> None:
+    def __init__(self, servers: McpServers, config_files: ProviderConfig, keys: Keys, health: Health, agents: Agents, providers: Providers, supervisor: SupervisorLink, idle: AgentIdle, pending: PendingRestarts, nudger: Nudger) -> None:
         self.servers, self.config_files, self.keys, self.health = servers, config_files, keys, health
-        self.agents, self.providers, self.supervisor, self.turn, self.pending, self.nudger = agents, providers, supervisor, turn, pending, nudger
+        self.agents, self.providers, self.supervisor, self.idle, self.pending, self.nudger = agents, providers, supervisor, idle, pending, nudger
 
     def add(self, server: McpServer, actor: Actor) -> McpServer:
         saved = self.servers.save(server, actor)
@@ -43,10 +43,18 @@ class McpInstalling:
         self.health.recheck()
 
     def remove_known(self, name: str) -> bool:
-        if not self.health.remove(name):
+        if not self.health.remove(name, self.provider()):
             return False
         self.applied()
         return True
+
+    def add_custom(self, name: str, url: str, command: str, args: tuple[str, ...]) -> None:
+        self.health.add(name, self.provider(), url, command, args)
+        self.applied()
+
+    def provider(self) -> str:
+        agents = self.running()
+        return agents[0].provider if agents else self.providers.default().name
 
     def unchecked_state(self, server: McpServer) -> str:
         return "needs_key" if server.needs_key and not self.keys.has(server.key_var) else "installed"
@@ -79,7 +87,7 @@ class McpInstalling:
         self.config_files.write()
         for agent in self.running():
             resume = self.providers.lookup(agent.provider).resume(agent.session)
-            if self.turn.is_finished(agent):
+            if self.idle.is_idle(agent):
                 self.supervisor.restart_agent(agent.environment_id, resume)
             else:
                 self.pending.add(agent.session, agent.environment_id, resume)

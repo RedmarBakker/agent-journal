@@ -69,6 +69,15 @@ const firstCheck = computed(() => !loaded.value || (!checkedAt.value && checking
 
 const install = (s) => act(s.name, () => api.mcpInstall(s.name));
 const remove = (s) => act(s.name, () => api.mcpRemove(s.name));
+const added = ref({name: "", target: ""});
+const isAddress = (target) => /^https?:\/\//.test(target.trim());
+const add = () =>
+    act("add", async () => {
+        const target = added.value.target.trim();
+        const words = target.split(/\s+/);
+        await api.mcpAdd({name: added.value.name.trim(), ...(isAddress(target) ? {url: target} : {command: words[0], args: words.slice(1)})});
+        added.value = {name: "", target: ""};
+    });
 const check = () => act("check", () => api.mcpCheck());
 const saveKey = (s) =>
     act(s.name, async () => {
@@ -203,6 +212,20 @@ function letIn(suggestion) {
                 </template>
             </ul>
         </template>
+
+        <h2 class="integrations-sub">Add a server</h2>
+        <div class="integration-key">
+            <TextInput :value="added.name" placeholder="Name" @input="added.name = $event.target.value" />
+            <TextInput
+                :value="added.target"
+                placeholder="Its address, or the command that starts it"
+                @input="added.target = $event.target.value"
+                @keydown.enter="add"
+            />
+            <Btn kind="primary" small :busy="busy === 'add'" :disabled="!added.name.trim() || !added.target.trim()" @click="add">
+                Add
+            </Btn>
+        </div>
 
         <h2 class="integrations-sub">Suggested</h2>
         <template v-if="!loaded">

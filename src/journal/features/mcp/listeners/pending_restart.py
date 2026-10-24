@@ -1,16 +1,13 @@
 from journal.events.agent.stop import Stop
 from journal.events.agent_listener import AgentListener
-from journal.support.pending_restarts import PendingRestarts
-from journal.supervisor_link import SupervisorLink
+from journal.features.mcp.support.pending_restart_claim import PendingRestartClaim
 
 
 class PendingRestart(AgentListener[Stop]):
-    """An agent that needs a restart gets it the moment it stops its turn, on its own conversation."""
+    """An agent that needs a restart gets it the moment it stops its turn with no subagent or worker running, on its own conversation."""
 
-    def __init__(self, pending: PendingRestarts, supervisor: SupervisorLink) -> None:
-        self.pending, self.supervisor = pending, supervisor
+    def __init__(self, claim: PendingRestartClaim) -> None:
+        self.claim = claim
 
     def handle(self, event: Stop) -> None:
-        obligations = self.pending.claim(event.session)
-        if obligations:
-            self.supervisor.restart_agent(obligations[0], obligations[1])
+        self.claim.restarted(event.session)

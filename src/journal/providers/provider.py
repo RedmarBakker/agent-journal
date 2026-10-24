@@ -192,6 +192,12 @@ class Provider(ABC):
     @abstractmethod
     def resume(self, session: str) -> tuple[str, ...]: ...
 
+    @abstractmethod
+    def mcp_add_command(self, name: str, url: str, command: str, args: tuple[str, ...]) -> list[str]: ...
+
+    @abstractmethod
+    def mcp_remove_commands(self, name: str) -> list[list[str]]: ...
+
     def copy_session(self, source: Path, target: Path, session: str) -> bool:
         return self.transcript(target, session) is not None or self.transcript(source, session) is not None
 

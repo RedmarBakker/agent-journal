@@ -182,6 +182,12 @@ class Codex(Provider):
     def resume(self, session: str) -> tuple[str, ...]:
         return ("resume", session)
 
+    def mcp_add_command(self, name: str, url: str, command: str, args: tuple[str, ...]) -> list[str]:
+        return [self.program, "mcp", "add", name, "--url", url] if url else [self.program, "mcp", "add", name, "--", command, *args]
+
+    def mcp_remove_commands(self, name: str) -> list[list[str]]:
+        return [[self.program, "mcp", "remove", name]]
+
     def profile_text(self, profile: Profile, model: str, codex_model: str) -> str:
         sandbox = "read-only" if profile.kind == ProfileKind.SUBAGENT else "workspace-write"
         return (f"name = {json.dumps(profile.name)}\ndescription = {json.dumps(profile.description, ensure_ascii=False)}\nmodel = {json.dumps(codex_model)}\n"

@@ -187,6 +187,12 @@ class Claude(Provider):
     def resume(self, session: str) -> tuple[str, ...]:
         return ("--resume", session)
 
+    def mcp_add_command(self, name: str, url: str, command: str, args: tuple[str, ...]) -> list[str]:
+        return [self.program, "mcp", "add", "-s", "local", "--transport", "http", name, url] if url else [self.program, "mcp", "add", "-s", "local", name, "--", command, *args]
+
+    def mcp_remove_commands(self, name: str) -> list[list[str]]:
+        return [[self.program, "mcp", "remove", name, "-s", scope] for scope in ("local", "project", "user")]
+
     def profile_text(self, profile: Profile, model: str, codex_model: str) -> str:
         return f"---\nname: {profile.name}\ndescription: {profile.description}\ntools: {profile.tools}\nkind: {profile.kind}\nmodel: {model}\ncodex-model: {codex_model}\n---\n\n{profile.body}\n"
 

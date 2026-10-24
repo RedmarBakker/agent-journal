@@ -706,6 +706,10 @@ export class ApiClient {
         return this.post(`/mcp/${encoded(name)}/sign-in`, {});
     }
 
+    mcpAdd(server) {
+        return this.post("/mcp/add", server, LONG_WAIT_MS);
+    }
+
     mcpRemove(name) {
         return this.post(`/mcp/${encoded(name)}/remove`, {});
     }

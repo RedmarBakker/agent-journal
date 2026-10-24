@@ -298,6 +298,7 @@ class Routes:
         router.get(f"{API}/plugins/{{id}}/dashboard", plugins.dashboard)
         router.get(f"{API}/mcp", mcp.index)
         router.post(f"{API}/mcp/install", mcp.install)
+        router.post(f"{API}/mcp/add", mcp.add)
         router.post(f"{API}/mcp/check", mcp.check)
         for act, handler in (("key", mcp.key), ("remove", mcp.remove), ("sign-in", mcp.login)):
             router.post(f"{API}/mcp/{{name}}/{act}", handler)

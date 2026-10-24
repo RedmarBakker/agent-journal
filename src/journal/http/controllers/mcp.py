@@ -1,3 +1,5 @@
+import re
+
 from journal.features.mcp.support.mcp_catalogue import McpCatalogue
 from journal.features.mcp.support.health import Health
 from journal.features.mcp.support.mcp_installing import McpInstalling
@@ -8,6 +10,9 @@ from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.repositories.mcp_servers import McpServers
 from journal.support.missing_row import MissingRow
+
+
+NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class McpController:
@@ -50,6 +55,16 @@ class McpController:
         except StopIteration:
             return Response.refused(f"{request.body.get('name', '')} is not a suggested server")
         return Response.json(self.row(self.installing.add(suggestion.server(), request.actor)))
+
+    def add(self, request: Request) -> Response:
+        body = request.body
+        name, url, command = str(body.get("name", "")).strip(), str(body.get("url", "")).strip(), str(body.get("command", "")).strip()
+        if not NAME.match(name):
+            return Response.refused("a server's name is letters, digits, dashes and underscores")
+        if bool(url) == bool(command):
+            return Response.refused("a server is reached by a url or started by a command, one of them")
+        self.installing.add_custom(name, url, command, tuple(str(arg) for arg in body.get("args", [])))
+        return Response.json({"added": name})
 
     def key(self, request: Request) -> Response:
         try:
