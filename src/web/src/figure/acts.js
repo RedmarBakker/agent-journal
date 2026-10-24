@@ -70,9 +70,10 @@ export const ACTS = {
     // above the hat
     disco: {frames: 96, fps: 12, beats: 8, ball: 0.24, clear: 0.08, tie: 0.1, far: 2.2},
     // leaning against a wall to rest (perches.js leanSpot): the wall `wall` of the picture out from its middle, the hand flat against it
-    // `contact` of the figure's units above its feet, the body tilted `tilt` degrees toward it from the hips, the other hand on its hip at
-    // `hip` (across, forward, up), the ankles crossed by `cross` degrees each, the outer leg a little before the other
-    lean: {wall: 0.27, contact: 2.45, tilt: 12, hip: [0.62, 0.05, 1.5], cross: 14},
+    // `contact` of the figure's units above its feet; the whole body tilted `tilt` degrees toward it from the feet, its weight on that hand;
+    // the other hand on its hip at `hip` (across, forward, up); the ankles crossed, the inner leg turned in `inner` degrees and the outer
+    // `outer`, swung `over` degrees before the inner so its foot crosses over in front
+    lean: {wall: 0.33, contact: 1.95, tilt: 16, hip: [0.62, 0.05, 1.5], inner: 20, outer: 42, over: 12},
     // coming down on a parachute, swaying `sway` degrees under it, its canopy (figure.js canopyOf) `width` of the picture across with its
     // rim `above` of the picture over the eyes, the lines running from the rim down to the hands
     chute: {frames: 24, fps: 8, sway: 8, width: 0.66, above: 0.5},

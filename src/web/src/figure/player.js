@@ -43,7 +43,7 @@ export class FigurePlayer {
         const blend = this.blend ? {from: this.blend.from, previous: this.moves, k: smooth(k), settled: false} : null;
         const key = `${clip.name}/${index}/${facing}/${posture}/${stride}/${this.canvas.width}/${eyes ? `${eyes.mood}@${eyes.seconds}` : ""}/${open}/${screen ? [screen.eyes, screen.across, screen.open, screen.flash, screen.glow].join(",") : ""}/${tilt}/${throws ? throws.map((thrown) => thrown.spin).join(",") : ""}/${leanWay}`;
         if (key === this.shown && !blend) return;
-        const live = eyes || stride !== null || sky || throws || at || open < 1 || screen || tilt || blend || !Number.isInteger(index);
+        const live = eyes || stride !== null || sky || throws || leanWay || at || open < 1 || screen || tilt || blend || !Number.isInteger(index);
         const {frame, moves} = live
             ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky, throws, leanWay, at, open, screen, tilt})
             : this.frameOf(clip, index, facing, posture);

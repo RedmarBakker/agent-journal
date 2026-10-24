@@ -118,17 +118,27 @@ test("beside the side of a bubble rising over its floor, with room, the figure l
     expect(leanSpot(FIGURE, near, floorsOf(floor, bubble("high", {left: 450, right: 900, top: 100, bottom: 300})))).toBe(null);
     // no room: the wall's side right at the floor's end, where the figure would stand off it
     expect(leanSpot(FIGURE, near, floorsOf(floor, bubble("tight", {left: 215, right: 900, top: 380, bottom: 470})))).toBe(null);
-    // the pose: the hand on the wall's side flat at the wall's line, for every voice and both ways
+    // the pose, for every voice and both ways all through its loop: the whole body tilted from the feet toward the wall, its head well out
+    // over its feet that way and its weight on the hand on that side, flat at the wall's line; the ankles crossed, the outer foot over the
+    // inner, in front of it and past it toward the wall, both feet on the floor
     const clip = CLIPS.find((each) => each.name === "lean");
     for (const voice of Object.keys(stances)) {
         for (const way of [1, -1]) {
-            const pose = new Posing(RIG, "stand", 0);
-            pose.leanWay = way;
-            clip.pose(pose, stanceOf(voice), 0.3);
-            const moves = pose.moves(0);
-            const side = way > 0 ? "l" : "r";
-            const hand = RIG.heads.get(`hand_${side}`).clone().applyMatrix4(moves.get(`hand_${side}`));
-            expect(Math.abs(hand.x - way * ACTS.lean.wall * FRAMED.height), `${voice} ${way}`).toBeLessThan(0.25);
+            for (let frame = 0; frame < clip.frames; frame += 8) {
+                const pose = new Posing(RIG, "stand", 0);
+                pose.leanWay = way;
+                clip.pose(pose, stanceOf(voice), frame / clip.frames);
+                const moves = pose.moves(0);
+                const at = (name) => RIG.heads.get(name).clone().applyMatrix4(moves.get(name));
+                const [inner, outer] = way > 0 ? ["l", "r"] : ["r", "l"];
+                const label = `${voice} ${way} frame ${frame}`;
+                expect(Math.abs(at(`hand_${inner}`).x - way * ACTS.lean.wall * FRAMED.height), label).toBeLessThan(0.25);
+                const feet = (at("foot_l").x + at("foot_r").x) / 2;
+                expect(way * (at("head").x - feet), label).toBeGreaterThan(0.45);
+                expect(at(`foot_${outer}`).y, label).toBeLessThan(at(`foot_${inner}`).y);
+                expect(way * (at(`foot_${outer}`).x - at(`foot_${inner}`).x), label).toBeGreaterThan(-0.1);
+                for (const side of ["l", "r"]) expect(at(`foot_${side}`).z, `${label} ${side}`).toBeLessThan(0.6);
+            }
         }
     }
     const roams = PILE.filter((entry) => entry.when.moment === "roam" && entry.when.free !== false);

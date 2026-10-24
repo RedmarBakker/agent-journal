@@ -1246,24 +1246,25 @@ export function lookedPoint(pose, depth) {
     return new THREE.Vector3((pose.at.x - 0.5) * FRAMED_HEIGHT, depth, FRAMED_MIDDLE + (0.5 - pose.at.y) * FRAMED_HEIGHT);
 }
 
-// leans against a wall to rest (acts.js lean), the wall out to the way it is (pose.leanWay, 1 the right): the hand on that side flat
-// against it, the body tilted toward it, the ankles crossed, the weight shifting a little as it breathes
+// leans against a wall to rest (acts.js lean), the wall out to the way it is (pose.leanWay, 1 the right): the ankles crossed, the outer
+// foot over the inner in front of it, then the whole body tilted from the feet toward the wall, its weight on the hand on that side flat
+// against it with the elbow bent, the other hand on its hip, settling a little as it breathes
 function lean(pose, stance, t) {
-    const {wall, contact, tilt, hip, cross} = ACTS.lean;
+    const {wall, contact, tilt, hip, inner, outer, over} = ACTS.lean;
     const way = pose.leanWay || 1;
     const side = way === SIDES.l ? "l" : "r";
     const other = side === "l" ? "r" : "l";
-    const tilted = way * tilt * (1 + 0.08 * waveOf(t));
+    pose.turn(`thigh_${side}`, {y: SIDES[side] * inner});
+    pose.turn(`thigh_${other}`, {y: SIDES[other] * outer, x: -over});
+    const tilted = way * tilt * (1 + 0.06 * waveOf(t));
+    pose.turn("root", {y: tilted});
     breathe(pose, t);
-    pose.turn("hips", {y: tilted * 0.5});
-    pose.turn("spine", {y: tilted * 0.3});
-    pose.turn("chest", {y: tilted * 0.2});
-    trunk(pose, {tilt: -tilted * 0.5});
+    trunk(pose, {tilt: -tilted * 0.4});
     armsAtRest(pose, stance, [side, ...(stance.free.has(other) ? [other] : [])]);
-    handTo(pose, side, 1, pose.withinReach(side, pose.carried(new THREE.Vector3(way * wall * FRAMED_HEIGHT, 0, contact)), 0.99), new THREE.Vector3(0, 1, -0.6));
+    handTo(pose, side, 1, pose.withinReach(side, pose.carried(new THREE.Vector3(way * wall * FRAMED_HEIGHT, 0, contact)), 0.99), new THREE.Vector3(way, 0.2, -1));
     pose.face(`hand_${side}`, {z: -SIDES[side] * 90});
-    if (stance.free.has(other)) handTo(pose, other, 1, pose.withinReach(other, pose.carried(new THREE.Vector3(SIDES[other] * hip[0], hip[1], hip[2])), 0.97), new THREE.Vector3(SIDES[other], 0.3, 0));
-    for (const [leg, sign] of Object.entries(SIDES)) pose.turn(`thigh_${leg}`, {y: -sign * cross, x: leg === other ? -6 : 0});
+    const onHip = new THREE.Vector3(SIDES[other] * hip[0], hip[1], hip[2]).applyAxisAngle(new THREE.Vector3(0, 1, 0), radians(tilted));
+    if (stance.free.has(other)) handTo(pose, other, 1, pose.withinReach(other, pose.carried(onHip), 0.97), new THREE.Vector3(SIDES[other], 0.3, 0));
     eyesAs(pose, "amused", 0.4);
 }
 
