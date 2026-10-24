@@ -467,6 +467,24 @@ export function tailEnd(head, handset, side, size) {
     return Math.sign(handset.x - head.x) === side ? handset : {x: head.x + side * BUBBLE.ear * size, y: head.y};
 }
 
+// How near a picture in a message is for the figure to admire it (figure/admire.js), in pixels from the middle of its head on the page:
+// no further to either side than `across`, no higher above it than `above` and no lower under it than `below`, so a picture in a message
+// over it as it stands on the compose box, or in the bubble it stands on or one beside it
+export const PICTURE_NEAR = {across: 300, above: 380, below: 60};
+
+// The pictures in the chat's messages near the figure's head at `head` on the page (PICTURE_NEAR), the nearest first, as their elements
+export function picturesNear(head) {
+    const {across, above, below} = PICTURE_NEAR;
+    return [...document.querySelectorAll("[data-figure-picture]")]
+        .map((element) => ({element, at: middleOf(element.getBoundingClientRect())}))
+        .filter(({at}) => Math.abs(at.x - head.x) <= across && at.y >= head.y - above && at.y <= head.y + below)
+        .sort((a, b) => Math.hypot(a.at.x - head.x, a.at.y - head.y) - Math.hypot(b.at.x - head.x, b.at.y - head.y))
+        .map(({element}) => element);
+}
+
+// the middle of the box `box` on the page
+export const middleOf = (box) => ({x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2});
+
 // how many words of the chat the box `box` on the page covers, at the points of a grid over it
 export const wordsUnder = (box) => bodyPoints(box).filter(([x, y]) => onWord(x, y)).length;
 

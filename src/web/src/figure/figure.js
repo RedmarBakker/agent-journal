@@ -720,6 +720,7 @@ export const EYES = {
     worried: {open: 0.7, tint: [0.6, 0.75, 1]},
     angry: {open: 0.45, tint: [1, 0.35, 0.3]},
     reading: {open: 0.8, tint: null},
+    admiring: {open: 1.2, tint: [1, 0.86, 0.5]},
 };
 
 function eyesAs(pose, mood, strength = 1) {
@@ -4442,7 +4443,7 @@ export class Stage {
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `at` is where
-    // in its picture it looks (lookToward), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
+    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
     draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1, screen = null, tilt = 0} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
@@ -4462,6 +4463,7 @@ export class Stage {
         const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0);
         if (toward && !pose.gaze && !sideOn && !clip.ownLook) turnToViewer(pose, turned, toward);
         if (eyes) lookAs(pose, eyes);
+        if (at?.mood) eyesAs(pose, at.mood, at.amount);
         if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;

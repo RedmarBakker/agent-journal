@@ -57,6 +57,7 @@ import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, answerTo, carrierOf, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
+import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
 import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
 import {givesWay} from "../figure/pile.js";
@@ -75,6 +76,8 @@ import {
     groundEdge,
     progressEdge,
     bubbleSpot,
+    middleOf,
+    picturesNear,
     handsetSide,
     tailEnd,
     callSays,
@@ -135,6 +138,8 @@ let player = null;
 let clips = [];
 let frameTimer = 0;
 let lookTimer = 0;
+// the picture in a message near it that the figure admires now and then (figure/admire.js)
+let admiring = NOT_ADMIRING;
 const now = ref(Date.now() / 1000);
 const waitingSince = ref(0);
 // below the figure's feet in its picture, as a share of its height: the clips' ground row (figure.js GROUND)
@@ -762,6 +767,7 @@ function look() {
     now.value = Date.now() / 1000;
     waitingSince.value = waitingSinceAt(counts.value, waitingSince.value, now.value);
     spell.value = spellFor(doings.value.state, spell.value, now.value, Math.random, memory.tally);
+    admiring = admiringAfter(admiring, asleep() || eager?.on ? [] : picturesNear(headCenter()), now.value, Math.random);
     const ongoing = stillGoing(beats.value, doings.value.state, beatOnScreen());
     beats.value = freshBeats(ongoing.beats, beatOnScreen(), now.value);
     cutting ||= ongoing.cut;
@@ -1100,6 +1106,7 @@ function lookedAt(shown) {
     if (flying) return flying;
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
     if (work) return work.at;
+    if (admiring.picture) return {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"};
     const docks = groundEdge();
     const edge = onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(docks.element) : null;
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
@@ -1110,7 +1117,7 @@ function lookedAt(shown) {
 function waitingMark() {
     if (!visor || visor.at !== null) return null;
     const box = document.querySelector(`[data-figure-mark="${CSS.escape(visor.card)}"]`)?.getBoundingClientRect();
-    return box ? {x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2} : null;
+    return box ? middleOf(box) : null;
 }
 
 // whether the head faces the mark of the run whose end the visor waits to light, or cannot turn to it, its clip looking as it does itself
@@ -1137,7 +1144,7 @@ function lookingAt(shown) {
     gaze = gazeAfter(gaze, lookedAt(shown), {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead);
     if (!gaze.amount || !gaze.point) return null;
     const eased = gaze.amount * gaze.amount * (3 - 2 * gaze.amount);
-    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind)};
+    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: eased, behind: Boolean(gaze.point.behind), mood: gaze.point.mood ?? ""};
 }
 
 // the middle of the figure's head on the page, about which its look turns
