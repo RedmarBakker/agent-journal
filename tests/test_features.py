@@ -12428,6 +12428,7 @@ def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_f
     from journal.models.outgoing_change import UPDATED, OutgoingChange
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.sync.sync_client import SyncClient
+    from journal.sync.sync_loop import SyncLoop
     monkeypatch.setattr(client_module, "FIRST_RETRY_SECONDS", 0.01)
     sync, rounds = app.container.get(SyncClient), []
 
@@ -12438,7 +12439,7 @@ def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_f
         sync.stopping.set()
 
     sync.stopping.clear()
-    sync.repeated(loop)
+    sync.repeated(SyncLoop("test", loop, 60), 0)
     assert len(rounds) == 2 and "RuntimeError" in sync.status.fault, "a fault of any kind is shown and the loop tries again"
     outgoing, faults = app.container.get(OutgoingChanges), []
 
@@ -12637,3 +12638,38 @@ def test_claiming_checks_the_servers_address_before_it_asks_for_the_account(app:
     finally:
         server.shutdown()
         team.store.close()
+
+
+def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_a_held_lock_is_a_fault(app: App, monkeypatch):
+    import threading
+    import time as timing
+    from journal.sync import sync_client
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.sync_loop import SyncLoop
+    from journal.sync.sync_status import SyncStatus
+    client = app.container.get(SyncClient)
+    steps, released = [], threading.Event()
+    loop = SyncLoop("test", lambda: steps.append(1) or released.wait(5), 60)
+    client.loops = (loop,)
+    client.stopping.clear()
+    client.watch()
+    assert loop.generation == 1 and not loop.is_dead(), "a loop that is not running is started"
+    first = loop.thread
+    client.watch()
+    assert loop.thread is first and loop.generation == 1, "a running loop is left alone, so two never run"
+    loop.beat_at = timing.monotonic() - 120
+    client.watch()
+    assert "sync stopped: its test loop has been silent for 120 seconds" in app.container.get(SyncStatus).fault, "a loop silent past its longest wait shows as stopped"
+    client.stopping.set()
+    released.set()
+    first.join(5)
+    monkeypatch.setattr(sync_client, "LOCK_SECONDS", 0.2)
+    holder = threading.Thread(target=lambda: (client.applying.acquire(), timing.sleep(1), client.applying.release()))
+    holder.start()
+    timing.sleep(0.05)
+    try:
+        with client.held(client.applying, "apply the team's changes"):
+            raise AssertionError("the lock was taken while another held it")
+    except TimeoutError as fault:
+        assert "to apply the team's changes, held by its other loop" in str(fault)
+    holder.join()
