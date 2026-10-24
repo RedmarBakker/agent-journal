@@ -14159,7 +14159,7 @@ def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several
     hook(app, "SessionStart")
     outputs = app.container.get(CommandOutputs)
 
-    def ended(name, printed):
+    def ended(name, printed, reader):
         folder = app.config.root / name
         folder.mkdir()
         (folder / "parts").write_text("R-\n")
@@ -14167,14 +14167,14 @@ def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several
         (folder / "0.out").write_text(printed)
         output = app.container.get(OutputLog).start(name, "pytest -q", folder, Caller.agent("main", "s1", "claude"))
         outputs.save(outputs.find(output.id).backgrounded(), Actor.system())
-        assert app.console().run(["output", "watch", str(output.id), "--reader", "pytest"], AGENT).code == 0
+        assert app.console().run(["output", "watch", str(output.id), "--reader", reader], AGENT).code == 0
         outputs.save(outputs.find(output.id).ended_with(0, 1.0), Actor.system())
         return output.id
 
-    assert app.console().run(["reader", "add", "pytest", "--pattern", "^running$", "--about", "the run"], AGENT).code == 0
-    bare = ended("bare", "running\n")
-    assert app.console().run(["reader", "add", "pytest", "--pattern", "^running tests$", "--about", "the run"], AGENT).code == 0
-    wordy = ended("wordy", "running tests\n")
+    assert app.console().run(["reader", "add", "bare", "--pattern", "^running$", "--about", "the run"], AGENT).code == 0
+    bare = ended("bare", "running\n", "bare")
+    assert app.console().run(["reader", "add", "wordy", "--pattern", "^running tests$", "--about", "the run"], AGENT).code == 0
+    wordy = ended("wordy", "running tests\n", "wordy")
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
         unread = app.container.get(ReaderReports).unread("s1")
