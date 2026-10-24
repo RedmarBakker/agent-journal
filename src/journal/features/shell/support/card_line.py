@@ -5,6 +5,8 @@ from journal.chat.card_detail import DETAIL_CHARACTERS
 CODE_SYMBOLS = re.compile(r"[{}\[\]();=\"]")
 CODE_SYMBOL_COUNT = 8
 CARD_LINE_CHARACTERS = DETAIL_CHARACTERS
+# the columns a report pads with runs of spaces, which a card line reads as one
+SPACES = re.compile(r"\s{2,}")
 FRAME = re.compile(r"^[=\-*#_~ ]{3,}|[=\-*#_~ ]{3,}$")
 # a failed or errored test named by its id, the line a person reads first however long the test's name
 FAILED_TEST = re.compile(r"^(FAILED|ERROR) \S+::\S+")
@@ -15,7 +17,7 @@ class CardLine:
 
     @staticmethod
     def plain(text: str) -> str:
-        return FRAME.sub("", text).strip()
+        return SPACES.sub(" ", FRAME.sub("", text).strip())
 
     @staticmethod
     def is_poor(text: str) -> bool:

@@ -37,7 +37,7 @@ class ReaderJudge:
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
 
     def poor_lines(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
-        poor = [line for line in reader.variant(output.stage()).card_lines(lines) if CardLine.is_poor(line)][:QUOTED_LINES]
+        poor = [line for line in reader.variant(output.stage()).card_lines(lines) if CardLine.is_poor(CardLine.plain(line))][:QUOTED_LINES]
         if not poor:
             return []
         quoted = "; ".join(f'"{line[:120]}"' for line in poor)
