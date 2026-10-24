@@ -185,6 +185,15 @@ function followDown(smooth = false) {
     toBottom(smooth);
 }
 
+// the one exception to the reader's own scroll winning: a message the reader sends takes them to the foot at once, wherever they were, and
+// again once the new bubble has its height
+function toFoot() {
+    scrolledAt = 0;
+    glidedAt = 0;
+    glideTo(false);
+    nextTick(() => requestAnimationFrame(() => away.value || glideTo(false)));
+}
+
 watch(
     () => ui.flash.at,
     () => nextTick(() => away.value || followDown(settledOnce.value))
@@ -372,6 +381,7 @@ async function post(text, files) {
         quote.value = {text: "", ref: ""};
         await scope.chat.send(body);
         await scope.chat.refresh();
+        toFoot();
         return;
     }
     const replyTo = replying.ref ? Number(replying.ref.split(":")[1]) : null;
@@ -379,7 +389,7 @@ async function post(text, files) {
     const id = token();
     const placeholder = await promised(body, files, id);
     await nextTick();
-    toBottom(true);
+    toFoot();
     let sent;
     try {
         sent = await sendMessage(scope.env || route.value.env, {text: body, reply_target: replyTo}, files, id);

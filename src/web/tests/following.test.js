@@ -97,3 +97,25 @@ test("a chat resting within a quarter of its height above its foot settles there
         vi.useRealTimers();
     }
 });
+
+test("a reader who scrolled far up and sends a message is at the foot at once, and the bubble that grows the pane after keeps them there", () => {
+    const box = pane(0, 5000);
+    const {away, arrived, scrolled, toBottom} = useFollowing(box);
+    scrolled();
+    expect(away.value).toBe(true);
+    toBottom(false);
+    expect([away.value, box.scrollTop]).toEqual([false, 5000]);
+    box.scrollHeight = 5200;
+    arrived();
+    expect(box.scrollTop).toBe(5200);
+});
+
+test("the thread's post takes the reader to the foot through toFoot, which drops the hand-scroll hold, and not by a glide that a hand can stop", async () => {
+    const {readFileSync} = await import("node:fs");
+    const {resolve} = await import("node:path");
+    const thread = readFileSync(resolve(__dirname, "../src/chat/Thread.vue"), "utf8");
+    const post = thread.slice(thread.indexOf("async function post("), thread.indexOf("function measured("));
+    expect(post).toContain("toFoot()");
+    expect(post).not.toContain("toBottom(true)");
+    expect(thread).toMatch(/function toFoot\(\) \{\s*scrolledAt = 0;\s*glidedAt = 0;\s*glideTo\(false\)/);
+});
