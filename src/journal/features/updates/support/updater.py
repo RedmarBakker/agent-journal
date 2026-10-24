@@ -10,6 +10,7 @@ from journal.config import Config
 from journal.support.release import Release
 from journal.features.updates.support.commit_ancestry import CommitAncestry
 from journal.features.updates.support.release_installer import ReleaseInstaller
+from journal.features.updates.support.official_install import OfficialInstall
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
 from journal.features.updates.support.update_data import UpdateData
@@ -37,7 +38,8 @@ DRAIN_SECONDS = 600
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry) -> None:
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall) -> None:
+        self.official = official
         self.ancestry = ancestry
         self.account, self.hosting, self.link, self.hooks = account, hosting, link, hooks
         self.settings, self.source, self.installer = settings, source, installer
@@ -212,18 +214,23 @@ class Updater:
         self.card.step("Installing the new version")
         try:
             self.installer.run(target.ref, self.repository(), target.reason or f"updating to {target.label}")
-        except Rejection as refused:
-            self.log_reason(target)
-            self.problem = str(refused)
-            self.card.clear()
-            if drained:
-                self.hooks.post(ServiceEvent(UPGRADE_ABANDONED))
-            return
+        except Exception as broken:
+            fallback = self.official.ran(target.ref)
+            if fallback.returncode != 0:
+                self.refused_install(target, drained, f"the update could not install ({broken}), nor could the official install command: {(fallback.stderr or fallback.stdout).strip()[-300:]}")
+                return
         self.log_reason(target)
         self.problem = ""
         self.lead(target.label)
         self.card.step("Restarting the journal")
         self.restart()
+
+    def refused_install(self, target: UpdateTarget, drained: bool, reason: str) -> None:
+        self.log_reason(target)
+        self.problem = reason
+        self.card.clear()
+        if drained:
+            self.hooks.post(ServiceEvent(UPGRADE_ABANDONED))
 
     def log_reason(self, target: UpdateTarget) -> None:
         if target.reason:

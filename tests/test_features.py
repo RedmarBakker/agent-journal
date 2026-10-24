@@ -6086,6 +6086,24 @@ def test_an_update_a_person_asks_for_reads_the_releases_anew_first(app: App, mon
     assert installer.ran == ["v4.99.0"], "a release published since the last read is the one installed, never 'nothing newer'"
 
 
+def test_an_update_whose_installer_fails_for_whatever_reason_runs_the_official_install_command_instead(app: App, monkeypatch):
+    from journal.features.updates.support.updater import Updater
+    from journal.features.updates.support.official_install import OfficialInstall
+    from types import SimpleNamespace
+
+    class Broken(Installer):
+        def run(self, ref: str, repository: str, reason: str) -> None:
+            raise TypeError("ReleaseInstaller.run() missing 1 required positional argument: 'reason'")
+
+    official = []
+    monkeypatch.setattr(OfficialInstall, "ran", lambda self, ref: official.append(ref) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(Updater, "restart", lambda self: None)
+    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Broken(), auto=False)
+    updating.read()
+    updating.install(Actor.user(1))
+    assert official == ["v4.99.0"] and updating.problem == "", "a broken installer falls back to the README's official install command for the same release, and the update goes on"
+
+
 def test_releases_compare_by_number_and_pre_releases_are_left_out():
     matched = Release.lookup(["v4.10.0", "v4.9.2", "v4.1.0-rc1", "nightly", "v4.9.10"])
     assert [release.version for release in matched] == ["4.9.2", "4.9.10", "4.10.0"]
@@ -13219,6 +13237,9 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
 
 
 def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_after_a_refused_install(app: App, monkeypatch):
+    from types import SimpleNamespace
+    from journal.features.updates.support.official_install import OfficialInstall
+    monkeypatch.setattr(OfficialInstall, "ran", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="no network in the tests"))
     from journal.features.updates.support.updater import Updater
     from journal.models.outgoing_change import CREATED, OutgoingChange
     from journal.repositories.outgoing_changes import OutgoingChanges
@@ -13254,7 +13275,7 @@ def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_afte
         updating.read()
         updating.install_newest(Actor.user(1))
         assert outgoing.waiting() == [], "the updater has the sync service send the whole queue before it installs"
-        assert updating.problem == "the install was refused" and eventually(lambda: not sync.carrier.is_paused()), "a refused install has the sync service carry on"
+        assert "the install was refused" in updating.problem and eventually(lambda: not sync.carrier.is_paused()), "a refused install, its official install command failing too, has the sync service carry on"
     finally:
         sync.stop()
         account.left(0)
