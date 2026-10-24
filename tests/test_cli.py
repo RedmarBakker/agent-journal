@@ -309,6 +309,8 @@ def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_an
         folders[name] = written["front"]["folder"]
         (launches / f"{name}.json").write_text(json.dumps({"launch": written["launch"]}))
     assert folders == {name: str(root / ".claude" / "worktrees" / name) for name in ("alpha", "beta")} and all(Path(folder).is_dir() for folder in folders.values()), "each runs in a worktree of its own"
+    bare = Launch.parse(["claude", "--worktree"], root)
+    assert bare.worktree and bare.choice().environment == bare.worktree, "a bare --worktree's made-up name is the environment the menu starts"
     app.runtime().start()
     try:
         for name in ("alpha", "beta"):
