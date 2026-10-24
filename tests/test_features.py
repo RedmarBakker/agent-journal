@@ -2208,7 +2208,7 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
     assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest").startswith("nothing logged yet\n"), "reset clears the counts and the rolling log"
 
 
-def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_last_250_in_developer_mode_only(app: App):
+def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_last_250_in_developer_mode_only(app: App, monkeypatch):
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.http.agents.agent_activity import AgentActivity
     from journal.models.support.request_loads import RequestLoads
@@ -2230,6 +2230,13 @@ def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_l
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (20, 41), "each hook kind and each route is averaged on its own, a task's number taken out, and the bar shows the average of those averages, so a frequent cheap request counts once"
     assert [(part["name"], part["average"], part["count"]) for part in row()["hook_parts"]] == [("Stop", 30, 1), ("PreToolUse", 10, 250)], "the row carries each hook kind by its own name, PreToolUse and not HOOK /hooks/PreToolUse, with its own average and how many timings it has, slowest first"
     assert [(part["average"], part["count"]) for part in row()["request_parts"]] == [(100, 1), (20, 250), (4, 250)], "and each route the same"
+    import time as clock
+    from journal.features.faults.support.developer_tally import WINDOW_SECONDS
+    started = clock.monotonic()
+    monkeypatch.setattr(clock, "monotonic", lambda: started + WINDOW_SECONDS + 1)
+    slow.counted("HOOK", "/hooks/Stop", 70, RequestLoads())
+    assert (row()["hook_average_ms"], [part["count"] for part in row()["hook_parts"]]) == (70, [1]), "an answer older than fifteen minutes counts no more, however few came since"
+    monkeypatch.undo()
     app.container.get(DeveloperTally).cleared()
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (0, 0), "a reset clears them"
 

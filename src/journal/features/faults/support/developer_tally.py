@@ -1,4 +1,5 @@
 import threading
+import time
 
 from journal.features.faults.faults_options import FaultsOptions
 from journal.models.support.request_loads import RequestLoads
@@ -10,18 +11,20 @@ STAGES_PREFIX = "developer.stages."
 LOG_ROWS = 1000
 ROLLING_ROWS = 250
 POINTS_GROUP = "developer.points"
+# how far back the bar's averages reach: an answer older than this counts no more, however few came since
+WINDOW_SECONDS = 15 * 60
 
 
 class DeveloperTally:
-    """The developer numbers since the server booted, kept in memory and written nowhere: the count, total and slowest time of each series, the rows loaded per model, and the rolling log of the newest thousand timings, and the newest 250 timings of each hook kind and each route, whose averages are averaged so a frequent cheap one counts as much as a rare dear one."""
+    """The developer numbers since the server booted, kept in memory and written nowhere: the count, total and slowest time of each series, the rows loaded per model, and the rolling log of the newest thousand timings, and the newest 250 timings of each hook kind and each route within the last fifteen minutes, whose averages are averaged so a frequent cheap one counts as much as a rare dear one."""
 
     def __init__(self, stages: StageTimes, settings: SettingRows) -> None:
         self.stages, self.settings = stages, settings
         self._lock = threading.Lock()
         self._numbers: dict[str, int] = {}
         self._log: list[Timing] = []
-        self._rolling: dict[str, dict[str, list[int]]] = {}
-        self._loads: dict[str, list[RequestLoads]] = {}
+        self._rolling: dict[str, dict[str, list[tuple[float, int]]]] = {}
+        self._loads: dict[str, list[tuple[float, RequestLoads]]] = {}
 
     def measured(self, prefix: str, ms: int) -> None:
         with self._lock:
@@ -32,13 +35,13 @@ class DeveloperTally:
     def windowed(self, group: str, kind: str, ms: int) -> None:
         with self._lock:
             window = self._rolling.setdefault(group, {}).setdefault(kind, [])
-            window.append(ms)
+            window.append((time.monotonic(), ms))
             del window[:-ROLLING_ROWS]
 
     def loaded(self, kind: str, loads: RequestLoads) -> None:
         with self._lock:
             window = self._loads.setdefault(kind, [])
-            window.append(loads)
+            window.append((time.monotonic(), loads))
             del window[:-ROLLING_ROWS]
 
     def added(self, key: str, amount: int) -> None:
@@ -57,13 +60,22 @@ class DeveloperTally:
 
     def rolling_average(self, group: str) -> int:
         with self._lock:
-            kind_averages = [sum(window) / len(window) for window in self._rolling.get(group, {}).values() if window]
+            kind_averages = [sum(window) / len(window) for window in self.recent_windows(group).values()]
             return round(sum(kind_averages) / len(kind_averages)) if kind_averages else 0
 
     def rolling_parts(self, group: str) -> list[dict]:
         with self._lock:
-            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.time_details(window)} for kind, window in self._rolling.get(group, {}).items() if window]
+            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.time_details(window)} for kind, window in self.recent_windows(group).items()]
         return sorted(parts, key=lambda part: -part["average"])
+
+    def recent_windows(self, group: str) -> dict[str, list[int]]:
+        windows = {kind: self.recent(window) for kind, window in self._rolling.get(group, {}).items()}
+        return {kind: window for kind, window in windows.items() if window}
+
+    @staticmethod
+    def recent(window: list) -> list:
+        start = time.monotonic() - WINDOW_SECONDS
+        return [value for moment, value in window if moment >= start]
 
     @staticmethod
     def time_details(window: list[int]) -> list[dict]:
@@ -71,7 +83,7 @@ class DeveloperTally:
 
     def point_parts(self) -> list[dict]:
         with self._lock:
-            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.table_details(self._loads.get(kind, []))} for kind, window in self._rolling.get(POINTS_GROUP, {}).items() if window]
+            parts = [{"name": kind, "average": round(sum(window) / len(window)), "count": len(window), "details": self.table_details(self.recent(self._loads.get(kind, [])))} for kind, window in self.recent_windows(POINTS_GROUP).items()]
         return sorted(parts, key=lambda part: -part["average"])
 
     @staticmethod
