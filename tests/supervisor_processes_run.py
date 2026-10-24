@@ -402,3 +402,19 @@ def test_a_parents_restart_stops_its_child_first_and_starts_it_after_and_stoppin
     assert services.service("sync").described()["pid"] != child and [row["name"] for row in services.described()].count("sync") == 1, "the child was started anew after its parent, once, whatever the revives did meanwhile"
     services.stop_all()
     assert not services.runs("journal") and not services.runs("sync"), "stopping all leaves no child"
+
+
+def test_a_child_is_added_listed_kept_single_and_removed_through_the_verbs(tmp_path: Path):
+    from supervisor.request import Request
+    supervisor = Supervisor(Terminal(["true"], str(tmp_path), {}), Inbox(tmp_path / "s.sock", tmp_path / "announce"), Services(), stdin=None)
+    ask = lambda **fields: supervisor.verbs.handle(Request.parsed(fields))
+    child = {"verb": "start_child", "name": "sync", "parent": "journal", "command": ["sleep", "30"], "folder": str(tmp_path)}
+    refused = ask(**child)
+    assert not refused.is_success and "child of journal, which is not running" in refused.error, "a launch with no journal service refuses a child of it"
+    assert ask(verb="start", name="journal", command=["sleep", "30"], folder=str(tmp_path)).is_success
+    assert ask(**child).answer["started"] is True and ask(**child).answer["started"] is False, "a second start_child keeps the one child"
+    listed = {row["name"]: row for row in ask(verb="list").answer["processes"]}
+    assert listed["sync"]["parent"] == "journal" and listed["sync"]["running"]
+    assert "start_child" in ask(verb="hello").answer["verbs"], "hello names the verb, so a journal knows the supervisor takes it"
+    assert ask(verb="stop", name="sync").is_success and not supervisor.services.runs("sync") and supervisor.services.runs("journal"), "a child is removed alone while its parent runs on"
+    supervisor.services.stop_all()

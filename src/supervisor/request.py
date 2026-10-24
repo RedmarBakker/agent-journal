@@ -37,4 +37,4 @@ class Request:
         return cls(verb=str(payload.get("verb", "")), name=str(payload.get("name", "")), command=tuple(payload.get("command", ())), folder=str(payload.get("folder", ".")),
                    environ=dict(payload.get("env", {})), log=str(payload.get("log", os.devnull)), persistent=bool(payload.get("keep", True)), inherit=bool(payload.get("inherit", True)),
                    keys=str(payload.get("keys", "")), line=str(payload.get("line", "")), delay_seconds=float(payload.get("after", 0)), data=str(payload.get("data", "")),
-                   resume=tuple(payload.get("resume", ())), labels=labels, payload_keys=frozenset(payload))
+                   resume=tuple(payload.get("resume", ())), labels=labels, parent=str(payload.get("parent", "")), payload_keys=frozenset(payload))
