@@ -21,10 +21,10 @@ export const ACTS = {
     // rollers apart over `unrolls`, the written side toward itself and the parchment's plain back to the viewer (figure.js SCROLL); reads
     // it `lines` lines down, its head going slowly along each; rolls it closed between its hands over `rolls` and lowers it over `lower`
     scroll: {frames: 96, fps: 12, raise: [0, 0.09], unrolls: [0.09, 0.22], rolls: [0.85, 0.93], lower: [0.93, 1], lines: 3},
-    // a task finished, a job well done: it brings its hands together before its chest over `together`, rubs them round each other
-    // `rubs` times, nodding a little with each, and lowers them over `apart`; a small puff with a few sparkles rises from the hands over
-    // `puff` (chat/FigureAct.vue)
-    hand_rub: {frames: 26, fps: 12, together: [0, 0.18], rubs: 3, apart: [0.84, 1], puff: [0.2, 0.92]},
+    // a task finished, a job well done: standing, it brings its hands together before its chest over `together`, rubs them round each
+    // other `rubs` times, slowly, a stroke and a half a second at most, nodding a little with each, and lowers them over `apart`; `puffs`
+    // small puffs rise from the hands once each over `puff`, with `sparkles` sparkles among them (chat/act/HandRub.vue)
+    hand_rub: {frames: 48, fps: 12, together: [0, 0.12], rubs: 2, apart: [0.88, 1], puff: [0.2, 0.9], puffs: 2, sparkles: 1},
     // stopping to think at the laptop (figure.js type_ponder), under the thought cloud, its dots pulsing three times a loop
     type_ponder: {frames: 24, fps: 6, pulse: 4 / 3},
     // The thinking act, now and then while the agent thinks (figure.js thinkingClip, reactions.js thinkingAct), in its three plays. With

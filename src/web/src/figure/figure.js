@@ -466,8 +466,9 @@ function nod(pose, stance, t) {
 
 // Rubbing its hands together before its chest, pleased with a job well done (acts.js hand_rub): the hands meet at `at` (across, forward, up),
 // each `apart` to its own side of it, and slide round each other in circles `circle` round turning opposite ways, so each passes the other
-// over and under; the head nods `nod` degrees with each rub
-export const RUB = {at: [0, -0.62, 1.95], apart: 0.07, circle: 0.13, nod: 8};
+// over and under; the head nods `nod` degrees with each rub. Facing the viewer it turns `turn` degrees to its side as the hands come
+// together, so the hands are seen rubbing rather than hidden one behind the other; already turned aside, as toward its card, it stays so
+export const RUB = {at: [0, -0.62, 1.95], apart: 0.07, circle: 0.13, nod: 8, turn: 70};
 
 function hand_rub(pose, stance, t) {
     const act = ACTS.hand_rub;
@@ -484,6 +485,7 @@ function hand_rub(pose, stance, t) {
         if (ready) handTo(pose, side, ready, pose.withinReach(side, pose.carried(spot), 0.97), new THREE.Vector3(...ACTING.elbow));
     }
     eyesAs(pose, "amused", ready);
+    if (Math.abs(Math.sin(radians(pose.facing ?? 0))) < 0.5) pose.revolve(RUB.turn * ready);
 }
 
 function shake(pose, stance, t) {
@@ -3218,7 +3220,7 @@ export const TYPING_SECONDS = 5;
 export const CLIPS = [
     {name: "idle", head: HEAD.free, frames: 24, fps: 8, loops: true, leaves: 8, postures: GESTURE, pose: idle},
     {name: "nod", head: HEAD.gestures, frames: 10, fps: 12, loops: false, postures: GESTURE, pose: nod},
-    {name: "hand_rub", head: HEAD.gestures, frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: GESTURE, pose: hand_rub},
+    {name: "hand_rub", head: HEAD.gestures, frames: ACTS.hand_rub.frames, fps: ACTS.hand_rub.fps, loops: false, postures: MOVE, pose: hand_rub},
     {name: "ponder", head: HEAD.holds, frames: ACTS.ponder.frames, fps: ACTS.ponder.fps, loops: false, postures: GESTURE, pose: thinkingClip(ACTS.ponder)},
     {name: "think_cloud", head: HEAD.holds, frames: ACTS.think_cloud.frames, fps: ACTS.think_cloud.fps, loops: false, postures: GESTURE, pose: thinkingClip(ACTS.think_cloud)},
     {name: "got_it", head: HEAD.holds, frames: ACTS.got_it.frames, fps: ACTS.got_it.fps, loops: false, postures: GESTURE, pose: thinkingClip(ACTS.got_it)},

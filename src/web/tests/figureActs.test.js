@@ -518,16 +518,36 @@ test("the jump for joy lasts three to four and a half seconds, a few jumps, and 
     expect(givesWay({clip: joy, once: true}, seconds / 2), "no following beat cuts it short").toBe(false);
 });
 
-test("a finished task now and then brings the hands rubbed together before the chest, sliding round each other, with a little nod", async () => {
+test("a finished task now and then brings the hands rubbed together before the chest, slowly, sliding round each other, with a little nod, standing turned to its side", async () => {
     const {choicesFor} = await import("../src/figure/pile.js");
     const {ACTS} = await import("../src/figure/acts.js");
     const rub = choicesFor({moment: "task_finished"}).find((entry) => entry.name === "hand_rub");
     expect(rub.weight).toBeGreaterThanOrEqual(3);
+    const {RUB} = await import("../src/figure/figure.js");
     const clip = clipNamed("hand_rub");
-    // about two seconds
-    expect(clip.frames / clip.fps).toBeGreaterThan(1.8);
-    expect(clip.frames / clip.fps).toBeLessThan(2.6);
     const act = ACTS.hand_rub;
+    // about four seconds, played only standing
+    expect(clip.frames / clip.fps).toBeGreaterThan(3.5);
+    expect(clip.frames / clip.fps).toBeLessThan(4.5);
+    expect(clip.postures).toEqual(["stand"]);
+    // slow strokes: each rub round takes over a second, where it took under half of one
+    const stroke = ((act.apart[0] - act.together[1]) * (clip.frames / clip.fps)) / act.rubs;
+    expect(stroke).toBeGreaterThan(1);
+    expect(stroke).toBeLessThan(2);
+    // the way the shoulders run in the pose's own axes, in degrees from across, for the rub posed facing `facing`, its hands rubbing
+    const shoulders = (facing) => {
+        const pose = new Posing(RIG, "stand", 0);
+        pose.facing = facing;
+        clip.pose(pose, stanceOf("butler"), 0.5);
+        const moves = pose.moves(0);
+        const line = pose.head("upper_arm_l", moves.get("upper_arm_l")).sub(pose.head("upper_arm_r", moves.get("upper_arm_r")));
+        return (Math.atan2(line.y, line.x) * 180) / Math.PI;
+    };
+    // facing the viewer it turns to its side so the hands are seen; already turned aside, toward its card, it turns no further
+    expect(Math.abs(shoulders(0) - RUB.turn)).toBeLessThan(12);
+    expect(Math.abs(shoulders(90))).toBeLessThan(12);
+    // what follows looks at the hands in the body's own axes, the turn taken back
+    const unturned = (point) => point.applyAxisAngle(new THREE.Vector3(0, 0, 1), (-RUB.turn * Math.PI) / 180);
     for (const voice of Object.keys(stances)) {
         const across = new Set();
         const over = new Set();
@@ -538,7 +558,7 @@ test("a finished task now and then brings the hands rubbed together before the c
             const pose = new Posing(RIG, "stand", 0);
             clip.pose(pose, stanceOf(voice), t);
             const moves = pose.moves(0);
-            const at = (name) => pose.head(name, moves.get(name));
+            const at = (name) => unturned(pose.head(name, moves.get(name)));
             const [left, right, chest] = [at("hand_l"), at("hand_r"), at("chest")];
             const label = `${voice} ${frame}`;
             // the hands together, before the chest at its height

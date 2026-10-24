@@ -11,15 +11,18 @@ async function drawn(u) {
     return host;
 }
 
-test("a small cloud of puffs and sparkles rises from the rubbing hands while they rub, and none before or after", async () => {
-    const {puff} = ACTS.hand_rub;
+test("a small cloud of a few puffs and a sparkle rises from the rubbing hands while they rub, and none before or after", async () => {
+    const {puff, puffs, sparkles} = ACTS.hand_rub;
+    // fewer than the five puffs and three sparkles it had
+    expect(puffs).toBeLessThanOrEqual(2);
+    expect(sparkles).toBeLessThanOrEqual(1);
     const rubbing = await drawn((puff[0] + puff[1]) / 2);
     const cloud = rubbing.querySelector(".figure-act-rub");
     expect(cloud).not.toBe(null);
     // at the hands, 0.5 and 0.56 of the 112-pixel picture
     expect(cloud.getAttribute("transform")).toBe(`translate(${0.5 * 112} ${0.56 * 112})`);
-    expect(cloud.querySelectorAll("circle").length).toBeGreaterThanOrEqual(4);
-    expect(cloud.querySelectorAll("path").length).toBeGreaterThanOrEqual(2);
+    expect(cloud.querySelectorAll("circle").length).toBe(puffs);
+    expect(cloud.querySelectorAll("path").length).toBe(sparkles);
     // every puff rises above the hands
     for (const circle of cloud.querySelectorAll("circle")) expect(Number(circle.getAttribute("cy"))).toBeLessThan(0);
     for (const u of [puff[0] / 2, (puff[1] + 1) / 2]) expect((await drawn(u)).querySelector(".figure-act-rub"), `${u}`).toBe(null);
