@@ -150,7 +150,7 @@ class Menu:
         if row.working:
             self.screen.pick(f"{row.name} has an agent working", ["Stop that agent first."], [Option("Back")], 0)
             return
-        notes = ["Everything recorded in it goes with it: tasks, messages, plans, memory, the record. This cannot be undone."]
+        notes = ["Everything recorded in it goes with it: tasks, messages, plans, memory, the record. This cannot be undone.", *([f"Its worktree folder and its branch stay; journal worktree remove {row.name} removes them once their work is done."] if row.worktree else [])]
         if self.screen.pick(f"Delete {row.name}?", notes, [Option("No, keep it"), Option("Yes, delete it")], 0) == 1:
             self.journal("environment", "delete", row.name)
 

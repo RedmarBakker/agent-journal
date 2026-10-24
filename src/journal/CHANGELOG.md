@@ -2,6 +2,17 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## Unreleased
+
+- **Worktree launches as dependable as version 3.** `journal claude --worktree <name>` works in `.claude/worktrees/<name>` on the branch `worktree-<name>`; a bare `--worktree` makes up a two-word name that no folder, branch, kept tip or environment of the team holds yet.
+- Nothing removes a launch worktree but you: deleting its environment, a worker's clean-up, a boot or a session's end leave it, its work and its branch alone. `journal worktree remove <name>`, or Remove worktree in Settings, Environments, removes one, refused while a session works in it or it holds uncommitted work; its branch and last commit stay, and a launch of its name makes it again from there.
+- `journal worktree list` and Settings, Environments name the worktrees whose environment is gone.
+- Two launches share one journal: the second takes over the moment the first ends, hooks from each worktree land in its own environment, and a launch from inside a worktree uses the main checkout's journal.
+- A launch beside a live session of the same name takes name-2; a crashed session holds nothing. A relaunch reopens the same folder and branch, a lost folder made again from its last real commit, however the environment is launched.
+- A worktree's hooks are read through one link to a file the main checkout's journal writes, so its git status stays clean; Claude Code and Codex start in it without a new trust question.
+- A launch worktree works in a folder of several git repositories too, holding a worktree of each on its branch. Every worktree failure at a launch is one plain line naming its cause and what to do.
+- The upgrade moves an old `main` worktree to a made-up name of its own, so main always works in the project's own checkout, takes the journal's hooks out of worktree settings, clears skip-worktree marks, and names any folders an older version moved aside, never deleting them.
+
 ## 4.35.0
 
 - In Settings, Team, a person changes their team password, and an admin resets a member's from the people list, getting a new one to pass on.

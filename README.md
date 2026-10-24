@@ -25,6 +25,9 @@ session picks up where the last one left off.
 - **Workers and subagents.** The agent hands jobs to workers and subagents, each named, each on the model that fits the job, and
   each coding worker in its own git worktree. A worker proves each point of its task, and its work is merged only once
   each proof is checked.
+- **Worktree launches.** `journal claude --worktree <name>` gives a launch its own git worktree and branch beside the
+  others, all on one journal; a bare `--worktree` makes up a fresh name. Nothing removes a worktree but you, with
+  `journal worktree remove <name>`, and a relaunch reopens the same folder and branch.
 - **Every command kept.** Long commands move to the background, and each output is numbered, so the agent reads
   the part it needs instead of running the command again. A reader picks the lines worth seeing from an output, such
   as a test run's failures, and shows its progress on a card in the chat.
