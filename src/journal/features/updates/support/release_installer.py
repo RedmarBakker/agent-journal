@@ -20,11 +20,11 @@ class ReleaseInstaller:
         self.config = config
         self.log = config.home / "runtime" / "update.log"
 
-    def run(self, ref: str, repository: str) -> None:
+    def run(self, ref: str, repository: str, reason: str) -> None:
         self.log.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="journal-install-") as folder, self.log.open("w") as log:
             script = Path(folder) / "install.sh"
-            log.write(f"installing {ref} of {repository}\n")
+            log.write(f"installing {ref} of {repository}: {reason}\n")
             log.flush()
             try:
                 with urlopen(self.script_path(repository, ref), timeout=DOWNLOAD_SECONDS) as answer:

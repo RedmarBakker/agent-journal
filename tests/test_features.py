@@ -5844,9 +5844,11 @@ class Plugins:
 class Installer:
     def __init__(self) -> None:
         self.ran = []
+        self.reasons = []
 
-    def run(self, ref: str, repository: str) -> None:
+    def run(self, ref: str, repository: str, reason: str) -> None:
         self.ran.append(ref)
+        self.reasons.append(reason)
 
 
 def updating_with(app, source: Source, installer: Installer, auto: bool) -> Updater:
@@ -7277,20 +7279,52 @@ def test_a_shell_line_says_whether_it_reads_searches_or_runs():
     assert Chain.work(wrapped("npm run build")) == "running", "anything else runs"
 
 
-def test_a_journal_set_to_follow_a_branch_installs_that_branchs_newest_commit(app: App):
+def checkout_commits(app: App, count: int) -> list[str]:
+    """The project's checkout made a git repository, with count new empty commits in a line, oldest first."""
+    root = app.config.root
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    for number in range(count):
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", f"commit {number}"], cwd=root, check=True)
+    log = subprocess.run(["git", "log", "--format=%H", f"-{count}"], cwd=root, capture_output=True, text=True, check=True).stdout.split()
+    return log[::-1]
+
+
+def install_commit(app: App, commit: str) -> None:
     (app.config.home / "src").mkdir(parents=True, exist_ok=True)
-    (app.config.home / "src" / "commit").write_text("aaaaaaa1111\n")
+    (app.config.home / "src" / "commit").write_text(f"{commit}\n")
+
+
+def test_a_journal_set_to_follow_a_branch_installs_that_branchs_head_only_when_it_is_ahead_of_the_installed_commit(app: App):
+    older, installed, newer = checkout_commits(app, 3)
+    install_commit(app, installed)
     app.container.get(SettingRows).set("updates.branch", "development", Actor.user(1))
-    source, installer = Source("v4.99.0", head="aaaaaaa1111"), Installer()
+    source, installer = Source("v4.99.0", head=installed), Installer()
     updating = updating_with(app, source, installer, auto=True)
     updating.checked()
     assert source.branches_asked == [("https://github.com/jessegall/agent-journal", "development")] and source.tags_asked == [], "a followed branch is asked for its head, never the releases"
     assert installer.ran == [] and not updating.data().newer and "newest commit" in updating.line(), "the installed commit is the branch's head: nothing to install"
-    source.head = "bbbbbbb2222"
+    source.head = older
     updating.checked()
-    assert installer.ran == ["development"] and updating.data().latest == "bbbbbbb" and updating.data().branch == "development", "the branch moved on, so its head is installed, by its name"
-    assert updating.data().installed == "development at aaaaaaa", "the feature data names what is installed by the branch and its commit, not by the release number"
-    assert updating.label() == "development at aaaaaaa", "what is installed is named by the branch and its commit"
+    assert installer.ran == [] and not updating.data().newer, "a pushed head behind the installed commit, as local installs get ahead of the remote, is left alone"
+    source.head = newer
+    updating.checked()
+    assert installer.ran == ["development"] and updating.data().latest == newer[:7] and updating.data().branch == "development", "the branch moved ahead, so its head is installed, by its name"
+    assert installer.reasons == [f"{newer[:12]} is ahead of the installed {installed[:12]}"], "the update log says which commit and why"
+    assert updating.data().installed == f"development at {installed[:7]}" and updating.label() == f"development at {installed[:7]}", "what is installed is named by the branch and its commit"
+
+
+def test_a_branch_head_beside_the_installed_commit_is_left_alone(app: App):
+    root = checkout_commits(app, 1)[0]
+    subprocess.run(["git", "checkout", "-q", "-b", "beside", root], cwd=app.config.root, check=True)
+    beside = checkout_commits(app, 1)[0]
+    subprocess.run(["git", "checkout", "-q", "-"], cwd=app.config.root, check=True)
+    installed = checkout_commits(app, 1)[0]
+    install_commit(app, installed)
+    app.container.get(SettingRows).set("updates.branch", "development", Actor.user(1))
+    installer = Installer()
+    updating = updating_with(app, Source(head=beside), installer, auto=True)
+    updating.checked()
+    assert installer.ran == [] and not updating.data().newer, "a head that does not contain the installed commit is never installed"
 
 
 def test_journal_update_follow_sets_the_branch_the_journal_follows_and_unfollow_the_releases_again(app: App):
@@ -12931,7 +12965,7 @@ def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refu
     from journal.support.rejection import Rejection
     from journal.sync.sync_client import SyncClient
     class RefusingInstaller:
-        def run(self, ref: str, repository: str) -> None:
+        def run(self, ref: str, repository: str, reason: str) -> None:
             raise Rejection("the install was refused")
 
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)

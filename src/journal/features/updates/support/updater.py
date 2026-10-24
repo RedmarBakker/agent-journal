@@ -8,6 +8,7 @@ from typing import Callable
 
 from journal.config import Config
 from journal.support.release import Release
+from journal.features.updates.support.commit_ancestry import CommitAncestry
 from journal.features.updates.support.release_installer import ReleaseInstaller
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
@@ -34,12 +35,14 @@ FIRST_CHECK_DELAY_SECONDS = 60
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting, link: TeamServerLink, sync: SyncStart) -> None:
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting, link: TeamServerLink, sync: SyncStart, ancestry: CommitAncestry) -> None:
+        self.ancestry = ancestry
         self.account, self.client, self.hosting, self.link, self.sync = account, client, hosting, link, sync
         self.settings, self.source, self.installer = settings, source, installer
         self.card, self.supervisor, self.config, self.queue = card, supervisor, config, queue
         self.releases: list[Release] = []
         self.head = ""
+        self.is_head_ahead = False
         self.problem = ""
         self.team_version_seen = ""
         self._next_check_at = timing.time() + FIRST_CHECK_DELAY_SECONDS
@@ -57,6 +60,7 @@ class Updater:
     def follow(self, branch: str, actor: Actor) -> None:
         self.settings.set(UpdatesOptions.BRANCH.key, branch.strip(), actor)
         self.head = ""
+        self.is_head_ahead = False
 
     def installed_commit(self) -> str:
         stored = self.config.home / "src" / "commit"
@@ -70,7 +74,7 @@ class Updater:
 
     def is_published(self) -> bool:
         if self.branch():
-            return bool(self.head) and self.head != self.installed_commit()
+            return bool(self.head) and self.is_head_ahead
         return bool(self.newer())
 
     def target(self) -> UpdateTarget:
@@ -79,9 +83,9 @@ class Updater:
         if not self.is_published():
             raise Rejection(f"there is nothing newer than {self.label()} to install")
         if self.branch():
-            return UpdateTarget(self.branch(), f"{self.branch()} at {self.head[:7]}")
+            return UpdateTarget(self.branch(), f"{self.branch()} at {self.head[:7]}", f"{self.head[:12]} is ahead of the installed {self.installed_commit()[:12] or 'unrecorded commit'}")
         newest = self.newer()[-1]
-        return UpdateTarget(newest.tag, newest.version)
+        return UpdateTarget(newest.tag, newest.version, f"{newest.version} is newer than the installed {VERSION}")
 
     # a journal in a team installs the version its team pins by itself, whatever the setting says; any other updates on its own when set to
     def automatic(self) -> bool:
@@ -179,6 +183,7 @@ class Updater:
         try:
             if self.branch():
                 self.head = self.source.head_commit(self.repository(), self.branch())
+                self.is_head_ahead = self.head != self.installed_commit() and self.ancestry.is_ahead(self.head, self.installed_commit(), self.repository(), self.branch())
             else:
                 self.releases = Release.lookup(self.source.tags(Release.major_prefix(self.running().major)))
             self.problem = ""
@@ -201,7 +206,7 @@ class Updater:
             self.client.prepare_upgrade()
         self.card.step("Installing the new version")
         try:
-            self.installer.run(target.ref, self.repository())
+            self.installer.run(target.ref, self.repository(), target.reason)
         except Rejection as refused:
             self.problem = str(refused)
             self.card.clear()
