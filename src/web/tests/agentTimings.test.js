@@ -64,3 +64,23 @@ test("clicking a part drills into what it is made of and the back row returns to
     await nextTick();
     expect(document.body.querySelector(".menu-slide").classList.contains("second")).toBe(false);
 });
+
+test("a menu with many parts is no taller than its limit and scrolls its rows, the heading and the back row staying outside the scrolling rows", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const many = Array.from({length: 80}, (_, i) => ({name: `GET /journal/route${i}`, average: 80 - i, count: 3, details: Array.from({length: 40}, (_, n) => ({label: `table${n}`, text: "1 rows, 0 KB, 0 writes"}))}));
+    createApp({render: () => h(AgentTimings, {icon: "request", title: "t", heading: "Requests", average: 40, parts: many})}).mount(root);
+    await nextTick();
+    root.querySelector(".agent-timings").dispatchEvent(new Event("mouseenter"));
+    await nextTick();
+    const [list] = document.body.querySelectorAll(".timings-rows");
+    expect(list.querySelectorAll(".timings-row")).toHaveLength(80);
+    expect([list.style.maxHeight, list.style.overflowY]).toEqual(["min(420px, 60vh)", "auto"]);
+    expect(list.contains(document.body.querySelector(".timings-head"))).toBe(false);
+    document.body.querySelector(".timings-row").click();
+    await nextTick();
+    const [, drilledList] = document.body.querySelectorAll(".timings-rows");
+    expect(drilledList.querySelectorAll(".timings-detail")).toHaveLength(40);
+    expect([drilledList.style.maxHeight, drilledList.style.overflowY]).toEqual(["min(420px, 60vh)", "auto"]);
+    expect(drilledList.contains(document.body.querySelector(".timings-back"))).toBe(false);
+});

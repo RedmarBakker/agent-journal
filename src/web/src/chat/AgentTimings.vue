@@ -15,6 +15,7 @@ defineProps({
     parts: {type: Array, default: () => []},
 });
 const LEAVE_MS = 250;
+const LIST = {maxHeight: "min(420px, 60vh)", overflowY: "auto"};
 const button = ref(null);
 const shown = ref(false);
 const pinned = ref(false);
@@ -34,29 +35,33 @@ const close = () => (pinned.value = shown.value = false) || (drilled.value = nul
                 <MenuSlide :second="Boolean(drilled)">
                     <template #first>
                         <p class="timings-head">{{ heading }}, highest first</p>
-                        <template v-for="part in parts" :key="part.name">
-                            <MenuItem class="timings-row" @click="drilled = part">
-                                <span class="timings-name">{{ part.name }}</span>
-                                <b>{{ part.average }} {{ unit }}</b>
-                                <small>{{ part.count }} timed</small>
-                                <Icon name="chevronRight" :size="12" />
-                            </MenuItem>
-                        </template>
-                        <template v-if="!parts.length">
-                            <p class="timings-none">Nothing counted yet</p>
-                        </template>
+                        <div class="timings-rows" :style="LIST">
+                            <template v-for="part in parts" :key="part.name">
+                                <MenuItem class="timings-row" @click="drilled = part">
+                                    <span class="timings-name">{{ part.name }}</span>
+                                    <b>{{ part.average }} {{ unit }}</b>
+                                    <small>{{ part.count }} timed</small>
+                                    <Icon name="chevronRight" :size="12" />
+                                </MenuItem>
+                            </template>
+                            <template v-if="!parts.length">
+                                <p class="timings-none">Nothing counted yet</p>
+                            </template>
+                        </div>
                     </template>
                     <template #second>
                         <MenuItem class="timings-back" @click="drilled = null">
                             <Icon name="back" :size="14" />
                             {{ drilled?.name }}
                         </MenuItem>
-                        <template v-for="detail in drilled?.details || []" :key="detail.label">
-                            <div class="timings-detail">
-                                <span class="timings-name">{{ detail.label }}</span>
-                                <b>{{ detail.text }}</b>
-                            </div>
-                        </template>
+                        <div class="timings-rows" :style="LIST">
+                            <template v-for="detail in drilled?.details || []" :key="detail.label">
+                                <div class="timings-detail">
+                                    <span class="timings-name">{{ detail.label }}</span>
+                                    <b>{{ detail.text }}</b>
+                                </div>
+                            </template>
+                        </div>
                     </template>
                 </MenuSlide>
             </MenuPanel>
