@@ -266,9 +266,11 @@ const CORNER_INBOARD = FEET_INBOARD;
 
 // The place on one corner of a box's top edge, `side` being "left" or "right", the feet `reach` of the figure's height inside the corner;
 // `face` turns the figure along the edge, 0 faces the viewer
-export function cornerAt(box, side, {size}, reach = CORNER_INBOARD) {
-    const {along, inboard, face} = CORNER_SIDES[side];
-    return {x: box.left + box.width * along + inboard * reach * size, y: box.top, face, posture: "stand"};
+export const cornerAt = (box, side, {size}, reach = CORNER_INBOARD) => endOf(box, CORNER_SIDES[side], reach * size, "stand");
+
+// the place `inside` pixels in from one end of a box's top edge, the end and the way along it as `end` says, in `posture`
+function endOf(box, {along, inboard, face}, inside, posture) {
+    return {x: box.left + box.width * along + inboard * inside, y: box.top, face, posture};
 }
 
 // Where a figure sits at a corner of the edge, as it types on its laptop or rests: seated (POSTURES sit) on the very end, turned out along
@@ -279,10 +281,7 @@ const SEAT_SIDES = {
     left: {along: 0, inboard: 1, face: 290},
 };
 export const SEAT_INBOARD = 0.1;
-export function seatAt(box, side, {size}) {
-    const {along, inboard, face} = SEAT_SIDES[side];
-    return {x: box.left + box.width * along + inboard * SEAT_INBOARD * size, y: box.top, face, posture: "sit"};
-}
+export const seatAt = (box, side, {size}) => endOf(box, SEAT_SIDES[side], SEAT_INBOARD * size, "sit");
 
 
 // the least a figure at its laptop is turned from the viewer, in degrees: three-quarters
@@ -459,18 +458,32 @@ export function callStretch(seconds) {
 }
 
 // The speech bubble the figure says something in beside its head at `head`, a page point, `width` by `height` pixels: up and out to one side
-// of the head, the side where it hides the fewest words, as `hides(box)` counts them, toward the side with more `room` when both hide as
-// many; its box on the page and the side, 1 to the right
-export const BUBBLE = {gap: 10, rise: 14, ear: 0.2};
+// of the head, toward the side with more `room` before the other, and moved out of the way of what it would cover, as `hides(box)` counts
+// it: on either side as it stands, then raised by `lift` pixels at a time, `lifts` times at most, and moved out by `out` pixels, `outs`
+// times; the first place that covers nothing, else the one that covers least; its box on the page and the side, 1 to the right
+export const BUBBLE = {gap: 10, rise: 14, ear: 0.2, lift: 22, lifts: 4, out: 30, outs: 3};
 export function bubbleSpot(head, width, height, room, hides) {
-    const box = (side) => {
-        const left = side > 0 ? head.x + BUBBLE.gap : head.x - BUBBLE.gap - width;
-        const top = head.y - BUBBLE.rise - height;
-        return {left, right: left + width, top, bottom: top + height};
+    const box = (side, lift, out) => {
+        const left = side > 0 ? head.x + BUBBLE.gap + out * BUBBLE.out : head.x - BUBBLE.gap - width - out * BUBBLE.out;
+        const top = head.y - BUBBLE.rise - height - lift * BUBBLE.lift;
+        return {left, right: left + width, top, bottom: top + height, side};
     };
     const sides = room.right >= room.left ? [1, -1] : [-1, 1];
-    const side = sides.reduce((best, each) => (hides(box(each)) < hides(box(best)) ? each : best));
-    return {...box(side), side};
+    const steps = Array.from({length: BUBBLE.lifts + 1}, (_, lift) => Array.from({length: BUBBLE.outs + 1}, (__, out) => [lift, out])).flat();
+    const places = steps.flatMap(([lift, out]) => sides.map((side) => box(side, lift, out)));
+    const counted = places.map((place) => ({place, hidden: hides(place)}));
+    return (counted.find((each) => each.hidden === 0) ?? counted.reduce((best, each) => (each.hidden < best.hidden ? each : best))).place;
+}
+
+// how much of what the figure's words must keep clear of the box `box` on the page covers: the chat's words under it (wordsUnder), and
+// each of the compose box, the cards docked over it and the chat's bubbles it overlaps
+export function coveredBy(box) {
+    const overlaps = (element) => {
+        const other = element.getBoundingClientRect();
+        return box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom;
+    };
+    const kept = [document.querySelector(HOME), document.querySelector(DOCKED_BARS), ...document.querySelectorAll("[data-figure-bubble]")].filter(Boolean);
+    return wordsUnder(box) + kept.filter(overlaps).length;
 }
 
 // the room to hand bubbleSpot for the call's bubble `width` wide: the side of the head the handset at `handset` is on, so the tail is short

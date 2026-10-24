@@ -236,21 +236,23 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     expect(eagerFor(at(0.95), null, () => 0, 100 + EAGER.after - 1).eager).toEqual({run: 100, on: false});
     // started, it is kept to the end whatever the figure does, and then it is cheered or fumed at
     expect(eagerFor(at(0.98), eager, () => 0.99, 184)).toEqual({eager, moment: null});
-    expect(eagerFor(at(1, "good"), eager, () => 0, 185)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}});
-    expect(eagerFor(at(1, "bad"), eager, () => 0, 185).moment).toEqual({beat: "bar_failed"});
+    // ended before the anticipation has played through, it waits for it; once played, the end is cheered or fumed at
+    expect(eagerFor(at(1, "good"), eager, () => 0, 185)).toEqual({eager: {...eager, endedAt: 185, ending: "bar_done"}, moment: null});
+    expect(eagerFor(at(1, "good"), eager, () => 0, 185, true)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}});
+    expect(eagerFor(at(1, "bad"), eager, () => 0, 185, true).moment).toEqual({beat: "bar_failed"});
     // the dock drawn again, with a new bar for the same run, is still that run: its end is fumed at once, never again
-    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 185).eager;
+    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 185, true).eager;
     const redrawn = (share, ended = "") => ({bar: {}, share, ended, began: 100});
     expect(eagerFor(redrawn(0.98), fumed, () => 0, 186)).toEqual({eager: fumed, moment: null});
     expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 187).moment).toBe(null);
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
     expect(of("bar_done").map((each) => each.name)).toEqual(["joy"]);
     // only the bar going ends it with nothing to mark
-    expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {run: 100, on: false}, moment: null});
+    expect(eagerFor(null, eager, () => 0, 126, true)).toEqual({eager: {run: 100, on: false}, moment: null});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
 });
 
-test("a run gone over two minutes is always anticipated near its end, whatever the roll: the figure cuts off any act and goes to the mark; a shorter run is left to the odds", async () => {
+test("a run gone over two minutes is always anticipated near its end, whatever the roll: the figure goes to the mark once the act it plays has played out; a shorter run is left to the odds", async () => {
     const {givesWay} = await import("../src/figure/pile.js");
     const {eagerSpot} = await import("../src/figure/perches.js");
     const {boxed} = await import("./support/figurePage.js");
@@ -261,13 +263,14 @@ test("a run gone over two minutes is always anticipated near its end, whatever t
     // a minute's run rolls the odds as ever: eager on a winning roll, not on a losing one, and never urgent
     expect(eagerFor(nearEnd(60), null, () => 0, 100 + 60).eager).toEqual({run: 100, on: true});
     expect(eagerFor(nearEnd(60), null, () => 0.999, 100 + 60).eager).toEqual({run: 100, on: false});
-    // the act in hand gives way at once to the urgent trip, even one that plays out otherwise, as the disco does and a fresh act
+    // the act in hand plays out first, even for the urgent trip; a held loop gives way to it at once
     for (const name of ["disco", "phone_call", "rope_swing", "joy"]) {
         const shown = {once: true, clip: {name}};
-        expect(givesWay(shown, 0.1, {urgent: true}), name).toBe(true);
+        expect(givesWay(shown, 0.1, {urgent: true}), name).toBe(false);
         expect(givesWay(shown, 0.1, {pressing: true}), name).toBe(false);
         expect(givesWay(shown, 0.1), name).toBe(false);
     }
+    expect(givesWay({clip: {name: "idle", fps: 8, frames: 24}}, 0.1, {urgent: true})).toBe(true);
     // and it goes to the mark docked over the compose box, from wherever it is, staying there once it is on it
     const bars = boxed({left: 300, right: 700, top: 540, bottom: 600});
     const scroll = {...boxed({left: 200, top: 100, right: 900, bottom: 540}), querySelectorAll: () => []};
@@ -502,13 +505,13 @@ test("a move that overshoots the figure still tickles it: the pointer counts wit
 
 test("the jump for joy lasts three to four and a half seconds, a few jumps, and plays out", async () => {
     const {CLIPS} = await import("../src/figure/figure.js");
-    const {cutsAfter} = await import("../src/figure/pile.js");
+    const {givesWay} = await import("../src/figure/pile.js");
     const joy = CLIPS.find((clip) => clip.name === "joy");
     const seconds = joy.frames / joy.fps;
     expect(seconds).toBeGreaterThanOrEqual(3);
     expect(seconds).toBeLessThanOrEqual(4.5);
     expect(ACTS.joy.jumps).toBeGreaterThanOrEqual(3);
-    expect(cutsAfter("joy", seconds), "no following beat cuts it short").toBe(false);
+    expect(givesWay({clip: joy, once: true}, seconds / 2), "no following beat cuts it short").toBe(false);
 });
 
 test("a finished task now and then brings the hands rubbed together before the chest, sliding round each other, with a little nod", async () => {

@@ -55,7 +55,7 @@ test("from the first blow on a box until it is pushed onto the pile the build pl
     let beats = [];
     const queue = (moment, now) => {
         const beat = {...answerTo(moment, "butler", memory, now, () => 0, has).beat, queuedAt: now};
-        beats = moment.beat === "tickled" ? queuedFirst(beats, beat, "").beats : [...beats, beat];
+        beats = moment.beat === "tickled" ? queuedFirst(beats, beat, "") : [...beats, beat];
     };
     const build = sequenceIn({box: true, carrier: ""});
     expect(build?.name).toBe("build");

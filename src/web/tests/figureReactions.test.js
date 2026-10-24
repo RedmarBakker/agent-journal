@@ -178,11 +178,13 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             {beat: "standing"},
             // the figure's own page sees a launch end, as the docks open under it
             {beat: "launched"},
+            // and the bar of a run it waits on seated jumping ahead or passing its near end (runWait.js progressJumped)
+            {beat: "progress_jump"},
             // a slow run's docked bar ending while the figure is eager for it, passed or failed
             ...["good", "bad"].map((ended) => {
                 const bar = {};
                 const eager = eagerFor({bar, share: 0.97, ended: "", began: 0}, null, () => 0, EAGER.after + 30).eager;
-                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, EAGER.after * 3).moment;
+                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, EAGER.after * 3, true).moment;
             }),
         ].map((fire) => fire.beat)
     );
@@ -250,14 +252,14 @@ test("the figure does something by itself only while it is calm, not hanging, he
 });
 
 
-test("a beat cut in front of the one playing drops it, so the cut one never plays again from its start; one not yet begun waits on", async () => {
+test("a beat put first waits behind the one playing, which plays out, and goes before every one not yet begun", async () => {
     const {queuedFirst} = await import("../src/figure/reactions.js");
     const joy = {clip: "joy"};
     const nod = {clip: "nod"};
     const swat = {clip: "tickle_swat"};
-    expect(queuedFirst([joy, nod], swat, "joy")).toEqual({beats: [swat, nod], cut: true});
-    expect(queuedFirst([joy, nod], swat, "")).toEqual({beats: [swat, joy, nod], cut: false});
-    expect(queuedFirst([], swat, "joy")).toEqual({beats: [swat], cut: false});
+    expect(queuedFirst([joy, nod], swat, "joy")).toEqual([joy, swat, nod]);
+    expect(queuedFirst([joy, nod], swat, "")).toEqual([swat, joy, nod]);
+    expect(queuedFirst([], swat, "joy")).toEqual([swat]);
 });
 
 test("the head follows the pointer no faster than a set speed, and reaches it in the end", async () => {
@@ -274,10 +276,15 @@ test("the head follows the pointer no faster than a set speed, and reaches it in
 });
 
 test("while the figure is eager for a run's end no moment takes it off, and the end is heard once the eagerness is over", async () => {
-    const {isListening, eagerFor} = await import("../src/figure/reactions.js");
+    const {isListening, eagerFor, heardNow} = await import("../src/figure/reactions.js");
     const eager = {run: 100, on: true};
     expect(isListening(eager), "no tickle, act, look or reaction is heard while eager").toBe(false);
-    const ended = eagerFor({bar: {}, share: 1, ended: "good", began: 100}, eager, () => 0, 200);
+    // what comes meanwhile is held, one of each, and answered once it listens again, before what comes then
+    const tickle = {beat: "tickled", time: 150};
+    const held = heardNow(eager, heardNow(eager, [], [tickle]).held, [tickle, {beat: "read_message", card: "messages:5"}]);
+    expect(held).toEqual({answer: [], held: [tickle, {beat: "read_message", card: "messages:5"}]});
+    expect(heardNow(null, held.held, [{beat: "committed"}]).answer.map((moment) => moment.beat)).toEqual(["tickled", "read_message", "committed"]);
+    const ended = eagerFor({bar: {}, share: 1, ended: "good", began: 100}, eager, () => 0, 200, true);
     expect(ended.moment).toEqual({beat: "bar_done"});
     expect(isListening(ended.eager), "the end comes with the eagerness over").toBe(true);
     expect(isListening(null)).toBe(true);

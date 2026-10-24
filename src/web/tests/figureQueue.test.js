@@ -38,14 +38,13 @@ describe("the thinking act and the queue", () => {
         expect(queues([act], {clip: "nod", card: ""}), "other beats queue as ever").toBe(true);
     });
 
-    it("interrupted, it is dropped and never queued again: the interruption plays, then what waited behind, never the act", () => {
+    it("a first beat that comes while it plays waits behind it: the act plays out, then the first beat, then what waited behind", () => {
         const act = thinkingAct(memoryOf(), 1000);
         const swat = {clip: "tickle_swat", card: ""};
         const queued = queuedFirst([act, {clip: "nod", card: ""}], swat, act.clip);
-        expect(queued.cut, "the act broken off").toBe(true);
-        expect(queued.beats.map((beat) => beat.clip)).toEqual(["tickle_swat", "nod"]);
-        const after = playedFrom(queued.beats, "tickle_swat");
-        expect(after.map((beat) => beat.clip), "after the swat, the act does not come back").toEqual(["nod"]);
+        expect(queued.map((beat) => beat.clip)).toEqual([act.clip, "tickle_swat", "nod"]);
+        const after = playedFrom(playedFrom(queued, act.clip), "tickle_swat");
+        expect(after.map((beat) => beat.clip), "after the act and the swat, the nod").toEqual(["nod"]);
         expect(stillGoing(after, "idle", "nod").beats.some((beat) => beat.clip === act.clip)).toBe(false);
         // a beat that played to its end takes only itself off the queue, never the one that came first meanwhile
         expect(playedFrom([swat, {clip: "nod", card: ""}], act.clip).map((beat) => beat.clip)).toEqual(["tickle_swat", "nod"]);
@@ -72,18 +71,17 @@ describe("acts that hold", () => {
         for (const [moment, tone] of [["bar_done", "good"], ["bar_failed", "bad"]]) {
             const progress = {share: 0.99, began: 0, ended: ""};
             const eager = eagerFor(progress, null, () => 0, EAGER.long + 1).eager;
-            const end = eagerFor({...progress, share: 1, ended: tone}, eager, () => 0, EAGER.long + 5);
+            const end = eagerFor({...progress, share: 1, ended: tone}, eager, () => 0, EAGER.long + 5, true);
             expect(end.moment.beat).toBe(moment);
             expect(isListening(end.eager), "listening again once the run has ended").toBe(true);
             const celebration = answerTo(end.moment, "butler", memoryOf(), 0, () => 0, has).beat;
             expect(celebration.holds, `${moment} declared to hold`).toBe(true);
             const swat = {clip: "tickle_swat", card: ""};
             const queued = queuedFirst([celebration], swat, celebration.clip);
-            expect(queued.cut, `${moment} not broken off`).toBe(false);
-            expect(queued.beats.map((beat) => beat.clip), `${moment} the swat waits behind it`).toEqual([celebration.clip, "tickle_swat"]);
+            expect(queued.map((beat) => beat.clip), `${moment} the swat waits behind it`).toEqual([celebration.clip, "tickle_swat"]);
             expect(givesWay({clip: named[celebration.clip], once: true, holds: true}, 60), `${moment} never cut`).toBe(false);
         }
-        expect(givesWay({clip: named.nod, once: true}, 1), "an act that does not hold gives way as ever").toBe(true);
+        expect(givesWay({clip: named.nod, once: true}, 1), "nor any other act played once").toBe(false);
     });
 });
 

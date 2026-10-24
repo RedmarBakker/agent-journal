@@ -73,16 +73,8 @@ const USER_FACES = {
     "⚔️": "angry", "🛡️": "worried", "🏰": "amused",
 };
 
-// The acts the next moment may cut off, and the seconds each must have played first: a look about, a stretch or a nod may give way after a
-// second, the longer idle acts and thinking after three; every other act plays out, as a fall, a backflip, a celebration or an act with a prop in hand,
-// so the figure never flickers between acts
-export const CUT = {
-    look_left: 1, look_right: 1, look_up: 1, glance: 1, wipe_brow: 1, stretch: 1, yawn: 1, nod: 1, shake: 1, bow: 1,
-    salute: 1, wave: 1, rest: 3, polish: 3, whistle: 3, sip: 3, headphones: 3, shield_polish: 3,
-};
-
 const act = (name, kind, weight, when) => ({name, kind, weight, when, lifetime: LIFETIME});
-const clip = (name, weight, when = {}) => ({...act(name, "clip", weight, when), cut: CUT[name] ?? false});
+const clip = (name, weight, when = {}) => act(name, "clip", weight, when);
 const look = (name, weight, when = {}) => act(name, "look", weight, when);
 const gaze = (name, weight, when = {}) => act(name, "gaze", weight, when);
 const pick = (name, weight, when = {}, more = {}) => ({...act(name, "pick", weight, when), ...more});
@@ -334,7 +326,7 @@ const secondsOf = (cooldown) => `${[cooldown].flat().join("-")}s`;
 // its lifetime where it has one of its own
 export const lineOf = (entry) =>
     `${entry.shenanigan ? `shenanigan of ${entry.lasts}s ` : ""}${entry.kind} ${entry.name} ×${entry.weight} when ${conditions(entry.when)}` +
-    `${entry.kind === "clip" ? (entry.cut ? `, cut after ${entry.cut}s` : ", plays out") : ""}` +
+    `${entry.kind === "clip" ? ", plays out" : ""}` +
     `${entry.group.cooldown ? `, group cools ${secondsOf(entry.group.cooldown)}` : ""}${entry.cooldown ? `, cools ${secondsOf(entry.cooldown)}` : ""}` +
     `${entry.lifetime === LIFETIME ? "" : `, lives ${entry.lifetime}s`}`;
 
@@ -342,13 +334,9 @@ export const lineOf = (entry) =>
 export const sequenceLineOf = (sequence) =>
     `sequence ${sequence.name} of ${sequence.acts.join(", ")} while ${conditions(sequence.when)}, broken by ${sequence.breaks.join(" or ")}, cools ${secondsOf(sequence.cooldown)}, lives ${sequence.lifetime}s`;
 
-// whether the clip `name` may be cut off by the next moment once it has played `seconds`: only an act of CUT that has played its least
-export const cutsAfter = (name, seconds) => Boolean(CUT[name]) && seconds >= CUT[name];
-
-// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: never one that holds, declared on its
-// clip (figure.js CLIPS holds) or on its beat (the pile's holds); a loop as soon as it has played its least (timeline.js playedLeast),
-// an act once it has played its least (cutsAfter), and anything at once for a `trip` that drops everything, as for the end of a long run
+// whether the clip on screen, `shown`, played `seconds`, gives way now to what is wanted instead: never an act played once, which plays out
+// whatever comes meanwhile, nor one that holds, declared on its clip (figure.js CLIPS holds) or on its beat (the pile's holds); a loop as
+// soon as it has played its least (timeline.js playedLeast), or at once for a `trip` that drops everything, as for the end of a long run
 // (reactions.js EAGER)
 export const givesWay = (shown, seconds, trip = null) =>
-    !(shown?.holds || shown?.clip.holds) &&
-    (Boolean(trip?.urgent) || !shown || (shown.once ? cutsAfter(shown.clip.name, seconds) : playedLeast(shown.clip, seconds)));
+    !shown || (!shown.once && !shown.holds && !shown.clip.holds && (Boolean(trip?.urgent) || playedLeast(shown.clip, seconds)));

@@ -60,7 +60,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -88,7 +88,7 @@ import {
     tailEnd,
     callSays,
     callStretch,
-    wordsUnder,
+    coveredBy,
     watchLook,
     progressOf,
     hiddenAt,
@@ -242,8 +242,10 @@ const handAt = ref({x: 0.75, y: 0.6, out: 1, other: {x: 0.25, y: 0.6}});
 // sight, when its parachute brings it back; and where the run is this frame, which the clip on screen turns by
 let flight = null;
 const flying = ref(null);
-// the figure's eagerness for the bar docked under its feet to end (reactions.js eagerFor)
+// the figure's eagerness for the bar docked under its feet to end (reactions.js eagerFor), and the run whose anticipation it has played
+// through its hold
 let eager = null;
+let anticipated = null;
 // the clip the figure plays while its UFO or crane is here (reactions.js VARIANTS watch), picked for each visit
 let watching = "watch";
 // the clip the held state is played as for this stretch of it (reactions.js variantOf), picked again each time the state changes
@@ -409,6 +411,8 @@ function step() {
     }
     shownClip.value = shown.clip;
     shownFacing.value = shown.facing;
+    // the anticipation of a run's end, once played through its hold, may give way to the run's reaction (reactions.js eagerFor)
+    if (shown.clip.name === "eager" && frameOf(shown) >= shown.clip.intro + shown.clip.leaves) anticipated = eager?.run ?? null;
     const index = frameOf(shown);
     playing.index = index;
     const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
@@ -911,13 +915,15 @@ function look() {
     const docks = groundEdge();
     // held by a sequence, it gets eager for no run's end until the sequence is over
     const sequence = sequenceNow();
-    const eagerness = sequence ? {eager, moment: null} : eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value);
+    const eagerness = sequence ? {eager, moment: null} : eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value, anticipated === eager?.run);
     eager = eagerness.eager;
+    // listening again after the anticipation, it answers what came meanwhile, then the run's end
+    react();
     if (eagerness.moment) react(eagerness.moment);
     const work = workMoments(held.value.state, typed, workBegan, now.value);
     typed = false;
     workBegan = work.began;
-    [...happened, ...answeredWith(work.moments, parcels.value)].forEach(react);
+    react(...happened, ...answeredWith(work.moments, parcels.value));
     // the visor lights at a run's end, unless the figure shoots or smashes a bug for it instead
     visor = visorFor(asleep() || beats.value.some((beat) => ["bug_shot", "bug_smash"].includes(beat.clip)) ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
@@ -1387,11 +1393,20 @@ function pointerMoved(event) {
 // the clip of the beat on screen, or "" while no beat plays: an arrival, a departure or a landing is no beat
 const beatOnScreen = () => (playing.shown?.once && !playing.shown.arrival && !playing.shown.departure && !playing.shown.landed ? playing.shown.clip.name : "");
 
-// the moments answered before any beat already waiting: a stumble on a long walk, and a tickle, which the figure swats at at once
+// the moments answered before any beat already waiting, right after the act on screen: a stumble on a long walk, a tickle, the fume at a
+// run that failed
 const FIRST = new Set(["long_walk", "tickled", "bar_failed"]);
 
-function react(moment) {
-    if (!isListening(eager)) return;
+// the moments that came while the figure was eager for a run's end, answered in order once the anticipation is over (reactions.js heardNow)
+let heard = [];
+
+function react(...moments) {
+    const listened = heardNow(eager, heard, moments);
+    heard = listened.held;
+    listened.answer.forEach(answered);
+}
+
+function answered(moment) {
     // a worker given work while a call waits or plays is named in that call instead of ringing again
     const joined = moment.beat === "messaged" && moment.card ? joinedCall(beats.value, moment.card) : null;
     if (joined) {
@@ -1402,9 +1417,7 @@ function react(moment) {
     if (moment.beat === "messaged" && moment.card && !answer && !heldCalls.includes(moment.card)) heldCalls = [...heldCalls, moment.card];
     if (answer?.beat && queues(beats.value, answer.beat)) {
         const beat = {...answer.beat, queuedAt: now.value};
-        const queued = FIRST.has(moment.beat) ? queuedFirst(beats.value, beat, beatOnScreen()) : {beats: [...beats.value, beat], cut: false};
-        beats.value = queued.beats;
-        cutting ||= queued.cut;
+        beats.value = FIRST.has(moment.beat) ? queuedFirst(beats.value, beat, beatOnScreen()) : [...beats.value, beat];
     }
     // a celebration on its chat mark: off to stand on it, when it has a stand free and no sequence holds the figure, else played where it is
     if (answer?.beat?.onto && !sequenceNow() && markSpot(answer.beat.card, figureSize())) {
@@ -1577,9 +1590,9 @@ const callBubble = computed(() => {
     const seconds = (rawFrameOf(playing.shown) - ACTS.phone_call.talk[0] * clip.frames) / fpsOf(playing.shown);
     const head = {x: body.at.x + headAt.value.x * SIZE, y: body.at.y + headAt.value.y * SIZE};
     const handset = {x: body.at.x + handAt.value.x * SIZE, y: body.at.y + handAt.value.y * SIZE};
-    if (callSide.mark !== card.key) callSide = {mark: card.key, side: bubbleSpot(head, width, height, handsetSide(head, handset, width, window.innerWidth), wordsUnder).side};
-    const spot = bubbleSpot(head, width, height, callSide.side > 0 ? {left: 0, right: 1} : {left: 1, right: 0}, () => 0);
-    const tip = tailEnd(head, handset, callSide.side, SIZE);
+    if (callSide.mark !== card.key) callSide = {mark: card.key, side: bubbleSpot(head, width, height, handsetSide(head, handset, width, window.innerWidth), coveredBy).side};
+    const spot = bubbleSpot(head, width, height, callSide.side > 0 ? {left: 0, right: 1} : {left: 1, right: 0}, coveredBy);
+    const tip = tailEnd(head, handset, spot.side, SIZE);
     return {phrases, seconds, left: spot.left, top: spot.top, tip: {x: tip.x - spot.left, y: tip.y - spot.top}};
 });
 

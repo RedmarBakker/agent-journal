@@ -113,19 +113,26 @@ export const spellIn = (held, spell, now) => (spell && now < spell.until && WORK
 // Once a docked bar's run looks about `lead` seconds from its end at the pace it has gone, now and then, as the pile draws it (pile.js
 // eager), once a bar, the figure gets eager for it to end: it hurries onto the bar, taps its feet fast, then points down at it, bouncing,
 // until it ends, and is never called off before. Only a long run counts, one at least `after` seconds old by then, a minute, so a shorter
-// run never does. A run
-// that has gone on `long` seconds is anticipated every time, and `urgent`ly: the figure drops whatever it does for it.
-export const EAGER = {lead: 5, after: 60, long: 120};
+// run never does. A run that has gone on `long` seconds is anticipated every time, and `urgent`ly: the figure drops whatever it waits to do
+// for it, once the act it plays has played out. A run that ends before the anticipation ever came on screen waits for it at most `wait`
+// seconds.
+export const EAGER = {lead: 5, after: 60, long: 120, wait: 12};
 
 // the seconds a run `elapsed` seconds old with `share` of it done has left, at the pace it has gone
 export const secondsLeft = (elapsed, share) => (share > 0 ? (elapsed / share) * (1 - share) : Infinity);
 
 // The figure's eagerness at `now` seconds for the bar docked over the compose box, `progress` (places.js progressOf), or null with none:
 // the run it rolled for, known by when its card began so a bar drawn again is the same run, and whether it is eager for it; and the moment
-// the bar's end is once it ends while the figure is eager, a pass or a failure, once for the run. Only the bar's end, or the bar going, ends it.
-export function eagerFor(progress, eager, random, now) {
+// the bar's end is once it ends while the figure is eager, a pass or a failure, once for the run. Once on, the anticipation is never called
+// off before it has `played` through its hold: the bar ending or going is kept as its `ending`, at `endedAt`, and its moment comes only
+// then, so the reaction plays after the anticipation; or after EAGER `wait` seconds when the anticipation never came on screen at all.
+export function eagerFor(progress, eager, random, now, played = false) {
     const same = Boolean(progress) && progress.began === eager?.run;
-    if (same && eager.on && progress.ended) return {eager: {...eager, on: false}, moment: {beat: progress.ended === "good" ? "bar_done" : "bar_failed"}};
+    if (eager?.on && (eager.endedAt !== undefined || !same || progress.ended)) {
+        const ended = eager.endedAt !== undefined ? eager : {...eager, endedAt: now, ending: same ? (progress.ended === "good" ? "bar_done" : "bar_failed") : ""};
+        if (!played && now - ended.endedAt < EAGER.wait) return {eager: ended, moment: null};
+        return {eager: {run: eager.run, on: false}, moment: ended.ending ? {beat: ended.ending} : null};
+    }
     if (!progress || progress.ended) return {eager: eager && {...eager, on: false}, moment: null};
     if (same) return {eager, moment: null};
     const elapsed = now - progress.began;
@@ -226,14 +233,11 @@ export function pastimeFor(scene, waited, memory, now, random, has, tally = null
 // out of the way waits for it to end as any other act does
 export const uncut = (beats, playing) => Boolean(playing) && beats[0]?.clip === playing && Boolean(beats[0].holds);
 
-// The beat queue once `beat` comes first, as a stumble, a tickle or a fume does: put before every beat waiting, and the beat on screen, at
-// the queue's head while it plays as the clip `playing`, broken off and dropped, never queued again; unless that one holds (pile.js
-// holds), when `beat` waits behind it. `cut` says whether the beat on screen is broken off.
+// The beat queue once `beat` comes first, as a stumble, a tickle or a fume does: put before every beat waiting, but after the beat on
+// screen, at the queue's head while it plays as the clip `playing`, which plays out first, never broken off
 export function queuedFirst(beats, beat, playing) {
-    const head = beats[0];
-    const onScreen = Boolean(playing) && head?.clip === playing;
-    if (onScreen && head.holds) return {beats: [head, beat, ...beats.slice(1)], cut: false};
-    return {beats: [beat, ...(onScreen ? beats.slice(1) : beats)], cut: onScreen};
+    const onScreen = Boolean(playing) && beats[0]?.clip === playing;
+    return onScreen ? [beats[0], beat, ...beats.slice(1)] : [beat, ...beats];
 }
 
 // the beat queue once the clip `name` has played to its end: its beat gone, wherever it stands, as when a beat put first came in front of it
@@ -354,3 +358,12 @@ export function headTurned(previous, target, center, largest) {
 // Whether the figure answers a moment with `eager` as it stands (eagerFor): while it is eager for a run's end nothing takes it off,
 // neither an act, a look nor a tickle; only the end itself, which eagerFor answers once the eagerness is over
 export const isListening = (eager) => !eager?.on;
+
+// The moments the figure answers now, {answer, held}, with `eager` as it stands: while it is eager for a run's end none, the moments that
+// came, `fresh`, held with those already `held`, one of each beat and card; once it listens again those held first, in the order they came,
+// then the fresh ones
+export function heardNow(eager, held, fresh) {
+    if (isListening(eager)) return {answer: [...held, ...fresh], held: []};
+    const kept = [...held, ...fresh].filter((moment, index, all) => all.findIndex((other) => other.beat === moment.beat && other.card === moment.card) === index);
+    return {answer: [], held: kept};
+}
