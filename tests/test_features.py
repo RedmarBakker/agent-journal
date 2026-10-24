@@ -11991,3 +11991,54 @@ def test_the_slow_requests_list_groups_routes_a_page_at_a_time_and_inspect_drill
     inspected = console.run(["developer", "inspect", "GET /journal/messages/{n}/read"], AGENT)
     assert inspected.code == 0 and [line.split()[1] for line in inspected.text.splitlines()[:3]] == ["900", "300", "200"], inspected.text
     assert console.run(["developer", "inspect", "GET /nowhere"], AGENT).code != 0
+
+
+def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_timed(app: App):
+    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.faults.support.developer_numbers import DeveloperNumbers
+    slow = app.container.get(SlowRequests)
+    with app.container.get(Scope).environment(MAIN):
+        slow.measured("GET", "/journal/developer", 900)
+        slow.measured("GET", "/cli/developer slowest", 900)
+        slow.measured("GET", "/journal/tasks", 40)
+        slow.tally.write()
+    routes = [timing.route for timing in app.container.get(DeveloperNumbers).recent()]
+    assert "/journal/tasks" in routes and not [route for route in routes if "developer" in route]
+
+
+def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_failing_tick_listener_stops_no_other(app: App, monkeypatch, tmp_path):
+    from datetime import date
+    from journal.events.agent.ticked import Ticked
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.features.workers.support.worker_chat import WorkerChat
+    from journal.models.agent import Agent
+    from journal.models.worker import Worker
+    from journal.repositories.agents import Agents
+    from journal.repositories.messages import Messages
+    from journal.repositories.workers import Workers
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    session = "01a15a25-535e-7cc2-993e-d38deedb6b42"
+    rollout = tmp_path / "home" / ".codex" / "sessions" / date.today().strftime("%Y/%m/%d") / f"rollout-2026-10-22T10-00-00-{session}.jsonl"
+    rollout.parent.mkdir(parents=True)
+    text = {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Written."}]}}
+    rollout.write_text(json.dumps({"type": "session_meta", "payload": {"cwd": str(app.config.root)}}) + "\n" + json.dumps(text) + "\n")
+    with app.container.get(Scope).environment(1):
+        app.container.get(Agents).save(Agent(environment_id=1, session=session, provider="codex"), Actor.system())
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Dieter Rams", brief="b", provider="codex", resume=session), Actor.system())
+        app.container.get(WorkerChat).read(worker)
+        assert not [m for m in app.container.get(Messages).all() if m.text == "Written."], "the main agent now holds that session: nothing is read into a worker's chat, and nothing is refused"
+    bus, heard = Bus(), []
+
+    class Failing(Listener[Ticked]):
+        def handle(self, event):
+            raise RuntimeError("broken")
+
+    class Hearing(Listener[Ticked]):
+        def handle(self, event):
+            heard.append(event)
+
+    bus.listen(Ticked, Failing())
+    bus.listen(Ticked, Hearing())
+    bus.dispatch_guarded(Ticked(session="s", environment_id=1, time=1.0, silence_seconds=0.0))
+    assert len(heard) == 1, "one listener failing on a tick stops no other"

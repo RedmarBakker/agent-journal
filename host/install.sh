@@ -36,6 +36,17 @@ if ! command -v docker >/dev/null; then
     curl -fsSL https://get.docker.com | $as_root sh >&2 || { echo "Docker could not be installed: install it by hand, then run this again." >&2; exit 1; }
     command -v docker >/dev/null || { echo "Docker was installed but is not on the path: open a new shell and run this again." >&2; exit 1; }
 fi
+# Docker's daemon is started, and kept starting at boot, when it is not running yet, as right after its install.
+if ! docker info >/dev/null 2>&1; then
+    if [ "$(id -u)" = "0" ]; then as_root=""; else as_root="sudo"; fi
+    $as_root systemctl enable --now docker >/dev/null 2>&1 || $as_root service docker start >/dev/null 2>&1 || true
+    tries=0
+    until docker info >/dev/null 2>&1; do
+        tries=$((tries + 1))
+        [ "$tries" -lt 15 ] || { echo "Docker is installed but its daemon does not start: start it (systemctl start docker), then run this again." >&2; exit 1; }
+        sleep 2
+    done
+fi
 
 project="${TEAM_PROJECT:-}"
 [ -n "$project" ] || project=$(ask "Project name, which names the server's volume and container")

@@ -28,6 +28,8 @@ CHECK_INTERVAL_SECONDS = 5.0
 
 
 HOOK = "HOOK"
+# the Developer tab's own requests and the developer command, never timed or counted, so reading the numbers never adds to them
+UNMEASURED_PATHS = ("/journal/developer", "/cli/developer")
 OUTWARD_ROUTES = ("/journal/plugins/preview", "/journal/plugins/{n}/remove", "/journal/plugins/{n}/upgrade", "/journal/plugins/{n}/enable", "/journal/plugins", "/journal/updates/install")
 OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin propose", "/cli/setup update", "/cli/update ", "/cli/worker dispatch", "/cli/check run", "/cli/mcp ")
 
@@ -50,6 +52,8 @@ class SlowRequests:
 
     def measured(self, method: str, path: str, ms: float) -> None:
         loads = LoadTally.ended()
+        if path.startswith(UNMEASURED_PATHS):
+            return
         self.counted(method, path, round(ms), loads)
         self.check_gathered(time.monotonic())
         route = re.sub(r"/\d+(?=/|$)", "/{n}", path)

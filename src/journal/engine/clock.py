@@ -12,7 +12,7 @@ from journal.supervisor_link import SupervisorLink
 
 
 class Clock(Job):
-    """The journal's time, and a job that tells the bus Ticked for every live agent every five seconds, in that agent's environment; what the machine says to a tick is typed in through the supervisor."""
+    """The journal's time, and a job that tells the bus Ticked for every live agent every five seconds, in that agent's environment, each listener heard on its own so one that fails stops no other; what the machine says to a tick is typed in through the supervisor."""
 
     interval_seconds = 5.0
 
@@ -23,11 +23,11 @@ class Clock(Job):
         return timing.time()
 
     def tick(self, time: float) -> None:
-        self.bus.dispatch(ClockTicked(time=time))
+        self.bus.dispatch_guarded(ClockTicked(time=time))
         for agent in self.agents.active_main_agents():
             with self.scope.environment(agent.environment_id):
                 self._tick(agent, time)
 
     def _tick(self, agent: Agent, time: float) -> None:
         idle_seconds = time - agent.update_time.timestamp()
-        self.bus.dispatch(Ticked(session=agent.session, environment_id=agent.environment_id, time=time, silence_seconds=idle_seconds))
+        self.bus.dispatch_guarded(Ticked(session=agent.session, environment_id=agent.environment_id, time=time, silence_seconds=idle_seconds))

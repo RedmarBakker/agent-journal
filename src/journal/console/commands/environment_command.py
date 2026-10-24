@@ -12,6 +12,7 @@ from journal.support.worktree import Worktree
 from journal.config import Config
 from journal.features.shell.support.shell_record import ENDED, MOVED
 from journal.support.environment_row import EnvironmentRow
+from journal.models.agent_role import AgentRole
 from journal.models.task_state import TaskState
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
@@ -68,9 +69,8 @@ class EnvironmentCommand(Command):
     def rows(self) -> list[EnvironmentRow]:
         rows = []
         for environment in self.environments.all():
-            with self.scope.environment(environment.row_id):
-                agents = self.agents.scoped()
-            last = max(agents, key=lambda item: item.update_time) if agents else None
+            agents = sorted(self.agents.global_matching(environment_id=environment.row_id, role=AgentRole.MAIN), key=lambda item: item.update_time)
+            last = agents[-1] if agents else None
             resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
             rows.append(EnvironmentRow(environment.name, last is not None and last.state != "ended", self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number())))
         return rows

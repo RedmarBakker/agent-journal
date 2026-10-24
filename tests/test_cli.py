@@ -207,6 +207,25 @@ def test_the_boot_menu_is_offered_only_a_session_whose_conversation_still_exists
     assert rows[0]["last_sessions"] == {"claude": "s1"}, "a codex launch finds no Claude session to carry on"
 
 
+def test_the_boot_menu_never_carries_on_from_a_workers_conversation(app: App, monkeypatch, tmp_path):
+    from journal.support.caller import Caller
+    from journal.support.actor import Actor
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    from journal.providers.claude import Claude
+    from journal.repositories.agents import Agents
+    stored = tmp_path / "kept.jsonl"
+    stored.write_text("{}\n")
+    monkeypatch.setattr(Claude, "transcript", lambda self, project, session: stored)
+    agents = app.container.get(Agents)
+    agents.save(Agent(session="main-session", environment_id=1, provider="claude", state="ended"), Actor.system())
+    agents.save(Agent(session="worker-session", environment_id=1, provider="claude", role=AgentRole.WORKER), Actor.system())
+    import json as j
+    rows = j.loads(app.console().run(["environment", "json"], Caller.user("main")).text)
+    assert rows[0]["last_sessions"] == {"claude": "main-session"}, "the newest conversation is a worker's: the main agent carries on from its own"
+    assert not rows[0]["working"], "a worker at work is not the environment's agent working"
+
+
 def test_an_environment_is_renamed_with_everything_in_it_and_never_while_an_agent_works_there(app: App):
     from journal.models.agent import Agent
     from journal.repositories.agents import Agents
