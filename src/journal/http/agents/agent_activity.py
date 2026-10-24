@@ -97,7 +97,8 @@ class AgentActivity:
     def rolling(self) -> dict:
         if not self.registry.is_enabled(Faults):
             return {}
-        return {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms()}
+        return {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
+                "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = time.time()

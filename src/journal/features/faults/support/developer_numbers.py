@@ -30,6 +30,12 @@ class DeveloperNumbers:
     def rolling_request_ms(self) -> int:
         return self.tally.rolling_average("developer.requests")
 
+    def rolling_hook_parts(self) -> list[dict]:
+        return self.tally.rolling_parts("developer.hooks")
+
+    def rolling_request_parts(self) -> list[dict]:
+        return self.tally.rolling_parts("developer.requests")
+
     def hook_averages(self) -> dict[str, AnswerTime]:
         numbers = self.series(HOOKS_PREFIX)
         kinds = sorted({key.split(".")[2] for key in numbers if key.count(".") == 3})

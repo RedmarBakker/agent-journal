@@ -4,6 +4,7 @@ import {stateOf, wordOf} from "../domain/agentState.js";
 import {agent} from "../composables/leadAgent.js";
 import {computed} from "vue";
 import AgentFact from "./AgentFact.vue";
+import AgentTimings from "./AgentTimings.vue";
 import {loadedSkills, modelFamily, offers, providerName, usageWindows} from "../domain/agents.js";
 import {createdAt} from "../domain/row.js";
 import {span} from "../format/time.js";
@@ -139,8 +140,8 @@ const toggle = (key, e) => emit("toggle", key, e);
                 </AgentFact>
             </template>
             <template v-if="data.hook_average_ms !== undefined">
-                <AgentFact class="agent-fact" tag="span" icon="bolt" title="Average time of the last 250 hooks">{{ data.hook_average_ms }} ms</AgentFact>
-                <AgentFact class="agent-fact" tag="span" icon="gauge" title="Average time of the last 250 requests">{{ data.request_average_ms }} ms</AgentFact>
+                <AgentTimings icon="hook" title="Average time of each kind of hook, over its last 250" heading="Hooks" :average="data.hook_average_ms" :parts="data.hook_parts || []" />
+                <AgentTimings icon="request" title="Average time of each route, over its last 250" heading="Requests" :average="data.request_average_ms" :parts="data.request_parts || []" />
             </template>
         </template>
     </div>

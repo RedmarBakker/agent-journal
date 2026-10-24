@@ -2228,6 +2228,8 @@ def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_l
     slow.counted("HOOK", "/hooks/Stop", 30, RequestLoads())
     slow.counted("GET", f"/journal/tasks/{n}", 100, RequestLoads())
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (20, 41), "each hook kind and each route is averaged on its own, a task's number taken out, and the bar shows the average of those averages, so a frequent cheap request counts once"
+    assert [(part["name"], part["average_ms"], part["count"]) for part in row()["hook_parts"]] == [("HOOK /hooks/Stop", 30, 1), ("HOOK /hooks/PreToolUse", 10, 250)], "the row carries each hook kind with its own average and how many timings it has, slowest first"
+    assert [(part["average_ms"], part["count"]) for part in row()["request_parts"]] == [(100, 1), (20, 250), (4, 250)], "and each route the same"
     app.container.get(DeveloperTally).cleared()
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (0, 0), "a reset clears them"
 

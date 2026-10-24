@@ -1,0 +1,35 @@
+import {createApp, h, nextTick} from "vue";
+import {expect, test} from "vitest";
+import AgentTimings from "../src/chat/AgentTimings.vue";
+
+const parts = [
+    {name: "HOOK /hooks/PreToolUse", average_ms: 40, count: 250},
+    {name: "HOOK /hooks/Stop", average_ms: 12, count: 8},
+];
+
+async function mounted() {
+    const root = document.createElement("div");
+    document.body.append(root);
+    createApp({render: () => h(AgentTimings, {icon: "hook", title: "t", heading: "Hooks", average: 26, parts})}).mount(root);
+    await nextTick();
+    return root;
+}
+
+test("hovering the reading opens a dropdown of each part with its own average and how many timings it has, slowest first", async () => {
+    const root = await mounted();
+    expect(root.textContent).toContain("26 ms");
+    root.querySelector(".agent-timings").dispatchEvent(new Event("mouseenter"));
+    await nextTick();
+    const rows = [...document.body.querySelectorAll(".timings-row")].map((row) => row.textContent.replace(/\s+/g, " ").trim());
+    expect(rows).toEqual(["HOOK /hooks/PreToolUse 40 ms 250 timed", "HOOK /hooks/Stop 12 ms 8 timed"]);
+});
+
+test("clicking the reading holds the dropdown open past the pointer leaving", async () => {
+    const root = await mounted();
+    const bar = root.querySelector(".agent-timings");
+    bar.dispatchEvent(new Event("mouseenter"));
+    root.querySelector("button").click();
+    bar.dispatchEvent(new Event("mouseleave"));
+    await new Promise((done) => setTimeout(done, 400));
+    expect(document.body.querySelectorAll(".timings-row").length).toBeGreaterThan(0);
+});

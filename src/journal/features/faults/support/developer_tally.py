@@ -51,6 +51,11 @@ class DeveloperTally:
             kind_averages = [sum(window) / len(window) for window in self._rolling.get(group, {}).values() if window]
             return round(sum(kind_averages) / len(kind_averages)) if kind_averages else 0
 
+    def rolling_parts(self, group: str) -> list[dict]:
+        with self._lock:
+            parts = [{"name": kind, "average_ms": round(sum(window) / len(window)), "count": len(window)} for kind, window in self._rolling.get(group, {}).items() if window]
+        return sorted(parts, key=lambda part: -part["average_ms"])
+
     def timings(self) -> list[Timing]:
         with self._lock:
             return list(reversed(self._log))
