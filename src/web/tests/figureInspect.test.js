@@ -92,31 +92,14 @@ describe("inspecting a box with the magnifying glass", () => {
     });
 });
 
-describe("searching the ground with the magnifying glass", () => {
-    it("stretches its arm out and looks through the glass at arm's length, the glass before its eyes on its line of sight to the floor ahead, as it sweeps along", () => {
+describe("searching the ground", () => {
+    it("leans and looks down at the floor ahead with its hands free, no magnifying glass, sweeping its look along", () => {
         for (const voice of Object.keys(stances)) {
-            const across = [];
             for (let step = 0; step < 20; step++) {
-                const t = step / 20;
-                const {eyes, glass, lens, faces} = posed(searchClip, t, voice);
-                expect(glass, `${voice} ${t}`).toMatchObject({size: SEARCHING.size});
-                expect(glass.magnifies, `${voice} ${t}`).toBeGreaterThan(0.5);
-                // the line from the eyes through the lens comes down on the floor well ahead of the figure: the lens is before its eyes,
-                // held out at arm's length, never tucked under its head
-                const sight = lens.clone().sub(eyes);
-                expect(sight.z, `${voice} ${t}: a little below the eyes`).toBeLessThan(0);
-                expect(sight.length(), `${voice} ${t}: as far out as the arm reaches`).toBeGreaterThan(0.4);
-                expect(Math.hypot(sight.x, sight.y), `${voice} ${t}: out ahead of the face, not under it`).toBeGreaterThan(Math.abs(sight.z));
-                const floor = eyes.clone().addScaledVector(sight, -eyes.z / sight.z);
-                expect(Math.hypot(floor.x, floor.y), `${voice} ${t}: looking at the floor well ahead of its feet`).toBeGreaterThan(2);
-                expect(faces.z, `${voice} ${t}: the lens tipped toward the floor ahead`).toBeLessThan(-0.2);
-                expect(slantOf(faces), `${voice} ${t}: skewed from the viewer`).toBeGreaterThan(40);
-                expect(slantOf(faces), `${voice} ${t}: its lens still seen`).toBeLessThan(80);
-                across.push(lens.clone().setZ(0));
+                expect(posed(searchClip, step / 20, voice).glass, `${voice} ${step}`).toBe(null);
             }
-            const spread = Math.max(...across.flatMap((a) => across.map((b) => a.distanceTo(b))));
-            expect(spread, `${voice}: it sweeps the glass along the floor`).toBeGreaterThan(0.25);
         }
+        expect(SEARCHING.sweep).toBeGreaterThan(0);
     });
 
     it("has a clear lens: nothing drawn in it, whatever it looks at", () => {

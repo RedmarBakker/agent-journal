@@ -1227,12 +1227,9 @@ function exit(pose, stance, t) {
 
 // What the figure does while the agent works, and the moments it marks; each pose starts and ends on idle's first frame unless it loops
 const SEARCH_CROUCH = 0.2;
-// The magnifying glass as the figure searches the floor ahead: turned `turn` degrees side-on so the arm shows, leaning `lean` and nodding
-// `nod` degrees, it stretches its free arm out and looks through the glass at the spot `spot` on the floor well ahead of it (across to the
-// free hand's side, forward and up from the feet), swept `sweep` across, the lens held `reach` along its sight from its eyes, at arm's
-// length and so always before its eyes, tipped `facing` of the way to face along its sight so the viewer still sees through the lens,
-// rolled `roll` and turned `slant` so its rim is skewed from the viewer, drawn `size` times its size
-export const SEARCHING = {spot: [0.6, -6, 0], sweep: 1.2, reach: 0.8, facing: 0.6, lean: 10, nod: 16, roll: 10, slant: 25, size: 1.3, turn: 70};
+// The figure searching the floor ahead: turned `turn` degrees side-on, leaning `lean` and nodding `nod` degrees down at it, its body
+// turned `sweep` degrees each way as its look sweeps along
+export const SEARCHING = {sweep: 14, lean: 10, nod: 16, turn: 70};
 
 // where the glass's lens is held as the figure looks from `eyes` at `spot`: `reach` along its sight, so it is before its eyes
 export const lensBefore = (eyes, spot, reach) => eyes.clone().add(spot.clone().sub(eyes).setLength(reach));
@@ -1245,23 +1242,14 @@ function glanceOf(t) {
     return rise(t, 0, 0.22) - 2 * rise(t, 0.32, 0.62) + rise(t, 0.7, 0.85);
 }
 
-// looks at the floor well ahead through the magnifying glass held out at arm's length before its eyes (SEARCHING), sweeping its look along
-// the floor
+// looks at the floor well ahead (SEARCHING), sweeping its look along the floor
 function search(pose, stance, t) {
-    const side = freeSide(stance);
-    const sign = SIDES[side];
+    const sign = SIDES[freeSide(stance)];
     const sweep = glanceOf(t);
     crouch(pose, SEARCH_CROUCH);
     breathe(pose, 0);
-    trunk(pose, {lean: SEARCHING.lean, nod: SEARCHING.nod, turn: sign * 14 * sweep});
-    armsAtRest(pose, stance, [side]);
-    const eyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length).applyMatrix4(pose.matrix("head"));
-    const [across, forward, up] = SEARCHING.spot;
-    const spot = new THREE.Vector3(sign * (across + SEARCHING.sweep * sweep), forward, up);
-    const lens = lensBefore(eyes, spot, SEARCHING.reach);
-    const sight = spot.clone().sub(eyes);
-    const tip = SEARCHING.facing * THREE.MathUtils.radToDeg(Math.atan2(-sight.z, Math.hypot(sight.x, sight.y)));
-    glassOver(pose, side, 1, lens, 0, {tip, roll: sign * SEARCHING.roll, slant: -sign * SEARCHING.slant, size: SEARCHING.size});
+    trunk(pose, {lean: SEARCHING.lean, nod: SEARCHING.nod, turn: sign * SEARCHING.sweep * sweep});
+    armsAtRest(pose, stance);
     eyesAs(pose, "reading");
     if (pose.posture === "stand") pose.revolve(sign * SEARCHING.turn);
 }
