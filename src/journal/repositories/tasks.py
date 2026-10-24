@@ -125,8 +125,9 @@ class Tasks(ScopedRepository[Task]):
 
     def free_tasks(self, state: TaskState, plan_states: tuple[str, ...]) -> list[Task]:
         tasks = self.selected(self.query().filter(state=state).order_descending("priority").order("id"))
-        plan_refs = {str(Ref(Plan.table(), row["id"])) for row in self.connection.all(*Query.build(Plan).filter_listed("state", list(plan_states)).select())}
-        plan_task_ids = {link.source.id for link in self.links.model_links("source", tasks, PLAN_LINK) if str(link.target) in plan_refs}
+        plan_links = self.links.model_links("source", tasks, PLAN_LINK)
+        plan_ids = set(self.selected_ids(Query.build(Plan).filter_listed("id", sorted({link.target.id for link in plan_links})).filter_listed("state", list(plan_states)))) if plan_links else set()
+        plan_task_ids = {link.source.id for link in plan_links if link.target.id in plan_ids}
         return [task for task in tasks if task.row_id not in plan_task_ids]
 
     def recent_completions(self, start: datetime, end: datetime) -> list[Task]:

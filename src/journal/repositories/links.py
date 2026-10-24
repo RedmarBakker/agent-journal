@@ -36,7 +36,7 @@ class Links(Repository[Link]):
             return 0
         return sum(self.grouped_counts(self.query().filter_listed(column, list(refs)).filter(kind=kind).filter_prefix("source", f"{source_table}:"), "kind").values())
 
-    def counts_into(self, models: Sequence[Model], kind: str) -> dict[int, int]:
+    def target_counts(self, models: Sequence[Model], kind: str) -> dict[int, int]:
         if not models:
             return {}
         counted = self.grouped_counts(self.query().filter_listed("target", [Ref.build(model) for model in models]).filter(kind=kind), "target")

@@ -70,12 +70,21 @@ class Repository(Generic[M]):
 
     def grouped_counts(self, query: Query, column: str) -> dict[str, int]:
         with self.connection.unlisted():
-            return {row["value"]: row["total"] for row in self.connection.all(*query.grouped(column))}
+            return {row["value"]: row["total"] for row in self.connection.all(*self._scoped(query).grouped(column))}
 
     def listing(self) -> AbstractContextManager[None]:
         return self.connection.listing(self.table)
 
     def selected(self, query: Query) -> list[M]:
+        return self._selected(self._scoped(query))
+
+    def filled_rows(self, column: str) -> list[M]:
+        return self.selected(self.query().filter_unlisted(column, [""]).order("id"))
+
+    def _scoped(self, query: Query) -> Query:
+        return query
+
+    def _selected(self, query: Query) -> list[M]:
         if query.row_limit > PAGE_ROWS:
             self.connection.large_reads.add(self.table, query.select()[0], ReadCaller.found(), query.row_limit)
             query = query.limit(PAGE_ROWS)
@@ -85,10 +94,12 @@ class Repository(Generic[M]):
         return rows
 
     def selected_ids(self, query: Query) -> list[int]:
-        ids = [row["id"] for row in self.connection.all(*query.select_ids())]
-        for row_id in ids:
-            LoadTally.counted(self.table, (row_id,))
-        return ids
+        query = self._scoped(query)
+        return self.connection.cached(query.tables(), *query.select_ids(), lambda rows: [self._loaded_id(row["id"]) for row in rows])
+
+    def _loaded_id(self, row_id: int) -> int:
+        LoadTally.counted(self.table, (row_id,))
+        return row_id
 
     def _purged(self, query: Query) -> None:
         LoadTally.count_write(self.table)

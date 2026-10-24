@@ -19,20 +19,14 @@ class ScopedRepository(Repository[S]):
         super().__init__(connection, bus)
         self.scope = scope
 
-    def selected(self, query: Query) -> list[S]:
-        return super().selected(self._scoped(query))
-
-    def selected_ids(self, query: Query) -> list[int]:
-        return super().selected_ids(self._scoped(query))
-
     def with_project(self, query: Query) -> list[S]:
-        return super().selected(query.filter_listed("environment_id", (self.scope.id, PROJECT)))
+        return self._selected(query.filter_listed("environment_id", (self.scope.id, PROJECT)))
 
     def global_matching(self, **fields) -> list[S]:
         return self.selected_globally(self.query().filter(**fields).order("id"))
 
     def selected_globally(self, query: Query) -> list[S]:
-        return super().selected(query)
+        return self._selected(query)
 
     def counted(self, query: Query) -> int:
         with self.connection.unlisted():

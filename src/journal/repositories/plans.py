@@ -80,10 +80,10 @@ class Plans(ScopedRepository[Plan]):
         return self.phases.numbered(ref.id for ref in self.links.sources(plan, PHASE_TASK_LINK))
 
     def phase_counts(self, plans: list[Plan]) -> dict[int, int]:
-        return self.links.counts_into(plans, PHASE_TASK_LINK)
+        return self.links.target_counts(plans, PHASE_TASK_LINK)
 
     def task_counts(self, plans: list[Plan]) -> dict[int, int]:
-        return self.links.counts_into(plans, PLAN_LINK)
+        return self.links.target_counts(plans, PLAN_LINK)
 
     def phase_tasks(self, phase: Phase) -> list[Task]:
         return self.tasks.numbered(ref.id for ref in self.links.sources(phase, PHASE_LINK))

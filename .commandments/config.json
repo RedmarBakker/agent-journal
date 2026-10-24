@@ -27,6 +27,8 @@
         "SentenceLabelScriptDetector",
         "SearchMarkLabelDetector",
         "QueryOutsideRepositoryDetector",
+        "ScopedReadAroundScopeDetector",
+        "UnscopedReadOutsideBaseDetector",
         "RowFilterOutsideRepositoryDetector",
         "RowFilterLoopOutsideRepositoryDetector",
         "WriteOutsideRepositoryDetector",

@@ -174,9 +174,9 @@ class Messages(ScopedRepository[Message]):
         return [message for message in self.recent_voice(last) if message.text == text]
 
     def comments(self) -> list[Message]:
-        commenting = self.link_query.filter(kind=self.COMMENT_LINK).filter_ref("source", self.query())
-        written = self.query().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present("reply_target"))
-        return self.selected(written.filter_existing(commenting).order("id"))
+        links = self.link_query.filter(kind=self.COMMENT_LINK).filter_ref("source", self.query())
+        candidates = self.query().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present("reply_target"))
+        return self.selected(candidates.filter_existing(links).order("id"))
 
     def recent_voice(self, last: int) -> list[Message]:
         return list(reversed(self.selected(self.main_voice().order_descending("id").limit(last))))

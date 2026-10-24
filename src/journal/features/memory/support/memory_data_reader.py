@@ -39,7 +39,7 @@ class MemoryDataReader:
         return facts
 
     def triggered_memories(self) -> list[tuple]:
-        return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.triggered()), *(("rule", rule, CardKind.RULES) for rule in self.rules.triggered()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.triggered())]
+        return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.filled_rows("trigger")), *(("rule", rule, CardKind.RULES) for rule in self.rules.filled_rows("trigger")), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.triggered())]
 
     def memories(self) -> list[tuple]:
         return [*(("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
