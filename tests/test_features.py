@@ -6741,6 +6741,42 @@ def test_a_journal_standing_by_serves_the_moment_the_one_holding_the_project_is_
     assert Config.rooted(linked).home.resolve() == app.config.home.resolve(), "a journal reached through another spelling of its path is the same journal"
 
 
+def test_hooks_from_two_worktrees_at_once_each_land_in_their_own_environment(app: App):
+    import subprocess
+    import threading
+    from journal.repositories.agents import Agents
+    from journal.repositories.environments import Environments
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    launches = app.config.home / "runtime" / "launches"
+    launches.mkdir(parents=True, exist_ok=True)
+    folders = {}
+    for name in ("calm-river", "quiet-heron"):
+        folders[name] = Worktree(root, name).created()
+        app.console().run(["environment", "create", name], USER)
+        (launches / f"{name}.json").write_text(json.dumps({"launch": f"launch-{name}"}))
+    script = root / ".journal" / "src" / "journal" / "hooks" / "environment.sh"
+    script = script if script.is_file() else Path(__file__).resolve().parents[1] / "src" / "journal" / "hooks" / "environment.sh"
+    named = {name: subprocess.run(["sh", "-c", f". '{script}'; journal_environment"], cwd=folder, env={key: value for key, value in os.environ.items() if key != "JOURNAL_ENV"}, capture_output=True, text=True, timeout=30).stdout for name, folder in folders.items()}
+    assert named == {"calm-river": "calm-river", "quiet-heron": "quiet-heron"}, "a hook with no JOURNAL_ENV names the environment of the worktree folder it runs in"
+
+    def started(name: str) -> None:
+        for turn in range(5):
+            posted(app, "/hooks/claude", {"hook_event_name": "SessionStart" if turn == 0 else "UserPromptSubmit", "session_id": f"s-{name}", "prompt": "go"}, {"X-Journal-Env": name, "X-Journal-Launch": f"launch-{name}"})
+
+    runs = [threading.Thread(target=started, args=(name,)) for name in folders]
+    for run in runs:
+        run.start()
+    for run in runs:
+        run.join(30)
+    environments = app.container.get(Environments)
+    homes = {name: app.container.get(Agents).session_agent(f"s-{name}").environment_id for name in folders}
+    assert homes == {name: environments.existing(name).row_id for name in folders}, "hooks posted from two worktrees at once each land in their own environment, never in main or the other"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
