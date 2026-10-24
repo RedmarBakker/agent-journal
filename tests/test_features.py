@@ -13644,6 +13644,9 @@ def test_the_viewers_console_errors_tell_the_agent_at_once_remind_it_every_fifty
     app.console().run(["environment", "overview"], AGENT)
     use = lambda: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
     post = lambda message, stack: posted(app, "/journal/client-errors", {"message": message, "stack": stack}, {"X-Journal-Env": "main"})
+    assert post("y is null", "at Bar.vue:3")[0] == 200 and keystrokes == [], "with the setting off, as it is outside the journal's own development, the agent hears nothing of the viewer's errors"
+    assert app.console().run(["developer", "client-errors", "--clear"], AGENT).code == 0
+    app.container.get(SettingRows).set("client_errors.report", True, Actor.system())
     assert post("x is undefined", "at Chat.vue:12")[0] == 200
     assert post("x is undefined", "at Chat.vue:12")[0] == 200
     assert keystrokes == ["[journal] the viewer logged a console error. read them with journal developer client-errors"], "the first error is told at once, and the same error again is counted and not told"
