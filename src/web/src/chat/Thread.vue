@@ -733,7 +733,9 @@ const {colleague, me} = useColleague();
     display: flex;
     flex-direction: column;
     gap: 7px;
-    padding: 14px 8px 7px;
+    padding: 14px 8px 20px;
+    /* bubbles scrolled under the foot fade out over its last stretch rather than end at a hard line; the padding keeps the newest clear of the fade */
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }
 
 .thread-scroll:has(.thread-turn:hover) :deep(.thread-turn:not(:hover) .thread-bubble) {
