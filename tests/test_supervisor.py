@@ -7,6 +7,8 @@ import time as timing
 from pathlib import Path
 
 from supervisor.inbox import Inbox
+from supervisor.supervisor import Supervisor
+from supervisor.terminal import Terminal
 from journal.support.environment_row import EnvironmentRow
 from journal.launcher.support.program_settings import ProgramSettings
 from journal.launcher.launch import Launch
