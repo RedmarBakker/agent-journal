@@ -20,6 +20,11 @@ class SyncStatus:
     def failed(self, fault: str) -> None:
         self.fault = fault
 
+    # the sync service's own word on how it stands: the fault it meets, and whether it has reached the team server
+    def reported(self, fault: str, reached: bool) -> None:
+        self.fault = fault
+        self.reached = self.reached or reached
+
     # the fault met here, or by the carrier in its own process, as its beat file says
     def current_fault(self) -> str:
         return self.fault or self.beat.fault()

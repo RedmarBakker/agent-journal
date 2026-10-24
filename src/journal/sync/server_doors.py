@@ -31,8 +31,8 @@ class ServerDoors:
         self.desk.kept_up()
         with self.desk.held(self.desk.sending, "take a batch"):
             changes = self.desk.batch(BATCH_ROWS)
-        files = tuple(WaitingFile(upload.id, place, str(path)) for upload in self.desk.waiting_files() for place, path in [self.desk.file_place(upload)])
-        return SyncBatch(tuple(change.id for change in changes), tuple(change.payload() for change in changes), files, self.desk.is_upgrader())
+        files = tuple(WaitingFile(upload.id, place, str(path), place.address()) for upload in self.desk.waiting_files() for place, path in [self.desk.file_place(upload)])
+        return SyncBatch(tuple(change.id for change in changes), tuple(change.payload() for change in changes), files, self.desk.is_upgrader(), self.desk.push_body(changes))
 
     def files_sent(self, ids: tuple[int, ...]) -> None:
         self.desk.files_sent(list(ids))

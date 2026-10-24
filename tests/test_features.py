@@ -13671,3 +13671,56 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
         kept = reports.find(sound.id)
     assert kept.dismissal == "the reader now picks only the line that starts with built" and not kept.is_refuted and kept.verdict == "the pattern picks the built line alone", "a sound dismissal stays closed"
     assert write()[0] == 200, "and holds nothing"
+
+
+def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_team_and_hands_the_teams_back(tmp_path, template_journal, monkeypatch):
+    import threading
+    from conftest import copied
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.tasks import Tasks
+    from journal.services.service_hooks import ServiceHooks
+    from journal.sync.team_account import TeamAccount
+    from sync_server.account import ADMIN
+    from sync_server.team_server import TeamServer
+    from sync_service.carrier import Carrier
+    from sync_service.event_inbox import EventInbox
+    from sync_service.journal_doors import JournalDoors
+    from journal.sync.sync_status import SyncStatus
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + 20
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    (tmp_path / "team").mkdir()
+    team = TeamServer(tmp_path / "team")
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("a", "b")]
+    carriers, inboxes = [], []
+    try:
+        for number, journal in enumerate(journals, start=1):
+            _, token = team.devices.login("ada@example.com", "correct horse battery", f"machine {number}", "127.0.0.1", 1.0)
+            journal.container.get(TeamAccount).write({"address": address, "token": token, "device": number, "account_id": 1, "sequence": 0})
+            journal.container.get(IdBlocks).add("tasks", 900000 + number * 1000, 900000 + number * 1000 + 99)
+            journal.server()
+            carrier = Carrier(JournalDoors(journal.config.root))
+            inbox = EventInbox(carrier)
+            inbox.start()
+            threading.Thread(target=carrier.run, args=(inbox.address,), daemon=True).start()
+            carriers.append(carrier)
+            inboxes.append(inbox)
+        a, b = journals
+        assert eventually(lambda: [registration.name for registration in a.container.get(ServiceHooks).registrations()] == ["sync"]), "the sync service registers with the journal server for its events"
+        assert a.console().run(["task", "create", "made on machine 1"], USER).code == 0
+        assert eventually(lambda: "made on machine 1" in [task.title for task in b.container.get(Tasks).global_matching()]), "a change queued on one journal is carried to the team and handed back to the other"
+        assert eventually(lambda: a.container.get(SyncStatus).line() == "In step with the team"), a.container.get(SyncStatus).line()
+    finally:
+        for carrier, inbox in zip(carriers, inboxes):
+            carrier.stop()
+            inbox.stop()
+        server.shutdown()

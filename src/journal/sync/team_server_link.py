@@ -43,13 +43,20 @@ class TeamServerLink:
         self.account, self.schema = account, schema
 
     def send_changes(self, changes: list[dict], clock_offset: float, query: PullQuery) -> SyncAnswer:
+        return SyncAnswer.parsed(**json.loads(self.posted("/push", self.push_body(changes, clock_offset, query))))
+
+    @staticmethod
+    def push_body(changes: list[dict], clock_offset: float, query: PullQuery) -> dict:
         # a team server from before the pool refuses a push with fields it does not know
         pool_fields = {"pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version} if query.pool.slots else {}
-        return SyncAnswer.parsed(**json.loads(self.posted("/push", {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields})))
+        return {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields}
 
     def fetch_changes(self, query: PullQuery) -> PullAnswer:
-        path = f"/pull?after={query.sequence}&wait={query.wait_seconds}&keys={','.join(query.environment_keys)}&slots={query.pool.slots}&free={query.pool.free}&version={query.version}"
-        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), path, None, query.wait_seconds + REQUEST_SECONDS)))
+        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), self.pull_path(query), None, query.wait_seconds + REQUEST_SECONDS)))
+
+    @staticmethod
+    def pull_path(query: PullQuery) -> str:
+        return f"/pull?after={query.sequence}&wait={query.wait_seconds}&keys={','.join(query.environment_keys)}&slots={query.pool.slots}&free={query.pool.free}&version={query.version}"
 
     def send_agent_views(self, views: dict[str, list[dict]]) -> None:
         self.posted("/agent-views", {"views": views})
@@ -159,14 +166,16 @@ class TeamServerLink:
         return self.sent(self.account.address(), f"/files/{place.address()}", None, COPY_SECONDS)
 
     def sent(self, address: str, path: str, body: bytes | None, seconds: float) -> bytes:
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.account.token()}", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
-        request = urllib.request.Request(address + path, data=body, headers=headers)
+        request = urllib.request.Request(address + path, data=body, headers=self.headers())
         try:
             with urllib.request.urlopen(request, timeout=seconds, context=self.trust()) as answer:
                 self.checked(answer.headers)
                 return answer.read()
         except urllib.error.HTTPError as refused:
             raise TeamRefusal(self.refusal_line(refused)) from refused
+
+    def headers(self) -> dict[str, str]:
+        return {"Content-Type": "application/json", "Authorization": f"Bearer {self.account.token()}", PROTOCOL_HEADER: str(PROTOCOL), MIGRATION_HEADER: str(self.schema.version()), VERSION_HEADER: VERSION}
 
     @staticmethod
     def refusal_line(refused: urllib.error.HTTPError) -> str:

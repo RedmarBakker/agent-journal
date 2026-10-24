@@ -8,6 +8,7 @@ from journal.repositories.pending_uploads import PendingUploads
 from journal.support.actor import Actor
 from journal.sync.attachments import Attachments
 from journal.sync.block_supply import BlockSupply
+from journal.sync.clock_offset import ClockOffset
 from journal.sync.desk_answer import DeskAnswer
 from journal.sync.host_desk import HostDesk
 from journal.sync.incoming_changes import IncomingChanges
@@ -18,6 +19,7 @@ from journal.sync.sync_status import SyncStatus
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_change import TeamChange
 from journal.sync.team_chat import TeamChat
+from journal.sync.team_server_link import TeamServerLink
 from journal.sync.team_upgrade import TeamUpgrade
 from sync_server.file_place import FilePlace
 from sync_server.full_copy import FullCopy
@@ -32,10 +34,10 @@ LOCK_SECONDS = 120
 class SyncDesk:
     """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease and the row number blocks kept up, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
 
-    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk) -> None:
+    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset) -> None:
         self.account, self.outgoing, self.incoming, self.rejected, self.status = account, outgoing, incoming, rejected, status
         self.uploads, self.attachments, self.chat, self.upgrade, self.copy = uploads, attachments, chat, upgrade, copy
-        self.supply, self.queries, self.host = supply, queries, host
+        self.supply, self.queries, self.host, self.offset = supply, queries, host, offset
         self.applying, self.sending = threading.Lock(), threading.RLock()
 
     @staticmethod
@@ -60,6 +62,10 @@ class SyncDesk:
 
     def batch(self, rows: int) -> list:
         return self.outgoing.sending_batch(rows)
+
+    # what a push of these changes sends the team server, with the clock offset measured so far and the query it pulls with
+    def push_body(self, changes: list) -> dict:
+        return TeamServerLink.push_body([change.payload() for change in changes], self.offset.seconds, self.query(0))
 
     def waiting_files(self) -> list:
         return self.uploads.waiting()
@@ -91,6 +97,7 @@ class SyncDesk:
 
     # an answer applied, or, when it asks for the team's full copy first, left for the carrier to hand again once the copy is laid in
     def taken(self, answer: PullAnswer) -> DeskAnswer:
+        self.offset.measured(answer.server_time)
         if self.needs_copy(answer):
             return DeskAnswer(0, True)
         return DeskAnswer(self.answered(answer), False)

@@ -8,6 +8,10 @@ from journal.sync.sync_batch import SyncBatch
 from journal.sync.sync_client import SyncClient
 from journal.sync.sync_start import SyncStart
 from journal.sync.sync_secret import DESK_PROTOCOL, PROTOCOL_HEADER, SyncSecret
+from journal.sync.sync_status import SyncStatus
+from journal.sync.team_account import TeamAccount
+from journal.sync.team_server_link import TeamServerLink
+from sync_server.protocol import PROTOCOL, PROTOCOL_HEADER as TEAM_PROTOCOL_HEADER
 from sync_server.full_copy import FullCopy
 from sync_server.pull_answer import PullAnswer
 from sync_server.sync_answer import SyncAnswer
@@ -16,8 +20,9 @@ from sync_server.sync_answer import SyncAnswer
 class SyncDeskController:
     """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, the team's full copy laid in when it is past this journal's sequence, and, around an upgrade, the queue drained and the carrier paused, then resumed."""
 
-    def __init__(self, doors: ServerDoors, client: SyncClient, sync: SyncStart, secret: SyncSecret, lifecycle: Lifecycle) -> None:
+    def __init__(self, doors: ServerDoors, client: SyncClient, sync: SyncStart, secret: SyncSecret, lifecycle: Lifecycle, account: TeamAccount, link: TeamServerLink, status: SyncStatus) -> None:
         self.doors, self.client, self.sync, self.secret, self.lifecycle = doors, client, sync, secret, lifecycle
+        self.account, self.link, self.status = account, link, status
 
     def guarded(self, door):
         return lambda request: self.answered(door, request)
@@ -31,8 +36,20 @@ class SyncDeskController:
             return Response.busy("the journal is starting: try again in a moment")
         return door(request)
 
+    # whether this journal is in a team, and how the sync service reaches its server: the address, the headers each request carries, the certificate authority it trusts and the least protocol it takes an answer in
+    def team(self, request: Request) -> Response:
+        if not self.account.is_joined():
+            return Response.json({"joined": False})
+        root = self.account.root_path()
+        return Response.json({"joined": True, "address": self.account.address(), "headers": self.link.headers(), "authority": str(root) if root.is_file() else "", "protocol": {"header": TEAM_PROTOCOL_HEADER, "least": PROTOCOL}})
+
     def query(self, request: Request) -> Response:
-        return Response.json(asdict(self.doors.query(request.queried("wait_seconds"))))
+        query = self.doors.query(request.queried("wait_seconds"))
+        return Response.json({**asdict(query), "path": TeamServerLink.pull_path(query)})
+
+    def state(self, request: Request) -> Response:
+        self.status.reported(str(request.body.get("fault", "")), bool(request.body.get("reached", False)))
+        return Response.json({})
 
     def batch(self, request: Request) -> Response:
         return Response.json(asdict(self.doors.batch(request.queried("wait_seconds"))))
