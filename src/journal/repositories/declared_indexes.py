@@ -1,6 +1,10 @@
 from journal.db.index import Index
 from journal.db.partial_index import PartialIndex
+from journal.db.query import Query
+from journal.models.message import Message
 from journal.repositories.entries import DISPATCHES, ENTRIES
+
+MESSAGES = Query.build(Message)
 
 INDEXES = (
     Index("agents_by_session", "agents", "session"),
@@ -22,6 +26,7 @@ INDEXES = (
     Index("messages_by_chat_time", "messages", "environment_id, agent_role, created_at, id"),
     Index("messages_by_environment", "messages", "environment_id, id"),
     Index("messages_by_key", "messages", "environment_id, idempotency"),
+    Index("messages_by_card_key", "messages", f"environment_id, {MESSAGES.expression('data->key')}"),
     Index("messages_by_reply", "messages", "reply_target"),
     Index("messages_by_session", "messages", "session, id"),
     Index("messages_by_update", "messages", "environment_id, updated_at"),
