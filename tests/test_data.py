@@ -460,10 +460,11 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
     from journal.sync.record_outgoing_change import RecordOutgoingChange
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from journal.sync.commit_signal import CommitSignal
+    from journal.services.service_hooks import ServiceHooks
 
     config = Config(tmp_path)
     changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_scopes(connection, bus, scope), CommitSignal()))
+    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_scopes(connection, bus, scope), CommitSignal(), ServiceHooks()))
     with scope.environment(1):
         before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
         assert changes.waiting() == [], "a journal in no team queues nothing"
@@ -559,6 +560,7 @@ def team_journal(tmp_path, name: str, signal=None):
     from journal.repositories.id_blocks import IdBlocks
     from journal.sync.block_numbers import BlockNumbers
     from journal.sync.commit_signal import CommitSignal
+    from journal.services.service_hooks import ServiceHooks
 
     folder = tmp_path / name
     config = Config(folder)
@@ -570,8 +572,8 @@ def team_journal(tmp_path, name: str, signal=None):
     scope = Scope(Environments(connection, bus))
     outgoing = OutgoingChanges(connection, bus)
     signal = signal or CommitSignal()
-    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_scopes(connection, bus, scope), signal))
-    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), signal))
+    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_scopes(connection, bus, scope), signal, ServiceHooks()))
+    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), signal, ServiceHooks()))
     blocks = IdBlocks(connection, bus)
     base = (ord(name[0]) - ord("a")) * 100_000
     for model in AllModels.MODELS:

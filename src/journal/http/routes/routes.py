@@ -41,6 +41,7 @@ from journal.http.controllers.search import SearchController
 from journal.http.controllers.secrets import SecretController
 from journal.http.controllers.sequences import SequenceController
 from journal.http.controllers.settings import SettingController
+from journal.http.controllers.services import ServiceController
 from journal.http.controllers.shell import ShellController
 from journal.http.controllers.shares import ShareController
 from journal.http.controllers.skills import SkillController
@@ -102,6 +103,7 @@ class Routes:
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
         router.get(f"{API}/sync", get(SyncController).show)
+        router.post(f"{API}/services", get(ServiceController).register)
         router.get(f"{API}/sync/query", get(SyncDeskController).guarded(get(SyncDeskController).query))
         router.post(f"{API}/sync/answer", get(SyncDeskController).guarded(get(SyncDeskController).answer))
         router.get(f"{API}/sync/batch", get(SyncDeskController).guarded(get(SyncDeskController).batch))

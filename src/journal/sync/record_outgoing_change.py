@@ -1,3 +1,5 @@
+from functools import partial
+
 from journal.db.schema import Schema
 from journal.events.listener import Listener
 from journal.events.models.created import Created
@@ -7,6 +9,8 @@ from journal.events.models.updated import Updated
 from journal.models.outgoing_change import CREATED, DELETED, UPDATED, OutgoingChange
 from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.sync.team_account import TeamAccount
+from journal.services.service_event import CHANGE_QUEUED, ServiceEvent
+from journal.services.service_hooks import ServiceHooks
 from journal.sync.commit_signal import CommitSignal
 from journal.sync.setting_scopes import SettingScopes
 
@@ -17,8 +21,8 @@ STAMP_COLUMNS = ("updated_at", "updater")
 class RecordOutgoingChange(Listener[ModelEvent]):
     """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team, a setting only when it is the team's: a creation with all its columns, an update with the ones it changed, a deletion with none."""
 
-    def __init__(self, changes: OutgoingChanges, account: TeamAccount, scopes: SettingScopes, signal: CommitSignal) -> None:
-        self.changes, self.account, self.scopes, self.signal = changes, account, scopes, signal
+    def __init__(self, changes: OutgoingChanges, account: TeamAccount, scopes: SettingScopes, signal: CommitSignal, hooks: ServiceHooks) -> None:
+        self.changes, self.account, self.scopes, self.signal, self.hooks = changes, account, scopes, signal, hooks
 
     def handle(self, event: ModelEvent) -> None:
         action = ACTIONS.get(type(event))
@@ -32,6 +36,7 @@ class RecordOutgoingChange(Listener[ModelEvent]):
         updated_at = event.model.updated_at.timestamp()
         self.changes.queued(OutgoingChange(row_table=event.model.table(), row=event.model.row_id, action=action, fields=fields, changed_at={name: updated_at for name in fields}, writer=event.actor.stamp), event.actor)
         self.changes.commit_callback(self.signal.ring)
+        self.changes.commit_callback(partial(self.hooks.post, ServiceEvent(CHANGE_QUEUED)))
 
     @staticmethod
     def names(event: ModelEvent, action: str) -> tuple[str, ...] | None:

@@ -1700,3 +1700,47 @@ def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_h
         assert sorted({name for name in sys.modules if name.startswith("journal")} - loaded) == [], "every module a request needs is imported at boot"
     finally:
         app.runtime().stop()
+
+
+def test_a_registered_service_is_posted_the_events_it_named_and_a_registration_without_the_service_secret_is_refused(tmp_path: Path, template_journal, boot, monkeypatch):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from conftest import copied
+    from journal.sync.sync_secret import SECRET_FILE, SECRET_HEADER
+    from journal.sync.team_account import TeamAccount
+    from journal.repositories.id_blocks import IdBlocks
+
+    posted: list[dict] = []
+
+    class StandIn(BaseHTTPRequestHandler):
+        def do_POST(self):
+            posted.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            return
+
+    service = HTTPServer(("127.0.0.1", 0), StandIn)
+    threading.Thread(target=service.serve_forever, daemon=True).start()
+    app = boot(copied(template_journal, tmp_path / "journal"), monkeypatch)
+    try:
+        server = app.server()
+        address = f"http://127.0.0.1:{service.server_address[1]}/events"
+        registration = {"name": "stand-in", "address": address, "events": ["change_queued"]}
+        assert call(server, "POST", "/journal/services", registration)[0] == 403, "a registration without the service secret is refused"
+        secret = (app.config.home / "runtime" / SECRET_FILE).read_text()
+        request = HttpRequest(f"http://127.0.0.1:{server.port}/journal/services", data=json.dumps(registration).encode(), method="POST", headers={"Content-Type": "application/json", SECRET_HEADER: secret})
+        assert json.loads(urlopen(request, timeout=5).read()) == {"registered": "stand-in"}
+        app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 1, "sequence": 0})
+        app.container.get(IdBlocks).add("tasks", 900001, 900099)
+        assert app.console().run(["task", "create", "queued for the team"], Caller.user("main")).code == 0
+        deadline = time.monotonic() + 10
+        while not posted and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert posted[:1] == [{"event": "change_queued"}], "a change queued for the team is posted to the service registered for it"
+    finally:
+        service.shutdown()
+        app.server().stop()
+        app.runtime().stop()
