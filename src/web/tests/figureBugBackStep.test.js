@@ -33,8 +33,8 @@ test("a bug nearly straight above is backed away from along the floor until its 
 });
 
 test("a bug nearly straight below is backed away from too, to the far side of the bug", () => {
-    const below = bug("left", 0.95);
-    const high = {...AT, y: 40};
+    const below = bug("left", 0.9);
+    const high = {...AT, x: 300, y: 40};
     const [leg] = backPlan([below], WORLD, high, SIZE);
     const spot = wallBugAt(below, WORLD, bugShotTimes(0).shot);
     expect(steepness(high, spot)).toBeGreaterThan(limit);
@@ -50,12 +50,14 @@ test("a bug at an easy angle is shot without a step, and one a bug before backed
     expect(both[1].to, "the second is already within the limit from where it stands").toBe(both[1].from);
 });
 
-test("the figure never backs past the margin from the end of its floor, and never toward the bug", () => {
-    const cramped = {...AT, x: 780, right: 800};
-    const [leg] = backPlan([bug("left", 0.95)], WORLD, {...cramped, y: 40}, SIZE);
-    expect(leg.to).toBeLessThanOrEqual(800 - ACTS.bug_shot.back.margin * SIZE);
-    const [near] = backPlan([bug("top", 0.99)], WORLD, {...AT, x: 20, left: 0}, SIZE);
-    expect(Math.abs(near.to - 790)).toBeGreaterThanOrEqual(Math.abs(near.from - 790) - 0.001);
+test("the figure never backs past the margin from the end of its floor, and never walks toward the bug", () => {
+    const margin = 800 - ACTS.bug_shot.back.margin * SIZE;
+    const [leg] = backPlan([bug("top", 0.5)], WORLD, {...AT, x: 420, y: 600}, SIZE);
+    expect(leg.to, "backed as far as the margin allows, short of the angle").toBe(margin);
+    const [past] = backPlan([bug("top", 0.5)], WORLD, {...AT, x: 790, y: 600}, SIZE);
+    expect(past.to, "a figure already past the margin stays where it is").toBe(790);
+    const [aside] = backPlan([bug("top", 0.02)], WORLD, {...AT, x: 20}, SIZE);
+    expect(aside.to, "away from a bug just on its right is away from it").toBeGreaterThan(aside.from);
 });
 
 test("it steps back only between the walk and the aim of its bug's turn, one way, its stride growing as it goes", () => {

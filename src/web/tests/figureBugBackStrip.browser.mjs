@@ -1,16 +1,15 @@
-// Needs a browser, so it is not in the default run: node src/web/tests/figureBugBackStrip.browser.mjs [where the strip is written]
+// Needs a browser, so it is not in the default run: node src/web/tests/figureBugBackStrip.browser.mjs [where the strip is written, default src/web/tests/strips/bug-back-strip.png]
 // A strip of the bug shot's figure in a real browser: facing a bug nearly straight above, backing away from it with its legs stepping
 // backward, then shooting from where it stands, and facing a bug at an easy angle, shooting without a step. Written as one PNG, a frame
 // to a cell; the angle of each shot is read back and must be within the limit.
-import {writeFileSync} from "node:fs";
-import {tmpdir} from "node:os";
-import {join} from "node:path";
+import {mkdirSync, writeFileSync} from "node:fs";
+import {dirname, join} from "node:path";
 import {fileURLToPath} from "node:url";
 import {chromium} from "playwright-core";
 import {createServer} from "vite";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const out = process.argv[2] ?? join(tmpdir(), "bug-back-strip.png");
+const out = process.argv[2] ?? join(root, "tests", "strips", "bug-back-strip.png");
 const server = await createServer({root, logLevel: "silent", server: {port: 0}});
 await server.listen();
 const browser = await chromium.launch();
@@ -54,6 +53,7 @@ try {
         cells.forEach((cell, at) => sheet.getContext("2d").drawImage(cell, at * SIZE, 0));
         return {png: sheet.toDataURL("image/png"), results, limit: act.back.limit};
     });
+    mkdirSync(dirname(out), {recursive: true});
     writeFileSync(out, Buffer.from(strip.png.split(",")[1], "base64"));
     for (const [at, result] of strip.results.entries()) {
         const shooting = at % 4 === 3;
