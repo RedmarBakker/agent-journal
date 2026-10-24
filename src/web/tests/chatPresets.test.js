@@ -32,3 +32,10 @@ test("a docked command card shows its title, progress and lines but no command l
     expect(dock).toContain(":title=\"[card.line,");
     expect(turn).toContain('<li class="mark-line mark-command">{{ data.line }}</li>');
 });
+
+test("a bubble holds its React, Reply and Copy buttons, so they sit on its own corner however wide its turn is", () => {
+    const message = readFileSync("src/chat/TurnMessage.vue", "utf8");
+    const bubble = message.split('class="thread-bubble md"')[1].split("\n        </div>")[0];
+    expect(bubble).toContain("<TurnActions");
+    expect(message).toMatch(/\.thread-bubble \{\s*position: relative;/);
+});

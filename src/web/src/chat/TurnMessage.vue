@@ -138,16 +138,16 @@ async function drop() {
             <template v-if="files.length">
                 <Attachments :message="turn" @grew="emit('grew')" />
             </template>
+            <TurnActions
+                :turn="turn"
+                :text="words.text"
+                :picking="picking"
+                @update:picking="picking = $event"
+                @reply="emit('reply', $event)"
+                @delete="drop"
+                @react="react"
+            />
         </div>
-        <TurnActions
-            :turn="turn"
-            :text="words.text"
-            :picking="picking"
-            @update:picking="picking = $event"
-            @reply="emit('reply', $event)"
-            @delete="drop"
-            @react="react"
-        />
         <template v-if="reactions.length">
             <TurnReactions :reactions="reactions" @react="react" />
         </template>
@@ -167,7 +167,9 @@ async function drop() {
     font-weight: 500;
 }
 
+/* the bubble holds its hover buttons, so they sit on its own corner however wide the turn around it is */
 .thread-bubble {
+    position: relative;
     width: fit-content;
     max-width: 100%;
 }
