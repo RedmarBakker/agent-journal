@@ -12643,7 +12643,7 @@ def test_claiming_checks_the_servers_address_before_it_asks_for_the_account(app:
 def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_a_held_lock_is_a_fault(app: App, monkeypatch):
     import threading
     import time as timing
-    from journal.sync import sync_client
+    from journal.sync import sync_desk
     from journal.sync.sync_client import SyncClient
     from journal.sync.sync_loop import SyncLoop
     from journal.sync.sync_status import SyncStatus
@@ -12663,12 +12663,12 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     client.stopping.set()
     released.set()
     first.join(5)
-    monkeypatch.setattr(sync_client, "LOCK_SECONDS", 0.2)
-    holder = threading.Thread(target=lambda: (client.applying.acquire(), timing.sleep(1), client.applying.release()))
+    monkeypatch.setattr(sync_desk, "LOCK_SECONDS", 0.2)
+    holder = threading.Thread(target=lambda: (client.desk.applying.acquire(), timing.sleep(1), client.desk.applying.release()))
     holder.start()
     timing.sleep(0.05)
     try:
-        with client.held(client.applying, "apply the team's changes"):
+        with client.desk.held(client.desk.applying, "apply the team's changes"):
             raise AssertionError("the lock was taken while another held it")
     except TimeoutError as fault:
         assert "to apply the team's changes, held by its other loop" in str(fault)
@@ -12686,3 +12686,22 @@ def test_a_run_is_named_for_the_commands_a_loop_runs_never_for_the_loops_words_o
     assert shape("for file in tests/*.py; do python3 -m pytest $file; done").startswith("python3 -m pytest")
     assert shape("mkdir -p out; pytest -q tests") == "pytest", "a folder made first is setup, not the run"
     assert ActivityLabel.of_chain("while IFS= read -r word", sweep) != "running while" and "while" not in ActivityLabel.of_chain("while IFS= read -r word", sweep), "the card is named for the loop's work"
+
+
+def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_team_settings(app: App):
+    from journal.features.team.support.team_join import TeamJoin
+    from journal.models.outgoing_change import UPDATED, OutgoingChange
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.sync.team_account import TeamAccount
+    account = app.container.get(TeamAccount)
+    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 7})
+    app.container.get(IdBlocks).add("tasks", 100, 199)
+    app.container.get(OutgoingChanges).queued(OutgoingChange(row_table="tasks", row=1, action=UPDATED, fields={"state": "open"}, changed_at={"state": 1.0}, writer="user:1"), Actor.system())
+    app.console().run(["task", "create", "kept after leaving"], USER)
+    said = app.console().run(["team", "leave"], USER)
+    assert said.code == 0 and "left the team at https://203.0.113.5:8443" in said.text, said.error
+    assert not account.is_joined() and list(app.config.home.glob("team.json.left-*")), "the team's settings are kept in a backup"
+    assert app.container.get(IdBlocks).all() == [] and app.container.get(OutgoingChanges).waiting() == [], "the blocks and the queue only the old team could take are gone"
+    assert "kept after leaving" in app.console().run(["task", "list"], USER).text, "every local row stays"
+    assert app.console().run(["team", "leave"], USER).code != 0, "a journal in no team has nothing to leave"
