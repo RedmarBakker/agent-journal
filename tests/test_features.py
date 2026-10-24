@@ -4,6 +4,7 @@ import json
 import os
 import re
 import signal
+import subprocess
 import time as timing
 from dataclasses import asdict, replace
 from pathlib import Path
