@@ -15,12 +15,14 @@ import {useWorkersHolding} from "../composables/workers.js";
 import ProgressBar from "../kit/ProgressBar.vue";
 import {PLANNED, PLAN_STATES, reviewersLine, statusOf} from "../domain/plans.js";
 import {peek} from "../route.js";
+import {wholePlans} from "../composables/wholePlans.js";
 
 const props = defineProps({resource: Object, readOnly: Boolean, pinProgress: Boolean, holding: Boolean, closable: {type: Boolean, default: true}});
 const emit = defineEmits(["close"]);
 const error = ref("");
 const fetching = ref(false);
 const scope = useScope();
+wholePlans(() => [props.resource.id]);
 const status = computed(() => statusOf(props.resource));
 const reviewers = computed(() => reviewersLine(props.resource.reviewers || 0));
 const current = computed(() => props.resource.current_phase || 1);
