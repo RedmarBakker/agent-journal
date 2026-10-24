@@ -8,7 +8,8 @@ from journal.http.support.request import ENVIRONMENT_HEADER
 from journal.sync.desk_answer import DeskAnswer
 from journal.sync.desk_busy import DeskBusy
 from journal.sync.sync_batch import SyncBatch
-from journal.sync.sync_secret import SECRET_FILE, SECRET_HEADER
+from journal.sync.desk_mismatch import DeskMismatch
+from journal.sync.sync_secret import DESK_PROTOCOL, PROTOCOL_HEADER, SECRET_FILE, SECRET_HEADER
 from journal.sync.waiting_file import WaitingFile
 from sync_server.file_place import FilePlace
 from sync_server.full_copy import FullCopy
@@ -62,13 +63,17 @@ class LocalDoors:
         port, secret = self.config.stored_port(), self.config.home / "runtime" / SECRET_FILE
         if not port or not secret.is_file():
             raise DeskBusy("the journal server is not running")
-        request = urllib.request.Request(f"http://127.0.0.1:{port[0]}{SYNC_PATH}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret.read_text(), ENVIRONMENT_HEADER: self.environment})
+        request = urllib.request.Request(f"http://127.0.0.1:{port[0]}{SYNC_PATH}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret.read_text(), ENVIRONMENT_HEADER: self.environment, PROTOCOL_HEADER: str(DESK_PROTOCOL)})
         try:
             with urllib.request.urlopen(request, timeout=seconds) as answer:
                 return json.loads(answer.read())
         except urllib.error.HTTPError as refusal:
             if refusal.code == 503:
                 raise DeskBusy("the journal server is starting") from refusal
+            if refusal.code == 426:
+                raise DeskMismatch(json.loads(refusal.read() or b"{}").get("error", "the journal server speaks another version of the sync desk")) from refusal
+            if refusal.code == 404:
+                raise DeskMismatch("the journal server is older than its sync process and has no sync desk: restart the journal so both run the same code") from refusal
             raise
         except (ConnectionRefusedError, urllib.error.URLError) as down:
             raise DeskBusy(f"the journal server did not answer: {down}") from down

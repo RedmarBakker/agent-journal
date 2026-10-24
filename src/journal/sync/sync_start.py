@@ -27,7 +27,12 @@ class SyncStart:
             return
         package = Path(__file__).resolve().parents[2]
         environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root), "JOURNAL_PARENT_PID": str(os.getpid())}
-        self.link.start_child(host, CARRIER, JOURNAL, [sys.executable, str(package / "journal.py"), "sync"], self.config.root, environ, self.config.home / "runtime" / f"{CARRIER}.log")
+        reply = self.link.start_child(host, CARRIER, JOURNAL, [sys.executable, str(package / "journal.py"), "sync"], self.config.root, environ, self.config.home / "runtime" / f"{CARRIER}.log")
+        if not reply.success:
+            # a supervisor from before child services refuses the verb: sync runs in the server's own threads until the supervisor is new
+            sys.stderr.write(f"the supervisor did not start the sync process ({reply.error}): sync runs in the journal server instead\n")
+            self.beat.forget()
+            self.client.start()
 
     def stopped(self) -> None:
         host = self.link.hosting()

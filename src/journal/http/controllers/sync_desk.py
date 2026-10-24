@@ -7,7 +7,7 @@ from journal.sync.server_doors import ServerDoors
 from journal.sync.sync_batch import SyncBatch
 from journal.sync.sync_client import SyncClient
 from journal.sync.sync_start import SyncStart
-from journal.sync.sync_secret import SyncSecret
+from journal.sync.sync_secret import DESK_PROTOCOL, PROTOCOL_HEADER, SyncSecret
 from sync_server.full_copy import FullCopy
 from sync_server.pull_answer import PullAnswer
 from sync_server.sync_answer import SyncAnswer
@@ -25,6 +25,8 @@ class SyncDeskController:
     def answered(self, door, request: Request) -> Response:
         if not self.secret.allows(request):
             return Response.forbidden("the sync desk answers its carrier alone: a request carries the server's sync secret and comes straight, never through a proxy")
+        if request.headers.get(PROTOCOL_HEADER, "") != str(DESK_PROTOCOL):
+            return Response(426, {"error": f"this journal server speaks version {DESK_PROTOCOL} of the sync desk's doors and its sync process version {request.headers.get(PROTOCOL_HEADER) or 'none'}: restart the journal so both run the same code"})
         if not self.lifecycle.is_booted():
             return Response.busy("the journal is starting: try again in a moment")
         return door(request)

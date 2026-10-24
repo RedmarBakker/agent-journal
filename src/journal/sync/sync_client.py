@@ -7,6 +7,7 @@ from pathlib import Path
 
 from journal.sync.desk_busy import DeskBusy
 from journal.sync.desk_doors import DeskDoors
+from journal.sync.desk_mismatch import DeskMismatch
 from journal.sync.sync_batch import SyncBatch
 from journal.sync.sync_loop import SyncLoop
 from journal.sync.sync_status import SyncStatus
@@ -80,7 +81,7 @@ class SyncClient:
                     self.busy = str(busy)
                     self.stopping.wait(delay)
                     delay = min(delay * 2, LAST_RETRY_SECONDS)
-                except (OSError, TeamRefusal) as fault:
+                except (OSError, TeamRefusal, DeskMismatch) as fault:
                     self.retried(str(fault), delay)
                     delay = min(delay * 2, LAST_RETRY_SECONDS)
                 except Exception as fault:

@@ -7,6 +7,9 @@ from journal.http.support.request import Request
 
 SECRET_FILE = "sync-secret"
 SECRET_HEADER = "x-journal-sync-secret"
+# the version of the sync desk's doors, which the carrier names on every call and the server answers only when it is its own
+DESK_PROTOCOL = 1
+PROTOCOL_HEADER = "x-journal-desk-protocol"
 
 
 class SyncSecret:

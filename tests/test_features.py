@@ -12750,7 +12750,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
 
     app.container.get(Bus).listen(SyncedCreation, TaskCreations())
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).read())
     change = {"sequence": 5, "row_table": "tasks", "row": 7001, "action": CREATED, "actor": "user:2", "account_id": 2, "device_id": 2, "fields": {"environment_id": 1, "title": "made on another machine", "state": "open", "created_at": "2026-10-24T10:00:00+00:00", "creator": "user:2", "updated_at": "2026-10-24T10:00:00+00:00", "updater": "user:2"}, "changed_at": {"title": 1.0}}
     assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
     with app.container.get(Scope).environment(1):
@@ -12778,7 +12778,7 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     change(1, "started")
     change(2, "started")
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).read())
     first = door("GET", "batch")
     change(3, "done")
     again = door("GET", "batch")
@@ -12832,7 +12832,7 @@ def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll
     from journal.sync.pull_queries import PullQueries
     server, account = joined_team(app)
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).read())
     account.record_sequence(42)
     assert door("GET", "query?wait_seconds=25") == json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "the query is the server's own, sequence and all"
     assert door("GET", "query")["sequence"] == 42
@@ -12878,7 +12878,7 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
     assert stat.S_IMODE(secret_file.stat().st_mode) == 0o600 and len(secret_file.read_text()) == 64, "the secret is written at boot for its owner alone"
     def status(headers: dict) -> int:
         try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", **headers}), timeout=10).status
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Desk-Protocol": "1", **headers}), timeout=10).status
         except HTTPError as refusal:
             return refusal.code
     secret = secret_file.read_text()
@@ -12901,7 +12901,7 @@ def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refu
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)
     server, account = joined_team(app)
     port = app.server().port
-    door = lambda path: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=30).read())
+    door = lambda path: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=30).read())
     outgoing = app.container.get(OutgoingChanges)
     outgoing.clear()
     app.console().run(["task", "create", "made before the upgrade"], USER)
@@ -12940,13 +12940,13 @@ def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_t
     outgoing.queued(OutgoingChange(row_table="tasks", row=edited, action=UPDATED, fields={"title": "edited here meanwhile"}, changed_at={"title": 9e9}, writer="user:1"), Actor.system())
     body = json.dumps({"rows": rows, "head": 50, "server_time": 1.0}).encode()
     assert len(body) > 4_000_000
-    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=60).read())
+    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=60).read())
     tasks = app.container.get(Tasks)
     with app.container.get(Scope).environment(local[0]["environment_id"]):
         assert answer == {"laid_in": True} and len(tasks.find(local[0]["id"]).brief) == 4_000_000, "the copy is laid in, many megabytes as it is"
         assert tasks.find(edited).title == "edited here meanwhile", "the write waiting to go stays on top of the team's copy"
     assert account.sequence() == 50
-    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=60).read())
+    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=60).read())
     assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
     account.left(0)
     server.shutdown()
@@ -12960,7 +12960,7 @@ def test_the_sync_desk_answers_busy_at_once_while_the_journal_boots(app: App):
     lifecycle = app.container.get(Lifecycle)
     def status() -> int:
         try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).status
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=10).status
         except HTTPError as refusal:
             return refusal.code
     lifecycle.booting()
@@ -13090,3 +13090,42 @@ def test_a_carrier_in_its_own_process_shows_on_the_status_line_by_its_beat(app: 
     finally:
         beat.forget()
         account.left(0)
+
+
+def test_the_carrier_and_the_server_agree_on_the_version_of_the_sync_desks_doors(app: App, tmp_path):
+    import http.server
+    import threading
+    from urllib.error import HTTPError
+    from journal.config import Config
+    from journal.sync.desk_mismatch import DeskMismatch
+    from journal.sync.local_doors import LocalDoors
+    port = app.server().port
+    secret = (app.config.home / "runtime" / "sync-secret").read_text()
+    try:
+        urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": secret, "X-Journal-Desk-Protocol": "0"}), timeout=10)
+        raise AssertionError("a carrier of another version was answered")
+    except HTTPError as refusal:
+        assert refusal.code == 426 and "version 1 of the sync desk's doors" in json.loads(refusal.read())["error"]
+
+    class OldServer(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, *arguments):
+            return None
+
+    old = http.server.HTTPServer(("127.0.0.1", 0), OldServer)
+    threading.Thread(target=old.serve_forever, daemon=True).start()
+    root = tmp_path / "old"
+    (root / ".journal" / "runtime").mkdir(parents=True)
+    (root / ".journal" / "port").write_text(str(old.server_address[1]))
+    (root / ".journal" / "runtime" / "sync-secret").write_text("s")
+    try:
+        LocalDoors(Config(root), "main").query(0)
+        raise AssertionError("an older server was not named")
+    except DeskMismatch as mismatch:
+        assert "older than its sync process" in str(mismatch), "a server without the doors is named, so the status line says why sync stopped"
+    finally:
+        old.shutdown()
+
