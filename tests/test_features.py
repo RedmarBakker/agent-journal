@@ -9830,37 +9830,54 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     assert card.data["line"] == "sleep 2", "the card names the line the alias ran, never the alias"
 
 
-def test_a_run_whose_reader_is_known_shows_its_card_in_the_chat_as_it_starts_before_any_move(app: App):
+def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: App):
     import threading
     import time
+    from journal.chat.process_cards import ProcessCards
+    from journal.features.shell.jobs.run_mark_start import RunMarkStart
+    from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.messages import Messages
-    console, runner = app.console(), app.container.get(ShellRunner)
+    console, runner, outputs = app.console(), app.container.get(ShellRunner), app.container.get(CommandOutputs)
     hook(app, "SessionStart")
     assert console.run(["alias", "add", "nap", "sleep", "--reader", "pytest", "--about", "waits"], AGENT).code == 0
-    request = ShellRequest(line=wrapped_line("journal nap 1"), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
-    shown: list[bytes] = []
-    run = threading.Thread(target=lambda: shown.extend(runner.run(request, AGENT, MAIN)))
-    run.start()
-    outputs = app.container.get(CommandOutputs)
-    deadline, watched, cards = time.monotonic() + 5, [], []
-    while not cards and time.monotonic() < deadline:
+
+    def ran(seconds: str) -> object:
+        request = ShellRequest(line=wrapped_line(f"journal nap {seconds}"), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+        shown: list[bytes] = []
+        run = threading.Thread(target=lambda: shown.extend(runner.run(request, AGENT, MAIN)))
+        run.start()
+        return run
+
+    def cards(output) -> list:
         with app.container.get(Scope).environment(MAIN):
-            watched = [output for output in outputs.watched(AGENT.session) if not output.moved and not output.ended]
-            cards = app.container.get(Messages).with_key(f"watch:{watched[0].row_id}") if watched else []
-        time.sleep(0.05)
-    run.join(10)
-    assert watched and watched[0].watch_reader == "pytest", "the run is watched through its reader while it still runs in the foreground"
-    assert cards, "and its card is in the chat before any move to the background"
+            return app.container.get(Messages).with_key(f"watch:{output.row_id}")
+
+    ran("0.2").join(10)
+    app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
-        kept = app.container.get(Messages).with_key(f"watch:{watched[0].row_id}")
-        assert kept and not kept[0].data["active"] and outputs.find(watched[0].row_id).ended, "a run that ends in the foreground keeps its card, turned to finished, and the output it opens"
-        from journal.chat.process_cards import ProcessCards
-        from journal.features.shell.support.output_process_card import OutputProcessCard
+        quick = {output.row_id for output in outputs.all()}
+        assert not [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("watch:")], "a run that ends within 3 seconds never reaches the chat, though its reader is known"
+    run = ran("4")
+    deadline, slow = time.monotonic() + 5, None
+    while slow is None and time.monotonic() < deadline:
+        with app.container.get(Scope).environment(MAIN):
+            slow = next((output for output in outputs.watched(AGENT.session) if not output.ended and output.row_id not in quick), None)
+        time.sleep(0.05)
+    job = app.container.get(RunMarkStart)
+    job.tick(time.time())
+    assert slow is not None and not cards(slow), "a run still within its first 3 seconds shows no card"
+    job.tick(time.time() + 3.5)
+    assert cards(slow), "once it has gone on for 3 seconds its card is in the chat"
+    run.join(10)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        kept = app.container.get(Messages).with_key(f"watch:{slow.row_id}")
+        assert kept and not kept[0].data["active"] and outputs.find(slow.row_id).ended, "a run that ends in the foreground after its card showed keeps it, turned to finished, and the output it opens"
         final = kept[0]
-        again = app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(watched[0].row_id).with_(summary="written after the end")))
+        again = app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(slow.row_id).with_(summary="written after the end")))
         assert again.row_id == final.row_id and app.container.get(Messages).find(final.row_id).updated_at == final.updated_at, "a mark that ended is final: nothing writes it again"
 
 
@@ -10715,9 +10732,11 @@ def test_a_watch_or_wait_through_a_reader_is_refused_on_an_output_its_reader_doe
     (folder / "0.out").write_text("")
     app.container.get(OutputLog).start("alias", "journal suite tests/test_server.py", folder, Caller.agent("main", "s1", "claude"))
     assert console.run(["output", "watch", "3", "--reader", "pytest"], AGENT).code == 0, "a run whose typed line is an alias is read by what it ran"
+    from journal.features.shell.jobs.run_mark_start import RunMarkStart
+    app.container.get(RunMarkStart).tick(timing.time() + 4)
     assert console.run(["output", "undock", str(tests.id)], AGENT).code == 0
     with app.container.get(Scope).environment(MAIN):
-        assert not app.container.get(Messages).with_key(f"watch:{tests.id}")[0].data.get("docked"), "and its card can be taken down"
+        assert not app.container.get(Messages).with_key(f"watch:{tests.id}")[0].data.get("docked"), "and its card, once shown, can be taken down"
 
 
 def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_merged_here(app: App, monkeypatch):

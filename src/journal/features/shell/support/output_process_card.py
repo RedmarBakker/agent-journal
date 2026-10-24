@@ -53,7 +53,7 @@ class OutputProcessCard(ProcessCard):
     def dock_state(self, output: CommandOutput) -> dict:
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())
         if not cards:
-            return {DOCKED: True, AUTO_DOCKED: True, DOCK_TIME_KEY: time.time() + DOCK_DELAY_SECONDS} if not output.ended and self.settings.option(ShellOptions.OUTPUT_DOCK) else {}
+            return {DOCKED: True, AUTO_DOCKED: True, DOCK_TIME_KEY: output.creation_time.timestamp() + DOCK_DELAY_SECONDS} if not output.ended and self.settings.option(ShellOptions.OUTPUT_DOCK) else {}
         if not output.ended or not cards[0].data.get(AUTO_DOCKED):
             return {}
         return {UNDOCK_TIME_KEY: cards[0].data.get(UNDOCK_TIME_KEY) or self.undock_time(cards[0].data.get(DOCK_TIME_KEY, 0))}
@@ -87,6 +87,9 @@ class OutputProcessCard(ProcessCard):
     def undocked(self, output: CommandOutput, actor: Actor) -> None:
         for card in self.messages.keyed(OutputView.key(output.row_id), Actor.system()):
             self.docking.release(card, actor)
+
+    def is_shown(self, output: CommandOutput) -> bool:
+        return bool(self.messages.keyed(OutputView.key(output.row_id), Actor.system()))
 
     def card_view(self, output: CommandOutput) -> OutputView:
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())

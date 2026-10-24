@@ -6,7 +6,7 @@ from journal.models.command_output import CommandOutput
 
 
 class OutputCard(Listener[Saved]):
-    """An output moved to the background or watched is a process card in the chat, written again each time the output is saved, as it moves, is watched and ends; a run watched from its start that ends in the foreground keeps its card, turned to how it ended."""
+    """An output moved to the background or watched is a process card in the chat once it has run 3 seconds, written again each time the output is saved, as it moves, is watched and ends; a run that ends sooner never reaches the chat, and one that ends in the foreground after its card showed keeps it, turned to how it ended."""
 
     def __init__(self, card: OutputProcessCard, cards: ProcessCards) -> None:
         self.card, self.cards = card, cards
@@ -15,5 +15,7 @@ class OutputCard(Listener[Saved]):
         output = event.model
         if not isinstance(output, CommandOutput):
             return
-        if output.moved or output.is_watched or output.watch_reader:
+        if not (output.moved or output.is_watched or output.watch_reader):
+            return
+        if self.card.is_shown(output) or output.is_past_mark(output.update_time.timestamp()):
             self.cards.show(self.card.card_contents(output))

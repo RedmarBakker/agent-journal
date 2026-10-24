@@ -8,6 +8,9 @@ from journal.models.scoped import Scoped
 ACTIVE = "running"
 FINISHED = "finished"
 FAILED = "failed"
+# a run is shown in the chat only once it has gone on this long; one that ends sooner never reaches it
+MARK_SECONDS = 3.0
+
 
 @dataclass(frozen=True)
 class CommandOutput(Scoped):
@@ -32,6 +35,9 @@ class CommandOutput(Scoped):
 
     def run_seconds(self) -> float:
         return (self.update_time - self.creation_time).total_seconds()
+
+    def is_past_mark(self, time: float) -> bool:
+        return self.moved or time - self.creation_time.timestamp() >= MARK_SECONDS
 
     def headline(self) -> str:
         first, *remainder = self.command.splitlines() or [""]
