@@ -88,4 +88,5 @@ export const POLLERS = Object.freeze({
     },
     "agent.transcript.older": {read: ({client, agent, session, before}) => client.transcript(agent, session, {before, last: PAGE}), demand: true, pauses: "agent.transcript"},
     "agent.edits": {read: ({client, agent, cursor}) => client.edits(agent, cursor), every: 2000, by: ({client, agent}) => `${client.env()}:${agent}`},
+    "agent.edits.older": {read: ({client, agent, before}) => client.edits(agent, 0, {before}), demand: true, pauses: "agent.edits"},
 });

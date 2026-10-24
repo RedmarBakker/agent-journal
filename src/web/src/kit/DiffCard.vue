@@ -40,9 +40,11 @@ const gone = computed(() => props.kind === "deleted");
 const badge = computed(() => BADGES[props.kind]);
 
 const changed = computed(() => new Set(props.rows.filter((row) => row.kind === "add").map((row) => row.line)));
+const side = ref("after");
+const sideText = computed(() => (side.value === "before" ? props.whole.old : props.whole.text));
 const drawn = computed(() => {
     if (props.whole && props.whole.text !== undefined)
-        return props.whole.text.split("\n").map((text, i) => ({kind: changed.value.has(i + 1) ? "add" : "ctx", line: i + 1, text}));
+        return sideText.value.split("\n").map((text, i) => ({kind: side.value === "after" && changed.value.has(i + 1) ? "add" : "ctx", line: i + 1, text}));
     return props.rows.filter(
         (row) => !(props.editsOnly && ["ctx", "fold"].includes(row.kind)) && !(props.hideRemovals && row.kind === "del")
     );
@@ -92,6 +94,16 @@ onUnmounted(() => sized && sized.disconnect());
             <span :class="['diff-card-count', 'add', {zero: !added}]">+{{ added }}</span>
             <span :class="['diff-card-count', 'del', {zero: !removed}]">−{{ removed }}</span>
             <span class="diff-card-ago">{{ ago }}</span>
+            <template v-if="whole && whole.old !== undefined">
+                <button
+                    type="button"
+                    class="diff-card-side"
+                    :title="side === 'after' ? 'Show the file before' : 'Show the file after'"
+                    @click.stop="side = side === 'after' ? 'before' : 'after'"
+                >
+                    {{ side === "after" ? "After" : "Before" }}
+                </button>
+            </template>
             <template v-if="!gone">
                 <button
                     type="button"
@@ -314,6 +326,23 @@ onUnmounted(() => sized && sized.disconnect());
 
 .diff-card-whole:hover,
 .diff-card-whole.on {
+    background: var(--hover);
+    color: var(--text);
+}
+
+.diff-card-side {
+    height: 20px;
+    margin-left: 2px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: var(--text-3);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.diff-card-side:hover {
     background: var(--hover);
     color: var(--text);
 }

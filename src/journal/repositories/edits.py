@@ -23,5 +23,9 @@ class Edits(ScopedRepository[Edit]):
     def tool_use_edits(self, session: str, tool_use: int) -> list[Edit]:
         return self.selected(self.query().filter(session=session, tool_use=tool_use).order("id"))
 
-    def agent_edits(self, session: str, start: float, last: int) -> list[Edit]:
-        return list(reversed(self.selected(self.query().filter(session=session).filter_greater("time", start).order_descending("id").limit(last))))
+    def agent_edits(self, session: str, start: float, last: int, ceiling_id: int = 0) -> list[Edit]:
+        query = self.query().filter(session=session).filter_greater("time", start)
+        return list(reversed(self.selected((query.filter_less("id", ceiling_id) if ceiling_id else query).order_descending("id").limit(last))))
+
+    def has_older(self, session: str, first: int) -> bool:
+        return bool(self.selected(self.query().filter(session=session).filter_less("id", first).limit(1)))

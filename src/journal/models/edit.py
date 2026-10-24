@@ -18,3 +18,5 @@ class Edit(Scoped):
     rows: tuple = ()
     command: str = ""
     tool_use: int = 0
+    old_text: str = ""
+    new_text: str = ""

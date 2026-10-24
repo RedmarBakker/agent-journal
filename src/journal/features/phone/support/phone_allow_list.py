@@ -8,7 +8,7 @@ READS = frozenset((
     "/journal/project-files", "/journal/project-files/find", "/journal/project-files/file", "/journal/project-files/diff",
     "/journal/attachments", "/journal/{table}/{id}/files/{name}", "/journal/comments", "/journal/reactions", "/journal/nudges", "/journal/docs/search", "/journal/docs/{id}/export", "/journal/reports/{id}/export",
     "/journal/tasks/{id}/logs", "/journal/plans/{id}/tasks", "/journal/plans/{id}/timeline", "/journal/workers/{id}/transcript",
-    "/journal/agents/live", "/journal/agents/controls/{provider}", "/journal/agents/{id}/edits", "/journal/agents/{id}/edits/file", "/journal/agents/{id}/terminal", "/journal/agents/{id}/transcript",
+    "/journal/agents/live", "/journal/agents/controls/{provider}", "/journal/agents/{id}/edits", "/journal/agents/{id}/edits/text", "/journal/agents/{id}/edits/image", "/journal/agents/{id}/terminal", "/journal/agents/{id}/transcript",
     "/journal/agents/{id}/subagents/{session}/transcript", "/journal/skills", "/journal/skills/{name}", "/journal/shares/opens",
 ))
 WRITES = frozenset((

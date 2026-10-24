@@ -1,3 +1,4 @@
+import mimetypes
 import time as timing
 
 from journal.config import Config
@@ -7,12 +8,16 @@ from journal.http.agents.agent_activity import AgentActivity
 from journal.http.agents.agent_bar_writes import AGENT_CONTROL, AGENT_PAUSE, AGENT_RESUME, AGENT_SHELL, AgentBarWrites
 from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.controllers.controller import Controller
+from journal.features.edits.support.image_files import ImageFiles
 from journal.http.counts import Counts
 from journal.http.listing import Listing
 from journal.http.row_list import RowList
+from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
+from journal.http.support.sandboxed_file_response import SandboxedFileResponse
 from journal.support.response import Response
 from journal.models.agent import Agent
+from journal.models.edit import Edit
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
@@ -89,7 +94,30 @@ class AgentController(Controller[Agent]):
         return Response.json({"queued": True})
 
     def edits(self, request: Request) -> Response:
-        return Response.json({"cursor": timing.time(), "edits": self.file_edits.agent_edits(self.session(request.number("id")), request.queried("since"), EDITS_SHOWN)})
+        session = self.session(request.number("id"))
+        shown = self.file_edits.agent_edits(session, request.queried("since"), EDITS_SHOWN, int(request.queried("before")))
+        older = bool(shown) and self.file_edits.has_older(session, shown[0].row_id)
+        return Response.json({"cursor": timing.time(), "edits": [self.listed_edit(edit) for edit in shown], "older": older})
+
+    def listed_edit(self, edit: Edit) -> dict:
+        return {**ModelFields.build(edit), "old_text": "", "new_text": "", "has_text": bool(edit.old_text or edit.new_text), "image": ImageFiles.is_image(edit.path)}
+
+    def requested_edit(self, request: Request) -> Edit:
+        edit = self.file_edits.find(int(request.queried("edit")))
+        if edit.session != self.session(request.number("id")):
+            raise Rejection("no such edit")
+        return edit
+
+    def edited_text(self, request: Request) -> Response:
+        edit = self.requested_edit(request)
+        return Response.json({"path": edit.path, "old_text": edit.old_text, "new_text": edit.new_text, "stored": bool(edit.old_text or edit.new_text)})
+
+    def edited_image(self, request: Request) -> SandboxedFileResponse | Response:
+        edit = self.requested_edit(request)
+        file = (self.config.root / edit.path).resolve()
+        if not ImageFiles.is_image(edit.path) or not file.is_relative_to(self.config.root.resolve()) or not file.is_file():
+            return Response.absent(edit.path)
+        return SandboxedFileResponse(mimetypes.guess_type(file.name)[0] or "application/octet-stream", file.read_bytes())
 
     def session(self, id: int) -> str:
         environment = self.environment()
@@ -99,13 +127,6 @@ class AgentController(Controller[Agent]):
         if not sessions:
             raise Rejection(f"agent {id} is not running in {environment.name}")
         return sessions[0]
-
-    def edited_file(self, request: Request) -> Response:
-        path = request.query.get("path", "")
-        file = (self.config.root / path).resolve()
-        if not str(file).startswith(str(self.config.root.resolve())) or not file.is_file():
-            return Response.absent(path)
-        return Response.json({"path": path, "text": file.read_text(errors="replace")[:200000]})
 
     def terminal(self, request: Request) -> Response:
         if not self.hosts.is_host(self.environment()):

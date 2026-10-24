@@ -2730,6 +2730,49 @@ def test_the_files_a_shell_part_changed_show_in_the_edits_pane(app: App):
     assert [(e["path"], e["added"], e["removed"]) for e in edits] == [("notes.md", 3, 0)] and edits[0]["command"].startswith("sed"), "a file the line wrote shows with its lines; a file it touched without a change does not, and a file only read is no edit, whatever its path"
 
 
+def test_the_edits_pane_pages_back_through_the_kept_edits_with_an_older_flag(app: App):
+    from urllib.request import urlopen
+    from journal.models.edit import Edit
+    from journal.repositories.edits import Edits
+    hook(app, "SessionStart")
+    edits = app.container.get(Edits)
+    for i in range(120):
+        edits.record(Edit(session="s1", path=f"f{i}.py", time=float(i + 10)), Actor.agent("s1"))
+    base = f"http://127.0.0.1:{app.server().port}/journal/agents/1/edits?env=main"
+    page = json.load(urlopen(HttpRequest(base), timeout=5))
+    seen = [e["path"] for e in page["edits"]]
+    assert len(seen) == 50 and seen[-1] == "f119.py" and page["older"] is True, "the newest fifty, with older ones kept"
+    page = json.load(urlopen(HttpRequest(f"{base}&before={page['edits'][0]['id']}"), timeout=5))
+    seen = [e["path"] for e in page["edits"]] + seen
+    assert len(page["edits"]) == 50 and page["older"] is True
+    page = json.load(urlopen(HttpRequest(f"{base}&before={page['edits'][0]['id']}"), timeout=5))
+    seen = [e["path"] for e in page["edits"]] + seen
+    assert len(page["edits"]) == 20 and page["older"] is False and seen == [f"f{i}.py" for i in range(120)], "paging back reaches the first edit and says there is no more"
+
+
+def test_an_edit_keeps_its_files_text_before_and_after_and_a_picture_is_served(app: App):
+    from urllib.request import urlopen
+    hook(app, "SessionStart")
+    root = app.config.root
+    (root / "notes.md").write_text("a\nb\nc\n")
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "sed -i '' s/a/b/ notes.md"}, tool_response="")
+    (root / "notes.md").write_text("a\nb\nc\nd\n")
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "sed -i '' s/a/b/ notes.md"}, tool_response="")
+    (root / "notes.md").write_text("changed on disk afterwards\n")
+    port = app.server().port
+    shown = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/agents/1/edits?env=main"), timeout=5))["edits"]
+    assert [e["has_text"] for e in shown] == [True, True] and all(e["old_text"] == "" and e["new_text"] == "" for e in shown), "the list says the text is kept without carrying it"
+    first = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/agents/1/edits/text?edit={shown[0]['id']}&env=main"), timeout=5))
+    second = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/agents/1/edits/text?edit={shown[1]['id']}&env=main"), timeout=5))
+    assert (first["old_text"], first["new_text"]) == ("", "a\nb\nc\n") and (second["old_text"], second["new_text"]) == ("a\nb\nc\n", "a\nb\nc\nd\n"), "each edit reads its own before and after after the file changed on disk"
+    (root / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\nbytes")
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "sed -i '' s/a/b/ pic.png"}, tool_response="")
+    picture = [e for e in json.load(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/agents/1/edits?env=main"), timeout=5))["edits"] if e["path"] == "pic.png"]
+    assert len(picture) == 1 and picture[0]["image"] is True and picture[0]["rows"] == [] and picture[0]["has_text"] is False
+    served = urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/agents/1/edits/image?edit={picture[0]['id']}&env=main"), timeout=5)
+    assert served.headers["Content-Type"] == "image/png" and served.read() == b"\x89PNG\r\n\x1a\nbytes", "an edited image is served as the picture"
+
+
 def test_a_shell_line_that_writes_is_a_write_to_the_gates(app: App):
     from journal.support.writes import Writes
     assert [Writes.build(c) for c in ("sed -i '' s/a/b/ f.py", "cat f.py | head -3", "echo hi > /dev/null", "echo hi > out.txt", "git status; git log", "git checkout -- f.py", "`journal task create` x", "python3 - <<'EOF'\nfrom pathlib import Path\nPath('x').write_text('y')\nEOF", "python3 -c 'print(1)'", "grep -rn 'a > b' src | tee found.txt", 'echo "a > b"')] == [True, False, False, True, False, True, False, True, False, True, False]

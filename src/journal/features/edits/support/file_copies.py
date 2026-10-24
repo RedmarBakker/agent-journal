@@ -7,6 +7,7 @@ from journal.config import Config
 COPY_COUNT = 200
 LARGEST_BYTES = 1_000_000
 GIT_SECONDS = 5
+STORED_CHARS = 200_000
 
 
 class FileCopies:

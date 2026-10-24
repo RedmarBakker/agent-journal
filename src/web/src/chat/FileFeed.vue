@@ -1,5 +1,5 @@
 <script setup>
-import {computed, ref} from "vue";
+import {computed, nextTick, ref} from "vue";
 import {showFile} from "../route.js";
 import {useScope} from "../composables/scope.js";
 import FeedBar from "./FeedBar.vue";
@@ -32,7 +32,7 @@ const SIZES = {"-1": ["10.5px", "17px"], 0: ["11.5px", "19px"], 1: ["13px", "21p
 const scroller = ref(null);
 const follow = useFollow(scroller);
 const {following, unseen, jump, scrolled, wheeled} = follow;
-const {cards, ready, latest} = useFileFeed(props.agent, follow, scope.api);
+const {cards, ready, latest, older, earlier} = useFileFeed(props.agent, follow, scope.api);
 const now = useNow();
 const view = computed(() => ({...DEFAULTS, ...(props.defaults || {}), ...(props.options || {})}));
 const flushed = computed(() => props.flush || view.value.flush);
@@ -59,15 +59,25 @@ async function whole(c) {
     wholes.value = {...wholes.value, [c.id]: {}};
     folds.value = {...folds.value, [c.id]: false};
     try {
-        const got = await scope.api.editedFile(props.agent, c.latest, "after");
-        wholes.value = {...wholes.value, [c.id]: {text: got.text}};
+        const [first, last] = await Promise.all([scope.api.editedText(props.agent, c.id), scope.api.editedText(props.agent, c.latest)]);
+        if (!last.stored) throw new Error("not kept");
+        wholes.value = {...wholes.value, [c.id]: {text: last.new_text, old: first.old_text}};
     } catch (e) {
-        wholes.value = {...wholes.value, [c.id]: {error: "This version of the file is no longer kept."}};
+        wholes.value = {...wholes.value, [c.id]: {error: "The text of this file is no longer kept."}};
     }
 }
 
-function onScroll(e) {
+const NEAR_TOP = 120;
+
+async function onScroll(e) {
     scrolled(e);
+    const box = scroller.value;
+    if (!box || box.scrollTop > NEAR_TOP || !older.value) return;
+    const height = box.scrollHeight;
+    if (await earlier()) {
+        await nextTick();
+        box.scrollTop += box.scrollHeight - height;
+    }
 }
 </script>
 

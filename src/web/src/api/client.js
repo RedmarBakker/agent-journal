@@ -337,12 +337,16 @@ export class ApiClient {
         return this.get(this.here(`/workers/${id}/transcript${query(fields)}`), `/workers/${id}/transcript.${readKind(fields)}`);
     }
 
-    edits(agent, since) {
-        return this.get(this.here(`/agents/${agent}/edits${query({since})}`));
+    edits(agent, since, fields = {}) {
+        return this.get(this.here(`/agents/${agent}/edits${query({since, ...fields})}`));
     }
 
-    editedFile(agent, path) {
-        return this.get(this.here(`/agents/${agent}/edits/file${query({path})}`));
+    editedText(agent, edit) {
+        return this.get(this.here(`/agents/${agent}/edits/text${query({edit})}`));
+    }
+
+    editedImageUrl(agent, edit) {
+        return this.address(`/agents/${agent}/edits/image${query({edit})}`);
     }
 
     terminal(agent, after = 0) {
