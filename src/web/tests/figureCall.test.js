@@ -271,7 +271,7 @@ test("on the telephone it says whom it calls on its visor: the worker and the ta
     expect(litPixels({...face, ticker: tickerAt(text, tickerSeconds(text))}).length).toBe(litPixels(face).length);
 });
 
-test("on the telephone the worker and its task scroll across the visor fast, passing in a couple of seconds, within the call's own talk", async () => {
+test("on the telephone the worker and its task scroll across the visor fast, passing in a couple of seconds", async () => {
     const {callLines} = await import("../src/domain/figureState.js");
     const {FRAMES_PER_SECOND, TICKER, tickerAt, tickerSeconds} = await import("../src/figure/visorPixels.js");
     // sixty columns a second, ten letters, on a screen that steps five times as often as the eyes' while the words show
@@ -283,11 +283,56 @@ test("on the telephone the worker and its task scroll across the visor fast, pas
         expect(tickerSeconds(text), text).toBeLessThan(3);
         expect(tickerAt(text, tickerSeconds(text)), text).toBe(null);
         expect(tickerAt(text, tickerSeconds(text) - 1 / TICKER.fps), text).not.toBe(null);
-        // so the call needs no talk played round again for them: they have passed by the time the handset is down
-        expect(callStretch(tickerSeconds(text)).extra, text).toBe(0);
         // and each frame of the ticker moves the words on no more than two columns, so they slide rather than jump
         expect(tickerAt(text, 1 / TICKER.fps).step - tickerAt(text, 0.5 / TICKER.fps).step, text).toBeLessThanOrEqual(2);
     }
+});
+
+test("the call plays out whole: it hangs up only once its last line has left the visor, for one line, two, and a second joining mid-call, and nothing else starts meanwhile", async () => {
+    const {callLines} = await import("../src/domain/figureState.js");
+    const {givesWay} = await import("../src/figure/pile.js");
+    const {actOver, canSwitch, stretchedAs, stretchedFrame} = await import("../src/figure/timeline.js");
+    const {tickerAt, tickerSeconds} = await import("../src/figure/visorPixels.js");
+    const clip = CLIPS.find((each) => each.name === "phone_call");
+    const one = callLines([{row: "workers:57", task: 2742}]).join("   ");
+    const two = callLines([{row: "workers:57", task: 2742}, {row: "workers:58", task: 2743}]).join("   ");
+    // the call played a frame at a time on the act's own clock, as VoiceFigure's step plays it: the words it says at each raw frame,
+    // `kept` whether the act on screen takes the stretch the call asks for now (timeline.js stretchedAs) or keeps the one it began with
+    const played = (saying, kept = true) => {
+        let shown = null;
+        let last = 0;
+        const frames = [];
+        for (let raw = 0; raw < 60 * clip.fps; raw++) {
+            const text = saying(raw);
+            const wanted = {clip, once: true, stretch: callStretch(tickerSeconds(text))};
+            shown = shown === null ? wanted : kept ? stretchedAs(shown, wanted) : shown;
+            const index = Math.floor(stretchedFrame(raw, shown.stretch));
+            if (actOver(shown, index)) return {frames, over: raw};
+            // the words on the visor, from the talk's start (VoiceFigure callTicker), and whether the figure has begun to hang up
+            const words = tickerAt(text, (raw - act.talk[0] * clip.frames) / clip.fps);
+            frames.push({raw, words, hanging: index >= act.hang[0] * (clip.frames - 1)});
+            // nothing takes the call off before it is over, whatever is wanted meanwhile, the sitting acts among them
+            expect(canSwitch(clip, index, last), `${raw}`).toBe(false);
+            expect(givesWay(shown, raw / clip.fps), `${raw}`).toBe(false);
+            last = index;
+        }
+        throw new Error("the call never ended");
+    };
+    const joinsAt = Math.round(act.talk[0] * clip.frames) + 6;
+    for (const [name, saying] of [["one line", () => one], ["two lines", () => two], ["a second joining mid-call", (raw) => (raw < joinsAt ? one : two)]]) {
+        const {frames, over} = played(saying);
+        const hangs = frames.find((frame) => frame.hanging);
+        // it hangs up only once the last line has left the visor, and the words are never cut off: on screen up to it, gone from then on
+        expect(hangs, name).toBeTruthy();
+        expect(hangs.words, `${name}: the words have passed when it begins to hang up`).toBe(null);
+        expect(frames.some((frame) => frame.raw < hangs.raw && frame.words), name).toBe(true);
+        expect(frames.filter((frame) => frame.raw >= hangs.raw).every((frame) => frame.words === null), name).toBe(true);
+        // and only then does the act end, the handset down
+        expect(over, name).toBeGreaterThan(hangs.raw);
+    }
+    // the call a second worker joins, held only as long as it asked when it began, would hang up with the second line still on the visor
+    const stale = played((raw) => (raw < joinsAt ? one : two), false);
+    expect(stale.frames.find((frame) => frame.hanging).words).not.toBe(null);
 });
 
 test("drawn after the reference picture: a large cream dial plate fills most of the sloped front, with the dark wheel, its white holes, the marks round it and the label, and the handset has round ends", () => {

@@ -22,6 +22,11 @@ export function closeAt(clip, index) {
     return intro + Math.ceil(Math.max(index - intro, 0) / unit) * unit;
 }
 
+// The act on screen, `shown`, as it goes on while the same act is wanted, `wanted`: held as long as the act asks now (its `stretch`), as a
+// call held longer once another worker joins it, so it never ends by how long it asked to be when it began; all else it gathered on screen
+// kept
+export const stretchedAs = (shown, wanted) => ({...shown, stretch: wanted.stretch});
+
 // whether the act played once on screen, `shown`, is over `index` frames in: its clip played to its end, whatever is wanted next
 export const actOver = (shown, index) => Boolean(shown?.once) && index >= shown.clip.frames;
 

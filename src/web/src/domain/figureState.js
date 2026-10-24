@@ -144,7 +144,7 @@ function legClip(trip, doing, canDraw) {
     return doing !== "idle" && canDraw(doing, "walk") ? {clip: doing, facing, posture: "walk", ...steps} : {clip: "walk", facing, ...steps};
 }
 
-export {actOver, frameIn, closeAt, canSwitch, goesOnFacing, stretchedFrame} from "../figure/timeline.js";
+export {actOver, frameIn, closeAt, canSwitch, goesOnFacing, stretchedAs, stretchedFrame} from "../figure/timeline.js";
 
 // A worker's chat mark of the agent giving it a task, the one it names: its dispatch, the worker's process card, unless the dispatch failed;
 // or its next job, a mark known by its words alone, a queue's next task among them; a mark that names no task, a message to it, its start

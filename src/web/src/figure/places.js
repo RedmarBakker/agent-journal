@@ -522,14 +522,16 @@ export function nearestTell(mark, bar, head) {
 // whether the figure says whom it calls at `u` of its call (acts.js phone_call): from the talk's start until the handset is down
 export const callSays = (u) => u >= ACTS.phone_call.talk[0] && u < ACTS.phone_call.hang[1];
 
-// The call's talk held longer so its words scroll across the visor for `seconds` at least (timeline.js stretchedFrame): the talk played round again as
-// many more times as that takes, none when the call is long enough as it is; the talk's frames are where the act's own time is in it,
-// its last frame at 1 (figure.js onceTime)
+// The call's talk held longer so its words, `seconds` of them scrolling across the visor, have all passed before it begins to hang up
+// (timeline.js stretchedFrame): the talk played round again as many more times as that takes, none when the talk is long enough as it is;
+// the talk's frames are where the act's own time is in it, its last frame at 1 (figure.js onceTime)
 export function callStretch(seconds) {
     const act = ACTS.phone_call;
     const [from, to] = act.talk.map((u) => u * (act.frames - 1));
-    const said = ((act.hang[1] - act.talk[0]) * act.frames) / act.fps;
-    const rounds = Math.max(Math.ceil(((seconds - said) * act.fps) / (to - from)), 0);
+    // the words start on the act's own clock as the talk does (VoiceFigure callTicker), and it begins to hang up as the talk ends, each round
+    // played again putting that off by a round
+    const [start, hang] = [act.talk[0] * act.frames, act.hang[0] * (act.frames - 1)];
+    const rounds = Math.max(Math.ceil((seconds * act.fps - (hang - start)) / (to - from)), 0);
     return {from, to, extra: rounds * (to - from)};
 }
 

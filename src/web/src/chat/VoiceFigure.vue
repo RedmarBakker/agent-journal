@@ -33,6 +33,7 @@ import {
     modeOf,
     closeAt,
     goesOnFacing,
+    stretchedAs,
     facesAfter,
     figureStateOf,
     frameIn,
@@ -411,7 +412,7 @@ function step() {
     if (playing.name !== key || (playing.closing !== null && finished)) {
         const turning = shown.clip.intro && playing.shown?.clip.name === shown.clip.name && playing.closing === null;
         playing = {name: key, started: turning ? playing.started : performance.now(), shown, index: 0, closing: null};
-    }
+    } else playing.shown = stretchedAs(playing.shown, shown);
     shownClip.value = shown.clip;
     shownFacing.value = shown.facing;
     const index = frameOf(shown);
