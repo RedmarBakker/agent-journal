@@ -3,13 +3,14 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class EnvironmentRow:
-    """An environment as the boot menu lists it: whether an agent works in it, when it was last used, each agent program's newest session it can still carry on, and why no agent may start in it, as in a colleague's environment on a shared journal."""
+    """An environment as the boot menu lists it: whether an agent works in it, when it was last used, each agent program's newest session it can still carry on, why no agent may start in it, as in a colleague's environment on a shared journal, and whether it works in a worktree of its own."""
 
     name: str
     working: bool = False
     last_used: str = ""
     last_sessions: dict[str, str] = field(default_factory=dict)
     refusal: str = ""
+    worktree: bool = False
 
     @classmethod
     def parsed(cls, data: dict) -> "EnvironmentRow":

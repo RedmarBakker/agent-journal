@@ -138,8 +138,14 @@ class Launch:
         print(line, file=sys.stderr)
         return False
 
+    # an environment that records a worktree works in one however it is launched, its folder made again from the kept tip when lost
     def is_worktree_launch(self, worktree: Worktree) -> bool:
-        return self.worktree_launch or (worktree.path.is_dir() and worktree.name != self.default_environment())
+        if self.worktree_launch:
+            return True
+        return worktree.name != self.default_environment() and (worktree.path.is_dir() or self.is_recorded(worktree.name))
+
+    def is_recorded(self, name: str) -> bool:
+        return any(row.name == name and row.worktree for row in Menu(self.root, self.package / "journal.sh").environments())
 
     def default_environment(self) -> str:
         return "main"

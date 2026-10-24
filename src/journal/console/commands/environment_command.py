@@ -77,7 +77,7 @@ class EnvironmentCommand(Command):
             last = agents[-1] if agents else None
             resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
             working = last is not None and last.state != "ended" and not self.launches.is_abandoned(environment.name)
-            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number())))
+            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number()), environment.branch == Worktree(self.config.root, environment.name).branch))
         return rows
 
     def overview(self, args: Namespace, caller: Caller) -> int:

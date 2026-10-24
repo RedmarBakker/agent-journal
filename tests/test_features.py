@@ -6905,6 +6905,30 @@ def test_an_old_main_worktree_moves_to_an_environment_of_its_own_and_main_launch
     assert "never a worktree" in Launch.parse(["claude", "--worktree", "main"], root).start_refusal(Choice("main")), "and main can never again be a worktree name"
 
 
+def test_an_environment_that_records_a_worktree_has_its_lost_folder_remade_from_the_viewer_and_the_menu(app: App, monkeypatch):
+    import shutil
+    import subprocess
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.providers.support.status_line import StatusLine
+    from journal.support.choice import Choice
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), USER).text)
+    tree = Worktree(root, "calm-river")
+    folder = tree.created()
+    app.console().run(["environment", "create", "calm-river"], USER)
+    app.console().run(["environment", "branch", "calm-river", tree.branch], USER)
+    for argv in (["claude", "--env", "calm-river"], ["claude"]):
+        shutil.rmtree(folder)
+        git("worktree", "prune")
+        produced = Launch.parse(argv, root).launch_file(Choice("calm-river"), StatusLine(root))
+        assert produced["front"]["folder"] == str(folder) and folder.is_dir(), f"launched as {argv}, the environment's lost worktree is made again from its kept tip"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
