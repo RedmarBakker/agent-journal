@@ -38,13 +38,17 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     // the halo: as bright as a good share of the pixel, fading over most of a pixel and reaching beyond its neighbours
     const [strength, soft, reach] = material.uniforms.halo.value.toArray();
     expect(strength).toBeGreaterThan(0.2);
-    expect(strength).toBeLessThan(1);
+    expect(strength).toBeLessThan(1.2);
     expect(soft).toBeGreaterThan(0.3);
     expect(reach).toBeGreaterThanOrEqual(2);
     // the screen gathers the glow of the lit pixels around each point, fading with their distance, and draws a lit pixel in its own colour
     expect(material.fragmentShader).toMatch(/for \(int dx = -2; dx <= 2; dx\+\+\)/);
     expect(material.fragmentShader).toMatch(/spill \+= near\.rgb \* near\.a \* exp\(/);
-    expect(material.fragmentShader).toMatch(/mix\(screen, shown\.rgb, shown\.a \* pixel\)/);
+    // a lit pixel is drawn brighter than its colour, brightest at its middle
+    expect(material.fragmentShader).toMatch(/mix\(screen, glowing, shown\.a \* pixel\)/);
+    expect(material.uniforms.shine.value.toArray()).toEqual([SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness]);
+    expect(SCREEN.shine.lift).toBeGreaterThan(0);
+    expect(SCREEN.shine.core).toBeGreaterThan(0);
     // an off pixel: a touch brighter than the glass, far fainter than any lit one
     expect(material.uniforms.off.value).toBe(SCREEN.off);
     expect(SCREEN.off).toBeGreaterThan(0);

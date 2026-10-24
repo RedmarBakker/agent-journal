@@ -3419,7 +3419,9 @@ const FLAT = /* glsl */ `
 // `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
 export const SCREEN = {
     gap: 0.16, line: 1, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
-    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.4, soft: 0.6, reach: 2}, glare: {strength: 0.012, from: 0.5},
+    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.85, soft: 0.8, reach: 2}, glare: {strength: 0.012, from: 0.5},
+    // a lit pixel is drawn brighter than its colour, brightest at its middle
+    shine: {lift: 0.3, core: 0.45, tightness: 7},
 };
 const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec3 glow;
@@ -3441,6 +3443,7 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec3 bezel;
     uniform vec3 halo;
     uniform vec2 glare;
+    uniform vec3 shine;
     varying vec3 localPosition;
 
     // the colour and how lit a pixel of the grid is, by its column and row
@@ -3476,7 +3479,9 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float rim = 1.0 - smoothstep(bezel.x * 0.5, bezel.x, inside);
         vec3 screen = glass * (1.0 - bezel.y * rim) + (off + halo.x * spill) * pixel * (1.0 - rim);
         screen += glare.x * smoothstep(glare.y, 1.0, (localPosition.y - middle.y) / extent.y) * (1.0 - rim);
-        vec3 drawn = mix(screen, shown.rgb, shown.a * pixel);
+        vec2 offMiddle = cell - 0.5;
+        vec3 glowing = shown.rgb * (1.0 + shine.x) + shine.y * exp(-dot(offMiddle, offMiddle) * shine.z) * mix(shown.rgb, vec3(1.0), 0.5);
+        vec3 drawn = mix(screen, glowing, shown.a * pixel);
         float centre = max(1.0 - length(from), 0.0);
         vec3 shine = glow * lit * mix(dark, 1.0, pixel);
         vec3 lighted = mix(shine + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
@@ -3500,6 +3505,7 @@ export function screenMaterial(mesh) {
         glass: {value: new THREE.Vector3(...SCREEN.glass)}, off: {value: SCREEN.off},
         bezel: {value: new THREE.Vector3(SCREEN.bezel.width, SCREEN.bezel.shade, SCREEN.bezel.round)},
         halo: {value: new THREE.Vector3(SCREEN.halo.strength, SCREEN.halo.soft, SCREEN.halo.reach)}, glare: {value: new THREE.Vector2(SCREEN.glare.strength, SCREEN.glare.from)},
+        shine: {value: new THREE.Vector3(SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness)},
     });
     return material;
 }
