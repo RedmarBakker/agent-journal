@@ -569,18 +569,37 @@ function freeBuildSpot(edge, figure, near, beside, before) {
     return freeSpot(clear.length ? clear : stands, figure, near);
 }
 
+// The wooden ladder the figure sets toward the chat window's side to rummage past it where the ground at home ends short of it (perches.js
+// rummageSpot): leaning `lean` degrees from upright, or up to `steepest` from it where it would otherwise be taller than `most` of the
+// figure's heights to the rung it stands on, reaching on `over` of its height past that rung; set up for a gap past the ground's end of
+// `within` pixels or more, a narrower one rummaged from the ground. The figure climbs it at `climb` pixels a second, facing the way it
+// leans, and its rungs are `rung` pixels apart.
+export const LADDER = {lean: 22, steepest: 38, most: 1.6, over: 0.3, within: 6, climb: 90, rung: 11};
+
 // The trip of a figure resting at `place` to `spot` (tripBetween), from its picture in the posture it travels in where it is to its picture
 // in the posture it travels in there; on a climb it hops on up from each foothold of `via` (perches.js climbOf) to the next, and on to the
-// spot, or goes up in one on the `pogo` stick
+// spot, or goes up in one on the `pogo` stick; to or from a spot on a ladder it goes by the ladder's foot and climbs it (ladderTrip)
 export function tripTo(place, spot, figure, {straight = false, pace = 1, random = Math.random, via = [], memory = null, now = 0, room = 0, pogo = false} = {}) {
     const corner = (each) => {
         const box = boxAt(each, figure, POSTURES[each.posture].travels);
         return {x: box.left, y: box.top};
     };
+    const ladder = spot.ladder ?? place.ladder;
+    if (ladder && !(spot.ladder && place.ladder)) return ladderTrip(corner(place), corner(spot), corner({...ladder.foot, posture: "stand"}), ladder.way, Boolean(spot.ladder), figure, pace);
     const [from, ...stops] = [place, ...via, spot].map(corner);
     const trip = tripBetween(from, stops[0], figure.size, {straight, hangs: spot.posture === "hang" || Boolean(spot.swings), pace, random, memory, now, room, pogo});
     const hops = stops.slice(1).map((to, index) => tripBetween(stops[index], to, figure.size, {random, memory, now, room})?.legs.find((leg) => leg.hopping));
     return trip && {...trip, legs: [...trip.legs, ...hops.filter(Boolean)]};
+}
+
+// The trip from the picture at `from` to the picture at `to` by a ladder footed where the picture `foot` stands, leaning toward `way`: going
+// `up` it goes to the foot, as any trip goes, and climbs to the top, facing the way the ladder leans; coming down it climbs down to the foot
+// first and goes on from there. Neither ends in a landing.
+function ladderTrip(from, to, foot, way, up, figure, pace) {
+    const climb = (start, end) => ({x: end.x, y: end.y, ms: (Math.hypot(end.x - start.x, end.y - start.y) / LADDER.climb) * 1000, lead: 0, easing: "linear", hopping: true, clip: "ladder_climb", facing: way > 0 ? 90 : 270});
+    const ground = up ? tripBetween(from, foot, figure.size, {pace}) : tripBetween(foot, to, figure.size, {pace});
+    const legs = up ? [...(ground?.legs ?? []), climb(foot, to)] : [climb(from, foot), ...(ground?.legs ?? [])];
+    return {way: Math.sign(to.x - from.x) || 1, legs, lands: false, pace};
 }
 
 // The way a figure whose middle is at `x` turns to look at a chat mark, by its key: to its right or its left, or toward the viewer when

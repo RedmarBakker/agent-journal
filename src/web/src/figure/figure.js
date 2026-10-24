@@ -880,6 +880,29 @@ function run_in(pose, stance, t) {
     entering(pose, stance, t, 28, true);
 }
 
+// where the hands take the ladder's rungs climbing it, in the figure's units across, forward and up, and how much higher the upper hand
+// reaches; and how high each knee lifts onto the next rung, in degrees
+export const LADDER_CLIMB = {grip: [0.32, -0.55, 2.55], reach: 0.55, knee: 48};
+
+// climbs a ladder facing it: each hand in turn reaching up to the next rung as the knee on the other side lifts onto one, the body
+// leaning in to the ladder
+function ladder_climb(pose, stance, t) {
+    const step = Math.sin(2 * Math.PI * t);
+    breathe(pose, 0);
+    trunk(pose, {lean: 10, nod: -8});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    const [x, y, z] = LADDER_CLIMB.grip;
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const up = (1 + sign * step) / 2;
+        handTo(pose, side, 1, pose.withinReach(side, pose.carried(new THREE.Vector3(sign * x, y, z + LADDER_CLIMB.reach * up)), 0.97), new THREE.Vector3(sign, 0.4, -0.6));
+        pose.face(`hand_${side}`, {x: -90});
+        const knee = LADDER_CLIMB.knee * (1 - up);
+        pose.turn(`thigh_${side}`, {x: -knee});
+        pose.turn(`shin_${side}`, {x: knee * 1.2});
+    }
+}
+
 function pull_ups(pose, stance, t) {
     if (!supportsClip("pull_ups", stance)) {
         idle(pose, stance, t);
@@ -2763,14 +2786,23 @@ function rope_swing(pose, stance, t) {
     eyesAs(pose, "amused");
 }
 
-// hangs from the parachute's lines with both hands up holding them, the legs dangling and swinging a little
+// where each hand grips the parachute's lines, in the figure's units across, forward and up: up and out above the shoulders, the arms
+// raised in a V
+export const CHUTE_GRIP = [1.25, 0, 2.95];
+
+// hangs from the parachute's lines with both hands up gripping them above its shoulders, the legs hanging straight and swinging a little
 function chute(pose, stance, t) {
     const swing = waveOf(t);
     breathe(pose, t);
     trunk(pose, {nod: -6, tilt: 3 * swing});
-    flung(pose, stance, 0, 150);
     pose.putAway(...IN_HAND);
-    tucked(pose, 0.15, 6 * swing);
+    const [x, y, z] = CHUTE_GRIP;
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    for (const side of Object.keys(SIDES)) {
+        handTo(pose, side, 1, pose.withinReach(side, pose.carried(new THREE.Vector3(SIDES[side] * x, y, z)), 0.97), new THREE.Vector3(1, 0, -0.4));
+        pose.face(`hand_${side}`, {z: -SIDES[side] * 90});
+    }
+    tucked(pose, 0.05, 6 * swing);
     eyesAs(pose, "amused");
 }
 
@@ -2913,6 +2945,7 @@ export const CLIPS = [
     {name: "walk_in", frames: 40, fps: 12, loops: false, postures: MOVE, pose: walk_in},
     {name: "run_in", frames: 28, fps: 12, loops: false, postures: MOVE, pose: run_in},
     {name: "pull_ups", frames: 24, fps: 10, loops: true, postures: MOVE, pose: pull_ups},
+    {name: "ladder_climb", frames: 16, fps: 8, loops: true, interruptible: true, postures: MOVE, pose: ladder_climb},
     {name: "hang_l", frames: 24, fps: 8, loops: true, leaves: 8, postures: HANGING, pose: dangle("l")},
     {name: "hang_r", frames: 24, fps: 8, loops: true, leaves: 8, postures: HANGING, pose: dangle("r")},
     {name: "enter", frames: 36, fps: 12, loops: false, postures: MOVE, pose: enter},
@@ -3428,6 +3461,42 @@ export function lightSaucer(saucer, phase) {
         const colour = new THREE.Color(index % UFO.blink === phase ? SAUCER.colours.lit[Math.floor(index / UFO.blink) % 2] : SAUCER.colours.dark);
         light.material.uniforms.colour.value.set(colour.r, colour.g, colour.b);
     });
+}
+
+// The parachute's canopy (acts.js chute), each panel shaded and outlined as the figure's own are: a dome of `panels` gores in the colours by
+// turns, turned from a sphere `reach` radians down from its top and flattened to `flat` of its height, with a vent cap at its top; tipped
+// `tilt` degrees toward the viewer so its top shows. Its lines leave the rim at `lines` turns round it, a pair for each hand.
+export const CANOPY = {panels: 8, reach: 1.15, flat: 0.62, vent: 0.14, tilt: 14, lines: [-0.35, 0.35], colours: {gores: [0xd9413b, 0xf6f1e3], vent: 0x8f2a26}};
+
+export function canopyOf(perPixel, picture) {
+    const radius = ((ACTS.chute.width * picture) / 2 / Math.sin(CANOPY.reach)) * perPixel;
+    const canopy = new THREE.Group();
+    canopy.name = "canopy";
+    const dome = new THREE.Group();
+    dome.name = "canopy";
+    dome.scale.y = CANOPY.flat;
+    canopy.add(dome);
+    for (let index = 0; index < CANOPY.panels; index++) {
+        const gore = new THREE.SphereGeometry(radius, 8, 10, (index / CANOPY.panels) * Math.PI * 2, (Math.PI * 2) / CANOPY.panels, 0, CANOPY.reach);
+        shadedPart(dome, `gore_${index}`, gore, CANOPY.colours.gores[index % 2]);
+    }
+    shadedPart(dome, "vent", new THREE.SphereGeometry(radius * 1.01, 16, 4, 0, Math.PI * 2, 0, CANOPY.vent), CANOPY.colours.vent);
+    const rim = radius * Math.sin(CANOPY.reach);
+    const rimUp = radius * Math.cos(CANOPY.reach) * CANOPY.flat;
+    const ends = [-1, 1].flatMap((way) => CANOPY.lines.map((turn) => new THREE.Vector3(way * rim * Math.cos(turn), rimUp, rim * Math.sin(turn))));
+    const points = ends.map((end) => {
+        const point = new THREE.Object3D();
+        point.position.copy(end);
+        canopy.add(point);
+        return point;
+    });
+    canopy.rotation.x = radians(CANOPY.tilt);
+    canopy.position.y = FRAMED_MIDDLE - rimUp;
+    const scene = new THREE.Scene();
+    scene.add(canopy);
+    scene.updateMatrixWorld(true);
+    const rimMiddle = new THREE.Vector3(0, rimUp, 0).applyMatrix4(canopy.matrixWorld);
+    return {scene, middle: rimMiddle, ends: points.map((point) => new THREE.Vector3().setFromMatrixPosition(point.matrixWorld)), bounds: new THREE.Box3().setFromObject(canopy)};
 }
 
 // A magnifying glass in the same flat colours, comically large as the figure is drawn small: its handle up its y axis with the handle's
@@ -4485,6 +4554,21 @@ export class Stage {
         lightSaucer(this.saucer, phase);
         const drawn = this.propPicture(this.saucer, this.saucer.middle, picture, ratio);
         return {canvas: drawn.canvas, at: drawn.at};
+    }
+
+    // The parachute's canopy (canopyOf) drawn through the figure's own camera at the scale of a figure whose picture is `picture` pixels high,
+    // `ratio` canvas pixels to a page pixel: a canvas just holding it, where the middle of its rim is on it, and where its lines leave the
+    // rim, the left hand's pair first, in page pixels from its top left
+    drawCanopy(picture, ratio) {
+        const canopy = canopyOf(FRAMED_HEIGHT / picture, picture);
+        const drawn = this.propPicture(canopy, canopy.middle, picture, ratio);
+        const centre = canopy.middle.clone().project(this.camera);
+        const pixels = (k) => ((k + 1) / 2) * picture;
+        const ends = canopy.ends.map((end) => {
+            const at = end.clone().project(this.camera);
+            return {x: drawn.at.x + pixels(at.x) - pixels(centre.x), y: drawn.at.y - pixels(at.y) + pixels(centre.y)};
+        });
+        return {canvas: drawn.canvas, at: drawn.at, ends};
     }
 
     // A prop's `scene` rendered through the figure's camera at the scale of a figure whose picture is `picture` pixels high, cut to a canvas

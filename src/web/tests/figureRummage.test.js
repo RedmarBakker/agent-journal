@@ -25,8 +25,7 @@ function rummagingAt(voice, u) {
     return {pose, moves, out: (out * eyes.x) / PICTURE, eyes};
 }
 
-// out of the searches until its rework (message 46716); the act itself stays drawn and tested
-test.skip("rummaging is one of the searches, picked now and then: the other ways to search are each picked at least as often, and all together far more", () => {
+test("rummaging is one of the searches, picked now and then: the other ways to search are each picked at least as often, and all together far more", () => {
     const searches = choicesFor({moment: "held:search", home: true});
     const rummage = searches.find((each) => each.name === "rummage");
     expect(rummage).toBeTruthy();
@@ -101,15 +100,16 @@ test("each thing it pulls out is thrown along the arc gravity gives it, up over 
     expect(flying).toMatchObject({bone: "root", size: 1});
 });
 
-test("it rummages at the chat window's edge, its hands reaching past it while its body stays inside, and never past the end of its ground", async () => {
+test("it rummages at the chat window's edge, its hands reaching past it while its body stays inside, and never walks past the end of its ground", async () => {
     const {RUMMAGE_INSET, rummageSpot} = await import("../src/figure/perches.js");
     const {BODY, FEET_INBOARD, inWorld} = await import("../src/figure/places.js");
     const {CHAT, boxed, page} = await import("./support/figurePage.js");
     const figure = {size: 112, below: 0.05};
-    // the compose box runs from 300 to 700 in a window from 200 to 900: the window's edge is past the ground's end, so it stops at that end
+    // the compose box runs from 300 to 700 in a window from 200 to 900: the window's edge is past the ground's end, so it climbs a ladder
+    // footed at that end (figureLadder.test.js)
     page(boxed({left: 400, right: 600, top: 300, bottom: 340}));
-    expect(rummageSpot(figure, -1).x).toBeCloseTo(300 + FEET_INBOARD * figure.size, 5);
-    expect(rummageSpot(figure, 1).x).toBeCloseTo(700 - FEET_INBOARD * figure.size, 5);
+    expect(rummageSpot(figure, -1).ladder.foot.x).toBeCloseTo(300 + FEET_INBOARD * figure.size, 5);
+    expect(rummageSpot(figure, 1).ladder.foot.x).toBeCloseTo(700 - FEET_INBOARD * figure.size, 5);
     // a window whose edges the ground reaches: it stands at the edge, its body inside, its hands past it
     const wide = {left: 300, top: 100, right: 700, bottom: 800};
     globalThis.document.querySelector("[data-figure-home]").closest = () => ({...boxed(wide), querySelector: () => null});

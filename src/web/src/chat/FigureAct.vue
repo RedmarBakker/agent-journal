@@ -1,14 +1,14 @@
 <script setup>
 import {computed} from "vue";
-import {ACTS, heldPhases, partOf, ropeDown, standingAt} from "../figure/acts.js";
+import {ACTS, chuteOver, heldPhases, partOf, ropeDown, standingAt} from "../figure/acts.js";
 import {FRAMED} from "../figure/frame.js";
 import {POSTURES} from "../figure/places.js";
 
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
 // way across the picture the free hand's side is, 1 to the right, and `hand.other` the other hand's grip); the picture `size` pixels square; and `room`, the pixels from its left
-// and right sides to the screen's edges, which a runner runs off past; and `ball`, where the disco ball hangs over the feet while it
-// dances (perches.js discoBall).
+// and right sides to the screen's edges, which a runner runs off past; `ball`, where the disco ball hangs over the feet while it
+// dances (perches.js discoBall); and `canopy`, the parachute's canopy drawn in 3D (figure.js Stage.drawCanopy).
 const props = defineProps({
     name: {type: String, required: true},
     u: {type: Number, required: true},
@@ -18,6 +18,7 @@ const props = defineProps({
     size: {type: Number, required: true},
     room: {type: Object, required: true},
     ball: {type: Object, default: null},
+    canopy: {type: Object, default: null},
 });
 
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
@@ -29,6 +30,8 @@ const act = computed(() => ACTS[props.name]);
 const px = (share) => share * props.size;
 const hand = computed(() => ({x: px(props.hand.x), y: px(props.hand.y), out: props.hand.out}));
 const head = computed(() => ({x: px(props.head.x), y: px(props.head.y)}));
+// the parachute over the figure, its canopy above the head and its lines down to both hands (acts.js chuteOver)
+const chute = computed(() => props.canopy && chuteOver(props.canopy, head.value, [hand.value, {x: px(props.hand.other.x), y: px(props.hand.other.y)}], props.size, props.u));
 // The bug shot: the bug crawling in along the floor to its place out on the free hand's side, its legs going, until it splatters; the rifle
 // in the free hand pointed at it, kicked back by each shot, with its flash; and the drops of the splatter on the screen, as on a camera's
 // lens, each `at` its place from the figure's middle in shares of the picture, as big as `size`, landing at the splatter and running
@@ -327,13 +330,12 @@ const steam = computed(() => {
                 <rect v-if="swing.down > 0.95" :x="middle - swing.seat / 2" :y="swing.line - 1" :width="swing.seat" height="3" rx="1" :fill="COLOURS.wood" stroke-width="0.6" />
             </template>
 
-            <template v-if="name === 'chute'">
-                <g :transform="`rotate(${act.sway * Math.sin(2 * Math.PI * u)} ${head.x} ${head.y})`">
-                    <path :d="`M${head.x - 30} ${head.y - 44}L${head.x - 9} ${head.y - 14}M${head.x + 30} ${head.y - 44}L${head.x + 9} ${head.y - 14}M${head.x - 12} ${head.y - 46}L${head.x - 4} ${head.y - 14}M${head.x + 12} ${head.y - 46}L${head.x + 4} ${head.y - 14}`" stroke-width="0.6" fill="none" />
-                    <path :d="`M${head.x - 32} ${head.y - 44}Q${head.x} ${head.y - 92} ${head.x + 32} ${head.y - 44}Q${head.x + 16} ${head.y - 50} ${head.x} ${head.y - 46}Q${head.x - 16} ${head.y - 50} ${head.x - 32} ${head.y - 44}Z`" :fill="COLOURS.red" />
-                    <path :d="`M${head.x} ${head.y - 46}Q${head.x - 2} ${head.y - 70} ${head.x} ${head.y - 69}`" stroke-width="0.6" fill="none" />
-                    <path :d="`M${head.x - 16} ${head.y - 48}Q${head.x - 13} ${head.y - 68} ${head.x - 6} ${head.y - 67}L${head.x} ${head.y - 46}`" :fill="COLOURS.paper" stroke-width="0.6" />
-                    <path :d="`M${head.x + 16} ${head.y - 48}Q${head.x + 13} ${head.y - 68} ${head.x + 6} ${head.y - 67}L${head.x} ${head.y - 46}`" :fill="COLOURS.paper" stroke-width="0.6" />
+            <template v-if="name === 'chute' && chute">
+                <template v-for="(line, index) in chute.lines" :key="index">
+                    <line :x1="line.from.x" :y1="line.from.y" :x2="line.to.x" :y2="line.to.y" stroke-width="0.7" data-chute-line />
+                </template>
+                <g :transform="`rotate(${chute.turn} ${chute.middle.x} ${chute.middle.y})`">
+                    <image :href="canopy.picture" :x="chute.left" :y="chute.top" :width="canopy.width" :height="canopy.height" data-chute-canopy />
                 </g>
             </template>
 

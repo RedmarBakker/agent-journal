@@ -20,7 +20,7 @@ import {
     slideAt,
     underWalker,
 } from "../domain/figureMotion.js";
-import {footingNow, footingOn, groundUnder, landingOn, latestFloors, readFloors} from "../figure/floors.js";
+import {footingNow, footingOn, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors} from "../figure/floors.js";
 import {useFigureBody} from "../composables/figureBody.js";
 import {
     beatsAfter,
@@ -44,8 +44,10 @@ import {
     stretchedFrame,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, markSpot, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {MARK_STAY, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
+import {jumpMost} from "../figure/climbs.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
 import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, beamOf, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, boxTop, buildAim, buildRunAt, isPileLeft, grabberAt, grabsOf, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
@@ -169,6 +171,8 @@ const halo = ref(null);
 const blocks = ref(null);
 // the UFO's saucer drawn in 3D as the figure is, its pictures one for each step of its rim lights' blink (figure.js Stage.drawSaucer)
 const saucerPicture = ref(null);
+// the parachute's canopy drawn in 3D as the figure is, and where its lines leave its rim (figure.js Stage.drawCanopy)
+const canopyPicture = ref(null);
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 // when the figure began to watch: a run that began before it is never taken for one that has just ended
@@ -282,19 +286,13 @@ function heldClip() {
     if (variant.state !== state) {
         variant = {state, clip: variantOf(clipOf(state), Math.random, drawnHere, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
         // the rummage goes to the window's edge nearest the figure, leaning out that way, or to the other when it cannot lean out that way
-        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: player.reachWay(nearerEdge())};
+        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: player.reachWay(nearerWay(body.place.x, worldBox()))};
     }
     if (body.place.swings) return "rope_swing";
     // the rummage waits until the figure stands at the window's edge, its stay there, and the glass search until it stands
     if (variant.clip === "rummage" && (stay.where !== "rummage" || body.trip)) return "idle";
     if (variant.clip === "search" && !body.trip && !drawnHere("search")) return "idle";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
-}
-
-// the window's edge nearest the figure, 1 the right, -1 the left
-function nearerEdge() {
-    const world = worldBox();
-    return body.place.x - world.left <= world.right - body.place.x ? -1 : 1;
 }
 
 // how long the figure keeps to the window's edge for a rummage, its walk there and the rummage itself, in seconds
@@ -448,6 +446,7 @@ function step() {
     handAt.value = player.handAt();
     keepParcels(shown);
     keepBall(shown);
+    keepLadder();
     frameTimer = requestAnimationFrame(step);
 }
 
@@ -513,7 +512,7 @@ async function moveTo(spot, {straight = false, pace = 1, pressing = false, urgen
 // Until it sets off the figure keeps to its ground, so the trip's legs are drawn then, from where it is now to where the spot is now
 function setOff() {
     const {to, straight, pace, footing: held} = body.trip;
-    const there = landingOn(to, held, figureSize());
+    const there = keptOnFloor(landingOn(to, held, figureSize()), latestFloors().floors, figureSize());
     const room = roomNow();
     const way = straight ? {via: [], pogo: false} : wayUp(readFloors(), figureSize(), body.place, there, {memory: memory.reacted, now: now.value, room}, Math.random);
     // grown out of its reach since the look sent it, it stays where it is until the next look sends it elsewhere
@@ -550,7 +549,7 @@ function nextLeg() {
         return step();
     }
     const left = legs.slice(legs.indexOf(next));
-    body.trip = {...body.trip, started: true, moves: false, hopping: Boolean(next.hopping), clip: next.clip, legs: left};
+    body.trip = {...body.trip, started: true, moves: false, hopping: Boolean(next.hopping), clip: next.clip, facing: next.facing, legs: left};
     step();
 }
 
@@ -714,12 +713,14 @@ function fallOn() {
 }
 
 // A hop is stepped here, frame by frame, toward the ground it is headed for as that moves (aimedAt), so it lands where the ground is now
-// rather than where it was; and once that ground has gone it falls from where it is in the air
+// rather than where it was, going higher for ground that rose, within the jump's limit (climbs.js jumpMost); and once that ground has gone,
+// or risen out of its reach, it falls from where it is in the air
 function hopOn() {
     const trip = body.trip;
     if (trip.footing && !footingNow(trip.footing, figureSize())) return fallFrom({...feetOf(body.at), posture: "stand"}, null);
     const landed = trip.footing ? landingOn(trip.to, trip.footing, figureSize()) : trip.to;
-    const aimed = aimedAt(trip, body.leg, body.walk.from, landed);
+    const aimed = aimedAt(trip, body.leg, body.walk.from, landed, jumpMost(figureSize()));
+    if (aimed.lost) return fallFrom({...feetOf(body.at), posture: "stand"}, null);
     if (aimed.trip !== trip) {
         body.trip = aimed.trip;
         body.leg = aimed.leg;
@@ -748,6 +749,13 @@ const ball = ref(null);
 
 // the disco ball found again every frame of the dance, so its string stays tied to the bubble above as the chat scrolls or that bubble
 // moves; the dance stops the moment no bubble is above to hang it from
+// the ladder against the window's side, set there while the figure goes up it, stands on it and comes down it (perches.js ladderShown)
+const ladder = ref(null);
+function keepLadder() {
+    const shown = ladderShown(body.place, body.trip);
+    if (shown !== ladder.value) ladder.value = shown;
+}
+
 function keepBall(shown) {
     if (shown.clip.name !== "disco") return;
     ball.value = discoBall(body.place, figureSize(), latestFloors());
@@ -1360,6 +1368,7 @@ async function load(name) {
         player = new FigurePlayer(loaded, canvas.value);
         drawBlocks();
         drawSaucer();
+        drawCanopy();
         home();
         body.here = belongs.value;
         body.arriving = body.here;
@@ -1388,6 +1397,13 @@ function drawSaucer() {
     const ratio = window.devicePixelRatio || 1;
     const drawn = Array.from({length: UFO.blink}, (_, phase) => player.stage.drawSaucer(phase, SIZE, ratio));
     saucerPicture.value = {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, at: drawn[0].at};
+}
+
+// the canopy's picture, through the player's stage
+function drawCanopy() {
+    const ratio = window.devicePixelRatio || 1;
+    const drawn = player.stage.drawCanopy(SIZE, ratio);
+    canopyPicture.value = {picture: drawn.canvas.toDataURL(), width: drawn.canvas.width / ratio, height: drawn.canvas.height / ratio, at: drawn.at, ends: drawn.ends};
 }
 
 watch(voice, load);
@@ -1540,7 +1556,7 @@ const style = computed(() => {
                 </span>
             </template>
             <template v-if="acting">
-                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" />
+                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" />
             </template>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">
@@ -1565,6 +1581,9 @@ const style = computed(() => {
             />
         </template>
     </template>
+    <Transition name="step-ladder">
+        <StepLadder v-if="ladder" :foot="ladder.foot" :top="ladder.top" />
+    </Transition>
     <template v-if="crane">
         <ClawCrane :box="crane.box" :grabbers="crane.grabbers" />
     </template>

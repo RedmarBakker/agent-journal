@@ -90,12 +90,13 @@ export function pogoAt(leg, from, elapsed) {
 }
 
 // the share of a pogo leg's act (acts.js pogo) its fall from the throw's top onto the leg's end takes, from where it lets the stick go
-// until it lands: as long against the rise as the square root of its height against the rise's, as under one gravity
+// until it lands: as long against the rise as the square root of its height against the rise's, as under one gravity, and over by the
+// act's end however the leg's end moved, so it always lands within the act
 export function pogoFall(leg, from) {
     const {spring, over} = ACTS.pogo;
     const past = over * leg.size;
     const rise = Math.max(from.y - leg.y, 0) + past;
-    return [spring[1], spring[1] + (spring[1] - spring[0]) * Math.sqrt(past / rise)];
+    return [spring[1], Math.min(spring[1] + (spring[1] - spring[0]) * Math.sqrt(past / rise), 1)];
 }
 
 // One frame of a figure falling from `body` (its feet line and speed) to the floor under it, `seconds` after the last, against the floors
@@ -131,18 +132,22 @@ function peakFrame(body, floors) {
 
 // A trip re-aimed at where its destination is now, `landed`: the legs that end on the destination's line, and the leg under way among
 // them, `leg`, carried with it, and `from`, where that leg set off, moved along with it, so a hop stays upright and lands on the ground
-// where it is rather than where it was
-export function aimedAt(trip, leg, from, landed) {
+// where it is rather than where it was, going that much higher for ground that rose, or on the pogo stick throwing that much higher. A leg
+// keeps where it was `planned` to end; ground that rose more than `most` pixels above that, the jump's limit (climbs.js jumpMost), is out
+// of the hop's reach, and the trip is `lost`.
+export function aimedAt(trip, leg, from, landed, most = Infinity) {
     const dx = landed.x - trip.to.x;
     const dy = landed.y - trip.to.y;
-    if (Math.hypot(dx, dy) <= 0.3) return {trip, leg, from};
+    if (Math.hypot(dx, dy) <= 0.3) return {trip, leg, from, lost: false};
     const end = (trip.legs.at(-1) ?? leg).y;
-    const carried = (each) => (each.y === end ? {...each, x: each.x + dx, y: each.y + dy} : each);
+    const carried = (each) => (each.y === end ? {...each, x: each.x + dx, y: each.y + dy, planned: each.planned ?? each.y} : each);
     const under = leg.y === end;
+    const moved = under ? carried(leg) : leg;
     return {
         trip: {...trip, to: landed, legs: trip.legs.map(carried)},
-        leg: under ? carried(leg) : leg,
+        leg: moved,
         from: under ? {...from, x: from.x + dx} : from,
+        lost: under && moved.planned - moved.y > most,
     };
 }
 

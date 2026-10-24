@@ -69,8 +69,9 @@ export const ACTS = {
     // of it over the hat, on a string at least `tie` of it long from the bottom of a bubble no further than `far` of the figure's height
     // above the hat
     disco: {frames: 96, fps: 12, beats: 8, ball: 0.24, clear: 0.08, tie: 0.1, far: 2.2},
-    // coming down on a parachute, swaying a little under it
-    chute: {frames: 24, fps: 8, sway: 8},
+    // coming down on a parachute, swaying `sway` degrees under it, its canopy (figure.js canopyOf) `width` of the picture across with its
+    // rim `above` of the picture over the eyes, the lines running from the rim down to the hands
+    chute: {frames: 24, fps: 8, sway: 8, width: 0.66, above: 0.5},
     // compacting: a box appears, it hops into it and the box shrinks with it inside; once the compaction is over the box grows back and
     // pops in a puff, and it jumps out. Its frames are an intro, a held stretch looped while the compaction lasts, and an outro
     pack_box: {intro: 36, hold: 24, outro: 26, fps: 12, appears: [0, 0.3], hop: [0.3, 0.62], into: [0.55, 0.88], shrinks: [0.86, 1], grows: [0, 0.3], pops: 0.38, leap: [0.38, 0.88], small: 0.5},
@@ -151,6 +152,24 @@ export function pogoHop(heights, share) {
 
 // the pogo stick's bounces on the spot, in the figure's heights, each higher than the last
 export const pogoBounces = () => Array.from({length: ACTS.pogo.count}, (_, hop) => (ACTS.pogo.bounce * (hop + 1)) / ACTS.pogo.count);
+
+// The parachute over the figure `u` of the way through its sway, in the picture's pixels: the canopy's picture `canopy` (figure.js
+// Stage.drawCanopy, its rim's middle `at` and its lines' ends `ends`, the left pair first) placed with its rim's middle ACTS.chute above of
+// the picture `size` over the eyes at `head`, turned `turn` degrees about that middle as it sways; and its lines, each from where it leaves
+// the rim, turned with it, down to the hand on its side, `hands` the two hands' grips in either order
+export function chuteOver(canopy, head, hands, size, u) {
+    const {sway, above} = ACTS.chute;
+    const middle = {x: head.x, y: head.y - above * size};
+    const turn = (sway / 2) * Math.sin(2 * Math.PI * u);
+    const [cos, sin] = [Math.cos((turn * Math.PI) / 180), Math.sin((turn * Math.PI) / 180)];
+    const turned = (end) => {
+        const [dx, dy] = [end.x - canopy.at.x, end.y - canopy.at.y];
+        return {x: middle.x + dx * cos - dy * sin, y: middle.y + dx * sin + dy * cos};
+    };
+    const [left, right] = [...hands].sort((one, other) => one.x - other.x);
+    const ends = canopy.ends.map(turned);
+    return {left: middle.x - canopy.at.x, top: middle.y - canopy.at.y, middle, turn, lines: ends.map((from, index) => ({from, to: index < ends.length / 2 ? left : right}))};
+}
 
 // how far a thing that grows out of the floor at the start of an act and sinks at its end stands up at `u`, 0 to 1
 export const standingAt = (act, u) => partOf(u, act.grows) * (1 - partOf(u, act.sinks));

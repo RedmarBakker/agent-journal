@@ -2,7 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
+import {LADDER, besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
 
@@ -232,20 +232,40 @@ function bubbleLedge(figure, random) {
     return {floor: free[Math.floor(random() * free.length)]?.id ?? "", along};
 }
 
+// the side of the window `world` nearer a figure at page `x`, the corner it rummages at: 1 the right, -1 the left
+export const nearerWay = (x, world) => (x - world.left <= world.right - x ? -1 : 1);
+
 // how far in from the chat window's edge the middle of the figure's picture stands to rummage past it, as a share of the picture: near
 // enough that its hands, reaching out to its side, go past the edge into the space beyond, which the window hides
 export const RUMMAGE_INSET = 0.18;
 
-// The spot on the ground at home at the chat window's edge on the side `way` (-1 the left, 1 the right) where the figure rummages past it,
-// never past the end of the ground it stands on, so it never walks off it
+// The spot at the chat window's edge on the side `way` (-1 the left, 1 the right) where the figure rummages past it: on the ground at home,
+// never past the end of the ground it stands on; or, where the window's edge lies past that end, on the top rung of a ladder (LADDER) set
+// against the window's side there, footed on the ground by its end, the spot then naming its `ladder`, {foot, top, way}, on the page
 export function rummageSpot(figure, way) {
     const world = worldBox();
     const {edge} = groundEdge();
     const spot = spotOf(null, figure, {x: way > 0 ? world.right : world.left, y: 0});
-    const inboard = FEET_INBOARD * figure.size;
-    const x = way > 0 ? Math.min(world.right - RUMMAGE_INSET * figure.size, edge.left + edge.width - inboard) : Math.max(world.left + RUMMAGE_INSET * figure.size, edge.left + inboard);
-    return {...spot, x};
+    const end = way > 0 ? edge.left + edge.width - FEET_INBOARD * figure.size : edge.left + FEET_INBOARD * figure.size;
+    const wall = way > 0 ? world.right : world.left;
+    const reach = wall - way * RUMMAGE_INSET * figure.size;
+    const gap = way * (reach - end);
+    if (gap < LADDER.within) return {...spot, x: way > 0 ? Math.min(reach, end) : Math.max(reach, end)};
+    // the rung the figure stands on as high up the leaning ladder as reaches out over the gap to the edge, within the ladder's height and
+    // its steepest lean, the ladder reaching on past it
+    const tan = (degrees) => Math.tan((degrees * Math.PI) / 180);
+    const rise = Math.min(gap / tan(LADDER.lean), LADDER.most * heightOf(figure));
+    const span = Math.min(gap, rise * tan(LADDER.steepest));
+    const over = LADDER.over * heightOf(figure);
+    const x = end + way * span;
+    const foot = {x: end, y: edge.top};
+    return {...spot, x, y: edge.top - rise, ladder: {foot, top: {x: x + (way * over * span) / rise, y: edge.top - rise - over}, way}};
 }
+
+// The ladder standing against the window's side now (rummageSpot), as the figure's `place` and `trip` say: the one a trip goes up, from
+// when it sets out, the one the figure stands on, and the one it climbs down, until it is off it; null with none
+export const ladderShown = (place, trip) =>
+    trip?.to?.ladder ?? (place.ladder && (!trip?.moves || trip.clip === "ladder_climb" || trip.legs.some((leg) => leg.clip === "ladder_climb")) ? place.ladder : null);
 
 // The spot of a stay now for a figure at `near`, or null when its bubble or tab is gone or its perch is no longer free; a tab it only
 // visits is not one it points at
@@ -281,6 +301,8 @@ export function targetFor({state, counts, stay, now, near, figure, hands, work =
     const building = work && buildSpot(figure, near, work);
     if (building) return {spot: building, stay};
     const target = targetOf({state, counts, stay, now, near, figure, hands, random, tally, memory, room});
+    // a spot on a ladder stays where the ladder stands
+    if (target.spot?.ladder) return target;
     return {...target, spot: unlessClosing(watching(besidePile(keptClear(target.spot, {state, now, near, figure, cleared}), pile, figure), figure), near)};
 }
 

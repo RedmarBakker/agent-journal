@@ -136,7 +136,7 @@ function wantedClip(scene, canDraw) {
 // the clip of a leg: its hop, or the walk, walked on with what the body is doing where that can be drawn on the move, its steps as much
 // quicker as the trip's `pace` is above a walk
 function legClip(trip, doing, canDraw) {
-    if (trip.hopping) return {clip: trip.clip, facing: 0};
+    if (trip.hopping) return {clip: trip.clip, facing: trip.facing ?? 0};
     const facing = trip.way > 0 ? 90 : 270;
     const steps = trip.pace > 1 ? {pace: trip.pace} : {};
     return doing !== "idle" && canDraw(doing, "walk") ? {clip: doing, facing, posture: "walk", ...steps} : {clip: "walk", facing, ...steps};

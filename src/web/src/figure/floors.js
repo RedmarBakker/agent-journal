@@ -1,4 +1,5 @@
-import {HOME, boxAt, composeEdge, groundEdge, inWorld, worldBox} from "./places.js";
+import {FEET_INBOARD, HOME, boxAt, composeEdge, groundEdge, inWorld, worldBox} from "./places.js";
+import {GRAVITY} from "../domain/falls.js";
 
 // the chat's bubbles, which the figure walks, sits and hangs on
 const BUBBLE = "[data-figure-bubble]";
@@ -84,10 +85,14 @@ export function stopFloors() {
 // where it stood, further up and it is thrown up onto it
 const CARRIED_WITHIN = 5;
 
-// How fast a bubble the figure rides or hangs from must rise, flung up by a fast scroll down the chat, to throw the figure off into the
-// air, in pixels a second, and the share of the bubble's speed it is thrown up at, so a fast scroll throws it up a little way to fall back
-// and a faster one off the top of the screen; a slower one carries it along
-export const FLUNG = {speed: 1500, carry: 0.6};
+// A bubble the figure rides or hangs from rising in a burst, as a scroll down the chat moves it: it carries the figure up while it rises
+// faster than `rising` pixels a second, and once a burst that reached `speed` slows again, the figure is thrown on up off it, as high as
+// `share` of how far the bubble rose in the burst, so a small nudge throws it a little way and a long fast scroll high, off the top of the
+// screen; a burst that never reached `speed` carries it along and leaves it there
+export const FLUNG = {speed: 1500, rising: 200, share: 0.6};
+
+// the speed a figure is thrown up at, in pixels a second (up is less than 0), off a bubble that rose `risen` pixels in its burst (FLUNG)
+export const throwSpeed = (risen) => -Math.sqrt(2 * GRAVITY * FLUNG.share * risen);
 
 const floorNamed = (floors, id) => floors.find((floor) => floor.id === id) ?? null;
 
@@ -123,21 +128,41 @@ export function holds(spot, figure, floors = latestFloors().floors) {
 }
 
 // Where a figure resting at `spot` by `footing` is now, with the footing it keeps and how it got there, or null once its ground has gone from
-// under it. Anywhere but home it is carried along with its floor, or "flung" off it when the floor rises at FLUNG.speed or faster, unless
-// it swings on a rope under it, thrown up at `speed`, FLUNG.carry of the floor's. At home it stays where it stood along the ground, at its height above
+// under it. Anywhere but home it is carried along with its floor, counting on its footing how far the floor has `risen` in a burst and
+// whether the burst was `fast`, and "flung" off it once a fast burst is over, or its floor carried it out of sight in one, thrown up at
+// `speed` (throwSpeed), unless it swings on a rope under it. At home it stays where it stood along the ground, at its height above
 // whatever is home now, measured every frame: carried while home is within CARRIED_WITHIN pixels of its feet, "dropping" when home fell
 // further, as when a bar goes, and "launched" when it rose further, as when a bar docks over the compose box.
 export function groundUnder(footing, spot, figure, floors = latestFloors().floors) {
     const now = footingNow(footing, figure, floors);
+    if (!footing.home) return awayUnder(footing, spot, now, floors);
     if (!now) return null;
-    if (!footing.home) {
-        const {vy} = floorNamed(floors, footing.id);
-        return {spot: {...spot, ...now}, footing, motion: vy <= -FLUNG.speed && !spot.swings ? "flung" : "carried", speed: vy * FLUNG.carry};
-    }
     const home = floorNamed(floors, "home");
     const shift = now.y - spot.y;
     const motion = Math.abs(shift) <= CARRIED_WITHIN ? "carried" : shift > 0 ? "dropping" : "launched";
     return {spot: {...spot, y: now.y}, footing: {...footing, dx: spot.x - home.left}, motion};
+}
+
+// the ground under a figure resting away from home, its footing's spot `now` (footingNow), null once gone: carried along through a burst,
+// flung once a fast one is over (groundUnder)
+function awayUnder(footing, spot, now, floors) {
+    const vy = now ? floorNamed(floors, footing.id).vy : 0;
+    const rising = Boolean(now) && vy <= -FLUNG.rising && !spot.swings;
+    if (!rising && footing.fast) return {spot: now ? {...spot, ...now} : spot, footing: {...footing, risen: 0, fast: false}, motion: "flung", speed: throwSpeed(footing.risen)};
+    if (!now) return null;
+    const burst = rising ? {risen: (footing.risen ?? 0) + Math.max(spot.y - now.y, 0), fast: Boolean(footing.fast) || vy <= -FLUNG.speed} : {risen: 0, fast: false};
+    return {spot: {...spot, ...now}, footing: {...footing, ...burst}, motion: "carried"};
+}
+
+// A spot to stand at kept on its floor among `floors`: its feet moved in from either end of the floor its spot is on by as much as a
+// standing figure's feet keep in from an edge (places.js FEET_INBOARD), so no trip walks it off the end; a spot on a ladder, which the
+// figure climbs to on purpose, one it sits or hangs at, one on a floor too narrow to keep in from both ends, as a tab, and one on no floor
+// stay as they are
+export function keptOnFloor(spot, floors, figure) {
+    const inboard = FEET_INBOARD * figure.size;
+    const floor = spot.posture === "stand" && !spot.ladder && spot.on ? floors.find((each) => each.element === spot.on) : null;
+    if (!floor || floor.right - floor.left < 2 * inboard) return spot;
+    return {...spot, x: Math.min(Math.max(spot.x, floor.left + inboard), floor.right - inboard)};
 }
 
 // Where a trip to a spot ends: the spot carried along by `footing`, so it lands on the line where its floor is now; the spot as it was

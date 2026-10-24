@@ -179,6 +179,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "nothing nothing ×560 when moment=pastime",
         "clip search ×3 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip binoculars ×2 when moment=held:search home=true, plays out, group cools 120s, cools 300s",
+        "clip rummage ×1 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
         "clip watch ×2 when moment=held:watch, plays out",
@@ -336,11 +337,11 @@ test("searching: no search within two minutes of the last, each search at most o
     for (let second = 0; second < 1200; second += 10) drawn.push({second, clip: variantOf("search", Math.random, () => true, {memory, now: second, home: true})});
     const searches = drawn.filter((each) => each.clip !== "idle");
     for (let index = 1; index < searches.length; index++) expect(searches[index].second - searches[index - 1].second, "two minutes between searches").toBeGreaterThanOrEqual(120);
-    for (const act of ["search", "binoculars"]) {
+    for (const act of ["search", "binoculars", "rummage"]) {
         const times = searches.filter((each) => each.clip === act).map((each) => each.second);
         for (let index = 1; index < times.length; index++) expect(times[index] - times[index - 1], act).toBeGreaterThanOrEqual(300);
     }
-    expect(drawn.every((each) => ["search", "binoculars", "idle"].includes(each.clip))).toBe(true);
+    expect(drawn.every((each) => ["search", "binoculars", "rummage", "idle"].includes(each.clip))).toBe(true);
     expect(drawn.some((each) => each.clip === "idle"), "idle while every search waits").toBe(true);
 });
 
