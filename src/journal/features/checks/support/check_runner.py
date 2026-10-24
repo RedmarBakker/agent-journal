@@ -56,7 +56,7 @@ class CheckRunner:
             return check_row
         tail = "\n".join(ended.output.strip().splitlines()[-TAIL_LINES:])
         for agent in self.agents.active_main_agents():
-            self.cards.show(agent.environment_id, agent.session, f"Check {check_row.title} {'passed' if ended.passed else 'failed'}", "check", "good" if ended.passed else "bad", tail, Ref.build(check_row), shows=CardKind.CHECKS)
+            self.cards.show(agent.environment_id, agent.session, f"Check {check_row.title} {'passed' if ended.passed else 'failed'}", "check" if ended.passed else "x", "good" if ended.passed else "bad", tail, Ref.build(check_row), shows=CardKind.CHECKS)
         return check_row
 
     def executed(self, check: Check, report: Path, started: float, actor: Actor) -> FinishedRun:

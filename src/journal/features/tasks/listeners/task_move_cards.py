@@ -13,14 +13,14 @@ from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 
-# what each move of a task is called on its mark, with its tone and the field of the task that says why
+# what each move of a task is called on its mark, with its tone, its icon and the field of the task that says why
 MOVES = {
-    "started": ("Started", "", ""),
-    "resumed": ("Resumed", "", ""),
-    "unblocked": ("Unblocked", "", ""),
-    "done": ("Finished", "good", "outcome"),
-    "paused": ("Paused", "helper", "pause_reason"),
-    "blocked": ("Blocked", "warn", "block_reason"),
+    "started": ("Started", "", "todos", ""),
+    "resumed": ("Resumed", "", "todos", ""),
+    "unblocked": ("Unblocked", "", "todos", ""),
+    "done": ("Finished", "good", "todos", "outcome"),
+    "paused": ("Paused", "paused", "pause", "pause_reason"),
+    "blocked": ("Blocked", "warn", "todos", "block_reason"),
 }
 
 
@@ -39,9 +39,9 @@ class TaskMoveCards(Listener[RowEvent]):
             self.show_move(event, "unblocked", event.reason)
 
     def show_move(self, event: TaskStarted | TaskClosed | TaskReopened, move: str, reason: str) -> None:
-        heading, tone, reason_field = MOVES[move]
+        heading, tone, icon, reason_field = MOVES[move]
         with self.scope.environment(event.environment_id):
             task = self.tasks.find(event.task_id)
         label = CardDetail.shortened(f"{heading} task {task.id}: {task.title}")
         detail = reason or (getattr(task, reason_field) if reason_field else "")
-        self.cards.show(event.environment_id, None, label, "todos", tone=tone, detail=detail, row=Ref("tasks", task.id), actor=Actor.system(), shows=CardKind.TASK_MOVES)
+        self.cards.show(event.environment_id, None, label, icon, tone=tone, detail=detail, row=Ref("tasks", task.id), actor=Actor.system(), shows=CardKind.TASK_MOVES)

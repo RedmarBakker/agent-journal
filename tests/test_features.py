@@ -955,6 +955,11 @@ def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch)
     assert output.code == 1 and "boom" in output.text
     assert keystrokes and "check 2, it is broken, failed" in keystrokes[0] and "boom" in keystrokes[0]
     assert "failed   it is broken" in console.run(["check", "list"], USER).text
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        from journal.repositories.messages import Messages
+        icons = {m.text: m.data.get("icon") for m in app.container.get(Messages).all() if m.text.startswith("Check ")}
+    assert icons.get("Check it is broken failed") == "x" and icons.get("Check it is fine passed") == "check", icons
 
 
 def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_stuck(app: App, monkeypatch):
@@ -1011,6 +1016,10 @@ def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_fo
     assert ("Blocked task 2: the footer", "waits on the client's logo") in marks, "a paused or blocked mark says why"
     assert texts.count("Started task 1: the parser") == 1 and "Resumed task 1: the parser" in texts, "a paused task taken up again is resumed, not started"
     assert "Unblocked task 2: the footer" in texts, "and a blocked task opened again has a mark too"
+    with app.container.get(Scope).environment(MAIN):
+        looks = {m.text: (m.data.get("tone"), m.data.get("icon")) for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"}
+    assert looks["Paused task 1: the parser"] == ("paused", "pause"), "a paused task has a colour and an icon of its own"
+    assert looks["Finished task 1: the parser"] == ("good", "todos")
 
 
 def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):
