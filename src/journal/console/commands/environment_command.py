@@ -184,9 +184,9 @@ class EnvironmentCommand(Command):
         with self.scope.environment(rows.row_id):
             if self.agents.current() is not None:
                 raise Rejection(f"an agent works in {rows.name}: stop it first, then rename")
-        if Worktree(self.config.root, rows.name).path.is_dir():
-            raise Rejection(f"{rows.name} has a worktree named after it: an environment with a worktree keeps its name")
-        renamed = self.environments.save(rows.with_(name=args.new), caller.actor)
+        tree = Worktree(self.config.root, rows.name)
+        branch = tree.renamed(args.new).branch if rows.branch == tree.branch or tree.path.is_dir() else rows.branch
+        renamed = self.environments.save(rows.with_(name=args.new, branch=branch), caller.actor)
         print(f"environment {renamed.id} renamed: {args.name} is now {renamed.name}")
         return 0
 

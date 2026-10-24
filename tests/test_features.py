@@ -6831,6 +6831,33 @@ def test_a_worker_of_an_environment_whose_worktree_vanished_is_refused_never_cut
     assert git("branch", "--list").stdout == branches, "and main gets no worker branch cut from it"
 
 
+def test_renaming_an_environment_carries_its_worktree_branch_and_kept_tip_and_refuses_a_name_left_from_earlier(app: App):
+    import shutil
+    import subprocess
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    console = app.console()
+    for name in ("calm-river", "quiet-heron"):
+        tree = Worktree(root, name)
+        tree.created()
+        console.run(["environment", "create", name], USER)
+        console.run(["environment", "branch", name, tree.branch], USER)
+    renamed = console.run(["environment", "rename", "calm-river", "keen-otter"], USER)
+    assert renamed.code == 0 and (root / ".claude" / "worktrees" / "keen-otter").is_dir() and not (root / ".claude" / "worktrees" / "calm-river").exists(), renamed.error
+    assert git("rev-parse", "--verify", "-q", "worktree-keen-otter").returncode == 0 and git("rev-parse", "--verify", "-q", "refs/journal/worktrees/keen-otter").returncode == 0, "its branch and kept tip move with it"
+    shutil.rmtree(root / ".claude" / "worktrees" / "quiet-heron")
+    git("worktree", "prune")
+    lost = console.run(["environment", "rename", "quiet-heron", "brisk-maple"], USER)
+    assert lost.code == 0 and git("rev-parse", "--verify", "-q", "worktree-brisk-maple").returncode == 0 and git("rev-parse", "--verify", "-q", "refs/journal/worktrees/brisk-maple").returncode == 0, "with its folder lost, its branch and tip still move to the new name"
+    git("branch", "worktree-amber-cedar")
+    console.run(["environment", "create", "deft-pebble"], USER)
+    refused = console.run(["environment", "rename", "keen-otter", "amber-cedar"], USER)
+    assert refused.code != 0 and "left from earlier" in refused.error and (root / ".claude" / "worktrees" / "keen-otter").is_dir(), "a rename onto a name an old branch still holds is refused, and nothing moves"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree

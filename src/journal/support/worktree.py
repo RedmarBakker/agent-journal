@@ -61,13 +61,22 @@ class Worktree:
             return
         self.git("update-ref", kept, tip)
 
+    # the folder, the branch and the kept tip move to the new name together, whichever of them is still there
     def renamed(self, name: str) -> "Worktree":
         target = Worktree(self.root, name)
-        if self.path.is_dir() and not target.path.exists():
-            self.git("worktree", "move", str(self.path), str(target.path))
-            self.git("branch", "-m", self.branch, target.branch)
-            self.git("update-ref", "-d", f"{TIPS_REF}/{self.name}")
-            self.git("update-ref", f"{TIPS_REF}/{name}", target.branch)
+        if target.path.exists() or target.has(f"refs/heads/{target.branch}") or target.has(f"{TIPS_REF}/{name}"):
+            raise Rejection(f"the name {name} still has a worktree, a branch {target.branch} or a kept tip left from earlier: journal worktree remove {name} or git branch -D {target.branch} frees it, or choose another name")
+        steps = []
+        if self.path.is_dir():
+            steps.append(("worktree", "move", str(self.path), str(target.path)))
+        if self.has(f"refs/heads/{self.branch}"):
+            steps.append(("branch", "-m", self.branch, target.branch))
+        if self.has(f"{TIPS_REF}/{self.name}"):
+            steps += [("update-ref", f"{TIPS_REF}/{name}", self.git("rev-parse", f"{TIPS_REF}/{self.name}").stdout.strip()), ("update-ref", "-d", f"{TIPS_REF}/{self.name}")]
+        for step in steps:
+            moved = self.git(*step)
+            if moved.returncode != 0:
+                raise Rejection(f"the worktree {self.name} could not be renamed to {name}: {moved.stderr.strip()}")
         return target
 
     def local_branch(self) -> str:
