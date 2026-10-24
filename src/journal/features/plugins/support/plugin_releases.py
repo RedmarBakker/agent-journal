@@ -25,6 +25,7 @@ class PluginReleases:
         try:
             tag = self.fitting_tag(plugin, Release(version))
             if tag is None:
+                self.hold(plugin)
                 return
             environment = self.environments.all()[0]
             self.installing.upgrade(plugin.name, tag, environment.name, actor)
@@ -32,6 +33,14 @@ class PluginReleases:
             self.announcer.announce(PluginUpgradeFailed(environment_id=self.environments.all()[0].row_id, plugin=plugin.name, version=version, reason=str(failed)))
             return
         self.announcer.announce(PluginUpgraded(environment_id=environment.row_id, plugin=plugin.name, previous=plugin.release, tag=tag, version=version))
+
+    def hold(self, plugin: Plugin) -> None:
+        newer = [release for release in reversed(Release.lookup(self.source.release_tags(plugin.source))) if release.is_newer(Release(plugin.release))]
+        if not newer:
+            return
+        with self.installing.staged(plugin.source, newer[0].tag) as (folder, _):
+            least = self.installing.reader.least_journal(folder)
+        self.plugins.save(self.plugins.lookup(plugin.name).with_(waits_for=least), Actor.system())
 
     def fitting_tag(self, plugin: Plugin, journal: Release) -> str | None:
         newer = [release for release in reversed(Release.lookup(self.source.release_tags(plugin.source))) if release.is_newer(Release(plugin.release))]

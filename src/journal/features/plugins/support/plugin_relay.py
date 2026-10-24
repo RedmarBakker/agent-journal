@@ -27,6 +27,7 @@ UNANSWERED = "plugin_unanswered"
 WAITING = "plugin_line_waiting"
 PLUGIN_LINE_KIND = "plugin_said"
 CUT = "plugin_cut"
+WARNING = "plugin_warning"
 
 
 class PluginRelay:
@@ -36,6 +37,7 @@ class PluginRelay:
         self.plugins, self.runner, self.protocol, self.faults, self.answers, self.steps = plugins, runner, protocol, faults, answers, steps
         self.environments, self.agents, self.entries, self.deferred, self.hashes, self.linked = environments, agents, entries, deferred, hashes, linked
         self.text, self.scope = text, scope
+        self.warnings: set[tuple[str, str]] = set()
 
     def listeners(self, event: Event, environment_id: int) -> list[Plugin]:
         name, actor = Protocol.published_name(event), getattr(event, "actor", None)
@@ -61,8 +63,16 @@ class PluginRelay:
             self.faults.failed(plugin, environment_id, Protocol.published_name(event), str(fault))
             return PluginAnswer()
         self.faults.answered(plugin, environment_id)
+        self.warned(plugin, answer, environment_id)
         self.applied(plugin, answer, environment, environment_id)
         return answer
+
+    def warned(self, plugin: Plugin, answer: PluginAnswer, environment_id: int) -> None:
+        keys = ", ".join(answer.ignored)
+        if not keys or (plugin.name, keys) in self.warnings:
+            return
+        self.warnings.add((plugin.name, keys))
+        self.logged(environment_id, WARNING, Actor.plugin(plugin.name), {"plugin": plugin.name, "warning": f"its answer has keys this journal does not know, ignored: {keys}"})
 
     def applied(self, plugin: Plugin, answer: PluginAnswer, environment: str, environment_id: int) -> None:
         if answer.cards or answer.commands:

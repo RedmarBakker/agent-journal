@@ -18,7 +18,7 @@ MERGE_EVENTS = ("worker_merging", "worker_merge_result")
 HOLDABLE = ("tool_starting", "command_starting", "file_edited", "idle", "prompt_submitted", "session_started", "worker_merging")
 ROW_EVENT = re.compile(r"^(?P<table>[a-z_]+)\.(created|updated|deleted)$")
 PRIVATE_TABLES = ("secrets", "mcp_servers", "users")
-KEYS = {f for f in PluginManifest.__dataclass_fields__} - set(PUBLISHED.values()) | set(PUBLISHED)
+KEYS = {f for f in PluginManifest.__dataclass_fields__} - set(PUBLISHED.values()) - {"ignored"} | set(PUBLISHED)
 PATHS = ("program", "settings", "skills")
 REACHES = ("workers", "subagents")
 
@@ -35,9 +35,7 @@ class ManifestReader:
         if not self.is_fitting(least):
             raise Rejection(f"{raw.get('name', folder.name)} needs journal {least} or newer; this journal is {VERSION}")
         unknown = sorted(set(raw) - KEYS)
-        if unknown:
-            raise Rejection(f"{MANIFEST} has keys the journal does not know: {', '.join(unknown)}")
-        manifest = PluginManifest.parsed(raw)
+        manifest = PluginManifest.parsed({**{key: value for key, value in raw.items() if key in KEYS}, "ignored": unknown})
         self.name_check(manifest)
         self.protocol_check(manifest)
         self.event_check(manifest)

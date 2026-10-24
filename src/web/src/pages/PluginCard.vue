@@ -62,6 +62,13 @@ function pick(event) {
             <p class="fault quiet">Last fault: {{ plugin.lastFault }}</p>
         </template>
 
+        <template v-if="plugin.waitsFor">
+            <p class="fault quiet">Waits for journal {{ plugin.waitsFor }}: a newer version of this plugin needs it, so the installed one keeps running.</p>
+        </template>
+        <template v-if="plugin.ignored.length">
+            <p class="fault quiet">Its manifest has keys this journal does not know, ignored: {{ plugin.ignored.join(", ") }}</p>
+        </template>
+
         <template v-if="plugin.holds.length">
             <div class="pages">
                 <span class="label">Holds before the agent continues</span>

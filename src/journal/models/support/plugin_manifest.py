@@ -34,6 +34,7 @@ class PluginManifest:
     dashboard: dict = field(default_factory=dict)
     aliases: tuple[PluginAlias, ...] = ()
     reaches: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    ignored: tuple[str, ...] = ()
 
     @classmethod
     def parsed(cls, data: dict) -> "PluginManifest":
@@ -41,7 +42,7 @@ class PluginManifest:
         return cls(**{**field_values, "events": tuple(data.get("hears", ())), "blocks": tuple(EventWindow.parsed(h) for h in data.get("holds", ())),
                       "services": tuple(PluginService.parsed(s) for s in data.get("services", ())), "cards": tuple(CardKind.parsed(c) for c in data.get("cards", ())),
                       "setup": tuple(SetupStep.parsed(s) for s in data.get("setup", ())), "aliases": tuple(PluginAlias.parsed(alias) for alias in data.get("aliases", ())), "requires": {program: Requirement.parsed(r) for program, r in data.get("requires", {}).items()},
-                      "reaches": {event: tuple(kinds) for event, kinds in data.get("reaches", {}).items()}})
+                      "reaches": {event: tuple(kinds) for event, kinds in data.get("reaches", {}).items()}, "ignored": tuple(data.get("ignored", ()))})
 
     def published(self) -> dict:
         names = {field: key for key, field in PUBLISHED.items()}

@@ -23,6 +23,7 @@ class Plugin(Model):
     settings: dict = field(default_factory=dict)
     hashes: dict = field(default_factory=dict)
     waiting: str = ""
+    waits_for: str = ""
     last_fault: str = ""
     fault_streak: int = 0
     failed_at: datetime | None = None

@@ -55,10 +55,8 @@ class Protocol:
         if not isinstance(raw, dict):
             raise PluginFault("its answer is not a JSON object")
         raw = {ANSWER_FIELDS.get(key, key): value for key, value in raw.items()}
-        unknown = sorted(set(raw) - {f.name for f in fields(PluginAnswer)})
-        if unknown:
-            raise PluginFault(f"its answer has keys the protocol does not know: {', '.join(unknown)}")
-        answer = PluginAnswer(**{**raw, "cards": tuple(PluginCard.parsed(card) for card in raw.get("cards", ())), "commands": tuple(raw.get("commands", ()))})
+        known = {f.name for f in fields(PluginAnswer)} - {"ignored"}
+        answer = PluginAnswer(**{**{key: value for key, value in raw.items() if key in known}, "ignored": tuple(sorted(set(raw) - known)), "cards": tuple(PluginCard.parsed(card) for card in raw.get("cards", ())), "commands": tuple(raw.get("commands", ()))})
         if answer.answer not in ANSWERS:
             raise PluginFault(f"it answered {answer.answer!r}; an answer is allow, refuse or tell")
         if answer.v != self.VERSION:

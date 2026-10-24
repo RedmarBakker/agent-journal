@@ -105,6 +105,7 @@ class PluginInstalling:
     def upgrade_preview(self, name: str, ref: str | None) -> PluginPreview:
         plugin = self.plugins.lookup(name)
         with self.staged(plugin.source, ref) as (folder, commit):
+            self.waiting(plugin, folder)
             manifest = self.same(plugin, self.reader.read(folder))
             changes = PluginChanges.manifest(PluginChanges.plain(plugin.manifest), PluginChanges.plain(manifest))
             code = [] if plugin.linked else PluginChanges.code(self.folders.folder(plugin), folder)
@@ -114,7 +115,9 @@ class PluginInstalling:
     def upgrade(self, name: str, ref: str | None, environment: str, actor: Actor) -> Plugin:
         plugin = self.plugins.lookup(name)
         with self.staged(plugin.source, ref) as (folder, commit):
-            upgraded = plugin.with_(manifest=self.same(plugin, self.reader.read(folder)), commit_sha=commit, release="" if plugin.linked else self.tag(folder), waiting="")
+            if self.waiting(plugin, folder):
+                return self.plugins.lookup(name)
+            upgraded = plugin.with_(manifest=self.same(plugin, self.reader.read(folder)), commit_sha=commit, release="" if plugin.linked else self.tag(folder), waiting="", waits_for="")
             self.services.stop(plugin)
             if not plugin.linked:
                 self.replaced(plugin, upgraded, folder, environment)
@@ -126,6 +129,14 @@ class PluginInstalling:
                 self.skills.publish(saved)
                 self.services.start(saved)
             return saved
+
+    def waiting(self, plugin: Plugin, folder: Path) -> bool:
+        """Whether the staged version needs a newer journal than this one; the plugin then stays as it is installed and its row says which journal it waits for."""
+        least = self.reader.least_journal(folder)
+        if self.reader.is_fitting(least):
+            return False
+        self.plugins.save(self.plugins.lookup(plugin.name).with_(waits_for=least), Actor.system())
+        return True
 
     def replaced(self, plugin: Plugin, upgraded: Plugin, folder: Path, environment: str) -> None:
         target = self.folders.folder(plugin)

@@ -4050,7 +4050,6 @@ def test_a_plugin_manifest_is_read_and_each_wrong_one_refused_by_name(app: App, 
     manifest = reader.read(made({}))
     assert manifest.name == "echo" and tuple(h.event for h in manifest.blocks) == ("tool_starting",) and manifest.services[0].name == "serve"
     refusals = {
-        "keys the journal does not know: hook": {"hook": "x"},
         "is not": {"name": "Echo!"},
         "one of the journal's own features": {"name": "tasks"},
         "speaks protocol 2": {"protocol": 2},
@@ -4122,6 +4121,43 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_every_five
     assert len(tick(10 + 1500)) == 3, "switched off on purpose it is named no more"
 
 
+def test_a_manifest_and_an_answer_with_a_key_this_journal_does_not_know_still_work_with_a_warning(app: App, tmp_path):
+    from journal.features.plugins.support.manifest_reader import ManifestReader
+    from journal.features.plugins.support.protocol import Protocol
+    reader, protocol = app.container.get(ManifestReader), app.container.get(Protocol)
+    folder = tmp_path / "newer"
+    folder.mkdir()
+    (folder / "run.py").write_text("print()")
+    (folder / "journal-plugin.json").write_text(json.dumps({"name": "newer", "version": "1", "program": "run.py", "hears": ["tool_starting"], "from_the_future": 1, "also": 2}))
+    manifest = reader.read(folder)
+    assert manifest.name == "newer" and manifest.events == ("tool_starting",) and manifest.ignored == ("also", "from_the_future"), "an unknown manifest key is ignored and named, never a refusal"
+    answer = protocol.parsed_answer(json.dumps({"answer": "refuse", "reason": "no", "say": "x"}))
+    assert (answer.answer, answer.reason, answer.ignored) == ("refuse", "no", ("say",)), "an unknown answer key is ignored and named, the answer kept"
+
+
+def test_a_plugin_whose_new_version_names_a_newer_journal_is_held_at_its_installed_version_and_says_which_journal_it_waits_for(app: App, tmp_path):
+    from journal.features.plugins.support.plugin_installing import PluginInstalling
+    from journal.models.plugin import Plugin
+    from journal.repositories.plugins import Plugins
+    from journal.support.rejection import Rejection
+    from journal.version import VERSION
+    folder = tmp_path / "held"
+    folder.mkdir()
+    (folder / "run.py").write_text("print()")
+    manifest = {"name": "held", "version": "1", "program": "run.py", "hears": ["tool_starting"]}
+    (folder / "journal-plugin.json").write_text(json.dumps(manifest))
+    plugins, installing = app.container.get(Plugins), app.container.get(PluginInstalling)
+    plugins.save(Plugin(name="held", source=str(folder), linked=True, manifest=PluginManifest.parsed(manifest)), Actor.user(1))
+    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": "2", "journal": "99.0.0"}))
+    kept = installing.upgrade("held", None, "main", Actor.user(1))
+    assert kept.manifest.version == "1" and plugins.lookup("held").manifest.version == "1" and plugins.lookup("held").waits_for == "99.0.0", "the installed version stays and the row says which journal it waits for"
+    with pytest.raises(Rejection):
+        installing.upgrade_preview("held", None)
+    assert "waits for journal 99.0.0" in app.console().run(["plugin", "list"], USER).text, "journal plugin list says it"
+    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": "3", "journal": VERSION}))
+    assert installing.upgrade("held", None, "main", Actor.user(1)).manifest.version == "3" and plugins.lookup("held").waits_for == "", "a version this journal runs is taken and the wait ends"
+
+
 def test_a_plugin_is_a_row_and_writes_as_itself(app: App):
     from journal.support.actor_kind import ActorKind
     from journal.models.plugin import Plugin
@@ -4173,7 +4209,7 @@ def test_the_plugin_protocol_sends_one_line_and_reads_one_back(app: App):
     assert protocol.parsed_answer("").answer == "allow", "an empty answer lets the event through"
     answer = protocol.parsed_answer(json.dumps({"v": 1, "answer": "refuse", "reason": "not on main", "cards": [{"kind": "sin", "label": "a sin"}], "commands": ["journal task list"]}))
     assert (answer.answer, answer.reason, answer.cards[0].kind, answer.commands) == ("refuse", "not on main", "sin", ("journal task list",))
-    for broken, text in (("{nope", "not JSON"), ('["a"]', "not a JSON object"), ('{"answer": "maybe"}', "allow, refuse or tell"), ('{"v": 2}', "protocol 2"), ('{"say": "x"}', "keys the protocol does not know: say"), (json.dumps({"commands": ["journal x"] * 21}), "at most 20")):
+    for broken, text in (("{nope", "not JSON"), ('["a"]', "not a JSON object"), ('{"answer": "maybe"}', "allow, refuse or tell"), ('{"v": 2}', "protocol 2"), (json.dumps({"commands": ["journal x"] * 21}), "at most 20")):
         try:
             protocol.parsed_answer(broken)
             raise AssertionError(f"no fault for {broken}")

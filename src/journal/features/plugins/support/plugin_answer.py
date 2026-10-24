@@ -13,3 +13,4 @@ class PluginAnswer:
     cards: tuple[PluginCard, ...] = ()
     commands: tuple[str, ...] = ()
     v: int = 1
+    ignored: tuple[str, ...] = ()
