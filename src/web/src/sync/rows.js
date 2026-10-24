@@ -140,10 +140,10 @@ function stillWhole(held, arriving) {
 
 export const isWhole = (r) => !isSummary(r);
 
+// one row read whole by its own endpoint, in place of its index row
 export async function whole(table, id) {
-    const got = await api.list(table, {ids: [id]});
-    const row = got.rows.find((r) => r.id === id);
-    if (row) store.rows[table] = (store.rows[table] || []).map((r) => (r.id === id ? row : r));
+    const row = await api.show(table, id);
+    store.rows[table] = (store.rows[table] || []).map((r) => (r.id === id ? row : r));
 }
 
 function took(table, got) {

@@ -1,7 +1,7 @@
 import {effectScope, nextTick} from "vue";
 import {expect, test, vi} from "vitest";
 
-const api = {env: () => "main", list: vi.fn()};
+const api = {env: () => "main", list: vi.fn(), show: vi.fn()};
 vi.mock("../src/api/client.js", () => ({api, onWrite: vi.fn()}));
 vi.mock("../src/chat/outbox.js", () => ({onOutboxChange: vi.fn()}));
 
@@ -30,11 +30,12 @@ test("a plan read whole draws its phases on the task board and counts its done t
 
 test("a view that shows a plan asks for it whole by its id, once, and reads its phases from it", async () => {
     store.rows.plans = [index];
-    api.list.mockResolvedValue({rows: [whole], is_last_page: true, counts: {}});
+    api.show.mockResolvedValue(whole);
     const scope = effectScope();
     scope.run(() => wholePlans(() => [5]));
     await vi.waitFor(() => expect(rows("plans")[0].task_ids).toEqual([1, 2, 3]));
     await nextTick();
-    expect(api.list.mock.calls).toEqual([["plans", {ids: [5]}]]);
+    expect(api.show.mock.calls).toEqual([["plans", 5]]);
+    expect(api.list).not.toHaveBeenCalled();
     scope.stop();
 });
