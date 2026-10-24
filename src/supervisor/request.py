@@ -21,6 +21,7 @@ class Request:
     delay_seconds: float = 0.0
     data: str = ""
     resume: tuple[str, ...] = ()
+    parent: str = ""
     labels: BandLabels | None = None
     payload_keys: frozenset[str] = frozenset()
 

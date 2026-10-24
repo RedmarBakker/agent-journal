@@ -12,7 +12,7 @@ from supervisor.service import Service
 if TYPE_CHECKING:
     from supervisor.supervisor import Supervisor
 
-VERBS = ("hello", "start", "stop", "restart", "list", "keys", "type", "send", "band")
+VERBS = ("hello", "start", "start_child", "stop", "restart", "list", "keys", "type", "send", "band")
 
 
 class Verbs:
@@ -40,6 +40,13 @@ class Verbs:
         existing = self.supervisor.services.runs(request.name)
         inherited = os.environ if request.inherit else {}
         self.supervisor.services.add(Service(request.name, list(request.command), Path(request.folder), {**inherited, **request.environ}, Path(request.log), request.persistent))
+        return Reply.success(started=not existing)
+
+    def start_child(self, request: Request) -> Reply:
+        request.needs("name", "command", "parent")
+        existing = self.supervisor.services.runs(request.name)
+        inherited = os.environ if request.inherit else {}
+        self.supervisor.services.add(Service(request.name, list(request.command), Path(request.folder), {**inherited, **request.environ}, Path(request.log), request.persistent, request.parent))
         return Reply.success(started=not existing)
 
     def list(self, request: Request) -> Reply:

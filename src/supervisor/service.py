@@ -12,10 +12,11 @@ STOP_GRACE = 5.0
 
 
 class Service:
-    """A named process beside the agent, with no terminal: what is sent to it goes to its input, its output goes to its log, and it is started again when it dies."""
+    """A named process beside the agent, with no terminal: what is sent to it goes to its input, its output goes to its log, and it is started again when it dies; a child names the service it lives under, which it is kept alive with and stopped with."""
 
-    def __init__(self, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, persistent: bool = True) -> None:
+    def __init__(self, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, persistent: bool = True, parent: str = "") -> None:
         self.name, self.command, self.folder, self.environ, self.log, self.persistent = name, command, folder, environ, log, persistent
+        self.parent = parent
         self._process: subprocess.Popen | None = None
         self._last_start = 0.0
         self._deaths: list[float] = []
@@ -68,7 +69,7 @@ class Service:
         self._process.stdin.flush()
 
     def described(self) -> dict:
-        return {"name": self.name, "pid": self._process.pid if self.is_active() else 0, "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts}
+        return {"name": self.name, "pid": self._process.pid if self.is_active() else 0, "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts, "parent": self.parent}
 
     def stop(self) -> None:
         with self._moving:

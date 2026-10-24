@@ -350,3 +350,34 @@ def test_a_supervisor_and_a_chain_shell_end_within_ten_seconds_of_their_owner_ki
         inbox.close()
         if shell.poll() is None:
             os.killpg(shell.pid, signal.SIGKILL)
+
+
+def test_a_child_service_lives_while_its_parent_runs_and_stops_with_it(tmp_path: Path, monkeypatch):
+    import supervisor.service as service
+    monkeypatch.setattr(service, "BACKOFF", 0.05)
+    environ = {"PATH": os.environ["PATH"]}
+    services = Services()
+    try:
+        services.add(Service("sync", ["sleep", "30"], tmp_path, environ, tmp_path / "sync.log", parent="journal"))
+        raise AssertionError("a child of a parent that is not running was started")
+    except LookupError as refused:
+        assert "child of journal, which is not running" in str(refused)
+    services.add(Service("journal", ["sleep", "30"], tmp_path, environ, tmp_path / "journal.log"))
+    services.add(Service("sync", ["sleep", "30"], tmp_path, environ, tmp_path / "sync.log", parent="journal"))
+    first = services.service("sync").described()["pid"]
+    os.kill(first, 9)
+    deadline = time.time() + 5
+    while time.time() < deadline and not (services.runs("sync") and services.service("sync").described()["pid"] != first):
+        services.revive_stopped()
+        time.sleep(0.05)
+    assert services.runs("sync") and services.service("sync").described()["pid"] != first, "a child that dies while its parent runs is started again"
+    assert services.service("sync").described()["parent"] == "journal", "list names a child's parent"
+    child = services.service("sync").described()["pid"]
+    services.remove("journal")
+    assert not services.runs("sync") and "sync" not in [row["name"] for row in services.described()], "stopping the parent stops its child"
+    try:
+        os.kill(child, 0)
+        alive = True
+    except ProcessLookupError:
+        alive = False
+    assert not alive, "and the child's process is gone"
