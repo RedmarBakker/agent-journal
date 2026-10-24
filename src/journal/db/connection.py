@@ -71,7 +71,12 @@ class Connection:
         return [row["detail"] for row in self._local().execute(f"EXPLAIN QUERY PLAN {sql}", self.masks.masked(params)).fetchall()]
 
     def cached(self, tables: tuple[str, ...], sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
+        if self.is_written_here(tables):
+            return self.loaded_rows(tables[0], sql, params, reader)
         return self.cache.rows(tables, (sql, params), lambda: self.loaded_rows(tables[0], sql, params, reader))
+
+    def is_written_here(self, tables: tuple[str, ...]) -> bool:
+        return self._local().in_transaction and bool(set(tables) & getattr(self._threads, "written", set()))
 
     def loaded_rows(self, table: str, sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
         with self.stages.timed(f"read {table}"):

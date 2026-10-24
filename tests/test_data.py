@@ -895,3 +895,19 @@ def test_a_new_journal_has_every_index_and_an_index_whose_definition_changed_is_
     Indexes(connection, INDEXES).refresh()
     assert connection.result("SELECT sql FROM sqlite_master WHERE name = 'entries_dispatches'")[0] == next(index.sql() for index in INDEXES if index.name == "entries_dispatches"), "an index made under an older definition is made again under the current one"
     connection.close()
+
+
+def test_a_transaction_reads_its_own_writes_even_when_another_thread_stored_the_table_meanwhile(connection, bus):
+    """Two links made in one transaction once took one number: a reader on another thread stored the blocks as committed, and the writer read that copy back, missing its own write."""
+    import threading
+    from journal.repositories.id_blocks import IdBlocks
+    blocks = IdBlocks(connection, bus)
+    blocks.add("links", 100, 199)
+    taken = []
+    with connection.transaction():
+        taken.append(blocks.next_id("links"))
+        reader = threading.Thread(target=lambda: blocks.all_matching(row_table="links"))
+        reader.start()
+        reader.join()
+        taken.append(blocks.next_id("links"))
+    assert taken == [100, 101], "the second number follows the first, whatever another thread read in between"
