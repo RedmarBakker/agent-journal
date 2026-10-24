@@ -69,7 +69,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip nod ×2 when moment=tests_passed, plays out, group cools 20s",
         "nothing nothing ×1 when moment=tests_passed, group cools 20s",
         "clip bug_shot ×3 when moment=tests_fixed, plays out, group cools 20s, cools 1800s",
-        "clip bug_smash ×2 when moment=tests_fixed, plays out, group cools 20s, cools 480s",
+        "clip bug_smash ×2 when moment=tests_fixed, plays out, group cools 20s, cools 1800s",
         "clip nod ×2 when moment=tests_fixed, plays out, group cools 20s",
         "clip startled ×2 when moment=tests_failed, plays out, group cools 20s",
         "clip dismay ×1 when moment=tests_failed, plays out, group cools 20s",
@@ -232,10 +232,10 @@ test("every act in the pile and every sequence, one line each: its weight, its c
     for (const entry of PILE.filter((each) => each.kind === "clip")) expect(clips.has(entry.name), entry.name).toBe(true);
 });
 
-test("each showpiece waits its own cooldown, listed in one place: the parachute 20 minutes, the disco 2 hours, the rope swing 15, the bug shot 30, the salto 5 to 8, the tickle swats none", () => {
+test("each showpiece waits its own cooldown, listed in one place: the parachute 20 minutes, the disco 2 hours, the rope swing 15, the bug shot and the bug smash 30, the salto 5 to 8, the tickle swats none", () => {
     expect(SHOWPIECES.hop_up).toBe(20 * 60);
     expect([SHOWPIECES.disco, SHOWPIECES.rope_swing]).toEqual([2 * 60 * 60, 15 * 60]);
-    expect(SHOWPIECES.bug_shot).toBe(30 * 60);
+    expect([SHOWPIECES.bug_shot, SHOWPIECES.bug_smash]).toEqual([30 * 60, 30 * 60]);
     expect(SHOWPIECES.backflip >= 5 * 60 && SHOWPIECES.backflip <= 8 * 60).toBe(true);
     expect(SHOWPIECES.tickle_swat).toBe(0);
     // every showpiece in the pile takes its own cooldown from the list, beside its group's

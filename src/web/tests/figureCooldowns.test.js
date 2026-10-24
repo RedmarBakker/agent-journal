@@ -12,23 +12,32 @@ afterEach(() => {
 });
 
 describe("the figure's cooldowns", () => {
-    it("keep the bug shot back for 30 minutes after it played, through a reload that reads its last play back from the page's session storage", () => {
-        expect(SHOWPIECES.bug_shot).toBe(30 * 60);
-        const now = 1_800_000_000;
-        // the figure plays the bug shot for a fixed run (the pile's first pick), and the time is in the session storage
-        expect(reactionTo("tests_fixed", memoryAt(now), now, () => 0).clip).toBe("bug_shot");
-        const kept = JSON.parse(sessionStorage.getItem("journal.figure.cooldowns.work"));
-        expect(kept["tests_fixed/bug_shot"]).toBe(now);
-        expect(localStorage.getItem("journal.figure.cooldowns.work"), "never in the storage every tab shares").toBe(null);
-        // made anew as on a reload, every few minutes through the half hour a fixed run never brings the bug shot again
-        for (let minute = 1; minute < 30; minute += 4) {
-            const reloaded = memoryAt(now + minute * 60);
-            expect(reloaded.get("tests_fixed/bug_shot"), `read back at ${minute} minutes`).toBe(now);
-            expect(reactionTo("tests_fixed", reloaded, now + minute * 60, () => 0)?.clip, `${minute} minutes on`).not.toBe("bug_shot");
+    it("keep each bug act, the bug shot and the mallet's smash, back for 30 minutes after it played, through a reload that reads its last play back from the page's session storage", () => {
+        expect([SHOWPIECES.bug_shot, SHOWPIECES.bug_smash]).toEqual([30 * 60, 30 * 60]);
+        // the pile's pick for a fixed run by the roll: the bug shot first, then the mallet's smash
+        for (const [name, roll] of [["bug_shot", 0], ["bug_smash", 0.5]]) {
+            sessionStorage.clear();
+            const now = 1_800_000_000;
+            expect(reactionTo("tests_fixed", memoryAt(now), now, () => roll).clip, name).toBe(name);
+            // every probe below a reload from the storage as the play left it, so what a probe itself plays never counts
+            const saved = sessionStorage.getItem("journal.figure.cooldowns.work");
+            const reload = (at) => (sessionStorage.setItem("journal.figure.cooldowns.work", saved), memoryAt(at));
+            const kept = JSON.parse(saved);
+            expect(kept[`tests_fixed/${name}`], `${name} in the session storage`).toBe(now);
+            expect(localStorage.getItem("journal.figure.cooldowns.work"), "never in the storage every tab shares").toBe(null);
+            // made anew as on a reload, every few minutes through the half hour a fixed run never brings it again, whatever the roll
+            for (let minute = 1; minute < 30; minute += 4) {
+                const reloaded = reload(now + minute * 60);
+                expect(reloaded.get(`tests_fixed/${name}`), `${name} read back at ${minute} minutes`).toBe(now);
+                for (const again of [0, 0.5, 0.99]) {
+                    const memory = reload(now + minute * 60);
+                    expect(reactionTo("tests_fixed", memory, now + minute * 60 + 30, () => again)?.clip, `${name} ${minute} minutes on, roll ${again}`).not.toBe(name);
+                }
+            }
+            // half an hour on it may play again
+            const later = now + 30 * 60 + 1;
+            expect(reactionTo("tests_fixed", reload(later), later, () => roll).clip, `${name} after half an hour`).toBe(name);
         }
-        // half an hour on it may play again
-        const later = now + 30 * 60 + 1;
-        expect(reactionTo("tests_fixed", memoryAt(later), later, () => 0).clip).toBe("bug_shot");
     });
 
     it("hold through a reload: an act played, the memory rebuilt as a reload does, and the act still cools down until its time", () => {

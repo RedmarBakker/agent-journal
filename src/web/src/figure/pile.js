@@ -30,10 +30,10 @@ export const LIFETIME = 10;
 
 // The showpiece acts and how long each waits before it may play again once it has, in seconds, so they stay special: the run up to the
 // parachute at most every 20 minutes, the disco dance at most every 2 hours and rarely then, the rope swing about every 15, the salto on a
-// jump up and the pogo stick about every 6, the bug shot every 30, the bug smashed with the mallet every 8; the tickle swats come as often as the
+// jump up and the pogo stick about every 6, the bug shot and the bug smashed with the mallet every 30; the tickle swats come as often as the
 // user tickles. A cooldown only takes an act out of the draw while it lasts;
 // its weight is its own.
-export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, bug_shot: 30 * 60, bug_smash: 8 * 60, tickle_swat: 0};
+export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, bug_shot: 30 * 60, bug_smash: 30 * 60, tickle_swat: 0};
 
 // The shenanigans and the most seconds each keeps the figure from its spot, the way back included: the run up the bubbles, its time out
 // of sight and the parachute down; the disco dance; the rope swing's stay; the salto; the pogo stick's climb; a stay on a bubble
