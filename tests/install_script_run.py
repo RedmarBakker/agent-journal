@@ -80,3 +80,34 @@ def test_a_rescue_system_is_named_as_one_before_any_wait(tmp_path: Path):
     env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
     assert ran.returncode == 1 and "This machine runs a rescue system, which cannot run Docker: install an operating system" in ran.stderr, ran.stderr
+
+
+def test_a_piped_installer_asks_on_the_terminal_and_runs_to_its_end(tmp_path: Path):
+    """Run as curl | sh, the script arrives on standard input while the prompts read the terminal; it is read whole before it runs, so an answer never cuts it short, and each step says what it does."""
+    import pty
+    import select
+    bin = tmp_path / "bin"
+    bin.mkdir()
+    fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
+    fake(bin, "curl", 'printf 200')
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_ADDRESS": "203.0.113.5", "TEAM_SETUP_CODE": "ABCD-EFGH"}
+    leader, follower = pty.openpty()
+    piped = subprocess.Popen(["sh", "-c", f"cat '{SCRIPT}' | sh"], stdin=follower, stdout=follower, stderr=follower, env=env, start_new_session=True, preexec_fn=lambda: os.login_tty(follower))
+    os.close(follower)
+    printed = b""
+    while b"Project name" not in printed and select.select([leader], [], [], 10)[0]:
+        printed += os.read(leader, 4096)
+    os.write(leader, b"Shop\n")
+    while select.select([leader], [], [], 10)[0]:
+        try:
+            chunk = os.read(leader, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        printed += chunk
+    piped.wait(timeout=30)
+    text = printed.decode(errors="replace")
+    assert piped.returncode == 0, text
+    assert "Pulling the team server's image" in text and "Starting the team server in the container agent-journal-shop" in text and "Waiting for https://203.0.113.5 to answer" in text, text
+    assert "Its setup code is ABCD-EFGH" in text, "the script ran to its end after the answer"
