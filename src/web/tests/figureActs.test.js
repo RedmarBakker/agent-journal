@@ -125,7 +125,7 @@ test("every moment the figure acts out has more than one way to play it, picks a
     // the journal moments, the celebrations and the breaks from the hammering
     // the journal moments, the celebrations, the breaks from the hammering and the glances from standing still; a message sent is the
     // telephone call alone (figureCall.test.js)
-    // a pass, a passed check and a commit are celebrated by the jump for joy alone
+    // a pass, a passed check and a commit get a nod alone
     const joyAlone = ["check_passed", "tests_passed", "committed"];
     for (const moment of [...Object.keys(JOURNAL), "tests_passed", "committed", "building", "standing"]) {
         expect(played(moment).length, moment).toBeGreaterThan(joyAlone.includes(moment) ? 0 : 1);

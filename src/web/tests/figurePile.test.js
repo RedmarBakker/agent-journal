@@ -294,18 +294,15 @@ test("a pass that fixed a failed test run, and only that, may bring a bug the fi
     expect(bugShot("tests_fixed", {memory, now: SHOWPIECES.bug_shot})).toBe(true);
 });
 
-test("a finished task never brings the stamp: no stamp in the pile or among the clips, and its moment draws a nod, the hands rubbed together, a celebration or nothing", () => {
+test("a finished task never brings the stamp: no stamp in the pile or among the clips, and its moment draws a nod, the hands rubbed together or nothing", () => {
     expect(PILE.some((entry) => entry.name === "stamp")).toBe(false);
     expect(CLIPS.some((clip) => clip.name === "stamp")).toBe(false);
     expect(Object.keys(ACTS)).not.toContain("stamp");
     const drawn = new Set();
     for (let share = 0; share < 1; share += 0.01) drawn.add(draw({moment: "task_finished"}, () => share)?.name ?? "nothing");
-    expect([...drawn].sort()).toEqual(["hand_rub", "joy", "nod", "nothing"]);
+    expect([...drawn].sort()).toEqual(["hand_rub", "nod", "nothing"]);
 });
 
-test("every celebrated moment draws the jump for joy", () => {
-    for (const moment of ["tests_passed", "tests_fixed", "committed", "task_finished", "check_passed", "bar_done"]) expect(choicesFor({moment}).some((entry) => entry.name === "joy"), moment).toBe(true);
-});
 
 test("one worker sent its job is one phone call: the marks the send writes in the same moments, and another send soon after, call no more", () => {
     const memory = new Map();
