@@ -23,6 +23,7 @@ import {
 import {footingNow, footingOn, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors} from "../figure/floors.js";
 import {useFigureBody} from "../composables/figureBody.js";
 import {
+    actOver,
     beatsAfter,
     cardsAfter,
     canSwitch,
@@ -378,6 +379,8 @@ let headTilt = UPRIGHT;
 function step() {
     cancelAnimationFrame(frameTimer);
     if (!player || document.hidden) return;
+    // an act played once that has played to its end is over before what comes next is chosen, so its beat is never left to play again
+    if (playing.shown && actOver(playing.shown, frameOf(playing.shown))) return endAct(playing.shown);
     const wanted = current();
     if (playing.shown?.clip.outro && wanted.clip.name !== playing.shown.clip.name && playing.closing === null) {
         playing.closing = closeAt(playing.shown.clip, frameOf(playing.shown));
@@ -402,23 +405,6 @@ function step() {
     shownFacing.value = shown.facing;
     const index = frameOf(shown);
     playing.index = index;
-    // a swat played out while the tickling goes on starts again, so the figure swats for as long as it is tickled
-    if (shown.once && index >= shown.clip.frames && shown.clip.name === "tickle_swat" && tickling(pointer, performance.now())) {
-        playing.started = performance.now();
-        return step();
-    }
-    if (shown.once && index >= shown.clip.frames) {
-        if (shown.departure) {
-            body.leaving = false;
-            body.here = false;
-            return;
-        }
-        if (shown.arrival) body.arriving = false;
-        else if (shown.landed) body.landing = false;
-        else beats.value = playedFrom(beats.value, shown.clip.name);
-        playing = {name: "", started: 0, shown: null, index: 0, closing: null};
-        return step();
-    }
     const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
     // seated, it faces as its seat does, whatever the clip still on screen faced, and turned aside at its laptop (places.js seatedFacing)
     poseToward({posture, facing: SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
@@ -458,6 +444,25 @@ function step() {
     keepBall(shown);
     keepLadder();
     frameTimer = requestAnimationFrame(step);
+}
+
+// The act played once on screen, `shown`, at its end: a swat starts again while the tickling goes on, so the figure swats for as long as it
+// is tickled; a departure takes the figure away; an arrival or a landing is done; any other is a beat, taken off the queue
+function endAct(shown) {
+    if (shown.clip.name === "tickle_swat" && tickling(pointer, performance.now())) {
+        playing.started = performance.now();
+        return step();
+    }
+    if (shown.departure) {
+        body.leaving = false;
+        body.here = false;
+        return;
+    }
+    if (shown.arrival) body.arriving = false;
+    else if (shown.landed) body.landing = false;
+    else beats.value = playedFrom(beats.value, shown.clip.name);
+    playing = {name: "", started: 0, shown: null, index: 0, closing: null};
+    return step();
 }
 
 // The posture and facing the figure is drawn in, on its way to those of the clip on screen, `target`, through standing whenever it turns

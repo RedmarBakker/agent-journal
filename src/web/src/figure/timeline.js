@@ -22,6 +22,9 @@ export function closeAt(clip, index) {
     return intro + Math.ceil(Math.max(index - intro, 0) / unit) * unit;
 }
 
+// whether the act played once on screen, `shown`, is over `index` frames in: its clip played to its end, whatever is wanted next
+export const actOver = (shown, index) => Boolean(shown?.once) && index >= shown.clip.frames;
+
 // whether a clip on screen `seconds` has played the least it plays (figure.js CLIPS least)
 export const playedLeast = (clip, seconds) => seconds >= (clip.least ?? 0);
 
