@@ -11058,6 +11058,9 @@ def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read():
     assert pytest_runs.is_shown_run("python3 -m pytest -p no:warnings tests/test_x.py 2>&1"), "a plain run, its errors joined to its output, is shown"
     assert not pytest_runs.is_shown_run("S=/tmp/x\npython3 -m pytest -s tests/test_x.py > $S/out.txt 2>&1\nrm -f tests/test_x.py"), "a run whose output goes to a file shows nothing on the card"
     assert not pytest_runs.is_shown_run("command -v uv\npython3 -m pytest --version"), "asking the tool its version is no run of it"
+    from journal.features.shell.support.card_line import CardLine
+    assert not CardLine.is_poor("FAILED tests/test_supervisor.py::test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c_and_says_so_in_one_plain_line"), "a failed test's name is the line a person reads, however long"
+    assert CardLine.is_poor("x" * 300), "any other long line still reads poorly"
 
 
 def test_writing_a_reader_anew_keeps_every_setting_a_flag_leaves_out(app: App):

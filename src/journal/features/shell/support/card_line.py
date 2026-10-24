@@ -6,6 +6,8 @@ CODE_SYMBOLS = re.compile(r"[{}\[\]();=\"]")
 CODE_SYMBOL_COUNT = 8
 CARD_LINE_CHARACTERS = DETAIL_CHARACTERS
 FRAME = re.compile(r"^[=\-*#_~ ]{3,}|[=\-*#_~ ]{3,}$")
+# a failed or errored test named by its id, the line a person reads first however long the test's name
+FAILED_TEST = re.compile(r"^(FAILED|ERROR) \S+::\S+")
 
 
 class CardLine:
@@ -17,4 +19,6 @@ class CardLine:
 
     @staticmethod
     def is_poor(text: str) -> bool:
+        if FAILED_TEST.match(text):
+            return False
         return len(text) > CARD_LINE_CHARACTERS or len(CODE_SYMBOLS.findall(text)) >= CODE_SYMBOL_COUNT
