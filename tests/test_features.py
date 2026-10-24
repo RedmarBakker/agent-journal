@@ -1492,6 +1492,17 @@ def test_the_journal_asks_its_host_to_start_every_service_the_features_declare_a
     assert transmitted[0]["verb"] == "start" and transmitted[0]["name"] == "watcher" and transmitted[0]["command"][1:] == ["-m", "journal.watcher"] and transmitted[0]["log"].endswith("runtime/watcher.log")
 
 
+def test_the_journals_boot_starts_the_sync_service_its_installed_version_names_whatever_the_launch_file_holds(app: App, monkeypatch):
+    from journal.features.plugins.support.service_start import ServiceStart
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}) or SupervisorReply(True))
+    monkeypatch.setenv("JOURNAL_ENV", "main")
+    app.container.get(ServiceStart).run()
+    [sync] = [request for request in transmitted if request["name"] == "sync"]
+    assert sync["verb"] == "start" and sync["command"][1:] == ["-m", "sync_service"] and sync["folder"] == str(app.config.root) and sync["log"].endswith("runtime/sync.log"), "a supervisor whose launch file, written before an upgrade, names the journal alone is asked at the journal's boot for the sync service the installed version needs"
+
+
 def test_the_voice_is_said_at_start_and_a_change_is_typed_in(app: App, monkeypatch):
     keystrokes = []
     catch_typed(app, monkeypatch, keystrokes)

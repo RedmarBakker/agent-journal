@@ -39,7 +39,7 @@
     "sin": {
         "name": "supervisor-service-verb",
         "description": "The journal asks the supervisor to start or stop a service: the journal server is one of the supervisor's services and knows nothing of what the supervisor runs beside it.",
-        "rule": "Name the service in the launch file the launcher writes, so the supervisor starts, keeps alive and ends it; reach it through the server's service hooks, never by starting it from the journal. The plugin services and the tunnel are the named exceptions still to move.",
+        "rule": "Name the service on its feature (Feature.services), which the journal's boot asks the supervisor to start, so an upgrade brings it without a new launch; never start or stop one from anywhere else. The features' services (service_start.py), the plugin services and the tunnel are the named exceptions.",
         "skill": "plain-code-words"
     }
 }

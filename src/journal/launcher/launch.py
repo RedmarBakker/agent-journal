@@ -126,9 +126,6 @@ class Launch:
     def journal_command(self) -> list[str]:
         return [sys.executable, str(self.package / "journal.py"), "serve"]
 
-    def sync_command(self) -> list[str]:
-        return [sys.executable, "-m", "sync_service", str(self.root)]
-
     def environ(self, choice: Choice, launch: str) -> dict[str, str]:
         path = os.pathsep.join([str(self.root / ".journal" / "bin"), os.environ.get("PATH", "")])
         runner = self.package / "journal" / "hooks" / "run.sh"
@@ -191,11 +188,10 @@ class Launch:
         if folder != self.root:
             Menu(self.root, self.package / "journal.py").journal("environment", "branch", choice.environment, worktree.branch)
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log")}
-        sync = {"name": "sync", "command": self.sync_command(), "folder": str(self.root), "env": {**environ, "PYTHONPATH": str(self.package)}, "log": str(self.runtime / "sync.log")}
         return {
             "launch": launch,
             "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
-            "services": [] if self.journal_off else [journal, sync],
+            "services": [] if self.journal_off else [journal],
             "socket": str(self.socket(choice.environment)),
             "owner": os.getpid(),
             "announce": str(self.runtime / "inboxes" / choice.environment),

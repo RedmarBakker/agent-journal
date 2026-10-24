@@ -1,4 +1,4 @@
-# This file starts a real supervisor running the journal server and the sync service side by side against a team server, so it is not in the default run: python3 -m pytest tests/sync_process_run.py
+# This file starts a real supervisor from a launch file naming the journal alone, whose boot starts the sync service beside it, against a team server, so it is not in the default run: python3 -m pytest tests/sync_process_run.py
 import json
 import os
 import re
@@ -56,11 +56,9 @@ def clean_environ(root: Path, environment: str, home: Path) -> dict[str, str]:
 
 
 def services(root: Path, home: Path) -> list[dict]:
-    """The journal server and the sync service as the launcher names them in its launch file, run on a port of their own."""
-    launch, environ, runtime = Launch.parse(["claude", "--env", "main"], root), clean_environ(root, "main", home), root / ".journal" / "runtime"
-    journal = {"name": "journal", "command": launch.journal_command(), "folder": str(root), "env": environ, "log": str(runtime / "server.log")}
-    sync = {"name": "sync", "command": launch.sync_command(), "folder": str(root), "env": {**environ, "PYTHONPATH": str(launch.package)}, "log": str(runtime / "sync.log")}
-    return [journal, sync]
+    """The journal server alone, as a launch file written before an upgrade names it, run on a port of its own."""
+    launch, runtime = Launch.parse(["claude", "--env", "main"], root), root / ".journal" / "runtime"
+    return [{"name": "journal", "command": launch.journal_command(), "folder": str(root), "env": clean_environ(root, "main", home), "log": str(runtime / "server.log")}]
 
 
 def supervised(root: Path, environment: str, home: Path, services: list[dict]) -> tuple[subprocess.Popen, str]:
@@ -124,7 +122,7 @@ def ended(process: subprocess.Popen) -> None:
         process.wait(5)
 
 
-def test_the_supervisor_runs_the_journal_and_the_sync_service_side_by_side_through_a_kill_and_a_restart_and_a_teammates_team_chat_message_is_typed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_from_a_launch_file_naming_the_journal_alone_its_boot_starts_the_sync_service_which_lives_through_a_kill_and_a_restart_and_types_a_teammates_team_chat_message(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("JOURNAL_ENV", raising=False)
     root, clone, home = tmp_path / "a", tmp_path / "b", tmp_path / "home"
     home.mkdir()
@@ -168,10 +166,10 @@ def test_the_supervisor_runs_the_journal_and_the_sync_service_side_by_side_throu
             lines.add(sync_line(root))
             return {name: process for name, process in listed.items() if process["running"]}
 
-        assert eventually(lambda: {"journal", "sync"} <= set(running()), 30), f"the supervisor runs the journal server and the sync service side by side: {processes(main_socket)}; {logs()}"
+        assert eventually(lambda: {"journal", "sync"} <= set(running()), 30), f"from a launch file naming the journal alone, the journal's boot has the supervisor start the sync service the installed version needs, side by side with it: {processes(main_socket)}; {logs()}"
         assert all("parent" not in process for process in processes(main_socket).values()), "neither is the other's child"
         journal_post(root, "main", "/journal/messages", {"text": "sent by the sync service"})
-        assert eventually(lambda: "sent by the sync service" in texts(), 30), logs()
+        assert eventually(lambda: "sent by the sync service" in texts(), 30) and eventually(lambda: sync_line(root) == "In step with the team", 15), f"and it carries the journal's changes, in step with the team, with no relaunch: {sync_line(root)}; {logs()}"
 
         first = running()["sync"]
         os.kill(first["pid"], signal.SIGKILL)

@@ -219,9 +219,7 @@ def test_the_launch_writes_what_the_supervisor_starts_and_a_bad_launch_file_is_r
     assert Launch.parse(["codex"], tmp_path).launch_file(Choice("spike", "s1"), StatusLine(tmp_path))["front"]["resume"] == ["resume", "s1"]
     assert saved["announce"].endswith("runtime/inboxes/spike") and saved["screen"].endswith("runtime/screens/spike.out") and f"journal-{os.getuid()}" in saved["socket"]
     with_journal = Launch.parse(["claude", "--env", "spike"], tmp_path).launch_file(Choice("spike", ""), StatusLine(tmp_path))
-    assert [s["name"] for s in with_journal["services"]] == ["journal", "sync"], "the launch file names both services, the journal server and the sync service, side by side"
-    sync = with_journal["services"][1]
-    assert sync["command"][1:] == ["-m", "sync_service", str(tmp_path)] and sync["env"]["PYTHONPATH"] == str(launch.package) and sync["log"].endswith("runtime/sync.log"), "the sync service is its own program, started with the project's folder"
+    assert [s["name"] for s in with_journal["services"]] == ["journal"], "the launch file names the journal server alone; the services the installed version needs beside it are started by its boot, so an upgrade brings them with no new launch"
     bad = tmp_path / "bad.json"
     bad.write_text(json.dumps({"front": {"command": ["claude"]}}))
     assert main([str(bad)]) == 0, "a launch file that cannot be started from ends the launcher's loop rather than being tried again every second"

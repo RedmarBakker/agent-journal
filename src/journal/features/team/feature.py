@@ -1,4 +1,5 @@
 from journal.features.feature import Feature
+from journal.features.support.service import Service
 from journal.features.team.support.team_data import TeamData
 from journal.features.team.support.team_data_reader import TeamDataReader
 from journal.features.team.team_conduct import TeamConduct
@@ -22,5 +23,6 @@ class TeamFeature(Feature[TeamData]):
     seeds = (SingleTeamChat,)
     data = (TeamDataReader,)
     conduct = (TeamConduct,)
+    services = (Service("sync", "sync_service"),)
 
     nudges = (TeamNudges.UPGRADE_NEEDED,)
