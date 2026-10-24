@@ -2475,11 +2475,12 @@ function phone_call(pose, stance, t) {
 
 // The call made seated, wherever it sits, on an edge, a corner, a floor or a swing (acts.js phone_call seated): it stays seated as it was,
 // the telephone appearing beside it on the seat's surface on the side of the page `pose.phoneWay` names (1 the right, -1 the left;
-// perches.js phoneSide), and the hand on that side does it all, as the other cannot reach across: it leans over to dial with a
-// finger, then takes up the handset to its ear, talks, nodding, and puts it back; the other hand stays as the seat has it
+// perches.js phoneSide), and the hand on that side does it all, as the other cannot reach across: it dials with a finger sitting
+// upright, never leaning away from the other hand, whose shoulder would then lift it off its seat, then takes up the handset to its
+// ear, talks, nodding, and puts it back; the other hand stays as the seat has it
 function seatedCall(pose, stance, t) {
     const act = ACTS.phone_call;
-    const {finger, dial, back, reach: reaching, lift, beside, behind, lean} = act.seated;
+    const {finger, dial, back, reach: reaching, lift, beside, behind} = act.seated;
     const u = onceTime(t, act.frames);
     const page = new THREE.Vector3(pose.phoneWay * beside, behind, POSTURES[pose.posture].drop * FRAMED_HEIGHT);
     // the place on the page in the figure's own axes, the way it faces turned back
@@ -2493,8 +2494,6 @@ function seatedCall(pose, stance, t) {
     trunk(pose, {nod: CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, [side]);
-    // the body leans over to the dial after the arms are at rest, carrying the resting arm whole with it
-    pose.bendAbove("spine", {y: SIDES[side] * lean * dialling});
     pose.inUse.add(side);
     const reach = u >= reaching[1] && u < act.hang[1] ? 1 : partOf(u, reaching) * (1 - partOf(u, [act.hang[1], act.goes[0]]));
     const inHand = u >= reaching[1] && u < act.hang[1];
