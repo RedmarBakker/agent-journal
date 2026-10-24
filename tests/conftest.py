@@ -1,6 +1,3 @@
-from journal.support.large_reads import LargeReads
-from journal.support.query_times import QueryTimes
-from journal.support.stage_times import StageTimes
 import os
 import shutil
 import tempfile
@@ -10,7 +7,10 @@ import pytest
 
 from journal.app import App
 from journal.config import Config
+from journal.support.large_reads import LargeReads
 from journal.support.masks import Masks
+from journal.support.query_times import QueryTimes
+from journal.support.stage_times import StageTimes
 from journal.features.faults.support.test_run_files import TEST_RUN_KEY
 from journal.support.secret_values import SecretValues
 
@@ -113,3 +113,18 @@ def copied(template: Path, root: Path) -> Path:
 @pytest.fixture
 def scope(connection: Connection, bus: Bus) -> Scope:
     return Scope(Environments(connection, bus))
+
+
+# the shard of a parallel suite this run is, as index/count, set by scripts/suite.py
+SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
+
+
+def pytest_collection_modifyitems(config, items):
+    """A run started as one shard of a parallel suite keeps every test whose place in the collection falls to its shard."""
+    shard = os.environ.get(SHARD_VARIABLE, "")
+    if not shard:
+        return
+    index, count = (int(part) for part in shard.split("/"))
+    kept = [item for place, item in enumerate(items) if place % count == index]
+    config.hook.pytest_deselected(items=[item for item in items if item not in kept])
+    items[:] = kept

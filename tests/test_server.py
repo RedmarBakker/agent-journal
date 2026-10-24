@@ -214,14 +214,20 @@ def test_a_path_outside_the_api_is_the_viewer(server):
         assert reply.status == 200 and b"<div id=\"app\">" in reply.read()
 
 
+# ports for a pair, below the system's range for port 0 (49152 up) and clear of the user's journals' 8420 to 8429
+PAIR_PORTS_START = 20000
+PAIR_PORTS_END = 40000
+
+
 def free_pair() -> int:
-    """A port free on this machine with the one after it free too, so a test of the next port is not taken by another process."""
+    """A port free on this machine with the one after it free too, below the range the system hands out for port 0, so a parallel shard's server never takes the next port while the test waits for it."""
+    import random
     import socket
     for _ in range(50):
+        first = random.randrange(PAIR_PORTS_START, PAIR_PORTS_END)
         with socket.socket() as probe, socket.socket() as after:
-            probe.bind(("127.0.0.1", 0))
-            first = probe.getsockname()[1]
             try:
+                probe.bind(("127.0.0.1", first))
                 after.bind(("127.0.0.1", first + 1))
             except OSError:
                 continue
@@ -1390,9 +1396,7 @@ def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(
         sibling = InstanceGuard(Config(tmp_path / "one", port=first, span=3))
         sibling.stop = stopped.append
         assert sibling.other_address() == f"http://127.0.0.1:{first}" and len(stopped) == 2, "one started by the same supervisor is a stray left by a restart: it is stopped, and the launch takes its port"
-        main_journal(Config(tmp_path / "one", port=first, span=3)).server()
-        with socket.socket() as probe:
-            assert probe.connect_ex(("127.0.0.1", first + 1)) != 0, "a journal built to stand by holds no port until it starts"
+        assert main_journal(Config(tmp_path / "one", port=first, span=3)).server()._bound == [], "a journal built to stand by holds no port until it starts"
     finally:
         single.server().stop()
     assert reserve.other_address() == "", "the first gone, the port is free to take"
