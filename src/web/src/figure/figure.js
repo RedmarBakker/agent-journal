@@ -3427,6 +3427,7 @@ export const SCREEN = {
     shine: {lift: 0.6, core: 0.3, tightness: 7},
     // how many times a second the pixels change, slow like a small real screen, while the figure moves at the page's frame rate
     framesPerSecond: 6,
+    framesBehind: 6,
 };
 const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec3 glow;
@@ -3513,6 +3514,20 @@ export function screenMaterial(mesh) {
         shine: {value: new THREE.Vector3(SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness)},
     });
     return material;
+}
+
+// the pictures `lit` the face passes through, each shown in turn for one of the screen's frames, `frame` counting them: a picture
+// shorter than a frame, such as the shut eye of a blink, still shows, and no more than SCREEN.framesBehind wait to be shown
+export function screenFrame(material, lit, frame) {
+    const waiting = (material.userData.waiting ??= []);
+    const key = lit.map(({column, row, colour}) => `${column},${row},${colour.join(",")}`).join(";");
+    if (key !== (waiting.at(-1)?.key ?? material.userData.shownKey)) waiting.push({key, lit});
+    if (waiting.length > SCREEN.framesBehind) waiting.splice(0, waiting.length - SCREEN.framesBehind);
+    if (material.userData.frame === frame || !waiting.length) return;
+    const next = waiting.shift();
+    showPixels(material.uniforms.pixels.value, next.lit);
+    material.userData.shownKey = next.key;
+    material.userData.frame = frame;
 }
 
 // a texture of one texel for each of the grid's pixels, row 0 the top, all of them off
@@ -4804,9 +4819,7 @@ function place(figure, pose, facing, blend) {
         material.uniforms.open.value = crt.open;
         material.uniforms.flash.value = crt.flash;
         if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
-        const frame = Math.floor(performance.now() * SCREEN.framesPerSecond / 1000);
-        if (material.userData.frame !== frame) showPixels(material.uniforms.pixels.value, lit);
-        material.userData.frame = frame;
+        screenFrame(material, lit, Math.floor(performance.now() * SCREEN.framesPerSecond / 1000));
     }
     // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
     for (const hull of figure.visorHulls) hull.visible = !pose.screen || Boolean(pose.screen.sign);

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {SCREEN, pixelTexture, screenMaterial, showPixels} from "../src/figure/figure.js";
+import {SCREEN, pixelTexture, screenFrame, screenMaterial, showPixels} from "../src/figure/figure.js";
 import {GRID, litPixels} from "../src/figure/visorPixels.js";
 
 // the visor's material made for a visor the size of every voice's, 1.53 by 0.72 of the figure's units
@@ -63,4 +63,22 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     const on = [...Array(GRID.columns * GRID.rows).keys()].filter((index) => texture.image.data[index * 4 + 3]);
     expect(on.length).toBe(lit.length);
     expect(pixelTexture().image.data.every((part) => part === 0), "a new screen is all off").toBe(true);
+});
+
+test("the screen shows every picture the face passes through, one per screen frame, so a blink's shut eye is never skipped", () => {
+    const material = {uniforms: {pixels: {value: pixelTexture()}}, userData: {}};
+    const picture = (row) => [{column: 1, row, colour: [1, 1, 1]}];
+    const lit = () => [...Array(GRID.columns * GRID.rows).keys()].filter((index) => material.uniforms.pixels.value.image.data[index * 4 + 3]).map((index) => Math.floor(index / GRID.columns));
+    screenFrame(material, picture(1), 0);
+    expect(lit()).toEqual([1]);
+    // within one screen frame the face goes open, shut and open again: each waits its turn
+    screenFrame(material, picture(2), 0);
+    screenFrame(material, picture(3), 0);
+    expect(lit()).toEqual([1]);
+    screenFrame(material, picture(3), 1);
+    expect(lit()).toEqual([2]);
+    screenFrame(material, picture(3), 2);
+    expect(lit()).toEqual([3]);
+    screenFrame(material, picture(3), 3);
+    expect(lit(), "a still face changes nothing").toEqual([3]);
 });
