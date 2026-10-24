@@ -6804,6 +6804,33 @@ def test_a_lost_worktree_folder_is_made_again_at_its_last_real_tip_which_only_mo
     assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == tip, "and the kept tip never moves back"
 
 
+def test_a_worker_of_an_environment_whose_worktree_vanished_is_refused_never_cut_from_main(app: App):
+    import shutil
+    import subprocess
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.models.worker import Worker
+    from journal.repositories.environments import Environments
+    from journal.support.rejection import Rejection
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    tree = Worktree(root, "calm-river")
+    folder = tree.created()
+    app.console().run(["environment", "create", "calm-river"], USER)
+    app.console().run(["environment", "branch", "calm-river", tree.branch], USER)
+    environment = app.container.get(Environments).existing("calm-river")
+    shutil.rmtree(folder)
+    branches = git("branch", "--list").stdout
+    try:
+        app.container.get(WorkerBranch).checkout(Worker(id=7, environment_id=environment.row_id, name="Ada", worktree=True))
+        raise AssertionError("a worker of an environment whose worktree vanished is refused")
+    except Rejection as refused:
+        assert str(folder) in str(refused) and "launch calm-river again" in str(refused), str(refused)
+    assert git("branch", "--list").stdout == branches, "and main gets no worker branch cut from it"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree

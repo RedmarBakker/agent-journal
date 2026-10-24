@@ -56,10 +56,13 @@ class WorkerBranch:
         return self.folder(worker) if worker.worktree else self.checkout(worker)
 
     def checkout(self, worker: Worker) -> Path:
+        environment = self.environments.find(worker.environment_id)
+        tree = Worktree(self.config.root, environment.name)
+        if environment.branch == tree.branch and not tree.path.is_dir():
+            raise Rejection(f"the worktree {tree.path} of environment {environment.name} is gone, so its workers have nowhere to start from and nothing to merge into: launch {environment.name} again, which makes it anew from its kept tip, then dispatch")
         if not self.account.is_joined():
             return self.config.root
-        environment_worktree = Worktree(self.config.root, self.environments.find(worker.environment_id).name).path
-        return environment_worktree if environment_worktree.is_dir() else self.config.root
+        return tree.path if tree.path.is_dir() else self.config.root
 
     def git(self, *argv: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
         return subprocess.run(["git", *argv], cwd=cwd or self.config.root, capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS)
