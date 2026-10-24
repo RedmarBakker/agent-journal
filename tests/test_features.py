@@ -5826,6 +5826,17 @@ def updating_with(app, source: Source, installer: Installer, auto: bool) -> Upda
     return updating
 
 
+def test_an_update_a_person_asks_for_reads_the_releases_anew_first(app: App, monkeypatch):
+    from journal.features.updates.support.updater import Updater
+    source, installer = Source("v4.0.0"), Installer()
+    updating = updating_with(app, source, installer, auto=False)
+    monkeypatch.setattr(Updater, "restart", lambda self: None)
+    updating.read()
+    source.rows.append("v4.99.0")
+    updating.install(Actor.user(1))
+    assert installer.ran == ["v4.99.0"], "a release published since the last read is the one installed, never 'nothing newer'"
+
+
 def test_releases_compare_by_number_and_pre_releases_are_left_out():
     matched = Release.lookup(["v4.10.0", "v4.9.2", "v4.1.0-rc1", "nightly", "v4.9.10"])
     assert [release.version for release in matched] == ["4.9.2", "4.9.10", "4.10.0"]

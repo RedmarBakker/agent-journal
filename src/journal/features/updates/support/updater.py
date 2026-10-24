@@ -127,11 +127,13 @@ class Updater:
         self.problem = "" if blocked.target == self.label() else f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
 
     def update_immediately(self, actor: Actor) -> None:
+        self.read()
         self.card.taken(self.label(), self.target().label)
         if not self.separate(lambda: self.install_newest(actor)):
             raise Rejection("an update is under way already")
 
     def install(self, actor: Actor) -> None:
+        self.read()
         self.card.taken(self.label(), self.target().label)
         self.install_newest(actor)
         if self.problem:
