@@ -39,8 +39,8 @@ class ReaderGuess:
 
     def written(self, name: str, lines: list[str]) -> Reader | None:
         progress = PERCENT_PROGRESS if any(PERCENT_PATTERN.search(line) for line in lines) else COUNT_PROGRESS if any(COUNT_PATTERN.search(line) for line in lines) else ""
-        summary = SUMMARY_PATTERN.pattern if any(SUMMARY_PATTERN.search(line) for line in lines) else ""
-        failures = FAILURE_PATTERN.pattern if any(FAILURE_PATTERN.search(line) for line in lines) else ""
+        summary = f"(?i:{SUMMARY_PATTERN.pattern})" if any(SUMMARY_PATTERN.search(line) for line in lines) else ""
+        failures = f"(?i:{FAILURE_PATTERN.pattern})" if any(FAILURE_PATTERN.search(line) for line in lines) else ""
         picked = [pattern for pattern in (failures, summary) if pattern]
         if not picked:
             return None
