@@ -2222,3 +2222,7 @@ usage: journal setup restart [-h]
 
 options:
   -h, --help  show this help message and exit
+
+$ agent: journal worktree remove calm-river
+exit 1
+there is no worktree named calm-river at <root>/.claude/worktrees/calm-river
