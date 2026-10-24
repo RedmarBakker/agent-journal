@@ -8,6 +8,7 @@ from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
 from journal.models.command_output import CommandOutput
+from journal.repositories.command_outputs import CommandOutputs
 from journal.models.reader_report import ReaderReport
 from journal.support.command_shape import CommandShape
 
@@ -17,13 +18,16 @@ PROGRESS_SECONDS = 30
 QUOTED_LINES = 3
 COUNT_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
 PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]|\b(\d+)%")
+SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
+NO_PROGRESS = "its card showed no progress"
+NO_SUMMARY = "the card ended with no line of its own"
 
 
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers) -> None:
-        self.readers = readers
+    def __init__(self, readers: Readers, outputs: CommandOutputs) -> None:
+        self.readers, self.outputs = readers, outputs
 
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.lookup(output.watch_reader)
@@ -47,12 +51,29 @@ class ReaderJudge:
         seconds = (ended_at - output.creation_time).total_seconds()
         if seconds < PROGRESS_SECONDS or reader.progress(lines).is_known():
             return []
-        return [(f"the run took {seconds:.0f} seconds and its card showed no progress", self.progress_fix(output, lines))]
+        return [(f"the run took {seconds:.0f} seconds and {NO_PROGRESS}", self.progress_fix(output, lines))]
 
     def missing_summary(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         if reader.variant(output.stage()).card_lines(lines) or not lines:
             return []
-        return [(f"the card ended with no line of its own; the run's last line was \"{lines[-1][:120]}\"", "give the reader a --finished and a --failed pattern for the summary line, or make the run print one")]
+        return [(f"{NO_SUMMARY}; the run's last line was \"{lines[-1][:120]}\"", "give the reader a --finished and a --failed pattern for the summary line, or make the run print one")]
+
+    def borne_out(self, report: ReaderReport) -> list[str]:
+        """What the report's findings say the card missed that the run's own output printed, each with the fix, while the reader still misses it."""
+        stored = self.outputs.matching(id=report.output)
+        reader = self.readers.named(report.reader)
+        if not stored or reader is None or not OutputFiles(Path(stored[0].folder)).is_stored():
+            return []
+        output = stored[0]
+        files = OutputFiles(Path(output.folder))
+        lines = files.lines()
+        printed = []
+        if any(NO_PROGRESS in finding for finding in report.findings) and not reader.progress(lines).is_known() and any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines):
+            printed.append(self.progress_fix(output, lines))
+        summary = next((line for line in lines if SUMMARY_PATTERN.search(line)), "")
+        if any(NO_SUMMARY in finding for finding in report.findings) and summary and not reader.variant(output.stage()).card_lines(lines):
+            printed.append(f"the run printed a summary, \"{summary[:120]}\": give the reader a --finished pattern that picks it, such as '{re.escape(summary.split()[0]) if summary.split() else summary}'")
+        return printed
 
     @staticmethod
     def progress_fix(output: CommandOutput, lines: list[str]) -> str:

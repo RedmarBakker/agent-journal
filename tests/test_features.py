@@ -13442,3 +13442,38 @@ def test_a_probe_index_that_reads_links_throws_while_a_count_and_a_read_by_id_go
                 plans.find(1)
             assert tasks.unfinished_count() == 0 and plans.task_counts([plan]) == {1: 1}, "a counting query goes through, though it reads the links table"
         assert plans.find(1) == plan, "once the list is built, every table is read again"
+
+
+def test_a_reader_report_whose_finding_the_runs_output_bears_out_cannot_be_dismissed_until_the_reader_is_written_anew(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    hook(app, "SessionStart")
+    console, outputs = app.console(), app.container.get(CommandOutputs)
+    assert console.run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--about", "each package's end"], AGENT).code == 0
+
+    def ran(name: str, text: str) -> int:
+        folder = app.config.root / name
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("go test ./...")
+        (folder / "0.out").write_text(text)
+        app.container.get(OutputLog).start(name, "go test ./...", folder, Caller.agent("main", "s1", "claude"))
+        number = max(output.id for output in outputs.all())
+        outputs.save(outputs.find(number).backgrounded(), Actor.system())
+        assert console.run(["output", "watch", str(number), "--reader", "packages"], AGENT).code == 0
+        outputs.save(outputs.find(number).ended_with(0, outputs.find(number).creation_time.timestamp() + 45), Actor.system())
+        app.runtime().deferred.drain()
+        return number
+
+    printed = ran("printed", "ok  \tshop/cart\t0.2s\n[ 50%] building\n")
+    with app.container.get(Scope).environment(1):
+        [report] = [r for r in app.container.get(ReaderReports).unread("s1") if r.output == printed]
+    refused = console.run(["reader", "dismiss", str(report.id), "--why", "no progress to show"], AGENT)
+    assert refused.code != 0 and "cannot be dismissed" in refused.error and "journal reader add packages" in refused.error and "--progress" in refused.error, "a percentage the run printed and the card did not show is fixed, never dismissed"
+    assert console.run(["reader", "add", "packages", "--progress", "\\[\\s*(\\d+)%\\]"], AGENT).code == 0
+    assert console.run(["reader", "dismiss", str(report.id), "--why", "fixed"], AGENT).code == 0, "once the reader shows it, the finding is not borne out"
+    silent = ran("silent", "compiling\nlinking\n")
+    with app.container.get(Scope).environment(1):
+        [other] = [r for r in app.container.get(ReaderReports).unread("s1") if r.output == silent]
+    assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints no progress"], AGENT).code == 0, "a report about output the run never printed can still be dismissed"

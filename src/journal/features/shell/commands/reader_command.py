@@ -12,6 +12,7 @@ from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
 from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.reader_judge import ReaderJudge
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.support.rejection import Rejection
@@ -25,8 +26,8 @@ class ReaderCommand(Command):
     noun = "reader"
     callers = {"list": WORKER_KINDS}
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock) -> None:
-        self.readers, self.outputs, self.announcer, self.reports, self.clock = readers, outputs, announcer, reports, clock
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge) -> None:
+        self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
 
     def arguments(self, verbs) -> None:
         addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
@@ -72,7 +73,11 @@ class ReaderCommand(Command):
         return 0
 
     def dismiss(self, args: Namespace, caller: Caller) -> int:
-        report = self.reports.save(self.reports.find(args.n).dismissed(args.why), caller.actor)
+        found = self.reports.find(args.n)
+        printed = self.judge.borne_out(found)
+        if printed:
+            raise Rejection(f"reader report {found.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {found.reader} ...: {'; '.join(printed)}")
+        report = self.reports.save(found.dismissed(args.why), caller.actor)
         print(f"reader report {report.id} dismissed: {args.why}")
         return 0
 
