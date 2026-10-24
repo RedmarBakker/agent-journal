@@ -315,6 +315,12 @@ export class Posing {
         this.dozing = size;
     }
 
+    // how strongly the visor shows a picture in place of the plain eyes, 0 to 1: a picture of visorPixels.js (shapeEyes), hearts, stars,
+    // squeezed shut laughing, a Z or a 'whoa'
+    eyesShown() {
+        return Math.min(Math.max(this.eyeShape?.strength ?? 0, this.hearts, this.stars, this.squeezed, this.dozing, this.whoa ? 1 : 0), 1);
+    }
+
     // a laptop open on the lap, its lid toward the face
     holdLaptop() {
         this.laptop = true;
@@ -5023,24 +5029,37 @@ function lookAs(pose, {mood, seconds, lasts}) {
     }
 }
 
-// How far a figure turns toward the viewer so its face is seen, as while its eyes wear a look or its visor glows: its head `share` of the
-// way round from the way the body faces, never quite head on and never further than HEAD_TURN from the body, and its chest leaning in by
-// `lean` of it, so a figure facing sideways or away still turns or leans toward the viewer
-export const TOWARD_VIEWER = {share: 0.8, lean: 0.12};
+// How far a figure turns toward the viewer so its face is seen, as while its eyes show anything or its visor glows: its face `share` of
+// the way round from the way the body faces, never quite head on and never further from the viewer than `most` degrees, wherever the act
+// had its head; its chest leaning in by `lean` of the way the body faces, its neck and head turning the rest, the head never further than
+// HEAD_TURN from the chest, and its body, as far as its posture lets it (bodyTurnFor), what the head cannot, so a figure facing sideways
+// or away still shows its face
+export const TOWARD_VIEWER = {share: 0.8, lean: 0.12, most: 20};
 
-// the figure turned `facing` degrees turned toward the viewer, `strength` of the way, 0 to 1
 // How far a figure seated on an edge turns toward the viewer by itself (turnToViewer), so its face shows however sideways it sits: by
 // SEATED_TOWARD while it looks at nothing, and not at all while it looks at something, which may be the other way
 export const SEATED_TOWARD = 0.55;
 export const seatedTurn = (posture, at) => (posture === "sit" && !at ? SEATED_TOWARD : 0);
 
+// the way `bone` faces in the figure's own axes as posed so far, in degrees from straight out of the page
+function yawOf(pose, bone) {
+    const ahead = new THREE.Vector3(0, -1, 0).transformDirection(pose.matrix(bone));
+    return THREE.MathUtils.radToDeg(Math.atan2(ahead.x, -ahead.y));
+}
+
+// the figure turned `facing` degrees turned toward the viewer, `strength` of the way, 0 to 1; it returns how many degrees the body turns
+// with it
 export function turnToViewer(pose, facing, strength) {
-    const sideways = ((((facing + 180) % 360) + 360) % 360) - 180;
-    const lean = TOWARD_VIEWER.lean * sideways;
-    const head = THREE.MathUtils.clamp(TOWARD_VIEWER.share * sideways - lean, -HEAD_TURN, HEAD_TURN);
-    pose.bendAbove("chest", {z: -lean * strength});
-    pose.turn("neck", {z: -0.3 * head * strength});
-    pose.turn("head", {z: -0.7 * head * strength});
+    const sideways = signedTurn(facing);
+    const face = () => signedTurn(facing + yawOf(pose, "head"));
+    const most = TOWARD_VIEWER.most;
+    const goal = mix(face(), THREE.MathUtils.clamp((1 - TOWARD_VIEWER.share) * sideways, -most, most), strength);
+    pose.bendAbove("chest", {z: -TOWARD_VIEWER.lean * sideways * strength});
+    pose.turn("neck", {z: -0.3 * signedTurn(face() - goal)});
+    const within = signedTurn(yawOf(pose, "head") - yawOf(pose, "chest"));
+    const turned = within - THREE.MathUtils.clamp(within - signedTurn(face() - goal), -HEAD_TURN, HEAD_TURN);
+    pose.turn("head", {z: -turned});
+    return bodyTurnFor(pose.posture, -signedTurn(face() - goal));
 }
 
 // the colour of a run's end shown in the eyes on the visor `screen` (visor.js visorAt), as white as its flash and as bright as it is lit
@@ -5054,6 +5073,35 @@ const VISOR_MESH = "face_screen";
 const EYES_GONE = 0.05;
 // the visor as it is unlit: its eyes shown and its band dark
 const DARK_SCREEN = {eyes: 1, across: 0, open: 0, flash: 0, glow: 0};
+
+// The clip's pose at `frame` for a figure of `rig` and `stance`, turned `facing` degrees, as Stage.draw draws it with `options`: the pose,
+// and how many degrees the figure is turned as drawn
+export function drawnPose(rig, stance, clip, frame, facing, {posture = "stand", eyes = null, stride = 0, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false, phoneWay = 1} = {}) {
+    const pose = new Posing(rig, posture, stride);
+    Object.assign(pose, {phoneWay, ticker, sky, throws, leanWay, walkWay, screen, at, target, facing});
+    if (!clip.legs) LEGS[posture]?.under(pose);
+    clip.pose(pose, stance, frame / clip.frames);
+    if (tilt) trunk(pose, {tilt});
+    if (!clip.legs) LEGS[posture]?.over(pose);
+    // whatever its eyes show, a look a moment puts in them, its visor aglow or a sign on it, startled held, or a picture its act puts on
+    // the visor, it turns its face to the viewer so it is seen, a look at something giving way to it; never lounging, as it is only ever
+    // drawn side-on, nor in an act that keeps its head alone
+    const shows = turnsToViewer(posture) && clip.head !== HEAD.alone ? Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0, grabbed ? 1 : 0, pose.eyesShown()) : 0;
+    const looked = at && shows ? {...at, amount: (at.amount ?? 1) * (1 - shows)} : at;
+    const turned = facing + (looked && turnsToViewer(posture) ? bodyTurnFor(posture, lookToward(pose, looked, facing), looked.most) : 0);
+    if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
+    // the eyes go out as a lit visor comes on, closing to a line
+    if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
+    // seated sideways with nothing to look at, it turns toward the viewer by itself, as it does while its eyes show something
+    const seated = turnsToViewer(posture) && !holdsHead(clip) ? seatedTurn(posture, at) : 0;
+    const toward = !pose.gaze ? Math.max(shows, seated) : shows;
+    const round = toward ? turnToViewer(pose, turned, toward) : 0;
+    if (eyes) lookAs(pose, eyes);
+    if (at?.mood) eyesAs(pose, at.mood, at.amount);
+    if (grabbed) startledHeld(pose);
+    if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
+    return {pose, turned: turned + round};
+}
 
 // whether a figure in `posture` may turn to the viewer for a look or its lit visor, or turn its head to look at something: never lounging,
 // its legs straight out, as it is only ever drawn side-on
@@ -5104,34 +5152,8 @@ export class Stage {
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans (headTilt.js, grab.js), `grabbed` whether the pointer holds it, startled (startledHeld), `phoneWay` the side of the page a seated call's telephone stands on
     // (seatedCall), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false, phoneWay = 1} = {}) {
-        const pose = new Posing(figure.rig, posture, stride);
-        pose.phoneWay = phoneWay;
-        pose.ticker = ticker;
-        pose.sky = sky;
-        pose.throws = throws;
-        pose.leanWay = leanWay;
-        pose.walkWay = walkWay;
-        pose.screen = screen;
-        pose.at = at;
-        pose.target = target;
-        pose.facing = facing;
-        if (!clip.legs) LEGS[posture]?.under(pose);
-        clip.pose(pose, figure.stance, frame / clip.frames);
-        if (tilt) trunk(pose, {tilt});
-        if (!clip.legs) LEGS[posture]?.over(pose);
-        const sideOn = !turnsToViewer(posture);
-        const turned = facing + (at && !sideOn ? bodyTurnFor(posture, lookToward(pose, at, facing), at.most) : 0);
-        if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
-        // the eyes go out as a lit visor comes on, closing to a line
-        if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
-        // with a look in its eyes or its visor aglow, or seated sideways with nothing to look at, it turns toward the viewer so its face is seen
-        const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0, seatedTurn(posture, at));
-        if (toward && !pose.gaze && !sideOn && !holdsHead(clip)) turnToViewer(pose, turned, toward);
-        if (eyes) lookAs(pose, eyes);
-        if (at?.mood) eyesAs(pose, at.mood, at.amount);
-        if (grabbed) startledHeld(pose);
-        if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
+    draw(figure, clip, frame, facing, canvas, {blend = null, ...options} = {}) {
+        const {pose, turned} = drawnPose(figure.rig, figure.stance, clip, frame, facing, options);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;
         if (this.renderer.domElement.width !== size) {

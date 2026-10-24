@@ -462,6 +462,49 @@ test("while its eyes show a run's end the figure turns toward the viewer, partly
     }
 });
 
+test("whatever its eyes show, the figure turns its face to the viewer and holds it within the set angle all the while it plays: each look a moment puts in its eyes, a run's end on its visor, startled held, and every picture an act puts on its visor, from every way it may face away", async () => {
+    const {EYES, TOWARD_VIEWER, drawnPose, lookStrength} = await import("../src/figure/figure.js");
+    const {HEAD} = await import("../src/figure/looks.js");
+    // the face's way from the viewer as drawn, in degrees
+    const away = (voice, clip, frame, facing, options) => {
+        const {pose, turned} = drawnPose(RIG, stanceOf(voice), clip, frame, facing, options);
+        const ahead = new THREE.Vector3(0, -1, 0).transformDirection(pose.moves(turned).get("head"));
+        return {pose, away: Math.abs(THREE.MathUtils.radToDeg(Math.atan2(ahead.x, -ahead.y)))};
+    };
+    // facing away standing, side-on walking, turned along an edge at either corner, and turned sitting composed
+    const ways = [["stand", 120], ["stand", 180], ["stand", 240], ["walk", 90], ["walk", 270], ["sit", 70], ["sit", 290], ["composed", 25]];
+    // the acts that put a picture on the visor, each in the postures it is drawn in
+    const pictured = CLIPS.filter((clip) => clip.head !== HEAD.alone && Array.from({length: clip.frames}, (_, frame) => frame).some((frame) => drawnPose(RIG, stanceOf("butler"), clip, frame, 0, {posture: clip.postures[0]}).pose.eyesShown() > 0));
+    expect(pictured.map((clip) => clip.name).sort()).toEqual(["doze", "eager", "tickle_swat"]);
+    for (const voice of Object.keys(stances)) {
+        for (const [posture, facing] of ways) {
+            const plain = clipNamed(posture === "walk" ? "walk" : "idle");
+            const label = `${voice} ${posture} facing ${facing}`;
+            const held = (what, frames) => {
+                expect(frames.length, `${label} ${what}: it plays`).toBeGreaterThan(3);
+                for (const each of frames) expect(each.away, `${label} ${what} ${each.at}`).toBeLessThanOrEqual(TOWARD_VIEWER.most + 0.5);
+            };
+            // each look a moment puts in the eyes, all the while it is wholly there
+            for (const mood of Object.keys(EYES)) {
+                const lasts = 3;
+                const seconds = Array.from({length: 30}, (_, index) => index / 10).filter((at) => lookStrength({seconds: at, lasts}) === 1);
+                held(mood, seconds.map((at) => ({at, ...away(voice, plain, 5, facing, {posture, eyes: {mood, seconds: at, lasts}})})));
+            }
+            // a run's end, good and bad, all the while it glows on the visor, and held startled by the pointer
+            for (const tone of ["good", "bad"]) {
+                const seconds = Array.from({length: 80}, (_, index) => index / 10).filter((at) => visorAt({tone, at: 0}, at, false) && glowTurn(visorAt({tone, at: 0}, at, false)) === 1);
+                held(tone, seconds.map((at) => ({at, ...away(voice, plain, 5, facing, {posture, screen: visorAt({tone, at: 0}, at, false)})})));
+            }
+            held("startled", [0, 3, 6, 9].map((frame) => ({at: frame, ...away(voice, plain, frame, facing, {posture, grabbed: true})})));
+            // every frame an act shows a picture on its visor, where it is drawn in this posture
+            for (const clip of pictured.filter((each) => each.postures.includes(posture))) {
+                const frames = Array.from({length: clip.frames}, (_, frame) => ({at: frame, ...away(voice, clip, frame, facing, {posture})}));
+                held(clip.name, frames.filter((each) => each.pose.eyesShown() === 1));
+            }
+        }
+    }
+});
+
 test("tickled, each swat goes at the pointer: the hand on the pointer's side reaches toward it, left or right, high or low", () => {
     const handAt = (at, side) => {
         const pose = new Posing(RIG, "stand", 0);
