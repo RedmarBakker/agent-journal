@@ -100,30 +100,36 @@ class Terminal:
             return (40, 120)
 
     def exited(self) -> int | None:
-        if self.pid < 0:
+        pid = self.pid
+        if pid <= 0:
             return None
-        pid, status = os.waitpid(self.pid, os.WNOHANG)
-        if not pid:
+        try:
+            reaped, status = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            self.pid = -1
+            return None
+        if not reaped:
             return None
         self.pid = -1
         return os.waitstatus_to_exitcode(status)
 
     def stop(self, grace: float) -> int:
-        if self.pid < 0:
+        pid = self.pid
+        if pid <= 0:
             return 0
         try:
-            os.kill(self.pid, signal.SIGTERM)
+            os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
             return self.exited() or 0
         code = self.wait_exit(grace)
-        if code is None:
-            os.kill(self.pid, signal.SIGKILL)
+        if code is None and self.pid == pid:
+            os.kill(pid, signal.SIGKILL)
             code = self.wait_exit(grace)
         return 0 if code is None else code
 
     def wait_exit(self, seconds: float) -> int | None:
         deadline = time.time() + seconds
-        while time.time() < deadline:
+        while time.time() < deadline and self.pid > 0:
             code = self.exited()
             if code is not None:
                 return code

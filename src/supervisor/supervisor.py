@@ -186,6 +186,8 @@ class Supervisor:
 
     @staticmethod
     def is_running(pid: int) -> bool:
+        if pid <= 0:
+            return False
         try:
             os.kill(pid, 0)
         except ProcessLookupError:

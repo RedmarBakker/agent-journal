@@ -2,6 +2,7 @@
 
 import json
 import os
+import signal
 import time as timing
 from pathlib import Path
 
@@ -546,3 +547,21 @@ def test_a_session_from_the_main_checkout_is_carried_into_the_worktree_or_the_la
     assert carried["front"]["resume"] == ["--resume", "s1"] and (tmp_path / "claude" / "projects" / Claude.folder_name(worktree) / "s1.jsonl").is_file(), "yesterday's session is carried into the environment's worktree and resumed there"
     fresh = Launch.parse(["claude", "--env", "ada-main", "--no-journal"], project).launch_file(Choice("ada-main", "gone"), StatusLine(project))
     assert fresh["front"]["resume"] == [] and "cannot be carried into" in capsys.readouterr().err, "a session that cannot be found starts fresh, and the launch says so"
+
+
+def test_a_stop_whose_child_was_reaped_by_a_nested_stop_never_signals_pid_minus_one(tmp_path: Path, monkeypatch):
+    """A second stop from a signal handler can reap the agent while the first waits; the first then signals nothing, since on macOS a signal to -1 reaches every process of the user."""
+    terminal = Terminal(["true"], str(tmp_path), {})
+    terminal.pid = 4242
+    sent = []
+    monkeypatch.setattr(os, "kill", lambda pid, kind: sent.append((pid, kind)))
+
+    def nested_reap(seconds: float) -> None:
+        terminal.pid = -1
+
+    monkeypatch.setattr(terminal, "wait_exit", nested_reap)
+    assert terminal.stop(0.1) == 0
+    assert sent == [(4242, signal.SIGTERM)], "only the child the stop began with hears a signal, and no SIGKILL follows once another caller reaped it"
+    assert terminal.stop(0.1) == 0 and sent == [(4242, signal.SIGTERM)], "a terminal with no child signals nothing"
+    assert Supervisor.is_running(-1) is False and Supervisor.is_running(0) is False, "an owner pid of zero or below is never probed"
+
