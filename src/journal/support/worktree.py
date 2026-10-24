@@ -11,7 +11,9 @@ from journal.support.worktree_failure import WorktreeFailure
 GIT_SECONDS = 60
 JOURNAL = ".journal"
 SKILL_FOLDERS = (".claude/skills", ".agents/skills")
-IGNORED_COPIES = (".claude/settings.json", ".claude/settings.local.json", ".codex/hooks.json", ".codex/agents", ".claude/agents", "AGENTS.md", "CLAUDE.md")
+# the link a worktree reads the journal's hooks through, never a file of the project's own
+LOCAL_SETTINGS = ".claude/settings.local.json"
+IGNORED_COPIES = (".claude/settings.json", ".codex/hooks.json", ".codex/agents", ".claude/agents", "AGENTS.md", "CLAUDE.md")
 
 
 class Worktree:
@@ -134,7 +136,7 @@ class Worktree:
 
     def shared(self) -> None:
         wanted = [Path(JOURNAL), *self.untracked(self.skills()), *self.ignored([Path(p) for p in IGNORED_COPIES if (self.root / p).exists()])]
-        self.excluded(wanted)
+        self.excluded([*wanted, Path(LOCAL_SETTINGS)])
         self.cleared(self.path / JOURNAL)
         for path in wanted:
             self.linked(self.path / path, self.root / path)

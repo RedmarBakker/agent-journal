@@ -36,6 +36,7 @@ from journal.providers.support.claude_stream_row import ClaudeStreamRow
 from journal.providers.support.worker_outcome import WorkerOutcome
 from journal.support.choice import Choice
 from journal.providers.support.status_line import StatusLine
+from journal.support.worktree import Worktree
 
 CROSS_SESSION = re.compile(r"^<cross-session-message\s+([^>]*)>(.*?)</cross-session-message>$", re.S)
 SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"'), re.compile(r'\bfrom="([^"]*)"')
@@ -44,6 +45,8 @@ SENDER_NAME_PATTERN, SENDER_ADDRESS_PATTERN = re.compile(r'\bfrom-name="([^"]*)"
 # a refused shell command is swapped for one that prints the journal's line, so the agent reads it as the command's output and the
 # program shows no hook error; any other refused tool is denied with the line
 SHELL_TOOL = "Bash"
+
+LOCAL_SETTINGS = "settings.local.json"
 
 
 class Claude(Provider):
@@ -54,7 +57,7 @@ class Claude(Provider):
     prompt_flags = ("--dangerously-skip-permissions",)
     home = ".claude"
     settings_file = "settings.json"
-    foreign_settings = ("settings.local.json",)
+    foreign_settings = (LOCAL_SETTINGS,)
     settings_extras = {"enableAllProjectMcpServers": True}
     capabilities = frozenset(Capability)
     session_variable = "CLAUDE_CODE_SESSION_ID"
@@ -248,11 +251,28 @@ class Claude(Provider):
     def output_session(self, output: str, err: str) -> str:
         return next((row.session for row in ClaudeStreamRow.lines(output) if row.session), "")
 
+    # the worktree reads its local settings through a link to a file the main checkout's journal writes: the person's own local
+    # settings with the journal's hooks added, unless the worktree's checked-in settings carry the hooks already
+    def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
+        if self.has_journal_hooks(folder / self.home / self.settings_file):
+            return
+        local = root / self.home / LOCAL_SETTINGS
+        settings = json.loads(local.read_text()) if local.is_file() and not local.is_symlink() else {}
+        hooks = {kind: [block for block in blocks if not self.journal_paths(block)] for kind, blocks in (settings.get("hooks") or {}).items()}
+        for kind, blocks in self.hook_block(command).items():
+            hooks[kind] = [*hooks.get(kind, []), *blocks]
+        written = root / ".journal" / "runtime" / "worktree-settings" / "claude.json"
+        written.parent.mkdir(parents=True, exist_ok=True)
+        written.write_text(json.dumps({**settings, **self.settings_extras, "hooks": hooks, "statusLine": self.status_line(script)}, indent=2) + "\n")
+        Worktree.linked(folder / self.home / LOCAL_SETTINGS, written)
+
+    def status_line(self, script: Path) -> dict:
+        return {"type": "command", "command": shlex.join(["sh", str(script.with_name("status.sh"))]), "padding": 0}
+
     def wire_hooks(self, project: Path, script: Path, command: str) -> Path:
         path = super().wire_hooks(project, script, command)
         settings = json.loads(path.read_text())
-        status = shlex.join(["sh", str(script.with_name("status.sh"))])
-        if settings.get("statusLine", {}).get("command") != status:
-            settings["statusLine"] = {"type": "command", "command": status, "padding": 0}
+        if settings.get("statusLine") != self.status_line(script):
+            settings["statusLine"] = self.status_line(script)
             path.write_text(json.dumps(settings, indent=2) + "\n")
         return path

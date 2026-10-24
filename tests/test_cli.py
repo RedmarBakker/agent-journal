@@ -352,6 +352,31 @@ def test_every_worktree_failure_at_launch_is_one_plain_line_naming_its_cause_and
         assert "git gave no answer within 0.5 seconds" in str(failed) and len(str(failed).splitlines()) == 1, "and a git that hangs is cut off with one line"
 
 
+def test_a_worktree_reads_the_journals_hooks_through_one_link_and_its_git_status_stays_clean(app: App, monkeypatch):
+    import json
+    import subprocess
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.providers.support.status_line import StatusLine
+    from journal.support.choice import Choice
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    (root / ".claude").mkdir(exist_ok=True)
+    tracked = root / ".claude" / "settings.json"
+    tracked.write_text('{"permissions": {}}\n')
+    for argv in (["init", "-q", "-b", "main"], ["add", ".claude/settings.json"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "start"]):
+        git(*argv)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), Caller.user("main")).text)
+    main_settings = tracked.read_text()
+    folder = Path(Launch.parse(["claude", "--worktree", "calm-river"], root).launch_file(Choice("calm-river"), StatusLine(root))["front"]["folder"])
+    local = folder / ".claude" / "settings.local.json"
+    written = json.loads(local.read_text())
+    assert local.is_symlink() and local.resolve() == (app.config.home / "runtime" / "worktree-settings" / "claude.json").resolve(), "the worktree reads the journal's hooks through a link to one file the main checkout's journal writes"
+    assert str(root) in json.dumps(written["hooks"]) and written["statusLine"]["command"], "naming the main root, with the status line"
+    assert git("status", "--porcelain", cwd=folder).stdout == "", "the worktree's git status stays clean"
+    assert tracked.read_text() == main_settings and (folder / ".claude" / "settings.json").read_text() == main_settings, "and no settings file of the project is written, in the worktree or in the main checkout"
+
+
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):
     import json
     import subprocess

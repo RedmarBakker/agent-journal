@@ -271,6 +271,14 @@ class Provider(ABC):
         path.write_text(json.dumps({**settings, **self.settings_extras, "hooks": {k: v for k, v in hooks.items() if v}}, indent=2) + "\n")
         return path
 
+    # a worktree's hooks: where its program reads them, written once from the main checkout, never inside the worktree
+    def worktree_hooks(self, root: Path, folder: Path, script: Path, command: str) -> None:
+        self.wire_hooks(folder, script, command)
+
+    def has_journal_hooks(self, path: Path) -> bool:
+        settings = json.loads(path.read_text()) if path.is_file() else {}
+        return any(self.journal_paths(block) for blocks in (settings.get("hooks") or {}).values() for block in blocks)
+
     def unwired(self, path: Path) -> None:
         if not path.is_file():
             return
