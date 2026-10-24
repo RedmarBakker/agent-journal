@@ -5,7 +5,13 @@ from http.server import BaseHTTPRequestHandler
 
 
 class EventRequestHandler(BaseHTTPRequestHandler):
-    """One event the journal server posts to the sync service, handed to its carrier, whose answer goes back as the reply."""
+    """One event the journal server posts to the sync service, handed to its carrier, whose answer goes back as the reply; and the service's health, 200 while its loops live."""
+
+    def do_GET(self) -> None:
+        if self.path != "/health":
+            self.answered(404, {"error": f"no {self.path} here"})
+            return
+        self.answered(200 if self.server.carrier.is_alive() else 503, {"alive": self.server.carrier.is_alive()})
 
     def do_POST(self) -> None:
         event = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")

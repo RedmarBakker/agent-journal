@@ -21,8 +21,8 @@ from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.repositories.setting_rows import SettingRows
 from journal.version import VERSION
-from journal.sync.sync_client import SyncClient
-from journal.sync.sync_start import SyncStart
+from journal.services.service_event import UPGRADE_ABANDONED, UPGRADE_PREPARING, ServiceEvent
+from journal.services.service_hooks import ServiceHooks
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
@@ -30,14 +30,16 @@ from journal.features.updates.updates_options import UpdatesOptions
 
 PLUGIN = "code-commandments"
 FIRST_CHECK_DELAY_SECONDS = 60
+# the longest the sync service may take to send this journal's changes and pull the team's before an install
+DRAIN_SECONDS = 600
 
 
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, client: SyncClient, hosting: Hosting, link: TeamServerLink, sync: SyncStart, ancestry: CommitAncestry) -> None:
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry) -> None:
         self.ancestry = ancestry
-        self.account, self.client, self.hosting, self.link, self.sync = account, client, hosting, link, sync
+        self.account, self.hosting, self.link, self.hooks = account, hosting, link, hooks
         self.settings, self.source, self.installer = settings, source, installer
         self.card, self.supervisor, self.config, self.queue = card, supervisor, config, queue
         self.releases: list[Release] = []
@@ -202,8 +204,11 @@ class Updater:
         drained = self.leads_upgrade()
         if drained:
             self.card.step("Sending this journal's changes to the team")
-            self.sync.stopped()
-            self.client.prepare_upgrade()
+            if not self.is_drained():
+                self.problem = "The sync service did not send this journal's changes to the team, so the new version was not installed"
+                self.card.clear()
+                self.hooks.post(ServiceEvent(UPGRADE_ABANDONED))
+                return
         self.card.step("Installing the new version")
         try:
             self.installer.run(target.ref, self.repository())
@@ -212,7 +217,7 @@ class Updater:
             self.problem = str(refused)
             self.card.clear()
             if drained:
-                self.sync.run()
+                self.hooks.post(ServiceEvent(UPGRADE_ABANDONED))
             return
         self.log_reason(target)
         self.problem = ""
@@ -226,6 +231,10 @@ class Updater:
             log.parent.mkdir(parents=True, exist_ok=True)
             with log.open("a") as written:
                 written.write(f"installing {target.label}: {target.reason}\n")
+
+    # the sync service has sent the whole queue and pulled the team to its head, under the team's upgrade lease
+    def is_drained(self) -> bool:
+        return all(answer.get("drained") for answer in self.hooks.asked(ServiceEvent(UPGRADE_PREPARING), DRAIN_SECONDS))
 
     def lead(self, version: str) -> None:
         if not self.leads_team() or not self.account.is_joined():

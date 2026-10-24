@@ -7,13 +7,13 @@ from journal.http.support.request import Request
 
 SECRET_FILE = "sync-secret"
 SECRET_HEADER = "x-journal-sync-secret"
-# the version of the sync desk's doors, which the carrier names on every call and the server answers only when it is its own
-DESK_PROTOCOL = 1
+# the version of the sync desk's doors, which the sync service names on every call and the server answers only when it is its own
+DESK_PROTOCOL = 2
 PROTOCOL_HEADER = "x-journal-desk-protocol"
 
 
 class SyncSecret:
-    """The secret the journal server writes at boot for its sync carrier alone, readable by its owner only: a request to the sync desk's doors carries it, and one passed on by a proxy is refused, so no other local process and nothing from outside writes rows as the team."""
+    """The secret the journal server writes at boot for the services beside it alone, readable by its owner only: a service's registration and a request to the sync desk's doors carry it, and one passed on by a proxy is refused, so no other local process and nothing from outside writes rows as the team."""
 
     def __init__(self, config: Config) -> None:
         self.path = config.home / "runtime" / SECRET_FILE

@@ -95,7 +95,7 @@ class SyncDesk:
         self.rejected.apply(answer.settlement.rejected)
         return self.taken(answer.delivery)
 
-    # an answer applied, or, when it asks for the team's full copy first, left for the carrier to hand again once the copy is laid in
+    # an answer applied, or, when it asks for the team's full copy first, left for the sync service to hand again once the copy is laid in
     def taken(self, answer: PullAnswer) -> DeskAnswer:
         self.offset.measured(answer.server_time)
         if self.needs_copy(answer):

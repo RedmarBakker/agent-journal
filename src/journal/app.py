@@ -33,8 +33,6 @@ from journal.engine.support.demands_part import DemandsPart
 from journal.engine.support.demands_reader import DemandsReader
 from journal.engine.support.stop_refusals_part import StopRefusalsPart
 from journal.engine.support.stop_refusals_reader import StopRefusalsReader
-from journal.sync.desk_doors import DeskDoors
-from journal.sync.server_doors import ServerDoors
 
 
 class App:
@@ -50,7 +48,6 @@ class App:
         self.container.bind(Schema, lambda: Schema(self.container.get(Connection), AllModels.MODELS))
         self.container.bind(Router, lambda: Routes(self.container).mount(self.container.call(Router)))
         self.container.bind(Console, self._console)
-        self.container.bind(DeskDoors, lambda: self.container.get(ServerDoors))
         self.container.bind(StaticFiles, lambda: StaticFiles(Path(__file__).resolve().parents[1] / "web" / "dist"))
         self.container.bind(Registry, lambda: Registry(Standard.FEATURES, self.container.get(SettingRows)))
         self.container.bind(FeatureRegistry, lambda: self.container.get(Registry))

@@ -55,6 +55,9 @@ class Carrier:
         for loop in self.loops:
             loop.wake.set()
 
+    def is_alive(self) -> bool:
+        return not self.stopping.is_set() and not any(loop.is_dead() for loop in self.loops)
+
     def heard(self, event: dict) -> dict:
         return self.handlers.get(event.get("event", ""), self.ignored)()
 

@@ -3,7 +3,6 @@ import signal
 import subprocess
 import threading
 import time
-from contextlib import contextmanager
 from pathlib import Path
 
 BACKOFF = 2.0
@@ -13,11 +12,10 @@ STOP_GRACE = 5.0
 
 
 class Service:
-    """A named process beside the agent, with no terminal: what is sent to it goes to its input, its output goes to its log, and it is started again when it dies; a child names the service it lives under, which it is kept alive with and stopped with."""
+    """A named process beside the agent, with no terminal: what is sent to it goes to its input, its output goes to its log, and it is started again when it dies"""
 
-    def __init__(self, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, persistent: bool = True, parent: str = "") -> None:
+    def __init__(self, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, persistent: bool = True) -> None:
         self.name, self.command, self.folder, self.environ, self.log, self.persistent = name, command, folder, environ, log, persistent
-        self.parent = parent
         self._process: subprocess.Popen | None = None
         self._last_start = 0.0
         self._deaths: list[float] = []
@@ -38,17 +36,6 @@ class Service:
         with self._moving:
             self.stop()
             self.start()
-
-    @contextmanager
-    def moving(self):
-        with self._moving:
-            yield
-
-    def is_moving(self) -> bool:
-        if not self._moving.acquire(blocking=False):
-            return True
-        self._moving.release()
-        return False
 
     def is_active(self) -> bool:
         return self._process is not None and self._process.poll() is None
@@ -84,7 +71,7 @@ class Service:
         return self._process.pid if self.is_active() else 0
 
     def described(self) -> dict:
-        return {"name": self.name, "pid": self.pid(), "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts, "parent": self.parent}
+        return {"name": self.name, "pid": self.pid(), "running": self.is_active(), "terminal": False, "front": False, "restarts": self._restarts}
 
     def stop(self) -> None:
         with self._moving:

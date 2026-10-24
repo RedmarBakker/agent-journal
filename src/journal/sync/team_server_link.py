@@ -18,11 +18,9 @@ from sync_server.invitation_answer import InvitationAnswer
 from sync_server.login_answer import LoginAnswer
 from sync_server.login_request import LoginRequest
 from sync_server.people_answer import PeopleAnswer
-from sync_server.pull_answer import PullAnswer
 from sync_server.pull_query import PullQuery
 from sync_server.pool_ask_request import PoolAskRequest
 from sync_server.device_ask_request import DeviceAskRequest
-from sync_server.sync_answer import SyncAnswer
 from sync_server.password_answer import PasswordAnswer
 from sync_server.signin_answer import SigninAnswer
 from sync_server.team_summary import TeamSummary
@@ -37,22 +35,16 @@ ROOT_CERTIFICATE = "/root.crt"
 
 
 class TeamServerLink:
-    """The one way the journal reaches its team server, each request with the device's token: a push of queued changes, answered with a pull, a pull past a sequence, each naming the environments this journal hosts so the writes asked of it come back with it, a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join stored. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
+    """The one way the journal reaches its team server, each request with the device's token, and the headers, push body and pull path the sync service sends it with: a push and a pull each name the environments this journal hosts so the writes asked of it come back with them; a write asked of another environment's host and the word that one asked of this journal is made, a request for blocks of row numbers, the full copy, and the joining and admin requests. A server on a bare address is trusted through the certificate authority the join stored. Each request names this journal's protocol, its version and the migration its database is at, and an answer from a server on an older one is refused with the line to upgrade the server. A network fault is raised as the OSError it is; a refusal as a TeamRefusal."""
 
     def __init__(self, account: TeamAccount, schema: Schema) -> None:
         self.account, self.schema = account, schema
-
-    def send_changes(self, changes: list[dict], clock_offset: float, query: PullQuery) -> SyncAnswer:
-        return SyncAnswer.parsed(**json.loads(self.posted("/push", self.push_body(changes, clock_offset, query))))
 
     @staticmethod
     def push_body(changes: list[dict], clock_offset: float, query: PullQuery) -> dict:
         # a team server from before the pool refuses a push with fields it does not know
         pool_fields = {"pool_slots": query.pool.slots, "pool_free": query.pool.free, "version": query.version} if query.pool.slots else {}
         return {"changes": changes, "clock_offset": clock_offset, "sequence": query.sequence, "environment_keys": list(query.environment_keys), **pool_fields}
-
-    def fetch_changes(self, query: PullQuery) -> PullAnswer:
-        return PullAnswer.parsed(**json.loads(self.sent(self.account.address(), self.pull_path(query), None, query.wait_seconds + REQUEST_SECONDS)))
 
     @staticmethod
     def pull_path(query: PullQuery) -> str:

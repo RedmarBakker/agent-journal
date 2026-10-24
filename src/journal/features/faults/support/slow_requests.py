@@ -33,7 +33,7 @@ HOOK = "HOOK"
 # the route a hook is posted to, timed again by the receiver as the hook it carries
 HOOK_ROUTE = "/hooks/"
 # the Developer tab's own requests and the developer command, never timed or counted, so reading the numbers never adds to them
-# the developer's own reports, and the sync carrier's doors, whose batch waits for the next commit as long as it is asked to
+# the developer's own reports, and the sync service's doors
 UNMEASURED_PATHS = ("/journal/developer", "/cli/developer", "/journal/sync/")
 OUTWARD_ROUTES = ("/journal/plugins/preview", "/journal/plugins/{n}/remove", "/journal/plugins/{n}/upgrade", "/journal/plugins/{n}/enable", "/journal/plugins", "/journal/updates/install")
 OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin propose", "/cli/setup update", "/cli/update ", "/cli/worker dispatch", "/cli/check run", "/cli/mcp ")

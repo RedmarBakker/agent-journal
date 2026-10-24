@@ -1,17 +1,22 @@
+import time
+
 from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.support.release import Release
-from journal.sync.carrier_beat import CarrierBeat
 from journal.sync.team_account import TeamAccount
 from journal.version import VERSION
+
+# how long the sync service's last word may be old before it counts as gone
+STALE_SECONDS = 10
 
 
 class SyncStatus:
     """How this journal's sync with its team server stands, in one line for the viewer's status bar: nothing in no team, the version to install when the team is pinned to a newer one, the fault while it cannot reach the server, that it is connecting before it first has, else how many changes wait to be sent; and which of those it is, for the Team page's dot and the top bar's Team button, nothing in no team."""
 
-    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, beat: CarrierBeat) -> None:
-        self.account, self.outgoing, self.beat = account, outgoing, beat
+    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges) -> None:
+        self.account, self.outgoing = account, outgoing
         self.fault = ""
         self.reached = False
+        self.reported_at = time.monotonic()
 
     def connected(self) -> None:
         self.fault = ""
@@ -24,14 +29,13 @@ class SyncStatus:
     def reported(self, fault: str, reached: bool) -> None:
         self.fault = fault
         self.reached = self.reached or reached
+        self.reported_at = time.monotonic()
 
-    # the fault met here, or by the carrier in its own process, as its beat file says
+    # the fault the sync service last reported, or that it is gone when it has said nothing for a while
     def current_fault(self) -> str:
-        return self.fault or self.beat.fault()
-
-    # where the carrier runs: in a process of its own, which beats into its file, or in the server's own threads
-    def runs(self) -> str:
-        return "process" if self.beat.path.is_file() else "server"
+        if time.monotonic() - self.reported_at > STALE_SECONDS:
+            return "the sync service is not running"
+        return self.fault
 
     def upgrade_line(self) -> str:
         team_version = self.account.team_version()

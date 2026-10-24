@@ -98,7 +98,7 @@ def test_the_inbox_answers_each_request_and_a_stop_ends_the_supervisor_and_takes
     try:
         assert json.loads(inbox.announced_at.read_text()) == {"socket": str(inbox.path), "protocol": 1}
         assert stat.S_IMODE(inbox.path.stat().st_mode) == 0o600 and stat.S_IMODE(inbox.path.parent.stat().st_mode) == 0o700, "only its user can reach the socket"
-        assert ask(supervisor, verb="hello") == {"ok": True, "protocol": 1, "verbs": ["hello", "start", "start_child", "stop", "restart", "list", "keys", "type", "send", "band"], "outdated": False}
+        assert ask(supervisor, verb="hello") == {"ok": True, "protocol": 1, "verbs": ["hello", "start", "stop", "restart", "list", "keys", "type", "send", "band"], "outdated": False}
         assert ask(supervisor, verb="band", left="agent-journal", middle="p · main", right="http://127.0.0.1:8420/") == {"ok": True}, "a supervisor with no band takes new words and shows none"
         sleeper = {"verb": "start", "name": "sleeper", "command": ["sh", "-c", "sleep 30"], "folder": str(tmp_path), "log": str(tmp_path / "sleeper.log")}
         assert ask(supervisor, **sleeper) == {"ok": True, "started": True}
@@ -350,71 +350,3 @@ def test_a_supervisor_and_a_chain_shell_end_within_ten_seconds_of_their_owner_ki
         inbox.close()
         if shell.poll() is None:
             os.killpg(shell.pid, signal.SIGKILL)
-
-
-def test_a_child_service_lives_while_its_parent_runs_and_stops_with_it(tmp_path: Path, monkeypatch):
-    import supervisor.service as service
-    monkeypatch.setattr(service, "BACKOFF", 0.05)
-    environ = {"PATH": os.environ["PATH"]}
-    services = Services()
-    try:
-        services.add(Service("sync", ["sleep", "30"], tmp_path, environ, tmp_path / "sync.log", parent="journal"))
-        raise AssertionError("a child of a parent that is not running was started")
-    except LookupError as refused:
-        assert "child of journal, which is not running" in str(refused)
-    services.add(Service("journal", ["sleep", "30"], tmp_path, environ, tmp_path / "journal.log"))
-    services.add(Service("sync", ["sleep", "30"], tmp_path, environ, tmp_path / "sync.log", parent="journal"))
-    first = services.service("sync").described()["pid"]
-    os.kill(first, 9)
-    deadline = time.time() + 5
-    while time.time() < deadline and not (services.runs("sync") and services.service("sync").described()["pid"] != first):
-        services.revive_stopped()
-        time.sleep(0.05)
-    assert services.runs("sync") and services.service("sync").described()["pid"] != first, "a child that dies while its parent runs is started again"
-    assert services.service("sync").described()["parent"] == "journal", "list names a child's parent"
-    child = services.service("sync").described()["pid"]
-    services.remove("journal")
-    assert not services.runs("sync") and "sync" not in [row["name"] for row in services.described()], "stopping the parent stops its child"
-    try:
-        os.kill(child, 0)
-        alive = True
-    except ProcessLookupError:
-        alive = False
-    assert not alive, "and the child's process is gone"
-
-
-def test_a_parents_restart_stops_its_child_first_and_starts_it_after_and_stopping_all_leaves_none(tmp_path: Path, monkeypatch):
-    import threading
-    import supervisor.service as service
-    monkeypatch.setattr(service, "STOP_GRACE", 0.5)
-    environ = {"PATH": os.environ["PATH"]}
-    services = Services()
-    services.add(Service("journal", ["sleep", "30"], tmp_path, environ, tmp_path / "journal.log"))
-    services.add(Service("sync", ["sleep", "30"], tmp_path, environ, tmp_path / "sync.log", parent="journal"))
-    child = services.service("sync").described()["pid"]
-    restarting = threading.Thread(target=services.restart, args=("journal",))
-    restarting.start()
-    while restarting.is_alive():
-        services.revive_stopped()
-        time.sleep(0.01)
-    restarting.join()
-    assert services.runs("journal") and services.runs("sync"), "both run again after the parent's restart"
-    assert services.service("sync").described()["pid"] != child and [row["name"] for row in services.described()].count("sync") == 1, "the child was started anew after its parent, once, whatever the revives did meanwhile"
-    services.stop_all()
-    assert not services.runs("journal") and not services.runs("sync"), "stopping all leaves no child"
-
-
-def test_a_child_is_added_listed_kept_single_and_removed_through_the_verbs(tmp_path: Path):
-    from supervisor.request import Request
-    supervisor = Supervisor(Terminal(["true"], str(tmp_path), {}), Inbox(tmp_path / "s.sock", tmp_path / "announce"), Services(), stdin=None)
-    ask = lambda **fields: supervisor.verbs.handle(Request.parsed(fields))
-    child = {"verb": "start_child", "name": "sync", "parent": "journal", "command": ["sleep", "30"], "folder": str(tmp_path)}
-    refused = ask(**child)
-    assert not refused.is_success and "child of journal, which is not running" in refused.error, "a launch with no journal service refuses a child of it"
-    assert ask(verb="start", name="journal", command=["sleep", "30"], folder=str(tmp_path)).is_success
-    assert ask(**child).answer["started"] is True and ask(**child).answer["started"] is False, "a second start_child keeps the one child"
-    listed = {row["name"]: row for row in ask(verb="list").answer["processes"]}
-    assert listed["sync"]["parent"] == "journal" and listed["sync"]["running"]
-    assert "start_child" in ask(verb="hello").answer["verbs"], "hello names the verb, so a journal knows the supervisor takes it"
-    assert ask(verb="stop", name="sync").is_success and not supervisor.services.runs("sync") and supervisor.services.runs("journal"), "a child is removed alone while its parent runs on"
-    supervisor.services.stop_all()

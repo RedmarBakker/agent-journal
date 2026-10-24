@@ -16,7 +16,7 @@ from journal.http.support.stream_response import StreamResponse
 
 # the one question answered while the journal boots: which phase it is in
 UNHELD_PATHS = ("/journal/health",)
-# the sync carrier's doors answer busy while the journal boots, so the carrier waits and tries again, never held on a thread
+# the sync service's doors answer busy while the journal boots, so the service waits and tries again, never held on a thread
 UNHELD_PREFIXES = ("/journal/sync/",)
 
 

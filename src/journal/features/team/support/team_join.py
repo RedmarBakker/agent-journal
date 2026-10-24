@@ -32,7 +32,6 @@ from journal.support.rejection import Rejection
 from journal.sync.block_supply import BlockSupply
 from journal.services.service_event import TEAM_JOINED, TEAM_LEFT, ServiceEvent
 from journal.services.service_hooks import ServiceHooks
-from journal.sync.sync_start import SyncStart
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_server_link import TeamServerLink
 from journal.sync.team_url import TeamUrl
@@ -55,10 +54,10 @@ TABLES = {folder: table for table, folder in FOLDERS.items()}
 
 
 class TeamJoin:
-    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, a team that holds a journal refused to a journal with tasks or messages of its own unless it asks to replace them, the code and password traded for this machine's token, and any row numbers stored from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and the Team chat, an environment named team owned by no one, stored when the journal holds one and made when it holds none; a team with one replaces this journal's shared rows with its copy, this journal stored as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync client starts once it is done."""
+    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, a team that holds a journal refused to a journal with tasks or messages of its own unless it asks to replace them, the code and password traded for this machine's token, and any row numbers stored from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and the Team chat, an environment named team owned by no one, stored when the journal holds one and made when it holds none; a team with one replaces this journal's shared rows with its copy, this journal stored as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync service is told once it is done."""
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, client: SyncStart, backups: JournalBackup, config: Config, environments: Environments, agents: Agents, entries: Entries, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks, supply: BlockSupply, hooks: ServiceHooks) -> None:
-        self.account, self.link, self.tables, self.outgoing, self.identity, self.client = account, link, tables, outgoing, identity, client
+    def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, backups: JournalBackup, config: Config, environments: Environments, agents: Agents, entries: Entries, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks, supply: BlockSupply, hooks: ServiceHooks) -> None:
+        self.account, self.link, self.tables, self.outgoing, self.identity = account, link, tables, outgoing, identity
         self.backups, self.config, self.environments, self.agents, self.entries = backups, config, environments, agents, entries
         self.owners, self.links, self.copy, self.schema, self.hosting, self.blocks, self.supply = owners, links, copy, schema, hosting, blocks, supply
         self.hooks = hooks
@@ -91,7 +90,6 @@ class TeamJoin:
             self.team_chat_ready()
         self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION})
         outcome = self.downloaded(login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
-        self.client.run()
         self.hooks.post(ServiceEvent(TEAM_JOINED))
         return outcome
 
@@ -99,7 +97,6 @@ class TeamJoin:
         if not self.account.is_joined():
             raise Rejection("this journal is in no team")
         address = self.account.address()
-        self.client.stopped()
         self.blocks.clear()
         self.outgoing.clear()
         backup = self.account.left(time.time())

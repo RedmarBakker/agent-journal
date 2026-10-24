@@ -459,12 +459,11 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
     from journal.repositories.release_messages import ReleaseMessages
     from journal.sync.record_outgoing_change import RecordOutgoingChange
     from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.sync.commit_signal import CommitSignal
     from journal.services.service_hooks import ServiceHooks
 
     config = Config(tmp_path)
     changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_scopes(connection, bus, scope), CommitSignal(), ServiceHooks()))
+    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_scopes(connection, bus, scope), ServiceHooks()))
     with scope.environment(1):
         before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
         assert changes.waiting() == [], "a journal in no team queues nothing"
@@ -536,7 +535,7 @@ def team_scopes(connection, bus, scope):
     return SettingScopes(Registry(Standard.FEATURES, SettingRows(connection, bus, scope)))
 
 
-def team_journal(tmp_path, name: str, signal=None):
+def team_journal(tmp_path, name: str):
     from journal.config import Config
     from journal.sync.block_supply import BlockSupply
     from journal.sync.team_server_link import TeamServerLink
@@ -559,7 +558,6 @@ def team_journal(tmp_path, name: str, signal=None):
     from journal.events.models.number_request import NumberRequest
     from journal.repositories.id_blocks import IdBlocks
     from journal.sync.block_numbers import BlockNumbers
-    from journal.sync.commit_signal import CommitSignal
     from journal.services.service_hooks import ServiceHooks
 
     folder = tmp_path / name
@@ -571,9 +569,8 @@ def team_journal(tmp_path, name: str, signal=None):
     bus = Bus()
     scope = Scope(Environments(connection, bus))
     outgoing = OutgoingChanges(connection, bus)
-    signal = signal or CommitSignal()
-    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_scopes(connection, bus, scope), signal, ServiceHooks()))
-    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), signal, ServiceHooks()))
+    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_scopes(connection, bus, scope), ServiceHooks()))
+    bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), ServiceHooks()))
     blocks = IdBlocks(connection, bus)
     base = (ord(name[0]) - ord("a")) * 100_000
     for model in AllModels.MODELS:
@@ -737,141 +734,6 @@ def test_a_checks_runs_stay_on_the_machine_that_ran_them_while_its_definition_is
     incoming_b.apply(team_changes(outgoing_a))
     arrived = checks_b.find(check.row_id)
     assert arrived.title == "lint" and arrived.last_output == "" and arrived.last_run_at is None, "the check reaches the other journal without the first machine's run"
-
-
-def test_two_journals_and_a_team_server_keep_a_task_in_step_and_a_change_made_while_it_is_down_arrives_later(tmp_path):
-    import json
-    import time
-    from journal.config import Config
-    from journal.sync.block_supply import BlockSupply
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.sync.commit_signal import CommitSignal
-    from journal.sync.sync_client import SyncClient
-    from journal.sync.sync_desk import SyncDesk
-    from journal.sync.server_doors import ServerDoors
-    from journal.sync.host_desk import HostDesk
-    from journal.sync.hosts import Hosts
-    from journal.sync.pull_queries import PullQueries
-    from journal.repositories.pool_jobs import PoolJobs
-    from journal.sync.hosting import Hosting
-    from journal.sync.sync_status import SyncStatus
-    from journal.sync.carrier_beat import CarrierBeat
-    from journal.sync.clock_offset import ClockOffset
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.sync.team_server_link import TeamServerLink
-    from sync_server.account import ADMIN
-    from sync_server.team_server import TeamServer
-    from journal.repositories.environments import Environments
-    from journal.db.schema import Schema
-    from journal.models.all_models import AllModels
-    from journal.repositories.setting_rows import SettingRows
-    from journal.supervisor_link import SupervisorLink
-    from journal.sync.team_chat_branch import TeamChatBranch
-    from journal.sync.team_upgrade import TeamUpgrade
-    from journal.sync.journal_copy import JournalCopy
-    from journal.support.typed_lines import TypedLines
-    from sync_server.login_request import LoginRequest
-    from journal.chat.moment_cards import MomentCards
-    from journal.repositories.messages import Messages
-    from journal.repositories.reactions import Reactions
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.rejected_edits import RejectedEdits
-    from journal.repositories.id_blocks import IdBlocks
-    from journal.repositories.pending_uploads import PendingUploads
-    from journal.sync.attachments import Attachments
-    from journal.sync.team_chat import TeamChat
-    from journal.engine.agent_launcher import AgentLauncher
-
-    team = TeamServer(tmp_path)
-    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
-    server = team.started("127.0.0.1", 0)
-    port = server.server_address[1]
-
-    def joined(name: str):
-        signal = CommitSignal()
-        _, scope, tasks, outgoing, incoming = team_journal(tmp_path, name, signal)
-        answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", name), "127.0.0.1")
-        account = TeamAccount(Config(tmp_path / name))
-        account.write({"address": f"http://127.0.0.1:{port}", "token": answer.token, "device": answer.device_id})
-        links = Links(tasks.connection, tasks.bus)
-        messages = Messages(tasks.connection, tasks.bus, scope, Reactions(tasks.connection, tasks.bus, scope, links), links, EnvironmentOwners(links, Users(tasks.connection, tasks.bus), Environments(tasks.connection, tasks.bus)), Agents(tasks.connection, tasks.bus, scope))
-        tasks.bus.listen(SyncMoment, SyncMomentCards(MomentCards(messages, SettingRows(tasks.connection, tasks.bus, scope), Agents(tasks.connection, tasks.bus, scope))))
-        rejected = RejectedEdits(SharedTables(tasks.connection, tasks.bus), outgoing, links, Announcer(tasks.bus))
-        uploads = PendingUploads(tasks.connection, tasks.bus)
-        status = SyncStatus(account, outgoing, CarrierBeat(Config(tmp_path / name)))
-        desk = SyncDesk(account, outgoing, incoming, rejected, status, uploads, Attachments(Config(tmp_path / name), uploads, account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), TeamChat(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), AgentLauncher(Config(tmp_path / name)), SupervisorLink(Config(tmp_path / name), Environments(tasks.connection, tasks.bus), TypedLines(), SettingRows(tasks.connection, tasks.bus, scope)), Environments(tasks.connection, tasks.bus), TeamChatBranch(Config(tmp_path / name), account, Environments(tasks.connection, tasks.bus), Announcer(tasks.bus), SyncStatus(account, outgoing, CarrierBeat(Config(tmp_path / name)))), Announcer(tasks.bus)), TeamUpgrade(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Schema(tasks.connection, AllModels.MODELS), JournalCopy(SharedTables(tasks.connection, tasks.bus), team_scopes(tasks.connection, tasks.bus, scope))), JournalCopy(SharedTables(tasks.connection, tasks.bus), team_scopes(tasks.connection, tasks.bus, scope)), BlockSupply(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), IdBlocks(tasks.connection, tasks.bus), SharedTables(tasks.connection, tasks.bus)), PullQueries(account, Hosts(account, EnvironmentOwners(links, Users(tasks.connection, tasks.bus), Environments(tasks.connection, tasks.bus)), Environments(tasks.connection, tasks.bus), Hosting(Config(tmp_path / name)), TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS))), SettingRows(tasks.connection, tasks.bus, scope), PoolJobs(tasks.connection, tasks.bus)), HostDesk(TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), Environments(tasks.connection, tasks.bus), messages, scope, PoolJobs(tasks.connection, tasks.bus)), ClockOffset())
-        client = SyncClient(account, TeamServerLink(account, Schema(tasks.connection, AllModels.MODELS)), ServerDoors(desk, signal), status)
-        client.start()
-        return scope, tasks, client, messages
-
-    def eventually(check, seconds: float) -> bool:
-        deadline = time.monotonic() + seconds
-        while time.monotonic() < deadline:
-            if check():
-                return True
-            time.sleep(0.05)
-        return False
-
-    scope_a, tasks_a, client_a, _ = joined("a")
-    scope_b, tasks_b, client_b, messages_b = joined("b")
-    try:
-        assert oct((tmp_path / "a" / ".journal" / TEAM_FILE).stat().st_mode & 0o777) == "0o600", "the token is readable by its owner alone"
-        with scope_a.environment(1):
-            task = tasks_a.save(Task(environment_id=1, title="in step"), actor=USER)
-        assert eventually(lambda: [row.title for row in tasks_b.global_matching(environment_id=1)] == ["in step"], 1.0), "a task made on one journal is on the other within a second"
-        with scope_b.environment(1):
-            tasks_b.save(tasks_b.find(task.id).with_(title="renamed by b"), actor=USER)
-        assert eventually(lambda: tasks_a.find(task.id).title == "renamed by b", 1.0)
-        client_b.stop()
-        with scope_b.environment(1):
-            tasks_b.save(tasks_b.find(task.id).with_(title="b's older title"), actor=USER)
-        time.sleep(0.01)
-        with scope_a.environment(1):
-            tasks_a.save(tasks_a.find(task.id).with_(title="a's later title"), actor=USER)
-        assert eventually(lambda: team.log.row("tasks", task.id).fields["title"] == "a's later title", 1.0)
-        client_b.start()
-        assert eventually(lambda: tasks_b.find(task.id).title == "a's later title", 3.0) and tasks_a.find(task.id).title == "a's later title", "two edits of one title at once keep the later on both"
-        with scope_b.environment(1):
-            assert eventually(lambda: any("was kept over yours" in str(message) for message in messages_b.scoped()), 1.0), "the journal whose edit lost shows a card naming whose edit was kept"
-        # an answer that waits to be applied, as under load, still measures the clock offset as it arrived, so this journal's later
-        # edits never go out stamped before its own earlier ones and are rejected against them
-        import threading
-        holding = threading.Thread(target=lambda: (client_a.doors.desk.applying.acquire(), time.sleep(1.5), client_a.doors.desk.applying.release()))
-        holding.start()
-        time.sleep(0.05)
-        client_a.pulled(0)
-        holding.join()
-        assert abs(client_a.clock_offset) < 1.0, f"the offset was measured after the wait to apply, {client_a.clock_offset:.2f} s off"
-        # a full copy taken while a change of this journal is going out waits for it, so the copy never wipes a change sent meanwhile
-        from sync_server.pull_answer import PullAnswer
-        copied, held = threading.Event(), client_a.account.sequence()
-        with client_a.carrying:
-            at_head = threading.Thread(target=lambda: client_a.taken(PullAnswer((), held, time.time(), "", True, ())))
-            at_head.start()
-            at_head.join(1.0)
-            assert not at_head.is_alive(), "a journal already at the team's head never takes the copy, so it never waits for the send"
-            taking = threading.Thread(target=lambda: (client_a.taken(PullAnswer((), held + 1, time.time(), "", True, ())), copied.set()))
-            taking.start()
-            assert not copied.wait(0.3), "the full copy went ahead while a send was under way"
-        assert copied.wait(5.0), "and goes ahead once the send is done"
-        taking.join()
-        with scope_a.environment(1):
-            assert tasks_a.find(task.id).title == "a's later title", "the copy kept this journal's rows"
-        team.close(server)
-        with scope_a.environment(1):
-            tasks_a.save(tasks_a.find(task.id).with_(brief="written while the server was down"), actor=USER)
-        time.sleep(0.5)
-        assert client_a.status.line().startswith("Not connected") and tasks_b.find(task.id).brief == ""
-        restarted = TeamServer(tmp_path)
-        server = restarted.http("127.0.0.1", port)
-        import threading
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        team = restarted
-        assert eventually(lambda: tasks_b.find(task.id).brief == "written while the server was down", 8.0), "a change made while the server was down arrives once it is back"
-    finally:
-        client_a.stop()
-        client_b.stop()
-        team.close(server)
 
 
 def test_a_write_queued_before_a_column_rename_is_sent_under_the_new_name(connection, bus):

@@ -10427,7 +10427,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
     from journal.db.connection import Connection
     from journal.sync.journal_copy import JournalCopy
     from journal.db.schema import Schema
-    from journal.sync.sync_client import SyncClient
+    from carried_sync import CarriedSync
     from journal.sync.team_server_link import TeamServerLink
     from journal.sync.team_upgrade import TeamUpgrade
     from journal.features.updates.support.updater import Updater
@@ -10472,6 +10472,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
     server = team.started("127.0.0.1", 0)
     address = f"http://127.0.0.1:{server.server_address[1]}"
     journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc"]
+    carriers = [CarriedSync(journal).started() for journal in journals]
     a, b, c = journals
 
     def urlopen_refusal(url: str) -> str:
@@ -10714,12 +10715,12 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         own_start = HttpRequest(f"http://127.0.0.1:{b.server().port}/hooks/claude", data=json.dumps({"hook_event_name": "SessionStart", "session_id": "bob-own"}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
         assert f"this journal is behind its team: Not syncing: your team runs {pinned}" in urlopen(own_start, timeout=5).read().decode(), "the agent is told at its session start that the journal must be upgraded"
         migrated = a.container.get(Schema).version() + 1
-        a.container.get(SyncClient).prepare_upgrade()
+        assert carriers[0].drained() == {"drained": True}
         assert a.container.get(TeamAccount).is_upgrader(), "an upgrade marks its journal the upgrader before the new version installs"
         monkeypatch.setattr(Schema, "version", lambda self: migrated)
         monkeypatch.setattr("journal.sync.team_server_link.VERSION", pinned)
         b.container.get(Connection).execute("UPDATE tasks SET title = 'stamped by a migration on Bob''s machine'")
-        a.container.get(SyncClient).upgrade_finished()
+        carriers[0].upgrade_finished()
         link = a.container.get(TeamServerLink)
         assert link.summary(a.container.get(TeamAccount).address()).migration == migrated, "the upgrader's migrated copy becomes the team's"
         assert not a.container.get(TeamAccount).is_upgrader() and not link.lease_state("upgrade").holder, "and it lets the lease and the mark go"
@@ -10751,6 +10752,8 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         assert b.container.get(Tasks).find(made["id"]).creator == Actor.user(2), "the viewer's write is the person's own"
         assert eventually(lambda: (team.log.row("tasks", made["id"]) or None) is not None and team.log.row("tasks", made["id"]).fields.get("creator") == "user:2"), "and the server holds it as theirs"
     finally:
+        for carrier in carriers:
+            carrier.stop()
         for journal in journals:
             journal.runtime().stop()
         team.close(server)
@@ -11018,7 +11021,7 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
     from journal.repositories.links import Links
     from journal.repositories.messages import Messages
     from journal.models.support.ref import Ref
-    from journal.sync.sync_client import SyncClient
+    from carried_sync import CarriedSync
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from sync_server.account import ADMIN, MEMBER
     from sync_server.push_request import PushRequest
@@ -11053,17 +11056,17 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
         account.write({"address": address, "token": ada, "device": 1, "account_id": 1})
         app.container.get(IdBlocks).add("settings", 800000, 800100)
         app.container.get(SettingRows).set("workers.pool_slots", 2, Actor.user(1))
-        client = app.container.get(SyncClient)
-        client.pulled(0)
+        client = CarriedSync(app)
+        client.pulled()
         assert [message.creator.stamp for message in made("k-1")] == ["user:2"], "the host takes the request up with its pull and makes the message as Bob"
         from journal.version import VERSION
         from sync_server.db.pool_capacity_rows import PoolCapacityRows
         assert [(capacity.device_id, capacity.slots, capacity.free, capacity.version) for capacity in PoolCapacityRows(team.store).capacities()] == [(1, 2, 2, VERSION)], "the pull names the worker slots this machine gives the pool, how many are free and the version it runs, and the team server keeps them"
         assert team.host_requests.waiting(0, PullQuery(0, 0, (main.key,), PoolSlots(0, 0), "")) == (), "and says it is made"
-        client.pulled(0)
+        client.pulled()
         assert len(made("k-1")) == 1, "a request is made once"
         team.pushes.answer(bob, PushRequest.parsed([{"row_table": "tasks", "row": 900001, "action": "created", "actor": "user:2", "fields": {"title": "bob's task", "brief": "b", "created_at": "2026-10-23T08:00:00+00:00", "creator": "user:2"}, "changed_at": {"title": 3.0, "brief": 3.0, "created_at": 3.0, "creator": 3.0}}]), 3.0)
-        client.send()
+        client.sent()
         assert team.log.row("messages", made("k-1")[0].id) is not None, "the host sends the message it made in Bob's name, which the server lets through"
         with sqlite3.connect(app.config.database) as rows:
             assert rows.execute("SELECT title FROM tasks WHERE id = 900001").fetchall() == [("bob's task",)], "the push's answer brings the team's changes, with no pull of its own"
@@ -11103,7 +11106,6 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
     from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
     from journal.features.updates.support.updater import Updater
-    from journal.sync.sync_client import SyncClient
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from journal.version import VERSION
 
@@ -11112,7 +11114,7 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
     steps = []
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}"])
     monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: steps.append(ref))
-    monkeypatch.setattr(SyncClient, "prepare_upgrade", lambda self: steps.append("sent its changes"))
+    monkeypatch.setattr(Updater, "is_drained", lambda self: steps.append("sent its changes") or True)
     monkeypatch.setattr(Updater, "restart", lambda self: steps.append("restarted"))
     (tmp_path / "team").mkdir()
     team = TeamServer(tmp_path / "team")
@@ -11144,7 +11146,6 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
     from journal.features.updates.support.updater import Updater
     from journal.repositories.id_blocks import IdBlocks
     from journal.repositories.setting_rows import SettingRows
-    from journal.sync.sync_client import SyncClient
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from journal.sync.team_server_link import TeamServerLink
     from journal.version import VERSION
@@ -11157,7 +11158,7 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
     monkeypatch.setattr(os, "kill", lambda pid, number: ended.append((pid, number)))
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
     monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: installed.append(ref))
-    monkeypatch.setattr(SyncClient, "prepare_upgrade", lambda self: installed.append("the team's upgrade lease"))
+    monkeypatch.setattr(Updater, "is_drained", lambda self: installed.append("the team's upgrade lease") or True)
     app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
     try:
         app.container.get(IdBlocks).add("settings", 800000, 800100)
@@ -11185,7 +11186,6 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
     from urllib.error import HTTPError
     from urllib.request import Request as HttpRequest, urlopen
 
-    from journal.sync.sync_client import SyncClient
     from journal.sync.team_account import TEAM_FILE
     from sync_server.team_server import TeamServer
 
@@ -11228,7 +11228,6 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
         invited = posted("/team/invite", {"email": "bob@example.com"})
         assert invited[0] in (200, 201) and invited[1]["url"].startswith(f"{address}/join?code="), "an admin makes a colleague's invitation URL from the Team tab"
     finally:
-        app.container.get(SyncClient).stop()
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
 def test_a_long_run_whose_reader_showed_no_progress_is_reported_with_the_tools_streaming_form(app: App):
@@ -11615,7 +11614,7 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
     from journal.features.workers.support.worker_branch import WorkerBranch
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.sync.pull_queries import PullQueries
-    from journal.sync.sync_client import SyncClient
+    from carried_sync import CarriedSync
 
     from journal.repositories.id_blocks import IdBlocks
     from journal.repositories.tasks import Tasks
@@ -11677,7 +11676,7 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         monkeypatch.setenv("PLANTED_CLOUD_KEY", "secret")
         app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
         app.container.get(SettingRows).set("workers.preparation_commands", ["touch prepared.txt"], Actor.user(1))
-        app.container.get(SyncClient).pulled(0)
+        CarriedSync(app).pulled()
         app.runtime().deferred.drain()
         variables = app.container.get(WorkerRunner).worker_variables(started[0])
         assert "PLANTED_CLOUD_KEY" not in variables and "PATH" in variables, "a pool worker gets a short list of the machine's variables, never its keys"
@@ -11727,7 +11726,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
     from journal.repositories.workers import Workers
     from journal.models.support.ref import Ref
     from journal.sync.host_desk import HostDesk
-    from journal.sync.sync_client import SyncClient
+    from carried_sync import CarriedSync
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from journal.version import VERSION
     from sync_server.account import ADMIN, MEMBER
@@ -11766,7 +11765,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
         monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
         app.container.get(SettingRows).set("workers.pool_slots", 1, Actor.user(1))
-        app.container.get(SyncClient).pulled(0)
+        CarriedSync(app).pulled()
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             workers = app.container.get(Workers)
@@ -11817,7 +11816,7 @@ def test_a_pool_worker_running_for_another_journal_has_its_moves_made_by_that_jo
         app.container.get(TeamAccount).write({"address": address, "token": bob, "device": 2, "account_id": 2})
         assert console.run(["worker", "dispatch", "Mr. Babbage", "--task", printer, "--changes", "the printer", "--tests", "Scoped tests", "--pool", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT).code == 0
         app.container.get(TeamAccount).write({"address": address, "token": ada, "device": 1, "account_id": 1})
-        app.container.get(SyncClient).pulled(0)
+        CarriedSync(app).pulled()
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             babbage = [each for each in workers.all() if each.name == "Mr. Babbage"][0]
@@ -11974,7 +11973,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
     from journal.repositories.environments import Environments
     from journal.repositories.links import Links
     from journal.http.agents.agent_view_sender import AgentViewSender
-    from journal.sync.sync_client import SyncClient
+    from carried_sync import CarriedSync
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from sync_server.account import ADMIN, MEMBER, RELAY
     from sync_server.host_ask_request import HostAskRequest
@@ -12048,7 +12047,7 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
         team.host_requests.created(relay, HostAskRequest(main.key, "agent_resume", {"agent_id": agent.id}, 2), clock.time())
         (app.config.home / "hosted").unlink()
         account.write({"address": address, "token": ada_device, "device": 1, "account_id": 1})
-        app.container.get(SyncClient).pulled(0)
+        CarriedSync(app).pulled()
         with scope.environment(main.row_id):
             assert agents.find(agent.id).state == "paused", "her journal pauses the agent, and refuses the resume asked in Bob's name, since main is not his"
         assert waiting() == [], "both requests are taken up"
@@ -12611,13 +12610,13 @@ def test_a_task_held_by_an_ended_session_is_paused_when_the_next_main_session_st
 
 def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_fold_never_misses_a_row(app: App, monkeypatch):
     import threading
-    import journal.sync.sync_client as client_module
+    import sync_service.carrier as carrier_module
     from journal.models.outgoing_change import UPDATED, OutgoingChange
     from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.sync.sync_client import SyncClient
-    from journal.sync.sync_loop import SyncLoop
-    monkeypatch.setattr(client_module, "FIRST_RETRY_SECONDS", 0.01)
-    sync, rounds = app.container.get(SyncClient), []
+    from carried_sync import CarriedSync
+    from sync_service.loop import Loop
+    monkeypatch.setattr(carrier_module, "FIRST_RETRY_SECONDS", 0.01)
+    sync, rounds = CarriedSync(app).carrier, []
 
     def loop():
         rounds.append(1)
@@ -12625,9 +12624,8 @@ def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_f
             raise RuntimeError("no outgoing_changes row 93604")
         sync.stopping.set()
 
-    sync.stopping.clear()
-    sync.repeated(SyncLoop("test", loop, 60), 0)
-    assert len(rounds) == 2 and "RuntimeError" in sync.status.fault, "a fault of any kind is shown and the loop tries again"
+    sync.repeated(Loop("test", loop, 60), 0)
+    assert len(rounds) == 2 and "RuntimeError" in sync.fault, "a fault of any kind is shown and the loop tries again"
     outgoing, faults = app.container.get(OutgoingChanges), []
 
     def fold():
@@ -12834,14 +12832,13 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     import threading
     import time as timing
     from journal.sync import sync_desk
-    from journal.sync.sync_client import SyncClient
-    from journal.sync.sync_loop import SyncLoop
-    from journal.sync.sync_status import SyncStatus
-    client = app.container.get(SyncClient)
+    from carried_sync import CarriedSync
+    from journal.sync.sync_desk import SyncDesk
+    from sync_service.loop import Loop
+    client = CarriedSync(app).carrier
     steps, released = [], threading.Event()
-    loop = SyncLoop("test", lambda: steps.append(1) or released.wait(5), 60)
+    loop = Loop("test", lambda: steps.append(1) or released.wait(5), 60)
     client.loops = (loop,)
-    client.stopping.clear()
     client.watch()
     assert loop.generation == 1 and not loop.is_dead(), "a loop that is not running is started"
     first = loop.thread
@@ -12849,16 +12846,18 @@ def test_a_sync_loop_that_dies_starts_again_one_that_hangs_shows_as_stopped_and_
     assert loop.thread is first and loop.generation == 1, "a running loop is left alone, so two never run"
     loop.beat_at = timing.monotonic() - 120
     client.watch()
-    assert "sync stopped: its test loop has been silent for 120 seconds" in app.container.get(SyncStatus).fault, "a loop silent past its longest wait shows as stopped"
+    assert "sync stopped: its test loop has been silent for 120 seconds" in client.fault, "a loop silent past its longest wait shows as stopped"
     client.stopping.set()
     released.set()
     first.join(5)
+    assert not client.is_alive(), "and the service's health says so once a loop is gone"
     monkeypatch.setattr(sync_desk, "LOCK_SECONDS", 0.2)
-    holder = threading.Thread(target=lambda: (client.doors.desk.applying.acquire(), timing.sleep(1), client.doors.desk.applying.release()))
+    desk = app.container.get(SyncDesk)
+    holder = threading.Thread(target=lambda: (desk.applying.acquire(), timing.sleep(1), desk.applying.release()))
     holder.start()
     timing.sleep(0.05)
     try:
-        with client.doors.desk.held(client.doors.desk.applying, "apply the team's changes"):
+        with desk.held(desk.applying, "apply the team's changes"):
             raise AssertionError("the lock was taken while another held it")
     except TimeoutError as fault:
         assert "to apply the team's changes, held by its other loop" in str(fault)
@@ -13067,35 +13066,47 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
     assert status({"X-Journal-Sync-Secret": secret}) == 200
 
 
-def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refused_install_resumes_sync(app: App, monkeypatch):
+def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_after_a_refused_install(app: App, monkeypatch):
     from journal.features.updates.support.updater import Updater
     from journal.models.outgoing_change import CREATED, OutgoingChange
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.support.rejection import Rejection
-    from journal.sync.sync_client import SyncClient
+    from carried_sync import CarriedSync
     class RefusingInstaller:
         def run(self, ref: str, repository: str) -> None:
             raise Rejection("the install was refused")
 
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)
-    server, account = joined_team(app)
-    port = app.server().port
-    door = lambda path: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "1"}), timeout=30).read())
-    outgoing = app.container.get(OutgoingChanges)
-    outgoing.clear()
-    app.console().run(["task", "create", "made before the upgrade"], USER)
-    assert outgoing.waiting(), "the new task waits to go to the team"
-    assert door("drain") == {"drained": True, "paused": True} and outgoing.waiting() == [], "the drain answers once the queue is empty"
-    client = app.container.get(SyncClient)
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + 20
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
 
-    monkeypatch.setattr(Updater, "restart", lambda self: None)
-    account.record_pull(account.sequence(), "4.99.0")
-    updating.read()
-    updating.install_newest(Actor.user(1))
-    assert updating.problem == "the install was refused" and not client.stopping.is_set(), "a refused install leaves sync running again"
-    client.stop()
-    account.left(0)
-    server.shutdown()
+    server, account = joined_team(app)
+    sync = CarriedSync(app).started()
+    try:
+        outgoing = app.container.get(OutgoingChanges)
+        assert eventually(lambda: outgoing.waiting() == []), "the sync service takes what waited when it starts"
+        sync.stop()
+        sync = CarriedSync(app)
+        sync.inbox.start()
+        sync.carrier.address = sync.inbox.address
+        sync.carrier.beat()
+        app.console().run(["task", "create", "made before the upgrade"], USER)
+        assert outgoing.waiting(), "the new task waits to go to the team"
+        monkeypatch.setattr(Updater, "restart", lambda self: None)
+        account.record_pull(account.sequence(), "4.99.0")
+        updating.read()
+        updating.install_newest(Actor.user(1))
+        assert outgoing.waiting() == [], "the updater has the sync service send the whole queue before it installs"
+        assert updating.problem == "the install was refused" and eventually(lambda: not sync.carrier.is_paused()), "a refused install has the sync service carry on"
+    finally:
+        sync.stop()
+        account.left(0)
+        server.shutdown()
 
 
 def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_the_waiting_writes_on_top(app: App):
@@ -13249,42 +13260,39 @@ def test_a_journal_in_a_team_installs_the_version_its_team_pins_by_itself_and_no
         account.left(0)
 
 
-def test_a_carrier_in_its_own_process_shows_on_the_status_line_by_its_beat(app: App):
-    import json as jsonlib
+def test_the_sync_services_report_shows_on_the_status_line_and_a_service_gone_quiet_shows_as_not_running(app: App):
     import time as clock
-    from journal.sync.carrier_beat import CarrierBeat
+    from journal.sync import sync_status
     from journal.sync.sync_status import SyncStatus
     from journal.sync.team_account import TeamAccount
     account = app.container.get(TeamAccount)
     account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
-    beat, status = app.container.get(CarrierBeat), app.container.get(SyncStatus)
+    status = app.container.get(SyncStatus)
     try:
-        status.connected()
-        beat.beat("the team server refused the push: the device was revoked")
-        assert status.line() == "Not connected: the team server refused the push: the device was revoked", "the carrier's refusal shows on the line"
-        beat.beat("")
+        status.reported("the team server refused the push: the device was revoked", True)
+        assert status.line() == "Not connected: the team server refused the push: the device was revoked", "the sync service's refusal shows on the line"
+        status.reported("", True)
         assert status.state() == "in_step"
-        beat.path.write_text(jsonlib.dumps({"pid": 1, "beat_at": clock.time() - 60, "fault": ""}))
-        assert status.line() == "Not connected: the sync process is not running" and status.state() == "not_connected", "a carrier gone silent shows as not connected"
+        status.reported_at = clock.monotonic() - sync_status.STALE_SECONDS - 1
+        assert status.line() == "Not connected: the sync service is not running" and status.state() == "not_connected", "a sync service gone quiet shows as not connected"
     finally:
-        beat.forget()
+        status.reported("", True)
         account.left(0)
 
 
-def test_the_carrier_and_the_server_agree_on_the_version_of_the_sync_desks_doors(app: App, tmp_path):
+def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_doors(app: App, tmp_path):
     import http.server
     import threading
     from urllib.error import HTTPError
-    from journal.config import Config
-    from journal.sync.desk_mismatch import DeskMismatch
-    from journal.sync.local_doors import LocalDoors
+    from sync_service.journal_doors import JournalDoors
+    from sync_service.journal_mismatch import JournalMismatch
     port = app.server().port
     secret = (app.config.home / "runtime" / "sync-secret").read_text()
     try:
         urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": secret, "X-Journal-Desk-Protocol": "0"}), timeout=10)
         raise AssertionError("a carrier of another version was answered")
     except HTTPError as refusal:
-        assert refusal.code == 426 and "version 1 of the sync desk's doors" in json.loads(refusal.read())["error"]
+        assert refusal.code == 426 and "version 2 of the sync desk's doors" in json.loads(refusal.read())["error"]
 
     class OldServer(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -13301,38 +13309,14 @@ def test_the_carrier_and_the_server_agree_on_the_version_of_the_sync_desks_doors
     (root / ".journal" / "port").write_text(str(old.server_address[1]))
     (root / ".journal" / "runtime" / "sync-secret").write_text("s")
     try:
-        LocalDoors(Config(root), "main").query(0)
+        JournalDoors(root).query(0)
         raise AssertionError("an older server was not named")
-    except DeskMismatch as mismatch:
-        assert "older than its sync process" in str(mismatch), "a server without the doors is named, so the status line says why sync stopped"
+    except JournalMismatch as mismatch:
+        assert "has no sync doors of this version" in str(mismatch), "a server without the doors is named, so the status line says why sync stopped"
     finally:
         old.shutdown()
 
 
-def test_a_journal_no_supervisor_hosts_syncs_through_the_carrier_in_its_own_threads(app: App):
-    import time as clock
-    from journal.repositories.outgoing_changes import OutgoingChanges
-    from journal.sync.sync_client import SyncClient
-    from journal.sync.sync_start import SyncStart
-    server, account = joined_team(app)
-    start, client = app.container.get(SyncStart), app.container.get(SyncClient)
-    try:
-        start.run()
-        assert not client.sending_loop.is_dead() and not client.stopping.is_set(), "with no supervisor the carrier runs in the server's threads"
-        port = app.server().port
-        shown = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync", headers={"X-Journal-Env": "main"}), timeout=10).read())
-        assert shown["runs"] == "server", "and the status says where it runs"
-        made = app.console().run(["task", "create", "carried in the server"], USER)
-        assert made.code == 0
-        for _ in range(100):
-            if not app.container.get(OutgoingChanges).waiting():
-                break
-            clock.sleep(0.1)
-        assert app.container.get(OutgoingChanges).waiting() == [], "and sends what this journal writes"
-    finally:
-        start.stopped()
-        account.left(0)
-        server.shutdown()
 
 
 def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_out(app: App):
@@ -13685,6 +13669,9 @@ def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_
     from sync_service.carrier import Carrier
     from sync_service.event_inbox import EventInbox
     from sync_service.journal_doors import JournalDoors
+    from sync_service.team_link import TeamLink
+    from journal.repositories.messages import Messages
+    from journal.sync.sync_desk import SyncDesk
     from journal.sync.sync_status import SyncStatus
 
     def eventually(check) -> bool:
@@ -13719,6 +13706,46 @@ def test_the_sync_service_registers_with_the_journal_carries_its_changes_to_the_
         assert a.console().run(["task", "create", "made on machine 1"], USER).code == 0
         assert eventually(lambda: "made on machine 1" in [task.title for task in b.container.get(Tasks).global_matching()]), "a change queued on one journal is carried to the team and handed back to the other"
         assert eventually(lambda: a.container.get(SyncStatus).line() == "In step with the team"), a.container.get(SyncStatus).line()
+        [task] = [task for task in a.container.get(Tasks).global_matching() if task.title == "made on machine 1"]
+        with b.container.get(Scope).environment(MAIN):
+            b.container.get(Tasks).save(b.container.get(Tasks).find(task.id).with_(title="renamed by b"), Actor.user(1))
+        assert eventually(lambda: a.container.get(Tasks).find(task.id).title == "renamed by b"), "and back the other way"
+        carriers[1].stop()
+        with b.container.get(Scope).environment(MAIN):
+            b.container.get(Tasks).save(b.container.get(Tasks).find(task.id).with_(title="b's older title"), Actor.user(1))
+        timing.sleep(0.01)
+        with a.container.get(Scope).environment(MAIN):
+            a.container.get(Tasks).save(a.container.get(Tasks).find(task.id).with_(title="a's later title"), Actor.user(1))
+        assert eventually(lambda: team.log.row("tasks", task.id).fields["title"] == "a's later title")
+        carriers[1] = Carrier(JournalDoors(b.config.root))
+        inboxes[1] = EventInbox(carriers[1])
+        inboxes[1].start()
+        threading.Thread(target=carriers[1].run, args=(inboxes[1].address,), daemon=True).start()
+        assert eventually(lambda: b.container.get(Tasks).find(task.id).title == "a's later title") and a.container.get(Tasks).find(task.id).title == "a's later title", "two edits of one title made while one journal's sync was down keep the later on both"
+        assert eventually(lambda: any("was kept over yours" in message.text for message in b.container.get(Messages).global_matching())), "the journal whose edit lost shows a card naming whose edit was kept"
+        # an answer that waits to be applied, as under load, still measures the clock offset as it arrived, so this journal's later
+        # edits never go out stamped before its own earlier ones and are rejected against them
+        desk, team_a = a.container.get(SyncDesk), TeamLink(carriers[0].doors.team())
+        holding = threading.Thread(target=lambda: (desk.applying.acquire(), timing.sleep(1.5), desk.applying.release()))
+        holding.start()
+        timing.sleep(0.05)
+        carriers[0].pulled(team_a, 0)
+        holding.join()
+        assert abs(desk.offset.seconds) < 1.0, f"the offset was measured after the wait to apply, {desk.offset.seconds:.2f} s off"
+        # a full copy taken while a change of this journal is going out waits for it, so the copy never wipes a change sent meanwhile
+        copied, held = threading.Event(), a.container.get(TeamAccount).sequence()
+        answer = lambda head: {"changes": [], "head": head, "server_time": timing.time(), "team_version": "", "copy_needed": True, "requests": []}
+        with carriers[0].carrying:
+            at_head = threading.Thread(target=lambda: carriers[0].taken(team_a, answer(held)))
+            at_head.start()
+            at_head.join(1.0)
+            assert not at_head.is_alive(), "a journal already at the team's head never takes the copy, so it never waits for the send"
+            taking = threading.Thread(target=lambda: (carriers[0].taken(team_a, answer(held + 1)), copied.set()))
+            taking.start()
+            assert not copied.wait(0.3), "the full copy went ahead while a send was under way"
+        assert copied.wait(5.0), "and goes ahead once the send is done"
+        taking.join()
+        assert a.container.get(Tasks).find(task.id).title == "a's later title", "the copy kept this journal's rows"
     finally:
         for carrier, inbox in zip(carriers, inboxes):
             carrier.stop()

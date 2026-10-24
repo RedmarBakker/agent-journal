@@ -9,7 +9,7 @@ from sync_service.journal_mismatch import JournalMismatch
 SECRET_HEADER = "x-journal-sync-secret"
 PROTOCOL_HEADER = "x-journal-desk-protocol"
 # the version of the sync doors this service speaks, which the journal server answers only when it is its own
-DESK_PROTOCOL = 1
+DESK_PROTOCOL = 2
 CALL_SECONDS = 30
 COPY_SECONDS = 300
 SYNC_PATH = "/journal/sync"

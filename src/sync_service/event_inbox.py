@@ -5,10 +5,10 @@ from sync_service.event_request_handler import EventRequestHandler
 
 
 class EventInbox:
-    """Where the journal server posts the sync service the events it registered for: a server on a free loopback port, each post answered by the carrier."""
+    """Where the journal server posts the sync service the events it registered for, and where its health is asked: a server on the loopback port given, or a free one, each post answered by the carrier."""
 
-    def __init__(self, carrier) -> None:
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), EventRequestHandler)
+    def __init__(self, carrier, port: int = 0) -> None:
+        self.server = ThreadingHTTPServer(("127.0.0.1", port), EventRequestHandler)
         self.server.daemon_threads = True
         self.server.carrier = carrier
 
