@@ -113,7 +113,7 @@ def test_a_team_server_that_asks_for_a_newer_protocol_counts_as_answering(tmp_pa
     assert "with the server's own certificate, which an IP address gets" in ran.stderr, ran.stderr
 
 
-def test_a_port_taken_by_another_service_is_named_with_how_to_choose_others(tmp_path: Path):
+def test_a_taken_default_port_gives_way_to_the_next_free_one_and_a_named_one_is_refused(tmp_path: Path):
     bin = tmp_path / "bin"
     bin.mkdir()
     fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
@@ -121,9 +121,12 @@ def test_a_port_taken_by_another_service_is_named_with_how_to_choose_others(tmp_
     fake(bin, "ss", 'echo "LISTEN 0 4096 0.0.0.0:8080 0.0.0.0:*"')
     env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
-    assert ran.returncode == 1 and "Port 8080 is taken on this machine by another service" in ran.stderr and "--https-port 8444 --http-port 8081" in ran.stderr, ran.stderr
-    moved = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**env, "TEAM_HTTPS_PORT": "8444", "TEAM_HTTP_PORT": "8081"}, timeout=30)
-    assert moved.returncode == 0 and "https://203.0.113.5:8444" in moved.stdout, moved.stderr
+    assert ran.returncode == 0 and "The team server listens on 8443 for HTTPS and 8081 for HTTP." in ran.stderr, "a default port another service holds gives way to the next free one"
+    named = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**env, "TEAM_HTTP_PORT": "8080"}, timeout=30)
+    assert named.returncode == 1 and "Port 8080 is taken on this machine by another service" in named.stderr, "a port named by hand is refused when taken"
+    fake(bin, "ss", 'for port in 8080 8081 8082 8083 8084 8085 8086 8087 8088 8089; do echo "LISTEN 0 4096 0.0.0.0:$port 0.0.0.0:*"; done')
+    full = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
+    assert full.returncode == 1 and "Port 8080 is taken" in full.stderr, "the free port is picked from a range of ten, and a range all taken is refused"
 
 
 def test_the_team_server_listens_on_8443_and_8080_with_its_own_certificate_unless_a_domain_asks_for_443(tmp_path: Path):

@@ -35,6 +35,14 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
     }
 
     # whether something on this machine already listens on the port, as ss reports it; with no ss the port is taken as free
+    # the first port in the ten from the one given that nothing on this machine listens on; the given one when all are taken,
+    # which the check that follows refuses
+    free_port() {
+        port="$1"
+        while port_taken "$port" && [ "$port" -lt $(($1 + 9)) ]; do port=$((port + 1)); done
+        if port_taken "$port"; then printf '%s' "$1"; else printf '%s' "$port"; fi
+    }
+
     port_taken() {
         command -v ss >/dev/null 2>&1 || return 1
         ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$1\$"
@@ -92,13 +100,17 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
         *) certificate="internal" ;;
     esac
 
+    # a default port another service holds gives way to the next free one; a port named by hand is refused when taken
+    if [ -z "${TEAM_HTTPS_PORT:-}" ]; then HTTPS_PORT=$(free_port "$HTTPS_PORT"); fi
+    if [ -z "${TEAM_HTTP_PORT:-}" ]; then HTTP_PORT=$(free_port "$HTTP_PORT"); fi
     for port in "$HTTPS_PORT" "$HTTP_PORT"; do
         if port_taken "$port"; then
-            echo "Port $port is taken on this machine by another service. Choose free ports for the team server: from your journal," >&2
-            echo "journal remote install <target> --https-port 8444 --http-port 8081, or set TEAM_HTTPS_PORT and TEAM_HTTP_PORT when you run this yourself." >&2
+            echo "Port $port is taken on this machine by another service: name free ones, journal remote install <target> --https-port <port> --http-port <port>," >&2
+            echo "or TEAM_HTTPS_PORT and TEAM_HTTP_PORT when you run this yourself; leave them out and the next free ports are taken." >&2
             exit 1
         fi
     done
+    step "The team server listens on $HTTPS_PORT for HTTPS and $HTTP_PORT for HTTP."
     step "Pulling the team server's image, $IMAGE: a few hundred megabytes, which can take a minute."
     docker pull -q "$IMAGE" >/dev/null 2>&1 || docker image inspect "$IMAGE" >/dev/null || { echo "The image $IMAGE could not be found." >&2; exit 1; }
     step "Starting the team server in the container $name."
