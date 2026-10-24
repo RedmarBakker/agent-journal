@@ -220,7 +220,7 @@ test("while the context compacts the figure is packed into a box that shrinks, s
 
 const {EAGER, eagerFor, secondsLeft} = await import("../src/figure/reactions.js");
 
-test("eager for a docked bar's end: it starts when the run looks about five seconds from done at its pace, only for a run over a minute old by then, and is never called off before the end", () => {
+test("eager for a docked bar's end: it starts when the run looks about five seconds from done at its pace, only for a run over a minute old by then and never too near the end, and lasts until the end and no longer", () => {
     const bar = {};
     const at = (share, ended = "") => ({bar, share, ended, began: 100});
     expect(EAGER.after).toBe(60);
@@ -234,21 +234,25 @@ test("eager for a docked bar's end: it starts when the run looks about five seco
     expect(eagerFor(at(0.97), {run: 100, on: false}, () => 0, 183).eager.on).toBe(false);
     // a run under a minute old when it nears its end never makes it eager
     expect(eagerFor(at(0.95), null, () => 0, 100 + EAGER.after - 1).eager).toEqual({run: 100, on: false});
-    // started, it is kept to the end whatever the figure does, and then it is cheered or fumed at
+    // nor one first seen less than its intro's time from its end, too late to show before the end: 80 seconds in at 99 percent
+    expect(secondsLeft(80, 0.99)).toBeLessThan(EAGER.least);
+    expect(eagerFor(at(0.99), null, () => 0, 180).eager).toEqual({run: 100, on: false});
+    const anticipation = CLIPS.find((clip) => clip.name === "eager");
+    expect(EAGER.least).toBe(anticipation.intro / anticipation.fps);
+    // started, it is kept to the end whatever the figure does
     expect(eagerFor(at(0.98), eager, () => 0.99, 184)).toEqual({eager, moment: null});
-    // ended before the anticipation has played through, it waits for it; once played, the end is cheered or fumed at
-    expect(eagerFor(at(1, "good"), eager, () => 0, 185)).toEqual({eager: {...eager, endedAt: 185, ending: "bar_done"}, moment: null});
-    expect(eagerFor(at(1, "good"), eager, () => 0, 185, true)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}});
-    expect(eagerFor(at(1, "bad"), eager, () => 0, 185, true).moment).toEqual({beat: "bar_failed"});
+    // the end turns it off that moment, cut on screen there, and the end is cheered or fumed at once
+    expect(eagerFor(at(1, "good"), eager, () => 0, 185)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}, cut: true});
+    expect(eagerFor(at(1, "bad"), eager, () => 0, 185).moment).toEqual({beat: "bar_failed"});
     // the dock drawn again, with a new bar for the same run, is still that run: its end is fumed at once, never again
-    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 185, true).eager;
+    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 185).eager;
     const redrawn = (share, ended = "") => ({bar: {}, share, ended, began: 100});
     expect(eagerFor(redrawn(0.98), fumed, () => 0, 186)).toEqual({eager: fumed, moment: null});
     expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 187).moment).toBe(null);
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
     expect(of("bar_done").map((each) => each.name)).toEqual(["joy"]);
-    // only the bar going ends it with nothing to mark
-    expect(eagerFor(null, eager, () => 0, 126, true)).toEqual({eager: {run: 100, on: false}, moment: null});
+    // only the bar going ends it with nothing to mark, cut all the same
+    expect(eagerFor(null, eager, () => 0, 126)).toEqual({eager: {run: 100, on: false}, moment: null, cut: true});
     expect(clipFor({place: {posture: "stand"}, eager: true, state: "running", doing: "think"}, () => true).clip).toBe("eager");
 });
 

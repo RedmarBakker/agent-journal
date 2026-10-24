@@ -55,9 +55,9 @@ describe("the thinking act and the queue", () => {
 });
 
 describe("acts that hold", () => {
-    it("the anticipation of a run's end plays through whatever comes: no moment is heard while it lasts, and its clip is never cut", () => {
+    it("the anticipation of a run's end plays through whatever comes but that end: no moment is heard while it lasts, and nothing else cuts its clip", () => {
         expect(named.eager.holds, "declared on the act").toBe(true);
-        const progress = {share: 0.99, began: 0, ended: ""};
+        const progress = {share: 0.98, began: 0, ended: ""};
         const eager = eagerFor(progress, null, () => 0, EAGER.long + 1).eager;
         expect(eager.on).toBe(true);
         expect(isListening(eager), "a tickle, a card or a look waits it out").toBe(false);
@@ -69,9 +69,9 @@ describe("acts that hold", () => {
 
     it("the celebration after it plays to its end: a first beat that comes meanwhile waits behind it, and it is never cut", () => {
         for (const [moment, tone] of [["bar_done", "good"], ["bar_failed", "bad"]]) {
-            const progress = {share: 0.99, began: 0, ended: ""};
+            const progress = {share: 0.98, began: 0, ended: ""};
             const eager = eagerFor(progress, null, () => 0, EAGER.long + 1).eager;
-            const end = eagerFor({...progress, share: 1, ended: tone}, eager, () => 0, EAGER.long + 5, true);
+            const end = eagerFor({...progress, share: 1, ended: tone}, eager, () => 0, EAGER.long + 5);
             expect(end.moment.beat).toBe(moment);
             expect(isListening(end.eager), "listening again once the run has ended").toBe(true);
             const celebration = answerTo(end.moment, "butler", memoryOf(), 0, () => 0, has).beat;

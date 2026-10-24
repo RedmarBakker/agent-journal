@@ -112,31 +112,32 @@ export const spellIn = (held, spell, now) => (spell && now < spell.until && WORK
 
 // Once a docked bar's run looks about `lead` seconds from its end at the pace it has gone, now and then, as the pile draws it (pile.js
 // eager), once a bar, the figure gets eager for it to end: it hurries onto the bar, taps its feet fast, then points down at it, bouncing,
-// until it ends, and is never called off before. Only a long run counts, one at least `after` seconds old by then, a minute, so a shorter
-// run never does. A run that has gone on `long` seconds is anticipated every time, and `urgent`ly: the figure drops whatever it waits to do
-// for it, once the act it plays has played out. A run that ends before the anticipation ever came on screen waits for it at most `wait`
-// seconds.
-export const EAGER = {lead: 5, after: 60, long: 120, wait: 12};
+// until it ends, and is never called off before. It starts only while the run looks at least `least` seconds from its end, the time its
+// foot-tapping intro takes (figure.js EAGERNESS, 18 frames at 12 a second), so it is never begun too late to show before the end. Only a
+// long run counts, one at least `after` seconds old by then, a minute, so a shorter run never does. A run that has gone on `long` seconds
+// is anticipated every time, and `urgent`ly: the figure drops whatever it waits to do for it, once the act it plays has played out.
+export const EAGER = {lead: 5, least: 1.5, after: 60, long: 120};
 
 // the seconds a run `elapsed` seconds old with `share` of it done has left, at the pace it has gone
 export const secondsLeft = (elapsed, share) => (share > 0 ? (elapsed / share) * (1 - share) : Infinity);
 
 // The figure's eagerness at `now` seconds for the bar docked over the compose box, `progress` (places.js progressOf), or null with none:
 // the run it rolled for, known by when its card began so a bar drawn again is the same run, and whether it is eager for it; and the moment
-// the bar's end is once it ends while the figure is eager, a pass or a failure, once for the run. Once on, the anticipation is never called
-// off before it has `played` through its hold: the bar ending or going is kept as its `ending`, at `endedAt`, and its moment comes only
-// then, so the reaction plays after the anticipation; or after EAGER `wait` seconds when the anticipation never came on screen at all.
-export function eagerFor(progress, eager, random, now, played = false) {
+// the bar's end is once it ends while the figure is eager, a pass or a failure, once for the run. The anticipation lasts until the end and
+// not a moment past it: the bar ending, or going, turns it off at once, the end's moment with it, and `cut` says the anticipation on screen
+// is cut there, its outro and all, so the reaction to the end plays at once and the figure is never still eager after the end.
+export function eagerFor(progress, eager, random, now) {
     const same = Boolean(progress) && progress.began === eager?.run;
-    if (eager?.on && (eager.endedAt !== undefined || !same || progress.ended)) {
-        const ended = eager.endedAt !== undefined ? eager : {...eager, endedAt: now, ending: same ? (progress.ended === "good" ? "bar_done" : "bar_failed") : ""};
-        if (!played && now - ended.endedAt < EAGER.wait) return {eager: ended, moment: null};
-        return {eager: {run: eager.run, on: false}, moment: ended.ending ? {beat: ended.ending} : null};
+    if (eager?.on && (!same || progress.ended)) {
+        const ending = same ? (progress.ended === "good" ? "bar_done" : "bar_failed") : "";
+        return {eager: {run: eager.run, on: false}, moment: ending ? {beat: ending} : null, cut: true};
     }
     if (!progress || progress.ended) return {eager: eager && {...eager, on: false}, moment: null};
     if (same) return {eager, moment: null};
     const elapsed = now - progress.began;
-    if (secondsLeft(elapsed, progress.share) > EAGER.lead) return {eager, moment: null};
+    const left = secondsLeft(elapsed, progress.share);
+    if (left > EAGER.lead) return {eager, moment: null};
+    if (left < EAGER.least) return {eager: {run: progress.began, on: false}, moment: null};
     if (elapsed > EAGER.long) return {eager: {run: progress.began, on: true, urgent: true}, moment: null};
     if (elapsed < EAGER.after) return {eager: {run: progress.began, on: false}, moment: null};
     return {eager: {run: progress.began, on: draw({moment: "eager", slow: true}, random)?.name === "eager"}, moment: null};

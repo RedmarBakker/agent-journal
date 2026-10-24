@@ -242,10 +242,8 @@ const handAt = ref({x: 0.75, y: 0.6, out: 1, other: {x: 0.25, y: 0.6}});
 // sight, when its parachute brings it back; and where the run is this frame, which the clip on screen turns by
 let flight = null;
 const flying = ref(null);
-// the figure's eagerness for the bar docked under its feet to end (reactions.js eagerFor), and the run whose anticipation it has played
-// through its hold
+// the figure's eagerness for the bar docked under its feet to end (reactions.js eagerFor)
 let eager = null;
-let anticipated = null;
 // the clip the figure plays while its UFO or crane is here (reactions.js VARIANTS watch), picked for each visit
 let watching = "watch";
 // the clip the held state is played as for this stretch of it (reactions.js variantOf), picked again each time the state changes
@@ -416,8 +414,6 @@ function step() {
     }
     shownClip.value = shown.clip;
     shownFacing.value = shown.facing;
-    // the anticipation of a run's end, once played through its hold, may give way to the run's reaction (reactions.js eagerFor)
-    if (shown.clip.name === "eager" && frameOf(shown) >= shown.clip.intro + shown.clip.leaves) anticipated = eager?.run ?? null;
     const index = frameOf(shown);
     playing.index = index;
     const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
@@ -990,8 +986,10 @@ function look() {
     const docks = groundEdge();
     // held by a sequence, it gets eager for no run's end until the sequence is over
     const sequence = sequenceNow();
-    const eagerness = sequence ? {eager, moment: null} : eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value, anticipated === eager?.run);
+    const eagerness = sequence ? {eager, moment: null} : eagerFor(docks.docked ? progressOf(docks.element) : null, eager, Math.random, now.value);
     eager = eagerness.eager;
+    // the run's end cuts the anticipation on screen there, so its reaction plays at once
+    cutting ||= Boolean(eagerness.cut);
     // listening again after the anticipation, it answers what came meanwhile, then the run's end
     react();
     if (eagerness.moment) react(eagerness.moment);

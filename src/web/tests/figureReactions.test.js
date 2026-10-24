@@ -184,7 +184,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             ...["good", "bad"].map((ended) => {
                 const bar = {};
                 const eager = eagerFor({bar, share: 0.97, ended: "", began: 0}, null, () => 0, EAGER.after + 30).eager;
-                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, EAGER.after * 3, true).moment;
+                return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, EAGER.after * 3).moment;
             }),
         ].map((fire) => fire.beat)
     );
@@ -284,7 +284,7 @@ test("while the figure is eager for a run's end no moment takes it off, and the 
     const held = heardNow(eager, heardNow(eager, [], [tickle]).held, [tickle, {beat: "read_message", card: "messages:5"}]);
     expect(held).toEqual({answer: [], held: [tickle, {beat: "read_message", card: "messages:5"}]});
     expect(heardNow(null, held.held, [{beat: "committed"}]).answer.map((moment) => moment.beat)).toEqual(["tickled", "read_message", "committed"]);
-    const ended = eagerFor({bar: {}, share: 1, ended: "good", began: 100}, eager, () => 0, 200, true);
+    const ended = eagerFor({bar: {}, share: 1, ended: "good", began: 100}, eager, () => 0, 200);
     expect(ended.moment).toEqual({beat: "bar_done"});
     expect(isListening(ended.eager), "the end comes with the eagerness over").toBe(true);
     expect(isListening(null)).toBe(true);

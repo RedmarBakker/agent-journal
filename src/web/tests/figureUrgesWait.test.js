@@ -4,7 +4,7 @@ import {expect, test} from "vitest";
 const {CLIPS} = await import("../src/figure/figure.js");
 const {givesWay} = await import("../src/figure/pile.js");
 const {EAGER, answerTo, eagerFor, headBeat, heardNow, playedFrom, queuedFirst} = await import("../src/figure/reactions.js");
-const {actOver, closeAt, clipFor} = await import("../src/domain/figureState.js");
+const {actOver, clipFor} = await import("../src/domain/figureState.js");
 
 const has = () => true;
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
@@ -62,67 +62,47 @@ test("a telephone call plays to its last frame while a message and a run's end c
     for (const act of acts) expect(act.reached, `${act.clip} played out`).toBe(clipNamed(act.clip).frames);
 });
 
-test("the anticipation of a run's end, once started, plays whole through a user's message and the run failing part way through it, and the look at the message and the fuming come after it", () => {
+test("a run that ends at any moment of its anticipation ends the anticipation there: cut at once for the reaction to the end, never still playing after it", () => {
     const eagerClip = clipNamed("eager");
     const fps = eagerClip.fps;
-    const run = {share: 0.99, began: 0, ended: ""};
-    let eager = eagerFor(run, null, () => 0, EAGER.long + 1).eager;
-    expect(eager).toMatchObject({on: true, urgent: true});
-    let anticipated = null;
-    let beats = [];
-    let started = null;
-    let closing = null;
-    const frames = [];
-    const reacted = [];
-    const memory = {reacted: new Map(), played: []};
-    let held = [];
-    // what the figure answers, as VoiceFigure's react does: nothing while it is eager, what came meanwhile once it listens again
-    const react = (...moments) => {
-        const listened = heardNow(eager, held, moments);
-        held = listened.held;
-        for (const moment of listened.answer) {
-            const answer = answerTo(moment, "butler", memory, EAGER.long + 1 + frame / fps, () => 0, has);
-            reacted.push({beat: moment.beat, answer, at: EAGER.long + 1 + frame / fps});
-            if (answer?.beat) beats = queuedFirst(beats, answer.beat, "");
+    const start = EAGER.long + 1;
+    // a long run three seconds from its end at its pace when the figure looks, past the anticipation's intro's time from it
+    const run = {share: start / (start + 3), began: 0, ended: ""};
+    // the run ends on each frame of the anticipation, from its first, through its intro, its hold played round, and long after
+    for (let end = 0; end <= (eagerClip.intro + 4 * eagerClip.leaves) * 1.5; end++) {
+        let eager = eagerFor(run, null, () => 0, start).eager;
+        expect(eager).toMatchObject({on: true, urgent: true});
+        const memory = {reacted: new Map(), played: []};
+        let held = [];
+        let beats = [];
+        const reacted = [];
+        const shown = [];
+        for (let frame = 0; frame <= end + 2 * fps; frame++) {
+            const now = start + frame / fps;
+            const label = `ended on frame ${end}, frame ${frame}`;
+            const fresh = frame === Math.round(fps / 2) ? [{beat: "read_message", time: now, card: "messages:5"}] : [];
+            const eagerness = eagerFor(frame >= end ? {...run, share: 1, ended: "bad"} : run, eager, () => 0, now);
+            eager = eagerness.eager;
+            // what it answers, as VoiceFigure's react does: nothing while eager, what came meanwhile once it listens again, then the end
+            const listened = heardNow(eager, held, [...fresh, ...(eagerness.moment ? [eagerness.moment] : [])]);
+            held = listened.held;
+            for (const moment of listened.answer) {
+                const answer = answerTo(moment, "butler", memory, now, () => 0, has);
+                reacted.push({beat: moment.beat, frame});
+                if (answer?.beat) beats = queuedFirst(beats, answer.beat, "");
+            }
+            const wanted = clipFor({place: {posture: "stand"}, eager: Boolean(eager?.on), state: "running", doing: "idle", beat: headBeat(beats, null)}, has);
+            // on screen, as VoiceFigure's step has it: the anticipation while it is wanted; cut at the end, the reaction in its place at once
+            const onScreen = shown.at(-1) === "eager" && wanted.clip !== "eager" && !eagerness.cut ? "eager" : wanted.clip;
+            shown.push(onScreen);
+            if (frame < end) expect(onScreen, label).toBe("eager");
+            if (frame === end) expect(eagerness, label).toMatchObject({eager: {on: false}, moment: {beat: "bar_failed"}, cut: true});
+            if (frame >= end) expect(onScreen, label).not.toBe("eager");
         }
-    };
-    let frame = 0;
-    for (; frame < 30 * fps; frame++) {
-        const now = EAGER.long + 1 + frame / fps;
-        // the user's message comes half a second into the anticipation, the run fails a second in, long before its hold has played
-        if (frame === Math.round(fps / 2)) react({beat: "read_message", time: now, card: "messages:5"});
-        // the run fails a second into the anticipation, long before its hold has played
-        const bar = now >= EAGER.long + 2 ? {...run, share: 1, ended: "bad"} : run;
-        const eagerness = eagerFor(bar, eager, () => 0, now, anticipated === eager?.run);
-        eager = eagerness.eager;
-        react();
-        if (eagerness.moment) react(eagerness.moment);
-        const wanted = clipFor({place: {posture: "stand"}, eager: Boolean(eager?.on), state: "running", doing: "idle", beat: headBeat(beats, null)}, has);
-        if (started === null && wanted.clip === "eager") started = now;
-        if (started === null) continue;
-        const index = Math.floor((now - started) * fps);
-        if (index >= eagerClip.intro + eagerClip.leaves) anticipated = eager?.run ?? anticipated;
-        // wanted no more, the anticipation never gives way: it closes through its outro and only then the fume plays
-        if (wanted.clip !== "eager" && closing === null) closing = closeAt(eagerClip, index);
-        expect(givesWay({clip: eagerClip}, index / fps, {urgent: true})).toBe(false);
-        if (closing !== null && index >= closing + eagerClip.outro) {
-            frames.push({clip: wanted.clip, index});
-            break;
-        }
-        frames.push({clip: "eager", index});
+        // the end reacted to on its own frame, the fume at once, and a message that came while it was eager answered with it, never lost
+        expect(reacted.filter((each) => each.beat === "bar_failed")).toEqual([{beat: "bar_failed", frame: end}]);
+        expect(shown[end], `ended on frame ${end}`).toBe("fume");
+        if (end > Math.round(fps / 2)) expect(reacted.map((each) => each.beat), `ended on frame ${end}`).toEqual(["read_message", "bar_failed"]);
     }
-    // still eager after the message and the failure, until its hold had played; then the look at the message, then the fume
-    expect(reacted.map((each) => each.beat)).toEqual(["read_message", "bar_failed"]);
-    expect(reacted[0].answer).toEqual({gaze: {card: "messages:5"}});
-    expect(reacted[1].answer.beat.clip).toBe("fume");
-    for (const each of reacted) expect(each.at - started).toBeGreaterThanOrEqual((eagerClip.intro + eagerClip.leaves) / fps - 0.1);
-    const shown = frames.filter((each) => each.clip === "eager").map((each) => each.index);
-    expect(Math.min(...shown), "from its first frame").toBe(0);
-    expect(Math.max(...shown), "through its hold and its outro").toBeGreaterThanOrEqual(eagerClip.intro + eagerClip.leaves + eagerClip.outro - 1);
-    expect(frames.at(-1).clip, "and then the fume").toBe("fume");
-    // a run that ends before the anticipation ever came on screen holds the figure no longer than EAGER wait
-    const unseen = eagerFor({...run, share: 1, ended: "bad"}, {run: 0, on: true}, () => 0, 500);
-    expect(unseen.moment).toBe(null);
-    expect(eagerFor({...run, share: 1, ended: "bad"}, unseen.eager, () => 0, 500 + EAGER.wait).moment).toEqual({beat: "bar_failed"});
 });
 
