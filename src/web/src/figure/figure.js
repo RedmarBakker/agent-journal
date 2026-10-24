@@ -2379,9 +2379,6 @@ function onPhoneAt(local, base) {
     return local.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), radians(TELEPHONE.tip)).add(base);
 }
 
-// where the telephone stands for a call standing: on the floor before the feet (TELEPHONE at)
-const STANDING_PHONE = new THREE.Vector3(TELEPHONE.at[0], TELEPHONE.at[1], 0);
-
 
 // a point in the telephone's own axes (y up, its front +z) in the figure's (z up, its front -y)
 const fromSet = (point) => new THREE.Vector3(point.x, -point.z, point.y);
@@ -2493,9 +2490,10 @@ function seatedCall(pose, stance, t) {
     const talking = span(u, ...act.talk);
     breathe(pose, 0);
     trunk(pose, {nod: CALL.talkNod * Math.sin(Math.PI * act.nods * talking) ** 2, tilt: SIDES[side] * CALL.tilt * lifted});
-    pose.bendAbove("spine", {y: SIDES[side] * lean * dialling});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, [side]);
+    // the body leans over to the dial after the arms are at rest, carrying the resting arm whole with it
+    pose.bendAbove("spine", {y: SIDES[side] * lean * dialling});
     pose.inUse.add(side);
     const reach = u >= reaching[1] && u < act.hang[1] ? 1 : partOf(u, reaching) * (1 - partOf(u, [act.hang[1], act.goes[0]]));
     const inHand = u >= reaching[1] && u < act.hang[1];
@@ -4539,6 +4537,9 @@ export const TELEPHONE = {
     poof: {puffs: 11, puff: 0.24, from: 0.5, to: 0.95},
     colours: {body: 0xa8322d, face: 0xf1e6cf, wheel: 0x2b2e38, hole: 0xf4f2ed, mark: 0x2b2e38, label: 0xf4f2ed, grille: 0x2b2e38, smoke: 0xe6e3ee},
 };
+
+// where the telephone stands for a call standing: on the floor before the feet (TELEPHONE at)
+const STANDING_PHONE = new THREE.Vector3(TELEPHONE.at[0], TELEPHONE.at[1], 0);
 
 // a part shaded and outlined as the figure's own are (flatMaterial, outlineMaterial), for a prop that should read as solid
 function shadedPart(root, name, geometry, colour, at = [0, 0, 0]) {
