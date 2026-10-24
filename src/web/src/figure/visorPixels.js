@@ -69,7 +69,8 @@ export function litPixels(face) {
     if (!face.eyed) return [];
     const shown = shownPicture(face);
     const eyes = shown ? EYE_SPOTS.flatMap((spot) => placed(shown, spot, face)) : [];
-    const z = face.dozing > 0 ? placed({name: frameFor("z", face.dozing), colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1}, Z_SPOT, face) : [];
+    const zFrame = face.dozing > 0 ? frameFor("z", face.dozing) : null;
+    const z = zFrame ? placed({name: zFrame, colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1}, Z_SPOT, face) : [];
     const whoa = face.whoa ? placed({name: "whoa", colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1}, WHOA_SPOT, face) : [];
     return [...eyes, ...z, ...whoa];
 }
@@ -80,15 +81,17 @@ export const WHOA_SPOT = {column: 16, row: 12, mirrored: false};
 // where the Z of a figure dozing is centred on the grid: high up between the eyes, toward its left
 export const Z_SPOT = {column: 18, row: 3, mirrored: false};
 
-// the picture shown in each eye's place, its colours, how far it reaches up and down from its middle (1 the whole picture), whether it
+// the picture shown in each eye's place, always one that exists: a family of pictures below its first size gives way to the next, its colours, how far it reaches up and down from its middle (1 the whole picture), whether it
 // glances with the eyes, and whether it points one way
 function shownPicture(face) {
     const sign = face.sign?.strength >= 0.25 ? face.sign : null;
     if (sign) return {name: sign.name, colour: sign.colour, light: sign.colour, reach: sign.strength};
-    if (face.hearts > 0) return {name: frameFor("hearts", face.hearts), colour: COLOURS.hearts, light: COLOURS.heartLight, reach: 1};
-    if (face.stars > 0) return {name: frameFor("stars", face.stars), colour: COLOURS.stars, light: COLOURS.starLight, reach: 1};
+    const heart = face.hearts > 0 ? frameFor("hearts", face.hearts) : null;
+    if (heart) return {name: heart, colour: COLOURS.hearts, light: COLOURS.heartLight, reach: 1};
+    const star = face.stars > 0 ? frameFor("stars", face.stars) : null;
+    if (star) return {name: star, colour: COLOURS.stars, light: COLOURS.starLight, reach: 1};
     if (face.squeezed > 0) return {name: "squeezed", colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1, points: true};
-    const open = face.eyes * (1 - (face.sign?.strength ?? 0));
+    const open = Math.max(0, face.eyes * (1 - (face.sign?.strength ?? 0)));
     const colour = face.tint ?? COLOURS.eyes;
     return {name: frameFor("eyes", open), colour, light: colour, reach: 1, glances: true};
 }

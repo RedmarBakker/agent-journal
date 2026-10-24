@@ -122,3 +122,10 @@ test("every change of the eyes steps through the frames of the grid: a blink clo
     expect(rows(0.3)).toBeLessThan(rows(0.7));
     expect(rows(0.7)).toBeLessThan(rows(1));
 });
+
+test("a face between nothing and the first size of a picture family, or with its eyes a little under shut, draws without a throw", () => {
+    for (const changes of [{hearts: 0.01}, {stars: 0.01}, {eyes: -0.2}, {dozing: 0.01}, {hearts: 0.01, stars: 0.01, eyes: -1, dozing: 0.01}])
+        expect(() => litPixels(face(changes))).not.toThrow();
+    expect(names(litPixels(face({hearts: 0.01})))).toEqual(names(litPixels(face())), "a heart too small to show leaves the eyes as they are");
+    expect(litPixels(face({dozing: 0.01}))).toEqual(litPixels(face()), "a Z too small to show adds nothing");
+});
