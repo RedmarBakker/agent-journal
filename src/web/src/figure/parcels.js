@@ -86,14 +86,14 @@ export const unitGranted = (memory, now, random) => draw({moment: "unit", memory
 // how long a run goes on before the figure builds for it, in seconds, so a run of a few seconds builds nothing and starts no wait
 export const BUILD = {after: 5};
 
-// the running chat marks among `cards` that are test runs, whatever the language or tool: a process or watch card still active whose title
-// holds the word test, in any case
-export const testRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && new ChatMark(card).isTest());
+// the running chat marks among `cards` that build something, whatever the language or tool, as the server guessed from the command: a
+// process or watch card still active; a test run builds nothing
+export const buildRuns = (cards) => cards.filter((card) => card.active && (card.process || card.watch) && new ChatMark(card).isBuild());
 
-// The run the figure builds for at `now`, in seconds, its card and when it began: the oldest running test mark among `cards`, else `shell`,
-// a shell command read as a test run or a build; null with none, or while it has gone on less than BUILD.after
+// The run the figure builds for at `now`, in seconds, its card and when it began: the oldest running build among `cards`, else `shell`,
+// a shell command read as a build; null with none, or while it has gone on less than BUILD.after
 export function buildRunAt(cards, shell, now) {
-    const mark = testRuns(cards).sort((one, other) => Number(one.time) - Number(other.time))[0];
+    const mark = buildRuns(cards).sort((one, other) => Number(one.time) - Number(other.time))[0];
     const run = mark ? {card: mark.key, since: Number(mark.time)} : shell;
     return run && now - run.since >= BUILD.after ? run : null;
 }

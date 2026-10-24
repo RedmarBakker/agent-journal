@@ -13,7 +13,7 @@ export const HELD = {
     searching: "search",
     reading: "read",
     writing: "type",
-    testing: "work",
+    testing: "idle",
     building: "work",
     running: "idle",
     waiting: "waiting",

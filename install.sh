@@ -69,6 +69,12 @@ else
   git clone --quiet --depth 1 --branch "$REF" "$REPO" "$TMP/pkg"
   SRC="$TMP/pkg/src"
 fi
+# Run from a linked worktree whose .journal links to the project's, the install goes to the project itself, so the hooks and
+# the journal command name the project's root and never the worktree's.
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+if [ -L .journal ] && [ -n "$common" ] && [ "$common" != "$(git rev-parse --path-format=absolute --git-dir 2>/dev/null)" ]; then
+  cd "$(dirname "$common")"
+fi
 # A journal from before version 4 is moved whole into .journal/version-3 before anything is written, and is never changed after;
 # should the install fail before the new journal is up, it is put back where it was.
 BACKED=""

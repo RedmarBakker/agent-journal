@@ -59,9 +59,9 @@ test("the figure does what the tool in flight says the agent does, and thinks be
     for (const work of ["running", "reading"]) expect(stateAt({running: true, tool: "Bash", tool_work: work}), work).toBe("running");
 });
 
-test("the figure builds a parcel only for a test run or a build, types at its laptop for an edit, and plays neither for any other command", () => {
+test("the figure builds a parcel only for a build, types at its laptop for an edit, and stands free during a test run or any other command", () => {
     const clip = (fields) => clipOf(stateAt({running: true, ...fields}));
-    expect(clip({tool: "Bash", tool_work: "testing"})).toBe("work");
+    expect(clip({tool: "Bash", tool_work: "testing"})).toBe("idle");
     expect(clip({tool: "Bash", tool_work: "building"})).toBe("work");
     for (const tool of ["Edit", "MultiEdit", "Write", "NotebookEdit"]) expect(clip({tool}), tool).toBe("type");
     for (const work of ["running", "reading", "searching"]) {

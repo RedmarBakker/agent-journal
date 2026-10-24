@@ -35,8 +35,8 @@ test("while its agent works the figure draws no shenanigan, nor during a run who
     expect(perchOn(floors, FIGURE, HANDS, () => 0, {free: true}).kind).toBe("hang");
 });
 
-test("while its agent works the figure works: the laptop while it edits, the state's own act while it searches, reads or builds, and the laptop kept a spell after an edit", () => {
-    expect(["writing", "searching", "reading", "testing", "building"].map(clipOf)).toEqual(["type", "search", "read", "work", "work"]);
+test("while its agent works the figure works: the laptop while it edits, the state's own act while it searches, reads or builds, free during a test run, and the laptop kept a spell after an edit", () => {
+    expect(["writing", "searching", "reading", "testing", "building"].map(clipOf)).toEqual(["type", "search", "read", "idle", "work"]);
     const spell = spellFor("writing", null, 0, () => 0);
     expect(clipOf(spellIn({state: "thinking", since: 1}, spell, 5).state)).toBe("type");
 });
