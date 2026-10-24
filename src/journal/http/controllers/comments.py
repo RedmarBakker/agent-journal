@@ -15,7 +15,7 @@ COMMENTED = ("tasks", "plans", "docs", "reports", "facts", "rules", "reminders",
 
 
 class CommentController(Controller[Message]):
-    """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does."""
+    """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does. Their list is the messages alone; one read by id names the row it is under."""
 
     is_timeline = True
 
@@ -23,8 +23,7 @@ class CommentController(Controller[Message]):
         self.repository, self.links, self.references = messages, links, rows
 
     def rows(self) -> list[Message]:
-        enabled = self.repository.table_links(Messages.COMMENT_LINK)
-        return self.repository.comments(tuple(enabled)) if enabled else []
+        return self.repository.comments()
 
     def shown_page(self, rows: list[Message]) -> list[dict]:
         enabled = self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows])

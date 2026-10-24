@@ -5,7 +5,7 @@ from journal.repositories.collections import Collections
 
 
 class CollectionController(Controller[Collection]):
-    """The collections here, each with the rows it holds; the viewer makes one, renames it, or says what belongs in it."""
+    """The collections here, one read by id with the rows it holds; the viewer makes one, renames it, or says what belongs in it."""
 
     repository: Collections
 

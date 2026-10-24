@@ -8,7 +8,7 @@ from journal.models.dump import Dump
 from journal.repositories.dumps import Dumps
 
 class DumpController(Controller[Dump]):
-    """What the viewer does to a dump: drop one, add files to it, answer its question, pick or decline its next steps, name it, stop, split or remove it; each with the rows it was filed into."""
+    """What the viewer does to a dump: drop one, add files to it, answer its question, pick or decline its next steps, name it, stop, split or remove it; one read by id with the rows it was filed into."""
 
     repository: Dumps
 

@@ -163,8 +163,10 @@ class Messages(ScopedRepository[Message]):
     def voice_matches(self, text: str, last: int) -> list[Message]:
         return [message for message in self.recent_voice(last) if message.text == text]
 
-    def comments(self, ids: tuple[int, ...]) -> list[Message]:
-        return [message for message in self.numbered(ids) if message.author == Author.USER or message.reply_target]
+    def comments(self) -> list[Message]:
+        commenting = self.link_query.filter(kind=self.COMMENT_LINK).filter_ref("source", self.query())
+        written = self.query().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present("reply_target"))
+        return self.selected(written.filter_existing(commenting).order("id"))
 
     def recent_voice(self, last: int) -> list[Message]:
         return list(reversed(self.selected(self.main_voice().order_descending("id").limit(last))))

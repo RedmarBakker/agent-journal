@@ -28,6 +28,9 @@ class EnvironmentController(Controller[Environment]):
     def rows(self) -> list[Environment]:
         return self.repository.all()
 
+    def index_page(self, rows: list[Environment]) -> list[dict]:
+        return self.shown_page(rows)
+
     def shown_page(self, rows: list[Environment]) -> list[dict]:
         return [{**ModelFields.build(row), "worktree": next(iter(Worktree(self.config.root, row.name).badges()), "")} for row in rows]
 

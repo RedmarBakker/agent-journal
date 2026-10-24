@@ -29,4 +29,4 @@ class Scope:
         return ScopeBinding(lambda: environment_id)
 
     def requested(self, name: Callable[[], str]) -> ScopeBinding:
-        return ScopeBinding(cache(lambda: self.environments.existing(name()).row_id))
+        return ScopeBinding(cache(lambda: self.environments.entered(name())))

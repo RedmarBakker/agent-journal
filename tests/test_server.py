@@ -62,6 +62,12 @@ def call(server, method: str, path: str, body: dict | None = None, environment: 
         return error.code, json.loads(error.read())
 
 
+def whole_rows(server, table: str) -> list[dict]:
+    """A list's rows read again by id, as the viewer reads a row whole with its relationships."""
+    ids = ",".join(str(row["id"]) for row in call(server, "GET", f"/journal/{table}")[1]["rows"])
+    return call(server, "GET", f"/journal/{table}?ids={ids}")[1]["rows"] if ids else []
+
+
 def test_tasks_live_over_http(server):
     status, task = call(server, "POST", "/journal/tasks", {"title": "ship it", "brief": "b"})
     assert status == 201 and task["id"] == 1 and task["creator"] == "user:1"
@@ -93,7 +99,7 @@ def test_the_viewer_pauses_blocks_and_unblocks_a_task_and_its_row_names_what_it_
     assert call(server, "POST", "/journal/tasks/2/block", {})[0] == 409, "a block names what it waits on"
     blocked = call(server, "POST", "/journal/tasks/2/block", {"on": ["task:3"]})[1]
     assert blocked["state"] == "blocked" and blocked["waits"] == ["tasks:3"]
-    assert [t["waits"] for t in call(server, "GET", "/journal/tasks")[1]["rows"]] == [[], ["tasks:3"], []]
+    assert [t["waits"] for t in whole_rows(server, "tasks")] == [[], ["tasks:3"], []]
     reason = call(server, "POST", "/journal/tasks/3/block", {"why": "the release is not out"})[1]
     assert reason["block_reason"] == "the release is not out" and reason["waits"] == []
     opened = call(server, "POST", "/journal/tasks/3/unblock")[1]
@@ -261,7 +267,7 @@ def test_the_viewer_sees_reactions_and_subagent_marks(tmp_path: Path):
         assert status == 201
         n = message["id"]
         call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
-        assert [(r["emoji"], r["message_id"]) for r in call(server, "GET", "/journal/reactions")[1]["rows"]] == [("👍", n)]
+        assert [(r["emoji"], r["message_id"]) for r in whole_rows(server, "reactions")] == [("👍", n)]
         call(server, "POST", f"/journal/messages/{n}/react", {"emoji": "👍"})
         assert call(server, "GET", "/journal/reactions")[1]["rows"] == [], "the same face again takes it off"
         hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
@@ -431,7 +437,7 @@ def test_an_agents_tool_work_says_a_test_run_or_a_build_by_the_shell_part_in_han
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(kind, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-    work = lambda: call(server, "GET", "/journal/agents")[1]["rows"][0]["tool_work"]
+    work = lambda: whole_rows(server, "agents")[0]["tool_work"]
     try:
         hook("SessionStart")
         for n, (command, said) in enumerate([("pytest -q", "testing"), ("npm --prefix src/web run build", "building"), ("git log -1", "reading"), ("python3 tools/seed.py", "running"), ("git log -1 && pytest -q", "running")]):
@@ -456,7 +462,7 @@ def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: 
     hooks = f"http://127.0.0.1:{server.port}/hooks/claude"
     def hook(kind, **extra):
         urlopen(HttpRequest(hooks, data=json.dumps({"hook_event_name": kind, "session_id": "s1", **extra}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read()
-    doing = lambda: call(server, "GET", "/journal/agents")[1]["rows"][0]["doing"]
+    doing = lambda: whole_rows(server, "agents")[0]["doing"]
     shell = {"command": "ls src && git status"}
     try:
         hook("SessionStart")
@@ -475,7 +481,7 @@ def test_an_agents_doing_is_the_part_of_a_chained_command_running_now(tmp_path: 
         hook("PreToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_use_id="t-3")
         ShellVerbs(app).started("pytest -q", "c2")
         hook("PostToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_response={"stdout": "moved to the background"}, tool_use_id="t-3")
-        row = call(server, "GET", "/journal/agents")[1]["rows"][0]
+        row = whole_rows(server, "agents")[0]
         assert row["doing"] == "pytest -q" and row["tool_running"], "a command moved to the background is what the agent is doing until its part ends"
     finally:
         app.runtime().stop()
@@ -658,7 +664,7 @@ def test_the_status_line_knows_what_the_agent_waits_for(tmp_path: Path):
         blocked = call(server, "GET", "/journal/summary")[1]["environments"][0]["task"]
         assert blocked == {"id": 1, "title": "the footer", "wait_text": ""}
         app.console().run(["stuck", "stuck on the login"], Caller.agent("main", "s1", "claude"))
-        agent = call(server, "GET", "/journal/agents")[1]["rows"][0]
+        agent = whole_rows(server, "agents")[0]
         assert agent["awaiting"] == "stuck on the login" and agent["awaiting_since"]
         assert call(server, "GET", "/journal/summary")[1]["environments"][0]["task"]["wait_text"] == "stuck on the login"
     finally:
@@ -848,7 +854,7 @@ def test_a_comment_written_under_a_task_in_the_viewer_is_the_users_message_linke
     call(server, "POST", "/journal/tasks", {"title": "the footer"})
     status, produced = call(server, "POST", "/journal/comments", {"on": "tasks:1", "text": "please also check the header"})
     assert status == 201 and produced["on"] == ["tasks:1"] and produced["text"] == "please also check the header"
-    assert [(r["on"], r["author"]) for r in call(server, "GET", "/journal/comments")[1]["rows"]] == [(["tasks:1"], "user")]
+    assert [(r["on"], r["author"]) for r in whole_rows(server, "comments")] == [(["tasks:1"], "user")]
     messages = call(server, "GET", "/journal/messages")[1]["rows"]
     assert messages[-1]["text"] == "please also check the header" and messages[-1]["comments_on"] == ["tasks:1"]
     assert call(server, "POST", "/journal/comments", {"on": "nothing:1", "text": "x"})[0] == 409, "a comment is only written under a row that is there"
@@ -1144,7 +1150,7 @@ def test_a_share_link_opens_its_document_through_the_share_server_and_nothing_el
     token = produced["token"]
     assert re.fullmatch(rf"https://[a-z0-9-]+-[0-9a-f]{{24}}\.tunler\.example/s/{token}", produced["link"]), "the link is the journal's own address on the tunler server"
     assert produced["opens"] == ["Launch notes (docs:1)"]
-    assert [s["target"] for s in call(server, "GET", "/journal/shares")[1]["rows"]] == ["docs:1"]
+    assert [s["target"] for s in whole_rows(server, "shares")] == ["docs:1"]
     assert visit(share_server, "/health")[1] == b"journal-share-server"
     assert visit(share_server, f"/s/{token}")[2]["Location"] == f"/s/{token}/"
     status, page, headers = visit(share_server, f"/s/{token}/")
@@ -1452,7 +1458,7 @@ def test_a_reply_in_the_column_hangs_under_its_comment_and_a_reply_in_the_chat_i
         assert status == 201 and reply["reply_target"] == comment["id"] and reply["on"] == ["tasks:1"], "a reply written in the column hangs under its comment, on the same row"
         app.console().run(["message", "send", "Yes, both are fixed.", "--reply-to", str(comment["id"])], Caller.agent("main", "s1", "claude"))
         app.runtime().deferred.drain()
-        rows = call(server, "GET", "/journal/comments")[1]["rows"]
+        rows = whole_rows(server, "comments")
         assert [(r["author"], r["reply_target"], r["on"]) for r in rows] == [("user", None, ["tasks:1"]), ("user", comment["id"], ["tasks:1"])], "the agent's reply in the chat is a plain reply, linked to the comment it answers and to no row"
         answered = call(server, "POST", "/journal/messages", {"text": "Good, then the menu next.", "reply_target": comment["id"]})[1]
         assert answered["reply_target"] == comment["id"] and answered["comments_on"] == [] and not answered["text"].startswith(">"), "a word typed in the chat is a chat message whatever it replies to: no comment on the row, no passage carried over"

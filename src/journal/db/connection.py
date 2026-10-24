@@ -1,21 +1,26 @@
+import re
 import sqlite3
 import threading
 import time
 import weakref
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import Callable, Iterator
 
 from journal.db.empty_result import EmptyResult
+from journal.db.relation_read import RelationRead
 from journal.db.row_cache import RowCache
 from journal.support.masks import Masks
 from journal.support.large_reads import LargeReads
 from journal.support.query_times import QueryTimes
 from journal.support.stage_times import StageTimes
 
+# the table a read takes its rows from, the first one the query builder's text names
+READ_TABLE = re.compile(r"^SELECT\b.*?\bFROM\s+(\w+)", re.DOTALL)
+
 
 class Connection:
-    """The one place SQL is executed, a secret value masked out of every text it writes. Each thread reads on a sqlite connection leased from a pool, returned with release() or, by any thread that never says so, once the thread is gone, so no thread that ends leaves one open; writes take the one lock, so the threaded server never contends. Reads of rows may be answered from the row cache, which every write and every commit of a table moves on, and a rolled-back transaction clears."""
+    """The one place SQL is executed, a secret value masked out of every text it writes. Each thread reads on a sqlite connection leased from a pool, returned with release() or, by any thread that never says so, once the thread is gone, so no thread that ends leaves one open; writes take the one lock, so the threaded server never contends. Reads of rows may be answered from the row cache, which every write and every commit of a table moves on, and a rolled-back transaction clears. While a thread lists one table, a read of another table's rows raises, save one made unlisted: a count, or the environment a request names."""
 
     def __init__(self, path: Path, masks: Masks, stages: StageTimes, queries: QueryTimes, large_reads: LargeReads) -> None:
         self.path, self.masks, self.stages, self.queries, self.large_reads = path, masks, stages, queries, large_reads
@@ -54,6 +59,7 @@ class Connection:
         return self.timed(sql, params, lambda cursor: cursor.fetchall())
 
     def timed(self, sql: str, params: tuple, cursor_reader: Callable[[sqlite3.Cursor], object]):
+        self._guarded(sql)
         began = time.perf_counter()
         try:
             return cursor_reader(self._local().execute(sql, self.masks.masked(params)))
@@ -71,6 +77,7 @@ class Connection:
         return [row["detail"] for row in self._local().execute(f"EXPLAIN QUERY PLAN {sql}", self.masks.masked(params)).fetchall()]
 
     def cached(self, tables: tuple[str, ...], sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
+        self._guarded(sql)
         if self.is_written_here(tables):
             return self.loaded_rows(tables[0], sql, params, reader)
         return self.cache.rows(tables, (sql, params), lambda: self.loaded_rows(tables[0], sql, params, reader))
@@ -81,6 +88,24 @@ class Connection:
     def loaded_rows(self, table: str, sql: str, params: tuple, reader: Callable[[list[sqlite3.Row]], list]) -> list:
         with self.stages.timed(f"read {table}"):
             return reader(self.all(sql, params))
+
+    @contextmanager
+    def listing(self, table: str) -> Iterator[None]:
+        listed = getattr(self._threads, "listed", "")
+        self._threads.listed = table
+        try:
+            yield
+        finally:
+            self._threads.listed = listed
+
+    def unlisted(self) -> AbstractContextManager[None]:
+        return self.listing("")
+
+    def _guarded(self, sql: str) -> None:
+        listed = getattr(self._threads, "listed", "")
+        read = READ_TABLE.match(sql) if listed else None
+        if read and read.group(1) != listed:
+            raise RelationRead(listed, read.group(1))
 
     def changed(self, table: str) -> None:
         self.cache.changed(table)

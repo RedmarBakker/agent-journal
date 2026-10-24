@@ -22,6 +22,9 @@ class PluginController(Controller[Plugin]):
         self.repository, self.installing, self.settings, self.folders, self.record, self.dashboards = plugins, installing, settings, folders, record, dashboards
         self.scope, self.environments, self.aliases = scope, environments, aliases
 
+    def index_page(self, rows: list[Plugin]) -> list[dict]:
+        return self.shown_page(rows)
+
     def shown_page(self, rows: list[Plugin]) -> list[dict]:
         return [{**ModelFields.build(p), "status": self.status(p), "schema": self.settings.schema(p)} for p in rows]
 

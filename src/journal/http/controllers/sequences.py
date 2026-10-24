@@ -12,7 +12,7 @@ TRIGGER = "trigger:"
 
 
 class SequenceController(Controller[Sequence]):
-    """Sequences with the trigger that starts each, if one does; what starts one and its steps are set from here."""
+    """Sequences, one read by id with the trigger that starts it, if one does; what starts one and its steps are set from here."""
 
     def __init__(self, sequences: Sequences, triggers: Triggers) -> None:
         self.repository, self.triggers = sequences, triggers

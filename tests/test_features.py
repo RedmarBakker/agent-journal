@@ -104,16 +104,18 @@ def made(output) -> int:
     return int(output.text.split()[1].rstrip(":"))
 
 
-
-
-
-
 # a plugin's hold window wide enough for its program to start while the suite's other shards load the machine
 PARALLEL_HOLD_WINDOW_MS = 3000
 
 
 def hook(app, kind: str, **body):
     return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main"})
+
+
+def agent_rows(app) -> list[dict]:
+    """The agents' rows read whole, by id, as the viewer reads one with its activity; their list carries their own fields alone."""
+    ids = ",".join(str(row["id"]) for row in got(app, "/journal/agents", {"X-Journal-Env": "main"})[1]["rows"])
+    return got(app, f"/journal/agents?ids={ids}", {"X-Journal-Env": "main"})[1]["rows"] if ids else []
 
 
 def context(app, percent: int):
@@ -2745,7 +2747,7 @@ def test_each_thought_is_a_message_the_latest_stands_in_the_working_bubble_and_a
     console.run(["message", "read", "1"], AGENT)
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     app.runtime().deferred.drain()
-    agent = json.load(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents?env=main"), timeout=5))["rows"][-1]
+    agent = agent_rows(app)[-1]
     assert agent["thinking"] == "Now the next step."
     reply = app.container.get(Messages).all()[-1]
     assert reply.reply_target == 1 and reply.text == "Yes, hello." and app.container.get(Messages).unanswered() == []
@@ -2756,7 +2758,7 @@ def test_each_thought_is_a_message_the_latest_stands_in_the_working_bubble_and_a
     assert all(m.creator.id == "s1" for m in thoughts)
     hook(app, "MessageDisplay", message="Done.")
     app.runtime().deferred.drain()
-    assert json.load(urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents?env=main"), timeout=5))["rows"][-1]["thinking"] == ""
+    assert agent_rows(app)[-1]["thinking"] == ""
     assert "no journal is running" in console.run(["setup", "restart"], USER).text
 
 
@@ -3042,7 +3044,7 @@ def test_the_sequence_page_shows_and_sets_what_starts_a_sequence(app: App):
     triggers = app.container.get(Triggers)
     update = next(s for s in app.container.get(Sequences).all() if s.title == "Writing an update")
     started_by = triggers.starting("Writing an update")[0]
-    assert next(r for r in api("GET", "sequences")[1]["rows"] if r["id"] == update.id)["trigger_ids"] == [started_by.id], "the page is told the update starts on its words"
+    assert api("GET", f"sequences?ids={update.id}")[1]["rows"][0]["trigger_ids"] == [started_by.id], "the page is told the update starts on its words"
     assert "tldr" in started_by.phrases and "check agents.md" in triggers.starting("Checking the instruction files")[0].phrases, "version 3's worded sequences start on their words"
     api("POST", f"sequences/{update.id}/starts", {"trigger_event": ""})
     assert triggers.starting("Writing an update") == [], "by hand, the trigger no longer starts it"
@@ -4957,8 +4959,7 @@ def test_an_agents_wait_is_on_its_own_row_with_or_without_a_task(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["await", "the suite", "--until", "false"], AGENT)
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-        row = json.loads(reply.read())["rows"][0]
+    row = agent_rows(app)[0]
     assert row["awaiting"] == "the suite" and row["awaiting_since"], "the bar reads a wait from the agent's row, which changes when its state does"
 
 
@@ -5769,7 +5770,7 @@ def test_the_tasks_list_and_its_open_count_leave_out_a_plans_tasks(app: App):
     console.run(["plan", "create", "p", "--brief", "b"], USER)
     console.run(["plan", "add", "1", "planned"], USER)
     assert app.container.get(Tasks).unfinished_count() == 1, "the plan's task is counted on its plan"
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks?ids=1,2", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
         rows = {row["title"]: row["plan_id"] for row in json.loads(reply.read())["rows"]}
     assert rows == {"loose": None, "planned": 1}, "each task names the plan it is in, so the Tasks list leaves it to its plan"
 
@@ -5923,7 +5924,7 @@ def test_a_task_a_worker_holds_is_left_to_it_by_the_plan_and_shown_as_held(app: 
     console.run(["worker", "dispatch", "Lady Lovelace", "do the delegated one", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", "1"], AGENT)
     plans = app.container.get(Plans)
     assert plans.next_task(plans.find(1)).title == "mine", "the plan leaves a task a worker is out on to it"
-    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+    with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/tasks?ids=1,2", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
         assigned = {row["title"]: row["worker_id"] for row in json.loads(reply.read())["rows"]}
     assert assigned == {"delegated": 1, "mine": None}, "the viewer sees which worker holds which task"
     console.run(["task", "create", "loose and delegated", "--brief", "the loose one is done"], AGENT)
@@ -6691,7 +6692,6 @@ def test_a_read_that_asks_a_server_outside_is_not_judged_against_the_budget(app:
     inquiry("/journal/far")
     inquiry("/journal/near")
     assert measured == ["/journal/near"], "the tunnel's answer waits on the network, so only the journal's own reads are held to a budget"
-
 
 
 def test_commands_that_end_together_are_named_in_one_line(app: App, monkeypatch):
@@ -8109,8 +8109,8 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
     assert "only an open task" in console.run(["worker", "queue", "1", "2"], AGENT).error, "a task already delegated waits in no second queue"
-    status, page = got(app, "/journal/workers", {"X-Journal-Env": "main"})
-    [shown] = [row for row in page["rows"] if row["id"] == 1]
+    status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
+    [shown] = page["rows"]
     assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
     babbage = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "notes.md:1, written"], babbage)
@@ -9606,7 +9606,6 @@ def test_the_viewers_plugin_install_names_the_aliases_it_skipped(app: App, tmp_p
     (folder / "run.py").write_text("")
     installed = viewer(app, "plugins", {"source": str(folder)})
     assert installed["name"] == "judging" and installed["skipped_aliases"] == ["task"]
-
 
 
 def git_run(cwd: Path, *argv: str):
@@ -11976,9 +11975,7 @@ def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app
 
 def test_a_job_the_agent_schedules_is_listed_on_its_row_until_it_cancels_it(app: App):
     def jobs():
-        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/agents", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
-            rows = json.loads(reply.read())["rows"]
-        return [job for row in rows if row["session"] == "s1" for job in row["jobs"]]
+        return [job for row in agent_rows(app) if row["session"] == "s1" for job in row["jobs"]]
 
     hook(app, "SessionStart")
     created = {"cron": "7,22,37,52 * * * *", "prompt": "Journal health check, every 15 minutes\nrun the script", "recurring": True}
@@ -12006,7 +12003,7 @@ def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_t
             return error.code, json.loads(error.read())
 
     def jobs():
-        return [job["id"] for row in api("GET", "agents")[1]["rows"] if row["session"] == "s1" for job in row["jobs"]]
+        return [job["id"] for row in agent_rows(app) if row["session"] == "s1" for job in row["jobs"]]
 
     hook(app, "SessionStart")
     created = {"cron": "7,22,37,52 * * * *", "prompt": "Journal health check", "recurring": True}
@@ -12058,7 +12055,7 @@ def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_i
     def read(path: str):
         with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
             return json.loads(reply.read())
-    row = next(w for w in read("workers")["rows"] if w["id"] == worker.id)
+    [row] = read(f"workers?ids={worker.id}")["rows"]
     assert row["agent"] == agent.id and row["session"] == "w-1", "a worker's row names the agent row that runs it"
     assert [m["text"] for m in read("chats/w-1")["rows"]] == ["Reading the lexer.", "mind the tests"], "the worker's own chat is read by its session"
     assert "Reading the lexer." not in [m["text"] for m in read("messages")["rows"]], "and never reaches the main chat"
@@ -12299,7 +12296,6 @@ def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_o
         each.join()
     with scope.environment(MAIN):
         assert len(app.container.get(Messages).keyed("watch:77", Actor.system())) == 1, "shows of one output at once leave one mark"
-
 
 
 def test_filling_an_environment_reports_how_far_it_has_come(app: App, tmp_path, monkeypatch):
@@ -12860,7 +12856,6 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     server.shutdown()
 
 
-
 def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
     from journal.features.shell.support.readers import Readers
     console, readers = app.console(), app.container.get(Readers)
@@ -12918,7 +12913,6 @@ def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll
     server.shutdown()
 
 
-
 def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_names(app: App):
     """Each corpus line's reading names the reader that should read its output, of the fixed set in shell_corpus_reading/readers.json; the lines where the journal chooses otherwise are frozen in disagreements.json, so a fix shrinks the list and a new miss fails; CORPUS_FREEZE=1 writes the list anew after review."""
     from journal.features.shell.support.readers import Readers
@@ -12954,7 +12948,6 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
     assert status({}) == 403 and status({"X-Journal-Sync-Secret": "0" * 64}) == 403, "no secret, or a wrong one, is refused"
     assert status({"X-Journal-Sync-Secret": secret, "X-Forwarded-For": "203.0.113.9"}) == 403, "a request passed on by a proxy is refused even with the secret"
     assert status({"X-Journal-Sync-Secret": secret}) == 200
-
 
 
 def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refused_install_resumes_sync(app: App, monkeypatch):
@@ -13199,7 +13192,6 @@ def test_the_carrier_and_the_server_agree_on_the_version_of_the_sync_desks_doors
         old.shutdown()
 
 
-
 def test_a_journal_no_supervisor_hosts_syncs_through_the_carrier_in_its_own_threads(app: App):
     import time as clock
     from journal.repositories.outgoing_changes import OutgoingChanges
@@ -13248,7 +13240,6 @@ def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_
         whole = app.container.get(WorkerController).listed(Listing(ids=(long.row_id,)))["rows"][0]
     assert "report" not in previewed, "a list carries no report"
     assert "report" in whole, "a worker read by its id comes with its report"
-
 
 
 def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many_are_open():
@@ -13358,3 +13349,66 @@ def test_a_pending_mcp_restart_waits_for_the_subagents_and_workers_to_end_and_th
     app.runtime().deferred.drain()
     app.container.get(PendingRestartClaim).restarted("s1")
     assert [(t["verb"], t["name"], t["resume"]) for t in transmitted] == [("restart", "agent", ["--resume", "s1"])] and pending.sessions() == [], "the next tick that finds it idle restarts it once"
+
+
+def test_every_tables_index_lists_its_own_rows_and_reads_no_relationship(app: App):
+    from journal.http.controllers.controller import Controller
+    from journal.http.router import Router
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    console, main = app.console(), {"X-Journal-Env": "main"}
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "planned"], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
+    dispatched(console, ["Lady Lovelace", "write the parser", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "fast"], AGENT)
+    console.run(["message", "send", "the footer is broken"], USER)
+    posted(app, f"/journal/messages/{app.container.get(Messages).all()[-1].id}/react", {"emoji": "👍"}, main)
+    posted(app, "/journal/comments", {"on": "tasks:1", "text": "and the header"}, main)
+    posted(app, "/journal/docs", {"title": "Notes", "body": "text"}, main)
+    routes = app.container.get(Router).routes
+    indexes = sorted(route.pattern for route in routes if route.method == "GET" and getattr(route.handler, "__name__", "") == "index" and isinstance(getattr(route.handler, "__self__", None), Controller))
+    assert {"/journal/tasks", "/journal/plans", "/journal/workers", "/journal/agents", "/journal/docs", "/journal/comments", "/journal/reactions", "/journal/shares"} <= set(indexes), indexes
+    listed = {path: got(app, path, main) for path in indexes}
+    assert all(status == 200 for status, _ in listed.values()), {path: body for path, (status, body) in listed.items() if status != 200}
+    assert all(listed[f"/journal/{table}"][1]["rows"] for table in ("tasks", "plans", "workers", "agents", "docs", "comments", "reactions")), "each index listed its rows, and no read of a relationship raised"
+    worker, task = listed["/journal/workers"][1]["rows"][0], listed["/journal/tasks"][1]["rows"][0]
+    assert not {"task", "queue", "earlier_task", "agent", "report"} & set(worker) and not {"plan_id", "worker_id", "held_by", "waits", "work"} & set(task), "a list carries its rows' own fields"
+    assert "body" not in listed["/journal/docs"][1]["rows"][0] and "links" not in listed["/journal/docs"][1]["rows"][0] and "on" not in listed["/journal/comments"][1]["rows"][0]
+
+
+def test_a_probe_index_that_reads_links_throws_while_a_count_and_a_read_by_id_go_through(app: App):
+    from journal.db.relation_read import RelationRead
+    from journal.http.controllers.controller import Controller
+    from journal.http.listing import Listing
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.plans import PLAN_LINK, Plans
+    from journal.repositories.tasks import Tasks
+    console = app.console()
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "planned"], USER)
+    tasks, plans = app.container.get(Tasks), app.container.get(Plans)
+
+    class LinkReadingIndex(Controller[Task]):
+        def __init__(self, repository: Tasks) -> None:
+            self.repository = repository
+
+        def index_page(self, rows: list[Task]) -> list:
+            return self.shown_page(rows)
+
+        def shown_page(self, rows: list[Task]) -> list:
+            return [self.repository.linked(PLAN_LINK, [task.row_id for task in rows])]
+
+    probe = LinkReadingIndex(tasks)
+    with app.container.get(Scope).environment(MAIN):
+        with pytest.raises(RelationRead) as raised:
+            probe.listed(Listing())
+        assert (raised.value.listed, raised.value.table) == ("tasks", "links"), "an index that reads the links table throws, naming both tables"
+        assert probe.listed(Listing(ids=(1,)))["rows"] == [{1: [Ref("plans", 1)]}], "the same read for rows asked for by id goes through"
+        plan = plans.find(1)
+        with tasks.listing():
+            with pytest.raises(RelationRead):
+                plans.find(1)
+            assert tasks.unfinished_count() == 0 and plans.task_counts([plan]) == {1: 1}, "a counting query goes through, though it reads the links table"
+        assert plans.find(1) == plan, "once the list is built, every table is read again"

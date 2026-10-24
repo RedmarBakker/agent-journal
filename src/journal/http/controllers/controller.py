@@ -1,5 +1,5 @@
 from dataclasses import fields
-from typing import Generic, TypeVar
+from typing import Callable, Generic, TypeVar
 
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
@@ -13,7 +13,7 @@ S = TypeVar("S", bound=Model)
 
 
 class Controller(Generic[S]):
-    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. A resource whose rows close says which are open; one that shows more than its fields says what in shown."""
+    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. A resource whose rows close says which are open; one that shows more than its fields says what in shown_page. Its list, unless asked for by id, is its own rows alone, with what index_page adds of each row's own, and reads no relationship of them."""
 
     repository: Repository[S]
     is_timeline = False
@@ -22,13 +22,18 @@ class Controller(Generic[S]):
         return Response.json(self.listed(Listing.query_listing(request.query)))
 
     def listed(self, listing: Listing) -> RowList:
+        if listing.ids:
+            return self.page(listing, self.shown_page)
+        with self.repository.listing():
+            return self.page(listing, self.index_page)
+
+    def page(self, listing: Listing, shown: Callable[[list[S]], list]) -> RowList:
         rows = self.rows()
         page = listing.listed(rows, self.is_open, self.is_timeline)
-        shown = self.shown_page(page["rows"]) if listing.ids else self.index_page(page["rows"])
-        return RowList(rows=shown, is_last_page=page["is_last_page"], counts=self.counts(rows))
+        return RowList(rows=shown(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(rows))
 
     def index_page(self, rows: list[S]) -> list:
-        return self.shown_page(rows)
+        return list(rows)
 
     def rows(self) -> list[S]:
         return self.repository.all()

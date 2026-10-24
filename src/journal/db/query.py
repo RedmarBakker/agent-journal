@@ -82,9 +82,15 @@ class Query:
         return self._with(Condition(f"({text})", tuple(param for term in terms for param in term.params)))
 
     def filter_absent(self, query: "Query") -> "Query":
+        return self._matched("NOT EXISTS", query)
+
+    def filter_existing(self, query: "Query") -> "Query":
+        return self._matched("EXISTS", query)
+
+    def _matched(self, operator: str, query: "Query") -> "Query":
         filters = query._filters()
-        absent = self._with(Condition(f"NOT EXISTS (SELECT 1 FROM {query.table}{filters.text})", filters.params))
-        return replace(absent, subquery_tables=(*self.subquery_tables, query.table, *query.subquery_tables))
+        matched = self._with(Condition(f"{operator} (SELECT 1 FROM {query.table}{filters.text})", filters.params))
+        return replace(matched, subquery_tables=(*self.subquery_tables, query.table, *query.subquery_tables))
 
     def tables(self) -> tuple[str, ...]:
         return (self.table, *self.subquery_tables)

@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import fields
 from datetime import datetime, timezone
 from typing import Callable, Generic, Iterable, TypeVar
@@ -39,7 +39,7 @@ MATCH_ROWS = 40
 
 
 class Repository(Generic[M]):
-    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted."""
+    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted. While its rows are listed, it and every other repository read none but them, save a count."""
 
     model: type[M]
 
@@ -69,7 +69,11 @@ class Repository(Generic[M]):
         return self.connection.result(*self.query().count())["value"]
 
     def grouped_counts(self, query: Query, column: str) -> dict[str, int]:
-        return {row["value"]: row["total"] for row in self.connection.all(*query.grouped(column))}
+        with self.connection.unlisted():
+            return {row["value"]: row["total"] for row in self.connection.all(*query.grouped(column))}
+
+    def listing(self) -> AbstractContextManager[None]:
+        return self.connection.listing(self.table)
 
     def selected(self, query: Query) -> list[M]:
         if query.row_limit > PAGE_ROWS:
@@ -94,9 +98,6 @@ class Repository(Generic[M]):
 
     def linked_rows(self, ids: Iterable[int]) -> dict[int, list[Ref]]:
         return self._linked(self.link_query.filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
-
-    def table_links(self, kind: str) -> dict[int, list[Ref]]:
-        return self._linked(self.link_query.filter(kind=kind).filter_prefix("source", f"{self.table}:"))
 
     def _linked(self, query: Query) -> dict[int, list[Ref]]:
         rows: dict[int, list[Ref]] = {}

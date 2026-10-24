@@ -25,6 +25,10 @@ class Environments(Repository[Environment]):
         rows = self.matching(name=name)
         return rows[0] if rows else self.save(Environment(name=name), Actor.system())
 
+    def entered(self, name: str) -> int:
+        with self.connection.unlisted():
+            return self.existing(name).row_id
+
     def existing(self, name: str) -> Environment:
         rows = self.matching(name=name)
         if not rows:

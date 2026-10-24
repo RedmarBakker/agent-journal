@@ -1,8 +1,6 @@
 from typing import TypeVar
 
 from journal.http.controllers.controller import Controller
-from journal.http.row_list import RowList
-from journal.http.listing import Listing
 from journal.http.support.download_response import DownloadResponse
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
@@ -15,22 +13,14 @@ W = TypeVar("W", Doc, Report)
 
 
 class WritingController(Controller[W]):
-    """What documents and reports share: a list includes each without its body, which is requested by id, and each names the rows it links to; a section is added at the end of the body."""
+    """What documents and reports share: a list includes each without its body and the rows it links to, which are requested by id; a section is added at the end of the body."""
 
-    def listed(self, listing: Listing) -> RowList:
-        if listing.ids:
-            return super().listed(listing)
-        rows = self.rows()
-        page = listing.listed(rows, self.is_open)
-        linked = self.repository.linked_rows(row.row_id for row in page["rows"])
-        return RowList(rows=[self.summarised(row, linked) for row in page["rows"]], is_last_page=page["is_last_page"], counts=self.counts(rows))
+    def index_page(self, rows: list[W]) -> list[dict]:
+        return [{name: value for name, value in ModelFields.build(row).items() if name != "body"} for row in rows]
 
     def shown_page(self, rows: list[W]) -> list[dict]:
         linked = self.repository.linked_rows(row.row_id for row in rows)
         return [{**ModelFields.build(row), "links": self.links(row, linked)} for row in rows]
-
-    def summarised(self, row: W, linked: dict) -> dict:
-        return {**{name: value for name, value in ModelFields.build(row).items() if name != "body"}, "links": self.links(row, linked)}
 
     @staticmethod
     def links(row: W, linked: dict) -> list[str]:

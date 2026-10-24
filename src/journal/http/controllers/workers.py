@@ -14,7 +14,7 @@ from journal.repositories.workers import Workers
 
 
 class WorkerController(Controller[Worker]):
-    """The workers sent from here, each with the last report it filed; one stopped is closed. Each carries the task it holds, the task's points, its to-do items and the latest proof of each point, and the task it worked on before. The viewer sends one its next job, stops it, retires it, checks a proof, sends one back short or merges its work, as the commands do."""
+    """The workers sent from here; one stopped is closed. Their list carries each one's own fields; one read by id carries the last report it filed, the task it holds, the task's points, its to-do items and the latest proof of each point, and the task it worked on before. The viewer sends one its next job, stops it, retires it, checks a proof, sends one back short or merges its work, as the commands do."""
 
     repository: Workers
 
@@ -54,16 +54,19 @@ class WorkerController(Controller[Worker]):
     def is_open(self, row: Worker) -> bool:
         return row.is_active()
 
-    def shown_page(self, rows: list[Worker]) -> list[dict]:
-        reports = self.reports.lasts(rows)
-        return [{**row, "report": reports[worker.row_id]} for worker, row in zip(rows, self.index_page(rows))]
-
     def index_page(self, rows: list[Worker]) -> list[dict]:
-        holdings = self.tasks.worker_holdings()
+        return [self.own_fields(w) for w in rows]
+
+    def own_fields(self, worker: Worker) -> dict:
+        return {**ModelFields.build(worker), "files": worker.files_line(), "conversation": worker.conversation()}
+
+    def shown_page(self, rows: list[Worker]) -> list[dict]:
+        holdings, reports = self.tasks.worker_holdings(), self.reports.lasts(rows)
         views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
         former_tasks, queues = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows)
-        return [{**ModelFields.build(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "agent": agent_ids.get(w.session, 0)} for w in rows]
+        return [{**self.own_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])],
+                 "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
 
     def task_views(self, rows: list[Worker], holdings: dict[int, int]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}

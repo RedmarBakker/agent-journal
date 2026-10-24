@@ -10,7 +10,7 @@ from journal.repositories.shares import Shares
 
 
 class ShareController(Controller[Share]):
-    """The links that let someone outside read one document, report or plan: each with its address and what it opens, and whether it asks for a password, never the password."""
+    """The links that let someone outside read one document, report or plan: each with whether it asks for a password, never the password, and one read by id with its address and what it opens."""
 
     repository: Shares
 
@@ -23,14 +23,18 @@ class ShareController(Controller[Share]):
     def is_open(self, row: Share) -> bool:
         return row.stopped_at is None
 
+    def index_page(self, rows: list[Share]) -> list[dict]:
+        return [self.public_fields(share) for share in rows]
+
     def shown_page(self, rows: list[Share]) -> list[dict]:
         return [self.described(share) for share in rows]
 
+    def public_fields(self, share: Share) -> dict:
+        return {**{name: value for name, value in ModelFields.build(share).items() if name != "password"}, "locked": bool(share.password)}
+
     def described(self, share: Share) -> dict:
         target = self.targets.targets(share)
-        fields = {name: value for name, value in ModelFields.build(share).items() if name != "password"}
-        return {**fields, "locked": bool(share.password), "link": self.tunnel.share_link(share.token), "target": str(target) if target else "",
-                "opens": self.targets.opens(str(target)) if target else []}
+        return {**self.public_fields(share), "link": self.tunnel.share_link(share.token), "target": str(target) if target else "", "opens": self.targets.opens(str(target)) if target else []}
 
     def store(self, request: Request) -> Response:
         body = request.body

@@ -22,7 +22,7 @@ from journal.repositories.workers import Workers
 
 
 class TaskController(Controller[Task]):
-    """Tasks with the plan each is in, the worker it is assigned to, the agent that holds it in hand and what it waits on; started from the viewer, a task is taken up by the current agent."""
+    """Tasks; one read by id carries the plan it is in, the worker it is assigned to, the agent that holds it in hand and what it waits on; started from the viewer, a task is taken up by the current agent."""
 
     repository: Tasks
 
