@@ -95,7 +95,7 @@ def report_mentions(data: FeatureData) -> list[Nudge]:
 def check_reminders(data: FeatureData, time: float) -> list[Nudge]:
     reminder = WorkersNudges.CHECK_REMINDER
     ready = data.part(WorkersPart).ready_work
-    return [reminder.create(n=work.worker, name=work.name, task=work.task) for work in ready if work.is_waiting(time, reminder.repeat_interval)]
+    return [reminder.create(n=work.worker, name=work.name, task=work.task) for work in ready if work.is_waiting(time, reminder.repeat.amount)]
 
 
 def worker_lines(event: ToolStarting, *verbs: str) -> list[WorkerLine]:

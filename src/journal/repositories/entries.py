@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from journal.support.moment import Moment
 from journal.db.query import Query
 from journal.models.entry import Entry
 from journal.support.actor import Actor
@@ -38,8 +39,15 @@ class Entries(ScopedRepository[Entry]):
     def agent_lines(self, session: str) -> int:
         return self.counted(self.lines(session))
 
-    def last_line(self, session: str, key: str, line: str) -> float:
-        return float(self.maximum(self.lines(session).filter_json("data->key", key).filter_json("data->line", line), "data->time", 0))
+    def last_line_moment(self, session: str, key: str, line: str) -> Moment | None:
+        return self.line_moment(self.lines(session).filter_json("data->key", key).filter_json("data->line", line))
+
+    def last_key_moment(self, session: str, key: str) -> Moment | None:
+        return self.line_moment(self.lines(session).filter_json("data->key", key))
+
+    def line_moment(self, query: Query) -> Moment | None:
+        newest = self.selected(query.order_descending("id").limit(1))
+        return Moment(seconds=newest[0].data.get("time", 0.0), tool_uses=newest[0].data.get("tool_use", 0)) if newest else None
 
     def last_lines(self, session: str, key: str) -> float:
         return float(self.maximum(self.lines(session).filter_json("data->key", key), "data->time", 0))

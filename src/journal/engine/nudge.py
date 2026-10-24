@@ -1,16 +1,18 @@
 import re
 from dataclasses import dataclass, field, replace
 
+from journal.support.timeout import Timeout
+
 
 @dataclass(frozen=True)
 class Nudge:
-    """A line a feature can say to the agent, declared once: its name, its words as a template, and the feature that owns it, whose switch silences it. A remark asks for nothing now, so it is never typed to an idle agent: it waits for the agent's next hook."""
+    """A line a feature can say to the agent, declared once: its name, its words as a template, and the feature that owns it, whose switch silences it. It is not said again within its repeat span of the last time it was said, in seconds or tool uses. A remark asks for nothing now, so it is never typed to an idle agent: it waits for the agent's next hook."""
 
     feature: str
     name: str
     title: str
     brief: str = ""
-    repeat_interval: float = 300.0
+    repeat: Timeout = Timeout.seconds(300)
     chat_answerable: bool = False
     blocks_regardless: bool = False
     is_remark: bool = False

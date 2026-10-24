@@ -1,3 +1,4 @@
+from journal.support.moment import Moment
 from journal.engine.clock import Clock
 from journal.engine.nudge_registry import NudgeRegistry
 from journal.events.agent.line_delivered import LineDelivered
@@ -43,7 +44,7 @@ class Nudger:
         return line
 
     def _repeat(self, agent: Agent, nudge: Nudge) -> bool:
-        if not nudge.repeat_interval:
+        if not nudge.repeat.amount:
             return False
-        last = self.entries.last_lines(agent.session, nudge.key) if nudge.blocks_regardless else self.entries.last_line(agent.session, nudge.key, nudge.rendered())
-        return last > self.clock.time() - nudge.repeat_interval
+        last = self.entries.last_key_moment(agent.session, nudge.key) if nudge.blocks_regardless else self.entries.last_line_moment(agent.session, nudge.key, nudge.rendered())
+        return last is not None and not nudge.repeat.reset(last).has_passed(Moment(seconds=self.clock.time(), tool_uses=agent.tool_uses))

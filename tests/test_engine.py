@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request as HttpRequest, urlopen
+from journal.support.timeout import Timeout
 from journal.repositories.reports import Reports
 from journal.events.rows.worker_mention import WorkerMention
 
@@ -1539,7 +1540,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     settings = lambda mode: SettingsValue({WorkersOptions.MODE.key: mode, TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.FIRST_DELAY.key: 25})
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_summary="task 3 (the footer), task 4 (the margin)")
     started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
-    of = lambda plan: FeatureData({"plans": PlansData((), plan, 0, 0), "tasks": tasks})
+    of = lambda plan: FeatureData({"plans": PlansData((), plan, 0), "tasks": tasks})
     from journal.engine.states_catalogue import StatesCatalogue
     from journal.engine.support.stack import Stack
     from journal.features.plans.states.plans_ready import PlansReady
@@ -1574,7 +1575,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     assert busy.refusal.rendered().startswith("tasks 5 are blocked"), "a stop round asks about the blocked tasks before the open ones"
     again = busy.target.respond(Stop().with_data(some_blocked), settings("orchestrator"))
     assert "dispatch a worker" in again.refusal.rendered(), "and then holds the stop with the tasks to dispatch"
-    assert WorkersNudges.BLOCKED_CHECK.repeat_interval == 300, "and the check comes again every five minutes while it holds"
+    assert WorkersNudges.BLOCKED_CHECK.repeat == Timeout.seconds(300), "and the check comes again every five minutes while it holds"
     assert "task 3" in PlansReady().respond(Stop().with_data(of(None)), settings("builder")).refusal.rendered() and "dispatch" not in PlansReady().respond(Stop().with_data(of(None)), settings("builder")).refusal.rendered(), "the builder's stop names the next task to do"
     assert isinstance(Orchestrating().respond(TaskStarted(environment_id=1, time=2.0, task_id=7, title="x", plan_id=0).with_data(of(None)), settings("orchestrator")).pushed, Delegating), "a task started in the orchestrator's mode is delegating, not working"
     delegating = Delegating(task_id=7, logged_at=1.0).respond(Stop(time=2.0).with_data(of(None)), settings("orchestrator"))

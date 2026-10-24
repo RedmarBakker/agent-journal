@@ -1,5 +1,6 @@
 from journal.engine.nudge import Nudge
+from journal.support.timeout import Timeout
 
 
 class TeamNudges:
-    UPGRADE_NEEDED = Nudge("team", "journal_behind_the_team", "this journal is behind its team: {{line}}", "its changes wait here until it is upgraded; tell your user once and go on", repeat_interval=0)
+    UPGRADE_NEEDED = Nudge("team", "journal_behind_the_team", "this journal is behind its team: {{line}}", "its changes wait here until it is upgraded; tell your user once and go on", repeat=Timeout.seconds(0))
