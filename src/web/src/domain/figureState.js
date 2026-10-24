@@ -146,11 +146,11 @@ function legClip(trip, doing, canDraw) {
 
 export {actOver, frameIn, closeAt, canSwitch, goesOnFacing, stretchedFrame} from "../figure/timeline.js";
 
-// A worker's chat mark of the agent giving it work: its dispatch, the worker's process card, unless the dispatch failed; or its next job,
-// a mark known by its words alone; a message to it, its start again and the mark's updates give it none (features/workers
-// worker_process_card and worker_moment_cards)
+// A worker's chat mark of the agent giving it a task, the one it names: its dispatch, the worker's process card, unless the dispatch failed;
+// or its next job, a mark known by its words alone, a queue's next task among them; a mark that names no task, a message to it, its start
+// again and the mark's updates give it none (features/workers worker_process_card and worker_moment_cards)
 const NEXT_JOB = /: sent its next job/;
-const givenWork = (card) => (card.processName === "worker" && card.tone !== "bad") || (card.icon === "agents" && NEXT_JOB.test(card.label));
+const givenWork = (card) => Boolean(card.task) && ((card.processName === "worker" && card.tone !== "bad") || (card.icon === "agents" && NEXT_JOB.test(card.label)));
 
 // One-off beats, each fired by a card the journal wrote on the agent's row and played once before the held state resumes;
 // the first rule a card matches names its beat
@@ -329,15 +329,14 @@ export function eggFor(voice, moment, played) {
 
 // What the figure says on the telephone, as the lines of its speech bubble, from the chat marks `cards` of the work it gave, in the order
 // they came: each worker by its number, then each task given to it by its number, as its marks name them, before the next worker; a mark
-// of no worker says nothing. The bubble wraps them and cuts what it cannot hold (figure/comicBubble.js).
+// of no worker, or one that names no task, says nothing, so no worker is ever named without a task. The bubble wraps them and cuts what it
+// cannot hold (figure/comicBubble.js).
 export function callLines(cards) {
     const given = new Map();
     for (const card of cards) {
         const [table, id] = String(card.row).split(":");
-        if (table !== "workers") continue;
-        const tasks = given.get(id) ?? new Set();
-        if (card.task) tasks.add(card.task);
-        given.set(id, tasks);
+        if (table !== "workers" || !card.task) continue;
+        given.set(id, (given.get(id) ?? new Set()).add(card.task));
     }
     return [...given].flatMap(([id, tasks]) => [`Worker ${id}`, ...[...tasks].map((task) => `Task ${task}!`)]);
 }

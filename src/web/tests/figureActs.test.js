@@ -61,7 +61,7 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(2, "system", "Started task 13: the parser", {icon: "todos", tone: ""}),
         message(3, "system", "Filed task 14 from your message", {icon: "inbox"}),
         message(4, "system", "Which one?", {kind: "question", process: "question"}, "s"),
-        message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", card_type: "process", process: "worker", active: true}),
+        message(5, "system", "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
         message(6, "system", "Fact 15 recorded", {icon: "check", tone: "good"}),
         message(7, "system", "Reminder 16 recorded", {icon: "check", tone: "good"}),
         message(8, "system", "Check Check for sins passed", {icon: "check", tone: "good"}),
@@ -75,7 +75,7 @@ test("each thing the agent does in the journal is its own moment, read from the 
         message(16, "user", "thanks", {}),
         // an agent given work: a worker's next job; a note sent it in its session, its start again and a message to another session give it
         // none
-        message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: ""}),
+        message(17, "system", "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2743}),
         message(18, "system", "Worker 48, Mr. Sheraton, joiner of panels: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
         message(21, "system", "Worker 48, Mr. Sheraton, joiner of panels: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
         message(19, "system", "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),

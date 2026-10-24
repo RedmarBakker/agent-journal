@@ -37,8 +37,8 @@ test("the dove act is gone, and so is the whistle and runner of a dispatch: a se
 test("only an agent given work starts the call: a worker's dispatch and its next job, never its start again, a message sent it or a message to another session", () => {
     const card = (id, text, data) => ({table: "messages", id, author: "system", text, data, session: null, created_at: new Date((10 + id) * 1000).toISOString()});
     const messages = [
-        card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", card_type: "process", process: "worker", active: true}),
-        card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: ""}),
+        card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
+        card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2743}),
         card(3, "Worker 57, Mr. Muybridge, motion photographer: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
         card(4, "Worker 57, Mr. Muybridge, motion photographer: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
         card(5, "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),
@@ -247,8 +247,9 @@ test("on the telephone it says whom it calls: the worker and the task it holds, 
     expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
     // a worker given work: two sentences only, its number, then the task its mark gave it, called out, never its title
     expect(callLines([{row: "workers:57", task: 2742}])).toEqual(["Worker 57", "Task 2742!"]);
-    // a mark that names no task names the worker alone; any other mark says nothing
-    expect(callLines([{row: "workers:58", task: 0}])).toEqual(["Worker 58"]);
+    // a mark that names no task says nothing, nor does any other mark: no worker is named without a task
+    expect(callLines([{row: "workers:58", task: 0}])).toEqual([]);
+    expect(callLines([{row: "workers:58", task: 0}, {row: "workers:57", task: 2742}])).toEqual(["Worker 57", "Task 2742!"]);
     expect(callLines([{row: "tasks:3", task: 0}])).toEqual([]);
     // said from the talk's start until the handset is down, never before or after
     expect(callSays(act.talk[0] - 0.01)).toBe(false);
@@ -367,7 +368,7 @@ test("a worker's dispatch sets off the call by what its mark is, the worker's pr
         id,
         author: "system",
         text: `Worker ${worker}, Mr. Muybridge, motion photographer: ${text}`,
-        data: {kind: "card", icon: "agents", tone, row: `workers:${worker}`, card_type: "process", process, active: true},
+        data: {kind: "card", icon: "agents", tone, row: `workers:${worker}`, task: 2700 + worker, card_type: "process", process, active: true},
         session: "s",
         created_at: new Date((1000 + id) * 1000).toISOString(),
     });
@@ -416,4 +417,32 @@ test("jobs handed out in a row make one call: each worker named, then each task 
     expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN - 1)).toBeNull();
     const anew = heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN);
     expect(phrasesOf(callLines(anew.marks.map((key) => later.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "))).toEqual(["Worker 261", "Task 301!"]);
+});
+
+test("a worker is called only once a task is given to it: a mark that names none rings nothing, a dispatch on a task rings a call saying the worker and the task, and no call is ever spoken without a task", async () => {
+    const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
+    const {phrasesOf} = await import("../src/figure/comicBubble.js");
+    const {callLines} = await import("../src/domain/figureState.js");
+    const mark = (id, label, data) => ({table: "messages", id, author: "system", session: "s", text: `Worker 260, Mr. Muybridge, motion photographer: ${label}`, data: {kind: "card", icon: "agents", tone: "", row: "workers:260", ...data}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    const process = {card_type: "process", process: "worker", active: true};
+    // a dispatch or a next job whose mark names no task, a worker named alone: no call
+    const untasked = [mark(1, "started on claude opus", {...process, task: 0}), mark(2, "sent its next job", {}), mark(3, "sent its next job", {task: 0})];
+    expect(beatsAfter(withSystemCards({session: "s", data: {}}, untasked), 0)).toEqual([]);
+    // a dispatch on task 200: the call says the worker, then the task
+    const tasked = [...untasked, mark(4, "started on claude opus", {...process, task: 200})];
+    const lead = withSystemCards({session: "s", data: {}}, tasked);
+    const beats = beatsAfter(lead, 0);
+    expect(beats.map((beat) => [beat.beat, beat.card])).toEqual([["messaged", "messages:4"]]);
+    const call = answerTo(beats[0], "butler", {reacted: new Map(), played: []}, beats[0].time, () => 0, () => true).beat;
+    const words = (marks) => phrasesOf(callLines(marks.map((key) => lead.data.cards.find((card) => card.key === key)))).map((phrase) => phrase.rows.map((row) => row.text).join(" "));
+    expect(words(call.marks ?? [call.mark])).toEqual(["Worker 260", "Task 200!"]);
+    // whatever marks a call gathers or holds, a worker without a task is never named: every worker it says is followed by a task
+    for (const marks of [["messages:1", "messages:4"], ["messages:2", "messages:3"], ["messages:4", "messages:2"]]) {
+        const said = words(joinedCall([{...call, marks: [marks[0]]}], marks[1])[0].marks);
+        said.forEach((line, index) => {
+            if (line.startsWith("Worker")) expect(said[index + 1], `${marks}: ${said}`).toMatch(/^Task /);
+        });
+        const held = heldCall(marks, [], new Map(), 10000);
+        expect(words(held.marks).filter((line) => line.startsWith("Worker")).length).toBeLessThanOrEqual(words(held.marks).filter((line) => line.startsWith("Task")).length);
+    }
 });
