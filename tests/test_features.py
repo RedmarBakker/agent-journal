@@ -14421,3 +14421,14 @@ def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several
     bare_reports = [report for report in unread if report.output == bare]
     assert bare_reports and 'a line of one word' in " ".join(bare_reports[0].findings) and '"running"' in " ".join(bare_reports[0].findings), "a card whose line is the bare word running is reported with that line"
     assert not [report for report in unread if report.output == wordy], "a card with a line of several words gets no report"
+
+
+def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(app: App):
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    judge = app.container.get(ReaderJudge)
+    reader = Reader("tests", "the test run", "passed|Tests")
+    vitest = [" ✓ a.test.ts (3 tests) 4ms", " Tests  3 passed (3)", "   Duration  1.2s (transform 20ms, tests 68%, import 12%)"]
+    pytest = ["tests/test_a.py ..                 [ 40%]", "tests/test_b.py ...                [100%]", "5 passed in 0.12s"]
+    assert not [miss for miss in judge.misses(reader, vitest) if "shows no progress" in miss], "a Duration line's shares are not a run's progress"
+    assert [miss for miss in judge.misses(reader, pytest) if "shows no progress" in miss], "[ 40%] lines are progress the reader should show"

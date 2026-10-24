@@ -17,7 +17,7 @@ PROGRESS_SECONDS = 30
 # the poor lines a report quotes
 QUOTED_LINES = 3
 COUNT_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
-PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]|\b(\d+)%")
+PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]")
 SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
 PROGRESS_MISSING = "its card showed no progress"
 SUMMARY_MISSING = "the card ended with no line of its own"
