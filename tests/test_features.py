@@ -6762,6 +6762,8 @@ def test_hooks_from_two_worktrees_at_once_each_land_in_their_own_environment(app
     script = script if script.is_file() else Path(__file__).resolve().parents[1] / "src" / "journal" / "hooks" / "environment.sh"
     named = {name: subprocess.run(["sh", "-c", f". '{script}'; journal_environment"], cwd=folder, env={key: value for key, value in os.environ.items() if key != "JOURNAL_ENV"}, capture_output=True, text=True, timeout=30).stdout for name, folder in folders.items()}
     assert named == {"calm-river": "calm-river", "quiet-heron": "quiet-heron"}, "a hook with no JOURNAL_ENV names the environment of the worktree folder it runs in"
+    roots = {subprocess.run(["sh", "-c", f". '{script}'; journal_main_root"], cwd=folder, capture_output=True, text=True, timeout=30).stdout.strip() for folder in (root, *folders.values())}
+    assert roots == {str(root.resolve())}, "a journal command or launch from inside a worktree finds the main checkout as its root, so it uses its journal, its server and its worktrees folder"
 
     def started(name: str) -> None:
         for turn in range(5):

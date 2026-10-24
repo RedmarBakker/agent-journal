@@ -4,7 +4,8 @@
 # from the environment, as it does for a shell line, and answers what it printed with the exit code on its last line.
 # A plugin names itself with JOURNAL_PLUGIN and JOURNAL_PLUGIN_TOKEN, and the server stamps the plugin.
 here=$(cd "$(dirname "$0")" && pwd)
-root=${JOURNAL_ROOT:-$PWD}
+. "$here/journal/hooks/environment.sh"
+root=${JOURNAL_ROOT:-$(journal_main_root)}
 # The Python 3.14 the install found, kept beside the package; python3 only where an install from before it left none.
 py=$(cat "$here/../python" 2>/dev/null)
 [ -x "$py" ] || py=python3
@@ -13,7 +14,6 @@ case "$1" in
 esac
 # Who runs the command: JOURNAL_ACTOR is agent, sub-agent, or a sent agent's actor, worker:12 or verifier:3, sent to the server as a header, with a Codex thread's id.
 # A subagent of Claude Code inherits the agent's shell whole, so nothing in its environment tells it apart here; the server pairs the command with the Bash PreToolUse hook a subagent announced it in (the only subagent hook it keeps).
-. "$here/journal/hooks/environment.sh"
 JOURNAL_ENV=$(journal_environment)
 export JOURNAL_ENV
 port=$(cat "$root/.journal/port" 2>/dev/null)

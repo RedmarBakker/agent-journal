@@ -9,6 +9,18 @@ journal_environment() {
     journal_local_environment
 }
 
+# The project's main checkout: run inside a linked worktree, the folder that holds the repository git shares with it, as
+# version 3 found it; else the folder it runs in. A launch from inside a worktree so uses the main checkout's journal.
+journal_main_root() {
+    own=$(cd "$(git rev-parse --git-dir 2>/dev/null)" 2>/dev/null && pwd -P) || { pwd -P; return; }
+    common=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
+    if [ "$own" != "$common" ]; then
+        dirname "$common"
+        return
+    fi
+    pwd -P
+}
+
 journal_local_environment() {
     top=$(git rev-parse --show-toplevel 2>/dev/null) || { printf main; return; }
     own=$(cd "$(git rev-parse --git-dir)" && pwd -P)
