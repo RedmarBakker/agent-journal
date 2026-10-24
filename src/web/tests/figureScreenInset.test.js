@@ -15,6 +15,9 @@ function head() {
     return {shell, screen};
 }
 
+// how near two of a mesh's positions, stored as 32-bit floats, count as the same, in the figure's units
+const FLOAT = 1e-6;
+
 const points = (geometry) => {
     const at = geometry.attributes.position;
     return Array.from({length: at.count}, (_, index) => new THREE.Vector3(at.getX(index), at.getY(index), at.getZ(index)));
@@ -38,7 +41,7 @@ test("the visor screen is set into the head: its surface, at its most forward, t
     after.forEach((point, index) => {
         expect(point.x).toBe(before[index].x);
         expect(point.y).toBe(before[index].y);
-        expect(point.z - before[index].z).toBeCloseTo(moved, 9);
+        expect(point.z - before[index].z).toBeCloseTo(moved, 6);
     });
 });
 
@@ -52,7 +55,7 @@ test("the head behind the screen is set in with it: no point of the head within 
         const glass = glassAt(point.x, point.y);
         if (glass === null) return expect(point.equals(before[index]), `${index} outside the outline`).toBe(true);
         within += 1;
-        expect(point.z, `${index} within the outline`).toBeLessThanOrEqual(glass - SCREEN_INSET.behind + 1e-9);
+        expect(point.z, `${index} within the outline`).toBeLessThanOrEqual(glass - SCREEN_INSET.behind + FLOAT);
     });
     // the head's front within the screen's outline was there to set in, and was
     expect(within).toBeGreaterThan(100);
@@ -68,7 +71,7 @@ test("a helmet's shell worn over the head is set in with it, as the head's own s
     for (const geometry of [shell, helmet]) {
         for (const point of points(geometry)) {
             const glass = glassAt(point.x, point.y);
-            if (glass !== null) expect(point.z).toBeLessThanOrEqual(glass - SCREEN_INSET.behind + 1e-9);
+            if (glass !== null) expect(point.z).toBeLessThanOrEqual(glass - SCREEN_INSET.behind + FLOAT);
         }
     }
     // the inset is measured from the head's surface at its most forward, the helmet's here
