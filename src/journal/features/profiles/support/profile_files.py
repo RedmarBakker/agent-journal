@@ -6,6 +6,7 @@ from journal.providers.support.profile import Profile
 from journal.providers.support.profile_view import ProfileView
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
+from journal.features.profiles.profiles_options import ProfilesOptions
 
 PREFIX = "journal-"
 UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
@@ -74,9 +75,8 @@ class ProfileFiles:
         return self.read(profile.name)
 
     def write_all(self) -> list[Path]:
-        from journal.features.profiles.feature import Profiles
         self.clear()
-        model, codex_model = str(self.settings.option(Profiles.CLAUDE_MODEL)), str(self.settings.option(Profiles.CODEX_MODEL))
+        model, codex_model = str(self.settings.option(ProfilesOptions.CLAUDE_MODEL)), str(self.settings.option(ProfilesOptions.CODEX_MODEL))
         return [path for profile in self.PROFILES for path in self.write(profile, profile.model_default(model), codex_model)]
 
     def clear(self) -> None:

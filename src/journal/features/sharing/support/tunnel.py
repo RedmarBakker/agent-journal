@@ -18,6 +18,7 @@ from journal.repositories.phones import Phones
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.shares import Shares
 from journal.supervisor_link import SupervisorLink
+from journal.features.sharing.sharing_options import SharingOptions
 
 SERVICE = "sharing.tunnel"
 DEFAULT_SERVER = "tunler.jessegall.nl"
@@ -48,8 +49,7 @@ class Tunnel:
         self.wanted = False
 
     def saved_host(self) -> str:
-        from journal.features.sharing.feature import Sharing
-        return str(self.settings.option(Sharing.HOST))
+        return str(self.settings.option(SharingOptions.HOST))
 
     def host(self) -> str:
         return self.saved_host() or self.tunler.status().host

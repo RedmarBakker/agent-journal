@@ -6,6 +6,8 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.rows.question_answered import QuestionAnswered
 from journal.events.feature_data import FeatureData
+from journal.features.questions.questions_nudges import QuestionsNudges
+from journal.features.questions.questions_part import QuestionsPart
 
 
 @dataclass(frozen=True)
@@ -20,9 +22,7 @@ class Waiting(Wait):
         return f"your answer to question {self.question_id}", f"questions:{self.question_id}"
 
     def on_question_answered(self, event: QuestionAnswered, settings: Settings) -> Transition:
-        from journal.features.questions.feature import Questions
-        return self.pop(Questions.QUESTION_ANSWERED.create(n=event.question_id)) if event.question_id == self.question_id else self.none()
+        return self.pop(QuestionsNudges.QUESTION_ANSWERED.create(n=event.question_id)) if event.question_id == self.question_id else self.none()
 
     def on_resume(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...] | Transition:
-        from journal.features.questions.feature import Questions
-        return () if self.question_id in data.part(Questions).open else self.pop(Questions.QUESTION_ANSWERED.create(n=self.question_id))
+        return () if self.question_id in data.part(QuestionsPart).open else self.pop(QuestionsNudges.QUESTION_ANSWERED.create(n=self.question_id))

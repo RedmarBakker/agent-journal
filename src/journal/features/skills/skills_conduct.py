@@ -7,24 +7,23 @@ from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.features.skills.support.skill_card import SkillCard
+from journal.features.skills.skills_nudges import SkillsNudges
+from journal.features.skills.skills_options import SkillsOptions
+from journal.features.skills.skills_part import SkillsPart
 from journal.support.option import Option
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from journal.features.skills.feature import Skills
 
 
 class SkillsConduct(Conduct):
     """The skills feature's conduct in every state: a session starts needing the skills its setting names, those of skills.session_start at a new start and of skills.after_compaction after a compaction, and the state's own; a prompt of the user's that names a skill's keyword must do for that skill, never a journal line, a plugin's or a subagent's notice; while a skill is pending, every tool but a read of it and a journal command is blocked, and so is a stop; a journal command of a noun a skill names is blocked until that skill is read."""
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        return self.none(*read_first(event.data.part(skills_feature()).start_debts(settings.texts(start_option(event)), self.name)))
+        return self.none(*read_first(event.data.part(SkillsPart).start_debts(settings.texts(start_option(event)), self.name)))
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
-        return self.none(*read_first(event.data.part(skills_feature()).mentioned(event.users_words())))
+        return self.none(*read_first(event.data.part(SkillsPart).mentioned(event.users_words())))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        data = event.data.part(skills_feature())
+        data = event.data.part(SkillsPart)
         if event.subagent:
             return self.none()
         if event.call.is_journal:
@@ -36,17 +35,12 @@ class SkillsConduct(Conduct):
         return self.refuse(read_first(obligations)[0])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        obligations = event.data.part(skills_feature()).skills_due
-        return self.refuse(skills_feature().UNREAD_SKILL_STOP.create(skills=" and ".join(obligations))) if obligations else self.none()
-
-
-def skills_feature() -> "type[Skills]":
-    from journal.features.skills.feature import Skills
-    return Skills
+        obligations = event.data.part(SkillsPart).skills_due
+        return self.refuse(SkillsNudges.UNREAD_SKILL_STOP.create(skills=" and ".join(obligations))) if obligations else self.none()
 
 
 def start_option(event: SessionStarted) -> Option:
-    return skills_feature().COMPACTION_SKILLS if event.is_compaction_start() else skills_feature().START_SKILLS
+    return SkillsOptions.COMPACTION_SKILLS if event.is_compaction_start() else SkillsOptions.START_SKILLS
 
 
 def journal_nouns(event: ToolStarting) -> set[str]:
@@ -58,4 +52,4 @@ def is_skill_read(event: ToolStarting, cards: list[SkillCard]) -> bool:
 
 
 def read_first(cards: list[SkillCard]) -> list[Nudge]:
-    return [skills_feature().SKILL_READ_REQUEST.create(skill=card.name, path=card.path) for card in cards]
+    return [SkillsNudges.SKILL_READ_REQUEST.create(skill=card.name, path=card.path) for card in cards]

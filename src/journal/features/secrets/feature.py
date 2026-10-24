@@ -1,5 +1,4 @@
 from journal.features.feature import Feature
-from journal.engine.nudge import Nudge
 from journal.support.skill import Skill
 from journal.features.secrets.commands.secret_command import SecretCommand
 from journal.features.secrets.secrets_conduct import SecretsConduct
@@ -9,15 +8,15 @@ from journal.features.secrets.listeners.leak_alarm import LeakAlarm
 from journal.features.secrets.listeners.expiry_question import ExpiryQuestion
 from journal.features.secrets.listeners.secret_purge import SecretPurge
 from journal.features.secrets.seeds.secret_files import SecretFiles
+from journal.features.secrets.secrets_nudges import SecretsNudges
+from journal.features.secrets.secrets_part import SecretsPart
 
 
 class Secrets(Feature[SecretsData]):
-    name = "secrets"
+    name = SecretsPart.name
     title = "Secrets"
     help = "A key or a login the agent may use without seeing it: its values live in a file in your home folder, never in the journal, and you fill them in on the Secrets page."
-    PRIVATE_SECRETS = Nudge(name, "secrets_out_of_reach", "secrets are out of your reach", "pass one to a program with `journal secret run <n> -- <program>`", repeat_interval=0)
-    SECRET_PROGRAM_GRANT = Nudge(name, "secret_allowed_for_programs", "the user let secret {{n}}, {{title}}, go to {{programs}}", "run it with `journal secret run {{n}} -- <program> ...`", repeat_interval=0)
-    nudges = (PRIVATE_SECRETS, SECRET_PROGRAM_GRANT)
+    nudges = (SecretsNudges.PRIVATE_SECRETS, SecretsNudges.SECRET_PROGRAM_GRANT)
     commands = (SecretCommand,)
     seeds = (SecretFiles,)
     skill = Skill("secrets", 'Keys and logins the agent uses without seeing them; load it when a task needs a key, a login or a site you must be logged in to', """

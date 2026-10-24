@@ -21,6 +21,7 @@ from journal.support.caller import Caller
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.states.wait import Wait
 from journal.models.command_output import CommandOutput
+from journal.features.shell.shell_options import ShellOptions
 
 TAIL_CHARACTERS = 2000
 PIPED = re.compile(r"(?<!\|)\|(?!\|)")
@@ -71,8 +72,7 @@ class ShellRecord:
         return isinstance(top, Wait) and f"{output.table()}:{output.id}" in top.wait_description()[1].split(",")
 
     def is_stored(self, chain: str, line: str, size: int, cut: bool) -> bool:
-        from journal.features.shell.feature import Shell
-        return size >= self.settings.integer(Shell.SHORT) or bool(PIPED.search(line)) or cut
+        return size >= self.settings.integer(ShellOptions.SHORT) or bool(PIPED.search(line)) or cut
 
     def delete_output(self, chain: str, caller: Caller) -> None:
         output = self.outputs.chain_output(chain)

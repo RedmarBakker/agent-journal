@@ -1,13 +1,13 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
 
-from journal.features.sharing.feature import Sharing
 from journal.features.sharing.support.tunler import Tunler
 from journal.features.sharing.support.tunnel import Tunnel
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.support.rejection import Rejection
 from journal.repositories.setting_rows import SettingRows
+from journal.features.sharing.sharing_options import SharingOptions
 
 
 class TunnelController:
@@ -42,7 +42,7 @@ class TunnelController:
         host = str(body.get("endpoint", "")).strip() or self.tunnel.host()
         produced = self.tunler.login(host, str(body.get("username", "")).strip(), str(body.get("password", "")), str(body.get("master_password", "")))
         if produced.connected:
-            self.settings.set(Sharing.HOST.key, host, request.actor)
+            self.settings.set(SharingOptions.HOST.key, host, request.actor)
             self.tunnel.reconcile()
         return Response.json({**asdict(produced), **self.tunnel.data()})
 
@@ -59,7 +59,7 @@ class TunnelController:
         if not server:
             raise Rejection("give the address of the tunler server to install from, such as tunler.example.com")
         installed = self.tunler.install(server)
-        self.settings.set(Sharing.HOST.key, server, request.actor)
+        self.settings.set(SharingOptions.HOST.key, server, request.actor)
         return Response.json({"installed": installed})
 
     def update(self, request: Request) -> Response:

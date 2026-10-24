@@ -5,8 +5,6 @@ from journal.features.plans.support.plans_data import PlansData
 from journal.features.plans.listeners.plan_blockade import PlanBlockade
 from journal.features.plans.listeners.clear_plan_waits import ClearPlanWaits
 from journal.features.plans.listeners.count_plan_reviewers import CountPlanReviewers
-from journal.engine.nudge import Nudge
-from journal.support.option import Option
 from journal.support.skill import Skill
 from journal.features.plans.commands.plan_command import PlanCommand
 from journal.features.plans.listeners.advance_plan import AdvancePlan
@@ -19,14 +17,13 @@ from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.plans.states.plans_working import PlansWorking
 from journal.features.plans.listeners.release_plan_waits import ReleasePlanWaits
 from journal.features.plans.listeners.plan_testing_default import PlanTestingDefault
-from journal.features.templates.shipped import PLAN_TESTING_TEMPLATES
+from journal.features.plans.plans_nudges import PlansNudges
+from journal.features.plans.plans_options import PlansOptions
+from journal.features.plans.plans_part import PlansPart
 
 
 class Plans(Feature[PlansData]):
-    ALL_BLOCKED = "all its tasks left are blocked"
-    TESTING = Option("plans.testing", "Testing template for new plans", "How a new plan's agent is told to test, until the plan page changes it", "none", kind="choice", choices=("none", *(template.title for template in PLAN_TESTING_TEMPLATES)))
-    REVIEW_TOOL_USE_LIMIT = Option("plans.review_ready_within", "Ready a reviewed plan within", "Tool uses after a plan's reviewers are all back before every write but plan and task commands waits until the plan is readied", 10, unit="tool uses")
-    name = "plans"
+    name = PlansPart.name
     title = "Plans"
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan)
@@ -36,24 +33,8 @@ class Plans(Feature[PlansData]):
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)
 
-    PLAN_TESTING = Nudge(name, "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat_interval=0)
-    BUILDER_MODE = Nudge(name, "now_building", "you now work as the builder", repeat_interval=0)
-    NEXT_PLAN_TASK = Nudge(name, "next_task_of_the_plan", "plan {{n}}: task {{task}}, {{title}} is next. {{briefing}}", repeat_interval=0)
-    PLAN_FINISHED = Nudge(name, "plan_done", "plan {{n}} is done: its last task closed", repeat_interval=0)
-    PLAN_STALLED = Nudge(name, "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat_interval=0)
-    PLAN_POSTPONED = Nudge(name, "the_user_postponed_the_plan", "the user postponed plan {{n}}")
-    PLAN_ABANDONED = Nudge(name, "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
-    PLAN_APPROVED = Nudge(name, "the_user_approved_the_plan", "the user approved plan {{n}}", "`journal plan start {{n}}` begins its first task", repeat_interval=0)
-    CHECKPOINT_PHASE_END = Nudge(name, "phase_complete_at_a_checkpoint", "plan {{n}}: phase {{phase}} is complete, a checkpoint", "wait for the user, then `journal plan start {{n}}`", repeat_interval=0)
-    PHASE_END = Nudge(name, "phase_complete_go_on", "plan {{n}}: phase {{phase}} is complete", "`journal plan start {{n}}` begins the next phase", repeat_interval=0)
-    PLAN_BLOCKED = Nudge(name, "plan_blocked", "plan {{n}} is blocked: {{why}}", "`journal plan unblock {{n}}` opens it by hand", repeat_interval=0)
-    PLAN_REOPENED = Nudge(name, "plan_reopened", "plan {{n}} is open again: {{why}}", "`journal plan start {{n}}` goes on with it", repeat_interval=0)
-    UNAPPROVED_PLAN = Nudge(name, "plan_not_approved", "plan {{n}} is not approved", "only the user approves it", repeat_interval=0)
-    APPROVED_UNSTARTED = Nudge(name, "approved_unstarted", "plan {{n}} is approved and not started", "`journal plan start {{n}}` begins its first task", repeat_interval=0)
-    REVIEW_ENTRY_REQUEST = Nudge(name, "put_the_review_into_the_plan", "plan {{n}}'s reviewers are all back", "put their findings in as tasks, then `journal plan ready {{n}} --changed \"<what changed>\"`", repeat_interval=0)
-    REVIEW_ENTRY_BLOCK = Nudge(name, "review_write_up_waits", "your writes wait until plan {{n}} is readied", "put the reviewers' findings into it and `journal plan ready {{n}} --changed \"<what changed>\"`", repeat_interval=0)
-    options = (REVIEW_TOOL_USE_LIMIT, TESTING)
-    nudges = (REVIEW_ENTRY_REQUEST, REVIEW_ENTRY_BLOCK, UNAPPROVED_PLAN, APPROVED_UNSTARTED, NEXT_PLAN_TASK, PLAN_FINISHED, PLAN_STALLED, PLAN_POSTPONED, PLAN_ABANDONED, PLAN_APPROVED, CHECKPOINT_PHASE_END, PHASE_END, PLAN_BLOCKED, PLAN_REOPENED, BUILDER_MODE, PLAN_TESTING)
+    options = (PlansOptions.REVIEW_TOOL_USE_LIMIT, PlansOptions.TESTING)
+    nudges = (PlansNudges.REVIEW_ENTRY_REQUEST, PlansNudges.REVIEW_ENTRY_BLOCK, PlansNudges.UNAPPROVED_PLAN, PlansNudges.APPROVED_UNSTARTED, PlansNudges.NEXT_PLAN_TASK, PlansNudges.PLAN_FINISHED, PlansNudges.PLAN_STALLED, PlansNudges.PLAN_POSTPONED, PlansNudges.PLAN_ABANDONED, PlansNudges.PLAN_APPROVED, PlansNudges.CHECKPOINT_PHASE_END, PlansNudges.PHASE_END, PlansNudges.PLAN_BLOCKED, PlansNudges.PLAN_REOPENED, PlansNudges.BUILDER_MODE, PlansNudges.PLAN_TESTING)
 
     skill = Skill("plans", 'Build and follow a plan of ordered tasks; load it when the user asks for a plan or a roadmap', """
 # Plans

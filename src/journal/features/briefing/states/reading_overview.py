@@ -5,7 +5,8 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.overview_read import OverviewRead
-from journal.features.skills.skills_conduct import is_skill_read, skills_feature
+from journal.features.skills.skills_conduct import is_skill_read
+from journal.features.skills.skills_part import SkillsPart
 
 OVERVIEW_COMMAND = "journal environment overview"
 
@@ -18,7 +19,7 @@ class ReadingOverview(BaseState):
     title = "Reading the overview"
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        if event.subagent or event.call.command.strip().startswith(OVERVIEW_COMMAND) or is_skill_read(event, event.data.part(skills_feature()).debt_cards()):
+        if event.subagent or event.call.command.strip().startswith(OVERVIEW_COMMAND) or is_skill_read(event, event.data.part(SkillsPart).debt_cards()):
             return self.none()
         from journal.features.briefing.feature import Briefing
         return self.refuse(Briefing.OVERVIEW_FIRST.create())

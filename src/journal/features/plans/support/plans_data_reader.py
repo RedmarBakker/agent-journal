@@ -7,6 +7,7 @@ from journal.models.task_state import TaskState
 from journal.repositories.entries import Entries
 from journal.repositories.plans import Plans
 from journal.features.tasks.support.task_briefing import TaskBriefing
+from journal.features.plans.plans_nudges import PlansNudges
 
 EMPTY_PLAN_NOTE = "it has no brief and nothing logged yet"
 
@@ -18,10 +19,9 @@ class PlansDataReader:
         self.plans, self.briefing, self.entries, self.testing = plans, briefing, entries, testing
 
     def read(self, agent: Agent) -> PlansData:
-        from journal.features.plans.feature import Plans as PlansFeature
         started = next(iter(self.plans.running_plans()), None)
         review = next(iter(self.plans.reviewed()), None)
-        review_line = self.entries.last_line_entry(agent.session, (PlansFeature.REVIEW_ENTRY_REQUEST.key,)) if review else None
+        review_line = self.entries.last_line_entry(agent.session, (PlansNudges.REVIEW_ENTRY_REQUEST.key,)) if review else None
         return PlansData(approved=tuple(p.row_id for p in self.plans.approved()), started=self.started_plan(started) if started else None,
                          review_plan=review.row_id if review_line else 0, review_tool_use=review_line.data.get("tool_use", 0) if review_line else 0)
 

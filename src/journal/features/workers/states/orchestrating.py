@@ -7,6 +7,8 @@ from journal.engine.support.transition import Transition
 from journal.events.rows.worker_reported import WorkerReported
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.tasks.support.tasks_data import TasksData
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.tasks.tasks_part import TasksPart
 
 
 @dataclass(frozen=True)
@@ -29,16 +31,14 @@ class Orchestrating(PlansReady):
         return Delegating(**fields)
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        from journal.features.tasks.feature import Tasks
-        tasks = data.part(Tasks)
-        return (orchestrate(tasks),) if settings.value(Tasks.AUTO) and tasks.open_ids else ()
+        tasks = data.part(TasksPart)
+        return (orchestrate(tasks),) if settings.value(TasksOptions.AUTO) and tasks.open_ids else ()
 
     def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
         return (*open_lines(tasks), *blocked_check(tasks))
 
     def on_worker_reported(self, event: WorkerReported, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        return self.none(*self.silent_nudges(event.data.part(Tasks)))
+        return self.none(*self.silent_nudges(event.data.part(TasksPart)))
 
 
 def orchestrate(tasks: TasksData) -> Nudge:

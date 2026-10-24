@@ -14,6 +14,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.rows import Rows
 from journal.repositories.workers import Workers
+from journal.features.sequences.sequences_nudges import SequencesNudges
 
 COMMAND_PATTERN = re.compile(r"`([^`<]+)")
 
@@ -42,14 +43,13 @@ class RunTracker:
         return "\n".join([*liabilities, self.line(run)])
 
     def next(self, session: str, environment_id: int) -> str:
-        from journal.features.sequences.feature import Sequences
         agent = self.sessions.agent(session, environment_id)
         runs = self.runs(agent)
         run = runs[-1]
         self.refuse_open_end(run)
         if not run.last:
             return self.line(self.changed(session, environment_id, lambda time: time.advanced().announced(self.timestamp())))
-        return self.ended(agent, runs, Sequences.SEQUENCE_ENDED.create(n=run.sequence_id).rendered())
+        return self.ended(agent, runs, SequencesNudges.SEQUENCE_ENDED.create(n=run.sequence_id).rendered())
 
     def ended(self, agent: Agent, runs: list[SequenceRun], ended: str) -> str:
         if len(runs) == 1:
@@ -59,21 +59,19 @@ class RunTracker:
         return f"{ended}\n{self.line(outer)}"
 
     def skip(self, session: str, environment_id: int) -> str:
-        from journal.features.sequences.feature import Sequences
         agent = self.sessions.agent(session, environment_id)
         runs = self.runs(agent)
         run = runs[-1]
-        skipped = Sequences.STEP_OMISSION.create(n=run.sequence_id, step=run.step + 1).rendered()
+        skipped = SequencesNudges.STEP_OMISSION.create(n=run.sequence_id, step=run.step + 1).rendered()
         if run.last:
-            return self.ended(agent, runs, f"{skipped}\n{Sequences.SEQUENCE_ENDED.create(n=run.sequence_id).rendered()}")
+            return self.ended(agent, runs, f"{skipped}\n{SequencesNudges.SEQUENCE_ENDED.create(n=run.sequence_id).rendered()}")
         moved = self.changed(session, environment_id, lambda time: time.advanced().announced(self.timestamp()))
         return f"{skipped}\n{self.line(moved)}"
 
     def end(self, session: str, environment_id: int) -> str:
-        from journal.features.sequences.feature import Sequences
         agent = self.sessions.agent(session, environment_id)
         runs = self.runs(agent)
-        return self.ended(agent, runs, Sequences.SEQUENCE_CANCELLED.create(n=runs[-1].sequence_id).rendered())
+        return self.ended(agent, runs, SequencesNudges.SEQUENCE_CANCELLED.create(n=runs[-1].sequence_id).rendered())
 
     def refuse_open_end(self, run: SequenceRun) -> None:
         state = self.rows.row_state(Ref.parse(run.subject)) if run.last and run.subject and run.end_condition else ""
@@ -81,20 +79,18 @@ class RunTracker:
             raise Rejection(f"sequence {run.sequence_id} ends when {run.subject} is {' or '.join(run.end_condition)}; it is {state}. finish it first, or `journal sequence abandon --why \"<why>\"`")
 
     def abandon(self, session: str, environment_id: int) -> tuple[SequenceRun, str]:
-        from journal.features.sequences.feature import Sequences
         agent = self.sessions.agent(session, environment_id)
         runs = self.runs(agent)
-        return runs[-1], self.ended(agent, runs, Sequences.SEQUENCE_ABANDONED.create(n=runs[-1].sequence_id).rendered())
+        return runs[-1], self.ended(agent, runs, SequencesNudges.SEQUENCE_ABANDONED.create(n=runs[-1].sequence_id).rendered())
 
     def finish_matching(self, environment_id: int, missing, reason: str) -> list[tuple[Agent, str]]:
-        from journal.features.sequences.feature import Sequences
         notified = []
         for agent in self.agents.sequence_agents(environment_id):
             runs = self.runs(agent)
             retained = [run for run in runs if not missing(run)]
             if len(retained) < len(runs):
                 self.stored(agent, retained)
-                notified.append((agent, "\n".join(Sequences.SEQUENCE_CANNOT_FINISH.create(n=run.sequence_id, why=reason).rendered() for run in runs if missing(run))))
+                notified.append((agent, "\n".join(SequencesNudges.SEQUENCE_CANNOT_FINISH.create(n=run.sequence_id, why=reason).rendered() for run in runs if missing(run))))
         return notified
 
     def environments_running(self, sequence_id: int) -> set[int]:
@@ -137,13 +133,11 @@ class RunTracker:
 
     @classmethod
     def reminder(cls, run: SequenceRun) -> Nudge:
-        from journal.features.sequences.feature import Sequences
-        return Sequences.SEQUENCE_PAUSED.create(n=run.sequence_id, step=run.step + 1, why=run.pause_reason) if run.pause_reason else cls.step(run)
+        return SequencesNudges.SEQUENCE_PAUSED.create(n=run.sequence_id, step=run.step + 1, why=run.pause_reason) if run.pause_reason else cls.step(run)
 
     @staticmethod
     def step(run: SequenceRun) -> Nudge:
-        from journal.features.sequences.feature import Sequences
-        return Sequences.PENDING_STEP.create(n=run.sequence_id, step=run.step + 1, text=run.text)
+        return SequencesNudges.PENDING_STEP.create(n=run.sequence_id, step=run.step + 1, text=run.text)
 
     def line(self, run: SequenceRun) -> str:
         return self.step(run).rendered()

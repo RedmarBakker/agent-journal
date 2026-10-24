@@ -14,6 +14,8 @@ from journal.repositories.scope import Scope
 from journal.support.stage_times import StageTimes
 from journal.support.worktree import Worktree
 from journal.support.moment import Moment
+from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.tasks.tasks_nudges import TasksNudges
 
 HISTORY_READS = 26
 
@@ -47,19 +49,15 @@ class ShellDataReader:
         return tuple([OutputReads.shape(c) for c in commands if OutputReads.is_one(c)][:HISTORY_READS])
 
     def tipped(self, agent: Agent) -> tuple[str, ...]:
-        from journal.features.shell.feature import Shell
-        tips = (Shell.READER_HINT, Shell.READER_SUGGESTION, Shell.ALIAS_SUGGESTION, Shell.NEW_READER_SUGGESTION, Shell.READER_FIX, Shell.READER_DETAIL, Shell.SILENT_CARD, Shell.SUMMARY_REQUEST)
+        tips = (ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.ALIAS_SUGGESTION, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.READER_FIX, ShellNudges.READER_DETAIL, ShellNudges.SILENT_CARD, ShellNudges.SUMMARY_REQUEST)
         return tuple(self.entries.keyed_lines(agent.session, tuple(nudge.key for nudge in tips)))
 
     def reader_requests(self, agent: Agent) -> tuple[str, ...]:
-        from journal.features.shell.feature import Shell
-        requests = self.entries.line_entries(agent.session, (Shell.READER_FIX.key, Shell.READER_DETAIL.key))
+        requests = self.entries.line_entries(agent.session, (ShellNudges.READER_FIX.key, ShellNudges.READER_DETAIL.key))
         return tuple(reader.name for reader in self.readers.all() for entry in requests if f"the reader {reader.name} " in entry.data["line"] and entry.creation_time.timestamp() > self.readers.file_stamp(reader.name))
 
     def last_ending_line(self, agent: Agent) -> Moment:
-        from journal.features.shell.feature import Shell
-        from journal.features.tasks.feature import Tasks
-        entry = self.entries.last_line_entry(agent.session, (Shell.OUTPUTS_ENDED.key, Shell.UNREAD_OUTPUT.key, Tasks.WAIT_END.key))
+        entry = self.entries.last_line_entry(agent.session, (ShellNudges.OUTPUTS_ENDED.key, ShellNudges.UNREAD_OUTPUT.key, TasksNudges.WAIT_END.key))
         return Moment(seconds=entry.data["time"], tool_uses=entry.data["tool_use"]) if entry else Moment()
 
     def watch(self, agent: Agent) -> OutputView:

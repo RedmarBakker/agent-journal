@@ -19,6 +19,9 @@ from journal.support.command_shape import CommandShape
 from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.support.moment import Moment
 from journal.support.timeout import Timeout
+from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.shell.shell_options import ShellOptions
+from journal.features.shell.shell_part import ShellPart
 
 # the flag of an output read that picks lines by a pattern, the one kind of read a reader can stand for
 PATTERN_READ = "--grep"
@@ -39,45 +42,41 @@ class ShellConduct(Conduct):
         return Transition.merged(self, [journal_isolation_check(self, event, settings), piped_test_check(self, event, settings), folder_change_check(self, event, settings), partial_read_check(self, event, settings), readers_check(self, event, settings), alias_check(self, event, settings), reader_suggestion_check(self, event, settings), counting_reader_check(self, event, settings)])
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
-        from journal.features.shell.feature import Shell
-        watch = event.data.part(Shell).watch
+        watch = event.data.part(ShellPart).watch
         if not watch.is_watching():
             return unread_check(self, event, settings)
-        fix_lines = reader_fix(watch, event.data.part(Shell).tipped)
-        if fix_lines and event.data.part(Shell).reader_requests.count(watch.reader) + 1 >= READER_REQUEST_COUNT:
+        fix_lines = reader_fix(watch, event.data.part(ShellPart).tipped)
+        if fix_lines and event.data.part(ShellPart).reader_requests.count(watch.reader) + 1 >= READER_REQUEST_COUNT:
             return reader_rewrite(self, event, watch)
         if watch.ending:
-            return self.none(Shell.WATCH_ENDED.create(n=watch.output, ending=watch.ending, lines=watch.text()), *fix_lines)
-        return self.none(Shell.WATCH_VIEW.create(n=watch.output, lines=watch.text()), *fix_lines)
+            return self.none(ShellNudges.WATCH_ENDED.create(n=watch.output, ending=watch.ending, lines=watch.text()), *fix_lines)
+        return self.none(ShellNudges.WATCH_VIEW.create(n=watch.output, lines=watch.text()), *fix_lines)
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return Transition.merged(self, [background_check(self, event, settings), ended_check(self, event, settings), unread_check(self, event, settings), silent_check(self, event)])
 
 
 def reader_rewrite(state: BaseState, event: ToolFinished, watch: OutputView) -> Transition:
-    from journal.features.shell.feature import Shell
-    reader = next((r for r in event.data.part(Shell).readers if r.name == watch.reader), None)
-    return state.push(FixingReader(reader=watch.reader, reader_form=repr(reader)), *reader_fix(watch, ()), Shell.READER_REWRITE_REQUEST.create(reader=watch.reader))
+    reader = next((r for r in event.data.part(ShellPart).readers if r.name == watch.reader), None)
+    return state.push(FixingReader(reader=watch.reader, reader_form=repr(reader)), *reader_fix(watch, ()), ShellNudges.READER_REWRITE_REQUEST.create(reader=watch.reader))
 
 
 def reader_fix(watch: OutputView, tipped: tuple[str, ...]) -> tuple[Nudge, ...]:
-    from journal.features.shell.feature import Shell
     if any(f"output {watch.output}'s card" in tip_text for tip_text in tipped):
         return ()
     if watch.silent:
-        return (Shell.SILENT_CARD.create(n=watch.output),)
+        return (ShellNudges.SILENT_CARD.create(n=watch.output),)
     if watch.poor_line:
-        return (Shell.READER_FIX.create(reader=watch.reader, n=watch.output, line=watch.poor_line[:120]),)
+        return (ShellNudges.READER_FIX.create(reader=watch.reader, n=watch.output, line=watch.poor_line[:120]),)
     if watch.summary_missing:
-        return (Shell.SUMMARY_REQUEST.create(n=watch.output),)
+        return (ShellNudges.SUMMARY_REQUEST.create(n=watch.output),)
     if watch.empty_card:
-        return (Shell.READER_DETAIL.create(reader=watch.reader, n=watch.output),)
+        return (ShellNudges.READER_DETAIL.create(reader=watch.reader, n=watch.output),)
     return ()
 
 
 def silent_check(state: BaseState, event: Ticked) -> Transition:
-    from journal.features.shell.feature import Shell
-    shell = event.data.part(Shell)
+    shell = event.data.part(ShellPart)
     return state.none(*reader_fix(shell.watch, shell.tipped)) if shell.watch.is_watching() and shell.watch.silent else state.none()
 
 
@@ -91,100 +90,89 @@ def outcome_text(ended: tuple[EndedOutput, ...]) -> str:
 
 
 def partial_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    cap = settings.integer(Shell.SHOWN)
-    return state.refuse(Shell.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > 2 * cap else state.none()
+    cap = settings.integer(ShellOptions.SHOWN)
+    return state.refuse(ShellNudges.PARTIAL_FILE_READ.create(lines=event.call.file_lines, cap=cap)) if event.call.file_lines > 2 * cap else state.none()
 
 
 def journal_isolation_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
     journal, parts = event.call.journal_parts()
-    return state.refuse(Shell.JOURNAL_COMMAND_ISOLATION.create()) if 0 < journal < parts else state.none()
+    return state.refuse(ShellNudges.JOURNAL_COMMAND_ISOLATION.create()) if 0 < journal < parts else state.none()
 
 
 def folder_change_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    home = event.data.part(Shell).home
+    home = event.data.part(ShellPart).home
     targets = [target for target in FolderChange.targets([part.text for part in event.call.parts]) if not FolderChange.is_home(target, home)]
-    return state.refuse(Shell.FOLDER_CHANGE_REFUSAL.create(target=targets[0], home=home)) if targets else state.none()
+    return state.refuse(ShellNudges.FOLDER_CHANGE_REFUSAL.create(target=targets[0], home=home)) if targets else state.none()
 
 
 def reader_suggestion_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    shell = event.data.part(Shell)
+    shell = event.data.part(ShellPart)
     shape = event.call.recorded().shape
     if not Timeout.tool_uses(READER_RUNS).is_elapsed(event.shape_runs) or ActivityLabel.build(shape) not in LONG_RUNS or any(r.commands.is_read(event.call.command) for r in shell.readers):
         return state.none()
-    tip = Shell.NEW_READER_SUGGESTION.create(command=shape)
+    tip = ShellNudges.NEW_READER_SUGGESTION.create(command=shape)
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
 
 
 def piped_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
     program = PipedTestRun.piped_filter(event.call.command) if event.call.command and not event.subagent else ""
-    return state.refuse(Shell.PIPED_TEST_RUN.create(filter=program)) if program else state.none()
+    return state.refuse(ShellNudges.PIPED_TEST_RUN.create(filter=program)) if program else state.none()
 
 
 def counting_reader_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
     shape = event.call.recorded().shape
     if ActivityLabel.build(shape) != TESTING or not Timeout.tool_uses(COUNTING_SUGGESTION_RUNS).started(1).is_period_start(event.shape_runs):
         return state.none()
-    if any(r.is_counting() and r.commands.is_read(event.call.command) for r in event.data.part(Shell).readers):
+    if any(r.is_counting() and r.commands.is_read(event.call.command) for r in event.data.part(ShellPart).readers):
         return state.none()
-    return state.none(Shell.COUNTING_READER_SUGGESTION.create(command=shape))
+    return state.none(ShellNudges.COUNTING_READER_SUGGESTION.create(command=shape))
 
 
 def alias_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    shell = event.data.part(Shell)
-    hints = [Shell.ALIAS_HINT.create(name=alias.name, line=part.text) for part in event.call.parts for alias in shell.aliases if alias.matches(part.text)]
+    shell = event.data.part(ShellPart)
+    hints = [ShellNudges.ALIAS_HINT.create(name=alias.name, line=part.text) for part in event.call.parts for alias in shell.aliases if alias.matches(part.text)]
     if hints:
         return state.none(hints[0])
     command, shape = event.call.command, event.call.recorded().shape
     if not Timeout.tool_uses(ALIAS_RUNS).is_elapsed(event.shape_runs) or Chain.is_journal(CommandShape.inner(command)) or Chain.is_read_line(command) or " " not in shape:
         return state.none()
     reader = next((r.name for r in shell.readers if r.commands.is_read(command)), "<the reader that reads its output>")
-    tip = Shell.ALIAS_SUGGESTION.create(shape=shape, reader=f" --reader {reader}")
+    tip = ShellNudges.ALIAS_SUGGESTION.create(shape=shape, reader=f" --reader {reader}")
     return state.none() if tip.rendered() in shell.tipped else state.none(tip)
 
 
 def readers_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
     reads = [part for part in event.call.parts if part.reads_output]
     if not reads:
         return state.none()
-    shell = event.data.part(Shell)
-    tips = [Shell.READER_HINT.create(reader=r.name, about=r.subject) for r in shell.readers if r.matches(reads[0].text)]
+    shell = event.data.part(ShellPart)
+    tips = [ShellNudges.READER_HINT.create(reader=r.name, about=r.subject) for r in shell.readers if r.matches(reads[0].text)]
     # only a pattern read again is worth a reader; a plain --head, --tail or --lines read never is
     if PATTERN_READ in reads[0].read_shape and shell.output_reads.count(reads[0].read_shape) >= 2:
-        tips.append(Shell.READER_SUGGESTION.create(command=reads[0].read_shape))
+        tips.append(ShellNudges.READER_SUGGESTION.create(command=reads[0].read_shape))
     new_tips = [tip for tip in tips if tip.rendered() not in shell.tipped]
     return state.none(new_tips[0]) if new_tips else state.none()
 
 
 def ended_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    ended = event.data.part(Shell).unannounced
+    ended = event.data.part(ShellPart).unannounced
     if not Timeout.seconds(SILENCE_SECONDS).is_elapsed(event.silence_seconds) or not ended:
         return state.none()
-    return state.none(Shell.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id))
+    return state.none(ShellNudges.OUTPUTS_ENDED.create(outputs=outcome_text(ended), n=ended[0].id))
 
 
 def unread_check(state: BaseState, event: AgentEvent, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    shell = event.data.part(Shell)
+    shell = event.data.part(ShellPart)
     if event.subagent or not shell.unread or shell.unannounced:
         return state.none()
-    interval = Timeout.tool_uses(settings.integer(Shell.UNREAD_OUTPUT_INTERVAL)).combined(Timeout.seconds(settings.integer(FOREGROUND_OPTION)))
+    interval = Timeout.tool_uses(settings.integer(ShellOptions.UNREAD_OUTPUT_INTERVAL)).combined(Timeout.seconds(settings.integer(FOREGROUND_OPTION)))
     if not interval.reset(shell.last_ending_line).has_passed(Moment(seconds=event.time, tool_uses=shell.tool_uses)):
         return state.none()
-    return state.none(Shell.UNREAD_OUTPUT.create(outputs=outcome_text(shell.unread), n=shell.unread[0].id))
+    return state.none(ShellNudges.UNREAD_OUTPUT.create(outputs=outcome_text(shell.unread), n=shell.unread[0].id))
 
 
 def background_check(state: BaseState, event: Ticked, settings: Settings) -> Transition:
-    from journal.features.shell.feature import Shell
-    shell = event.data.part(Shell)
+    shell = event.data.part(ShellPart)
     if not shell.background or not Timeout.seconds(BACKGROUND_CHECK_DELAY_SECONDS).started(shell.backgrounded_at).is_elapsed(event.time):
         return state.none()
-    return state.none(Shell.BACKGROUND_CHECK.create(background_outputs=", ".join(str(n) for n in shell.background)))
+    return state.none(ShellNudges.BACKGROUND_CHECK.create(background_outputs=", ".join(str(n) for n in shell.background)))

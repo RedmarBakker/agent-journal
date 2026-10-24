@@ -26,6 +26,7 @@ from journal.models.support.path_overlap import PathOverlap
 from journal.models.worker import Worker
 from journal.features.workers.support.workers_data import WorkersData
 from journal.support.subagent_dispatch import SubagentDispatch
+from journal.features.tasks.tasks_part import TasksPart
 
 INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 
@@ -191,8 +192,7 @@ def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
 
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.tasks.feature import Tasks
-    tasks, workers = event.data.part(Tasks), event.data.part(workers_feature())
+    tasks, workers = event.data.part(TasksPart), event.data.part(workers_feature())
     if not tasks.open_ids or settings.value(workers_feature().MODE) != "orchestrator" or workers.is_full(settings.integer(workers_feature().WORKER_LIMIT)):
         return state.none()
     return state.none(workers_feature().CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_summary))
@@ -208,8 +208,7 @@ def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings
 
 
 def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-    from journal.features.tasks.feature import Tasks
-    tasks = data.part(Tasks)
+    tasks = data.part(TasksPart)
     if not tasks.open_ids or settings.value(workers_feature().MODE) != "orchestrator":
         return ()
     return (workers_feature().PLACE_FREE.create(n=worker.id, name=worker.name, tasks=tasks.open_summary),)

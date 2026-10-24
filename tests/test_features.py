@@ -46,6 +46,10 @@ from tests.old_columns import old_columns
 from tests.replay import catch_typed, drive_the_clock, tick_after
 from tests.in_process import got, posted
 from tests.main_journal import main_journal
+from journal.features.plugins.plugins_options import PluginsOptions
+from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.tasks_options import TasksOptions
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -4475,7 +4479,6 @@ def test_a_plugins_line_after_the_reply_reaches_the_agent_at_its_next_hook(app: 
 
 
 def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
-    from journal.features.plugins.feature import PluginsFeature
     from journal.repositories.entries import Entries
     from journal.repositories.messages import Messages
     from journal.repositories.plugins import Plugins
@@ -4491,7 +4494,7 @@ def test_a_plugin_that_fails_lets_the_event_through_and_is_recorded(app: App):
     plugins.save(row.with_(settings={}), Actor.user(1))
     assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[0] == 200
     assert plugins.lookup("echo").fault_streak == 0 and "Plugin echo answers again" in [m.text for m in messages.recent(5)]
-    app.container.get(SettingRows).set(PluginsFeature.PLUGIN_ANSWER_WINDOW.key, 100, Actor.user(1))
+    app.container.get(SettingRows).set(PluginsOptions.PLUGIN_ANSWER_WINDOW.key, 100, Actor.user(1))
     plugins.save(plugins.lookup("echo").with_(settings={"mode": "slow"}), Actor.user(1))
     plugins.save(echo(app, "echo-two").with_(settings={"mode": "slow"}), Actor.user(1))
     began = timing.monotonic()
@@ -6390,15 +6393,14 @@ def test_a_phone_is_pushed_once_for_each_new_thing_that_waits_for_the_user(app: 
 
 def test_a_line_naming_a_list_that_changes_is_said_once_inside_its_window(app: App):
     from journal.engine.nudger import Nudger
-    from journal.features.shell.feature import Shell
     from journal.features.tasks.feature import Tasks
     hook(app, "SessionStart")
     agent, nudger = app.container.get(SessionAgents).agent("s1", 1), app.container.get(Nudger)
-    assert nudger.deliver(agent, Shell.BACKGROUND_CHECK.create(background_outputs="12, 15")), "the first naming of the commands still running is said"
-    assert nudger.deliver(agent, Shell.BACKGROUND_CHECK.create(background_outputs="12, 15, 18")) is None, "a command joining the list inside the window says nothing again: project-7's flood"
-    assert nudger.deliver(agent, Tasks.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")), "the blocked ask is said once"
-    assert nudger.deliver(agent, Tasks.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")) is None, "and not again at the next tick five seconds later"
-    assert nudger.deliver(agent, Tasks.UNLOGGED_TASK.create(n=3)) and nudger.deliver(agent, Tasks.UNLOGGED_TASK.create(n=4)), "a line about one row is still held by its words: another task is named"
+    assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15")), "the first naming of the commands still running is said"
+    assert nudger.deliver(agent, ShellNudges.BACKGROUND_CHECK.create(background_outputs="12, 15, 18")) is None, "a command joining the list inside the window says nothing again: project-7's flood"
+    assert nudger.deliver(agent, TasksNudges.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")), "the blocked ask is said once"
+    assert nudger.deliver(agent, TasksNudges.BLOCKED_TASK_REMINDER.create(tasks="task 4 on the deploy")) is None, "and not again at the next tick five seconds later"
+    assert nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=3)) and nudger.deliver(agent, TasksNudges.UNLOGGED_TASK.create(n=4)), "a line about one row is still held by its words: another task is named"
 
 
 def test_a_package_install_of_code_commandments_is_suggested_once_as_the_journal_plugin(app: App):
@@ -9617,13 +9619,13 @@ def test_the_settings_command_lists_shows_and_sets_and_an_agent_sets_only_the_on
     refused = console.run(["settings", "set", "tasks.auto", "off"], AGENT)
     assert refused.code != 0 and "the user's to set" in refused.error, "an agent never changes a setting the user keeps"
     assert console.run(["settings", "set", "workers.most_out", "4"], AGENT).code == 0, "every setting not marked the user's is the agent's to set as well"
-    assert console.run(["settings", "set", "tasks.auto", "off"], USER).code == 0 and app.container.get(SettingRows).option(TasksFeature.AUTO) is False
+    assert console.run(["settings", "set", "tasks.auto", "off"], USER).code == 0 and app.container.get(SettingRows).option(TasksOptions.AUTO) is False
     assert "is on or off" in console.run(["settings", "set", "tasks.auto", "maybe"], USER).error
     assert "no setting is named tasks.nothing" in console.run(["settings", "set", "tasks.nothing", "1"], USER).error
     import dataclasses
-    left = dataclasses.replace(TasksFeature.AUTO, setter=options.AGENT)
+    left = dataclasses.replace(TasksOptions.AUTO, setter=options.AGENT)
     monkeypatch.setattr(TasksFeature, "options", tuple(left if option.key == left.key else option for option in TasksFeature.options))
-    assert console.run(["settings", "set", "tasks.auto", "on"], AGENT).code == 0 and app.container.get(SettingRows).option(TasksFeature.AUTO) is True, "a setting left to the agent it sets itself"
+    assert console.run(["settings", "set", "tasks.auto", "on"], AGENT).code == 0 and app.container.get(SettingRows).option(TasksOptions.AUTO) is True, "a setting left to the agent it sets itself"
 
 
 def test_the_users_worktree_commands_run_before_and_after_the_journals_step_which_can_be_left_to_them(app: App, monkeypatch):

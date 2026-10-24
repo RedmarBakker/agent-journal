@@ -6,6 +6,7 @@ from journal.events.agent.commit_detected import CommitDetected
 from journal.events.agent.tool_starting import ToolStarting
 from journal.features.git.support.branch_switch import BranchSwitch
 from journal.features.git.support.branch_environments import BranchEnvironments
+from journal.features.tasks.tasks_nudges import TasksNudges
 
 
 class GitConduct(Conduct):
@@ -24,10 +25,9 @@ class GitConduct(Conduct):
 
 
 def closure_lines(event: CommitDetected) -> list[Nudge]:
-    from journal.features.tasks.feature import Tasks
     if not event.closed:
         return []
-    closure = Tasks.COMMIT_CLOSURE.create(sha=event.short_sha(), tasks=event.closed_words())
+    closure = TasksNudges.COMMIT_CLOSURE.create(sha=event.short_sha(), tasks=event.closed_words())
     if event.next_open is None:
         return [closure]
-    return [closure, Tasks.NEXT_TASK.create(n=event.next_open.id, title=event.next_open.title)]
+    return [closure, TasksNudges.NEXT_TASK.create(n=event.next_open.id, title=event.next_open.title)]

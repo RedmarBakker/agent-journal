@@ -19,6 +19,7 @@ from journal.repositories.entries import Entries
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from tests.main_journal import main_journal
+from journal.features.tasks.tasks_options import TasksOptions
 
 
 @pytest.fixture(scope="module")
@@ -791,7 +792,6 @@ def test_a_comment_written_under_a_task_in_the_viewer_is_the_users_message_linke
     assert call(server, "POST", "/journal/comments", {"on": "nothing:1", "text": "x"})[0] == 409, "a comment is only written under a row that is there"
 
 def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_it(tmp_path: Path):
-    from journal.features.tasks.feature import Tasks
     from journal.repositories.setting_rows import SettingRows
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
@@ -807,9 +807,9 @@ def test_the_settings_page_offers_only_what_the_code_reads_and_a_change_reaches_
         assert next(f for f in manifest["features"] if f["name"] == "pausing")["fixed"], "pausing is no setting: the pause button is always there"
         assert {g["key"] for g in manifest["groups"]} == {*matched, "project"}, "one group per feature, and the System tab's own"
         status, tree = call(server, "POST", "/journal/settings", {"tasks": {"log_after": 60}})
-        assert status == 200 and tree["tasks"]["log_after"] == 60 and app.container.get(SettingRows).option(Tasks.LOG_LIMIT) == 60, "saved where the code reads it"
+        assert status == 200 and tree["tasks"]["log_after"] == 60 and app.container.get(SettingRows).option(TasksOptions.LOG_LIMIT) == 60, "saved where the code reads it"
         tree = call(server, "POST", "/journal/settings", {"tasks": {"log_after": None}})[1]
-        assert "tasks" not in tree and app.container.get(SettingRows).option(Tasks.LOG_LIMIT) == 50, "sent as null, back to its default"
+        assert "tasks" not in tree and app.container.get(SettingRows).option(TasksOptions.LOG_LIMIT) == 50, "sent as null, back to its default"
         call(server, "POST", "/journal/settings", {"viewer": {"tour_seen": True}})
         tree = call(server, "POST", "/journal/settings", {"viewer": {"scheme": "dark"}})[1]
         assert tree["viewer"] == {"tour_seen": True, "scheme": "dark"}, "a save names only what it sets: the other keys under the heading stay, so the tour is not replayed by a layout save"

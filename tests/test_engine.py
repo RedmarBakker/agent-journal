@@ -70,10 +70,8 @@ from journal.engine.states.compacting import Compacting as CompactingState
 from journal.engine.states.ended import Ended
 from journal.features.registry import Registry
 from journal.engine.support.data_readers import DataReaders
-from journal.features.tasks.feature import Tasks as TasksFeature
 from journal.features.messages.feature import Messages as MessagesFeature
 from journal.features.briefing.feature import Briefing as BriefingFeature
-from journal.features.shell.feature import Shell as ShellFeature
 from journal.features.workers.feature import Workers as WorkersFeature
 from journal.engine.nudger import Nudger
 from journal.engine.nudge_registry import NudgeRegistry
@@ -93,6 +91,11 @@ from journal.engine.support.settings import Settings as SettingsValue
 from journal.engine.support.stack import Stack
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
+from journal.features.shell.shell_nudges import ShellNudges
+from journal.features.shell.shell_options import ShellOptions
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.shell.shell_part import ShellPart
+from journal.features.tasks.tasks_part import TasksPart
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -853,11 +856,11 @@ def test_the_data_is_read_per_feature_and_travels_on_the_event_the_machine_asks(
     agent = app.container.get(Agents).session_agent("s1")
     with app.container.get(Scope).environment(1):
         data = app.container.get(DataReaders).agent_data(agent)
-    assert data.part(TasksFeature).current_task == 1 and data.part(TasksFeature).paused == ()
+    assert data.part(TasksPart).current_task == 1 and data.part(TasksPart).paused == ()
     assert len(data.part(MessagesFeature).unread) == 1 and data.part(BriefingFeature).is_overview_read is False
-    assert data.part(ShellFeature).background == () and data.part(WorkersFeature).idle_workers == ()
+    assert data.part(ShellPart).background == () and data.part(WorkersFeature).idle_workers == ()
     event = ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))).with_data(data)
-    assert event.data.part(TasksFeature).current_task == 1 and ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))).data.parts == {}
+    assert event.data.part(TasksPart).current_task == 1 and ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))).data.parts == {}
 
 
 class InboxConduct(Conduct):
@@ -997,7 +1000,6 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.features.messages.messages_conduct import MessagesConduct
     from journal.features.messages.support.messages_data import MessagesData
     from journal.features.laws.laws_conduct import LawsConduct
-    from journal.features.shell.feature import Shell
     from journal.features.shell.shell_conduct import ShellConduct
     from journal.features.shell.support.shell_data import ShellData
     from journal.features.shell.support.ended_output import EndedOutput
@@ -1024,7 +1026,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({WorkersFeature.CHECK_REMINDER_USES.key: 25, MessagesFeature.TOOL_BLOCK_LIMIT.key: 10, MessagesFeature.ANSWER_REQUEST_LIMIT.key: 3, MessagesFeature.EDIT_BLOCK_LIMIT.key: 5, Shell.SHOWN.key: 100, WorkersFeature.SUBAGENT_LIMIT.key: 2, "tasks.auto": False})
+    settings = SettingsValue({WorkersFeature.CHECK_REMINDER_USES.key: 25, MessagesFeature.TOOL_BLOCK_LIMIT.key: 10, MessagesFeature.ANSWER_REQUEST_LIMIT.key: 3, MessagesFeature.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersFeature.SUBAGENT_LIMIT.key: 2, "tasks.auto": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),
@@ -1077,7 +1079,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     assert shell_lines(reader) == ["shell.use_the_reader"]
     repeat = Ready().respond(ToolStarting(call=shell("journal output read 9 --grep x")).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     assert shell_lines(repeat) == ["shell.add_a_reader"]
-    tipped = FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "tipped": (Shell.READER_SUGGESTION.create(command="journal output read <output> --grep x").rendered(),)})})
+    tipped = FeatureData({**parts, "shell": ShellData(**{**parts["shell"].__dict__, "tipped": (ShellNudges.READER_SUGGESTION.create(command="journal output read <output> --grep x").rendered(),)})})
     assert shell_lines(Ready().respond(ToolStarting(call=shell("journal output read 9 --grep x")).with_data(tipped), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))) == []
     tick = Ready().respond(Ticked(silence_seconds=6.0, time=500.0).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
     by_key = {n.key: n.rendered() for n in tick.nudges}
@@ -1190,13 +1192,12 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     from journal.features.plans.states.plans_ready import PlansReady
     from journal.features.plans.states.plans_working import PlansWorking
     from dataclasses import replace
-    from journal.features.tasks.feature import Tasks as TasksFeature
     from journal.features.tasks.support.tasks_data import TasksData
     from journal.features.plans.support.plans_data import PlansData
     from journal.models.open_task import OpenTask
     from journal.events.agent.stop import Stop
     from journal.events.agent.ticked import Ticked
-    auto, manual = SettingsValue({TasksFeature.AUTO.key: True, WorkersFeature.MODE.key: "builder"}), SettingsValue({TasksFeature.AUTO.key: False, WorkersFeature.MODE.key: "builder"})
+    auto, manual = SettingsValue({TasksOptions.AUTO.key: True, WorkersFeature.MODE.key: "builder"}), SettingsValue({TasksOptions.AUTO.key: False, WorkersFeature.MODE.key: "builder"})
     nothing = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
     open_next = replace(nothing, next_open=OpenTask(4, "the footer", "", 0))
     paused = replace(open_next, paused=(2,), pause_summary="task 2 (the parser)", first_pause_reason="a review first")
@@ -1237,7 +1238,6 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     from journal.features.plans.states.plans_ready import PlansReady
     from journal.features.plans.states.plans_working import PlansWorking
     from dataclasses import replace
-    from journal.features.tasks.feature import Tasks as TasksFeature
     from journal.features.tasks.support.tasks_data import TasksData
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.git.support.git_data import GitData
@@ -1245,7 +1245,7 @@ def test_working_counts_its_edits_holds_and_says_its_lines_and_pops_when_its_tas
     from journal.events.agent.ticked import Ticked
     from journal.events.rows.task_closed import TaskClosed
     from journal.events.rows.task_logged import TaskLogged
-    settings = SettingsValue({TasksFeature.AUTO.key: True, TasksFeature.LOG_LIMIT.key: 4, TasksFeature.FIRST_DELAY.key: 2, TasksFeature.TASK_REMINDER_INTERVAL.key: 3, TasksFeature.LOG_AGE_LIMIT.key: 10})
+    settings = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.LOG_LIMIT.key: 4, TasksOptions.FIRST_DELAY.key: 2, TasksOptions.TASK_REMINDER_INTERVAL.key: 3, TasksOptions.LOG_AGE_LIMIT.key: 10})
     tasks = TasksData(current_task=7, last_log_line='"the parser reads"', paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
     of = lambda current_task=7, approved=(): FeatureData({"tasks": replace(tasks, current_task=current_task), "plans": PlansData(approved, None, 0, 0), "git": GitData(uncommitted="a.py, b.py")})
     working = PlansWorking(task_id=7, logged_at=1000.0)
@@ -1286,11 +1286,9 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     from journal.features.plans.states.plans_ready import PlansReady
     from journal.features.plans.states.plans_working import PlansWorking
     from dataclasses import replace
-    from journal.features.plans.feature import Plans as PlansFeature
     from journal.features.plans.states.following_plan import FollowingPlan
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.plans.support.started_plan import StartedPlan
-    from journal.features.tasks.feature import Tasks as TasksFeature
     from journal.features.tasks.support.tasks_data import TasksData
     from journal.engine.support.block import Block
     from journal.events.agent.stop import Stop
@@ -1298,7 +1296,7 @@ def test_following_plan_keeps_the_next_task_stands_at_the_checkpoint_and_pops_wh
     from journal.events.rows.plan_started import PlanStarted
     from journal.events.rows.task_closed import TaskClosed
     from journal.events.rows.task_started import TaskStarted
-    auto, manual = SettingsValue({TasksFeature.AUTO.key: True, TasksFeature.LOG_LIMIT.key: 50, TasksFeature.FIRST_DELAY.key: 25, TasksFeature.TASK_REMINDER_INTERVAL.key: 25}), SettingsValue({TasksFeature.AUTO.key: False})
+    auto, manual = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.LOG_LIMIT.key: 50, TasksOptions.FIRST_DELAY.key: 25, TasksOptions.TASK_REMINDER_INTERVAL.key: 25}), SettingsValue({TasksOptions.AUTO.key: False})
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), agent_tasks=(3, 7, 8))
     plan = StartedPlan(plan_id=5, next_task=8, started_task=0, started_task_briefing="", tasks=(7, 8), remaining_tasks=1, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda started: FeatureData({"tasks": tasks, "plans": PlansData((), started, 0, 0)})
@@ -1379,7 +1377,6 @@ def test_a_question_asked_pushes_waiting_and_its_answer_pops_it_on_top_or_on_res
 
 def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_the_last_row_settles_and_stuck_is_quiet():
     from dataclasses import replace
-    from journal.features.tasks.feature import Tasks as TasksFeature
     from journal.features.tasks.states.external_wait import ExternalWait
     from journal.features.tasks.states.impasse import Impasse
     from journal.models.open_task import OpenTask
@@ -1390,7 +1387,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     from journal.events.agent.impasse_report import ImpasseReport
     from journal.events.agent.ticked import Ticked
     from journal.events.rows.row_resolved import RowResolved
-    auto, manual = SettingsValue({TasksFeature.AUTO.key: True}), SettingsValue({TasksFeature.AUTO.key: False})
+    auto, manual = SettingsValue({TasksOptions.AUTO.key: True}), SettingsValue({TasksOptions.AUTO.key: False})
     tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(9, "the next one", "", 0), last_commands=())
     of = lambda: FeatureData({"tasks": tasks})
     pushed = Working(task_id=7).respond(WaitRequest(focus="the build", end_refs="command_outputs:4,checks:2", time=100.0), auto, (TasksConduct,))
@@ -1523,7 +1520,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
     from journal.features.workers.states.soloing import Soloing
     from journal.models.open_task import OpenTask
-    settings = lambda mode: SettingsValue({Workers.MODE.key: mode, TasksFeature.AUTO.key: True, TasksFeature.LOG_AGE_LIMIT.key: 10, TasksFeature.FIRST_DELAY.key: 25})
+    settings = lambda mode: SettingsValue({Workers.MODE.key: mode, TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.FIRST_DELAY.key: 25})
     tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_summary="task 3 (the footer), task 4 (the margin)")
     started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda plan: FeatureData({"plans": PlansData((), plan, 0, 0), "tasks": tasks})
@@ -1638,7 +1635,7 @@ def test_a_stop_with_the_tasks_log_older_than_the_set_minutes_asks_for_the_log_l
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
     data = FeatureData({"plans": PlansData((), None, 0, 0), "tasks": TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())})
-    settings = lambda minutes: SettingsValue({TasksFeature.AUTO.key: True, TasksFeature.LOG_AGE_LIMIT.key: minutes, TasksFeature.FIRST_DELAY.key: 25, WorkersFeature.MODE.key: "builder"})
+    settings = lambda minutes: SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: minutes, TasksOptions.FIRST_DELAY.key: 25, WorkersFeature.MODE.key: "builder"})
     working = Working(task_id=7, logged_at=0.0)
     assert working.respond(Stop(time=5 * 60.0).with_data(data), settings(10)).refusal.key == "tasks.carry_on", "within the minutes a stop is told to carry on"
     assert working.respond(Stop(time=11 * 60.0).with_data(data), settings(10)).refusal.key == "tasks.log_first_at_stop", "past them the log line comes first"

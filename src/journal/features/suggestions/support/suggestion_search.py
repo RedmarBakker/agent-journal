@@ -15,6 +15,7 @@ from journal.features.suggestions.support.suggestion_process_card import Suggest
 from journal.support.missing_row import MissingRow
 from journal.support.rejection import Rejection
 from journal.repositories.scope import Scope
+from journal.features.suggestions.suggestions_options import SuggestionsOptions
 
 MINUTE_SECONDS = 60
 
@@ -35,10 +36,9 @@ class SuggestionSearch:
         self.round()
 
     def next_round(self) -> float:
-        from journal.features.suggestions.feature import SuggestionsFeature
         if self.last_round is None:
-            return self.started_at + self.settings.decimal(SuggestionsFeature.FIRST_DELAY) * MINUTE_SECONDS
-        return self.last_round + self.settings.decimal(SuggestionsFeature.INTERVAL) * MINUTE_SECONDS
+            return self.started_at + self.settings.decimal(SuggestionsOptions.FIRST_DELAY) * MINUTE_SECONDS
+        return self.last_round + self.settings.decimal(SuggestionsOptions.INTERVAL) * MINUTE_SECONDS
 
     def round(self) -> list[Suggestion]:
         return [self.created(suggester) for suggester in self.suggesters if not self.suggestions.is_recorded(suggester.key) and suggester.applies()]

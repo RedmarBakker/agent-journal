@@ -4,6 +4,7 @@ from journal.events.listener import Listener
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 from journal.repositories.setting_rows import SettingRows
+from journal.features.record.record_options import RecordOptions
 
 
 class RecordTrim(Listener[Saved]):
@@ -13,10 +14,9 @@ class RecordTrim(Listener[Saved]):
         self.entries, self.settings = entries, settings
 
     def handle(self, event: Saved) -> None:
-        from journal.features.record.feature import Record
         if not isinstance(event.model, Entry):
             return
-        stored = self.settings.integer(Record.RECORD_LENGTH)
+        stored = self.settings.integer(RecordOptions.RECORD_LENGTH)
         if event.model.kind == NUDGE:
             self.entries.trim_lines(stored)
             return

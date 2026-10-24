@@ -11,6 +11,9 @@ from journal.events.rows.row_pending import RowPending
 from journal.events.rows.row_resolved import RowResolved
 from journal.support.permission import Permission
 from journal.support.timeout import Timeout
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.tasks.tasks_part import TasksPart
 
 NEXT_TASK_DELAY = Timeout.minutes(1)
 CHECK_REMINDER = Timeout.minutes(5)
@@ -47,12 +50,11 @@ class ExternalWait(Wait):
         return self.pop()
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        next_open = event.data.part(Tasks).next_open
-        if settings.value(Tasks.AUTO) and not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
-            return self.swap(replace(self, next_task_reported=True), Tasks.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
+        next_open = event.data.part(TasksPart).next_open
+        if settings.value(TasksOptions.AUTO) and not self.next_task_reported and self.next_task_delay.is_elapsed(event.time) and next_open is not None:
+            return self.swap(replace(self, next_task_reported=True), TasksNudges.WAIT_NEXT_TASK.create(what=self.focus, n=next_open.id, title=next_open.title))
         if self.check_reminder.is_elapsed(event.time):
-            return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), Tasks.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
+            return self.swap(replace(self, check_reminder=self.check_reminder.started(event.time)), TasksNudges.WAIT_CHECK.create(what=self.focus, minutes=int((event.time - self.started_at) // 60)))
         return self.none()
 
     def on_row_resolved(self, event: RowResolved, settings: Settings) -> Transition:
@@ -74,11 +76,10 @@ class ExternalWait(Wait):
         return self.swap(replace(self, focus=f"{self.focus}, {event.focus}", end_refs=",".join([*self.targets(), *added])))
 
     def resolution(self, ref: str, outcome: str, *lines: Nudge) -> Transition:
-        from journal.features.tasks.feature import Tasks
         if ref not in self.targets():
             return self.none()
         remaining = [waited for waited in self.targets() if waited != ref]
         outcomes = "; ".join(part for part in (self.outcomes, outcome) if part)
         if remaining:
             return self.swap(replace(self, end_refs=",".join(remaining), outcomes=outcomes), *lines)
-        return self.pop(*lines, Tasks.WAIT_END.create(what=self.focus, outcome=outcomes))
+        return self.pop(*lines, TasksNudges.WAIT_END.create(what=self.focus, outcome=outcomes))

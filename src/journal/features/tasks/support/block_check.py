@@ -3,6 +3,7 @@ from journal.models.task_state import TaskState
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.support.rejection import Rejection
+from journal.features.tasks.tasks_options import TasksOptions
 
 WAIT_REFUSAL = "task {n} is work going on here, {state}, so a task waiting on it is not blocked: hand it to the worker with journal worker queue <n> {task}, or leave it open until task {n} is done"
 BATCH_REFUSAL = "{count} tasks were blocked in the last {minutes} minutes: blocked is for a task that cannot move for something outside your hands; queue it to a worker with journal worker queue, pause a started task with journal task pause, or leave it open"
@@ -23,8 +24,7 @@ class BlockCheck:
         self.refuse_batch()
 
     def refuse_batch(self) -> None:
-        from journal.features.tasks.feature import Tasks as TasksFeature
-        seconds = self.settings.integer(TasksFeature.BLOCK_BATCH)
+        seconds = self.settings.integer(TasksOptions.BLOCK_BATCH)
         blocked = self.tasks.block_batch(self.clock.time() - seconds)
         if len(blocked) >= 2:
             raise Rejection(BATCH_REFUSAL.format(count=len(blocked), minutes=seconds // 60))

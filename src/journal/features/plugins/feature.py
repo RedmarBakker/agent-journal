@@ -1,5 +1,4 @@
 from journal.features.feature import Feature
-from journal.support.option import Option
 from journal.support.skill import Skill
 from journal.features.plugins.commands.dashboard_command import DashboardCommand
 from journal.features.plugins.commands.plugin_command import PluginCommand
@@ -11,23 +10,23 @@ from journal.features.plugins.seeds.plugin_services_seed import PluginServicesSe
 from journal.features.plugins.plugins_conduct import PluginsConduct
 from journal.features.plugins.support.plugins_data_reader import PluginsDataReader
 from journal.features.plugins.support.plugins_data import PluginsData
-from journal.engine.nudge import Nudge
 from journal.features.plugins.listeners.release_upgrade import ReleaseUpgrade
 from journal.features.plugins.support.plugin_process_card import PluginProcessCard
+from journal.features.plugins.plugins_nudges import PluginsNudges
+from journal.features.plugins.plugins_options import PluginsOptions
+from journal.features.plugins.plugins_part import PluginsPart
 
 
 class PluginsFeature(Feature[PluginsData]):
-    PLUGIN_ANSWER_WINDOW = Option("plugins.hold_window_ms", "A plugin's hold window at most", "Milliseconds a plugin holding an event may take to answer; a plugin's own window in its manifest is cut to this, and one past its window is skipped and its fault recorded", 50, unit="ms")
-    name = "plugins"
+    name = PluginsPart.name
     title = "Plugins"
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
-    options = (PLUGIN_ANSWER_WINDOW,)
+    options = (PluginsOptions.PLUGIN_ANSWER_WINDOW,)
     process_cards = (PluginProcessCard,)
     listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginSettingsNotice, ReleaseUpgrade)
     data = (PluginsDataReader,)
     conduct = (PluginsConduct,)
-    PLUGIN_FILE_OWNERSHIP = Nudge(name, "plugin_files_are_the_users", "an installed plugin's files are the user's to change", "propose the change, or work in the plugin's own folder", repeat_interval=0)
-    nudges = (PLUGIN_FILE_OWNERSHIP,)
+    nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP,)
     commands = (PluginCommand, DashboardCommand)
     seeds = (PluginServicesSeed,)
     skill = Skill("plugins", "Plugins the user installs that receive the journal's events; load it when a plugin blocks you, a plugin's card or line appears, or a plugin would help", """

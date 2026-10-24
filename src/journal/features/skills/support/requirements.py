@@ -8,6 +8,7 @@ from journal.features.skills.support.skill_files import SkillFiles
 from journal.support.actor import Actor
 from journal.models.agent import Agent
 from journal.repositories.agents import Agents
+from journal.features.skills.skills_nudges import SkillsNudges
 
 
 class Requirements:
@@ -48,11 +49,10 @@ class Requirements:
         return [skill for skill in self.registry.skills() if text & {k.lower() for k in skill.keywords}]
 
     def require(self, agent: Agent, skills: list[Skill]) -> list[str]:
-        from journal.features.skills.feature import Skills
-        if self.registry.silenced(Skills.SKILL_READ_REQUEST):
+        if self.registry.silenced(SkillsNudges.SKILL_READ_REQUEST):
             return []
         self.obligation(agent, skills)
-        return [line for skill in skills if (line := self.nudger.deliver(agent, Skills.SKILL_READ_REQUEST.create(skill=skill.name, path=self.path(skill))))]
+        return [line for skill in skills if (line := self.nudger.deliver(agent, SkillsNudges.SKILL_READ_REQUEST.create(skill=skill.name, path=self.path(skill))))]
 
     def path(self, skill: Skill) -> str:
         return self.files.relative_path(skill)

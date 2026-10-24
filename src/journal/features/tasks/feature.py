@@ -8,8 +8,6 @@ from journal.features.tasks.listeners.clear_waits import ClearWaits
 from journal.features.tasks.listeners.ended_agent_tasks import EndedAgentTasks
 from journal.features.tasks.listeners.wait_cycle_check import WaitCycleCheck
 from journal.features.tasks.tasks_conduct import TasksConduct
-from journal.engine.nudge import Nudge
-from journal.support.option import USER, Option
 from journal.support.skill import Skill
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
@@ -17,52 +15,23 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.states.working import Working
 from journal.features.tasks.listeners.release_waits import ReleaseWaits
 from journal.features.tasks.listeners.task_move_cards import TaskMoveCards
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.tasks.tasks_part import TasksPart
 
 
 class Tasks(Feature[TasksData]):
-    AUTO = Option("tasks.auto", "Work the list on its own", "At a stop with tasks open, the next one holds the stop until it is taken up; off, the agent stops and waits for you", True, kind="switch", setter=USER)
-    FIRST_DELAY = Option("tasks.first_nudge_after", "Ask for a log after", "Edits without a log line before the agent is asked where its task stands", 25, unit="edits")
-    TASK_REMINDER_INTERVAL = Option("tasks.name_every", "Name the task back every", "Edits between reminders of the task in hand, so drift is visible", 25, unit="edits")
-    LOG_LIMIT = Option("tasks.log_after", "Hold the next write after", "Edits without a log line before the agent's next write waits for one", 50, unit="edits")
-    LOG_AGE_LIMIT = Option("tasks.log_old_after_minutes", "Ask for a log at a stop after", "Minutes since the task's last log line before a stop asks for one before carrying on", 10, unit="min")
-    BLOCK_BATCH = Option("tasks.block_batch_seconds", "Refuse a third block within", "A third task blocked within this many seconds of two others is refused: blocking a batch is clearing the list, not tasks that cannot move", 300, unit="seconds")
-    name = "tasks"
+    name = TasksPart.name
     title = "Tasks"
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
     states = (Ready, Working, Impasse, ExternalWait)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
-    options = (AUTO, FIRST_DELAY, TASK_REMINDER_INTERVAL, LOG_LIMIT, LOG_AGE_LIMIT, BLOCK_BATCH)
+    options = (TasksOptions.AUTO, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     listeners = (ClearWaits, ReleaseWaits, WaitCycleCheck, TaskMoveCards, EndedAgentTasks)
     conduct = (TasksConduct,)
     data = (TasksDataReader,)
 
-    TASK_CONTINUATION = Nudge(name, "carry_on", "{{name}} is in hand, {{logged}}: carry on", repeat_interval=0)
-    STOP_LOG_REQUEST = Nudge(name, "log_first_at_stop", "{{name}}, {{logged}}: log where it stands first", "{{log_command}} \"<where it stands>\"", repeat_interval=0)
-    OPEN_TASK = Nudge(name, "task_still_open", "{{name}} is still open: log where it stands or finish it", repeat_interval=900)
-    UNLOGGED_TASK = Nudge(name, "task_open_with_nothing_logged", "task {{n}} is open with nothing logged")
-    IMPASSE_REFUSAL = Nudge(name, "not_stuck_with_work_left", "{{count}} tasks are open, in progress or paused, so you are not stuck", "go on with them, or wait on what you started with journal await", repeat_interval=0)
-    NEXT_TASK = Nudge(name, "next_task_holds_the_stop", "tasks are open, and auto mode is on: task {{n}} next: {{title}}", "carry on with it", repeat_interval=0)
-    POSTPONED_WORK = Nudge(name, "deferred_work_is_a_task", "work deferred in words, not filed: `journal task create` it")
-    COMMIT_CLOSURE = Nudge(name, "closed_by_commit", "commit {{sha}} closed {{tasks}}")
-    STOP_POLLING = Nudge(name, "stop_polling", "you ran the same check {{times}} times in a row: {{command}}", "wait for it instead of polling")
-    LOG_REQUEST = Nudge(name, "log_where_it_stands", "{{edits}} edits since you logged {{name}}: say where it stands", "{{log}} \"<where it stands>\"", repeat_interval=0)
-    LOG_EDIT_BLOCK = Nudge(name, "write_held_until_logged", "{{edits}} edits since you logged {{name}}", "{{log}} \"<what was decided or done>\" before any other write", repeat_interval=0)
-    CURRENT_TASK_REMINDER = Nudge(name, "task_in_hand_repeated", "{{name}} in hand, {{edits}} edits", repeat_interval=0)
-    BLOCKED_REVIEW = Nudge(name, "check_the_blocked_tasks", "tasks {{tasks}} are blocked", "unblock one whose wait has passed or that you can decide, and report what you decided; when every task left is truly blocked, journal stuck \"<why>\"", repeat_interval=0)
-    TASK_QUEUE = Nudge(name, "work_left_holds_the_stop", "tasks are left: {{tasks}}", "take one or resume a paused one; journal stuck \"<why>\" when every task left is truly blocked", repeat_interval=0)
-    PAUSED_TASKS = Nudge(name, "paused_tasks_still_open", "paused tasks: {{tasks}}", "resume one that can go on with `journal task resume <n>`", repeat_interval=0)
-    PAUSED_TASK_REMINDER = Nudge(name, "paused_task_asked_about", "task {{n}} is paused: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat_interval=900)
-    PAUSED_TASK_CLOSURE_REMINDER = Nudge(name, "paused_task_named_at_close", "task {{n}} is paused: {{why}}", "`journal task resume {{n}}` if it can go on now", repeat_interval=0)
-    WAIT_CHECK = Nudge(name, "check_the_wait", "you have waited {{minutes}} min on {{what}}: check it", "still going: `journal await` again; done or failed: log it and go on", repeat_interval=300, blocks_regardless=True)
-    IDLE_CHECK = Nudge(name, "check_in_after_quiet", "nothing has happened for half an hour", "carry on, take the next task, or say so in one line", repeat_interval=1800)
-    WAIT_END = Nudge(name, "wait_over", "the wait for {{what}} is over: {{outcome}}", repeat_interval=0)
-    WAIT_NEXT_TASK = Nudge(name, "next_task_while_waiting", "while you wait for {{what}}, task {{n}}, {{title}} is next", "work on it meanwhile, or end your turn if you need what you wait for", repeat_interval=0)
-    TASK_OPENED = Nudge(name, "task_opened", "task {{n}} is open: {{title}}", "`journal task start {{n}}` takes it up", repeat_interval=0)
-    PAUSE_WAIT_END = Nudge(name, "paused_wait_ended", "what paused task {{n}} waited on came: {{reason}}", "`journal task resume {{n}}`", repeat_interval=0)
-    TASK_REOPENED = Nudge(name, "task_reopened", "task {{n}} is open again: {{reason}}", "`journal task start {{n}}` takes it up", repeat_interval=0)
-    BROKEN_WAIT = Nudge(name, "fix_the_broken_wait", "{{waits}}", "fix it with `journal task block <n> --until \"<command>\"`, or `journal task unblock <n>`", repeat_interval=0)
-    BLOCKED_TASK_REMINDER = Nudge(name, "blocked_task_asked_about", "blocked, with nothing that opens it by itself: {{tasks}}", "`journal task unblock <n>` once what it waits on has come", repeat_interval=2700, blocks_regardless=True)
-    nudges = (BLOCKED_REVIEW, TASK_QUEUE, PAUSE_WAIT_END, TASK_CONTINUATION, STOP_LOG_REQUEST, OPEN_TASK, UNLOGGED_TASK, NEXT_TASK, PAUSED_TASKS, POSTPONED_WORK, COMMIT_CLOSURE, STOP_POLLING, LOG_REQUEST, LOG_EDIT_BLOCK, CURRENT_TASK_REMINDER, PAUSED_TASK_REMINDER, PAUSED_TASK_CLOSURE_REMINDER, WAIT_CHECK, IDLE_CHECK, WAIT_END, WAIT_NEXT_TASK, TASK_REOPENED, BROKEN_WAIT, BLOCKED_TASK_REMINDER, IMPASSE_REFUSAL, TASK_OPENED)
+    nudges = (TasksNudges.BLOCKED_REVIEW, TasksNudges.TASK_QUEUE, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks

@@ -10,6 +10,7 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.support.chain import Chain
 from journal.repositories.scope import Scope
 from journal.support.caller import Caller
+from journal.features.shell.shell_nudges import ShellNudges
 
 
 class ShellVerbs:
@@ -44,10 +45,9 @@ class ShellVerbs:
             self.record.finish_part(chain, part, status, seconds, output, files, self.caller)
 
     def moved(self, chain: str, part: str, file: str) -> str:
-        from journal.features.shell.feature import Shell
         with self.scope.environment(self.environment_id):
             number = self.record.moved(chain, part, Path(file), self.caller)
-        return Shell.BACKGROUND_MOVE.create(n=number, file=file).rendered()
+        return ShellNudges.BACKGROUND_MOVE.create(n=number, file=file).rendered()
 
     def forget(self, chain: str, size: int) -> str:
         with self.scope.environment(self.environment_id):

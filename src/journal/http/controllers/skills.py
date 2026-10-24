@@ -5,10 +5,10 @@ from journal.support.response import Response
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
-from journal.features.skills.feature import Skills
 from journal.repositories.setting_rows import SettingRows
+from journal.features.skills.skills_options import SkillsOptions
 
-MOMENTS = {"session_start": Skills.START_SKILLS, "after_compaction": Skills.COMPACTION_SKILLS}
+MOMENTS = {"session_start": SkillsOptions.START_SKILLS, "after_compaction": SkillsOptions.COMPACTION_SKILLS}
 
 
 class SkillController:
@@ -20,7 +20,7 @@ class SkillController:
     def index(self, request: Request) -> Response:
         agent = next(iter(self.agents.numbered(request.query.get("agent", ""))), None)
         loaded = set(agent.skills_loaded.keys()) if agent else set()
-        starts, compactions = self.settings.texts(Skills.START_SKILLS), self.settings.texts(Skills.COMPACTION_SKILLS)
+        starts, compactions = self.settings.texts(SkillsOptions.START_SKILLS), self.settings.texts(SkillsOptions.COMPACTION_SKILLS)
         return Response.json([{"name": skill.name, "description": skill.description, "loaded": skill.name in loaded, "session_start": skill.name in starts, "after_compaction": skill.name in compactions} for skill in self.registry.skills()])
 
     def moment(self, request: Request) -> Response:

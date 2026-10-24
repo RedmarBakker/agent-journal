@@ -4,6 +4,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
 from journal.support.subagent_dispatch import SubagentDispatch
+from journal.features.profiles.profiles_part import ProfilesPart
 
 LARGE_LINES = 400
 
@@ -13,13 +14,12 @@ class LawsConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         from journal.features.laws.feature import Laws
-        from journal.features.profiles.feature import Profiles
         dispatch = event.call.operation
         if not isinstance(dispatch, SubagentDispatch):
             return self.none()
         if dispatch.model == "":
             return self.refuse(Laws.MISSING_MODEL.create())
-        profiles = event.data.part(Profiles)
+        profiles = event.data.part(ProfilesPart)
         if dispatch.role is not None and dispatch.role not in profiles.names:
             return self.refuse(Laws.MISSING_PROFILE.create(asked=dispatch.role or "none", profiles=", ".join(profiles.subagents)))
         if not dispatch.title or dispatch.brief == "":

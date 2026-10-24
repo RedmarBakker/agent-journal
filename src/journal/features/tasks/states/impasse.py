@@ -5,6 +5,7 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
+from journal.features.tasks.tasks_nudges import TasksNudges
 
 
 @dataclass(frozen=True)
@@ -22,5 +23,4 @@ class Impasse(Wait):
         return self.pop()
 
     def on_task_opened(self, event: TaskOpened, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        return self.pop(Tasks.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()
+        return self.pop(TasksNudges.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()

@@ -17,6 +17,7 @@ from journal.models.plugin import Plugin
 from journal.features.plugins.support.plugin_answer import PluginAnswer
 from journal.repositories.edits import Edits
 from journal.repositories.setting_rows import SettingRows
+from journal.features.plugins.plugins_options import PluginsOptions
 
 LINE_EVENT_KEYS = ("tool_starting", "tool_finished", "prompt_submitted", "session_started")
 REFUSABLE = ("tool_starting", "command_starting", "file_edited", "idle")
@@ -33,9 +34,8 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
         self.relay, self.deferred, self.settings, self.exemption, self.text, self.queue, self.edits = relay, deferred, settings, exemption, text, queue, edits
 
     def handle(self, event: AgentEvent) -> Decision | None:
-        from journal.features.plugins.feature import PluginsFeature
         hearers = self.relay.listeners(event, event.environment_id)
-        ceiling_ms = self.settings.integer(PluginsFeature.PLUGIN_ANSWER_WINDOW)
+        ceiling_ms = self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW)
         waiting = self.relay.waiting_lines(event.session) if Protocol.published_name(event) in LINE_EVENT_KEYS else []
         if Protocol.published_name(event) in LINE_EVENT_KEYS:
             waiting += [line for plugin in self.relay.plugins.enabled() for line in self.queue.lines(plugin, event)]

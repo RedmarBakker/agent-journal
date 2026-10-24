@@ -8,10 +8,10 @@ from journal.events.rows.task_briefed import TaskBriefed
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_ready import WorkerReady
-from journal.features.tasks.feature import Tasks
 from journal.features.tasks.states.working import Working
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.models.worker_state import WorkerState
+from journal.features.tasks.tasks_part import TasksPart
 
 
 class ClockConduct(Conduct):
@@ -38,18 +38,18 @@ class ClockConduct(Conduct):
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
         from journal.features.workers.feature import Workers
-        if event.task_id not in event.data.part(Tasks).agent_tasks or event.outcome not in RELEASING:
+        if event.task_id not in event.data.part(TasksPart).agent_tasks or event.outcome not in RELEASING:
             return self.none()
         return self.pop(Workers.USER_CLOSURE.create(task=event.task_id))
 
     def on_task_briefed(self, event: TaskBriefed, settings: Settings) -> Transition:
         from journal.features.workers.feature import Workers
-        if event.task_id not in event.data.part(Tasks).agent_tasks or not event.points:
+        if event.task_id not in event.data.part(TasksPart).agent_tasks or not event.points:
             return self.none()
         return self.none(Workers.BRIEF_CHANGED.create(task=event.task_id, points=", ".join(map(str, event.points))))
 
     def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
-        holdings = event.data.part(Tasks).agent_tasks
+        holdings = event.data.part(TasksPart).agent_tasks
         return self.push(Working(task_id=holdings[0], logged_at=event.time)) if holdings else self.none()
 
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:

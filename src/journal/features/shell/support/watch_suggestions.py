@@ -1,6 +1,7 @@
 from journal.support.command_shape import CommandShape
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.readers import Readers
+from journal.features.shell.shell_nudges import ShellNudges
 
 LONG_RUNS = ("testing", "building")
 
@@ -12,11 +13,10 @@ class WatchSuggestions:
         self.readers = readers
 
     def lines(self, number: int, part: str) -> list[str]:
-        from journal.features.shell.feature import Shell
         reader = self.readers.reading(part)
         if reader is not None:
-            return [Shell.WATCH_SUGGESTION.create(n=number, reader=f" --reader {reader.name}").rendered()]
-        watch = Shell.WATCH_SUGGESTION.create(n=number, reader="").rendered()
+            return [ShellNudges.WATCH_SUGGESTION.create(n=number, reader=f" --reader {reader.name}").rendered()]
+        watch = ShellNudges.WATCH_SUGGESTION.create(n=number, reader="").rendered()
         if ActivityLabel.build(part) not in LONG_RUNS:
             return [watch]
-        return [watch, Shell.NEW_READER_SUGGESTION.create(command=CommandShape.build(part)).rendered()]
+        return [watch, ShellNudges.NEW_READER_SUGGESTION.create(command=CommandShape.build(part)).rendered()]

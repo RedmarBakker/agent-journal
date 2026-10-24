@@ -19,6 +19,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 from journal.support.command_text import CommandText
+from journal.features.shell.shell_options import ShellOptions
 
 HEADLINE_CHARACTERS = 60
 ENDED_DOCK_SECONDS = 5
@@ -50,10 +51,9 @@ class OutputProcessCard(ProcessCard):
         return CardProgress(self.tone(output), view.figure, view.fraction, view.ending, self.views.count(output), view.is_counting)
 
     def dock_state(self, output: CommandOutput) -> dict:
-        from journal.features.shell.feature import Shell
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())
         if not cards:
-            return {DOCKED: True, AUTO_DOCKED: True, DOCK_TIME_KEY: time.time() + DOCK_DELAY_SECONDS} if not output.ended and self.settings.option(Shell.OUTPUT_DOCK) else {}
+            return {DOCKED: True, AUTO_DOCKED: True, DOCK_TIME_KEY: time.time() + DOCK_DELAY_SECONDS} if not output.ended and self.settings.option(ShellOptions.OUTPUT_DOCK) else {}
         if not output.ended or not cards[0].data.get(AUTO_DOCKED):
             return {}
         return {UNDOCK_TIME_KEY: cards[0].data.get(UNDOCK_TIME_KEY) or self.undock_time(cards[0].data.get(DOCK_TIME_KEY, 0))}

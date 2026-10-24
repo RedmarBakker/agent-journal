@@ -9,6 +9,11 @@ from journal.events.feature_data import FeatureData
 from journal.events.rows.plan_started import PlanStarted
 from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.states.ready import Ready
+from journal.features.plans.plans_nudges import PlansNudges
+from journal.features.plans.plans_part import PlansPart
+from journal.features.tasks.tasks_part import TasksPart
+from journal.features.plans.states.following_plan import FollowingPlan
+from journal.features.plans.states.plans_working import PlansWorking
 
 
 @dataclass(frozen=True)
@@ -16,42 +21,34 @@ class PlansReady(Ready):
     """Idle with plans on: a task of the plan this agent owns started here, the plan's start with a task this agent owns and a session that finds one started push the plan's state, and a stop is blocked while an approved plan waits to start; every other moment is Idle's."""
 
     def mode_lines(self) -> tuple[Nudge, ...]:
-        from journal.features.plans.feature import Plans
-        return (Plans.BUILDER_MODE.create(),)
+        return (PlansNudges.BUILDER_MODE.create(),)
 
     def plan_state(self, **fields) -> BaseState:
-        from journal.features.plans.states.following_plan import FollowingPlan
         return FollowingPlan(**fields)
 
     def working_state(self, **fields) -> BaseState:
-        from journal.features.plans.states.plans_working import PlansWorking
         return PlansWorking(**fields)
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
-        from journal.features.plans.feature import Plans
-        started = event.data.part(Plans).started
+        started = event.data.part(PlansPart).started
         if not started:
             return super().on_session_started(event, settings)
         active = self.active(event.time)
         return active.push(active.plan_state(plan_id=started.plan_id, task_id=started.started_task, approved=True, logged_at=event.time))
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
-        from journal.features.plans.feature import Plans
-        from journal.features.tasks.feature import Tasks
-        started = event.data.part(Plans).started
-        if started and event.task_id in started.tasks and event.task_id in event.data.part(Tasks).agent_tasks:
+        started = event.data.part(PlansPart).started
+        if started and event.task_id in started.tasks and event.task_id in event.data.part(TasksPart).agent_tasks:
             return self.push(self.plan_state(plan_id=started.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
         return super().on_task_started(event, settings)
 
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        if event.task_id and event.task_id not in event.data.part(Tasks).agent_tasks:
+        if event.task_id and event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
         return self.push(self.plan_state(plan_id=event.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        from journal.features.plans.feature import Plans
-        approved = data.part(Plans).approved
+        approved = data.part(PlansPart).approved
         if approved:
-            return (Plans.APPROVED_UNSTARTED.create(n=approved[0]),)
+            return (PlansNudges.APPROVED_UNSTARTED.create(n=approved[0]),)
         return super().open_lines(data, settings)

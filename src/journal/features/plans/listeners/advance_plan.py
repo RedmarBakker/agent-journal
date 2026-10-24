@@ -10,6 +10,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.plans import Plans
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import WORKERS, Tasks
+from journal.features.tasks.tasks_options import TasksOptions
 
 
 class AdvancePlan(Listener[Updated]):
@@ -38,8 +39,7 @@ class AdvancePlan(Listener[Updated]):
         return None if present is None else Ref.build(present)
 
     def is_checkpoint_stop(self, plan: Plan) -> bool:
-        from journal.features.tasks.feature import Tasks as TasksFeature
-        return self.plans.checkpoint_plans(plan) is not None and not self.settings.option(TasksFeature.AUTO)
+        return self.plans.checkpoint_plans(plan) is not None and not self.settings.option(TasksOptions.AUTO)
 
     def is_advancing(self, plan: Plan, holder: Ref | None) -> bool:
         return plan.state == PlanState.STARTED and not self.is_checkpoint_stop(plan) and (holder is None or self.tasks.holder_task(holder) is None)

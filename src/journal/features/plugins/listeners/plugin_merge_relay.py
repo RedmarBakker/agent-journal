@@ -7,6 +7,7 @@ from journal.features.plugins.support.protocol import Protocol
 from journal.repositories.setting_rows import SettingRows
 from journal.support.decision import Decision
 from journal.support.listener_queue import ListenerQueue
+from journal.features.plugins.plugins_options import PluginsOptions
 
 
 class PluginMergeRelay(Listener[WorkerMergeEvent]):
@@ -16,8 +17,7 @@ class PluginMergeRelay(Listener[WorkerMergeEvent]):
         self.relay, self.deferred, self.settings = relay, deferred, settings
 
     def handle(self, event: WorkerMergeEvent) -> Decision:
-        from journal.features.plugins.feature import PluginsFeature
-        ceiling_ms = self.settings.integer(PluginsFeature.PLUGIN_ANSWER_WINDOW)
+        ceiling_ms = self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW)
         decision = Decision()
         for plugin in self.relay.listeners(event, event.environment_id):
             key = Protocol.published_name(event)

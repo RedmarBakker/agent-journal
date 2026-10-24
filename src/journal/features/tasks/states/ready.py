@@ -16,6 +16,10 @@ from journal.events.feature_data import FeatureData
 from journal.events.rows.task_started import TaskStarted
 from journal.features.tasks.support.tasks_data import TasksData
 from journal.engine.nudge import Nudge
+from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.states.working import Working
 
 PAUSED_REMINDER_DELAY_SECONDS = 60.0
 BLOCKED_REMINDER_DELAY_SECONDS = 45 * 60.0
@@ -40,15 +44,13 @@ class Ready(BaseState):
         return replace(self, silenced_at=time, pause_reported=False)
 
     def working_state(self, **fields) -> BaseState:
-        from journal.features.tasks.states.working import Working
         return Working(**fields)
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.swap(self.active(event.time))
 
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        if event.task_id not in event.data.part(Tasks).agent_tasks:
+        if event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
         return self.push(self.working_state(task_id=event.task_id, logged_at=event.time))
 
@@ -60,46 +62,40 @@ class Ready(BaseState):
         return self.swap(active if event.call.is_journal else replace(active, stop_round=0))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        tasks = event.data.part(Tasks)
+        tasks = event.data.part(TasksPart)
         stop_nudges = self.stop_lines(event.data, settings)
         if self.stop_round < len(stop_nudges):
             return Transition.merged(self, [self.swap(replace(self, stop_round=self.stop_round + 1)), self.refuse(stop_nudges[self.stop_round])])
-        if stop_nudges and (settings.value(Tasks.AUTO) or tasks.paused):
-            return self.refuse(Tasks.TASK_QUEUE.create(tasks=task_summary(tasks)))
+        if stop_nudges and (settings.value(TasksOptions.AUTO) or tasks.paused):
+            return self.refuse(TasksNudges.TASK_QUEUE.create(tasks=task_summary(tasks)))
         return self.none()
 
     def stop_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        from journal.features.tasks.feature import Tasks
-        tasks = data.part(Tasks)
-        pause_lines = (Tasks.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
-        wait_lines = (Tasks.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
-        block_lines = (Tasks.BLOCKED_REVIEW.create(tasks=", ".join(map(str, tasks.blocked))),) if tasks.blocked and settings.value(Tasks.AUTO) else ()
+        tasks = data.part(TasksPart)
+        pause_lines = (TasksNudges.PAUSED_TASKS.create(tasks=tasks.pause_summary),) if tasks.paused else ()
+        wait_lines = (TasksNudges.BROKEN_WAIT.create(waits=tasks.broken_waits_summary),) if tasks.broken_waits else ()
+        block_lines = (TasksNudges.BLOCKED_REVIEW.create(tasks=", ".join(map(str, tasks.blocked))),) if tasks.blocked and settings.value(TasksOptions.AUTO) else ()
         return (*pause_lines, *wait_lines, *block_lines, *self.open_lines(data, settings))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
-        from journal.features.tasks.feature import Tasks
-        tasks = data.part(Tasks)
-        if not settings.value(Tasks.AUTO) or not tasks.next_open:
+        tasks = data.part(TasksPart)
+        if not settings.value(TasksOptions.AUTO) or not tasks.next_open:
             return ()
-        return (Tasks.NEXT_TASK.create(n=tasks.next_open.id, title=tasks.next_open.title),)
+        return (TasksNudges.NEXT_TASK.create(n=tasks.next_open.id, title=tasks.next_open.title),)
 
     def silent_nudges(self, tasks: TasksData) -> tuple[Nudge, ...]:
-        from journal.features.tasks.feature import Tasks
-        return (Tasks.IDLE_CHECK.create(),)
+        return (TasksNudges.IDLE_CHECK.create(),)
 
     def on_task_opened(self, event: TaskOpened, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        return self.none(Tasks.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()
+        return self.none(TasksNudges.TASK_OPENED.create(n=event.row_id, title=event.title)) if event.is_users() else self.none()
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        from journal.features.tasks.feature import Tasks
-        tasks = event.data.part(Tasks)
+        tasks = event.data.part(TasksPart)
         if tasks.paused and self.has_silence(PAUSED_REMINDER_DELAY_SECONDS, event.time) and not self.pause_reported:
-            return self.swap(replace(self, pause_reported=True), Tasks.PAUSED_TASK_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
+            return self.swap(replace(self, pause_reported=True), TasksNudges.PAUSED_TASK_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
         if tasks.blocked_without_wait and self.has_silence(BLOCKED_REMINDER_DELAY_SECONDS, event.time):
-            return self.none(Tasks.BLOCKED_TASK_REMINDER.create(tasks=tasks.blocked_without_wait_summary))
-        if settings.value(Tasks.AUTO) and self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
+            return self.none(TasksNudges.BLOCKED_TASK_REMINDER.create(tasks=tasks.blocked_without_wait_summary))
+        if settings.value(TasksOptions.AUTO) and self.has_silence(IDLE_CHECK_DELAY_SECONDS, event.time):
             return self.none(*self.silent_nudges(tasks))
         return self.none()
 

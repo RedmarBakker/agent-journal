@@ -30,6 +30,7 @@ from journal.repositories.scope import Scope
 from journal.support.caller import Caller
 from journal.support.stage_times import StageTimes
 from journal.features.faults.support.slow_requests import SlowRequests
+from journal.features.shell.shell_nudges import ShellNudges
 
 EXIT = "__journal_exit"
 SHELL = "SHELL"
@@ -108,8 +109,7 @@ class ShellRunner:
                 part = reader.commands.read_part(request.line) if reader is not None else folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)
                 alias = self.aliases.running(part)
-                from journal.features.shell.feature import Shell
-                notes = self.send_notes(caller, environment, [*display.notes, Shell.BACKGROUND_MOVE.create(n=number, file=str(folder.folder)).rendered(), *self.watch_lines(number, part, alias, reader, caller)])
+                notes = self.send_notes(caller, environment, [*display.notes, ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder)).rendered(), *self.watch_lines(number, part, alias, reader, caller)])
                 yield f"{notes}{EXIT} 0\n".encode()
                 return
             time.sleep(TICK_SECONDS)
@@ -133,34 +133,30 @@ class ShellRunner:
         return [*self.suggestions.lines(number, part), *wrapper]
 
     def alias_wrapper_lines(self, alias: Alias) -> list[str]:
-        from journal.features.shell.feature import Shell
         unwrapped = TimeLimitWrapper.unwrapped(alias.line)
         if unwrapped == alias.line or alias.name in self.wrappers_told:
             return []
         self.wrappers_told.add(alias.name)
-        return [Shell.ALIAS_TIME_LIMIT.create(name=alias.name, line=unwrapped).rendered()]
+        return [ShellNudges.ALIAS_TIME_LIMIT.create(name=alias.name, line=unwrapped).rendered()]
 
     def line_wrapper_lines(self, part: str) -> list[str]:
-        from journal.features.shell.feature import Shell
         unwrapped = TimeLimitWrapper.unwrapped(part)
         shape = CommandShape.build(unwrapped)
         if unwrapped == part or shape in self.wrappers_told:
             return []
         self.wrappers_told.add(shape)
-        return [Shell.LINE_TIME_LIMIT.create(command=shape).rendered()]
+        return [ShellNudges.LINE_TIME_LIMIT.create(command=shape).rendered()]
 
     def reader_watched(self, number: int, part: str, reader: Reader | ScriptReader, caller: Caller) -> list[str]:
-        from journal.features.shell.feature import Shell
         self.card.show(self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor))
         shape = CommandShape.build(part)
-        watched = [Shell.READER_WATCH.create(n=number, command=shape, reader=reader.name).rendered()]
+        watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name).rendered()]
         varied = self.entries.shape_commands(caller.session, shape) if caller.session and not reader.topic_pattern else set()
-        return [*watched, Shell.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name).rendered()] if len(varied) >= VARIED_RUNS else watched
+        return [*watched, ShellNudges.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name).rendered()] if len(varied) >= VARIED_RUNS else watched
 
     def watched(self, number: int, alias: Alias, caller: Caller) -> list[str]:
-        from journal.features.shell.feature import Shell
         self.card.show(self.outputs.watch(self.outputs.find(number), alias.reader, "", caller.actor))
-        return [Shell.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "").rendered()]
+        return [ShellNudges.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "").rendered()]
 
     def closed(self, folder: OutputFiles, request: ShellRequest, caller: Caller, cap: Cap) -> None:
         if cap.is_direct() or cap.is_whole():

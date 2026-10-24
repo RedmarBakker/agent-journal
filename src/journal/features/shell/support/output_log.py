@@ -5,6 +5,7 @@ from journal.support.caller import Caller
 from journal.models.command_output import CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.setting_rows import SettingRows
+from journal.features.shell.shell_options import ShellOptions
 
 
 class OutputLog:
@@ -14,10 +15,9 @@ class OutputLog:
         self.outputs, self.settings = outputs, settings
 
     def start(self, chain: str, command: str, folder: Path, caller: Caller) -> CommandOutput:
-        from journal.features.shell.feature import Shell
         actor = caller.actor
         output = self.outputs.save(CommandOutput(chain=chain, command=command, session=caller.session, folder=str(folder)), actor)
-        for old in self.outputs.surplus(self.settings.integer(Shell.OUTPUT_COUNT)):
+        for old in self.outputs.surplus(self.settings.integer(ShellOptions.OUTPUT_COUNT)):
             if Path(old.folder).is_dir():
                 shutil.rmtree(old.folder)
             self.outputs.delete(old, actor)
