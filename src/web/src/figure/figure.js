@@ -28,6 +28,10 @@ export const GROUND = (FRAMED_HEIGHT / 2 - FRAMED_MIDDLE) / FRAMED_HEIGHT;
 // by this share of a cell pixel, which measured closest to Blender's own frames
 const SUPERSAMPLE = 2;
 const SOFTEN = 0.5;
+// how far the browser softens a frame drawn to `canvas`, in its pixels: never past SOFTEN_MOST of them, so a picture drawn larger than the
+// cell is no softer to the eye than the chat's, and the visor's pixels still read apart on it
+const SOFTEN_MOST = 0.5;
+const softenOn = (canvas) => Math.min((SOFTEN * canvas.width) / CELL, SOFTEN_MOST);
 
 // toon.py; the step is on N.L, worked out from its ramp: a 0.8 grey Diffuse BSDF under a sun of strength pi and the
 // render's 0.05 grey world reads 0.8 N.L + 0.04, which crosses LIT_FROM = 0.52 at N.L = 0.6 (measured on a sphere: 0.600)
@@ -3407,12 +3411,14 @@ const FLAT = /* glsl */ `
 // The visor reads as a screen of the grid's pixels (visorPixels.js GRID): its glass a flat `glass`, near-black and unshaded, with a thin
 // `bezel`, `width` of the figure's units, darker round its edge, whose outline is a box rounded `round` of each half of the visor; each
 // pixel lit in the colour `pixels` holds for it glows, casting a soft halo `halo.strength` as bright on the black about it, fading over
-// `halo.soft` of a pixel and reaching `halo.reach` pixels; the pixels that are off show `off` brighter than the glass, a faint grid, the
-// lines between the pixels `gap` of a pixel wide and lit pixels `dark` as bright there; and a faint glare `glare.strength` lies across the
-// top of the glass from `glare.from` of the way up. It is lit whole by a dance (visor.js discoScreen): a band about its middle reaching
+// `halo.soft` of a pixel and reaching `halo.reach` pixels; the pixels that are off show `off` brighter than the glass, a faint grid; the
+// lines between the pixels are the dark glass, the halo kept off them, `gap` of a pixel wide and never under `line` of the screen's own
+// pixels however small the figure is drawn, widened by the softening the frame is drawn with so they are still dark after it
+// (Stage.draw), nor over half a pixel, so each pixel reads on its own, and lit pixels are `dark` as bright there under a dance's band;
+// and a faint glare `glare.strength` lies across the top of the glass from `glare.from` of the way up. It is lit whole by a dance (visor.js discoScreen): a band about its middle reaching
 // `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
 export const SCREEN = {
-    gap: 0.16, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
+    gap: 0.16, line: 1, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
     bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.4, soft: 0.6, reach: 2}, glare: {strength: 0.012, from: 0.5},
 };
 const SCREEN_FRAGMENT = /* glsl */ `
@@ -3427,6 +3433,8 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform sampler2D pixels;
     uniform vec2 grid;
     uniform float gap;
+    uniform float line;
+    uniform float soften;
     uniform float dark;
     uniform vec3 glass;
     uniform float off;
@@ -3445,7 +3453,10 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float band = step(from.x, across) * step(from.y, open);
         vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
         vec2 cell = fract(place);
-        float pixel = step(gap, cell.x) * step(gap, cell.y);
+        // the dark lines between the pixels, at least line of the screen's pixels wide past the softening, one being SUPERSAMPLE of the
+        // drawn fragments
+        vec2 lines = clamp(max(vec2(gap), (line + soften) * ${SUPERSAMPLE.toFixed(1)} * fwidth(place)), 0.0, 0.5);
+        float pixel = step(lines.x, cell.x) * step(lines.y, cell.y);
         vec4 shown = pixelAt(floor(place));
         // how far inside the rounded outline this point is, in the figure's units
         vec2 corner = from - (1.0 - bezel.z);
@@ -3463,7 +3474,7 @@ const SCREEN_FRAGMENT = /* glsl */ `
             }
         }
         float rim = 1.0 - smoothstep(bezel.x * 0.5, bezel.x, inside);
-        vec3 screen = glass * (1.0 - bezel.y * rim) + off * pixel * (1.0 - rim) + halo.x * spill;
+        vec3 screen = glass * (1.0 - bezel.y * rim) + (off + halo.x * spill) * pixel * (1.0 - rim);
         screen += glare.x * smoothstep(glare.y, 1.0, (localPosition.y - middle.y) / extent.y) * (1.0 - rim);
         vec3 drawn = mix(screen, shown.rgb, shown.a * pixel);
         float centre = max(1.0 - length(from), 0.0);
@@ -3485,7 +3496,7 @@ export function screenMaterial(mesh) {
     Object.assign(material.uniforms, {
         glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
-        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
+        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, line: {value: SCREEN.line}, soften: {value: 0}, dark: {value: SCREEN.dark},
         glass: {value: new THREE.Vector3(...SCREEN.glass)}, off: {value: SCREEN.off},
         bezel: {value: new THREE.Vector3(SCREEN.bezel.width, SCREEN.bezel.shade, SCREEN.bezel.round)},
         halo: {value: new THREE.Vector3(SCREEN.halo.strength, SCREEN.halo.soft, SCREEN.halo.reach)}, glare: {value: new THREE.Vector2(SCREEN.glare.strength, SCREEN.glare.from)},
@@ -4922,6 +4933,7 @@ export class Stage {
         if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;
+        for (const material of figure.screens) material.uniforms.soften.value = softenOn(canvas);
         if (this.renderer.domElement.width !== size) {
             this.renderer.setSize(size, size, false);
         }
@@ -4929,7 +4941,7 @@ export class Stage {
         const context = canvas.getContext("2d");
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.imageSmoothingQuality = "high";
-        context.filter = `blur(${(SOFTEN * canvas.width) / CELL}px)`;
+        context.filter = `blur(${softenOn(canvas)}px)`;
         context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
         return moves;
     }
