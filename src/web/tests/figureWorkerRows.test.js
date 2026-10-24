@@ -34,7 +34,7 @@ test("a message a worker's user read and a face put on a worker's message do not
 
 test("only a worker's dispatch mark, the main agent's own giving of work, rings the telephone; the marks of its report and merge do not", async () => {
     const {beatsAfter} = await import("../src/domain/figureState.js");
-    const worker = (key, label) => ({key, time: 10, label, processName: "worker", task: 7, tone: "", icon: "agents"});
-    const cards = [worker("a", "Worker 1, Mr. Babbage: started on claude opus"), worker("b", "Worker 1, Mr. Babbage: reported"), worker("c", "Worker 1, Mr. Babbage: merged")];
+    const worker = (key, label, process) => ({key, time: 10, label, process, processName: "worker", task: 7, tone: "", icon: "agents"});
+    const cards = [worker("a", "Worker 1, Mr. Babbage: started on claude opus", true), worker("b", "Worker 1, Mr. Babbage: reported", false), worker("c", "Worker 1, Mr. Babbage: merged", false)];
     expect(beatsAfter({data: {cards}}, 0).map((beat) => [beat.beat, beat.card])).toEqual([["messaged", "a"]]);
 });

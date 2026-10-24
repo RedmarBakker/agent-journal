@@ -30,10 +30,7 @@ test("scrolled up, messages that arrive are held off the screen and counted, and
 
 test("a turn that arrives while the reader follows grows into its height with the pane held at its foot, so the chat slides up instead of jumping", () => {
     expect(thread).toContain(`@enter="growIn"`);
-    const grow = thread.split("function growIn(el, done) {")[1].split("\n}\n")[0];
-    expect(grow).toContain("if (!s || !settledOnce.value || away.value) return done();");
-    expect(grow).toContain('el.style.height = "0px";');
-    expect(grow).toContain("s.scrollTop = s.scrollHeight");
+    expect(thread).toContain("const growIn = (el, done) => arrive(el, {pane: scroller.value, follows: () => settledOnce.value && !away.value}, done);");
 });
 
 test("the status line keeps its row at the foot, busy or idle, and slides out only while the pane is scrolled up from it", () => {

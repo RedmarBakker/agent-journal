@@ -49,9 +49,11 @@ test("an agent's message over the figure sends it aside by the least needed: the
     expect(asideOf(FIGURE, STANDING, EDGE)).toBe(null);
 });
 
-test("seated, the figure keeps its seat at least half a minute, longer by roll, and no act or trip but an urgent one stands it up before, over many rolls", () => {
+test("seated, the figure keeps its seat at least half a minute, longer by roll, and no act or trip but an urgent one or one that rises stands it up before, over many rolls", () => {
     const random = seeded(2888);
-    const standing = CLIPS.filter((clip) => !clip.postures.includes("sit"));
+    const rising = CLIPS.filter((clip) => clip.rises);
+    expect(rising.map((clip) => clip.name)).toEqual(["repent"]);
+    const standing = CLIPS.filter((clip) => !clip.postures.includes("sit") && !clip.rises);
     const seated = CLIPS.filter((clip) => clip.postures.includes("sit"));
     expect(standing.length).toBeGreaterThan(5);
     expect(SEAT_STAY.least).toBeGreaterThanOrEqual(30);
@@ -65,6 +67,7 @@ test("seated, the figure keeps its seat at least half a minute, longer by roll, 
             expect(mayLeave(perched, later, true), "an urgent trip may").toBe(true);
             for (const clip of standing) expect(playsSeated(clip, "sit", perched, later), `${clip.name} at ${later - now}`).toBe(false);
             for (const clip of seated) expect(playsSeated(clip, "sit", perched, later), clip.name).toBe(true);
+            for (const clip of rising) expect(playsSeated(clip, "sit", perched, later), `${clip.name} stands up for it at once`).toBe(true);
         }
         // kept while it stays seated, over once it is
         expect(seatStay(perched, true, true, now + 5, random)).toBe(perched);

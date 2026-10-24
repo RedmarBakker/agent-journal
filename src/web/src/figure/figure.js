@@ -25,14 +25,9 @@ const DECODER = "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/dr
 // the share of the picture below the ground the figure stands on, where the chat box's top edge runs
 export const GROUND = (FRAMED_HEIGHT / 2 - FRAMED_MIDDLE) / FRAMED_HEIGHT;
 
-// EEVEE takes 16 samples a pixel through a 1.5 px filter; the browser draws twice as wide, scales down and softens
-// by this share of a cell pixel, which measured closest to Blender's own frames
-const SUPERSAMPLE = 2;
-const SOFTEN = 0.5;
-// how far the browser softens a frame drawn to `canvas`, in its pixels: never past SOFTEN_MOST of them, so a picture drawn larger than the
-// cell is no softer to the eye than the chat's, and the visor's pixels still read apart on it
-const SOFTEN_MOST = 0.5;
-const softenOn = (canvas) => Math.min((SOFTEN * canvas.width) / CELL, SOFTEN_MOST);
+// the figure is drawn three times as wide as its canvas, each of those pixels multisampled, and scaled down with the browser's best
+// smoothing and no blur, so its edges and its screen's pixel grid are smooth without going soft
+const SUPERSAMPLE = 3;
 
 // toon.py; the step is on N.L, worked out from its ramp: a 0.8 grey Diffuse BSDF under a sun of strength pi and the
 // render's 0.05 grey world reads 0.8 N.L + 0.04, which crosses LIT_FROM = 0.52 at N.L = 0.6 (measured on a sphere: 0.600)
@@ -3467,9 +3462,9 @@ const FLAT = /* glsl */ `
 // The visor reads as a screen of the grid's pixels (visorPixels.js GRID): its face one plain `glass` colour, near-black and unshaded, with
 // nothing laid over it, no grid of unlit pixels, no glare and no rim, so only the lit pixels show on it; each lit pixel glows in the colour
 // `pixels` holds for it, drawn brighter than that colour and brightest at its middle (`shine`); the lines between the pixels are the
-// glass, `gap` of a pixel wide and never under `line` of the screen's own pixels however small the figure is drawn, widened by the
-// softening the frame is drawn with so they are still dark after it (Stage.draw), nor over half a pixel, so each pixel reads on its own,
-// and lit pixels are `dark` as bright there under a dance's band. Its outline is drawn crisp, on whole pixels (Stage.crispScreen). It is
+// glass, `gap` of a pixel wide and never under `line` of the screen's own pixels however small the figure is drawn, nor over half a
+// pixel, so each pixel reads on its own,
+// and lit pixels are `dark` as bright there under a dance's band. It is drawn with the figure, supersampled and multisampled (Stage.draw). It is
 // lit whole by a dance (visor.js discoScreen): a band about its middle reaching `across` and `open` of the way to its sides and its top
 // and bottom, white with `flash` and else `glow`, as strong as `lit`.
 // parts of a voice's model the figure never shows: the homie's headphones, until they are modelled again
@@ -3493,7 +3488,6 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform sampler2D pixels;
     uniform vec2 grid;
     uniform float gap;
-    uniform float soften;
     uniform float dark;
     uniform vec3 glass;
     uniform vec3 shine;
@@ -3509,9 +3503,9 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float band = step(from.x, across) * step(from.y, open);
         vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
         vec2 cell = fract(place);
-        // the dark lines between the pixels, gap of each pixel wide and widened only by the softening, centred on the borders between
+        // the dark lines between the pixels, gap of each pixel wide, centred on the borders between
         // pixels, their edges blended over one drawn fragment so a screen drawn small shows no jagged steps or shimmer
-        vec2 lines = clamp(vec2(gap) + soften * fwidth(place), 0.0, 0.5);
+        vec2 lines = clamp(vec2(gap), 0.0, 0.5);
         vec2 border = min(cell, 1.0 - cell);
         vec2 blend = fwidth(place) * 0.5;
         vec2 edges = smoothstep(lines * 0.5 - blend, lines * 0.5 + blend, border);
@@ -3541,7 +3535,7 @@ export function screenMaterial(mesh) {
     Object.assign(material.uniforms, {
         glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
-        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, soften: {value: 0}, dark: {value: SCREEN.dark},
+        pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
         glass: {value: new THREE.Vector3(...SCREEN.glass)},
         shine: {value: new THREE.Vector3(SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness)},
     });
@@ -5041,10 +5035,6 @@ export class Stage {
         this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
         this.renderer.setPixelRatio(1);
         this.renderer.setClearColor(0x000000, 0);
-        // the visor drawn on its own, one sample to a canvas pixel, never smoothed (crispScreen)
-        this.sharp = new THREE.WebGLRenderer({antialias: false, alpha: true, preserveDrawingBuffer: true});
-        this.sharp.setPixelRatio(1);
-        this.sharp.setClearColor(0x000000, 0);
     }
 
     headAt(figure, moves) {
@@ -5110,43 +5100,21 @@ export class Stage {
         if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;
-        for (const material of figure.screens) material.uniforms.soften.value = softenOn(canvas);
         if (this.renderer.domElement.width !== size) {
             this.renderer.setSize(size, size, false);
         }
-        // the figure drawn softened, as Blender draws it, all but its visor, which is laid over it crisp
-        for (const material of figure.screens) material.visible = false;
-        this.renderer.render(figure.scene, this.camera);
-        for (const material of figure.screens) material.visible = true;
-        const context = canvas.getContext("2d");
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.imageSmoothingEnabled = true;
-        context.imageSmoothingQuality = "high";
-        context.filter = `blur(${softenOn(canvas)}px)`;
-        context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
-        this.crispScreen(figure, canvas, context);
-        return moves;
-    }
-
-    // The visor laid over the softened picture crisp: the scene drawn once more at the canvas's own size, one sample to a pixel and never
-    // blurred, every part but the visor writing no colour, though still hiding what lies behind it, so only the visor's own pixels where it
-    // shows are drawn, and laid on the picture pixel for pixel, its outline on whole pixels with nothing blended across it
-    crispScreen(figure, canvas, context) {
-        if (this.sharp.domElement.width !== canvas.width) this.sharp.setSize(canvas.width, canvas.height, false);
-        const muted = new Set();
-        figure.scene.traverse((node) => {
-            for (const material of [node.material ?? []].flat()) if (material.colorWrite && !figure.screens.includes(material)) muted.add(material);
-        });
-        for (const material of muted) material.colorWrite = false;
-        // the screen's own outline, which pokes through its curved middle, is left to the softened picture, so it never hides the screen
+        // the screen's own outline pokes through its curved middle, so it is left out of the drawing
         const outlined = figure.visorHulls.map((hull) => hull.visible);
         for (const hull of figure.visorHulls) hull.visible = false;
-        this.sharp.render(figure.scene, this.camera);
+        this.renderer.render(figure.scene, this.camera);
         figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
-        for (const material of muted) material.colorWrite = true;
+        const context = canvas.getContext("2d");
+        context.clearRect(0, 0, canvas.width, canvas.height);
         context.filter = "none";
-        context.imageSmoothingEnabled = false;
-        context.drawImage(this.sharp.domElement, 0, 0);
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
+        return moves;
     }
 
     // A parcel's block of server units (serverBlockOf) with its lights `lit` at step `phase` of their blink, drawn through the figure's own

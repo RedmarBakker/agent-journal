@@ -68,7 +68,7 @@ def test_while_the_journal_boots_every_request_waits_and_is_answered_once_booted
     lifecycle.booting()
     try:
         assert lifecycle.marker().read_text().isdigit(), "the booting file names the booting server's process, for the hook script"
-        assert sent(app, "GET", "/journal/health") == (200, {"answering": True, "phase": "booting"}), "the health answer is the one thing answered while booting"
+        assert sent(app, "GET", "/journal/health") == (200, {"answering": True, "phase": "booting", "hooks_lost": []}), "the health answer is the one thing answered while booting, and it names no environment whose hooks were lost"
         answers = {}
         stamp = str(int(time.time() * 1000))
         hook = threading.Thread(target=lambda: answers.update(hook=sent(app, "POST", "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {"file_path": "a.py"}}, {"X-Journal-Request-At": stamp})))
