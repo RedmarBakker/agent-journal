@@ -395,7 +395,7 @@ def test_an_upgrade_holds_every_other_push_replaces_the_teams_rows_once_and_keep
         team.close(server)
 
 
-def test_the_log_is_trimmed_of_what_every_device_pulled_while_deletions_stay_and_an_older_device_takes_the_copy(tmp_path, monkeypatch):
+def test_the_log_is_trimmed_of_what_every_device_pulled_while_deletions_stay_and_an_older_device_takes_the_copy(tmp_path, monkeypatch, capsys):
     from sync_server.team_server import TeamServer
 
     monkeypatch.setattr("sync_server.pull_handler.TRIM_SECONDS", 0)
@@ -415,8 +415,14 @@ def test_the_log_is_trimmed_of_what_every_device_pulled_while_deletions_stay_and
     _, late = team.devices.login("bob@example.com", PASSWORD, "old laptop", "127.0.0.1", 3.0)
     team.devices.record_pull(team.devices.device(late), 1, 3.0)
     assert team.pulls.answer(late, PullQuery(1, 0, (), PoolSlots(0, 0), "")).copy_needed, "a device older than the trimmed tail takes the full copy again"
+    assert f"device {team.devices.device(late).id} told to take the full copy: its furthest sequence 1, the lowest 4, the head 4" in capsys.readouterr().err, "each copy asked for is logged with the device, its furthest sequence, the lowest and the head"
     _, joiner = team.devices.login("bob@example.com", PASSWORD, "new laptop", "127.0.0.1", 4.0)
     assert [(row.row, row.fields) for row in team.copies.answer(joiner).rows] == [(7, {"title": "c"})], "a new device still joins from the full copy"
+    _, ahead = team.devices.login("bob@example.com", PASSWORD, "laptop from before a reset", "127.0.0.1", 5.0)
+    team.pulls.answer(ahead, PullQuery(900, 0, (), PoolSlots(0, 0), ""))
+    team.pulls.answer(ada, PullQuery(4, 0, (), PoolSlots(0, 0), ""))
+    assert team.devices.pulled_sequence(team.devices.device(ahead)) <= team.log.head() and team.details.lowest_sequence() <= team.log.head(), "a device naming a sequence past the head records no pull past it, so the lowest never passes the head"
+    assert not team.pulls.answer(ada, PullQuery(team.log.head(), 0, (), PoolSlots(0, 0), "")).copy_needed, "a pull at the head is never told to take the copy"
     team.store.close()
 
 

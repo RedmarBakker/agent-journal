@@ -1,3 +1,5 @@
+import sys
+
 from sync_server.change_log import ChangeLog
 from sync_server.devices import Devices
 from sync_server.host_requests import HostRequests
@@ -19,7 +21,7 @@ class PullHandler:
 
     def answer(self, token: str, query: PullQuery) -> PullAnswer:
         device = self.devices.device(token)
-        self.devices.record_pull(device, query.sequence, self.clock.time())
+        self.devices.record_pull(device, min(query.sequence, self.log.head()), self.clock.time())
         self.requests.store_capacity(device.id, query, self.clock.time())
         furthest = self.devices.pulled_sequence(device)
         self.trim()
@@ -34,6 +36,7 @@ class PullHandler:
             changes = self.log.pull_page(furthest, device.id)
             waiting = self.requests.waiting(device.id, query)
         if furthest < self.details.lowest_sequence():
+            sys.stderr.write(f"device {device.id} told to take the full copy: its furthest sequence {furthest}, the lowest {self.details.lowest_sequence()}, the head {self.log.head()}\n")
             return PullAnswer((), self.log.head(), self.clock.time(), self.details.version(), True, waiting)
         return PullAnswer(tuple(changes), changes[-1].sequence if changes else head, self.clock.time(), self.details.version(), False, waiting)
 
@@ -42,7 +45,7 @@ class PullHandler:
             return
         self.trimmed_at = self.clock.monotonic()
         self.requests.lapse(self.clock.time())
-        lowest = self.devices.lowest_pull()
+        lowest = min(self.devices.lowest_pull(), self.log.head())
         if lowest > self.details.lowest_sequence():
             self.log.trim(lowest)
             self.details.record_lowest_sequence(lowest)
