@@ -30,7 +30,7 @@ function chat() {
 test("a figure sitting on a docked card that closes falls with its seat, lands facing as it sat, and is drawn turned that way after", () => {
     const {bars, close} = chat();
     const seat = seatOf(FIGURE, {x: 700, y: 540});
-    expect(seat).toMatchObject({posture: "lounge", on: bars, y: 540});
+    expect(seat).toMatchObject({posture: "sit", on: bars, y: 540});
     const footing = footingOn(seat, readFloors().floors);
     expect(footing.home).toBe(true);
     // the card closes: the ground at home drops from the card to the compose box, and the figure falls from its seat
@@ -44,7 +44,7 @@ test("a figure sitting on a docked card that closes falls with its seat, lands f
         step = airborneFrame(step.airborne, floors, now);
     }
     // it lands on the compose box still seated and turned as it sat, so the clip it plays there is drawn turned a real way, never NaN
-    expect(step.landed.spot).toMatchObject({posture: "lounge", y: 600, face: seat.face});
+    expect(step.landed.spot).toMatchObject({posture: "sit", y: 600, face: seat.face});
     const place = step.landed.spot;
     const drawn = clipFor({mode: GROUNDED, place, state: "idle", doing: "idle"}, canDraw);
     expect(drawn.facing).toBe(seat.face);

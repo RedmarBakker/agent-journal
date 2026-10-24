@@ -270,14 +270,17 @@ export function cornerAt(box, side, {size}, reach = CORNER_INBOARD) {
     return {x: box.left + box.width * along + inboard * reach * size, y: box.top, face, posture: "stand"};
 }
 
-// Where a figure sits now and then at a corner of the edge: back from the end on the floor's top, lounging (POSTURES lounge), side-on with
-// its legs straight out along the floor away from the end and its hands flat behind it, its middle FEET_INBOARD inside the corner and a
-// share more, so it never seems to slide off the end
-export const SEAT_INBOARD = FEET_INBOARD + 0.12;
-
+// Where a figure sits at a corner of the edge, as it types on its laptop or rests: seated (POSTURES sit) on the very end, turned out along
+// the edge so its legs hang past the end of the box, never over its face where it would seem to sink into it, its hips SEAT_INBOARD of its
+// height inside the corner, set a little back from the end so it never seems to sit on the corner's very tip
+const SEAT_SIDES = {
+    right: {along: 1, inboard: -1, face: 70},
+    left: {along: 0, inboard: 1, face: 290},
+};
+export const SEAT_INBOARD = 0.1;
 export function seatAt(box, side, {size}) {
-    const inboard = side === "right" ? -1 : 1;
-    return {x: box.left + box.width * (side === "right" ? 1 : 0) + inboard * SEAT_INBOARD * size, y: box.top, face: loungeFacing(inboard), posture: "lounge"};
+    const {along, inboard, face} = SEAT_SIDES[side];
+    return {x: box.left + box.width * along + inboard * SEAT_INBOARD * size, y: box.top, face, posture: "sit"};
 }
 
 // the way a lounging figure faces, side-on with its legs along the floor toward `way` (1 to the right, -1 to the left), never the viewer

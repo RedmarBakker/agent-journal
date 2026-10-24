@@ -76,10 +76,7 @@ test("sitting composed, both hands lie flat on the floor at its sides, beside th
 });
 
 test("lounging, its legs straight out, the figure is only ever side-on: every lounge spot faces sideways and nothing turns it toward the viewer", async () => {
-    const {seatAt} = await import("../src/figure/places.js");
     const {ledgeSpot} = await import("../src/figure/perches.js");
-    const box = {left: 300, width: 400, top: 600};
-    for (const side of ["left", "right"]) expect([90, 270].includes(seatAt(box, side, FIGURE).face), side).toBe(true);
     const home = chat();
     for (const along of [1 / 3, 1 / 2, 2 / 3]) {
         const spot = ledgeSpot(along, FIGURE, {on: home});
@@ -87,7 +84,7 @@ test("lounging, its legs straight out, the figure is only ever side-on: every lo
         expect([90, 270].includes(spot.face), String(along)).toBe(true);
     }
     // whatever it plays there, a look, a beat facing the viewer or a wait turned to the compose box, it keeps its side-on facing
-    const place = {...seatAt(box, "right", FIGURE), on: home};
+    const place = {...ledgeSpot(1 / 3, FIGURE, {on: home}), on: home};
     for (const scene of [{doing: "idle"}, {beat: {clip: "nod", facing: 0}}, {state: "waiting", composeFacing: 30}, {watching: "watch"}]) {
         expect(clipFor({mode: GROUNDED, place, state: "idle", doing: "idle", ...scene}, () => true).facing, JSON.stringify(scene)).toBe(place.face);
     }

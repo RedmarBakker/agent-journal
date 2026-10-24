@@ -57,7 +57,7 @@ describe("the figure at its laptop", () => {
                 const turn = Math.abs(((((facing + 180) % 360) + 360) % 360) - 180);
                 expect(turn, `${name} on a spot facing ${face}`).toBeGreaterThanOrEqual(ASIDE);
             }
-        expect(spots.filter((spot) => SEATED.has(spot.posture)).map((spot) => seatedFacing(named.type, spot.face))).toEqual([90, 270]);
+        expect(spots.filter((spot) => SEATED.has(spot.posture)).map((spot) => seatedFacing(named.type, spot.face))).toEqual([290, 70]);
         expect(seatedFacing(named.idle, 0)).toBe(0);
     });
 });

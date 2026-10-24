@@ -291,13 +291,14 @@ test("eager, the figure's eyes are sparkling stars from the first frames until i
 const {SEAT_INBOARD, seatAt} = await import("../src/figure/places.js");
 const {LEGS} = await import("../src/figure/figure.js");
 
-test("at a corner the figure lounges back from the end on the top, side-on with its legs straight out along the floor away from the end and hands flat on the floor behind", () => {
+test("at a corner the figure sits on the end, a little in from it, turned out along the edge with its legs over the end; lounging, its legs lie straight out and its hands flat behind", () => {
     const box = {left: 100, width: 400, top: 300};
     const figure = {size: 112};
     const right = seatAt(box, "right", figure);
     const left = seatAt(box, "left", figure);
     expect([right.x, left.x]).toEqual([500 - SEAT_INBOARD * 112, 100 + SEAT_INBOARD * 112]);
-    expect([right.face, left.face, right.posture]).toEqual([270, 90, "lounge"]);
+    expect([right.face, left.face, right.posture, left.posture]).toEqual([70, 290, "sit", "sit"]);
+    expect(SEAT_INBOARD, "set a little back from the very end").toBeGreaterThan(0.06);
     for (const voice of Object.keys(stances)) {
         const pose = new Posing(RIG, "lounge", 0);
         LEGS.lounge.under(pose);
