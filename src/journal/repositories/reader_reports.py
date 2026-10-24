@@ -11,13 +11,13 @@ class ReaderReports(ScopedRepository[ReaderReport]):
     model = ReaderReport
 
     def unread(self, session: str) -> list[ReaderReport]:
-        return self.selected(self.query().filter(session=session, dismissal="").filter_null("read_at").order_descending("id").limit(RECENT_REPORTS))
+        return self.selected(self.query().filter(session=session).filter_null("dismissal").filter_null("read_at").order_descending("id").limit(RECENT_REPORTS))
 
     def unrevised(self, session: str, revisions: dict[str, datetime]) -> list[ReaderReport]:
         unchanged = [self.query().filter(reader=reader).filter_greater_equal("read_at", revision) for reader, revision in revisions.items()]
         if not unchanged:
             return []
-        query = self.query().filter(session=session, dismissal="", is_refuted=False).filter_present("read_at").filter_alternatives(*unchanged)
+        query = self.query().filter(session=session, is_refuted=False).filter_null("dismissal").filter_present("read_at").filter_alternatives(*unchanged)
         return self.selected(query.order_descending("id").limit(RECENT_REPORTS))
 
     def refuted(self, session: str, revisions: dict[str, datetime]) -> list[ReaderReport]:

@@ -4,7 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from journal.hooks.command_events import CommandEvents
+from journal.engine.command_events import CommandEvents
 from journal.features.shell.support.changed_file import ChangedFile
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.output_log import OutputLog

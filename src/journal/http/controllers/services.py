@@ -12,7 +12,7 @@ class ServiceController:
         self.hooks, self.secret = hooks, secret
 
     def register(self, request: Request) -> Response:
-        if not self.secret.allows(request):
+        if not self.secret.allows(request.headers):
             return Response.forbidden("a service registers with the server's service secret, straight, never through a proxy")
         self.hooks.register(ServiceRegistration(str(request.body["name"]), str(request.body["address"]), tuple(request.body.get("events", ()))))
         return Response.json({"registered": request.body["name"]})

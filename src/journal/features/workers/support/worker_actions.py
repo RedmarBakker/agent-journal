@@ -1,6 +1,6 @@
 from journal.events.worker_merge_result import WorkerMergeResult
 from journal.events.worker_merging import WorkerMerging
-from journal.hooks.command_events import CommandEvents
+from journal.engine.command_events import CommandEvents
 from datetime import datetime, timezone
 
 from journal.events.rows.worker_reused import WorkerReused

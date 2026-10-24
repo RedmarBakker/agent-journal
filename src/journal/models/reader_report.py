@@ -22,7 +22,7 @@ class ReaderReport(Scoped):
     findings: tuple[str, ...] = ()
     fixes: tuple[str, ...] = ()
     read_at: datetime | None = None
-    dismissal: str = ""
+    dismissal: str | None = None
     is_refuted: bool = False
     verdict: str = ""
     judged_at: datetime | None = None
@@ -39,10 +39,10 @@ class ReaderReport(Scoped):
         return self.judged(reason, time).with_event(self.judgement(verifier_session, True, reason, time))
 
     def refuted(self, reason: str, verifier_session: str, time: datetime) -> "ReaderReport":
-        return self.judged(reason, time).with_(dismissal="", is_refuted=True).with_event(self.judgement(verifier_session, False, reason, time))
+        return self.judged(reason, time).with_(dismissal=None, is_refuted=True).with_event(self.judgement(verifier_session, False, reason, time))
 
     def judged(self, reason: str, time: datetime) -> "ReaderReport":
-        if self.judged_at is not None or not self.dismissal:
+        if self.judged_at is not None or self.dismissal is None:
             raise Rejection(f"reader report {self.id} has no dismissal waiting for a verdict")
         return self.with_(verdict=reason, judged_at=time)
 

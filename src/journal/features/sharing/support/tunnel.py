@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
+from journal.support.free_port import FreePort
 from journal.config import Config
 from journal.support.cached_answer import CachedAnswer
 from journal.features.sharing.support.share_place import SharePlace
@@ -103,7 +104,7 @@ class Tunnel:
             return
         subdomain = self.place.subdomain()
         retained = self.place.stored()
-        inspector = retained.inspector or self.free_port()
+        inspector = retained.inspector or FreePort.number()
         self.link.stop_service(host, SERVICE)
         self.tunler.stop_subdomain(subdomain)
         self.place.store(tunnel=(port, subdomain), inspector=inspector)

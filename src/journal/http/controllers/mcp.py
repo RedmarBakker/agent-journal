@@ -1,5 +1,6 @@
 import re
 
+from journal.models.mcp_server import McpServer
 from journal.features.mcp.support.mcp_catalogue import McpCatalogue
 from journal.features.mcp.support.health import Health
 from journal.features.mcp.support.mcp_installing import McpInstalling
@@ -63,7 +64,7 @@ class McpController:
             return Response.refused("a server's name is letters, digits, dashes and underscores")
         if bool(url) == bool(command):
             return Response.refused("a server is reached by a url or started by a command, one of them")
-        self.installing.add_custom(name, url, command, tuple(str(arg) for arg in body.get("args", [])))
+        self.installing.add_custom(McpServer(name=name, url=url, command=command, args=tuple(str(arg) for arg in body.get("args", []))))
         return Response.json({"added": name})
 
     def key(self, request: Request) -> Response:

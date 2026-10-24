@@ -14,7 +14,7 @@ class TeamChatController:
     def show(self, request: Request) -> Response:
         lease = TeamRequests.reached(self.chat.holder)
         mine = self.account.is_chat_holder()
-        return Response.json({"line": "Held by you" if mine else TeamChat.holder_line(lease), "mine": mine, "claimable": not mine and (not lease.holder or lease.is_lapsed), "holder": lease.holder})
+        return Response.json({"line": "Holder: you" if mine else TeamChat.holder_line(lease), "mine": mine, "claimable": not mine and (not lease.holder or lease.is_lapsed), "holder": lease.holder})
 
     def claim(self, request: Request) -> Response:
         TeamRequests.reached(lambda: self.chat.claim(request.body.get("agent", "claude")))

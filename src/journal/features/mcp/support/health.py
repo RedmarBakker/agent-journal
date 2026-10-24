@@ -1,5 +1,6 @@
 import re
 
+from journal.models.mcp_server import McpServer
 from journal.features.mcp.support.agent_cli import AgentCli
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
@@ -43,8 +44,8 @@ class Health:
                 return True
         return False
 
-    def add(self, name: str, provider: str, url: str, command: str, args: tuple[str, ...]) -> None:
-        run = self.cli.run(self.providers.lookup(provider).mcp_add_command(name, url, command, args))
+    def add(self, server: McpServer, provider: str) -> None:
+        run = self.cli.run(self.providers.lookup(provider).mcp_add_command(server))
         if run.returncode != 0:
             raise Rejection(f"{provider} did not add {name}: {(run.stderr or run.stdout).strip()[-300:]}")
         self.recheck()

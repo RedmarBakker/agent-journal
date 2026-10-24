@@ -123,8 +123,7 @@ class Supervisor:
             log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
 
     def noted(self, fault: str) -> None:
-        with self.faults.open("a") as log_file:
-            log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} supervisor fault, carried on: {fault}\n")
+        self.logged(f"supervisor fault, carried on: {fault}")
 
     def fit(self) -> None:
         rows, columns = Terminal.window_size(self.stdin) if self.stdin is not None else (40, 120)

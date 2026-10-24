@@ -31,7 +31,7 @@ from journal.repositories.plans import Plans
 from journal.repositories.workers import Workers
 from journal.repositories.templates import Templates
 from journal.features.workers.support.worker_actions import WorkerActions
-from journal.hooks.command_events import CommandEvents
+from journal.engine.command_events import CommandEvents
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount

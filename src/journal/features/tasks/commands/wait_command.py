@@ -7,7 +7,7 @@ from journal.models.command_output import CommandOutput
 from journal.features.tasks.support.wait_targets import WaitTargets
 from journal.support.rejection import Rejection
 from journal.support.caller import Caller
-from journal.hooks.command_events import CommandEvents
+from journal.engine.command_events import CommandEvents
 
 USER_WAIT_PATTERN = re.compile(r"\b(?:the user|you|sir|user's|your)\b[^.]{0,40}\b(?:answer|answers|reply|replies|response|word|instruction|instructions|message|decision|go-ahead|say|says|to say|to answer|to reply|to decide)"
                                  r"|\b(?:waiting|wait|waits)\s+(?:for|on)\s+(?:the\s+)?(?:user|you|sir|him|them)\b"

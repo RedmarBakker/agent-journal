@@ -10918,7 +10918,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         assert started_agents == [("team", "claude")], "the claiming machine starts the Team chat's agent"
         refused_claim = b.console().run(["team", "claim"], replace(USER, person=2))
         assert refused_claim.code == 1 and "team-chat is held by Ada" in refused_claim.error, "a second machine's claim is refused while the first holds it"
-        assert b.console().run(["team", "chat"], replace(USER, person=2)).text.startswith("Held by Ada"), "and it sees who holds it"
+        assert b.console().run(["team", "chat"], replace(USER, person=2)).text.startswith("Holder: Ada"), "and it sees who holds it"
         rows_b = {row["name"]: row for row in json.loads(b.console().run(["environment", "json"], replace(USER, person=2)).text)}
         rows_a = {row["name"]: row for row in json.loads(a.console().run(["environment", "json"], USER).text)}
         assert "claim it first" in rows_b["team"]["refusal"] and rows_a["team"]["refusal"] == "", "only the holder's machine may start an agent in the Team chat"
@@ -13904,7 +13904,7 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         refuted, retired = reports.find(report.id), workers.find(verifier.id)
-    assert refuted.dismissal == "" and refuted.is_refuted and retired.retire_reason.startswith("gave its verdict"), "a no opens the report again, and the verdict ends the verifier's run"
+    assert refuted.dismissal is None and refuted.is_refuted and retired.retire_reason.startswith("gave its verdict"), "a no opens the report again, and the verdict ends the verifier's run"
     with app.container.get(Scope).environment(MAIN):
         sent_card, verdict_card = [app.container.get(Messages).with_key(key)[0] for key in (f"worker:{verifier.id}", f"verdict:{verifier.id}")]
         stopped_cards = app.container.get(Messages).with_key(f"worker:{verifier.id}:stopped:{retired.silence.timeout.start}")

@@ -29,9 +29,10 @@ class ServiceRecord:
 
     def recorded(self) -> dict[str, list[str]]:
         try:
-            return json.loads(self.path.read_text())
+            decoded = json.loads(self.path.read_text())
         except (OSError, ValueError):
             return {}
+        return {str(pid): [str(part) for part in command] for pid, command in decoded.items()} if isinstance(decoded, dict) else {}
 
     # a pid is reused by the system, so a recorded one is ended only while it still runs the command it was written with
     @staticmethod

@@ -683,7 +683,7 @@ def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
 
 
 def test_a_workers_stop_is_held_while_its_own_output_runs_and_told_its_end(app: App):
-    from journal.hooks.command_events import CommandEvents
+    from journal.engine.command_events import CommandEvents
     from journal.models.command_output import CommandOutput
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs

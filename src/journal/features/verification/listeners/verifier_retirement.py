@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 
 
 class VerifierRetirement(Listener[ReaderReportJudged]):
-    """A verifier's verdict ends its run: its worker is retired and its process stopped, once the verdict is answered."""
+    """A verifier's verdict retires its worker and stops its process."""
 
     def __init__(self, workers: Workers, actions: WorkerActions) -> None:
         self.workers, self.actions = workers, actions

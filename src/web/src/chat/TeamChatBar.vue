@@ -23,7 +23,7 @@ async function claim() {
 <template>
     <div class="agent-bar team-chat-bar">
         <span class="team-chat-holder">{{ failed || line }}</span>
-        <template v-if="!line.startsWith('Held by') || line.includes('offline')">
+        <template v-if="!line.startsWith('Holder:') || line.includes('offline')">
             <Btn class="team-chat-claim" @click="claim">Claim</Btn>
         </template>
     </div>

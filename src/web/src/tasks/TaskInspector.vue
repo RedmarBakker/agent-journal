@@ -86,7 +86,7 @@ watch(
                         <TaskFact label="Phase">{{ phase }} of {{ phases.length }}: {{ phases[phase - 1].title }}</TaskFact>
                     </template>
                     <template v-if="task.state === 'started' && task.held_by">
-                        <TaskFact label="Held by">{{ task.held_by }}</TaskFact>
+                        <TaskFact label="Holder">{{ task.held_by }}</TaskFact>
                     </template>
                     <TaskFact class="wide" label="Priority">
                         <Segmented :options="PRIORITY_LEVELS" :value="task.priority ?? NORMAL_PRIORITY" @pick="setPriority" />

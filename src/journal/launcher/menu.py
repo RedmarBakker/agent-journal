@@ -13,6 +13,7 @@ from journal.launcher.support.option import Option
 from journal.launcher.support.foreign_hooks import ForeignHooks
 from journal.launcher.support.launcher_memory import LauncherMemory
 from journal.launcher.support.menu_return import MenuReturn
+from journal.launcher.support.menu_answers import MenuAnswers
 from journal.launcher.screen import Screen
 from journal.providers.providers import Providers
 
@@ -71,7 +72,7 @@ class Menu:
 
     # the questions in order, each skipped where it does not apply; the left arrow asks again the last one that was asked before it
     def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
-        answers = {"agent": agent, "environment": environment, "new": new, "stashed": stashed, "omit": omit, "rows": self.environments(), "previous": self.remembered.read()}
+        answers = MenuAnswers(agent, environment, new, stashed, omit, self.environments(), self.remembered.read())
         steps = (self._environment_step, self._session_step, self._continuation_step, self._prompts_step, self._hooks_step, self._trust_step)
         shown: list[int] = []
         index = 0
@@ -83,42 +84,44 @@ class Menu:
                 continue
             shown += [index] if was_asked else []
             index += 1
-        return Choice(answers["selection"], answers["resume"], answers["stashed_hooks"], answers["prompt_flags"])
+        return Choice(answers.selection, answers.resume, answers.stashed_hooks, answers.prompt_flags)
 
-    def _environment_step(self, answers: dict) -> bool:
-        answers["selection"] = answers["environment"] or self._environment(answers["agent"], answers["rows"])
-        return not answers["environment"]
+    def _environment_step(self, answers: MenuAnswers) -> bool:
+        answers.selection = answers.environment or self._environment(answers.agent, answers.rows)
+        return not answers.environment
 
-    def _session_step(self, answers: dict) -> bool:
-        answers["session"] = ""
-        if answers["new"] or answers["selection"] in {row.name for row in answers["rows"]}:
+    def _session_step(self, answers: MenuAnswers) -> bool:
+        answers.session = ""
+        if answers.new or answers.selection in {row.name for row in answers.rows}:
             return False
-        sessions = self.free_sessions(answers["agent"])
-        answers["session"] = self._session_question(answers["selection"], sessions) if sessions else ""
-        return bool(sessions)
-
-    def _continuation_step(self, answers: dict) -> bool:
-        rows = self.environment_rows(answers["selection"], answers["rows"])
-        last = next((row.last_session(answers["agent"]) for row in rows if row.name == answers["selection"]), "")
-        answers["resume"] = answers["session"]
-        if answers["session"] or answers["new"] or not last:
+        sessions = self.free_sessions(answers.agent)
+        if not sessions:
             return False
-        answers["resume"] = self._resume(answers["agent"], answers["selection"], last)
+        answers.session = self._session_question(answers.selection, sessions)
         return True
 
-    def _prompts_step(self, answers: dict) -> bool:
-        answers["prompt_flags"] = answers["omit"] or self._prompts(answers["agent"])
-        return not answers["omit"]
-
-    def _hooks_step(self, answers: dict) -> bool:
-        answers["stashed_hooks"] = answers["stashed"] or answers["previous"].stashed_hooks
-        if answers["stashed"] or answers["resume"]:
+    def _continuation_step(self, answers: MenuAnswers) -> bool:
+        rows = self.environment_rows(answers.selection, answers.rows)
+        last = next((row.last_session(answers.agent) for row in rows if row.name == answers.selection), "")
+        answers.resume = answers.session
+        if answers.session or answers.new or not last:
             return False
-        answers["stashed_hooks"] = self._hooks(ForeignHooks(self.root, Providers().lookup(answers["agent"])).foreign(), answers["previous"].stashed_hooks)
+        answers.resume = self._resume(answers.agent, answers.selection, last)
         return True
 
-    def _trust_step(self, answers: dict) -> bool:
-        return self._trust_question(answers["agent"])
+    def _prompts_step(self, answers: MenuAnswers) -> bool:
+        answers.prompt_flags = answers.omit or self._prompts(answers.agent)
+        return not answers.omit
+
+    def _hooks_step(self, answers: MenuAnswers) -> bool:
+        answers.stashed_hooks = answers.stashed or answers.previous.stashed_hooks
+        if answers.stashed or answers.resume:
+            return False
+        answers.stashed_hooks = self._hooks(ForeignHooks(self.root, Providers().lookup(answers.agent)).foreign(), answers.previous.stashed_hooks)
+        return True
+
+    def _trust_step(self, answers: MenuAnswers) -> bool:
+        return self._trust_question(answers.agent)
 
     def _environment(self, agent: str, rows: list[EnvironmentRow]) -> str:
         options = [Option(row.name, (*row.badges(), *Worktree(self.root, row.name).badges())) for row in rows] + [Option("A new environment", separate=True)]

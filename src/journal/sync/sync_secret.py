@@ -1,9 +1,9 @@
 import hmac
 import os
 import secrets
+from collections.abc import Mapping
 
 from journal.config import Config
-from journal.http.support.request import Request
 
 SECRET_FILE = "sync-secret"
 SECRET_HEADER = "x-journal-sync-secret"
@@ -26,5 +26,5 @@ class SyncSecret:
         with os.fdopen(descriptor, "w") as file:
             file.write(self.value)
 
-    def allows(self, request: Request) -> bool:
-        return bool(self.value) and "x-forwarded-for" not in request.headers and hmac.compare_digest(request.headers.get(SECRET_HEADER, ""), self.value)
+    def allows(self, headers: Mapping[str, str]) -> bool:
+        return bool(self.value) and "x-forwarded-for" not in headers and hmac.compare_digest(headers.get(SECRET_HEADER, ""), self.value)

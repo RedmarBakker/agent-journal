@@ -37,7 +37,9 @@ class RemoteInstall:
 
     def installer_settings(self) -> dict[str, str]:
         host = self.target.rsplit("@", 1)[-1]
-        return {**({"TEAM_ADDRESS": host} if "." in host or ":" in host else {}), **self.choices}
+        if "." not in host and ":" not in host:
+            return dict(self.choices)
+        return {"TEAM_ADDRESS": host, **self.choices}
 
     def run(self) -> int:
         if not sys.stdin.isatty():

@@ -136,7 +136,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
         {time: 2, icon: "todos", tone: "good", label: "Finished task 12: the stamp"},
         {time: 2, icon: "inbox", label: "Filed task 13 from your message"},
         {time: 2, kind: "question", label: "Which one?"},
-        {time: 2, icon: "agents", label: "Worker 57, Mr. Muybridge, motion photographer: dispatched on claude opus"},
+        {time: 2, icon: "agents", label: "Worker 57, Mr. Muybridge, motion photographer: started on claude opus"},
         {time: 2, icon: "agents", task: 2742, label: "Worker 57, Mr. Muybridge, motion photographer: sent its next job"},
         {time: 2, icon: "check", tone: "good", label: "Fact 15 recorded"},
         {time: 2, icon: "check", tone: "good", label: "Check Check for sins passed"},

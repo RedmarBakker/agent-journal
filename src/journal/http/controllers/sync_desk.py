@@ -25,7 +25,7 @@ class SyncDeskController:
         return lambda request: self.answered(door, request)
 
     def answered(self, door, request: Request) -> Response:
-        if not self.secret.allows(request):
+        if not self.secret.allows(request.headers):
             return Response.forbidden("the sync desk answers the sync service alone: a request carries the server's service secret and comes straight, never through a proxy")
         if request.headers.get(PROTOCOL_HEADER, "") != str(DESK_PROTOCOL):
             return Response(426, {"error": f"this journal server speaks version {DESK_PROTOCOL} of the sync desk's doors and its sync process version {request.headers.get(PROTOCOL_HEADER) or 'none'}: restart the journal so both run the same code"})

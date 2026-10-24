@@ -1,4 +1,4 @@
-from journal.http.controllers.controller import Controller
+from journal.http.controllers.shaped_rows_controller import ShapedRowsController
 from journal.models.entry import Entry
 from journal.repositories.entries import Entries
 
@@ -6,7 +6,7 @@ NUDGE = "nudge"
 NUDGE_ENTRIES = 200
 
 
-class NudgeController(Controller[Entry]):
+class NudgeController(ShapedRowsController[Entry]):
     """The lines the journal typed to the agent, newest page, each an entry of its kind."""
 
     repository: Entries
@@ -17,5 +17,3 @@ class NudgeController(Controller[Entry]):
     def rows(self) -> list[Entry]:
         return list(reversed(self.repository.kind_entries(NUDGE, NUDGE_ENTRIES)))
 
-    def id_rows(self, ids: tuple[int, ...]) -> list:
-        return [row for row in self.rows() if row.row_id in ids]

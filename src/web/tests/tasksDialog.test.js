@@ -141,7 +141,7 @@ describe("the tasks dialog", () => {
         inDialog('.task-row[data-task="1"]').click();
         await flush();
         const held = [...document.body.querySelectorAll(".task-inspector .fact")].find(
-            (f) => f.querySelector(".label").textContent === "Held by"
+            (f) => f.querySelector(".label").textContent === "Holder"
         );
         expect(held.querySelector(".value").textContent).toBe("worker 2, Lady Lovelace");
         app.unmount();
@@ -149,7 +149,7 @@ describe("the tasks dialog", () => {
         await opened();
         inDialog('.task-row[data-task="4"]').click();
         await flush();
-        expect([...document.body.querySelectorAll(".task-inspector .fact .label")].map((l) => l.textContent)).not.toContain("Held by");
+        expect([...document.body.querySelectorAll(".task-inspector .fact .label")].map((l) => l.textContent)).not.toContain("Holder");
     });
 
     test("the inspector's comment form sits below its scrolling content, and a task's comments carry no document's selection hint", async () => {

@@ -71,5 +71,5 @@ class TeamChat:
         if not lease.holder:
             return "No one holds the Team chat"
         if lease.is_lapsed:
-            return f"Held by {lease.holder}, offline since {time.strftime('%H:%M', time.localtime(lease.renewed_at))}; anyone may claim it"
-        return f"Held by {lease.holder}"
+            return f"Holder: {lease.holder}, offline since {time.strftime('%H:%M', time.localtime(lease.renewed_at))}; anyone may claim it"
+        return f"Holder: {lease.holder}"

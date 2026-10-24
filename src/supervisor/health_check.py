@@ -9,8 +9,8 @@ from pathlib import Path
 class HealthCheck:
     """How the supervisor tells that a service is well, as its launch file or its start request says in plain data: a URL that answers 200 within its timeout, its port read from a file when it names one, or a file written within a number of seconds; checked every few seconds once a grace after the service's start has passed, the service started again after a number of failures in a row."""
 
-    url: str = ""
-    port_file: str = ""
+    url: str | None = None
+    port_file: str | None = None
     file: str = ""
     max_age_seconds: float = 60.0
     timeout_seconds: float = 5.0
@@ -19,17 +19,17 @@ class HealthCheck:
     failures: int = 3
 
     def fault(self) -> str:
-        return self.url_fault() if self.url else self.file_fault()
+        return self.url_fault(self.url) if self.url is not None else self.file_fault()
 
-    def address(self) -> str:
-        if not self.port_file:
-            return self.url
+    def address(self, url: str) -> str:
+        if self.port_file is None:
+            return url
         path = Path(self.port_file)
         port = path.read_text().strip() if path.is_file() else ""
-        return self.url.replace("{port}", port) if port.isdigit() else ""
+        return url.replace("{port}", port) if port.isdigit() else ""
 
-    def url_fault(self) -> str:
-        address = self.address()
+    def url_fault(self, url: str) -> str:
+        address = self.address(url)
         if not address:
             return f"{self.port_file} names no port"
         try:

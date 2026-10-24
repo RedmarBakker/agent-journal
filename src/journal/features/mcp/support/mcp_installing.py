@@ -48,8 +48,8 @@ class McpInstalling:
         self.applied()
         return True
 
-    def add_custom(self, name: str, url: str, command: str, args: tuple[str, ...]) -> None:
-        self.health.add(name, self.provider(), url, command, args)
+    def add_custom(self, server: McpServer) -> None:
+        self.health.add(server, self.provider())
         self.applied()
 
     def provider(self) -> str:

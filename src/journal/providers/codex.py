@@ -182,8 +182,8 @@ class Codex(Provider):
     def resume(self, session: str) -> tuple[str, ...]:
         return ("resume", session)
 
-    def mcp_add_command(self, name: str, url: str, command: str, args: tuple[str, ...]) -> list[str]:
-        return [self.program, "mcp", "add", name, "--url", url] if url else [self.program, "mcp", "add", name, "--", command, *args]
+    def mcp_add_command(self, server: McpServer) -> list[str]:
+        return [self.program, "mcp", "add", server.name, "--url", server.url] if server.url else [self.program, "mcp", "add", server.name, "--", server.command, *server.args]
 
     def mcp_remove_commands(self, name: str) -> list[list[str]]:
         return [[self.program, "mcp", "remove", name]]

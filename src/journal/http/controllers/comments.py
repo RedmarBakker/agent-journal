@@ -1,4 +1,4 @@
-from journal.http.controllers.controller import Controller
+from journal.http.controllers.shaped_rows_controller import ShapedRowsController
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.response import Response
@@ -14,7 +14,7 @@ from journal.repositories.rows import Rows
 COMMENTED = ("tasks", "plans", "docs", "reports", "facts", "rules", "reminders", "questions")
 
 
-class CommentController(Controller[Message]):
+class CommentController(ShapedRowsController[Message]):
     """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does. Their list is the messages alone; one read by id names the row it is under."""
 
     is_timeline = True
@@ -24,9 +24,6 @@ class CommentController(Controller[Message]):
 
     def rows(self) -> list[Message]:
         return self.repository.comments()
-
-    def id_rows(self, ids: tuple[int, ...]) -> list:
-        return [row for row in self.rows() if row.row_id in ids]
 
     def shown_page(self, rows: list[Message]) -> list[dict]:
         enabled = self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows])

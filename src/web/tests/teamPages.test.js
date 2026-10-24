@@ -32,7 +32,7 @@ afterEach(() => {
 const EMPTY_POOL = {slots: 0, free: 0, minutes_today: 0, minute_cap: 0, lent: [], elsewhere: [], team: []};
 
 async function mounted(component, pool = EMPTY_POOL) {
-    vi.spyOn(api, "teamChat").mockResolvedValue({line: "Held by Ada Lovelace", mine: false, claimable: false, holder: "Ada Lovelace"});
+    vi.spyOn(api, "teamChat").mockResolvedValue({line: "Holder: Ada Lovelace", mine: false, claimable: false, holder: "Ada Lovelace"});
     vi.spyOn(api, "teamDevices").mockResolvedValue({devices});
     const host = document.createElement("div");
     document.body.append(host);

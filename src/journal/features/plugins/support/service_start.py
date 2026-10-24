@@ -1,8 +1,8 @@
 import os
-import socket
 import sys
 from pathlib import Path
 
+from journal.support.free_port import FreePort
 from journal.config import Config
 from journal.features.registry import Registry
 from journal.features.support.service import Service
@@ -29,14 +29,8 @@ class ServiceStart:
         command, log = [sys.executable, "-m", service.module, str(self.config.root)], self.config.home / "runtime" / f"{service.name}.log"
         if not service.health_path:
             return self.link.start(host, service.name, command, self.config.root, environ, log, {})
-        port = self.free_port()
+        port = FreePort.number()
         return self.link.start(host, service.name, [*command, str(port)], self.config.root, environ, log, {"url": f"http://127.0.0.1:{port}{service.health_path}"})
-
-    @staticmethod
-    def free_port() -> int:
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", 0))
-            return probe.getsockname()[1]
 
     def disabled(self) -> None:
         names = [service.name for service in self.registry.services()]

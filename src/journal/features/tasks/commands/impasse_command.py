@@ -2,7 +2,7 @@ from argparse import Namespace
 
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
-from journal.hooks.command_events import CommandEvents
+from journal.engine.command_events import CommandEvents
 
 
 class ImpasseCommand(Command):
