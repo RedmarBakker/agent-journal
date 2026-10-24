@@ -75,8 +75,10 @@ class SlowRequests:
 
     def counted(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
         self.tally.measured("developer.hooks" if method == HOOK else "developer.requests", ms)
-        if method == HOOK or not path.startswith(HOOK_ROUTE):
-            self.tally.windowed("developer.hooks" if method == HOOK else "developer.requests", f"{method} {self.route(path)}", ms)
+        if method == HOOK:
+            self.tally.windowed("developer.hooks", path.rsplit("/", 1)[-1], ms)
+        elif not path.startswith(HOOK_ROUTE):
+            self.tally.windowed("developer.requests", f"{method} {self.route(path)}", ms)
         self.tally.logged(Timing(method=method, route=path, ms=ms, time=self.clock.time(), loads=loads))
         for count in loads.counts:
             self.tally.added(f"{LOADS_PREFIX}{count.model}", count.rows)

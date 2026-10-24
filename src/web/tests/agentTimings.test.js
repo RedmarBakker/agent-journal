@@ -8,8 +8,8 @@ globalThis.ResizeObserver ??= class {
 };
 
 const parts = [
-    {name: "HOOK /hooks/PreToolUse", average_ms: 40, count: 250},
-    {name: "HOOK /hooks/Stop", average_ms: 12, count: 8},
+    {name: "PreToolUse", average_ms: 40, count: 250},
+    {name: "Stop", average_ms: 12, count: 8},
 ];
 
 async function mounted() {
@@ -25,8 +25,8 @@ test("hovering the reading opens a dropdown of each part with its own average an
     expect(root.textContent).toContain("26 ms");
     root.querySelector(".agent-timings").dispatchEvent(new Event("mouseenter"));
     await nextTick();
-    const rows = [...document.body.querySelectorAll(".timings-row")].map((row) => row.textContent.replace(/\s+/g, " ").trim());
-    expect(rows).toEqual(["HOOK /hooks/PreToolUse 40 ms 250 timed", "HOOK /hooks/Stop 12 ms 8 timed"]);
+    const rows = [...document.body.querySelectorAll(".timings-row")].map((row) => [...row.children].map((cell) => cell.textContent.trim()).join(" "));
+    expect(rows).toEqual(["PreToolUse 40 ms 250 timed", "Stop 12 ms 8 timed"]);
 });
 
 test("clicking the reading holds the dropdown open past the pointer leaving", async () => {
