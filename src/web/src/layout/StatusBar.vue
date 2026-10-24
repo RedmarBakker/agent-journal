@@ -66,10 +66,13 @@ const fitnessLine = (one) => (fitness.value?.mode === one.key ? ` Fitness ${fitn
 const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
-        label: fitness.value?.mode === one.key ? `${one.label} ${fitness.value.score}` : one.label,
+        label: one.label,
         tip: {title: one.label, line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note) + fitnessLine(one)},
     }))
 );
+// the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
+const LOW_FITNESS = 70;
+const fitnessTip = computed(() => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: fitness.value.lines.length ? fitness.value.lines.join(" ") : "The agent works as this mode's ideal does."});
 const keepMode = (key) => (store.settings = {...store.settings, workers: {...store.settings.workers, mode: key}});
 
 async function pickMode(key) {
@@ -201,6 +204,9 @@ async function runBar(p) {
                     @change="setAuto"
                 />
                 <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
+                <template v-if="fitness">
+                    <span :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip">{{ fitness.score }}</span>
+                </template>
                 <button
                     type="button"
                     :class="['statusbar-helpers', {none: !workers.length}]"
@@ -430,6 +436,20 @@ async function runBar(p) {
     padding: 3px 4px 3px 8px;
     border: 1px solid var(--border-2);
     border-radius: 8px;
+}
+
+.statusbar-fitness {
+    padding: 1px 6px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--tone-good) 18%, transparent);
+    color: var(--text-2);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+}
+
+.statusbar-fitness.low {
+    background: color-mix(in srgb, var(--tone-warn) 22%, transparent);
 }
 
 .statusbar-helpers {

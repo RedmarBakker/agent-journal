@@ -41,3 +41,11 @@ test("an agent waiting with no task in hand names what it waits for", async () =
     app.unmount();
     host.remove();
 });
+
+test("the mode buttons read only their mode's name, and the fitness score is a badge beside them whose hover gives the score and its advice", async () => {
+    const {readFileSync} = await import("node:fs");
+    const bar = readFileSync("src/layout/StatusBar.vue", "utf8");
+    expect(bar).toContain("        label: one.label,\n");
+    expect(bar).toContain(`class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip"`);
+    expect(bar).toContain("title: `Fitness ${fitness.value.score} of 100`");
+});
