@@ -1,3 +1,4 @@
+import {readFileSync} from "node:fs";
 import {createApp, h, ref} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 import {flush} from "./flush.js";
@@ -105,7 +106,7 @@ test("a docked test run shows how many passed and failed while it runs and keeps
     expect(host.querySelector(".watch-dock-ending").textContent).toBe("failed with code 1");
 });
 
-test("a run whose reader counts keeps its bar's room from the start, before any progress, so the card never grows when it comes", async () => {
+test("a run shows no bar before it has progress, and its bar lies along the card's foot without adding height, so the card never grows when it comes", async () => {
     const host = document.createElement("div");
     document.body.append(host);
     const early = {...watched, data: {...watched.data, figure: "", count: "", fraction: 0, counting: true}};
@@ -113,8 +114,16 @@ test("a run whose reader counts keeps its bar's room from the start, before any 
     app.directive("tip", {});
     app.mount(host);
     await flush();
-    expect(host.querySelector(".watch-dock-bar")).not.toBeNull();
-    expect(host.querySelector(".watch-dock-fill").style.width).toBe("0%");
+    expect(host.querySelector(".watch-dock-bar")).toBeNull();
+    app.unmount();
+    const going = {...watched, data: {...watched.data, figure: "40%", fraction: 0.4, counting: true}};
+    app = createApp({render: () => h(WatchDock, {message: going})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".watch-dock-fill").style.width).toBe("40%");
+    const dock = readFileSync("src/chat/WatchDock.vue", "utf8");
+    expect(dock).toMatch(/\.watch-dock-bar \{\s*position: absolute;/);
 });
 
 test("a chat mark of a counting run draws its empty bar before any progress", async () => {

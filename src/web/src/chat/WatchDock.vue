@@ -69,7 +69,7 @@ watch(
                 </template>
             </ul>
         </template>
-        <template v-if="card.counting || card.count || card.fraction">
+        <template v-if="card.fraction > 0">
             <div class="watch-dock-bar" :data-figure-bar="card.ending ? card.tone || 'ended' : ''" :data-figure-began="createdAt(message)">
                 <div class="watch-dock-fill" :style="{width, background: STATE_TONES[runState]}" :data-figure-progress="card.ending ? null : ''"></div>
             </div>
@@ -141,9 +141,13 @@ watch(
     overflow-wrap: anywhere;
 }
 
+/* the bar lies along the card's foot, adding no height, so the title stays in the middle of the card */
 .watch-dock-bar {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
     height: 2px;
-    margin-top: 6px;
     border-radius: 1px;
     background: var(--border);
     overflow: hidden;

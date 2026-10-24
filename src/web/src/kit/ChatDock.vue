@@ -38,6 +38,7 @@ defineExpose({card});
 }
 
 .chat-dock-card {
+    position: relative;
     container-type: inline-size;
     border: 1px solid var(--border-2);
     border-radius: 10px;
