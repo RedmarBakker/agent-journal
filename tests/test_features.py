@@ -13129,3 +13129,29 @@ def test_the_carrier_and_the_server_agree_on_the_version_of_the_sync_desks_doors
     finally:
         old.shutdown()
 
+
+
+def test_a_journal_no_supervisor_hosts_syncs_through_the_carrier_in_its_own_threads(app: App):
+    import time as clock
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.sync.sync_client import SyncClient
+    from journal.sync.sync_start import SyncStart
+    server, account = joined_team(app)
+    start, client = app.container.get(SyncStart), app.container.get(SyncClient)
+    try:
+        start.run()
+        assert not client.sending_loop.is_dead() and not client.stopping.is_set(), "with no supervisor the carrier runs in the server's threads"
+        port = app.server().port
+        shown = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync", headers={"X-Journal-Env": "main"}), timeout=10).read())
+        assert shown["runs"] == "server", "and the status says where it runs"
+        made = app.console().run(["task", "create", "carried in the server"], USER)
+        assert made.code == 0
+        for _ in range(100):
+            if not app.container.get(OutgoingChanges).waiting():
+                break
+            clock.sleep(0.1)
+        assert app.container.get(OutgoingChanges).waiting() == [], "and sends what this journal writes"
+    finally:
+        start.stopped()
+        account.left(0)
+        server.shutdown()

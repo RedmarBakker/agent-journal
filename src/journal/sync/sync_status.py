@@ -24,6 +24,10 @@ class SyncStatus:
     def current_fault(self) -> str:
         return self.fault or self.beat.fault()
 
+    # where the carrier runs: in a process of its own, which beats into its file, or in the server's own threads
+    def runs(self) -> str:
+        return "process" if self.beat.path.is_file() else "server"
+
     def upgrade_line(self) -> str:
         team_version = self.account.team_version()
         if not team_version or not Release(team_version).is_newer(Release(VERSION)):
