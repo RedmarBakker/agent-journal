@@ -3410,7 +3410,7 @@ export const HIDDEN_PARTS = ["headphones"];
 
 export const SCREEN = {
     gap: 0.16, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
-    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.35, soft: 0.55, reach: 2}, glare: {strength: 0.012, from: 0.5},
+    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0, soft: 0.55, reach: 2}, glare: {strength: 0.012, from: 0.5},
     // a lit pixel is drawn brighter than its colour, brightest at its middle
     shine: {lift: 1, core: 0.55, tightness: 6},
     framesBehind: 6,

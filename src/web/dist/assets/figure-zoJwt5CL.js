@@ -1,4 +1,4 @@
-import{H as te,A as ie,p as me,a as Rp,b as Cp,h as Ql,s as Pp,o as Lp,R as Ip,f as Dp,F as Np,g as Up,c as Op,U as va,G as ws,V as Fp,l as Bp,d as kp,e as zp,P as ss,L as Hp,i as Gp}from"./main-D-qqz2hO.js";import{e as el}from"./tokens-CDlVDfIF.js";import"./tip-57OeDw3V.js";import"./preload-helper-Dp1pzeXC.js";/**
+import{H as te,A as ie,p as me,a as Rp,b as Cp,h as Ql,s as Pp,o as Lp,R as Ip,f as Dp,F as Np,g as Up,c as Op,U as va,G as ws,V as Fp,l as Bp,d as kp,e as zp,P as ss,L as Hp,i as Gp}from"./main-DsVyxQlC.js";import{e as el}from"./tokens-CDlVDfIF.js";import"./tip-57OeDw3V.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
@@ -3872,7 +3872,7 @@ void main() {
         gl_FragColor = vec4(colour * mix(shade, vec3(1.0), lit) + bulbGlow * bulb * mix(colour, vec3(1.0), 0.35), 1.0);
         #include <colorspace_fragment>
     }
-`,WE=["headphones"],nn={gap:.16,dark:.35,glass:[.006,.007,.01],off:.0025,bezel:{width:.035,shade:.75,round:.42},halo:{strength:.35,soft:.55,reach:2},glare:{strength:.012,from:.5},shine:{lift:1,core:.55,tightness:6},framesBehind:6},XE=`
+`,WE=["headphones"],nn={gap:.16,dark:.35,glass:[.006,.007,.01],off:.0025,bezel:{width:.035,shade:.75,round:.42},halo:{strength:0,soft:.55,reach:2},glare:{strength:.012,from:.5},shine:{lift:1,core:.55,tightness:6},framesBehind:6},XE=`
     uniform vec3 glow;
     uniform float lit;
     uniform float across;
