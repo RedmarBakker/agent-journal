@@ -137,10 +137,16 @@ const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
 const FAR = 40;
 const {away, missed, showNewest, follow: atTheFoot, toBottom: glideTo, left: readingUp, arrived} = useFollowing(scroller, FAR);
+// away from the foot, messages that arrive are loaded but held off the screen, so nothing below the reader grows and moves the page;
+// back at the foot, every held message appears
+const heldAfter = ref(null);
+watch(away, (isAway) => (heldAfter.value = isAway ? Math.max(0, ...chat.value.map((m) => (typeof m.id === "number" ? m.id : 0))) : null));
+const shownChat = computed(() => (heldAfter.value === null ? chat.value : chat.value.filter((m) => !(typeof m.id === "number" && m.id > heldAfter.value))));
+const held = computed(() => chat.value.length - shownChat.value.length);
 const settledOnce = ref(false);
 const ready = ref(false);
 const unseen = computed(() =>
-    chat.value
+    shownChat.value
         .filter((m) => m.author === "agent" && !m.read_at)
         .map((m) => m.id)
 );
@@ -156,7 +162,7 @@ let frame = 0;
 
 const revoke = (p) => Object.values(p.previews || {}).forEach(URL.revokeObjectURL);
 const {pending, promise, drop, change, keep, link, keyOf} = usePromised(revoke);
-const thread = computed(() => threadTurns(streamRows(chat.value, dockNow.value), pending.value, here && !!store.paging.more.messages, props.hidden));
+const thread = computed(() => threadTurns(streamRows(shownChat.value, dockNow.value), pending.value, here && !!store.paging.more.messages, props.hidden));
 watch(thread, (made) => made.keys.forEach((placeholder, ref) => link(ref, placeholder)), {immediate: true});
 const turns = computed(() => thread.value.turns);
 const turnsLoaded = computed(() => scope.loaded("messages"));
@@ -437,11 +443,11 @@ const {colleague, me} = useColleague();
                         type="button"
                         :class="['thread-down', {'over-docks': dockCount}]"
                         :style="{'--docks': dockCount}"
-                        :title="missed ? `${missed} arrived while you were reading` : 'Back to the newest'"
+                        :title="held || missed ? `${held || missed} arrived while you were reading` : 'Back to the newest'"
                         @click="toBottom()"
                     >
                         <Icon name="down" />
-                        {{ missed ? `${missed} new` : "Newest" }}
+                        {{ held || missed ? `${held || missed} new` : "Newest" }}
                     </button>
                 </Transition>
                 <template v-if="editing">

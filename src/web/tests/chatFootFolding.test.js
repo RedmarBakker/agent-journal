@@ -20,3 +20,10 @@ test("scrolled up, the chat follows again only on the reader's own scroll to the
     expect(thread).toContain("const RESTED_MS = 5000;");
     expect(thread.split("function restAtFoot() {")[1].split("\n}\n")[0]).toContain("Date.now() - scrolledAt >= RESTED_MS");
 });
+
+test("scrolled up, messages that arrive are held off the screen and counted, and appear once the chat is back at its foot", () => {
+    expect(thread).toContain("watch(away, (isAway) => (heldAfter.value = isAway ?");
+    expect(thread).toContain("threadTurns(streamRows(shownChat.value");
+    expect(thread).toContain("m.id > heldAfter.value");
+    expect(thread).toContain("`${held || missed} new`");
+});
