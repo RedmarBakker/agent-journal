@@ -284,8 +284,6 @@ export function seatAt(box, side, {size}) {
     return {x: box.left + box.width * along + inboard * SEAT_INBOARD * size, y: box.top, face, posture: "sit"};
 }
 
-// the way a lounging figure faces, side-on with its legs along the floor toward `way` (1 to the right, -1 to the left), never the viewer
-export const loungeFacing = (way) => (way > 0 ? 90 : 270);
 
 // the least a figure at its laptop is turned from the viewer, in degrees: three-quarters
 export const ASIDE = 60;
@@ -328,13 +326,17 @@ export function pileBox() {
     return {left: Math.min(...boxes.map((box) => box.left)), right: Math.max(...boxes.map((box) => box.right)), top: Math.min(...boxes.map((box) => box.top)), bottom: Math.max(...boxes.map((box) => box.bottom))};
 }
 
-// whether a figure at `spot` keeps clear of the pile, the part of its picture its body is drawn in (BODY) overlapping none of the boxes on it
-export function clearOfPile(spot, figure) {
-    const pile = pileBox();
-    if (!pile) return true;
+// the part of a figure's picture at `spot` its body is drawn in (BODY), on the page
+export function bodyBoxAt(spot, figure) {
     const box = boxAt(spot, figure);
     const width = box.right - box.left;
-    return !overlaps({left: box.left + BODY.left * width, right: box.left + BODY.right * width, top: box.top + BODY.top * width, bottom: box.bottom}, pile);
+    return {left: box.left + BODY.left * width, right: box.left + BODY.right * width, top: box.top + BODY.top * width, bottom: box.bottom};
+}
+
+// whether a figure at `spot` keeps clear of the pile, its body (bodyBoxAt) overlapping none of the boxes on it
+export function clearOfPile(spot, figure) {
+    const pile = pileBox();
+    return !pile || !overlaps(bodyBoxAt(spot, figure), pile);
 }
 
 // how far from the edge at home the pile's foot may be and still stand on it, in pixels, as the boxes' pictures reach a little below it

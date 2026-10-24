@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {beforeEach, expect, test} from "vitest";
 
-const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
+const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_SLANT, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
 const {HANG: HANG_COOLDOWN, PILE, SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
 const {ACTS} = await import("../src/figure/acts.js");
@@ -111,7 +111,7 @@ test("every place the figure roams to comes up by its odds and is stayed at betw
         expect(roamNext(fixed(middle, 1), {free: true, room: Infinity, swings: true}).stay).toBe(each.stay[1]);
         before += each.weight;
     }
-    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge", "composed", "rope_swing"]));
+    expect(new Set(ROAMS.map((each) => each.name))).toEqual(new Set(["rest", "seat", "edge", "bubble", "tab", "ledge", "composed", "lean", "rope_swing"]));
 });
 
 test("mostly the figure rests on a corner of the compose box or strolls along its edge, and no stay keeps it still for long", () => {
@@ -287,7 +287,7 @@ test("resting by its parcel pile the figure stands beside it, never in front of 
     expect(targetFor({...at, pile: {...pile, top: 600}, stay: {where: "rest", until: 500}}).spot.x).toBe(plain.x);
 });
 
-test("now and then the figure sits down halfway or a third or two thirds along a floor, never near an end, lounging side-on on the composer", () => {
+test("now and then the figure sits down halfway or a third or two thirds along a floor, never near an end, on the composer slanted toward its nearer end", () => {
     const box = (rect) => ({...rect, width: rect.right - rect.left, height: rect.bottom - rect.top});
     const thread = {querySelector: () => null, getBoundingClientRect: () => box({left: 236, right: 778, top: 0, bottom: 900})};
     const home = {getBoundingClientRect: () => box({left: 258, right: 754, top: 768, bottom: 888}), closest: () => thread};
@@ -297,12 +297,12 @@ test("now and then the figure sits down halfway or a third or two thirds along a
     expect([...LEDGE_ALONG].sort()).toEqual([1 / 3, 1 / 2, 2 / 3].sort());
     for (const along of LEDGE_ALONG) {
         const spot = ledgeSpot(along, FIGURE, {on: home});
-        expect(spot).toMatchObject({x: 258 + width * along, y: 768, posture: "lounge", face: along <= 0.5 ? 90 : 270, leans: false, on: home});
+        expect(spot).toMatchObject({x: 258 + width * along, y: 768, posture: "sit", face: along <= 0.5 ? 360 - LEDGE_SLANT : LEDGE_SLANT, leans: true, on: home});
         expect(Math.min(spot.x - 258, 754 - spot.x)).toBeGreaterThanOrEqual(width / 3 - 1e-9);
     }
     // a stay on the ledge takes the figure there
     const at = {state: "idle", counts: {question: 0, waiting: 0, suggestion: 0}, now: 100, figure: FIGURE, hands: HANDS, near: {x: 300, y: 768, on: home}};
-    expect(targetFor({...at, stay: {where: "ledge", until: 500, along: 1 / 3}}).spot).toMatchObject({x: 258 + width * (1 / 3), posture: "lounge"});
+    expect(targetFor({...at, stay: {where: "ledge", until: 500, along: 1 / 3}}).spot).toMatchObject({x: 258 + width * (1 / 3), posture: "sit"});
     // where its body would hide words it takes another of the three places, never one nearer an end
     write([{left: 258 + width / 2 - 60, right: 258 + width / 2 + 60, top: 700, bottom: 760}]);
     expect(ledgeSpot(1 / 2, FIGURE, {on: home}).x).toBe(258 + width * (1 / 3));

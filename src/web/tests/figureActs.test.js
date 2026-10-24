@@ -44,7 +44,8 @@ const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/
 const JOURNAL = {
     task_finished: ["nod", "hand_rub"],
     question_asked: ["ask_sign"],
-    reported: ["scroll"],
+    // a report is read along its bubble (figureLooks.test.js)
+    reported: ["read"],
     fact_filed: ["file_card"],
     check_passed: ["nod"],
 };
@@ -103,9 +104,11 @@ test("each journal moment is acted out now and then, never every time: it plays 
         expect(cooldownOf(moment), moment).toBeGreaterThanOrEqual(60);
         const memory = new Map();
         expect(reactionTo(moment, memory, 1000, () => oddsOf(moment)), moment).toBe(null);
-        expect(acts, moment).toContain(reactionTo(moment, memory, 1000, () => 0).clip);
+        const first = reactionTo(moment, memory, 1000, () => 0);
+        expect(acts, moment).toContain(first.clip ?? first.gaze);
         expect(reactionTo(moment, memory, 1000 + cooldownOf(moment) - 1, () => 0), moment).toBe(null);
-        expect(reactionTo(moment, memory, 1000 + cooldownOf(moment), () => 0)?.clip, moment).toEqual(expect.any(String));
+        const again = reactionTo(moment, memory, 1000 + cooldownOf(moment), () => 0);
+        expect(again?.clip ?? again?.gaze, moment).toEqual(expect.any(String));
     }
 });
 
@@ -129,16 +132,19 @@ test("every moment the figure acts out has more than one way to play it, picks a
     const joyAlone = ["check_passed", "tests_passed", "committed"];
     for (const moment of [...Object.keys(JOURNAL), "tests_passed", "committed", "building", "standing"]) {
         expect(played(moment).length, moment).toBeGreaterThan(joyAlone.includes(moment) ? 0 : 1);
-        expect(picks(of(moment), (random) => reactionTo(moment, new Map(), 0, random)?.clip ?? "nothing"), moment).toEqual(of(moment).map((each) => each.name));
+        expect(picks(of(moment), (random) => {
+            const drawn = reactionTo(moment, new Map(), 0, random);
+            return drawn?.clip ?? drawn?.gaze ?? "nothing";
+        }), moment).toEqual(of(moment).map((each) => each.name));
     }
     expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}]);
     // searching, typing and watching the UFO, each picked again for each stretch
-    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "rummage"]);
+    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "glass_bubble", "rummage"]);
     for (const clip of ["search", "type", "watch", "compacting"]) {
         const among = of(`held:${clip}`);
         expect(among.length, clip).toBeGreaterThan(1);
         expect(among.map((each) => each.name), clip).toContain(clip);
-        expect(picks(among, (random) => variantOf(clip, random, has, {home: true})), clip).toEqual(among.map((each) => each.name));
+        expect(picks(among, (random) => variantOf(clip, random, has, {home: true, bubble: true})), clip).toEqual(among.map((each) => each.name));
         expect(variantOf(clip, () => 0.99, (name) => name === clip), clip).toBe(clip);
     }
     expect(variantOf("idle", () => 0, has)).toBe("idle");

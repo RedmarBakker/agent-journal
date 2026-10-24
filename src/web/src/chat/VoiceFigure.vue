@@ -35,6 +35,7 @@ import {
     figureStateOf,
     frameIn,
     processEndsAfter,
+    readingsAfter,
     sayingsAfter,
     writtenFacesAfter,
     testResultsAfter,
@@ -44,7 +45,7 @@ import {
     stretchedFrame,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {MARK_STAY, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {jumpMost} from "../figure/climbs.js";
@@ -58,7 +59,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, answerTo, barWatchAt, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, READING, answerTo, barWatchAt, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -284,14 +285,18 @@ const asleep = () => clipOf(held.value.state) === "sleep";
 function heldClip() {
     const {state} = held.value;
     if (variant.state !== state) {
-        variant = {state, clip: variantOf(clipOf(state), Math.random, drawnHere, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
+        variant = {state, clip: variantOf(clipOf(state), Math.random, drawnHere, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home", bubble: Boolean(nearBubble())})};
         // the rummage goes to the window's edge nearest the figure, leaning out that way, or to the other when it cannot lean out that way
         if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: player.reachWay(nearerWay(body.place.x, worldBox()))};
     }
     if (body.place.swings) return "rope_swing";
+    // at a wall with nothing to do it leans against it (perches.js leanSpot)
+    if (body.place.lean && ["idle", "waiting"].includes(clipOf(state))) return "lean";
     // the rummage waits until the figure stands at the window's edge, its stay there, and the glass search until it stands
     if (variant.clip === "rummage" && (stay.where !== "rummage" || body.trip)) return "idle";
     if (variant.clip === "search" && !body.trip && !drawnHere("search")) return "idle";
+    // the glass held up to a bubble only while one is within reach and the figure stands still
+    if (variant.clip === "glass_bubble" && (body.trip || !nearBubble())) return "idle";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
 }
 
@@ -436,7 +441,7 @@ function step() {
         stride,
         sky: shown.clip.name === watching ? sky : null,
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
-        leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : 0,
+        leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : 0,
         at: lookingAt(shown),
         open: blinked(),
         screen: lit,
@@ -860,6 +865,7 @@ function look() {
         ...testResultsAfter(lead.value, testStates, watchedSince),
         ...facesAfter(rows("reactions"), recent),
         ...sayingsAfter(lead.value, rows("messages"), recent),
+        ...readingsAfter(rows("messages"), recent),
         ...writtenFacesAfter(lead.value, rows("messages"), recent),
     ];
     const ends = processEndsAfter(lead.value, processStates);
@@ -1211,6 +1217,10 @@ function lookedAt(shown) {
     if (mark) return mark;
     const flying = saucer.value ?? crane.value?.look;
     if (flying) return flying;
+    const read = readingNow();
+    if (read) return read;
+    const scanned = shown.clip.name === "glass_bubble" && nearBubble();
+    if (scanned) return scanningAt(scanned);
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
     if (work) return work.at;
     if (admiring.picture) return {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"};
@@ -1219,6 +1229,28 @@ function lookedAt(shown) {
     const docks = groundEdge();
     const edge = onDocks() && (body.footing?.home || body.place.stays) ? progressEdge(docks.element) : null;
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
+}
+
+// the bubble within reach of where the figure stands to hold its magnifying glass up to (perches.js bubbleNear), or null
+const nearBubble = () => bubbleNear(latestFloors(), body.place, figureSize());
+
+// where the figure looks through its glass along the bubble `bubble` beside it: along its text as one reads it (reactions.js readingAt),
+// on the part of the bubble nearest the figure
+function scanningAt(bubble) {
+    const reach = SIZE * 0.8;
+    const box = {left: Math.max(bubble.left, body.place.x - reach), right: Math.min(bubble.right, body.place.x + reach), top: bubble.top, bottom: bubble.bottom};
+    return readingAt(box, performance.now() / 1000);
+}
+
+// the message the figure reads along, its chat mark, while it reads, {card, began, until} in seconds, or null
+let reading = null;
+
+// where the figure looks reading its message's bubble now (reactions.js readingAt), or null once its time is up or the bubble is not on
+// the page
+function readingNow() {
+    if (!reading || now.value >= reading.until) return (reading = null);
+    const bubble = document.querySelector(`[data-figure-mark="${CSS.escape(reading.card)}"]`);
+    return bubble ? readingAt(bubble.getBoundingClientRect(), Date.now() / 1000 - reading.began) : null;
 }
 
 // What told the figure of the run whose end the visor waits to light (figure/visor.js lightOnce), which the head turns to first, whatever
@@ -1308,6 +1340,8 @@ function react(moment) {
         stay = {where: "mark", card: answer.beat.card, until: now.value + MARK_STAY};
         hurried = true;
     }
+    // a message to read: the figure looks up at its bubble and reads along it a while (reactions.js readingAt)
+    if (answer?.gaze) reading = {card: answer.gaze.card, began: now.value, until: now.value + READING.seconds};
     if (!answer?.look) return;
     looking = lookOf(answer.look, performance.now() / 1000);
     stay = stayForLook(stay, body.place);

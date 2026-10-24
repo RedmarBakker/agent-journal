@@ -1234,6 +1234,66 @@ function search(pose, stance, t) {
     if (pose.posture === "stand") pose.revolve(sign * SEARCHING.turn);
 }
 
+// The magnifying glass held up to a chat bubble beside the figure, its lens between the eyes and the bubble's text: the text where the look
+// is (pose.at, lookToward), `depth` of the figure's units behind its own plane as the page is, else `ahead` of the eyes, out to the free
+// hand's side; the lens `out` units from the eyes along the way to the text, clear of the big head, and never past `share` of the way
+// there; the figure leaning `lean` degrees toward it, the glass drawn `size` times as large
+export const GLASS_BUBBLE = {depth: 0.3, ahead: [1.6, 0.3, 0.2], out: 1.25, share: 0.8, lean: 8, size: 1.2};
+
+// The point of the page the look is at (pose.at), in the figure's units, or null with no look
+export function lookedPoint(pose, depth) {
+    if (!pose.at) return null;
+    return new THREE.Vector3((pose.at.x - 0.5) * FRAMED_HEIGHT, depth, FRAMED_MIDDLE + (0.5 - pose.at.y) * FRAMED_HEIGHT);
+}
+
+// leans against a wall to rest (acts.js lean), the wall out to the way it is (pose.leanWay, 1 the right): the hand on that side flat
+// against it, the body tilted toward it, the ankles crossed, the weight shifting a little as it breathes
+function lean(pose, stance, t) {
+    const {wall, contact, tilt, hip, cross} = ACTS.lean;
+    const way = pose.leanWay || 1;
+    const side = way === SIDES.l ? "l" : "r";
+    const other = side === "l" ? "r" : "l";
+    const tilted = way * tilt * (1 + 0.08 * waveOf(t));
+    breathe(pose, t);
+    pose.turn("hips", {y: tilted * 0.5});
+    pose.turn("spine", {y: tilted * 0.3});
+    pose.turn("chest", {y: tilted * 0.2});
+    trunk(pose, {tilt: -tilted * 0.5});
+    armsAtRest(pose, stance, [side, ...(stance.free.has(other) ? [other] : [])]);
+    handTo(pose, side, 1, pose.withinReach(side, pose.carried(new THREE.Vector3(way * wall * FRAMED_HEIGHT, 0, contact)), 0.99), new THREE.Vector3(0, 1, -0.6));
+    pose.face(`hand_${side}`, {z: -SIDES[side] * 90});
+    if (stance.free.has(other)) handTo(pose, other, 1, pose.withinReach(other, pose.carried(new THREE.Vector3(SIDES[other] * hip[0], hip[1], hip[2])), 0.97), new THREE.Vector3(SIDES[other], 0.3, 0));
+    for (const [leg, sign] of Object.entries(SIDES)) pose.turn(`thigh_${leg}`, {y: -sign * cross, x: leg === other ? -6 : 0});
+    eyesAs(pose, "amused", 0.4);
+}
+
+// holds the magnifying glass up against a bubble beside it in the hand on that side, the lens between its eyes and the bubble's text,
+// scanning along the text through it as its look moves along it, its head following (GLASS_BUBBLE)
+function glass_bubble(pose, stance, t) {
+    const eyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length).applyMatrix4(pose.matrix("head"));
+    const [across, depth, up] = GLASS_BUBBLE.ahead;
+    const text = lookedPoint(pose, GLASS_BUBBLE.depth) ?? eyes.clone().add(new THREE.Vector3(SIDES[freeSide(stance)] * across, depth, up));
+    // the hand on the bubble's side holds the glass, where it carries nothing
+    const side = reachSide(stance, Math.sign(text.x - eyes.x));
+    breathe(pose, t);
+    armsAtRest(pose, stance, [side]);
+    trunk(pose, {tilt: -SIDES[side] * GLASS_BUBBLE.lean});
+    const sight = text.clone().sub(eyes);
+    const slant = THREE.MathUtils.radToDeg(Math.atan2(sight.x, -sight.y));
+    const tip = THREE.MathUtils.radToDeg(Math.atan2(-sight.z, Math.hypot(sight.x, sight.y)));
+    // the lens as far out along the sight as the hand can hold it, from GLASS_BUBBLE out in toward the eyes, so it stays on the line
+    const handle = new THREE.Vector3(0, 0, 1).applyMatrix4(euler(tip, 0, slant));
+    const reached = (lens) => {
+        const grip = pose.carried(lens.clone().addScaledVector(handle, -(GLASS.handle / 2 + GLASS.radius) * GLASS_BUBBLE.size));
+        return pose.withinReach(side, grip, 0.97).distanceTo(grip) < 0.02;
+    };
+    const furthest = Math.min(GLASS_BUBBLE.out, sight.length() * GLASS_BUBBLE.share);
+    const steps = Array.from({length: 8}, (_, step) => furthest * (1 - step / 10));
+    const lens = lensBefore(eyes, text, steps.find((reach) => reached(lensBefore(eyes, text, reach))) ?? steps.at(-1));
+    glassOver(pose, side, 1, lens, 0, {tip, roll: 0, slant, size: GLASS_BUBBLE.size});
+    eyesAs(pose, "reading");
+}
+
 const READING = {
     intro: 12,
     hold: 48,
@@ -2626,10 +2686,11 @@ function tumble(pose, stance, t) {
     else eyesAs(pose, kneel > 0.5 ? "worried" : "startled", Math.max(kneel, flail));
 }
 
-// Sitting on the edge of a floor facing the viewer, legs over the edge, leaning back a little on both hands laid flat on the edge beside
-// its hips, palms down and fingers out, the free hands only, a carried thing kept in hand; it breathes and its legs swing gently. `hands`
-// is where each wrist rests, across and forward, on the floor line the seat sits on (LOUNGE floor), the free hand's side outward
-export const LEDGE = {hands: [0.8, 0.18], lean: -7, nod: -3};
+// Sitting on the edge of a floor, legs over the edge, leaning back a little on both hands laid flat on the edge beside its hips, palms
+// down and fingers out, the free hands only, a carried thing kept in hand; it breathes, its feet sway and its toes tip now and then.
+// `hands` is where each wrist rests, across and forward, on the floor line the seat sits on (LOUNGE floor), the free hand's side outward;
+// `toes` how far the toes tip, in degrees, on the swing's every other beat
+export const LEDGE = {hands: [0.8, 0.18], lean: -7, nod: -3, toes: 14};
 
 function ledge_sit(pose, stance, t) {
     breathe(pose, t);
@@ -2642,6 +2703,7 @@ function ledge_sit(pose, stance, t) {
     }
     if (stance.free.size) emptyHand(pose);
     pose.swing(0.6 * waveOf(t));
+    pose.tap = LEDGE.toes * Math.max(waveOf(t, 2), 0);
 }
 
 // hops on up from bubble to bubble, arms flung up and legs tucked, very fast
@@ -2951,6 +3013,8 @@ export const CLIPS = [
     {name: "enter", frames: 36, fps: 12, loops: false, postures: MOVE, pose: enter},
     {name: "exit", frames: 28, fps: 12, loops: false, postures: MOVE, pose: exit},
     {name: "search", frames: 80, fps: 10, loops: true, postures: ["stand"], pose: search},
+    {name: "glass_bubble", frames: 48, fps: 10, loops: true, postures: ["stand"], pose: glass_bubble},
+    {name: "lean", frames: 48, fps: 8, loops: true, leaves: 24, postures: ["stand"], pose: lean},
     {name: "read", frames: READ_FRAMES, fps: READING.fps, loops: true, intro: READING.intro, outro: READING.outro, leaves: READING.pageEvery, postures: GESTURE, pose: read},
     {name: "write", frames: HELD_FRAMES, intro: ACTING.intro, outro: ACTING.outro, leaves: ACTING.hold, fps: ACTING.fps, loops: true, postures: GESTURE, pose: writing},
     {name: "waiting", frames: WAIT_FRAMES, intro: WAIT.intro, outro: WAIT.outro, leaves: WAIT.hold, fps: ACTING.fps, loops: true, postures: ["stand", "sit"], pose: waiting},
@@ -4436,6 +4500,11 @@ function lookAs(pose, {mood, seconds, lasts}) {
 export const TOWARD_VIEWER = {share: 0.8, lean: 0.12};
 
 // the figure turned `facing` degrees turned toward the viewer, `strength` of the way, 0 to 1
+// How far a figure seated on an edge turns toward the viewer by itself (turnToViewer), so its face shows however sideways it sits: by
+// SEATED_TOWARD while it looks at nothing, and not at all while it looks at something, which may be the other way
+export const SEATED_TOWARD = 0.55;
+export const seatedTurn = (posture, at) => (posture === "sit" && !at ? SEATED_TOWARD : 0);
+
 export function turnToViewer(pose, facing, strength) {
     const sideways = ((((facing + 180) % 360) + 360) % 360) - 180;
     const lean = TOWARD_VIEWER.lean * sideways;
@@ -4514,8 +4583,8 @@ export class Stage {
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
         // the eyes go out as a lit visor comes on, closing to a line
         if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
-        // with a look in its eyes or its visor aglow, it turns toward the viewer so they are seen
-        const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0);
+        // with a look in its eyes or its visor aglow, or seated sideways with nothing to look at, it turns toward the viewer so its face is seen
+        const toward = Math.max(eyes ? lookStrength(eyes) : 0, screen ? glowTurn(screen) : 0, seatedTurn(posture, at));
         if (toward && !pose.gaze && !sideOn && !clip.ownLook) turnToViewer(pose, turned, toward);
         if (eyes) lookAs(pose, eyes);
         if (at?.mood) eyesAs(pose, at.mood, at.amount);

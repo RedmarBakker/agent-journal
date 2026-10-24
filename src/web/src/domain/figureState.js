@@ -177,6 +177,13 @@ export const sayingsAfter = (agent, messages, seenAt) =>
               .sort((a, b) => a.time - b.time)
         : [];
 
+// The beats for the user's messages the agent has read since `seenAt` (seconds), oldest first, each turned to its message
+export const readingsAfter = (messages, seenAt) =>
+    messages
+        .filter((m) => m.author === "user" && seconds(m.read_at) > seenAt)
+        .map((m) => ({beat: "read_message", time: seconds(m.read_at), card: refOf(m)}))
+        .sort((a, b) => a.time - b.time);
+
 // the moment a face on a message is, by who put it there: the user's is aimed at the figure, the agent's is the figure's own to play out
 const FACE_MOMENTS = {user: "reacted", agent: "agent_reacted"};
 

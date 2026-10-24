@@ -53,7 +53,7 @@ test("after three acts in a row with no shenanigan among them, the next draw tha
     for (let act = 0; act < SHENANIGAN.after; act++) draw({moment: "reported", tally: {plain: 0, last: ""}}, rolls(0));
     expect(draw({moment: "carrier", tally: {plain: 5, last: ""}}, rolls(0)).name).toBe("ufo");
     // the act just played is passed over while another may play
-    expect(draw({moment: "reported", tally: {plain: 0, last: "scroll"}}, rolls(0)).name).toBe("nod");
+    expect(draw({moment: "reported", tally: {plain: 0, last: "read"}}, rolls(0)).name).toBe("nod");
     expect(draw({moment: "bar_failed", tally: {plain: 0, last: "fume"}}, rolls(0)).name).toBe("fume");
 });
 
@@ -90,9 +90,11 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip ask_sign ×9 when moment=question_asked, plays out, group cools 60s",
         "clip look_up ×3 when moment=question_asked, cut after 1s, group cools 60s",
         "nothing nothing ×8 when moment=question_asked, group cools 60s",
-        "clip scroll ×3 when moment=reported, plays out, group cools 90s",
+        "gaze read ×3 when moment=reported, group cools 90s",
         "clip nod ×1 when moment=reported, cut after 1s, group cools 90s",
         "nothing nothing ×4 when moment=reported, group cools 90s",
+        "gaze read ×3 when moment=read_message, group cools 30s",
+        "nothing nothing ×1 when moment=read_message, group cools 30s",
         "clip file_card ×3 when moment=fact_filed, plays out, group cools 120s",
         "clip nod ×1 when moment=fact_filed, cut after 1s, group cools 120s",
         "nothing nothing ×6 when moment=fact_filed, group cools 120s",
@@ -179,6 +181,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "nothing nothing ×560 when moment=pastime",
         "clip search ×3 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip binoculars ×2 when moment=held:search home=true, plays out, group cools 120s, cools 300s",
+        "clip glass_bubble ×2 when moment=held:search bubble=true, plays out, group cools 120s, cools 300s",
         "clip rummage ×1 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
@@ -221,6 +224,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "pick tab ×10 when moment=roam",
         "pick ledge ×9 when moment=roam free=true",
         "pick composed ×8 when moment=roam free=true",
+        "pick lean ×2 when moment=roam free=true",
         "shenanigan of 60s pick rope_swing ×8 when moment=roam free=true swings=true, cools 900s",
         "pick seat ×6 when moment=laptop",
         "pick bubble_ledge ×1 when moment=laptop",

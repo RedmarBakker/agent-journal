@@ -2,7 +2,8 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {LADDER, besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
+import {FRAMED} from "./frame.js";
+import {LADDER, besidePile, bodyBoxAt, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
 
@@ -92,18 +93,21 @@ export const LEDGE_WIDTH = 1.6;
 // the places along a floor a figure sits on its edge, as shares of the way across, as the pile has them (pile.js ledge_at)
 export const LEDGE_ALONG = PILE.filter((entry) => entry.when.moment === "ledge_at").map((entry) => entry.along);
 
-// Where the figure sits on the edge of the floor it stands at, `near`, a bubble or the dock, facing the viewer with its legs over the edge,
-// or on the composer, where it lounges on the top instead, its legs out toward the viewer, never by the chat's sides: `along` of the way across it, or, where a figure sitting there would hide words, be outside its world or in front of the pile, the next of LEDGE_ALONG
-// that would not, never by an end; null when it stands on no such floor, the floor is too narrow, or no place along it is free
+// how far the figure sitting on the compose box's edge is turned from the viewer toward the nearer end, in degrees: slanted, neither facing
+// the viewer nor side-on
+export const LEDGE_SLANT = 35;
+
+// Where the figure sits on the edge of the floor it stands at, `near`, its legs over the edge: on a bubble or the dock facing the viewer,
+// on the composer slanted toward its nearer end (LEDGE_SLANT), never by the chat's sides: `along` of the way across it, or, where a figure
+// sitting there would hide words, be outside its world or in front of the pile, the next of LEDGE_ALONG that would not, never by an end;
+// null when it stands on no such floor, the floor is too narrow, or no place along it is free
 export function ledgeSpot(along, figure, near) {
     const floors = readFloors();
     const floor = floors.floors.find((each) => each.element && each.element === near.on && LEDGES.has(each.kind));
     if (!floor || floor.right - floor.left < LEDGE_WIDTH * figure.size) return null;
-    const posture = floor.kind === "compose" ? "lounge" : "sit";
-    // lounging, it lies side-on, its legs toward the floor's longer side
-    const faceAt = (share) => (posture === "lounge" ? loungeFacing(share <= 0.5 ? 1 : -1) : 0);
+    const faceAt = (share) => (floor.kind !== "compose" ? 0 : share <= 0.5 ? 360 - LEDGE_SLANT : LEDGE_SLANT);
     const spots = [along, ...LEDGE_ALONG.filter((each) => each !== along)].map((share) => ({
-        x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: faceAt(share), posture, leans: posture === "sit", on: floor.element,
+        x: floor.left + (floor.right - floor.left) * share, y: floor.top, face: faceAt(share), posture: "sit", leans: true, on: floor.element,
     }));
     return spots.find((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure) && clearOfPile(spot, figure)) ?? null;
 }
@@ -232,6 +236,39 @@ function bubbleLedge(figure, random) {
     return {floor: free[Math.floor(random() * free.length)]?.id ?? "", along};
 }
 
+// The spot where a figure at `near` leans against a wall on the floor it stands on, among `floors`: beside the side of a bubble rising over
+// that floor at the hand's height, its middle as far from the side as the lean has it (acts.js lean), the figure standing on the floor clear of its ends and of the bubble, inside its world and hiding
+// no words, the nearest such wall; naming its `lean`, {wall, way}, the wall's page x and the way to it, 1 the right; null with none
+export function leanSpot(figure, near, floors = readFloors()) {
+    const floor = floors.floors.find((each) => each.element && each.element === near.on);
+    if (!floor) return null;
+    const {wall: away, contact: hand} = ACTS.lean;
+    const contact = floor.top - (hand / FRAMED.height) * figure.size;
+    const inboard = FEET_INBOARD * figure.size;
+    const walls = floors.floors
+        .filter((each) => each.kind === "bubble" && each.element !== floor.element && each.bottom <= floor.top && each.top <= contact && each.bottom >= contact)
+        .flatMap((bubble) => [{wall: bubble.left, way: 1, bubble}, {wall: bubble.right, way: -1, bubble}]);
+    const spots = walls
+        .map(({wall, way, bubble}) => ({spot: {x: wall - way * away * figure.size, y: floor.top, face: 0, posture: "stand", view: null, on: floor.element, lean: {wall, way}}, bubble}))
+        .filter(({spot, bubble}) => spot.x >= floor.left + inboard && spot.x <= floor.right - inboard && !overlaps(bodyBoxAt(spot, figure), bubble))
+        .map(({spot}) => spot)
+        .filter((spot) => holds(spot, figure, floors.floors) && offWalls(spot, figure) && !hiddenAt(spot, figure));
+    return spots.sort((one, other) => Math.abs(one.x - near.x) - Math.abs(other.x - near.x))[0] ?? null;
+}
+
+// How near a bubble's text must be for the figure to hold its magnifying glass up to it: no further across from the middle of its picture
+// than `reach` of the figure's size, and the bubble's side reaching the height of its eyes, `eyes` of its height above its feet
+export const GLASS_BUBBLE_NEAR = {reach: 1.1, eyes: 0.72};
+
+// The bubble among `floors` within reach of a figure standing at `spot` to hold its glass up to (GLASS_BUBBLE_NEAR), the nearest, or null:
+// never the one it stands on
+export function bubbleNear(floors, spot, figure) {
+    const eyes = spot.y - GLASS_BUBBLE_NEAR.eyes * heightOf(figure);
+    const across = (floor) => Math.max(floor.left - spot.x, spot.x - floor.right, 0);
+    const near = floors.floors.filter((floor) => floor.kind === "bubble" && floor.element !== spot.on && floor.top <= eyes && floor.bottom >= eyes && across(floor) <= GLASS_BUBBLE_NEAR.reach * figure.size);
+    return near.sort((one, other) => across(one) - across(other))[0] ?? null;
+}
+
 // the side of the window `world` nearer a figure at page `x`, the corner it rummages at: 1 the right, -1 the left
 export const nearerWay = (x, world) => (x - world.left <= world.right - x ? -1 : 1);
 
@@ -284,6 +321,7 @@ export function stayingAt(stay, figure, near) {
     if (stay.where === "ledge") return ledgeSpot(stay.along, figure, near);
     if (stay.where === "bubble_ledge") return ledgeSpot(stay.along, figure, {on: readFloors().floors.find((floor) => floor.id === stay.floor)?.element});
     if (stay.where === "composed") return composedSpot(figure, near);
+    if (stay.where === "lean") return leanSpot(figure, near);
     if (stay.where === "rope_swing") return swingSpot(readFloors().floors.find((floor) => floor.id === stay.floor), figure);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
     return restOf(figure, near);

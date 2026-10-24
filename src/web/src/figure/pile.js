@@ -3,8 +3,8 @@ import {playedLeast} from "./timeline.js";
 // The figure's acts, one pile, and the sequences it plays whole. A new act is one entry of PILE, a new sequence one entry of SEQUENCES,
 // never put in another's place.
 //
-// An act is {name, kind, weight, when, group, cooldown, lifetime}. Its kind is a clip the body plays, a look the eyes take on, or a pick,
-// a choice of something that is not a clip: the carrier that takes the work away, a perch's kind, a digit, a place to go, a spell the
+// An act is {name, kind, weight, when, group, cooldown, lifetime}. Its kind is a clip the body plays, a look the eyes take on, a gaze the
+// head takes at the message the moment is about (reactions.js readingAt), or a pick, a choice of something that is not a clip: the carrier that takes the work away, a perch's kind, a digit, a place to go, a spell the
 // figure keeps up. Its weight is its tickets, a weight of 3 counting as three. `when` is the condition it may play under: the moment it
 // answers, and anything else it needs, as a voice, a stretch of time the state has lasted, a free hand. Its group, {name, cooldown}, is
 // the moment it answers, and the seconds before any act of the group may play again once one has; its own `cooldown` the seconds before
@@ -83,6 +83,7 @@ export const CUT = {
 const act = (name, kind, weight, when) => ({name, kind, weight, when, lifetime: LIFETIME});
 const clip = (name, weight, when = {}) => ({...act(name, "clip", weight, when), cut: CUT[name] ?? false});
 const look = (name, weight, when = {}) => act(name, "look", weight, when);
+const gaze = (name, weight, when = {}) => act(name, "gaze", weight, when);
 const pick = (name, weight, when = {}, more = {}) => ({...act(name, "pick", weight, when), ...more});
 const nothing = (weight) => act("nothing", "nothing", weight, {});
 
@@ -126,7 +127,10 @@ export const PILE = [
     ...at("messaged", {cooldown: CALL_COOLDOWN}, [clip("phone_call", 1)]),
     ...at("task_finished", {cooldown: 90, toward: "card", onto: true}, [clip("nod", 4), clip("hand_rub", 4), nothing(7)]),
     ...at("question_asked", {cooldown: 60}, [clip("ask_sign", 9), clip("look_up", 3), nothing(8)]),
-    ...at("reported", {cooldown: 90}, [clip("scroll", 3), clip("nod", 1), nothing(4)]),
+    // a report: the figure looks up at its bubble and reads along it, never the report scroll
+    ...at("reported", {cooldown: 90}, [gaze("read", 3), clip("nod", 1), nothing(4)]),
+    // a message of the user's the agent has read: now and then, at most once in half a minute, the figure reads along its bubble too
+    ...at("read_message", {cooldown: 30}, [gaze("read", 3), nothing(1)]),
     ...at("fact_filed", {cooldown: 120}, [clip("file_card", 3), clip("nod", 1), nothing(6)]),
     ...at("check_passed", {cooldown: 120, toward: "card", onto: true}, [clip("nod", 2), nothing(9)]),
     // a bar the figure was eager for has ended, as its card says: it celebrates, or, the more for having been eager, is crushed and fumes;
@@ -187,9 +191,10 @@ export const PILE = [
     // squaring a stack of papers
     // no search within two minutes of the last, and each, the magnifying glass, the binoculars and the rummage, at most once in five
     // minutes, so the next is always another; none at all while all wait;
-    // the binoculars only from the compose box, scanning up the chat; the rummage at the corner nearest, from a ladder where the window's
-    // side lies past the ground's end (perches.js rummageSpot)
-    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, prop("rummage", 1)]),
+    // the binoculars only from the compose box, scanning up the chat; the glass held up to a bubble only with one within reach (perches.js
+    // bubbleNear); the rummage at the corner nearest, from a ladder where the window's side lies past the ground's end (perches.js
+    // rummageSpot)
+    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, {...prop("glass_bubble", 2), when: {bubble: true}}, prop("rummage", 1)]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),
@@ -236,6 +241,9 @@ export const PILE = [
         // with nothing to do, it walks to near the middle of the floor it stands on and sits there composed, facing the viewer, its hands
         // flat on the floor at its sides (perches.js composedSpot)
         pick("composed", 8, {free: true}, {stay: [25, 50]}),
+        // with nothing to do, beside the side of a bubble rising over the floor it stands on, it leans against it to rest a while (perches.js
+        // leanSpot)
+        pick("lean", 2, {free: true}, {stay: [20, 45]}),
         // with nothing to do and a bubble near the middle of the chat above it, it ties a rope swing under that bubble and swings
         shenanigan(showpiece(pick("rope_swing", 8, {free: true, swings: true}, {stay: [25, 50]}))),
     ]),

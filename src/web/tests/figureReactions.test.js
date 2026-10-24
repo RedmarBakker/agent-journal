@@ -19,7 +19,7 @@ const {
     roomFor,
     workMoments,
 } = await import("../src/figure/reactions.js");
-const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, sayingsAfter, testResultsAfter} = await import("../src/domain/figureState.js");
+const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, readingsAfter, sayingsAfter, testResultsAfter} = await import("../src/domain/figureState.js");
 const {CLIPS, EYES} = await import("../src/figure/figure.js");
 const {FACES} = await import("../src/domain/faces.js");
 const {EVERY_VOICE_FACES, PILE, VOICE_FACES} = await import("../src/figure/pile.js");
@@ -165,6 +165,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             ...testResultsAfter(agent, new Map(), 0),
             ...facesAfter(faces, 1),
             ...sayingsAfter({session: "s"}, [said("report")], 1),
+            ...readingsAfter([{table: "messages", id: 9, author: "user", read_at: 5}], 1),
             // the figure's own page sees these two: a key pressed in the compose box, and the agent settling after WORKED_SECONDS of work
             {beat: "typing"},
             {beat: "work_done"},

@@ -18,6 +18,20 @@ export function variantOf(clip, random, has, scene = {}) {
     return hasMoment(`held:${clip}`) ? "idle" : clip;
 }
 
+// The figure reading along a message's bubble: for `seconds`, line by line down at most `lines` of them `line` pixels apart, its look
+// sweeping each from `inset` pixels in from the bubble's left to as far in from its right over `sweep` seconds, and back to the next
+export const READING = {seconds: 5, lines: 3, line: 18, sweep: 1.4, inset: 14};
+
+// Where the figure looks `t` seconds into reading the bubble `box` (its left, right, top and bottom on the page), with the eyes' reading
+// look: along the line it is on, left to right, a line further down each sweep and back to the first after the last, as many as the
+// bubble holds
+export function readingAt(box, t) {
+    const lines = Math.max(1, Math.min(READING.lines, Math.floor((box.bottom - box.top - 2 * READING.inset) / READING.line) + 1));
+    const line = Math.floor(t / READING.sweep) % lines;
+    const k = (t % READING.sweep) / READING.sweep;
+    return {x: box.left + READING.inset + (box.right - box.left - 2 * READING.inset) * k, y: box.top + READING.inset + line * READING.line, mood: "reading"};
+}
+
 // how long the eyes keep a look, counted only while they are shown
 export const LOOK_SECONDS = 3;
 
@@ -116,13 +130,16 @@ export function eagerFor(progress, eager, random, now) {
 // A jump of more than this many of the figure's own heights is high, and now and then turns over backwards on the way (pile.js jump)
 export const FLIP_OVER = 1;
 
-// The reaction to this moment drawn from the pile, or null when nothing is drawn: a clip the body plays or a look the eyes take on,
-// whether it turns toward its card or goes onto it, whether it holds, and its lifetime in the queue. `memory` maps a moment to when it
-// last played, in seconds, and is filled in here.
+// the key a reaction's act is answered under, by its kind: a look on the eyes, a gaze of the head, and a clip for the rest
+const ANSWERED_AS = {look: "look", gaze: "gaze"};
+
+// The reaction to this moment drawn from the pile, or null when nothing is drawn: a clip the body plays, a look the eyes take on or a gaze
+// the head takes, whether it turns toward its card or goes onto it, whether it holds, and its lifetime in the queue. `memory` maps a moment
+// to when it last played, in seconds, and is filled in here.
 export function reactionTo(moment, memory, now, random, voice = "", has = () => true, tally = null) {
     const drawn = draw({moment, voice, has, memory, now, tally}, random);
     if (!drawn) return null;
-    return {[drawn.kind === "look" ? "look" : "clip"]: drawn.name, toward: drawn.toward ?? "", onto: Boolean(drawn.onto), holds: Boolean(drawn.holds), lifetime: drawn.lifetime};
+    return {[ANSWERED_AS[drawn.kind] ?? "clip"]: drawn.name, toward: drawn.toward ?? "", onto: Boolean(drawn.onto), holds: Boolean(drawn.holds), lifetime: drawn.lifetime};
 }
 
 // The act drawn after `held` seconds of a state, as its entry, or null: the idle acts while the figure has nothing to do, and the
@@ -181,6 +198,7 @@ export function answerTo(moment, voice, memory, now, random, has) {
     }
     const reaction = reactionTo(moment.beat, memory.reacted, now, random, voice, has, memory.tally);
     if (reaction?.look) return {look: reaction.look};
+    if (reaction?.gaze && moment.card) return {gaze: {card: moment.card}};
     if (reaction?.clip) return {beat: {clip: reaction.clip, card: reaction.toward === "card" ? moment.card || "" : "", ...(moment.card ? {mark: moment.card} : {}), ...(reaction.onto && moment.card ? {onto: true} : {}), ...(reaction.holds && {holds: true}), ...(reaction.lifetime !== LIFETIME && {lifetime: reaction.lifetime})}};
     return null;
 }
