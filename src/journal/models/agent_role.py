@@ -11,4 +11,8 @@ class AgentRole(StrEnum):
     PEOPLE = "people"
 
     def is_sent(self) -> bool:
-        return self in (AgentRole.WORKER, AgentRole.VERIFIER)
+        return self in AgentRole.sent()
+
+    @staticmethod
+    def sent() -> tuple["AgentRole", ...]:
+        return (AgentRole.WORKER, AgentRole.VERIFIER)

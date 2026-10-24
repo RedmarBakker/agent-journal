@@ -35,7 +35,7 @@ from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import TESTS_BY_MERGER, WorkersOptions
+from journal.features.workers.workers_options import MERGER_TESTING, WorkersOptions
 from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
@@ -114,7 +114,7 @@ class WorkerCommand(Command):
         return self.providers.default().name if caller.provider is None else caller.provider
 
     def testing_template(self, title: str) -> Template:
-        title = ZERO_TESTS.title if self.settings.option(WorkersOptions.TESTING) == TESTS_BY_MERGER else title or SCOPED_TESTS.title
+        title = ZERO_TESTS.title if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else title or SCOPED_TESTS.title
         matches = self.templates.testing_titled(title, "worker")
         if not matches:
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")

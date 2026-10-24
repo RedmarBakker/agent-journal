@@ -36,4 +36,4 @@ class WorkerChat:
         self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=self.chat_role(worker), idempotency=key), Actor.agent(worker.conversation()))
 
     def chat_role(self, worker: Worker) -> AgentRole:
-        return next((role for role in self.agents.session_roles(worker.conversation()) if role.is_sent()), AgentRole.WORKER) if worker.conversation() else AgentRole.WORKER
+        return next(iter(self.agents.sent_roles(worker.conversation())), AgentRole.WORKER) if worker.conversation() else AgentRole.WORKER

@@ -7,7 +7,7 @@ from journal.providers.support.profile_view import ProfileView
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
 from journal.features.profiles.profiles_options import ProfilesOptions
-from journal.features.workers.workers_options import TESTS_BY_MERGER, WorkersOptions
+from journal.features.workers.workers_options import MERGER_TESTING, WorkersOptions
 
 PREFIX = "journal-"
 UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
@@ -68,7 +68,7 @@ class ProfileFiles:
 
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
-        tests = TEST_HANDOVER if self.settings.option(WorkersOptions.TESTING) == TESTS_BY_MERGER else TESTS_RUN
+        tests = TEST_HANDOVER if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else TESTS_RUN
         body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
         return f"{body}\n\n{tests}"
 

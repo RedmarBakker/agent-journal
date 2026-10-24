@@ -8215,7 +8215,7 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
 
 def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
     from journal.features.profiles.support.profile_files import TEST_HANDOVER, TESTS_RUN, TURN, ProfileFiles
-    from journal.features.workers.workers_options import TESTS_BY_WORKER
+    from journal.features.workers.workers_options import WORKER_TESTING
     from journal.providers.support.profile import Profile
     from journal.providers.support.profile_kind import ProfileKind
     files = app.container.get(ProfileFiles)
@@ -8226,7 +8226,7 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileKind.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
     assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TESTS_BY_WORKER, Actor.user(1))
+    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
     assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TEST_HANDOVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
     assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
 
@@ -13580,10 +13580,10 @@ def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many
 def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(app: App):
     from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
     from journal.features.workers.commands.worker_command import WorkerCommand
-    from journal.features.workers.workers_options import TESTS_BY_MERGER, TESTS_BY_WORKER
+    from journal.features.workers.workers_options import MERGER_TESTING, WORKER_TESTING
     command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
-    assert settings.option(WorkersOptions.TESTING) == TESTS_BY_MERGER and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
-    settings.set(WorkersOptions.TESTING.key, TESTS_BY_WORKER, Actor.user(1))
+    assert settings.option(WorkersOptions.TESTING) == MERGER_TESTING and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
+    settings.set(WorkersOptions.TESTING.key, WORKER_TESTING, Actor.user(1))
     assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 

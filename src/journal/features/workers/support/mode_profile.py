@@ -8,7 +8,7 @@ from journal.features.workers.support.tool_use_counts import ToolUseCounts
 # the actions among the newest tool uses, edits, handovers, dispatches and research, an agent shows before it is scored at all
 LEAST_ACTIONS = 8
 # the measures furthest off the ideal that a low score names
-MOST_GAPS = 2
+GAP_COUNT = 2
 
 
 @dataclass(frozen=True)
@@ -26,5 +26,5 @@ class ModeProfile:
             return FitnessScore(self.mode, 100, is_measured=False)
         score = round(100 * sum(measure.weight * closeness for measure, closeness in weighed) / sum(measure.weight for measure, _ in weighed))
         worst = sorted((pair for pair in weighed if pair[1] < 1.0), key=lambda pair: pair[1] * pair[0].weight - pair[0].weight)
-        gaps = tuple(FitnessGap(measure.label, measure.percent(counts), round(100 * measure.low), round(100 * measure.high), measure.advice) for measure, _ in worst[:MOST_GAPS])
+        gaps = tuple(FitnessGap(measure.label, measure.percent(counts), round(100 * measure.low), round(100 * measure.high), measure.advice) for measure, _ in worst[:GAP_COUNT])
         return FitnessScore(self.mode, score, gaps)

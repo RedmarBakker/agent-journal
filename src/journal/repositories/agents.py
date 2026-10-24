@@ -73,6 +73,9 @@ class Agents(ScopedRepository[Agent]):
     def session_roles(self, session: str) -> list[AgentRole]:
         return [agent.role for agent in self.global_matching(session=session)]
 
+    def sent_roles(self, session: str) -> list[AgentRole]:
+        return [agent.role for agent in self.selected_globally(self.query().filter(session=session).filter_listed("role", [role.value for role in AgentRole.sent()]).order("id"))]
+
     def session_numbers(self, sessions: set[str]) -> dict[str, int]:
         return {agent.session: agent.row_id for agent in self.selected(self.query().filter_listed("session", sorted(sessions)))}
 
