@@ -97,8 +97,8 @@ test("seated it plays its sitting acts in turn: leaning back on its hands, check
         const dozing = new Posing(RIG, "sit", 0);
         clipNamed("doze").pose(dozing, stanceOf(voice), 0.3);
         expect(dozing.dozing, voice).toBeGreaterThan(0);
-        const lit = litPixels({eyed: true, eyes: dozing.eyes, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: dozing.dozing, sign: null});
-        const awake = litPixels({eyed: true, eyes: dozing.eyes, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: 0, sign: null});
+        const lit = litPixels({eyed: true, eyes: dozing.eyes, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: dozing.dozing, sign: null});
+        const awake = litPixels({eyed: true, eyes: dozing.eyes, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: 0, sign: null});
         expect(lit.length, voice).toBeGreaterThan(awake.length + 8);
         expect(holdsHead(clipNamed("doze"))).toBe(true);
     }

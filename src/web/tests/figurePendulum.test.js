@@ -4,12 +4,12 @@ import {gripIn} from "../src/figure/places.js";
 
 const FRAME = 1 / 60;
 
-// the swing played frame by frame for `seconds`, the hand carried `shifts(t)` pixels in each frame, in a picture 112 pixels tall
-function played(start, seconds, shifts = () => 0) {
+// the swing played frame by frame for `seconds`, the hand carried `offsets(t)` pixels in each frame, in a picture 112 pixels tall
+function played(start, seconds, offsets = () => 0) {
     const angles = [];
     let swing = start;
     for (let t = 0; t < seconds; t += FRAME) {
-        swing = swung(swing, FRAME, t, shifts(t), 112);
+        swing = swung(swing, FRAME, t, offsets(t), 112);
         angles.push(swing.angle);
     }
     return angles;

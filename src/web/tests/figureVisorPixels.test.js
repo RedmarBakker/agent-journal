@@ -13,7 +13,7 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 
 // a face with its eyes open and nothing in their place, with `changes`
-const face = (changes = {}) => ({eyed: true, eyes: 1, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign: null, ...changes});
+const face = (changes = {}) => ({eyed: true, eyes: 1, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign: null, ...changes});
 // the lit pixels as "column,row" names
 const names = (lit) => lit.map(({column, row}) => `${column},${row}`).sort();
 
@@ -93,7 +93,7 @@ test("the eyes, their blink, the hearts, the stars, the check and the cross are 
     }
     // a tint colours the eyes; a glance moves them a pixel; with the eyes out nothing is lit
     expect(litPixels(face({tint: [1, 0.35, 0.3]})).every((pixel) => pixel.colour.join() === "1,0.35,0.3")).toBe(true);
-    const glanced = litPixels(face({shift: [0.35, 0.3]}));
+    const glanced = litPixels(face({glance: [0.35, 0.3]}));
     expect(names(glanced)).toEqual(pictured("eye_open").map((name) => name.split(",").map(Number)).map(([column, row]) => `${column + 1},${row - 1}`).sort());
     expect(litPixels(face({eyed: false}))).toEqual([]);
 });

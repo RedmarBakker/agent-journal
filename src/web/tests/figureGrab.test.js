@@ -53,7 +53,7 @@ test("while the head is held the act stands still on its frame, startled with a 
     // and it plays on from there, a frame each frame's time
     expect(frameAt(resumed, released + 1000 / clip.fps)).toBe(frameAt(started, began) + 1);
     // held, the visor shows wide eyes and a round mouth under them
-    const face = {eyed: true, eyes: 1.5, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: 0, sign: null, ticker: null};
+    const face = {eyed: true, eyes: 1.5, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, dozing: 0, sign: null, ticker: null};
     const mouth = (lit) => lit.filter((pixel) => Math.abs(pixel.column - WHOA_SPOT.column) <= 2 && Math.abs(pixel.row - WHOA_SPOT.row) <= 2);
     expect(mouth(litPixels(face))).toEqual([]);
     expect(mouth(litPixels({...face, whoa: true})).length).toBe(PICTURES.whoa.join("").split("#").length - 1);

@@ -58,7 +58,7 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     // the pixels it glows with are the lit pixels of the screen's texture, one texel each, and only those
     const texture = material.uniforms.pixels.value;
     expect([texture.image.width, texture.image.height]).toEqual([GRID.columns, GRID.rows]);
-    const lit = litPixels({eyed: true, eyes: 1, shift: [0, 0], tint: null, hearts: 1.2, stars: 0, squeezed: 0, sign: null});
+    const lit = litPixels({eyed: true, eyes: 1, glance: [0, 0], tint: null, hearts: 1.2, stars: 0, squeezed: 0, sign: null});
     showPixels(texture, lit);
     const on = [...Array(GRID.columns * GRID.rows).keys()].filter((index) => texture.image.data[index * 4 + 3]);
     expect(on.length).toBe(lit.length);

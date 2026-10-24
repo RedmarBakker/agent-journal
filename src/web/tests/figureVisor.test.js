@@ -41,7 +41,7 @@ test("a run that ends bad shows the red crosses on the pixel screen and one that
 });
 
 test("the crosses and the ticks are the pixel pictures on the visor's screen in the run's colour, every other pixel of the visor left as it was", () => {
-    const face = (sign) => ({eyed: true, eyes: 1, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign});
+    const face = (sign) => ({eyed: true, eyes: 1, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign});
     const names = (pixels) => pixels.map(({column, row}) => `${column},${row}`).sort();
     for (const [tone, name] of [["bad", "cross"], ["good", "tick"]]) {
         const lit = {tone, at: 0, card: "messages:1"};

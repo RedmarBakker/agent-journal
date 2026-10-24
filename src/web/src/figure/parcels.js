@@ -257,14 +257,14 @@ export const boxSway = (k, id) => (k > 0 ? Math.sin(k * 12 + id * 1.7) * BEAM_SW
 // height, shoots its rod across, grips the box's side in its tongs and pulls it out sideways, quicker than the others. Each part of a visit,
 // in milliseconds, or in pixels a millisecond for a move: the reel's zip along the rail; letting the cable down, slowing to a stop just
 // over the box; a moment's hover; the grip; the lift, a tug up and a hold as the cable takes the weight over `tugShare` of it, then up past
-// the window's top `clear` pixels; how short the cable is wound up. The arm's reel moves `shift` up or down and its rod shoots `zip`,
+// the window's top `clear` pixels; how short the cable is wound up. The arm's reel moves `lift` up or down and its rod shoots `zip`,
 // each of its moves taking `least` at the least, so a box near the edge is still seen to go.
 // `gap` is the least and most time between one grabber setting off and the next, `room` the pixels kept between two grabbers along the
 // window, more than any moves in a step of the check (grabsClash), `pace` how much quicker or slower each goes than the rest, at most, and
 // `kinds` the weight each kind is drawn by when several boxes wait.
 export const GRAB = {
     zip: 1.1, lower: 800, hover: 280, grip: 340, lift: 1100, tug: 4, tugShare: 0.2, clear: 30, wound: 10,
-    arm: {shift: 0.5, zip: 0.6, grip: 200, least: 260},
+    arm: {lift: 0.5, zip: 0.6, grip: 200, least: 260},
     gap: [250, 900], room: 30, pace: 0.15,
     kinds: {claw: 3, cup: 2, magnet: 2, arm: 2},
 };
@@ -352,7 +352,7 @@ function partsOf(grab, scene, top) {
         const move = (pixels, speed) => Math.max(pixels / (speed * grab.pace), GRAB.arm.least);
         const tip = grab.x + PARCEL.width / 2 + ENDS.arm.clear;
         return {
-            shift: move(Math.abs(top + PARCEL.height / 2 - grab.y), GRAB.arm.shift),
+            lift: move(Math.abs(top + PARCEL.height / 2 - grab.y), GRAB.arm.lift),
             shoot: move(scene.right - tip, GRAB.arm.zip),
             grip: GRAB.arm.grip,
             pull: move(scene.right - tip + PARCEL.width + 2 * ENDS.arm.clear, GRAB.arm.zip),
@@ -437,8 +437,8 @@ function armAt(grab, at, scene) {
     const height = scene.box.top + PARCEL.height / 2;
     const tip = scene.box.x + PARCEL.width / 2 + ENDS.arm.clear;
     const still = {kind: "arm", out: true, done: false, y: height, tip: scene.right, open: 1, carried: 0};
-    if (at < parts.shift) return {...still, y: grab.y + (height - grab.y) * ease(at / parts.shift)};
-    at -= parts.shift;
+    if (at < parts.lift) return {...still, y: grab.y + (height - grab.y) * ease(at / parts.lift)};
+    at -= parts.lift;
     if (at < parts.shoot) return {...still, tip: scene.right + (tip - scene.right) * easeOut(at / parts.shoot)};
     at -= parts.shoot;
     if (at < parts.grip) return {...still, tip, open: 1 - at / parts.grip};

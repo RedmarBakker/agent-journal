@@ -258,7 +258,7 @@ test("on the telephone it says whom it calls on its visor: the worker and the ta
     expect(callSays(act.hang[1])).toBe(false);
     // the words come in at the right edge and move left a step each of the screen's frames, the eyes gone while they show
     const text = "Worker 57   Task 2742!";
-    const face = {eyed: true, eyes: 1, shift: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign: null};
+    const face = {eyed: true, eyes: 1, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign: null};
     const columns = (seconds) => litPixels({...face, ticker: tickerAt(text, seconds)}).map((pixel) => pixel.column);
     expect(columns(0)).toEqual([]);
     const later = columns(1 / FRAMES_PER_SECOND);

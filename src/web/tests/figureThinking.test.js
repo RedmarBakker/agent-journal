@@ -77,7 +77,7 @@ describe("the figure thinking", () => {
         expect(ACTS.idle, "nothing drawn over it").toBeUndefined();
         const idle = new Posing(RIG, "stand", 0);
         named.idle.pose(idle, stanceOf("butler"), 0);
-        expect([idle.eyeShift, idle.props.size], "nor its eyes nor a bulb").toEqual([[0, 0], 0]);
+        expect([idle.eyeGlance, idle.props.size], "nor its eyes nor a bulb").toEqual([[0, 0], 0]);
         expect(CLIPS.some((clip) => clip.name === "think"), "the cloudless chin pose is gone").toBe(false);
     });
 
@@ -100,7 +100,7 @@ describe("the figure thinking", () => {
         for (let step = 0; step <= 10; step++) {
             const u = step / 10;
             expect(cloudOver("got_it", u).querySelector("[data-thought-cloud]"), `got_it ${u} no cloud`).toBe(null);
-            expect(thinking(u, "got_it").pose.eyeShift, `got_it ${u} no thinking pose`).toEqual([0, 0]);
+            expect(thinking(u, "got_it").pose.eyeGlance, `got_it ${u} no thinking pose`).toEqual([0, 0]);
         }
     });
 
@@ -123,7 +123,7 @@ describe("the figure thinking", () => {
         for (const [name, t, posture] of [["think_cloud", CLOUDED, "stand"], ["type_ponder", 0.3, "sit"]]) {
             const {pose} = thinking(t, name, posture);
             expect(pose.eyeShape, `${name} the usual shape`).toBe(null);
-            const [aside, up] = pose.eyeShift;
+            const [aside, up] = pose.eyeGlance;
             expect(up, `${name} up`).toBeGreaterThan(0.2);
             expect(Math.abs(aside), `${name} to one side`).toBeGreaterThan(0.2);
         }
@@ -184,7 +184,7 @@ describe("the thinking act", () => {
         expect(grip.distanceTo(cheek), "the finger at the cheek").toBeLessThan(0.05);
         expect(at("hand_r").z, "the hand up by the head").toBeGreaterThan(RIG.heads.get("chest").z);
         expect(pose.eyeShape).toBe(null);
-        expect(pose.eyeShift[1]).toBeGreaterThan(0.2);
+        expect(pose.eyeGlance[1]).toBeGreaterThan(0.2);
         const sways = Array.from({length: 20}, (_, index) => pondering(act.cloud[0] + 0.05 + (index / 20) * (act.cloud[1] - act.cloud[0] - 0.1)).head.elements[0]);
         expect(Math.max(...sways) - Math.min(...sways), "it sways").toBeGreaterThan(0.01);
     });

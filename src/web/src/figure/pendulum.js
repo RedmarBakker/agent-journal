@@ -18,11 +18,11 @@ const LONGEST_STEP = 1 / 30;
 
 export const STILL = Object.freeze({angle: 0, speed: 0});
 
-// The swing `seconds` on, at `now` seconds, the hand carried `shift` pixels to the right meanwhile in a picture `size` pixels tall; the
+// The swing `seconds` on, at `now` seconds, the hand carried `offset` pixels to the right meanwhile in a picture `size` pixels tall; the
 // angle turns clockwise on the screen, as a CSS rotate does
-export function swung({angle, speed}, seconds, now, shift, size) {
+export function swung({angle, speed}, seconds, now, offset, size) {
     const step = Math.min(Math.max(seconds, 0), LONGEST_STEP);
-    const carried = angle + ((shift / size) * PICTURE_METRES) / LENGTH;
+    const carried = angle + ((offset / size) * PICTURE_METRES) / LENGTH;
     const sway = SWAY * Math.sin((NATURAL * now) / 2);
     const pull = -(NATURAL ** 2) * (Math.sin(carried) - sway) - 2 * DAMPING * NATURAL * speed;
     const next = speed + pull * step;

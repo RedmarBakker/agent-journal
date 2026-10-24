@@ -146,8 +146,8 @@ export function groundUnder(footing, spot, figure, floors = latestFloors().floor
     if (!footing.home) return awayUnder(footing, spot, now, floors);
     if (!now) return null;
     const home = floorNamed(floors, "home");
-    const shift = now.y - spot.y;
-    const motion = Math.abs(shift) <= CARRIED_WITHIN ? "carried" : shift > 0 ? "dropping" : "launched";
+    const drop = now.y - spot.y;
+    const motion = Math.abs(drop) <= CARRIED_WITHIN ? "carried" : drop > 0 ? "dropping" : "launched";
     return {spot: {...spot, y: now.y}, footing: {...footing, dx: spot.x - home.left}, motion};
 }
 

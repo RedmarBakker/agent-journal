@@ -114,7 +114,7 @@ export class Posing {
         this.final = new Map();
         this.eyes = 1;
         this.eyeShape = null;
-        this.eyeShift = [0, 0];
+        this.eyeGlance = [0, 0];
         this.bulbLit = 0;
         this.eyeTint = null;
         this.hearts = 0;
@@ -258,9 +258,9 @@ export class Posing {
     }
 
     // the whole figure as posed so far moved by `offset`
-    shiftAll(offset) {
-        const shift = translation(new THREE.Vector3(...offset));
-        this.final = new Map(this.rig.order.map((name) => [name, shift.clone().multiply(this.matrix(name))]));
+    offsetAll(offset) {
+        const moved = translation(new THREE.Vector3(...offset));
+        this.final = new Map(this.rig.order.map((name) => [name, moved.clone().multiply(this.matrix(name))]));
     }
 
     // a point given against the body at rest, carried wherever the root has been lifted or moved
@@ -279,7 +279,7 @@ export class Posing {
 
     // the eyes in their own shape glancing up `up` of their height and aside `aside` of it, toward the figure's left
     glanceEyes(up, aside) {
-        this.eyeShift = [aside, up];
+        this.eyeGlance = [aside, up];
     }
 
     // the eyes taking on the picture `name` of visorPixels.js PICTURES, `strength` of the way from their own, aside toward `way`, 1 the figure's left
@@ -1539,7 +1539,7 @@ function rest(pose, stance, t) {
     const pillow = new THREE.Vector3(...REST.pillow);
     pose.turnAll({x: -REST.tilt * lying}, pillow);
     pose.turnAll({z: 90 * lying}, pillow);
-    pose.shiftAll([REST.across * lying, -pillow.y * lying, -pillow.z * lying]);
+    pose.offsetAll([REST.across * lying, -pillow.y * lying, -pillow.z * lying]);
     pose.shutEyes(mix(1, mix(REST.eyes, REST.whistleEyes, tune), lying));
 }
 
@@ -4792,7 +4792,7 @@ function place(figure, pose, facing, blend) {
     // the eyes go out before a lit visor comes on, a display with nothing on it; a sign glows in the visor's colour, as white as its flash
     // and as bright as it is lit
     const sign = pose.eyeShape && {...pose.eyeShape, colour: signColour(pose.screen)};
-    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, whoa: pose.whoa, sign, ticker: pose.ticker});
+    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, glance: pose.eyeGlance, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, whoa: pose.whoa, sign, ticker: pose.ticker});
     for (const material of figure.screens) {
         material.uniforms.lit.value = crt.glow;
         material.uniforms.across.value = crt.across;

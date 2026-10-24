@@ -61,7 +61,7 @@ export const COLOURS = {
 const EYE_HEIGHT = PICTURES.eye_open.length;
 
 // The pixels lit for a face, each {column, row, colour}: `face` says how open the `eyes` are (Posing.eyes) and whether they show at all
-// (`eyed`), their `shift` aside and up as shares of their height (Posing.eyeShift), their `tint`, and what takes their place: `hearts`,
+// (`eyed`), their `glance` aside and up as shares of their height (Posing.eyeGlance), their `tint`, and what takes their place: `hearts`,
 // `stars` or `squeezed` at their size, or a run's end as a `sign` ({name, colour, strength}), shown as far up and down from the middle
 // as its strength; a Z above them while it is `dozing`, at its size; and a round mouth under them while it says `whoa`
 export function litPixels(face) {
@@ -97,7 +97,7 @@ function shownPicture(face) {
 function placed(shown, spot, face) {
     const rows = PICTURES[shown.name];
     const width = rows[0].length;
-    const [aside, up] = shown.glances ? face.shift.map((part) => Math.round(part * EYE_HEIGHT)) : [0, 0];
+    const [aside, up] = shown.glances ? face.glance.map((part) => Math.round(part * EYE_HEIGHT)) : [0, 0];
     const left = spot.column - Math.floor(width / 2) + aside;
     const top = spot.row - Math.floor(rows.length / 2) - up;
     const middle = (rows.length - 1) / 2;
