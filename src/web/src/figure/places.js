@@ -433,6 +433,14 @@ export function progressEdge(element) {
     return {x: box.right, y: box.top + box.height / 2};
 }
 
+// What the figure looks at as a run ends, before its visor lights: of the run's chat mark, `mark` (a box), and the docked bar it reacted to,
+// `bar` (a box), whichever is nearer its head at `head`, the bar at its point nearest the head along it; null with neither
+export function nearestTell(mark, bar, head) {
+    const points = [mark && {x: (mark.left + mark.right) / 2, y: (mark.top + mark.bottom) / 2}, bar && {x: Math.min(Math.max(head.x, bar.left), bar.right), y: (bar.top + bar.bottom) / 2}].filter(Boolean);
+    const away = (point) => Math.hypot(point.x - head.x, point.y - head.y);
+    return points.length ? points.reduce((near, point) => (away(point) < away(near) ? point : near)) : null;
+}
+
 // whether the figure says whom it calls at `u` of its call (acts.js phone_call): from the talk's start until the handset is down
 export const callSays = (u) => u >= ACTS.phone_call.talk[0] && u < ACTS.phone_call.hang[1];
 

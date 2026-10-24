@@ -21,9 +21,10 @@ test("a process card that ends bad lights the visor red for about two seconds an
         // the plain glow, as the pile draws it for most ends (figureSigns.test.js)
         const waiting = visorFor(ended, null, 100, () => 0.99);
         expect(waiting).toEqual({tone, at: null, since: 100, card: "messages:1", sign: false});
-        // dark while the head turns to the run's mark (figureLookFirst.test.js), lit once it faces it
+        // dark while the head turns to the run's mark (figureLookFirst.test.js), lit once it has faced it VISOR.looks seconds
         expect(visorAt(waiting, 100.5, false)).toBe(null);
-        const lit = lightOnce(waiting, true, 100);
+        expect(lightOnce(waiting, true, 99.5).at, "facing it, not yet a second").toBe(null);
+        const lit = lightOnce(lightOnce(waiting, true, 100 - VISOR.looks), true, 100);
         expect(lit.at).toBe(100);
         expect(visorAt(lit, 101, false)).toEqual({colour, eyes: 0, across: 1, open: 1, flash: 0, glow: 1});
         expect(visorAt(lit, 100 + VISOR.seconds - 0.05, false).eyes).toBeGreaterThan(0);

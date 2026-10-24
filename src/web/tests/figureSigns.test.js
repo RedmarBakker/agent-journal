@@ -6,7 +6,7 @@ import {seeded} from "./support/seeded.js";
 
 // the visor `seconds` after a run ending `tone` lit it, `lit` being how visorFor drew it, lit as the run ended
 function shownAt(lit, seconds) {
-    const on = lightOnce(lit, true, lit.since);
+    const on = lightOnce(lightOnce(lit, true, lit.since), true, lit.since + VISOR.looks);
     return visorAt(on, on.at + seconds, false);
 }
 

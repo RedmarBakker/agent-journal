@@ -88,6 +88,7 @@ import {
     watchLook,
     progressOf,
     hiddenAt,
+    nearestTell,
     USER_TURN,
     roomToStepAside,
     spotOf,
@@ -1167,12 +1168,15 @@ function lookedAt(shown) {
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
 }
 
-// The middle on the page of the chat mark of the run whose end the visor waits to light (figure/visor.js lightOnce), which the head turns to
-// first, whatever the figure goes on doing; null when it waits for none or the mark is not on the page
+// What told the figure of the run whose end the visor waits to light (figure/visor.js lightOnce), which the head turns to first, whatever
+// the figure goes on doing: the run's chat mark, or the bar docked over the compose box when that is nearer (places.js nearestTell); null
+// when it waits for none or neither is on the page
 function waitingMark() {
     if (!visor || visor.at !== null) return null;
-    const box = document.querySelector(`[data-figure-mark="${CSS.escape(visor.card)}"]`)?.getBoundingClientRect();
-    return box ? middleOf(box) : null;
+    const mark = document.querySelector(`[data-figure-mark="${CSS.escape(visor.card)}"]`)?.getBoundingClientRect() ?? null;
+    const docks = groundEdge();
+    const bar = docks.docked ? (progressOf(docks.element)?.bar.getBoundingClientRect() ?? null) : null;
+    return nearestTell(mark, bar, headCenter());
 }
 
 // whether the head faces the mark of the run whose end the visor waits to light, or cannot turn to it, its clip looking as it does itself

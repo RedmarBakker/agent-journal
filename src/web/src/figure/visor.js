@@ -8,7 +8,7 @@ import {draw} from "./pile.js";
 // server units' lights shine in the same two. It lights only once the figure has turned its head to the chat mark of the run that ended
 // (lightOnce), or `waits` on when it cannot. Every number of it is here, in seconds.
 export const VISOR = {
-    seconds: 2.4, waits: 1.5, eyesOut: 0.14, line: [0.14, 0.3], open: [0.3, 0.52], flash: [0.3, 0.7], fade: 0.35, eyesBack: 0.15, thin: 0.05,
+    seconds: 2.4, waits: 1.5, looks: 1, eyesOut: 0.14, line: [0.14, 0.3], open: [0.3, 0.52], flash: [0.3, 0.7], fade: 0.35, eyesBack: 0.15, thin: 0.05,
     colours: {bad: [1, 0.06, 0.1], good: [0.08, 1, 0.32]}, core: 0.45, halo: 0.75,
 };
 
@@ -71,11 +71,13 @@ export function visorFor(ends, lit, now, random = Math.random) {
     return {tone: ends.at(-1).tone, at: null, since: now, card: ends.at(-1).card, sign: draw({moment: "run_end"}, random)?.name === "sign"};
 }
 
-// The glow `lit` lit `now` once the figure `faces` its run's chat mark, or `waits` seconds after the run ended when it never does; as it
-// was otherwise
+// The glow `lit` lit `now` once the figure has faced what told it of its run's end, its chat mark or the docked bar, `faces`, for VISOR
+// looks seconds on end, or `waits` seconds after the run ended when it never faces it; as it was otherwise, noting when it began to face it
 export function lightOnce(lit, faces, now) {
     if (!lit || lit.at !== null) return lit;
-    return faces || now - lit.since >= VISOR.waits ? {...lit, at: now} : lit;
+    const facedAt = faces ? (lit.facedAt ?? now) : null;
+    if ((facedAt !== null && now - facedAt >= VISOR.looks) || (facedAt === null && now - lit.since >= VISOR.waits)) return {...lit, at: now};
+    return {...lit, facedAt};
 }
 
 // The visor through a disco dance `u` of the way through it (acts.js disco): lit as a screen all the dance long, its colour stepping round

@@ -152,3 +152,24 @@ it("the running bar is never watched while an act played once is on screen, an e
     expect(watchesBar({watches: false, until: 99}, {clip: {name: "idle"}})).toBe(false);
     expect(watchesBar(null, {clip: {name: "idle"}})).toBe(false);
 });
+
+it("as a run ends the figure looks at what told it, the mark or the docked bar, whichever is nearer, a second before its visor lights", async () => {
+    const {nearestTell} = await import("../src/figure/places.js");
+    const {lightOnce, VISOR} = await import("../src/figure/visor.js");
+    const head = {x: 500, y: 500};
+    const mark = {left: 100, right: 300, top: 100, bottom: 130};
+    const bar = {left: 350, right: 750, top: 560, bottom: 566};
+    expect(nearestTell(mark, bar, head), "the docked bar under it is nearer").toEqual({x: 500, y: 563});
+    expect(nearestTell({left: 480, right: 520, top: 480, bottom: 500}, bar, head), "a mark beside its head is nearer").toEqual({x: 500, y: 490});
+    expect(nearestTell(mark, null, head)).toEqual({x: 200, y: 115});
+    expect(nearestTell(null, null, head)).toBe(null);
+    // the visor lights only once the look has held VISOR.looks seconds
+    expect(VISOR.looks).toBeGreaterThanOrEqual(1);
+    let lit = {tone: "good", at: null, since: 0, card: "c"};
+    lit = lightOnce(lit, true, 0.2);
+    expect(lit.at).toBe(null);
+    lit = lightOnce(lit, true, 0.2 + VISOR.looks - 0.01);
+    expect(lit.at, "held just short of the second").toBe(null);
+    lit = lightOnce(lit, true, 0.2 + VISOR.looks);
+    expect(lit.at).toBe(0.2 + VISOR.looks);
+});
