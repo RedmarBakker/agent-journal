@@ -2,8 +2,8 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, LEGS, Posing, TELEPHONE, phoneArrival, telephoneOf} from "../src/figure/figure.js";
-import {ACTS} from "../src/figure/acts.js";
+import {CALL, CLIPS, LEGS, Posing, TELEPHONE, dialHole, onPhoneAt, phoneArrival, telephoneOf} from "../src/figure/figure.js";
+import {ACTS, partOf} from "../src/figure/acts.js";
 import {PILE, choicesFor} from "../src/figure/pile.js";
 import {reactionTo} from "../src/figure/reactions.js";
 import {beatsAfter, withSystemCards} from "../src/domain/figureState.js";
@@ -74,9 +74,9 @@ test("the call goes in order: the telephone appears, the handset comes up to the
             const inHand = step.u >= act.reach[1] && step.u < act.hang[1];
             expect(prop(step, "telephone_handset").bone, `${voice} ${step.u}`).toBe(inHand ? `hand_${side}` : "root");
         }
-        // up at the head while it talks, standing straight
+        // up at the head while it talks, its grip on the handset, standing straight
         for (const step of steps.filter((each) => each.u > act.talk[0] && each.u < act.talk[1])) {
-            expect(step.at(`hand_${side}`).z, `${voice} ${step.u}`).toBeGreaterThan(2.2);
+            expect(step.pose.grip(side, [0, 0, 0]).applyMatrix4(step.moves.get(`hand_${side}`)).z, `${voice} ${step.u}`).toBeGreaterThan(2.2);
             expect(step.at("root").z, `${voice} ${step.u}`).toBe(0);
         }
         // the dial turns round to its stop while the finger is in it, and springs back to rest after
@@ -363,15 +363,19 @@ test("a sitting figure takes a call sitting, wherever it sits, the telephone bes
                     const at = (bone) => pose.head(bone, moves.get(bone));
                     // still seated: its hips where they sit, never crouched nor stood up
                     expect(Math.abs(at("hips").z - 1.55), `${label} at ${u}: seated`).toBeLessThan(0.05);
-                    // the telephone on the seat's surface beside it, on the page's side it was given
+                    // the telephone on the seat's surface beside its hip on the hand's side on the telephone's side of it, as it faces (at a
+                    // corner the one toward the viewer), set in its own axes; on the page on the side it was given, and turned along an edge
+                    // at the corner whose seat leaves that side free, before it, toward the viewer
+                    const nearer = way * Math.cos((facing * Math.PI) / 180) >= 0 ? "l" : "r";
+                    const own = pose.props.get("telephone").at.clone().applyMatrix4(pose.moves(0).get("root"));
+                    expect(own.x, `${label} at ${u}: beside it on its side`).toBeCloseTo((nearer === "l" ? 1 : -1) * beside, 6);
+                    expect(own.y, `${label} at ${u}`).toBeCloseTo(behind, 6);
+                    expect(own.z, `${label} at ${u}: on the seat`).toBeCloseTo(surface, 6);
                     const phone = pose.props.get("telephone").at.clone().applyMatrix4(moves.get("root"));
-                    expect(phone.x, `${label} at ${u}: beside it on its side`).toBeCloseTo(way * beside, 6);
-                    expect(phone.y, `${label} at ${u}`).toBeCloseTo(behind, 6);
-                    expect(phone.z, `${label} at ${u}: on the seat`).toBeCloseTo(surface, 6);
-                    // the handset taken off the telephone into the hand on the telephone's side of it, as it faces (at a corner the one toward the
-                    // viewer), held at its ear as it talks, its cord running from the telephone to it
+                    if (facing === 0 || facing === 25) expect(Math.sign(phone.x), `${label} at ${u}: on its side of the page`).toBe(way);
+                    if (way === {70: -1, 290: 1}[facing]) expect(phone.y, `${label} at ${u}: toward the viewer`).toBeLessThan(-0.5);
+                    // the handset taken off the telephone into that hand, held at its ear as it talks, its cord running from the telephone to it
                     if (u >= reach[1] && u < act.hang[1]) {
-                        const nearer = way * Math.cos((facing * Math.PI) / 180) >= 0 ? "l" : "r";
                         const ear = at("head");
                         const held = pose.props.get("telephone_handset");
                         expect(held.bone, `${label} at ${u}: off the telephone, in the hand`).toBe(`hand_${nearer}`);
@@ -382,6 +386,91 @@ test("a sitting figure takes a call sitting, wherever it sits, the telephone bes
                         if (posture === "composed" && facing === 0) expect(Math.abs(at(`hand_${other}`).z - surface), `${label} at ${u}: the other hand flat`).toBeLessThan(0.12);
                     }
                 }
+            }
+        }
+    }
+});
+
+test("the call is made by the arm from every stance, solved from where the telephone and the head are: the hand takes the handset where it rests, holds it while the dial turns, holds it at the ear while it talks, a seated finger is in the dial while it dials, the arm unbroken, and the seated telephone clear of the body", () => {
+    // the telephone's body as a box about its base in the figure's axes, its rounding and its top tipped toward the viewer counted
+    const {width, depth, height, round, dome} = TELEPHONE.base;
+    const tipped = height * Math.sin((TELEPHONE.tip * Math.PI) / 180);
+    const outside = (point, base) =>
+        Math.hypot(
+            Math.max(Math.abs(point.x - base.x) - (width / 2 + round), 0),
+            Math.max(Math.abs(point.y - base.y + tipped / 2) - (depth / 2 + round + tipped / 2), 0),
+            Math.max(point.z - (base.z + height + round + dome), base.z - point.z, 0),
+        );
+    // how far each part of the body reaches out from its bones, in the figure's units: the trunk half as wide as the shoulders, the limbs
+    // as thick as the legs (figureSeatedLegs LEG)
+    const [TRUNK, LIMB] = [0.45, 0.28];
+    // how near counts as there, in the figure's units: a finger in a hole, a hand on the handset, the handset at the ear
+    const NEAR = 0.05;
+    const stances_ = [["stand", 0], ["sit", 0], ["sit", 70], ["sit", 290], ["composed", 0], ["composed", 25]];
+    for (const [posture, facing] of stances_) {
+        const seated = posture !== "stand";
+        for (const way of seated ? [1, -1] : [1]) {
+            for (const voice of Object.keys(stances)) {
+                const stance = stanceOf(voice);
+                const label = `${voice} ${posture} facing ${facing}${seated ? `, telephone to the ${way > 0 ? "right" : "left"}` : ""}`;
+                // the hand that takes the handset, and the one that dials: seated the one on the telephone's side does both
+                const holder = seated ? (way * Math.cos((facing * Math.PI) / 180) >= 0 ? "l" : "r") : stance.busy.has("r") ? "l" : "r";
+                const times = seated ? act.seated : act;
+                let rested = null;
+                let taken = 0;
+                for (let frame = 0; frame < call.frames; frame++) {
+                    const u = frame / (call.frames - 1);
+                    const pose = new Posing(RIG, posture, 0);
+                    Object.assign(pose, {facing, phoneWay: way});
+                    LEGS[posture]?.under(pose);
+                    call.pose(pose, stance, frame / call.frames);
+                    LEGS[posture]?.over(pose);
+                    // in the figure's own axes, which the way it faces turns as one
+                    const moves = pose.moves(0);
+                    const at = (bone) => pose.head(bone, moves.get(bone));
+                    const telephone = pose.props.get("telephone");
+                    if (!telephone) continue;
+                    const base = telephone.at.clone().applyMatrix4(moves.get("root"));
+                    const handset = pose.props.get("telephone_handset");
+                    const where = handset.at.clone().applyMatrix4(moves.get(handset.bone));
+                    const step = `${label} at ${u.toFixed(3)}`;
+                    // the arm unbroken: each bone of both arms as long as it is
+                    for (const side of ["l", "r"]) {
+                        for (const [from, to] of [["upper_arm", "forearm"], ["forearm", "hand"]]) {
+                            const length = RIG.heads.get(`${to}_${side}`).distanceTo(RIG.heads.get(`${from}_${side}`));
+                            expect(at(`${to}_${side}`).distanceTo(at(`${from}_${side}`)), `${step}: ${from}_${side} unbroken`).toBeCloseTo(length, 6);
+                        }
+                    }
+                    // the hand takes the handset where it rested on the telephone, and has it from then until it is put back
+                    if (handset.bone === "root") rested = where;
+                    else {
+                        expect(handset.bone, step).toBe(`hand_${holder}`);
+                        if (taken++ === 0) expect(where.distanceTo(rested), `${step}: taken where it rested`).toBeLessThan(NEAR);
+                    }
+                    // standing, the hand holds it at the ear while the other hand dials
+                    if (!seated && u >= times.finger[1] && u <= times.back[0]) expect(handset.bone, `${step}: held while dialling`).toBe(`hand_${holder}`);
+                    // seated, the finger of that hand in the hole the dial has turned to, the hand pointing into it
+                    if (seated && u >= times.finger[1] && u <= times.back[0]) {
+                        const hole = onPhoneAt(dialHole(act.turn * partOf(u, times.dial)), base);
+                        const pointing = RIG.along.get(`hand_${holder}`).clone().transformDirection(moves.get(`hand_${holder}`));
+                        expect(at(`hand_${holder}`).addScaledVector(pointing, CALL.finger).distanceTo(hole), `${step}: finger in the dial`).toBeLessThan(NEAR);
+                    }
+                    // at the ear while it talks: the handset's middle half its length from the ear, wherever the head has gone
+                    if (u > act.talk[0] && u < act.talk[1]) {
+                        const [x, y, z] = CALL.ear;
+                        const ear = new THREE.Vector3((holder === "l" ? 1 : -1) * x, y, z).applyMatrix4(moves.get("head"));
+                        expect(Math.abs(where.distanceTo(ear) - TELEPHONE.handset.length / 2), `${step}: at the ear`).toBeLessThan(NEAR);
+                    }
+                    // seated, the telephone never sinks into the trunk, the legs or the other arm
+                    if (seated) {
+                        const other = holder === "l" ? "r" : "l";
+                        for (const bone of ["hips", "spine", "chest", "neck"]) expect(outside(at(bone), base), `${step}: clear of the ${bone}`).toBeGreaterThan(TRUNK);
+                        for (const bone of ["thigh_l", "thigh_r", "shin_l", "shin_r", "foot_l", "foot_r", `upper_arm_${other}`, `forearm_${other}`, `hand_${other}`]) {
+                            expect(outside(at(bone), base), `${step}: clear of the ${bone}`).toBeGreaterThan(LIMB);
+                        }
+                    }
+                }
+                expect(taken, `${label}: the handset taken up`).toBeGreaterThan(20);
             }
         }
     }
