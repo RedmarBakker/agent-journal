@@ -11,7 +11,7 @@ async function drawn(wallBugs, u) {
     return host;
 }
 
-test("the bug shot draws each of its bugs on its wall, its feet to the wall, and a splatter where one is shot", async () => {
+test("the bug shot draws each bug still crawling on its wall, its feet to the wall, and a shot one leaves nothing where it sat", async () => {
     const bugs = [
         {x: -380, y: 40, turn: 90, shot: true},
         {x: 120, y: -460, turn: 180, shot: false},
@@ -20,8 +20,8 @@ test("the bug shot draws each of its bugs on its wall, its feet to the wall, and
     const host = await drawn(bugs, 0.4);
     const crawling = [...host.querySelectorAll("[data-act-bug]")].map((image) => image.parentElement.getAttribute("transform"));
     expect(crawling).toEqual(["translate(120 -460) rotate(180)", "translate(480 -100) rotate(-90)"]);
-    const splats = [...host.querySelectorAll("[data-act-splat]")].map((path) => path.parentElement.getAttribute("transform"));
-    expect(splats).toEqual(["translate(-380 40) rotate(90)"]);
+    expect(host.querySelectorAll("[data-act-splat], [data-act-splash], [data-act-slush], [data-act-lens]").length, "no mark, no slush, no drop of the shot bug's before its burst is drawn").toBe(0);
+    expect(host.innerHTML).not.toContain("translate(-380 40)");
     // none drawn on the floor beside the figure, as the mallet's bug is
     expect(host.querySelectorAll("image").length).toBe(2);
 });

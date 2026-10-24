@@ -21,7 +21,8 @@ import WallBugs from "./act/WallBugs.vue";
 // and right sides to the screen's edges, which a runner runs off past; `ball`, where the disco ball hangs over the feet while it
 // dances (perches.js discoBall); `canopy`, the parachute's canopy drawn in 3D (figure.js Stage.drawCanopy); and `bug`, a fixed run's
 // bug drawn in 3D (figure.js Stage.drawBug), with `wallBugs`, the bug shot's bugs on the chat window's walls in the picture's pixels
-// (acts.js bugShotScene). Each act's drawing is its own component in act/, given these in pixels.
+// (acts.js bugShotScene), `slush` its flying slush and the splashes it left and `camera` the bugs whose slush flies at the screen, in the
+// same pixels. Each act's drawing is its own component in act/, given these in pixels.
 const props = defineProps({
     name: {type: String, required: true},
     u: {type: Number, required: true},
@@ -34,6 +35,8 @@ const props = defineProps({
     canopy: {type: Object, default: null},
     bug: {type: Object, default: null},
     wallBugs: {type: Array, default: () => []},
+    slush: {type: Array, default: () => []},
+    camera: {type: Array, default: () => []},
 });
 
 const px = (share) => share * props.size;
@@ -66,7 +69,7 @@ const thinking = computed(() => Boolean(ACTS[props.name].pulse));
                 <FumeSteam :u="u" :head="head" />
             </template>
             <template v-if="name === 'bug_shot' && bug">
-                <WallBugs :u="u" :middle="middle" :size="size" :bug="bug" :bugs="wallBugs" />
+                <WallBugs :u="u" :middle="middle" :size="size" :bug="bug" :bugs="wallBugs" :slush="slush" :camera="camera" />
             </template>
             <template v-if="name === 'disco' && ball">
                 <DiscoBall :u="u" :middle="middle" :floor="floor" :size="size" :ball="ball" />

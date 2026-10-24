@@ -287,14 +287,18 @@ export function bugShotFrame(raw, count) {
 
 // The bug shot `raw` frames in, its bugs `bugs` (wallBugs) in the chat window `world`: each bug where it is on its wall (wallBugAt), still
 // where it was shot once it is, and whether it is; the frame of the clip (bugShotFrame); and the page point the rifle aims at, swung from
-// the bug before onto the bug of this turn over the turn's `aim`
+// the bug before onto the bug of this turn over the turn's `aim`; the slush each shot bug burst into and the splashes it has left
+// (slushAt), and the shot bugs whose slush is flying at the camera, each with the seconds since its shot and where it burst (cameraDrops)
 export function bugShotScene(bugs, world, raw) {
     const act = ACTS.bug_shot;
     const {frame, bug, shot} = bugShotFrame(raw, bugs.length);
     const placed = bugs.map((each, index) => ({...wallBugAt(each, world, Math.min(raw / act.fps, bugShotTimes(index).shot)), shot: index < shot}));
     const swing = partOf(frame / act.frames, act.aim);
     const [from, to] = [placed[Math.max(bug - 1, 0)], placed[bug]];
-    return {bugs: placed, frame, target: {x: from.x + (to.x - from.x) * swing, y: from.y + (to.y - from.y) * swing}};
+    const shots = bugs.map((each, index) => ({bug: each, seconds: raw / act.fps - bugShotTimes(index).shot, spot: wallBugAt(each, world, bugShotTimes(index).shot)})).filter((each) => each.seconds >= 0);
+    const slush = shots.flatMap((each) => slushAt(slushOf(each.bug, world, each.spot), each.seconds));
+    const camera = shots.filter((each) => sprayesCamera(each.bug)).map((each) => ({seconds: each.seconds, from: each.spot}));
+    return {bugs: placed, frame, target: {x: from.x + (to.x - from.x) * swing, y: from.y + (to.y - from.y) * swing}, slush, camera};
 }
 
 // When the turn of bug number `index` of the bug shot has its beats, in the shot's raw frames, but the second its bug is shot: the frame
@@ -345,14 +349,70 @@ export function backAt(plan, raw, size) {
     return {x: plan.at(-1)?.to ?? 0, steps: walked / stride, way: 0};
 }
 
-// The drops of a shot bug's splatter `u` of the way through the bug shot (ACTS bug_shot), in a picture `size` pixels across, the bug at
-// `from` (x, y) and the picture's middle at `middle`: each flying out at the screen from the bug over `fly`, growing from a speck to its
-// size as it comes, then on the glass at its lens place, running down and fading; none before they fly, after the last bug is shot
-export function splatDrops(u, size, from, middle) {
-    const {fly, drops, lens} = ACTS.bug_shot;
-    if (u < fly[0]) return [];
-    const flown = partOf(u, fly);
-    const dripped = partOf(u, drops);
+// A shot bug leaves nothing at its place: it bursts into slush, SLUSH.count particles thrown out from where it was hit, away from its wall
+// within SLUSH.spread degrees of straight out, at SLUSH.speed pixels a second, then falling under SLUSH.gravity; each flies until it meets
+// the floor or an edge of the chat window and leaves a small splash there, which holds SLUSH.hold seconds and fades over SLUSH.fade. Now
+// and then (sprayesCamera) a bug's slush flies at the screen too (cameraDrops).
+export const SLUSH = {count: 14, speed: [70, 210], spread: 75, gravity: 620, radius: [2, 4.5], hold: 1, fade: 1.5, camera: 0.35, step: 1 / 60, longest: 5};
+
+const INWARD = {left: [1, 0], right: [-1, 0], top: [0, 1]};
+
+// a small repeatable stream of numbers from 0 to 1 from `seed`, so a bug bursts the same way each time it is drawn
+function seeded(seed) {
+    let state = (Math.floor(Math.abs(seed) * 1e6) % 2147483646) + 1;
+    return () => (state = (state * 48271) % 2147483647) / 2147483647;
+}
+
+// whether the slush of `bug` flies at the camera as well as about the walls: a share SLUSH.camera of bugs, decided by where the bug crawls
+export const sprayesCamera = (bug) => (bug.along * 97) % 1 < SLUSH.camera;
+
+// where a particle thrown from `p` ({x, y, vx, vy}) meets the window `world`: the seconds it flies, the place, and what it lands on
+function landing(p, world) {
+    for (let t = SLUSH.step; t <= SLUSH.longest; t += SLUSH.step) {
+        const [x, y] = [p.x + p.vx * t, p.y + p.vy * t + 0.5 * SLUSH.gravity * t * t];
+        if (y >= world.bottom) return {t, x: Math.min(Math.max(x, world.left), world.right), y: world.bottom, on: "floor"};
+        if (x <= world.left) return {t, x: world.left, y, on: "left"};
+        if (x >= world.right) return {t, x: world.right, y, on: "right"};
+        if (y <= world.top) return {t, x, y: world.top, on: "top"};
+    }
+    return {t: SLUSH.longest, x: p.x + p.vx * SLUSH.longest, y: world.bottom, on: "floor"};
+}
+
+// The slush of the wall bug `bug` (wallBugs) shot at `from` ({x, y}) in the chat window `world`: each particle {x, y, vx, vy, r} thrown out
+// from there, with where it lands, {t, x, y, on}
+export function slushOf(bug, world, from) {
+    const random = seeded(bug.along + 1);
+    const [nx, ny] = INWARD[bug.wall];
+    const straight = Math.atan2(ny, nx);
+    return Array.from({length: SLUSH.count}, () => {
+        const angle = straight + (random() - 0.5) * 2 * ((SLUSH.spread * Math.PI) / 180);
+        const speed = SLUSH.speed[0] + random() * (SLUSH.speed[1] - SLUSH.speed[0]);
+        const particle = {x: from.x, y: from.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r: SLUSH.radius[0] + random() * (SLUSH.radius[1] - SLUSH.radius[0])};
+        return {...particle, ...landing(particle, world)};
+    });
+}
+
+// The particles `seconds` after the shot (slushOf): each still flying as {x, y, r, flying: true}, or, once it has landed, its splash as
+// {x, y, r, flying: false, on, opacity}: it grows over its first tenth of a second, holds, then fades away
+export function slushAt(particles, seconds) {
+    return particles.flatMap((p) => {
+        if (seconds < p.t) return [{x: p.x + p.vx * seconds, y: p.y + p.vy * seconds + 0.5 * SLUSH.gravity * seconds * seconds, r: p.r, flying: true}];
+        const age = seconds - p.t;
+        const opacity = 1 - Math.min(Math.max((age - SLUSH.hold) / SLUSH.fade, 0), 1);
+        return opacity > 0 ? [{x: p.x, y: p.y, r: p.r * (1 + 1.2 * Math.min(age / 0.1, 1)), flying: false, on: p.on, opacity}] : [];
+    });
+}
+
+// The drops of slush that fly at the screen `seconds` after the bug was shot, in a picture `size` pixels across, the bug at `from` (x, y)
+// and the picture's middle at `middle`: each flying out at the screen from the bug over the shot's `fly`, growing from a speck to its size as
+// it comes, then on the glass at its lens place, running down and fading over its `drops`; none before the shot
+export function cameraDrops(seconds, size, from, middle) {
+    const {fly, drops, lens, frames, fps} = ACTS.bug_shot;
+    if (seconds < 0) return [];
+    const flying = ((fly[1] - fly[0]) * frames) / fps;
+    const dripping = ((drops[1] - drops[0]) * frames) / fps;
+    const flown = partOf(seconds, [0, flying]);
+    const dripped = partOf(seconds, [flying, flying + dripping]);
     return lens.map((drop) => {
         const landed = {x: middle.x + drop.at[0] * size, y: middle.y + drop.at[1] * size};
         return {
@@ -364,6 +424,12 @@ export function splatDrops(u, size, from, middle) {
             landed: flown >= 1,
         };
     });
+}
+
+// The same drops by how far through the bug shot it is, `u` of its frames, none before they fly
+export function splatDrops(u, size, from, middle) {
+    const {fly, frames, fps} = ACTS.bug_shot;
+    return u < fly[0] ? [] : cameraDrops(((u - fly[0]) * frames) / fps, size, from, middle);
 }
 
 // The parachute over the figure `u` of the way through its sway, in the picture's pixels: the canopy's picture `canopy` (figure.js

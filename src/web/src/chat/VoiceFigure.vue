@@ -1823,6 +1823,10 @@ function aimAt(shown) {
 // the bugs on the walls as the act's drawing takes them, in the figure's picture's pixels
 const wallBugsDrawn = computed(() => (shooting.value?.bugs ?? []).map((bug) => ({...bug, x: bug.x - body.at.x, y: bug.y - body.at.y})));
 
+// the slush a shot bug burst into and the splashes it left, and the bugs whose slush flies at the screen, in the figure's picture's pixels
+const slushDrawn = computed(() => (shooting.value?.slush ?? []).map((each) => ({...each, x: each.x - body.at.x, y: each.y - body.at.y})));
+const cameraDrawn = computed(() => (shooting.value?.camera ?? []).map((each) => ({...each, from: {x: each.from.x - body.at.x, y: each.from.y - body.at.y}})));
+
 const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.value.name, u: shownFrame.value / shownClip.value.frames} : null));
 const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
 
@@ -1922,7 +1926,7 @@ const style = computed(() => {
                 </span>
             </template>
             <template v-if="acting">
-                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" :wall-bugs="wallBugsDrawn" />
+                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" :wall-bugs="wallBugsDrawn" :slush="slushDrawn" :camera="cameraDrawn" />
             </template>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">
