@@ -18,6 +18,7 @@ from journal.support.project_command import ProjectCommand
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
 from journal.support.worktree_names import WorktreeNames
+from journal.support.workspace_worktree import WorkspaceWorktree
 from journal.support.worktree_failure import WorktreeFailure
 from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.providers.provider import HOOK_SCRIPT
@@ -223,7 +224,7 @@ class Launch:
     def launch_file(self, choice: Choice, status: StatusLine) -> dict:
         launch = uuid.uuid4().hex
         environ = self.environ(choice, launch)
-        worktree = Worktree(self.root, self.worktree or choice.environment)
+        worktree = WorkspaceWorktree.chosen(self.root, self.worktree or choice.environment)
         folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
         if folder != self.root:
             Menu(self.root, self.package / "journal.sh").journal("environment", "branch", choice.environment, worktree.branch)

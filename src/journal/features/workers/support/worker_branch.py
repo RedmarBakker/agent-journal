@@ -7,6 +7,7 @@ from journal.config import Config
 from journal.features.workers.support.worker_repository import PROJECT_FOLDER, WorkerRepository
 from journal.models.worker import Worker
 from journal.support.listener_queue import ListenerQueue
+from journal.support.inner_repositories import InnerRepositories
 from journal.support.rejection import Rejection
 from journal.support.worktree_refs import TIPS_REF
 from journal.support.worktree import Worktree
@@ -71,15 +72,7 @@ class WorkerBranch:
         return subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=CHECKOUT_TIMEOUT_SECONDS)
 
     def inner_folders(self) -> tuple[str, ...]:
-        return tuple(sorted(child.name for child in self.config.root.iterdir() if self.is_inner_repository(child)))
-
-    def is_inner_repository(self, child: Path) -> bool:
-        if not child.is_dir() or child.is_symlink() or not (child / ".git").exists() or child.resolve() == self.config.home.resolve():
-            return False
-        if self.git("check-ignore", "-q", child.name).returncode != 0:
-            return False
-        top = self.git("rev-parse", "--show-toplevel", cwd=child)
-        return top.returncode == 0 and Path(top.stdout.strip()).resolve() == child.resolve()
+        return InnerRepositories(self.config.root).names()
 
     def brief_folders(self, brief: str) -> tuple[str, ...]:
         return tuple(name for name in self.inner_folders() if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", brief, re.IGNORECASE))

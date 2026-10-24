@@ -333,7 +333,7 @@ def test_every_worktree_failure_at_launch_is_one_plain_line_naming_its_cause_and
         assert code == 1 and len(error.splitlines()) == 1 and "Traceback" not in error, error
         return error
 
-    assert "is not a git repository" in launched("no-git") and "git init" in launched("no-git"), "a folder with no git says so, and what to do"
+    assert "is neither a git repository nor a folder holding git repositories" in launched("no-git") and "git init" in launched("no-git"), "a folder with no git says so, and what to do"
     git("init", "-q", "-b", "main")
     assert "has no commit yet" in launched("no-commit"), "a repository with no commit says so"
     git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "start")

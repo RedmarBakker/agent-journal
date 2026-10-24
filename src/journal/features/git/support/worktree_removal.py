@@ -3,6 +3,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.support.rejection import Rejection
 from journal.support.worktree import Worktree
+from journal.support.workspace_worktree import WorkspaceWorktree
 from journal.sync.hosting import Hosting
 from journal.sync.team_chat_branch import TEAM_CHAT
 
@@ -14,7 +15,7 @@ class WorktreeRemoval:
         self.config, self.environments, self.agents, self.hosting = config, environments, agents, hosting
 
     def worktree(self, name: str) -> Worktree:
-        return Worktree(self.config.root, name)
+        return WorkspaceWorktree.chosen(self.config.root, name)
 
     def removed(self, name: str) -> str:
         tree = self.worktree(name)

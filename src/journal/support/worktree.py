@@ -85,7 +85,7 @@ class Worktree:
     # what must hold before git is asked for a worktree, each refused with its cause and what to do
     def project_check(self) -> None:
         if self.git("rev-parse", "--git-dir").returncode != 0:
-            raise WorktreeFailure(self.name, f"{self.root} is not a git repository, so there is no branch to work on: run git init and make a first commit, or launch without --worktree")
+            raise WorktreeFailure(self.name, f"{self.root} is neither a git repository nor a folder holding git repositories, so there is no branch to work on: run git init and make a first commit, or launch without --worktree")
         if not self.has("HEAD"):
             raise WorktreeFailure(self.name, "the project has no commit yet, so there is nothing to cut a worktree from: make a first commit, then launch again")
 

@@ -6858,6 +6858,31 @@ def test_renaming_an_environment_carries_its_worktree_branch_and_kept_tip_and_re
     assert refused.code != 0 and "left from earlier" in refused.error and (root / ".claude" / "worktrees" / "keen-otter").is_dir(), "a rename onto a name an old branch still holds is refused, and nothing moves"
 
 
+def test_a_launch_worktree_in_a_folder_of_repositories_holds_a_worktree_of_each_on_its_branch(app: App, monkeypatch):
+    import subprocess
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.providers.support.status_line import StatusLine
+    from journal.support.choice import Choice
+    from journal.support.workspace_worktree import WorkspaceWorktree
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    for repository in ("api", "web"):
+        (root / repository).mkdir()
+        for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", f"start {repository}"]):
+            git(*argv, cwd=root / repository)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), USER).text)
+    tree = WorkspaceWorktree.chosen(root, "calm-river")
+    assert isinstance(tree, WorkspaceWorktree), "a project folder that is no repository but holds two is a folder of repositories"
+    folder = Launch.parse(["claude", "--worktree", "calm-river"], root).launch_file(Choice("calm-river"), StatusLine(root))["front"]["folder"]
+    assert folder == str(root / ".claude" / "worktrees" / "calm-river"), "the agent works in the launch folder"
+    for repository in ("api", "web"):
+        assert git("rev-parse", "--abbrev-ref", "HEAD", cwd=Path(folder) / repository).stdout.strip() == "worktree-calm-river", f"the launch folder holds a worktree of {repository} on the branch worktree-calm-river"
+    assert (Path(folder) / ".journal").is_symlink() and (Path(folder) / ".journal").resolve() == app.config.home.resolve(), "with the project's journal linked beside them"
+    removed = app.console().run(["worktree", "remove", "calm-river"], USER)
+    assert removed.code == 0 and not Path(folder).exists() and git("rev-parse", "--verify", "-q", "worktree-calm-river", cwd=root / "api").returncode == 0, "and journal worktree remove takes the folder away, each repository's branch kept"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
