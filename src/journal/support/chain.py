@@ -1,6 +1,6 @@
 import re
 
-from journal.support.command_shape import SETUP_COMMANDS, CommandShape
+from journal.support.command_shape import GROUP_PATTERN as GROUP_START, LOOP_PATTERN as LOOP_START, SETUP_COMMANDS, CommandShape
 from journal.support.part import Part
 
 WRAPPED = re.compile(r"^eval '(.*)'(?: < /dev/null)?$", re.S)
@@ -14,6 +14,8 @@ CONTROL_KEYWORDS = {"do", "then", "else", "time", "!"}
 
 COMPOUND = {"if", "elif", "else", "then", "for", "while", "until", "do", "case", "select", "{", "("}
 HEREDOC_WORD = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+# a comment at a line's end, outside quotes: git commit -m x # && git push runs only the commit
+COMMENT = re.compile(r"\s+#[^'\"]*$")
 # commands that only wait or print, which choose a line's reader only when no other part does work
 IDLE_COMMANDS = {"sleep", "echo", "printf", "wait"}
 
@@ -31,9 +33,21 @@ class Chain:
 
     @classmethod
     def choosing_parts(cls, line: str) -> list[str]:
-        shaped = [(part.text, shape.split()[0]) for part in cls.parts(line) if part.recorded and (shape := CommandShape.build(part.text))]
+        pieces = [piece for part in cls.parts(line) if part.recorded for piece in cls.pieces(part.text)]
+        shaped = [(piece, shape.split()[0]) for piece in pieces if (shape := CommandShape.build(piece))]
         working = [text for text, program in shaped if program not in SETUP_COMMANDS and program not in IDLE_COMMANDS]
         return working or [text for text, _ in shaped]
+
+    # the commands of a part a reader may read, one by one: its alternatives after ||, the commands of a pipe, and the first line of a
+    # heredoc's command, its comment lines passed over; a loop or a group stays whole, as its shape names what it runs
+    @classmethod
+    def pieces(cls, text: str) -> list[str]:
+        bare = "\n".join(COMMENT.sub("", line) for line in text.splitlines() if not line.strip().startswith("#")).strip()
+        if LOOP_START.match(bare) or "$(" in bare or "`" in bare:
+            return [bare]
+        if GROUP_START.match(bare) and not bare.strip().startswith("(("):
+            return [piece for command in CommandShape.commands(CommandShape.unwrapped(bare)) for piece in cls.pieces(CommandShape.unbracketed(command))]
+        return CommandShape.commands(bare.split("\n", 1)[0] if "<<" in bare else bare)
 
     @classmethod
     def replaced(cls, line: str, part: str, text: str) -> str:

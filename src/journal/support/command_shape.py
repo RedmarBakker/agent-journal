@@ -14,13 +14,19 @@ MODULE_FLAG = "-m"
 # a script handed to a runner by its path, which a run is known by: python3 /tmp/scan.py is python3 scan.py
 # the package managers whose flags may stand before their subcommand: pnpm -r build, yarn --silent test
 PACKAGE_MANAGERS = {"npm", "pnpm", "yarn", "bun"}
+# a package manager's flags that take a value, passed over with it: npm --prefix src/web run build is npm run build
+VALUED_MANAGER_FLAGS = {"--prefix", "-C", "--dir", "--filter", "-F", "-w", "--workspace", "--cwd"}
 SCRIPT_FILE = re.compile(r"\.(py|js|mjs|cjs|ts|sh|bash|zsh|rb|pl)$")
 SHAPE_TOKEN_COUNT = 3
-WRAPPER_PATTERN = re.compile(r"^\s*(?:perl -e '[^']*exec @ARGV[^']*'|timeout \d+[smh]?|lockf(?:\s+-[a-z](?:\s+\d+)?)*\s+\S+|flock(?:\s+-\S+)*\s+\S+|env(?:\s+(?:-u\s+\S+|-i|[A-Za-z_]\w*=\S*))+|nice(?:\s+-n\s*-?\d+)?)\s+")
+WRAPPER_PATTERN = re.compile(r"^\s*(?:perl -e '[^']*exec @ARGV[^']*'|g?timeout \d+[smh]?|(?:/usr/bin/)?time(?:\s+-p)?|\S+/[\w.-]+(?=\s+env\s)|lockf(?:\s+-[a-z](?:\s+\d+)?)*\s+\S+|flock(?:\s+-\S+)*\s+\S+|env(?:\s+(?:-u\s+\S+|-i|[A-Za-z_]\w*=\S*))+|nice(?:\s+-n\s*-?\d+)?)\s+")
+# a case's header before the commands of its first branch: case $x in a) make is make
+CASE_PATTERN = re.compile(r"^\s*case\s.*?\sin\s+[^)]*\)\s*")
+# commands a loop runs beside its work that do none, passed over when naming it: for t in a b; do printf $t; phpunit $t; done is phpunit
+LOOP_IDLE = {"echo", "printf", "[", "[[", "test", "true", ":", "sleep"}
 # a loop that only waits for something, its body a sleep alone, which a run is known by as a wait: until ping -c1 h; do sleep 1; done
 POLL_PATTERN = re.compile(r"^\s*(?:while|until)\b.*\bdo\s+sleep\s+[\d.]+[smh]?\s*;?\s*done\b", re.S)
 # the shell's own words and tests a waiting loop may hold beside its sleep, which do no work of their own
-IDLE_WORDS = {"while", "until", "true", ":", "do", "if", "then", "else", "fi", "break", "continue", "done", "[", "[[", "test", "echo", "date", "sleep"}
+IDLE_WORDS = {"while", "until", "for", "true", ":", "do", "if", "then", "else", "fi", "break", "continue", "done", "[", "[[", "test", "echo", "date", "sleep"}
 # a group run as one, timed or not, which a run is known by the commands inside: time { make; } is make
 GROUP_PATTERN = re.compile(r"^\s*(?:time\s+)?[({]")
 # the shell's own words around the commands of a loop or a branch, which a run is never known by: while, do and done,
@@ -54,7 +60,7 @@ class CommandShape:
     def working(cls, part: str) -> str:
         if not GROUP_PATTERN.match(part) or part.strip().startswith("(("):
             return part
-        commands = [bare for command in CHAIN_SEPARATOR.split(cls.unwrapped(part)) if (bare := cls.unbracketed(command))]
+        commands = [bare for command in cls.commands(cls.unwrapped(part)) if (bare := cls.unbracketed(command))]
         return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else part)
 
     @classmethod
@@ -144,13 +150,14 @@ class CommandShape:
 
     @classmethod
     def looped(cls, part: str) -> str:
-        commands = [cls.unbracketed(CONTROL_PATTERN.sub("", command, count=1)) for command in cls.commands(part)]
-        return next((command for command in commands if (shape := cls.plain_shape(command)) and shape.split()[0] not in SETUP_COMMANDS), "")
+        commands = [cls.unbracketed(CASE_PATTERN.sub("", CONTROL_PATTERN.sub("", command, count=1), count=1)) for command in cls.commands(part)]
+        working = [command for command in commands if (shape := cls.plain_shape(command)) and shape.split()[0] not in SETUP_COMMANDS]
+        return next((command for command in working if cls.plain_shape(command).split()[0] not in LOOP_IDLE), working[0] if working else "")
 
     # a loop whose every command is a sleep or the shell's own words and tests, so all it does is wait
     @classmethod
     def is_waiting_loop(cls, part: str) -> bool:
-        if not LOOP_PATTERN.match(part) or part.strip().startswith(("for", "case", "select")):
+        if not LOOP_PATTERN.match(part) or part.strip().startswith(("case", "select")):
             return False
         programs = {words[1] if words[0] in {"do", "then", "else"} and len(words) > 1 else words[0] for command in cls.commands(part) if (words := command.split())}
         return "sleep" in programs and programs <= IDLE_WORDS
@@ -172,16 +179,23 @@ class CommandShape:
 
     @classmethod
     def plain_shape(cls, part: str) -> str:
+        script = SCRIPT_PATTERN.match(cls.inner(part))
+        if script:
+            return cls.build(script.group(1))
         tokens = TOKEN_PATTERN.findall(cls.inner(part).split("<<", 1)[0])
         if not tokens:
             return ""
         if len(tokens) > 1 and tokens[0].rsplit("/", 1)[-1] in RUNNERS and SCRIPT_FILE.search(tokens[1]):
             return f"{tokens[0]} {tokens[1].rsplit('/', 1)[-1]}"
         shape_parts = [tokens[0]]
-        for token in tokens[1:SHAPE_TOKEN_COUNT]:
+        for token in tokens[1:SHAPE_TOKEN_COUNT + 2]:
+            if len(shape_parts) == SHAPE_TOKEN_COUNT:
+                break
             is_module = token == MODULE_FLAG and shape_parts[-1].rsplit("/", 1)[-1] in RUNNERS
             # a package manager's flag before its subcommand is passed over, as pnpm -r build is pnpm build
             if token.startswith("-") and "=" not in token and len(shape_parts) == 1 and shape_parts[0].rsplit("/", 1)[-1] in PACKAGE_MANAGERS:
+                continue
+            if len(shape_parts) == 1 and shape_parts[0].rsplit("/", 1)[-1] in PACKAGE_MANAGERS and tokens[tokens.index(token) - 1] in VALUED_MANAGER_FLAGS:
                 continue
             if not is_module and not WORD_PATTERN.fullmatch(token):
                 break
