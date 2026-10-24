@@ -27,7 +27,10 @@ class ReaderCommands:
         return bool(self.read_part(line))
 
     def read_part(self, line: str) -> str:
-        return next((part.text for part in Chain.parts(line) for program in self.programs if re.search(rf"(^|[\s/]){re.escape(program)}(\s|$)", CommandShape.build(part.text))), "")
+        return next((part.text for part in Chain.parts(line) if self.reads(part.text)), "")
+
+    def reads(self, part: str) -> bool:
+        return any(re.search(rf"(^|[\s/]){re.escape(program)}(\s|$)", CommandShape.build(part)) for program in self.programs)
 
     def is_shown_run(self, line: str) -> bool:
         part = self.read_part(line)

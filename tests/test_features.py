@@ -12767,3 +12767,14 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     assert [c.row for c in outgoing.waiting()] == [3] and door("GET", "batch")["ids"] != first["ids"], "the result posted twice takes the batch off once, and the next batch is the change that waited"
     account.left(0)
 
+
+
+def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
+    from journal.features.shell.support.readers import Readers
+    console, readers = app.console(), app.container.get(Readers)
+    for name, commands in (("naps", "sleep"), ("tests", "tox"), ("rewrites", "git filter-repo")):
+        assert console.run(["reader", "add", name, "--commands", commands, "--pattern", "x", "--about", f"the {name}"], AGENT).code == 0
+    assert readers.reading("X=1; curl -s a; echo done; sleep 1; curl b") is None, "a wait between two requests never makes the line a pause"
+    assert readers.reading("cd x && tox -e py").name == "tests" and readers.reading("sleep 5").name == "naps", "the working command decides, and a lone wait is still a pause"
+    line = "S=/tmp/rewrite; ( cd $S/mirror.git && git filter-repo --force 2>&1 )"
+    assert readers.reading(line).name == "rewrites", "an assignment in front of a subshell is passed over, and the subshell is known by its work"

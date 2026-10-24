@@ -136,7 +136,9 @@ class CommandShape:
 
     @classmethod
     def build(cls, part: str) -> str:
-        return cls.plain_shape(cls.looped(part)) if LOOP_PATTERN.match(part) else cls.plain_shape(part)
+        if LOOP_PATTERN.match(part):
+            return cls.plain_shape(cls.looped(part))
+        return cls.plain_shape(cls.working(part)) if part.strip().startswith("(") and not part.strip().startswith("((") else cls.plain_shape(part)
 
     @classmethod
     def plain_shape(cls, part: str) -> str:

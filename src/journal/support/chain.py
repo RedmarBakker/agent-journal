@@ -1,5 +1,6 @@
 import re
 
+from journal.support.command_shape import SETUP_COMMANDS, CommandShape
 from journal.support.part import Part
 
 WRAPPED = re.compile(r"^eval '(.*)'(?: < /dev/null)?$", re.S)
@@ -13,6 +14,8 @@ CONTROL_KEYWORDS = {"do", "then", "else", "time", "!"}
 
 COMPOUND = {"if", "elif", "else", "then", "for", "while", "until", "do", "case", "select", "{", "("}
 HEREDOC_WORD = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+# commands that only wait or print, which choose a line's reader only when no other part does work
+IDLE_COMMANDS = {"sleep", "echo", "printf"}
 
 
 class Chain:
@@ -25,6 +28,12 @@ class Chain:
             chained = [inner for s, p, _ in chained for inner in cls.build(s, p)]
         following = [s for s, _, _ in chained[1:]] + [""]
         return [Part(p, recorded=r, unconditional=s != "&&", guarded=f == "&&") for (s, p, r), f in zip(chained, following)]
+
+    @classmethod
+    def choosing_parts(cls, line: str) -> list[str]:
+        shaped = [(part.text, shape.split()[0]) for part in cls.parts(line) if part.recorded and (shape := CommandShape.build(part.text))]
+        working = [text for text, program in shaped if program not in SETUP_COMMANDS and program not in IDLE_COMMANDS]
+        return working or [text for text, _ in shaped]
 
     @classmethod
     def replaced(cls, line: str, part: str, text: str) -> str:

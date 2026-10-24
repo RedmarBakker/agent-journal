@@ -59,7 +59,8 @@ class Readers:
         return [index[name].line for name in names if name in index]
 
     def reading(self, line: str) -> Reader | ScriptReader | None:
-        line_readers = [reader for reader in self.all() if reader.commands.is_read(line)]
+        readers = self.all()
+        line_readers = next((found for part in Chain.choosing_parts(line) if (found := [reader for reader in readers if reader.commands.reads(part)])), [])
         default_names = self.default_names()
         return next((reader for reader in line_readers if reader.name in default_names), None) or min(line_readers, key=self.creation_seconds, default=None)
 
