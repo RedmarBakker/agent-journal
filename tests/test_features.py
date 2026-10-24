@@ -2208,6 +2208,25 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
     assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest").startswith("nothing logged yet\n"), "reset clears the counts and the rolling log"
 
 
+def test_the_agent_bars_data_carries_the_average_of_the_last_250_hooks_and_requests_in_developer_mode_only(app: App):
+    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.http.agents.agent_activity import AgentActivity
+    from journal.models.support.request_loads import RequestLoads
+    from journal.features.faults.support.developer_tally import DeveloperTally
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    slow = app.container.get(SlowRequests)
+    for n in range(300):
+        slow.counted("HOOK", "/hooks/PreToolUse", 1000 if n < 50 else 10, RequestLoads())
+        slow.counted("GET", "/journal/tasks", 2000 if n < 50 else 20, RequestLoads())
+    row = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]
+    assert "hook_average_ms" not in row() and "request_average_ms" not in row(), "the bar's data carries no reading while developer mode is off"
+    app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
+    assert (row()["hook_average_ms"], row()["request_average_ms"]) == (10, 20), "each average is taken over the last 250 alone, the first 50 left out"
+    app.container.get(DeveloperTally).cleared()
+    assert (row()["hook_average_ms"], row()["request_average_ms"]) == (0, 0), "a reset clears them"
+
+
 def test_wispr_flow_is_among_the_suggested_mcp_services():
     from journal.features.mcp.support.mcp_catalogue import SUGGESTED
     suggested = {s.name: s for s in SUGGESTED}

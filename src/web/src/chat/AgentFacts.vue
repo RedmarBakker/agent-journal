@@ -138,6 +138,10 @@ const toggle = (key, e) => emit("toggle", key, e);
                     {{ data.branch }}
                 </AgentFact>
             </template>
+            <template v-if="data.hook_average_ms !== undefined">
+                <AgentFact class="agent-fact" tag="span" icon="bolt" title="Average time of the last 250 hooks">{{ data.hook_average_ms }} ms</AgentFact>
+                <AgentFact class="agent-fact" tag="span" icon="gauge" title="Average time of the last 250 requests">{{ data.request_average_ms }} ms</AgentFact>
+            </template>
         </template>
     </div>
 </template>

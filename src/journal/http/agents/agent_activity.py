@@ -11,6 +11,9 @@ from journal.features.shell.support.activity_label import LONG_RUNS
 from journal.features.tasks.states.working import Working
 from journal.support.chain import Chain
 from journal.config import Config
+from journal.features.faults.feature import Faults
+from journal.features.faults.support.developer_numbers import DeveloperNumbers
+from journal.features.registry import Registry
 from journal.providers.providers import Providers
 from journal.http.agents.current_work import CurrentWork
 from journal.http.agents.current_sequence import CurrentSequence
@@ -43,9 +46,9 @@ ENDED = "ended"
 class AgentActivity:
     """An agent with what it is doing, read from the timeline: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry) -> None:
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs = jobs
+        self.jobs, self.numbers, self.registry = jobs, numbers, registry
 
     def page(self, agents: list[Agent]) -> list[dict]:
         recent = list(reversed(self.entries.kind_entries_scoped(ENTRY_COUNT))) if any(item.state != ENDED for item in agents) else []
@@ -88,7 +91,13 @@ class AgentActivity:
             "trail": [self.trail_entry(e) for e in [e for e in entries if e.kind == StackHistory.KIND][-HISTORY_ENTRIES:]],
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
+            **self.rolling(),
         }
+
+    def rolling(self) -> dict:
+        if not self.registry.is_enabled(Faults):
+            return {}
+        return {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms()}
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = time.time()
