@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import * as THREE from "three";
 import {createApp, h} from "vue";
 import {describe, expect, it} from "vitest";
-import {CLIPS, Posing, TORCH, torchOf} from "../src/figure/figure.js";
+import {CLIPS, Posing, TORCH, TORCH_LOOK, torchOf} from "../src/figure/figure.js";
 import {ACTS, torchAim} from "../src/figure/acts.js";
 import {FRAMED} from "../src/figure/frame.js";
 import FigureAct from "../src/chat/FigureAct.vue";
@@ -45,6 +45,32 @@ describe("searching with the torch", () => {
                 expect(THREE.MathUtils.radToDeg(points.angleTo(toward)), `${voice} ${step}: pointed at the light`).toBeLessThan(5);
             }
         }
+    });
+
+    it("holds the torch up and forward, its beam on what is beside its head, never its own feet, and its head turned along the beam", () => {
+        const lookOf = (u, voice) => {
+            const stance = stanceOf(voice);
+            const pose = new Posing(RIG, "stand", 0);
+            clip.pose(pose, stance, u);
+            const head = pose.moves(0).get("head");
+            const [left, right] = RIG.eyes.map((eye) => eye.clone().applyMatrix4(head));
+            const middle = left.clone().add(right).multiplyScalar(0.5);
+            const centre = pose.head("head", head);
+            return {facing: middle.sub(centre).normalize(), sign: stance.busy.has("r") ? 1 : -1};
+        };
+        for (const voice of Object.keys(stances)) {
+            for (let step = 0; step < 8; step++) {
+                const u = step / 8;
+                const [across, forward, up] = torchAim(u);
+                expect(up, `${voice} ${step}: lit at about head height`).toBeGreaterThan(TORCH_LOOK.eyes - 0.5);
+                const {facing, sign} = lookOf(u, voice);
+                const toward = new THREE.Vector3(sign * across, forward, 0).normalize();
+                const ahead = new THREE.Vector3(0, -1, 0);
+                const flat = new THREE.Vector3(facing.x, facing.y, 0).normalize();
+                expect(flat.angleTo(toward), `${voice} ${step}: the head turned toward the light`).toBeLessThan(ahead.angleTo(toward) - THREE.MathUtils.degToRad(20));
+            }
+        }
+        expect(clip.ownLook, "its look is its own, never turned elsewhere while it searches").toBe(true);
     });
 
     it("models a metal barrel, a lens rim, a switch and a lens that glows, shaded and outlined as the figure is", () => {

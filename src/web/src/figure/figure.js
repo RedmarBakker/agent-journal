@@ -2222,7 +2222,7 @@ function castle(pose, stance, t) {
 export const ACTED = {
     high: [1.0, -0.25, 2.92],
     sign: [0.5, -0.25, 3.0], signWaggle: 0.1,
-    drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.1, -0.55, 1.88], torchSweep: 0.16,
+    drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.0, -0.62, 2.4], nozzle: [1.1, -0.55, 1.88], torchSweep: 0.16,
     corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34,
 }
 
@@ -2491,7 +2491,7 @@ function press(pose, stance, t) {
 // holds the vacuum's nozzle out low beside it, sweeping it a little, as the words fly into it
 function vacuum(pose, stance, t) {
     const {held, into, out} = heldPhases(ACTS.vacuum, t);
-    const [x, y, z] = ACTED.torch;
+    const [x, y, z] = ACTED.nozzle;
     breathe(pose, 0);
     trunk(pose, {lean: 8, nod: 14, turn: -SIDES[freeSide(stance)] * 14});
     actHand(pose, stance, into * (1 - out), [x, y, z - 0.12 * waveOf(held ?? 0, 2)], {x: -10});
@@ -2765,16 +2765,20 @@ function binoculars(pose, stance, t) {
     actHand(pose, stance, 1, [SIDES[side] * at.x, at.y, at.z], {x: -60});
 }
 
-// shines a flashlight held out low into a dark corner beside it, the beam moving about in it, leaning to look
-// searches with a torch held out to its free side, the hand turned to point it at where its beam lands (acts.js torchAim), sweeping it
-// slowly about as it looks
+// The look along the torch's beam: the head turned `turn` degrees toward the free side for each unit across the beam lands, and tipped up
+// from the eyes, `eyes` up from the feet, toward where it lands
+export const TORCH_LOOK = {turn: 16, eyes: 3.3};
+
+// searches with a torch held up and forward to its free side, the hand turned to point it at where its beam lands (acts.js torchAim), at
+// about head height, sweeping it slowly about there as its head follows the light
 function flashlight(pose, stance, t) {
     const side = freeSide(stance);
     const sign = SIDES[side];
     const [across, forward, up] = torchAim(t);
     const [x, y, z] = ACTED.torch;
     breathe(pose, 0);
-    trunk(pose, {lean: 10, nod: 18, turn: -sign * 20});
+    const lifted = THREE.MathUtils.radToDeg(Math.atan2(up - TORCH_LOOK.eyes, Math.hypot(across, forward)));
+    trunk(pose, {lean: -2, nod: -lifted, turn: sign * TORCH_LOOK.turn * across});
     actHand(pose, stance, 1, [x, y, z], {x: -10});
     const wrist = pose.head(`hand_${side}`, pose.matrix(`hand_${side}`));
     pose.aim(`hand_${side}`, pose.carried(new THREE.Vector3(sign * across, forward, up)).sub(wrist));
@@ -2985,7 +2989,7 @@ export const CLIPS = [
     {name: "rope_swing", frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ON_A_LAP, pose: rope_swing},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
-    {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, postures: MOVE, pose: flashlight},
+    {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, ownLook: true, postures: MOVE, pose: flashlight},
     {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
     {name: "rummage", frames: ACTS.rummage.frames, fps: ACTS.rummage.fps, loops: true, postures: MOVE, ownLook: true, pose: rummage},
     {name: "type_ponder", frames: ACTS.type_ponder.frames, fps: ACTS.type_ponder.fps, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, ownLook: true, postures: ON_A_LAP, pose: type_ponder},
