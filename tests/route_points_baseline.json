@@ -1,0 +1,12 @@
+{
+ "POST /cli": 998,
+ "POST /journal/agents/1/pause": 134,
+ "POST /journal/agents/1/resume": 268,
+ "POST /journal/messages": 79,
+ "POST /journal/plans/1/review": 100,
+ "POST /journal/tasks/1/finish": 113,
+ "POST /journal/tasks/1/reopen": 52,
+ "POST /journal/tasks/1/start": 112,
+ "POST /journal/workers/1/complete": 404,
+ "POST /journal/workers/1/stop": 941
+}
