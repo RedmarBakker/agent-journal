@@ -1475,11 +1475,14 @@ function lookCandidates(shown) {
 
 // the chat's sin mark the figure confesses to, looked at as anything it admires is, its body turned round to it (figure/admire.js
 // admiringLook), while the confession plays; null with none or once the mark is gone from the page
+// how far round from the viewer the figure turns to the mark it confesses to, in degrees: three-quarter, so its knees, its hands and the
+// face of the cross it holds all show
+const CONFESSION_TURN = 45;
 function confessionLook(shown) {
     const beat = beats.value[0];
     if (shown.clip.name !== "repent" || beat?.clip !== "repent" || !beat.mark) return null;
     const box = document.querySelector(`[data-figure-mark="${CSS.escape(beat.mark)}"]`)?.getBoundingClientRect();
-    return box ? admiringLook(box) : null;
+    return box ? {...admiringLook(box), most: CONFESSION_TURN} : null;
 }
 
 // the leading edge of a progress bar on the docks the figure stands by, in a stretch it chose to watch it and with no act played once on

@@ -39,7 +39,7 @@ try {
             const canvas = document.createElement("canvas");
             canvas.width = canvas.height = SIZE;
             const frame = Math.min(Math.floor(u * clip.frames), clip.frames - 1);
-            stage.draw(figure, clip, frame, 0, canvas, {at: {x: -0.6, y: 0.4, faces: true, behind: true, mood: "admiring", amount: 1}});
+            stage.draw(figure, clip, frame, 0, canvas, {at: {x: -0.6, y: 0.4, faces: true, behind: true, mood: "admiring", amount: 1, most: 45}});
             paint.drawImage(canvas, index * SIZE, 0);
             drawn.push(frame);
         }

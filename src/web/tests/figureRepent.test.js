@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 
-const {CLIPS, CRUCIFIX, Posing, crucifixOf, lookToward} = await import("../src/figure/figure.js");
+const {CLIPS, CRUCIFIX, Posing, bodyTurnFor, crucifixOf, lookToward} = await import("../src/figure/figure.js");
 const {ACTS} = await import("../src/figure/acts.js");
 const {HEAD, LOOKS, headBlend} = await import("../src/figure/looks.js");
 const {admiringLook} = await import("../src/figure/admire.js");
@@ -69,6 +69,14 @@ test("the head and body turn to the sin's mark as they do to what it admires, st
         return lookToward(pose, {x, y: 0.3, faces: true, behind: true, mood: "admiring"}, 0);
     };
     expect(turned(0.05) * turned(0.95), "a mark on the left and one on the right turn it opposite ways").toBeLessThan(0);
+    const body = (x, most) => {
+        const pose = new Posing(RIG, "stand", 0);
+        CLIPS.find((each) => each.name === "idle").pose(pose, stanceOf(VOICES[0]), 0);
+        return bodyTurnFor("stand", lookToward(pose, {x, y: 0.3, faces: true, behind: true, mood: "admiring", most}, 0), most);
+    };
+    expect(Math.abs(body(-2, undefined)), "turned all the way round to what it admires").toBeGreaterThan(60);
+    expect(Math.abs(body(-2, 45)), "three-quarter to the mark it confesses to").toBeLessThanOrEqual(45);
+    expect(Math.abs(body(3, 45))).toBeLessThanOrEqual(45);
 });
 
 test("the cross is far bigger than the little one was and is held up before it in both hands", () => {

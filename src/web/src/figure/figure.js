@@ -1834,12 +1834,13 @@ export const eyesAboveOf = (figure) => (figure.rig.eyes.reduce((sum, eye) => sum
 // figure turned `facing` degrees; `at.amount` of the way from
 // the head as its clip has it, 0 to 1, as the look eases in and out. It returns how many degrees the body turns for a look further round
 // than the head goes, the body following the head as the look eases in, so the head leads. A look that `at.faces` what it looks at, as at
-// what it admires, turns the body the whole way round to it standing, the head then looking straight on at it; seated the body turns as
-// for any look (bodyTurnFor).
+// what it admires, turns the body the whole way round to it standing, the head then looking straight on at it, or no more than `at.most`
+// degrees round when the look says so, the head turning the rest; seated the body turns as for any look (bodyTurnFor).
 export function lookToward(pose, at, facing = 0) {
     const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, at.behind ? -LOOK_DEPTH : LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
     const turnedBy = (turn) => point.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-(facing + turn)));
-    const whole = at.faces && pose.posture === "stand" ? THREE.MathUtils.radToDeg(lookAngle(pose, turnedBy(0)).yaw) : 0;
+    const most = at.most ?? Infinity;
+    const whole = at.faces && pose.posture === "stand" ? Math.min(Math.max(THREE.MathUtils.radToDeg(lookAngle(pose, turnedBy(0)).yaw), -most), most) : 0;
     const own = pose.matrix("head").clone();
     const further = whole + eyesToward(pose, turnedBy(whole));
     const amount = at.amount ?? 1;
@@ -3083,10 +3084,10 @@ function halo(pose, stance, t) {
     eyesAs(pose, "serene", shown);
 }
 
-// The big cross held up to ask forgiveness (acts.js repent), in the figure's units: both hands on its upright, the right one at `low` before
+// The big cross held up to ask forgiveness (acts.js repent), in the figure's units, standing upright a little to the right of the face, its top above the head: both hands on its upright, the right one at `low` before
 // the chest and the left one `apart` above it, rising from `pocket`, down by the knees, to `front`, where the cross stands up before the
 // figure; trembling `tremble` while it is held up
-export const CRUCIFIX_HOLD = {pocket: [-0.1, -0.7, 0.45], front: [-0.1, -0.85, 1.25], apart: 0.55, tremble: 0.025};
+export const CRUCIFIX_HOLD = {pocket: [-0.5, -0.9, 0.3], front: [-0.5, -1.0, 1.35], apart: 0.55, tremble: 0.025};
 
 // stands, kneels down onto both knees, brings a big cross up before it and holds it up in both hands, as if asking forgiveness, trembling a
 // little, then lowers it and gets up (acts.js repent); the head turns to the sin's mark with the look at what it admires
@@ -4297,7 +4298,7 @@ export function haloOf(prop) {
 
 // The big cross held up to ask forgiveness, shaded and outlined in brass, in the figure's units: its upright `long` and its crossbar
 // `across` `bar` thick, the crossbar `at` up the upright, held at the upright's lower part in both hands
-export const CRUCIFIX = {long: 2.3, across: 1.3, bar: 0.2, at: 0.85, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
+export const CRUCIFIX = {long: 3.4, across: 1.9, bar: 0.28, at: 0.45, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
 
 export function crucifixOf(prop) {
     const root = poseSpace(prop);
@@ -4958,9 +4959,9 @@ function place(figure, pose, facing, blend) {
 // facing the way it walks whatever its head glances at; seated, only a little, no further than it shifts on its seat (places.js
 // SEAT_POSE), so it never turns round where it sits and its head turns the rest of its way; standing, all of it, so a look behind it on
 // the page, as at what it admires, turns it round to it, its back to the viewer
-export function bodyTurnFor(posture, further) {
+export function bodyTurnFor(posture, further, limit = Infinity) {
     if (posture === "walk") return 0;
-    if (!SEATED.has(posture)) return further;
+    if (!SEATED.has(posture)) return Math.min(Math.max(further, -limit), limit);
     const most = Math.max(...SEAT_POSE.turns);
     return Math.min(Math.max(further, -most), most);
 }
@@ -5096,7 +5097,7 @@ export class Stage {
         if (tilt) trunk(pose, {tilt});
         if (!clip.legs) LEGS[posture]?.over(pose);
         const sideOn = !turnsToViewer(posture);
-        const turned = facing + (at && !sideOn ? bodyTurnFor(posture, lookToward(pose, at, facing)) : 0);
+        const turned = facing + (at && !sideOn ? bodyTurnFor(posture, lookToward(pose, at, facing), at.most) : 0);
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
         // the eyes go out as a lit visor comes on, closing to a line
         if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
