@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {beforeEach, expect, test} from "vitest";
 
-const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_SLANT, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, swingFloors, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
+const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_SLANT, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, phoneSide, swingFloors, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
 const {HANG: HANG_COOLDOWN, PILE, SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
 const {ACTS} = await import("../src/figure/acts.js");
@@ -482,4 +482,20 @@ test("the figure never pulls a pogo stick: a big climb with bubbles on the way i
     for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {room: Infinity}, () => roll), `no bubbles: ${roll}`).toBe(null);
     const steps = floorsOf(goal(1.6 * tall), high);
     for (const roll of [0, 0.99]) expect(wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => roll)?.pogo, `steps: ${roll}`).not.toBe(true);
+});
+
+test("a figure seated has its telephone on the side its seat leaves free: along its edge at a corner, the roomier side in the middle, inside the window", () => {
+    const {beside, wide} = ACTS.phone_call.seated;
+    const unit = FIGURE.size / 5.4;
+    const compose = {element: {}, left: 300, right: 700};
+    const seat = (x, on = compose) => ({x, y: 600, posture: "sit", on: on.element});
+    // the seat at the composer's right corner, its hips SEAT_INBOARD in: the telephone to its left, along the edge, never past its end
+    expect(phoneSide(seat(700 - SEAT_INBOARD * FIGURE.size), FIGURE, [compose])).toBe(-1);
+    expect(phoneSide(seat(300 + SEAT_INBOARD * FIGURE.size), FIGURE, [compose])).toBe(1);
+    // in the middle either side is free: the one with more of the edge beyond the telephone
+    expect(phoneSide(seat(450), FIGURE, [compose])).toBe(1);
+    expect(phoneSide(seat(560), FIGURE, [compose])).toBe(-1);
+    // the whole telephone stays on the floor and inside the window: by the window's right side, on a floor running past it, to the left
+    const wide_floor = {element: {}, left: 300, right: 1300};
+    expect(phoneSide(seat(1280 - (beside + wide) * unit + 5, wide_floor), FIGURE, [wide_floor])).toBe(-1);
 });

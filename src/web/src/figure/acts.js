@@ -14,7 +14,13 @@ export const ACTS = {
     // puts a finger in it over `finger`, turns it `turn` degrees round to the stop over `dial`, and the dial springs back over `back`; it
     // talks over `talk`, nodding `nods` times; it bends to put the handset back on the cradle over `hang`, stands back from it a moment, and the telephone goes in a poof over `goes`
     // While it talks and until the handset is down it says whom it calls in a speech bubble beside its head (figure/places.js callSays)
-    phone_call: {frames: 108, fps: 12, poof: [0, 0.06], above: 0.7, drop: [0.015, 0.055], settle: [0.055, 0.12], squash: 0.24, wobbles: 3, reach: [0.13, 0.2], lift: [0.2, 0.28], finger: [0.28, 0.33], dial: [0.33, 0.42], turn: 250, back: [0.42, 0.5], talk: [0.5, 0.72], nods: 3, hang: [0.72, 0.84], goes: [0.92, 1]},
+    // Seated it makes the call sitting with the one hand on the telephone's side (figure.js seatedCall), dialling first, its finger in over
+    // `seated.finger`, the dial turned over `seated.dial` and springing back over `seated.back`, then reaching the handset over `seated.reach`
+    // and lifting it to its ear over `seated.lift`; it talks and hangs up as standing. The telephone stands on the seat `seated.beside` of the
+    // figure's units across from its middle on the page, on the side the seat leaves free (perches.js phoneSide), `seated.behind` back from
+    // it, taking `seated.wide` either side of its middle (half the telephone's width and a little more), and the figure leans
+    // `seated.lean` degrees over to it as it dials
+    phone_call: {frames: 108, fps: 12, poof: [0, 0.06], above: 0.7, drop: [0.015, 0.055], settle: [0.055, 0.12], squash: 0.24, wobbles: 3, reach: [0.13, 0.2], lift: [0.2, 0.28], finger: [0.28, 0.33], dial: [0.33, 0.42], turn: 250, back: [0.42, 0.5], talk: [0.5, 0.72], nods: 3, hang: [0.72, 0.84], goes: [0.92, 1], seated: {finger: [0.13, 0.18], dial: [0.18, 0.28], back: [0.28, 0.33], reach: [0.33, 0.4], lift: [0.4, 0.5], beside: 1.3, behind: 0.15, wide: 0.7, lean: 14}},
     // a question asked: it raises a sign with a question mark on a stick over its head and waggles it
     ask_sign: {frames: 42, fps: 12, raise: [0, 0.22], waggle: [0.22, 0.78], waggles: 3, lower: [0.78, 1]},
     // a report: it brings the rolled scroll up before its chest over `raise`, a roller in each hand, the free hand's on top; pulls the

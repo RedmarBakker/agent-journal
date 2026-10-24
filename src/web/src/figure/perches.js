@@ -163,6 +163,26 @@ function hangsFree(floor, figure, floors, y, [from, to]) {
     return near.sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle))[0] ?? null;
 }
 
+// The side of the page, 1 the right or -1 the left, a figure seated at `spot` has free for the telephone it calls on (figure.js seatedCall,
+// acts.js phone_call seated): the side where the floor it sits on runs on under the whole telephone beside it and the telephone stays
+// inside its world, as at a corner the side along its edge rather than past its end; of two free sides, or of none, as on a swing's seat,
+// the one with more of the floor beyond the telephone
+export function phoneSide(spot, figure, floors) {
+    const {beside, wide} = ACTS.phone_call.seated;
+    const unit = figure.size / FRAMED.height;
+    const floor = floors.find((each) => each.element && each.element === spot.on);
+    const world = worldBox();
+    const room = (way) => {
+        const middle = spot.x + way * beside * unit;
+        const [left, right] = [middle - wide * unit, middle + wide * unit];
+        const under = floor ? Math.min(right, floor.right) - Math.max(left, floor.left) : 0;
+        return {free: left >= world.left && right <= world.right && under >= right - left, beyond: floor ? (way > 0 ? floor.right - right : left - floor.left) : 0};
+    };
+    const [right, left] = [room(1), room(-1)];
+    if (right.free !== left.free) return right.free ? 1 : -1;
+    return right.beyond >= left.beyond ? 1 : -1;
+}
+
 // Where a disco ball hangs over a figure standing at `spot`, as {kind, above, hangs}: "bubble" when it stands on a bubble with another above
 // it near enough, the ball's string tied to that one's bottom edge; `above` is how far over the feet the string is tied and `hangs` how far
 // the ball's middle is, in pixels; null with no bubble above to hang it from

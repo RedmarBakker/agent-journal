@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
-import {CLIPS, Posing, TELEPHONE, phoneArrival, telephoneOf} from "../src/figure/figure.js";
+import {CLIPS, LEGS, Posing, TELEPHONE, phoneArrival, telephoneOf} from "../src/figure/figure.js";
 import {ACTS} from "../src/figure/acts.js";
 import {PILE, choicesFor} from "../src/figure/pile.js";
 import {reactionTo} from "../src/figure/reactions.js";
@@ -333,6 +333,53 @@ test("the call plays out whole: it hangs up only once its last line has left the
     // the call a second worker joins, held only as long as it asked when it began, would hang up with the second line still on the visor
     const stale = played((raw) => (raw < joinsAt ? one : two), false);
     expect(stale.frames.find((frame) => frame.hanging).words).not.toBe(null);
+});
+
+test("a sitting figure takes a call sitting, wherever it sits, the telephone beside it on the side its seat leaves free, and sits on after", async () => {
+    const {POSTURES, drawnIn} = await import("../src/figure/places.js");
+    const {playsSeated} = await import("../src/figure/perches.js");
+    const {FRAMED} = await import("../src/figure/frame.js");
+    // the call plays wherever it sits, in the seat's own posture, so it never stands up for it, its seat kept before and after
+    for (const posture of ["sit", "composed"]) {
+        expect(call.postures, posture).toContain(posture);
+        expect(drawnIn({clip: call}, posture), posture).toBe(posture);
+        expect(playsSeated(call, posture, {seated: true, until: Infinity}, 0), posture).toBe(true);
+    }
+    const {beside, behind, reach} = act.seated;
+    // each seat it may sit on: an edge's middle facing the viewer, either corner turned along the edge, the composed seat facing and turned
+    const seats = [["sit", 0], ["sit", 70], ["sit", 290], ["composed", 0], ["composed", 25]];
+    for (const [posture, facing] of seats) {
+        for (const way of [1, -1]) {
+            for (const voice of Object.keys(stances)) {
+                const label = `${voice} ${posture} facing ${facing}, telephone to the ${way > 0 ? "right" : "left"}`;
+                const surface = POSTURES[posture].drop * FRAMED.height;
+                for (const u of [0.15, 0.25, 0.38, 0.6, 0.8]) {
+                    const pose = new Posing(RIG, posture, 0);
+                    Object.assign(pose, {facing, phoneWay: way});
+                    LEGS[posture].under(pose);
+                    call.pose(pose, stanceOf(voice), (u * (call.frames - 1)) / call.frames);
+                    LEGS[posture].over(pose);
+                    const moves = pose.moves(facing);
+                    const at = (bone) => pose.head(bone, moves.get(bone));
+                    // still seated: its hips where they sit, never crouched nor stood up
+                    expect(Math.abs(at("hips").z - 1.55), `${label} at ${u}: seated`).toBeLessThan(0.05);
+                    // the telephone on the seat's surface beside it, on the page's side it was given
+                    const phone = pose.props.get("telephone").at.clone().applyMatrix4(moves.get("root"));
+                    expect(phone.x, `${label} at ${u}: beside it on its side`).toBeCloseTo(way * beside, 6);
+                    expect(phone.y, `${label} at ${u}`).toBeCloseTo(behind, 6);
+                    expect(phone.z, `${label} at ${u}: on the seat`).toBeCloseTo(surface, 6);
+                    // the handset in the hand nearer the telephone once it has reached it, at its ear as it talks
+                    if (u >= reach[1] && u < act.hang[1]) {
+                        const nearer = ["l", "r"].sort((a, b) => at(`upper_arm_${a}`).distanceTo(phone) - at(`upper_arm_${b}`).distanceTo(phone))[0];
+                        expect(pose.props.get("telephone_handset").bone, `${label} at ${u}`).toBe(`hand_${nearer}`);
+                        // the other hand, sitting composed, still flat on the floor beside it
+                        const other = nearer === "l" ? "r" : "l";
+                        if (posture === "composed" && facing === 0) expect(Math.abs(at(`hand_${other}`).z - surface), `${label} at ${u}: the other hand flat`).toBeLessThan(0.12);
+                    }
+                }
+            }
+        }
+    }
 });
 
 test("drawn after the reference picture: a large cream dial plate fills most of the sloped front, with the dark wheel, its white holes, the marks round it and the label, and the handset has round ends", () => {

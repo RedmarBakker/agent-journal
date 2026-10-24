@@ -48,7 +48,7 @@ import {
     stretchedFrame,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {CLEARED_SECONDS, MARK_STAY, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {CLEARED_SECONDS, MARK_STAY, phoneSide, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {GRAB, headTiltFor, onHead, pointerSpeed, resumedClock, thrownFrame, thrownFrom} from "../figure/grab.js";
@@ -453,6 +453,8 @@ function step() {
         screen: lit,
         tilt: shown.clip.name === "idle" ? Math.round(tiltAt(headTilt, seconds) * 4) / 4 : 0,
         ticker: callTicker(),
+        // a call made seated has its telephone on the side its seat leaves free, decided once as the call begins (perches.js phoneSide)
+        phoneWay: shown.clip.name === "phone_call" && SEATED.has(drawn) ? (playing.phoneWay ??= phoneSide(body.place, figureSize(), latestFloors().floors)) : 1,
     });
     headAt.value = player.headAt();
     handAt.value = player.handAt();
