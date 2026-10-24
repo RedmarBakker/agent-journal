@@ -15,6 +15,7 @@ from journal.features.seed import Seed
 from journal.features.support.service import Service
 from journal.support.skill import Skill
 from journal.support.host_writer import HostWriter
+from journal.engine.demand import Demand
 
 
 class Feature[D](DataSource[D]):
@@ -26,6 +27,7 @@ class Feature[D](DataSource[D]):
     fixed: ClassVar[bool] = False
     states: ClassVar[tuple[type[BaseState], ...]] = ()
     nudges: ClassVar[tuple[Nudge, ...]] = ()
+    demands: ClassVar[tuple[Demand, ...]] = ()
     options: ClassVar[tuple[Option, ...]] = ()
     listeners: ClassVar[tuple[type[Listener], ...]] = ()
     data: ClassVar[tuple[type, ...]] = ()

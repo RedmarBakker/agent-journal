@@ -19,6 +19,9 @@ from journal.repositories.scope import Scope
 from journal.engine.states_catalogue import StatesCatalogue
 from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
+from journal.events.agent.tool_starting import ToolStarting
+from journal.engine.demand_tracker import DemandTracker
+from journal.support.moment import Moment
 from journal.events.bus import Bus
 from journal.support.decision import Decision
 from journal.support.actor import Actor
@@ -35,10 +38,10 @@ from journal.engine.support.session_agents import SessionAgents
 JOURNAL_START = "the journal started, so no compaction is still running"
 
 class StateMachine:
-    """Holds and moves each agent's stack: loads the agent's state, asks it the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, which the delivery carries out; it reaches no terminal itself."""
+    """Holds and moves each agent's stack: tracks the agent's demands at each of its tool uses, loads the agent's state, asks it the event, saves the new state, and answers with a reply, the decision and the lines, remarks and terminal moves its states asked for, which the delivery carries out; it reaches no terminal itself."""
 
-    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents) -> None:
-        self.agents, self.states, self.nudger, self.bus = agents, states, nudger, bus
+    def __init__(self, agents: Agents, states: StatesCatalogue, nudger: Nudger, bus: Bus, settings: SettingRows, features: FeatureRegistry, scope: Scope, entries: Entries, readers: DataReaders, sessions: SessionAgents, tracker: DemandTracker) -> None:
+        self.agents, self.states, self.nudger, self.bus, self.tracker = agents, states, nudger, bus, tracker
         self.listener_index = ListenerIndex({})
         self.settings, self.features, self.scope, self.entries, self.readers, self.sessions = settings, features, scope, entries, readers, sessions
 
@@ -86,6 +89,8 @@ class StateMachine:
         stack = self.states.floor(stored_stack, settings, agent.role)
         mode_change = self.mode_change(stored_stack, stack)
         event = event.with_data(self.readers.agent_data(agent))
+        if isinstance(event, ToolStarting) and not event.subagent:
+            self.tracker.count(agent.session, self.features.demands(), event.data, Moment(seconds=event.time, tool_uses=event.tool_use))
         transition = stack.top().answered(event, settings, self.listener_index.state_listeners(type(stack.top()), self.features.conducts(agent.role), type(event)))
         machine_answer = self.hook_machine(stack, self.moved(self.placed(stack, transition.target), transition), settings, event.data)
         if transition.dropped:

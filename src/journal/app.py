@@ -27,6 +27,8 @@ from journal.http.server import Server
 from journal.http.static_files import StaticFiles
 from pathlib import Path
 from journal.models.all_models import AllModels
+from journal.engine.support.demands_part import DemandsPart
+from journal.engine.support.demands_reader import DemandsReader
 
 
 class App:
@@ -45,7 +47,7 @@ class App:
         self.container.bind(StaticFiles, lambda: StaticFiles(Path(__file__).resolve().parents[1] / "web" / "dist"))
         self.container.bind(Registry, lambda: Registry(Standard.FEATURES, self.container.get(SettingRows)))
         self.container.bind(FeatureRegistry, lambda: self.container.get(Registry))
-        self.container.bind(DataReaders, lambda: DataReaders({getattr(reader, "source", feature).name: self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}, self.container.get(Scope), self.container.get(StageTimes)))
+        self.container.bind(DataReaders, lambda: DataReaders({DemandsPart.name: self.container.get(DemandsReader), **{getattr(reader, "source", feature).name: self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}}, self.container.get(Scope), self.container.get(StageTimes)))
         self.container.bind(ProcessCardPoll, lambda: ProcessCardPoll(self.container.get(Messages), {RowProcessCard.name: self.container.get(RowProcessCard), **{card.name: self.container.get(card) for feature in Standard.FEATURES for card in feature.process_cards}}))
 
     def connection(self) -> Connection:

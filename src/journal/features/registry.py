@@ -3,6 +3,8 @@ from journal.models.agent_role import AgentRole
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.safety_conduct import SafetyConduct
+from journal.engine.demand_conduct import DemandConduct
+from journal.engine.demand import Demand
 from journal.features.feature import Feature
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
@@ -34,7 +36,10 @@ class Registry:
         return [option for feature in self.features for option in feature.options]
 
     def conducts(self, role: AgentRole) -> tuple[type[Conduct], ...]:
-        return (SafetyConduct, *(conduct for feature in self.features for conduct in ROLE_CONDUCT[role](feature)))
+        return (SafetyConduct, DemandConduct, *(conduct for feature in self.features for conduct in ROLE_CONDUCT[role](feature)))
+
+    def demands(self) -> tuple[Demand, ...]:
+        return tuple(demand for feature in self.features for demand in feature.demands)
 
     def states(self) -> list[type[BaseState]]:
         return [state for feature in self.features for state in feature.states]

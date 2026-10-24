@@ -5,6 +5,7 @@ from journal.engine.states.wait import Wait
 from journal.engine.states.compacting import Compacting
 from journal.engine.states.duty import Duty
 from journal.engine.states.ended import Ended
+from journal.engine.states.demand_block import DemandBlock
 from journal.engine.support.feature_registry import FeatureRegistry
 from journal.engine.support.settings import Settings
 from journal.models.agent_role import AgentRole
@@ -13,7 +14,7 @@ from journal.models.agent_role import AgentRole
 class StatesCatalogue:
     """Every state by name: the engine's own and those of every feature, with a name two features add belonging to the one that extends the other. A row's state column becomes the class that holds its behaviour; a name no feature has any more resolves to the first state, Idle; and the bottom of a main agent's stack is the state of the work mode a feature's setting picks, Idle when none does, while a worker's is Duty."""
 
-    ENGINE_STATES: tuple[type[BaseState], ...] = (Compacting, Ended, Duty)
+    ENGINE_STATES: tuple[type[BaseState], ...] = (Compacting, Ended, Duty, DemandBlock)
 
     def __init__(self, features: FeatureRegistry) -> None:
         self._states: dict[str, type[BaseState]] = {}
