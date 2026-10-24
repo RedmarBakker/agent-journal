@@ -169,6 +169,16 @@ class Plans(ScopedRepository[Plan]):
     def next_task(self, plan: Plan) -> Task | None:
         return self.open_task(self.tree(plan))
 
+    # the order a plan's work is taken up in: a paused task first, then a blocked one to check, then the next open one
+    def waiting_task(self, plan: Plan, state: TaskState) -> Task | None:
+        return next((task for task in self.ordered(plan) if task.state == state), None)
+
+    def following_task(self, plan: Plan) -> Task | None:
+        paused = self.waiting_task(plan, TaskState.PAUSED)
+        if paused is not None or self.waiting_task(plan, TaskState.BLOCKED) is not None:
+            return paused
+        return self.next_task(plan)
+
     def open_task(self, tree: PlanTree) -> Task | None:
         return tree.plan.next_open_task(tree.ordered, self.unstartable(tree))
 

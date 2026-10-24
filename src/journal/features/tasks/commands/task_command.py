@@ -223,10 +223,6 @@ state: {task.state}
         return "\n".join(f"{task.id:>4}  {task.state:<8} {task.title}" + ("" if task.priority == NORMAL else f"  [{TaskPriority.label(task.priority)}]") for task in tasks)
 
     def _name_next(self, closed: Task) -> None:
-        paused_tasks = self.tasks.paused_tasks()
-        if paused_tasks and not self.next_task.is_planned(closed):
-            print(f"task {paused_tasks[0].id} is paused, and paused work comes first: can you go on with it now? journal task resume {paused_tasks[0].id}")
-            return
         next_open = self.next_task.following(closed)
         if next_open:
             print(next_open.line())

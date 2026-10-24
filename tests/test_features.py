@@ -14432,3 +14432,31 @@ def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(
     pytest = ["tests/test_a.py ..                 [ 40%]", "tests/test_b.py ...                [100%]", "5 passed in 0.12s"]
     assert not [miss for miss in judge.misses(reader, vitest) if "shows no progress" in miss], "a Duration line's shares are not a run's progress"
     assert [miss for miss in judge.misses(reader, pytest) if "shows no progress" in miss], "[ 40%] lines are progress the reader should show"
+
+
+def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_started_plans_first(app: App):
+    from datetime import datetime, timezone
+    from journal.features.tasks.support.next_open_task import NextOpenTask
+    from journal.models.task_state import TaskState
+    from journal.repositories.tasks import Tasks
+    console, tasks = app.console(), app.container.get(Tasks)
+    console.run(["plan", "create", "release", "--brief", "ship 4.0"], USER)
+    for title in ("closer", "plan paused", "plan blocked", "plan open one", "plan open two"):
+        console.run(["plan", "add", "1", title], USER)
+    for title, priority in (("outside paused", "normal"), ("outside blocked", "normal"), ("outside low", "low"), ("outside high", "high")):
+        console.run(["task", "create", title, "--priority", priority], USER)
+    hook(app, "SessionStart")
+    console.run(["plan", "approve", "1"], USER)
+    assert console.run(["plan", "start", "1"], AGENT).code == 0
+    states = {1: TaskState.FINISHED, 2: TaskState.PAUSED, 3: TaskState.BLOCKED, 6: TaskState.PAUSED, 7: TaskState.BLOCKED}
+    for number, state in states.items():
+        tasks.save(replace(tasks.find(number), state=state, finished_at=datetime.now(timezone.utc) if state == TaskState.FINISHED else None), Actor.user(1))
+    following = app.container.get(NextOpenTask)
+    offered = []
+    for _ in range(8):
+        offer = following.following(tasks.find(1))
+        if offer is None:
+            break
+        offered.append((offer.id, offer.state))
+        tasks.save(replace(tasks.find(offer.id), state=TaskState.FINISHED), Actor.user(1))
+    assert offered == [(2, "paused"), (3, "blocked"), (4, "open"), (5, "open"), (6, "paused"), (7, "blocked"), (9, "open"), (8, "open")]

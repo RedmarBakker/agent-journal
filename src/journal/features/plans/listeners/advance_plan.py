@@ -14,7 +14,7 @@ from journal.features.tasks.tasks_options import TasksOptions
 
 
 class AdvancePlan(Listener[Updated]):
-    """A plan is done when its last task closes, whoever closes it. For each started plan the closed task is in, by its plan link, the next open task is started by writing its row, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; at a checkpoint out of auto mode, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
+    """A plan is done when its last task closes, whoever closes it. For each started plan the closed task is in, by its plan link, the next task in the plan's order is started by writing its row, a paused one resumed before any other and none while a blocked one waits to be checked, assigned to the agent that had the closed one, or to the main agent when a worker had it or none did; at a checkpoint out of auto mode, with no task that can start, or with that agent already on a task, nothing is written, and the state decides what to do."""
 
     def __init__(self, plans: Plans, tasks: Tasks, agents: Agents, settings: SettingRows) -> None:
         self.plans, self.tasks, self.agents, self.settings = plans, tasks, agents, settings
@@ -27,7 +27,7 @@ class AdvancePlan(Listener[Updated]):
         for plan in self.plans.finished_plans(task):
             self.plans.save(plan.finished(time.timestamp()), event.actor)
         for plan in self.plans.started_plans(task):
-            following, holder = self.plans.next_task(plan), self.next_holder(task)
+            following, holder = self.plans.following_task(plan), self.next_holder(task)
             if following is not None and self.is_advancing(plan, holder):
                 self.tasks.holder_started(following.plan_started(time, plan.row_id), holder, event.actor)
 
