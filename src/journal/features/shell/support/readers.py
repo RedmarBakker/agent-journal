@@ -24,11 +24,16 @@ class Readers:
 
     def __init__(self, config: Config, aliases: Aliases) -> None:
         self.config, self.aliases = config, aliases
+        self.loaded: tuple[tuple, list[Reader | ScriptReader]] = ((), [])
 
     def all(self) -> list[Reader | ScriptReader]:
         if not self.config.readers.is_dir():
             return []
-        return [KINDS[path.suffix](path) for path in sorted(self.config.readers.iterdir()) if path.suffix in KINDS]
+        paths = [path for path in sorted(self.config.readers.iterdir()) if path.suffix in KINDS]
+        stamp = tuple((path.name, path.stat().st_mtime_ns) for path in paths)
+        if stamp != self.loaded[0]:
+            self.loaded = (stamp, [KINDS[path.suffix](path) for path in paths])
+        return self.loaded[1]
 
     def lookup(self, name: str) -> Reader | ScriptReader:
         rows = [path for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()]
