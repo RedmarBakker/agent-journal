@@ -114,16 +114,17 @@ export function footingOn(spot, floors = readFloors().floors) {
     const id = !spot.on ? null : spot.on === home?.element && docked && !spot.stays ? "home" : floorOf(spot.on);
     const floor = id && floorNamed(floors, id);
     if (!floor) return null;
-    return {id, dx: spot.x - floor.left, dy: spot.y - floor.top, posture: spot.posture, home: id === "home"};
+    return {id, dx: spot.x - floor.left, dy: spot.y - floor.top, posture: spot.posture, face: spot.face, home: id === "home"};
 }
 
 // Where a footing's spot is now, carried along as its floor moves, or null when the ground went from under the figure: the floor left the
-// snapshot, as a bubble scrolls out of the chat, it carried the figure out of its world, or it carried a hanging figure's feet down onto
-// the ground at home, where it lets go and stands
-export function footingNow({id, dx, dy, posture}, figure, floors = latestFloors().floors) {
+// snapshot, as a bubble scrolls out of the chat, it carried the figure out of its world, a seated figure's legs turned the way it faces
+// included, as when the chat narrows beside it, or it carried a hanging figure's feet down onto the ground at home, where it lets go and
+// stands
+export function footingNow({id, dx, dy, posture, face}, figure, floors = latestFloors().floors) {
     const floor = floorNamed(floors, id);
     if (!floor) return null;
-    const spot = {x: floor.left + dx, y: floor.top + dy, posture};
+    const spot = {x: floor.left + dx, y: floor.top + dy, posture, face};
     return holds(spot, figure, floors) ? {x: spot.x, y: spot.y} : null;
 }
 

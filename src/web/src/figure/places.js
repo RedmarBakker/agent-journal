@@ -161,14 +161,16 @@ export function offWalls(spot, figure, world = worldBox()) {
     return box.left >= world.left + WALL_ROOM && box.right <= world.right - WALL_ROOM;
 }
 
-// Whether a figure on a spot is inside its world: its picture within the world's left, right and top, and the line it rests on at or
-// above the world's foot, as a seated figure's legs hang past any edge it sits on; a hanging figure is inside it whole. A seated or a
-// standing figure needs only its body inside, the empty sides of its picture over the world's edge, as it sits on the very corner of a
-// box with its legs hanging past the end, or stands at the window's edge reaching past it
+// Whether a figure on a spot is inside its world: its body across (bodyAcross) within the world's left and right, its picture within the
+// world's top, and the line it rests on at or above the world's foot, as a seated figure's legs hang down past any edge it sits on; a
+// hanging figure is inside it whole. A standing figure needs only its body inside, the empty sides of its picture over the world's edge,
+// as it stands at the window's edge reaching past it; a seated one its legs too, so seated at a corner by the window's edge they never
+// hang out over it
 export function inWorld(spot, figure, world = worldBox()) {
     const box = boxAt(spot, figure);
     const width = box.right - box.left;
-    const [left, right] = spot.posture === "sit" || spot.posture === "stand" ? [box.left + BODY.left * width, box.left + BODY.right * width] : [box.left, box.right];
+    const across = bodyAcross(spot);
+    const [left, right] = [box.left + across.left * width, box.left + across.right * width];
     const foot = spot.posture === "hang" ? box.bottom : spot.y;
     return left >= world.left - EDGE && right <= world.right + EDGE && box.top >= world.top - EDGE && foot <= world.bottom + EDGE;
 }
@@ -179,6 +181,27 @@ const BODY_XS = [0.35, 0.5, 0.65];
 const BODY_YS = [0.15, 0.3, 0.45, 0.6, 0.75, 0.9];
 // the part of the picture the body is drawn in, as shares of its width and height, which is what the user can click
 export const BODY = {left: BODY_XS[0], right: BODY_XS.at(-1), top: BODY_YS[0], bottom: BODY_YS.at(-1)};
+
+// how far a seated figure's legs reach out from the middle of its picture the way it faces, its boots and all, as a share of the picture's
+// width: turned along an edge, as at a corner, they reach that far across past its hips
+export const SEATED_LEGS = 0.24;
+
+// The part of a figure's picture across which its body is drawn on `spot`, as shares of the picture's width: standing, its body (BODY);
+// seated, its body and its legs out the way it faces, as far across as it is turned from the viewer; lounging, sitting composed or
+// hanging, the whole picture, as those reach as wide as it
+export function bodyAcross(spot) {
+    if (spot.posture === "stand") return {left: BODY.left, right: BODY.right};
+    if (spot.posture !== "sit") return {left: 0, right: 1};
+    const legs = 0.5 + SEATED_LEGS * Math.sin(((spot.face ?? 0) * Math.PI) / 180);
+    return {left: Math.min(BODY.left, legs), right: Math.max(BODY.right, legs)};
+}
+
+// A spot moved across, as little as it takes, so the figure's body on it (bodyAcross) is inside its world's left and right: further left
+// near the right side, further right near the left
+export function keptAcross(spot, {size}, world = worldBox()) {
+    const across = bodyAcross(spot);
+    return {...spot, x: Math.min(Math.max(spot.x, world.left + (0.5 - across.left) * size), world.right - (across.right - 0.5) * size)};
+}
 
 // how far in from a floor's end a figure standing at its corner has its middle, as a share of its height: half its body's width and a
 // margin more, so both feet are on the floor and well clear of its end, never one over the edge
@@ -352,7 +375,7 @@ export function posedFacing(pose, now) {
 export function seatOf(figure, near) {
     const {element, edge} = freeEdge();
     const seats = ["left", "right"]
-        .map((side) => seatAt(edge, side, figure))
+        .map((side) => insideWorld(seatAt(edge, side, figure), figure))
         .filter((seat) => element && inWorld(seat, figure) && !hiddenAt(seat, figure));
     const away = (seat) => (near ? Math.abs(seat.x - near.x) : 0);
     const seat = seats.sort((a, b) => away(a) - away(b))[0];
@@ -406,16 +429,13 @@ export function freeEdge() {
 // the pixels of a figure standing on an edge above it
 export const standRise = ({size, below}) => (1 - below) * size;
 
-// A spot at home standing or sitting, moved inside the figure's world: its picture within the world's left, right and top, and the line
-// it rests on at or above the world's foot
-function insideWorld(spot, {size, below}) {
+// A spot at home standing or sitting, moved inside the figure's world: its body within the world's left and right (keptAcross), its
+// picture within the world's top, and the line it rests on at or above the world's foot
+function insideWorld(spot, figure) {
     const world = worldBox();
+    const {size, below} = figure;
     const drop = POSTURES[spot.posture].drop * size;
-    return {
-        ...spot,
-        x: Math.min(Math.max(spot.x, world.left + size / 2), world.right - size / 2),
-        y: Math.min(Math.max(spot.y, world.top + (1 - below) * size - drop), world.bottom),
-    };
+    return {...keptAcross(spot, figure, world), y: Math.min(Math.max(spot.y, world.top + (1 - below) * size - drop), world.bottom)};
 }
 
 // the places on either corner of the edge at home, and the places along it, each moved inside the figure's world

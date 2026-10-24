@@ -3,7 +3,7 @@ import * as THREE from "three";
 import {expect, test} from "vitest";
 
 const {CLIPS, LEGS, Posing} = await import("../src/figure/figure.js");
-const {POSTURES} = await import("../src/figure/places.js");
+const {POSTURES, bodyAcross} = await import("../src/figure/places.js");
 const {FRAMED} = await import("../src/figure/frame.js");
 
 const {rig, stances} = JSON.parse(readFileSync("tests/figureRig.json"));
@@ -17,13 +17,17 @@ const EDGE = POSTURES.sit.drop * FRAMED.height;
 // up forward under it, in its own units
 const FOLDED = 0.47;
 
-// the figure seated on an edge playing `name` at `u` of it for `voice`, posed as the page draws it seated (figure.js Stage.draw)
-function seated(name, u, voice) {
+// how thick the legs are about their bones, as every voice's model has them, in the figure's units
+const LEG = 0.28;
+
+// the figure seated on an edge playing `name` at `u` of it for `voice`, turned `facing` degrees, posed as the page draws it seated
+// (figure.js Stage.draw)
+function seated(name, u, voice, facing = 0) {
     const pose = new Posing(RIG, "sit", 0);
     LEGS.sit.under(pose);
     CLIPS.find((each) => each.name === name).pose(pose, stanceOf(voice), u);
     LEGS.sit.over(pose);
-    const moves = pose.moves(0);
+    const moves = pose.moves(facing);
     return (bone) => RIG.heads.get(bone).clone().applyMatrix4(moves.get(bone));
 }
 
@@ -45,6 +49,26 @@ test("sitting on an edge, the thighs slope a little down over it and the shins h
                     // the feet lower than they hung folded, and well below the edge it sits on
                     expect(hip.z - ankle.z, `${label} ${side} lower than folded`).toBeGreaterThan(FOLDED + 0.15);
                     expect(ankle.z, `${label} ${side} feet below the edge`).toBeLessThan(EDGE - 0.5);
+                }
+            }
+        }
+    }
+});
+
+test("seated turned along an edge, as at either corner, its legs stay inside the body box it is kept inside the pane by", () => {
+    for (const facing of [60, 70, 290, 300]) {
+        const across = bodyAcross({posture: "sit", face: facing});
+        for (const voice of Object.keys(stances)) {
+            for (const name of ["idle", "ledge_sit", "doze", "type"]) {
+                for (const u of [0, 0.25, 0.5, 0.75]) {
+                    const at = seated(name, u, voice, facing);
+                    for (const bone of ["shin_l", "shin_r", "foot_l", "foot_r"]) {
+                        // across the picture, which frames FRAMED.height of the figure's units about its middle, the leg's thickness counted
+                        const x = at(bone).x;
+                        const label = `${voice} ${name} ${u} turned ${facing} ${bone}`;
+                        expect(0.5 + (x + LEG) / FRAMED.height, label).toBeLessThanOrEqual(across.right);
+                        expect(0.5 + (x - LEG) / FRAMED.height, label).toBeGreaterThanOrEqual(across.left);
+                    }
                 }
             }
         }

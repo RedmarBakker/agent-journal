@@ -14,7 +14,11 @@ const {
     hiddenAt,
     AGENT_TURN,
     agentWordsAt,
+    bodyAcross,
     inWorld,
+    keptAcross,
+    SEAT_INBOARD,
+    seatOf,
     postureOf,
     restOf,
     standRise,
@@ -46,6 +50,13 @@ const page = (box, docked = null, {chat = CHAT, tabs = {}} = {}) => {
         querySelector: (selector) => (selector === "[data-figure-home]" ? home : tab(selector.match(/data-tab="(.*)"/)?.[1])),
         querySelectorAll: () => [],
     };
+};
+
+// the part of the page the figure's body takes on `spot`: its picture's box narrowed to its body in its posture (places.js bodyAcross)
+const bodyOn = (spot) => {
+    const box = boxAt(spot, FIGURE);
+    const across = bodyAcross(spot);
+    return {left: box.left + across.left * FIGURE.size, right: box.left + across.right * FIGURE.size};
 };
 
 // the floors the page holds now, with the floors of the bubbles `elements` at their boxes
@@ -107,8 +118,8 @@ test("before the chat is drawn the figure rests on the foot of the window on the
         const seat = restOf(FIGURE, near);
         expect(seat).toMatchObject({y: 720, posture: "stand"});
         expect(spotOf(null, FIGURE, near).y).toBe(seat.y);
-        expect(seat.x).toBeGreaterThanOrEqual(FIGURE.size / 2);
-        expect(seat.x).toBeLessThanOrEqual(1280 - FIGURE.size / 2);
+        expect(bodyOn(seat).left).toBeGreaterThanOrEqual(0);
+        expect(bodyOn(seat).right).toBeLessThanOrEqual(1280);
         expect(boxAt(seat, FIGURE).top).toBeGreaterThanOrEqual(0);
     }
 });
@@ -189,7 +200,7 @@ test("a figure keeps its place on the floor it rests on as that moves, and loses
     const box = {left: 300, top: 600, width: 400, height: 120};
     page(box);
     const seat = restOf(FIGURE, {x: 700, y: 600});
-    expect(footingOn(seat, floorsNow())).toEqual({id: floorOf(seat.on), dx: seat.x - 300, dy: 0, posture: "stand", home: false});
+    expect(footingOn(seat, floorsNow())).toEqual({id: floorOf(seat.on), dx: seat.x - 300, dy: 0, posture: "stand", face: seat.face, home: false});
     expect(footingOn({...seat, on: null}, floorsNow())).toBe(null);
     const moved = {getBoundingClientRect: () => ({...box, left: 320, top: 580})};
     const kept = {id: floorOf(moved), dx: 10, dy: 0, posture: "stand", home: false};
@@ -335,6 +346,47 @@ test("a figure goes to a tab only to stand on it inside its world, never in the 
     expect(on).toMatchObject({y: 300, posture: "stand", view: "inside"});
     expect(on.x).toBeGreaterThanOrEqual(480);
     expect(on.x).toBeLessThanOrEqual(520);
+});
+
+test("the figure's whole body stays inside the chat pane at every corner, seat and stand at home, moved in from the pane's sides", () => {
+    // a compose box running to within 4 pixels of the pane's sides, as in a pane narrowed beside the terminal
+    page({left: CHAT.left + 4, top: 600, width: CHAT.right - CHAT.left - 8, height: 120});
+    const sides = [{x: CHAT.left, y: 600}, {x: CHAT.right, y: 600}];
+    for (const near of sides) {
+        for (const [name, spot] of [["corner", restOf(FIGURE, near)], ["seat", seatOf(FIGURE, near)], ["stand", spotOf(null, FIGURE, near)]]) {
+            const label = `${name} near ${near.x}`;
+            expect(bodyOn(spot).left, label).toBeGreaterThanOrEqual(CHAT.left - 1e-9);
+            expect(bodyOn(spot).right, label).toBeLessThanOrEqual(CHAT.right + 1e-9);
+            expect(inWorld(spot, FIGURE), label).toBe(true);
+        }
+    }
+    // seated at a corner turned out along the edge, its legs reach past its hips: at the right it sits further left than the corner's seat,
+    // just far enough for its legs to end at the pane's side, and at the left further right
+    const [left, right] = sides.map((near) => seatOf(FIGURE, near));
+    expect(right).toMatchObject({posture: "sit", face: 70});
+    expect(right.x).toBeLessThan(CHAT.right - 4 - SEAT_INBOARD * FIGURE.size);
+    expect(bodyOn(right).right).toBeCloseTo(CHAT.right, 6);
+    expect(left).toMatchObject({posture: "sit", face: 290});
+    expect(left.x).toBeGreaterThan(CHAT.left + 4 + SEAT_INBOARD * FIGURE.size);
+    expect(bodyOn(left).left).toBeCloseTo(CHAT.left, 6);
+});
+
+test("seated turned along an edge its legs count: a seat whose legs hang over the pane's side is outside it, though its hips are not", () => {
+    page({left: 300, top: 600, width: 400, height: 120});
+    const hanging = {x: CHAT.right - 20, y: 600, posture: "sit", face: 70};
+    expect(bodyOn({...hanging, face: 0}).right, "facing the viewer, its body is inside").toBeLessThan(CHAT.right);
+    expect(inWorld(hanging, FIGURE)).toBe(false);
+    const kept = keptAcross(hanging, FIGURE);
+    expect(kept.x).toBeLessThan(hanging.x);
+    expect(inWorld(kept, FIGURE)).toBe(true);
+    expect(inWorld({...hanging, x: CHAT.left + 20, face: 290}, FIGURE)).toBe(false);
+    // and a figure seated there that the floor under it carries out over the side loses its footing, as any part of it out of the pane does
+    const bubble = {getBoundingClientRect: () => ({left: CHAT.right - 150, right: CHAT.right, width: 150, top: 400, height: 60})};
+    const seat = {x: CHAT.right - 20, y: 400, posture: "sit", face: 70, on: bubble};
+    const footing = footingOn(seat, floorsNow(bubble));
+    expect(footing.face).toBe(70);
+    expect(footingNow(footing, FIGURE, floorsNow(bubble))).toBe(null);
+    expect(footingNow({...footing, dx: footing.dx - 30}, FIGURE, floorsNow(bubble))).toEqual({x: CHAT.right - 50, y: 400});
 });
 
 test("a figure carried by what it rests on loses its footing once that would take any part of it out of the chat window", () => {
