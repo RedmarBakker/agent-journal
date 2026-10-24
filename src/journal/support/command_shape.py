@@ -22,7 +22,7 @@ CAPTURE_PATTERN = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*=\$\((.*)\)\s*$")
 CONTAINER_PATTERN = re.compile(r"^\s*docker(?:\s+compose|-compose)?\s+exec\s+(?:(?:-[euw]|--(?:env|env-file|user|workdir))[ =]\S+\s+|-{1,2}[\w-]+\s+)*\S+\s+")
 VARIABLE_PATTERN = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|\S*)(?:\s+|$))+")
 # commands that only set the scene for the one that does the work: a line's shape is the first part past them
-SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read", "test", "[", ":"}
+SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true", "mkdir", "read"}
 SEPARATORS = ("&&", "||", ";", "|")
 CHAIN_SEPARATOR = re.compile(r"&&|\|\||;|\|")
 SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true)(?:\s[^&;|]*)?\s*(?:&&|;)\s*)+")
@@ -53,8 +53,13 @@ class CommandShape:
         if HEADER_PATTERN.match(unlooped):
             return ""
         captured = CAPTURE_PATTERN.match(unlooped)
-        command = captured.group(1) if captured else unlooped
+        command = CommandShape.past_setup(captured.group(1)) if captured else unlooped
         return CONTAINER_PATTERN.sub("", WRAPPER_PATTERN.sub("", VARIABLE_PATTERN.sub("", command, count=1), count=1), count=1)
+
+    @staticmethod
+    def past_setup(chain: str) -> str:
+        commands = [command.strip() for command in CHAIN_SEPARATOR.split(chain) if command.strip()]
+        return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else chain)
 
     @classmethod
     def chain_shape(cls, parts: tuple[str, ...]) -> str:
@@ -64,7 +69,8 @@ class CommandShape:
     @classmethod
     def command_name(cls, part: str) -> str:
         if LOOP_PATTERN.match(part):
-            return cls.command_name(cls.looped(part)) if cls.looped(part) else ""
+            looped = CONTROL_PATTERN.sub("", cls.looped(part), count=1)
+            return cls.command_name(looped) if looped and not LOOP_PATTERN.match(looped) else ""
         if part.strip().startswith("(("):
             return ""
         if part.strip().startswith("("):
@@ -118,8 +124,15 @@ class CommandShape:
 
     @classmethod
     def looped(cls, part: str) -> str:
-        commands = cls.commands(part)
+        commands = [cls.unbracketed(CONTROL_PATTERN.sub("", command, count=1)) for command in cls.commands(part)]
         return next((command for command in commands if (shape := cls.plain_shape(command)) and shape.split()[0] not in SETUP_COMMANDS), "")
+
+    @staticmethod
+    def unbracketed(command: str) -> str:
+        bare = command.strip().lstrip("(").strip()
+        while bare.endswith(")") and bare.count(")") > bare.count("("):
+            bare = bare[:-1].strip()
+        return bare
 
     @classmethod
     def build(cls, part: str) -> str:
