@@ -18,6 +18,7 @@ JOURNAL_OWNED = (".claude/skills", ".agents/skills", ".journal")
 WORKTREES = ".journal/worktrees"
 LOCKS = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "Cargo.lock", "uv.lock", "Pipfile.lock", "composer.lock"}
 HARMLESS = {"echo", "printf", "test", "[", "[[", "true", ":", "pwd", "set"}
+SEPARATOR = re.compile(r"&&|\|\||;")
 PREFIXES = {"sudo", "env", "nohup", "time", "nice", "command", "exec"}
 
 
@@ -125,18 +126,39 @@ class Part:
     def cut(self) -> str:
         if not self.recorded or "<<" in self.text or self.is_reading_code() or self.tails_forever():
             return ""
-        pipes = self.pipe_positions()
+        level, end = (1, self.text.rstrip().rindex(")")) if self.is_subshell() else (0, len(self.text))
+        pipes = self.pipe_positions(level)
         first = len(pipes)
-        while first > 0 and self.is_filter(self.text[pipes[first - 1] + 1:pipes[first] if first < len(pipes) else len(self.text)]):
+        while first > 0 and self.is_filter(self.text[pipes[first - 1] + 1:pipes[first] if first < len(pipes) else end]):
             first -= 1
-        return self.text[pipes[first]:].strip() if first < len(pipes) else ""
+        return self.text[pipes[first]:end].strip() if first < len(pipes) else ""
 
     @staticmethod
     def is_filter(command: str) -> bool:
         program = command.split()[:1]
-        return bool(program) and program[0] in FILTERS and "-f" not in command.split()
+        return bool(program) and program[0] in FILTERS and "-f" not in command.split() and not SEPARATOR.search(command)
 
-    def pipe_positions(self) -> list[int]:
+    def is_subshell(self) -> bool:
+        text = self.text.strip()
+        return text.startswith("(") and text.endswith(")") and self.closing_paren(text) == len(text) - 1
+
+    @staticmethod
+    def closing_paren(text: str) -> int:
+        quote, depth = "", 0
+        for i, c in enumerate(text):
+            if quote:
+                quote = "" if c == quote else quote
+            elif c in "'\"`":
+                quote = c
+            elif c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+                if not depth:
+                    return i
+        return -1
+
+    def pipe_positions(self, level: int) -> list[int]:
         positions, quote, depth = [], "", 0
         for i, c in enumerate(self.text):
             if quote:
@@ -147,7 +169,7 @@ class Part:
                 depth += 1
             elif c in ")}":
                 depth = max(depth - 1, 0)
-            elif c == "|" and not depth and self.text[i + 1:i + 2] != "|" and self.text[i - 1:i] != "|":
+            elif c == "|" and depth == level and self.text[i + 1:i + 2] != "|" and self.text[i - 1:i] != "|":
                 positions.append(i)
         return positions
 
@@ -156,4 +178,7 @@ class Part:
 
     def uncut(self) -> "Part":
         cut = self.cut()
-        return replace(self, text=self.text[:self.text.rindex(cut)].rstrip()) if cut else self
+        if not cut:
+            return self
+        at = self.text.rindex(cut)
+        return replace(self, text=self.text[:at].rstrip() + self.text[at + len(cut):].strip())
