@@ -7,7 +7,7 @@ from journal.support.command_shape import RUNNERS, TOKEN_PATTERN, CommandShape
 VERBS: dict[str, str | dict] = {"git": {"commit": "committing", "push": "pushing", "pull": "pulling", "add": "staging", "checkout": "switching branch", "merge": "merging", "rebase": "rebasing", "status": "checking git", "diff": "reading a diff", "log": "reading history"},
          "pytest": "testing", "phpunit": "testing", "pest": "testing", "php": {"artisan": {"test": "testing", "": "running artisan"}}, "npm": {"test": "testing", "run": {"build": "building", "test": "testing", "": "running a script"}, "install": "installing", "ci": "installing"}, "vitest": "testing", "vite": {"build": "building", "": "running vite"},
          "npx": {"vitest": "testing", "vite": {"build": "building", "": "running vite"}, "": "running npx"}, "pip": "installing", "pip3": "installing", "make": "building",
-         "cargo": {"build": "building", "test": "testing", "run": "running"}, "docker": "running docker", "gh": "on github", "journal": "journalling", "cd": "moving", "ls": "listing", "cat": "reading", "sed": "reading", "grep": "searching", "rg": "searching", "find": "searching", "curl": "fetching"}
+         "cargo": {"build": "building", "test": "testing", "run": "running"}, "docker": "running docker", "gh": "on github", "journal": {"suite": "testing", "": "journalling"}, "cd": "moving", "ls": "listing", "cat": "reading", "sed": "reading", "grep": "searching", "rg": "searching", "find": "searching", "curl": "fetching"}
 
 
 # the flags that take the word after them as their value, as npm --prefix src/web, so that word is no part of what the command does
@@ -20,6 +20,9 @@ LONG_RUNS = ("testing", "building")
 
 # what a part that runs no command of its own is doing, as a loop's do or done is
 IDLE = "running"
+
+# the activity of a command that runs tests
+TESTING = "testing"
 
 class ActivityLabel:
     """What one command is doing, in a word or two, as the bar and the chat show it: git commit is committing, pytest and php artisan test are testing; the words are followed as deep as the table names them."""

@@ -7,6 +7,7 @@ class WorkersNudges:
     ORCHESTRATOR_ALIGNMENT = Nudge("workers", "orchestrator_hands_the_work_out", "you are the orchestrator: you changed at least {{limit}} lines of code yourself since your last handover", "hand the work to a worker and review what comes back", repeat=Timeout.tool_uses(50))
     SOLO_ALIGNMENT = Nudge("workers", "solo_researches_itself", "you are solo: you sent more subagents than you read and searched yourself", "read and research this yourself; a subagent is for the rare job too wide to do in your own turns", repeat=Timeout.tool_uses(50))
     READINESS = Nudge("workers", "clock_in_first", "your writes wait until you clock in", "journal task show <n>, then journal clock-in", repeat=Timeout.seconds(0))
+    TESTS_HANDED_OVER = Nudge("workers", "tests_are_handed_over", "tests are handed over here, so you do not run {{command}}", "name the test that proves the point and the command that runs it in your proof; the agent that merges runs them", repeat=Timeout.seconds(0))
     OUTPUT_UNFINISHED = Nudge("workers", "own_output_running", "your output {{n}} still runs, and your run ends when you stop", "wait for it, then stop again", repeat=Timeout.seconds(0))
     OUTPUT_END = Nudge("workers", "own_output_ended", "output {{n}} ended with code {{status}}", "read it with journal output read {{n}} --summary", repeat=Timeout.seconds(0))
     USER_CLOSURE = Nudge("workers", "task_closed_by_user", "the user closed your task {{task}}", "stop now", repeat=Timeout.seconds(0))

@@ -51,7 +51,7 @@ class Workers(Feature[WorkersData]):
     name = WorkersPart.name
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports."
-    modes = Modes(WorkersOptions.MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
+    modes = Modes(WorkersOptions.MODE, WorkersOptions.TESTING, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
     options = (WorkersOptions.BUILDER_HANDOVER_LIMIT, WorkersOptions.ORCHESTRATOR_LINE_LIMIT, WorkersOptions.SOLO_DISPATCH_LIMIT, WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.CHECK_REMINDER_USES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.POOL_SLOTS, WorkersOptions.POOL_MINUTES, WorkersOptions.POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
@@ -64,18 +64,17 @@ class Workers(Feature[WorkersData]):
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)
 
-    nudges = (WorkersNudges.BUILDER_ALIGNMENT, WorkersNudges.ORCHESTRATOR_ALIGNMENT, WorkersNudges.SOLO_ALIGNMENT, WorkersNudges.READINESS, WorkersNudges.WORK_READY, WorkersNudges.RUN_UNFINISHED, WorkersNudges.USER_CLOSURE, WorkersNudges.OUTPUT_UNFINISHED, WorkersNudges.OUTPUT_END, WorkersNudges.OPEN_TODOS, WorkersNudges.WORKER_ARRIVAL, WorkersNudges.WORKER_REPORTED, WorkersNudges.WORKER_STOPPED_UNREPORTED, WorkersNudges.UNREAD_WORKER_REPORTS, WorkersNudges.SUBAGENT_OVERFLOW, WorkersNudges.WORKER_OVERFLOW, WorkersNudges.WORKER_FILE, WorkersNudges.SUBAGENT_REUSE, WorkersNudges.WORKER_KNOWS_FILES, WorkersNudges.IDLE_CAP, WorkersNudges.REUSE_QUESTION, WorkersNudges.SILENT_WORKER, WorkersNudges.ORCHESTRATE, WorkersNudges.TASK_DELEGATION, WorkersNudges.SOLO_DISPATCH, WorkersNudges.ORCHESTRATOR_MODE, WorkersNudges.SOLO_MODE, WorkersNudges.BLOCKED_CHECK, WorkersNudges.CREW_REMINDER, WorkersNudges.PLACE_FREE, WorkersNudges.CHECK_REMINDER)
+    nudges = (WorkersNudges.BUILDER_ALIGNMENT, WorkersNudges.ORCHESTRATOR_ALIGNMENT, WorkersNudges.SOLO_ALIGNMENT, WorkersNudges.READINESS, WorkersNudges.TESTS_HANDED_OVER, WorkersNudges.WORK_READY, WorkersNudges.RUN_UNFINISHED, WorkersNudges.USER_CLOSURE, WorkersNudges.OUTPUT_UNFINISHED, WorkersNudges.OUTPUT_END, WorkersNudges.OPEN_TODOS, WorkersNudges.WORKER_ARRIVAL, WorkersNudges.WORKER_REPORTED, WorkersNudges.WORKER_STOPPED_UNREPORTED, WorkersNudges.UNREAD_WORKER_REPORTS, WorkersNudges.SUBAGENT_OVERFLOW, WorkersNudges.WORKER_OVERFLOW, WorkersNudges.WORKER_FILE, WorkersNudges.SUBAGENT_REUSE, WorkersNudges.WORKER_KNOWS_FILES, WorkersNudges.IDLE_CAP, WorkersNudges.REUSE_QUESTION, WorkersNudges.SILENT_WORKER, WorkersNudges.ORCHESTRATE, WorkersNudges.TASK_DELEGATION, WorkersNudges.SOLO_DISPATCH, WorkersNudges.ORCHESTRATOR_MODE, WorkersNudges.SOLO_MODE, WorkersNudges.BLOCKED_CHECK, WorkersNudges.CREW_REMINDER, WorkersNudges.PLACE_FREE, WorkersNudges.CHECK_REMINDER)
 
     skill = Skill("workers", 'Send a worker to write a bounded job and wait for its report; load it before dispatching one', """
 # Workers
 
 A subagent only reads. A worker writes: code in a worktree of its own, a document, a change.
 
-- `journal worker dispatch "<Name>" --task <n> --changes "<the files or document it changes>" --tests "No tests|Scoped tests|Full suite" --profile journal-senior|journal-medior ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
+- `journal worker dispatch "<Name>" --task <n> --changes "<the files or document it changes>" --profile journal-senior|journal-medior ["<more to tell it>"] [--provider claude|codex] [--worktree --libraries <a,b> | --copies <a,b> | --no-libraries]`:
   name it after a distinguished figure with a twist on their trade. A worker writes: `--changes` names what it changes,
-  and a job that only reads, searches, researches or reviews is always a subagent's, never a worker's. `--tests` names the
-  test template that says how it tests, and its text goes into the brief: Scoped tests for most jobs, No tests when you
-  run them yourself, and Full suite seldom, since the full suite is yours to run once its work is back; the project's own
+  and a job that only reads, searches, researches or reviews is always a subagent's, never a worker's. How it tests is the setting How workers test: with Hand the tests over it runs none and its proofs name them for you to run; with Run the tests it wrote, `--tests` names the
+  test template that says how, Scoped tests when not named and Full suite seldom, since the full suite is yours to run once its work is back; the project's own
   test templates are listed with `journal template list`. A worker is started only on a task: an open one with a
   brief, which is its job, or the one you own, which it then takes over. The task is the worker's from then on, never
   offered to you as next, until its work is merged or released. The profile sets its model and its instructions:

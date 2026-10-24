@@ -262,7 +262,6 @@ def test_one_task_in_hand_pause_resume_and_await(app: App):
 def test_edits_with_nothing_logged_are_asked_named_and_held_as_the_settings_say(app: App):
     from journal.support.actor import Actor
     from journal.models.setting import Setting
-    from journal.repositories.setting_rows import SettingRows
     for key, value in (("tasks.first_nudge_after", 5), ("tasks.name_every", 10), ("tasks.log_after", 20)):
         app.container.get(SettingRows).save(Setting(environment_id=0, key=key, value=value), Actor.system())
     hook(app, "SessionStart")
@@ -1671,7 +1670,6 @@ def test_a_long_journal_line_reaches_the_agent_whole_in_several_marked_pieces(ap
     from journal.supervisor_link import SupervisorLink
     transmitted = []
     monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append(fields["line"]))
-    from journal.repositories.setting_rows import SettingRows
     from journal.support.typed_lines import TypedLines
     app.container.get(SettingRows).set("delivery.batch_seconds", 0, Actor.user(1))
     terms = " ".join(f"word{n}" for n in range(1, 260))
@@ -1994,3 +1992,34 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
     gone = Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing(is_launch_folder_gone=True)), SettingsValue({"tasks.auto": False}), (BriefingConduct,))
     assert "the folder development was launched in, /projects/app, is gone" in lines(gone) and "`journal message unread`" in lines(gone), "a folder gone is told on the tick, since the session's hooks no longer run"
     assert not Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing()), SettingsValue({"tasks.auto": False}), (BriefingConduct,)).nudges, "a folder still there is no warning"
+
+
+def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App):
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.worker_token import WorkerToken
+    hook(app, "SessionStart")
+    scope, workers, tasks = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks)
+    with scope.environment(1):
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=WorkerToken.hashed("tok")), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+
+    def worker_runs(command: str):
+        data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Worker": str(worker.id), "X-Journal-Worker-Token": "tok"})
+        try:
+            with urlopen(request, timeout=5) as reply:
+                return reply.status, json.loads(reply.read())
+        except HTTPError as error:
+            return error.code, json.loads(error.read())
+    for command in ("pytest tests/test_x.py", "npm test", "npx vitest run", "journal suite"):
+        status, body = worker_runs(command)
+        assert status == 409 and "tests are handed over" in body["error"] and "proof" in body["error"], f"{command} is refused by default"
+    assert worker_runs("git status")[0] == 200, "a command that runs no test passes"
+    with scope.environment(1):
+        app.container.get(SettingRows).set("workers.testing", "Run the tests it wrote", Actor.user(1))
+    assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"

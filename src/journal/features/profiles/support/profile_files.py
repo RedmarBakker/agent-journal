@@ -7,6 +7,7 @@ from journal.providers.support.profile_view import ProfileView
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
 from journal.features.profiles.profiles_options import ProfilesOptions
+from journal.features.workers.workers_options import HAND_OVER, WorkersOptions
 
 PREFIX = "journal-"
 UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
@@ -19,7 +20,9 @@ TURN = ("You work the one task the agent that sent you assigned to you, whose br
          "Commit your work, then clock out with journal clock-out \"<what you changed, file by file, and what you could not do>\": that is your one report, "
          "to the agent that sent you, never to the user.")
 WRITES = ("You write: change what the job needs and nothing beyond it. Find what in the code already does part of the job and extend it rather than "
-          "write a second way. Write the test that proves your change and name it in a proof; do not run the suite, the agent that sent you runs it. " + TURN)
+          "write a second way. Write the test that proves your change and name it in a proof. " + TURN)
+TESTS_HANDED_OVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
+TESTS_RUN = "Run the tests you wrote, by name, never the full suite; name each in its proof with the command that runs it."
 
 
 class ProfileFiles:
@@ -65,7 +68,9 @@ class ProfileFiles:
 
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
-        return profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
+        tests = TESTS_HANDED_OVER if self.settings.option(WorkersOptions.TESTING) == HAND_OVER else TESTS_RUN
+        body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
+        return f"{body}\n\n{tests}"
 
     def kind(self, name: str) -> str:
         return self.read(name)["kind"] if (self.folder() / f"{name}.md").is_file() else ""

@@ -13,6 +13,8 @@ from journal.models.worker_state import WorkerState
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_part import WorkersPart
+from journal.features.workers.workers_options import HAND_OVER, WorkersOptions
+from journal.features.shell.support.activity_label import TESTING, ActivityLabel
 
 
 class ClockConduct(Conduct):
@@ -22,6 +24,9 @@ class ClockConduct(Conduct):
         rows = event.data.part(WorkersPart).session_workers
         if event.call.writes and rows and rows[0].state == WorkerState.DISPATCHED:
             return self.refuse(WorkersNudges.READINESS.create())
+        tests = [part.text for part in event.call.parts if ActivityLabel.build(part.text) == TESTING]
+        if rows and tests and settings.value(WorkersOptions.TESTING) == HAND_OVER:
+            return self.refuse(WorkersNudges.TESTS_HANDED_OVER.create(command=tests[0]))
         return self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:

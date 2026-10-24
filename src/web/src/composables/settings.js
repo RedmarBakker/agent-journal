@@ -1,4 +1,4 @@
-import {DEFAULT_MODE} from "../domain/modes.js";
+import {DEFAULT_MODE, DEFAULT_TESTING} from "../domain/modes.js";
 import {computed} from "vue";
 import {saveSettings} from "../actions/settings.js";
 import {store} from "../state/store.js";
@@ -6,6 +6,7 @@ import {store} from "../state/store.js";
 export const feedOn = computed(() => !store.settings || store.settings.features.file_feed !== false);
 export const barOn = computed(() => !store.settings || store.settings.features.status_bar !== false);
 export const workMode = computed(() => (store.settings && store.settings.workers && store.settings.workers.mode) || DEFAULT_MODE);
+export const workTesting = computed(() => (store.settings && store.settings.workers && store.settings.workers.testing) || DEFAULT_TESTING);
 export const autoOn = computed(() => !store.settings || !store.settings.tasks || store.settings.tasks.auto !== false);
 export const sharingOn = computed(() => !store.settings || store.settings.features.sharing !== false);
 

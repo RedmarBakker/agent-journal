@@ -789,12 +789,13 @@ def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: 
     assert refused.code != 0 and "no worker profile" in refused.error and "Agent tool" in refused.error
     assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
     assert "on claude sonnet" in dispatched(app.console(), ["Mr. Brunel", "write it", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "builder"], AGENT).text, "the profile names the model"
-    from journal.features.profiles.support.profile_files import TURN
+    from journal.features.profiles.support.profile_files import TESTS_HANDED_OVER, TURN
+    from journal.features.templates.shipped import ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.repositories.workers import Workers
     worker = app.container.get(Workers).scoped()[-1]
-    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: Run only the tests that cover your change, by name, and the new tests you write. Never run the full suite: the agent that sent you runs it once your work is back.", "the first job comes after the shift and the custom profile's instructions"
-    assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == "write it\n\nYou change: the files of its task\n\nHow you test: Run only the tests that cover your change, by name, and the new tests you write. Never run the full suite: the agent that sent you runs it once your work is back.", "a resumed worker remembers them"
+    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TESTS_HANDED_OVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
+    assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "a resumed worker remembers them"
     status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "builder", "model": "fast", "description": "x", "prompt": "y"})
     assert status == 409 and "worker profile" in body["error"] and "--profile builder" in body["error"]
     assert hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "model": "fast", "description": "x", "prompt": "y"})[0] == 200
@@ -7859,7 +7860,8 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
 
 
 def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
-    from journal.features.profiles.support.profile_files import TURN, ProfileFiles
+    from journal.features.profiles.support.profile_files import TESTS_HANDED_OVER, TESTS_RUN, TURN, ProfileFiles
+    from journal.features.workers.workers_options import RUN_OWN
     from journal.providers.support.profile import Profile
     from journal.providers.support.profile_kind import ProfileKind
     files = app.container.get(ProfileFiles)
@@ -7869,7 +7871,10 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
         assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the turn"
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileKind.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
-    assert files.worker_instructions("journal-medior") == files.read("journal-medior")["body"], "a shipped one says it once"
+    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TESTS_HANDED_OVER}", "a shipped one says it once, then how it tests"
+    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, RUN_OWN, Actor.user(1))
+    assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TESTS_HANDED_OVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
+    assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
 
 
 def test_the_main_agent_is_told_a_workers_work_is_ready_and_checks_each_proof(app: App, monkeypatch):
@@ -13221,3 +13226,13 @@ def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many
     assert [row.row_id for row in page["rows"]] == list(range(261, 301)), "three hundred open rows return the page and the page of open rows before it, never all three hundred"
     mixed = Listing(limit=20).listed(rows, lambda row: row.row_id % 2 == 1)
     assert len(mixed["rows"]) <= 40, "the page and at most a page of open rows beside it"
+
+
+def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(app: App):
+    from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
+    from journal.features.workers.commands.worker_command import WorkerCommand
+    from journal.features.workers.workers_options import HAND_OVER, RUN_OWN
+    command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
+    assert settings.option(WorkersOptions.TESTING) == HAND_OVER and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
+    settings.set(WorkersOptions.TESTING.key, RUN_OWN, Actor.user(1))
+    assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"

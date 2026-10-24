@@ -7,6 +7,10 @@ import FoldGroup from "../kit/FoldGroup.vue";
 import WorkerRow from "./WorkerRow.vue";
 import Skeleton from "../kit/Skeleton.vue";
 import {peek} from "../route.js";
+import Segmented from "../kit/Segmented.vue";
+import {TESTINGS} from "../domain/modes.js";
+import {workTesting} from "../composables/settings.js";
+import {saveSettings} from "../actions/settings.js";
 
 const props = defineProps({rows: {type: Array, default: () => []}, loading: Boolean});
 const emit = defineEmits(["close"]);
@@ -23,6 +27,9 @@ const OPEN_SECTIONS = [
 ];
 const retiredOpen = ref(false);
 
+const testingOptions = TESTINGS.map((one) => ({...one, tip: {title: one.label, line: one.note}}));
+const pickTesting = (key) => saveSettings({workers: {testing: key}});
+
 function inspect(row) {
     peek("workers", row.id);
     emit("close");
@@ -38,6 +45,10 @@ function inspect(row) {
             </div>
             <CloseButton @click="emit('close')" />
         </header>
+        <div class="workers-testing">
+            <span class="workers-testing-label">How workers test</span>
+            <Segmented :options="testingOptions" :value="workTesting" wrap @pick="pickTesting" />
+        </div>
         <div class="workers-body">
             <template v-if="!rows.length && loading">
                 <Skeleton :count="3" label="Loading the workers" />
@@ -93,6 +104,20 @@ function inspect(row) {
 
 .workers-counts {
     margin-left: 8px;
+    color: var(--text-3);
+    font-size: 12px;
+}
+
+.workers-testing {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 8px 8px;
+    border-bottom: 1px solid var(--line);
+}
+
+.workers-testing-label {
     color: var(--text-3);
     font-size: 12px;
 }

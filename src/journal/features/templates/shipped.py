@@ -36,7 +36,7 @@ ZERO_TESTS = Template(
     title="No tests",
     targets=("worker",),
     purpose=TESTING,
-    brief="Run no tests. Write the tests that prove your change and name them in your report: the agent that sent you runs them once your work is back.",
+    brief="Run no tests. Write the tests that prove your change and name each, with the command that runs it, in your proof: the agent that merges your work runs them.",
 )
 SCOPED_TESTS = Template(
     title="Scoped tests",

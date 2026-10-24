@@ -35,7 +35,8 @@ from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_options import HAND_OVER, WorkersOptions
+from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
@@ -66,7 +67,7 @@ class WorkerCommand(Command):
         dispatch.add_argument("brief", nargs="?", default="", help="what the worker is told beside its task's brief")
         dispatch.add_argument("--provider", choices=("claude", "codex"), help="the program the worker runs; the dispatching agent's own when not named")
         dispatch.add_argument("--changes", required=True, help="the files, folders or document the worker changes; a job that only reads, searches or reviews goes to a subagent, never a worker")
-        dispatch.add_argument("--tests", required=True, help="the test template that says how the worker tests: No tests, Scoped tests, Full suite, or one of the project's own; the full suite is seldom a worker's")
+        dispatch.add_argument("--tests", default="", help="the test template that says how the worker tests when the setting is Run the tests it wrote: Scoped tests by default, Full suite, or one of the project's own; with Hand the tests over the worker runs none")
         dispatch.add_argument("--profile", required=True, help="the worker profile it works by: senior, on Opus, for a job that needs judgement; medior, on Sonnet, for one whose shape is settled")
         dispatch.add_argument("--model", help="a model other than the profile's")
         dispatch.add_argument("--worktree", action="store_true", help="in a worktree of its own, for code; then name its library folders with --libraries or --copies, or say --no-libraries")
@@ -113,6 +114,7 @@ class WorkerCommand(Command):
         return self.providers.default().name if caller.provider is None else caller.provider
 
     def testing_template(self, title: str) -> Template:
+        title = ZERO_TESTS.title if self.settings.option(WorkersOptions.TESTING) == HAND_OVER else title or SCOPED_TESTS.title
         matches = self.templates.testing_titled(title, "worker")
         if not matches:
             raise Rejection(f"no test template is titled {title}: name one with --tests, {', '.join(template.title for template in self.templates.testing('worker'))}")
