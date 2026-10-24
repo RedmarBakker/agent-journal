@@ -12351,10 +12351,11 @@ def test_the_developer_tabs_own_requests_and_the_developer_command_are_never_tim
     with app.container.get(Scope).environment(MAIN):
         slow.measured("GET", "/journal/developer", 900)
         slow.measured("GET", "/cli/developer slowest", 900)
+        slow.measured("GET", "/journal/sync/batch", 5000)
         slow.measured("GET", "/journal/tasks", 40)
         slow.tally.write()
     routes = [timing.route for timing in app.container.get(DeveloperNumbers).recent()]
-    assert "/journal/tasks" in routes and not [route for route in routes if "developer" in route]
+    assert "/journal/tasks" in routes and not [route for route in routes if "developer" in route or "/sync/" in route], "nor the sync carrier's doors, whose batch waits for a commit"
 
 
 def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_failing_tick_listener_stops_no_other(app: App, monkeypatch, tmp_path):
