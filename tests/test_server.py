@@ -199,14 +199,16 @@ def test_the_port_file_is_written_while_serving(server):
 
 def test_the_port_file_is_removed_only_by_the_server_whose_port_it_names(app: App, server):
     from journal.http.server import Server
-    second = app.container.call(Server)
+    first, second = app.container.call(Server), app.container.call(Server)
+    first.start()
     second.start()
-    assert second.port != server.port and int(server.config.port_file.read_text()) == second.port, "the server that started last writes its port"
-    server.stop()
-    server.stop()
+    assert len({server.port, first.port, second.port}) == 3 and int(server.config.port_file.read_text()) == second.port, "the server that started last writes its port"
+    first.stop()
+    first.stop()
     assert int(server.config.port_file.read_text()) == second.port, "a server stopping after another took over leaves the file naming the one that serves, also stopped twice"
     second.stop()
     assert not server.config.port_file.exists(), "the server the file names removes it when it stops"
+    server.config.port_file.write_text(str(server.port))
 
 
 def test_version_fours_own_api_lists_every_resource_and_answers_a_question(server):
