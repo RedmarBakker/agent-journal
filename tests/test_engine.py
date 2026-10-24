@@ -570,6 +570,8 @@ def test_a_push_and_a_pop_write_the_trail_and_the_agents_page_shows_the_stack_to
 
 
 def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_the_main_agents_conduct(app: App):
+    from journal.models.author import Author
+    from journal.models.message import Message
     from journal.models.support.ref import Ref
     from journal.models.task import Task
     from journal.models.worker import Worker
@@ -603,6 +605,11 @@ def test_a_worker_has_a_stack_of_its_own_from_clock_in_to_clock_out_and_none_of_
     with scope.environment(1):
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
     assert agents.session_agent("w1").stack[-1]["state"] == "working" and app.container.get(SessionAgents).top("w1").task_id == task.id, "clocking in puts it to work on the task it holds"
+    with scope.environment(1):
+        app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text="for the main agent"), Actor.user(1))
+        messages = posted()
+    writes = [worker_hook("PreToolUse", tool_name="Write", tool_input={"file_path": f"w{n}.py"}) for n in range(8)]
+    assert all(status == 200 for status, _ in writes), "a worker is never held by the user's unread messages, which are the main agent's to read"
     with scope.environment(1):
         workers.save(workers.find(worker.id).delivered(2.0), Actor.worker(worker.id))
     assert agents.session_agent("w1").stack[-1]["state"] != "working" and "decision" not in worker_hook("Stop")[1], "clocked out, it may stop"

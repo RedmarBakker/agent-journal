@@ -13,6 +13,8 @@ from journal.repositories.setting_rows import SettingRows
 
 
 ROLE_CONDUCT = {AgentRole.MAIN: lambda feature: feature.conduct, AgentRole.WORKER: lambda feature: feature.worker_conduct}
+# what the journal demands of an agent is the main agent's: the user's messages, the skills and the marks are its, and a worker owes none of them
+ROLE_DEMANDS = {AgentRole.MAIN: lambda feature: feature.demands, AgentRole.WORKER: lambda feature: ()}
 
 
 class Registry:
@@ -38,8 +40,8 @@ class Registry:
     def conducts(self, role: AgentRole) -> tuple[type[Conduct], ...]:
         return (SafetyConduct, DemandConduct, *(conduct for feature in self.features for conduct in ROLE_CONDUCT[role](feature)))
 
-    def demands(self) -> tuple[Demand, ...]:
-        return tuple(demand for feature in self.features for demand in feature.demands)
+    def demands(self, role: AgentRole) -> tuple[Demand, ...]:
+        return tuple(demand for feature in self.features for demand in ROLE_DEMANDS[role](feature))
 
     def states(self) -> list[type[BaseState]]:
         return [state for feature in self.features for state in feature.states]
