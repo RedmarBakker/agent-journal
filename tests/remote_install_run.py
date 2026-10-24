@@ -22,7 +22,7 @@ def test_the_installer_runs_over_ssh_with_a_terminal_and_this_journals_release(t
     assert RemoteInstall.parsed(["install", "root@203.0.113.5"]).run() == 0
     args = seen.read_text().splitlines()
     assert args[:2] == ["-t", "root@203.0.113.5"], "ssh is given a terminal and the machine"
-    assert args[2] == f"curl -fsSL https://github.com/jessegall/agent-journal/releases/download/v{VERSION}/install.sh | TEAM_VERSION={VERSION} TEAM_ADDRESS=203.0.113.5 sh", "and runs this journal's own release of the installer"
+    assert args[2] == f"curl -fsSL https://github.com/jessegall/agent-journal/releases/download/v{VERSION}/install.sh | TEAM_ADDRESS=203.0.113.5 sh", "and runs this journal's own release of the installer"
 
 
 def test_an_agents_shell_with_no_terminal_is_told_to_run_it_in_a_terminal(tmp_path: Path):

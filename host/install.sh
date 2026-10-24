@@ -14,7 +14,10 @@ set -eu
 # is never cut short by a prompt that reads from the terminal.
 main() {
 
-    IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:${TEAM_VERSION:-latest}}"
+    # the release's team image, tagged as the release is (v4.55.3); a version given without its v is read the same
+version="${TEAM_VERSION:-latest}"
+case "$version" in latest|v*) ;; *) version="v$version" ;; esac
+IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
     HTTPS_PORT="${TEAM_HTTPS_PORT:-443}"
     HTTP_PORT="${TEAM_HTTP_PORT:-80}"
 
