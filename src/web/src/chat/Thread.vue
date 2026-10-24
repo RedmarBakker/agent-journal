@@ -302,6 +302,19 @@ function leftTheBottom(s) {
     if (settledOnce.value) scrolledUp.value = true;
 }
 
+// a reader who is away and comes to rest near the foot without scrolling there, as when the docks fold and the pane gets shorter,
+// follows again only once the pane has rested there for RESTED_MS with no scroll of theirs; their own scroll to the foot follows at once
+const RESTED_MS = 5000;
+let restTimer = 0;
+
+function restAtFoot() {
+    clearTimeout(restTimer);
+    restTimer = setTimeout(() => {
+        const s = scroller.value;
+        if (s && away.value && Date.now() - scrolledAt >= RESTED_MS && s.scrollHeight - s.scrollTop - s.clientHeight <= FAR) atTheFoot();
+    }, RESTED_MS);
+}
+
 function watchScroll() {
     const s = scroller.value;
     if (!s) return;
@@ -314,7 +327,8 @@ function watchScroll() {
         return;
     }
     if (far) readingUp();
-    else atTheFoot();
+    else if (!away.value || Date.now() - scrolledAt < BY_HAND) atTheFoot();
+    else restAtFoot();
     if (settledOnce.value && away.value) scrolledUp.value = true;
     if (scrolledUp.value && s.scrollTop < NEAR_TOP) older();
 }
