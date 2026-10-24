@@ -6,7 +6,7 @@ import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {POSTURES} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
-import {FRAMES_PER_SECOND, GRID, litPixels} from "./visorPixels.js";
+import {FRAMES_PER_SECOND, GRID, TICKER, litPixels} from "./visorPixels.js";
 import {HEAD, holdsHead} from "./looks.js";
 import {LIGHT_COLOURS, PARCEL, UFO, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
@@ -3477,8 +3477,9 @@ export function screenMaterial(mesh) {
     return material;
 }
 
-// the pictures `lit` the face passes through, each shown in turn for one of the screen's frames, `frame` counting them: a picture
-// shorter than a frame, such as the shut eye of a blink, still shows, and no more than SCREEN.framesBehind wait to be shown
+// the pictures `lit` the face passes through, each shown in turn for one of the screen's frames, `frame` counting them, FRAMES_PER_SECOND
+// of them a second, or TICKER.fps while words scroll across it: a picture shorter than a frame, such as the shut eye of a blink, still
+// shows, and no more than SCREEN.framesBehind wait to be shown
 export function screenFrame(material, lit, frame) {
     const waiting = (material.userData.waiting ??= []);
     const key = lit.map(({column, row, colour}) => `${column},${row},${colour.join(",")}`).join(";");
@@ -4799,7 +4800,7 @@ function place(figure, pose, facing, blend) {
         material.uniforms.open.value = crt.open;
         material.uniforms.flash.value = crt.flash;
         if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
-        screenFrame(material, lit, Math.floor(performance.now() * FRAMES_PER_SECOND / 1000));
+        screenFrame(material, lit, Math.floor((performance.now() * (pose.ticker ? TICKER.fps : FRAMES_PER_SECOND)) / 1000));
     }
     // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
     for (const hull of figure.visorHulls) hull.visible = !pose.screen || Boolean(pose.screen.sign);

@@ -115,19 +115,20 @@ function placed(shown, spot, face) {
 }
 
 // Text scrolled across the screen right to left in the visor's letters (visorFont.js), on the rows from TICKER.row down, moved
-// TICKER.columnsPerFrame columns each of the screen's frames: it comes in at the right edge and has passed once it leaves at the left
-export const TICKER = {row: 4, columnsPerFrame: 2};
+// TICKER.columnsPerFrame columns each of its `fps` frames a second, the screen stepping that fast while it shows, so a worker and its task
+// pass in under three seconds: it comes in at the right edge and has passed once it leaves at the left
+export const TICKER = {row: 4, columnsPerFrame: 2, fps: 30};
 
 // the width of `text` in the visor's letters, in columns, a gap after each letter
 export const tickerWidth = (text) => text.length * (LETTER.width + LETTER.gap);
 
 // how many columns `text` moves to pass the whole screen, and how many seconds that takes
 export const tickerSteps = (text) => GRID.columns + tickerWidth(text);
-export const tickerSeconds = (text) => tickerSteps(text) / TICKER.columnsPerFrame / FRAMES_PER_SECOND;
+export const tickerSeconds = (text) => tickerSteps(text) / TICKER.columnsPerFrame / TICKER.fps;
 
 // the ticker `seconds` into scrolling `text`, or null once it has passed
 export function tickerAt(text, seconds) {
-    const step = TICKER.columnsPerFrame * Math.floor(Math.max(0, seconds) * FRAMES_PER_SECOND);
+    const step = TICKER.columnsPerFrame * Math.floor(Math.max(0, seconds) * TICKER.fps);
     return text && step < tickerSteps(text) ? {text, step} : null;
 }
 

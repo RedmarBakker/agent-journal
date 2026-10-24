@@ -242,7 +242,7 @@ test("on the telephone it says whom it calls on its visor: the worker and the ta
     const {callLines} = await import("../src/domain/figureState.js");
     const {answerTo} = await import("../src/figure/reactions.js");
     const {callSays} = await import("../src/figure/places.js");
-    const {GRID, litPixels, tickerAt, tickerSteps, tickerSeconds, TICKER, FRAMES_PER_SECOND} = await import("../src/figure/visorPixels.js");
+    const {GRID, litPixels, tickerAt, tickerSteps, tickerSeconds, TICKER} = await import("../src/figure/visorPixels.js");
     // the call's beat keeps the mark that set it off
     const answer = answerTo({beat: "messaged", time: 1, card: "messages:5"}, "butler", {reacted: new Map(), played: []}, 1000, () => 0, () => true);
     expect(answer.beat).toMatchObject({clip: "phone_call", mark: "messages:5"});
@@ -256,19 +256,38 @@ test("on the telephone it says whom it calls on its visor: the worker and the ta
     expect(callSays(act.talk[0] - 0.01)).toBe(false);
     for (const u of [act.talk[0], (act.talk[0] + act.talk[1]) / 2, act.hang[0], act.hang[1] - 0.001]) expect(callSays(u), `${u}`).toBe(true);
     expect(callSays(act.hang[1])).toBe(false);
-    // the words come in at the right edge and move left a step each of the screen's frames, the eyes gone while they show
+    // the words come in at the right edge and move left a step each of the ticker's frames, the eyes gone while they show
     const text = "Worker 57   Task 2742!";
     const face = {eyed: true, eyes: 1, glance: [0, 0], tint: null, hearts: 0, stars: 0, squeezed: 0, sign: null};
     const columns = (seconds) => litPixels({...face, ticker: tickerAt(text, seconds)}).map((pixel) => pixel.column);
     expect(columns(0)).toEqual([]);
-    const later = columns(1 / FRAMES_PER_SECOND);
+    const later = columns(1 / TICKER.fps);
     expect(later.length).toBeGreaterThan(0);
     expect(Math.min(...later)).toBe(GRID.columns - TICKER.columnsPerFrame * 1);
-    expect(Math.min(...columns(3 / FRAMES_PER_SECOND))).toBe(GRID.columns - TICKER.columnsPerFrame * 3);
+    expect(Math.min(...columns(3 / TICKER.fps))).toBe(GRID.columns - TICKER.columnsPerFrame * 3);
     // once the words have passed, the eyes are back
     expect(tickerAt(text, tickerSeconds(text))).toBe(null);
     expect(tickerSteps(text)).toBeGreaterThan(GRID.columns);
     expect(litPixels({...face, ticker: tickerAt(text, tickerSeconds(text))}).length).toBe(litPixels(face).length);
+});
+
+test("on the telephone the worker and its task scroll across the visor fast, passing in a couple of seconds, within the call's own talk", async () => {
+    const {callLines} = await import("../src/domain/figureState.js");
+    const {FRAMES_PER_SECOND, TICKER, tickerAt, tickerSeconds} = await import("../src/figure/visorPixels.js");
+    // sixty columns a second, ten letters, on a screen that steps five times as often as the eyes' while the words show
+    expect(TICKER.columnsPerFrame * TICKER.fps).toBe(60);
+    expect(TICKER.fps).toBe(5 * FRAMES_PER_SECOND);
+    for (const [worker, task] of [[7, 12], [57, 2742], [1067, 2996]]) {
+        const text = callLines([{row: `workers:${worker}`, task}]).join("   ");
+        // a name and its task gone from the visor in under three seconds, where they took over thirteen before
+        expect(tickerSeconds(text), text).toBeLessThan(3);
+        expect(tickerAt(text, tickerSeconds(text)), text).toBe(null);
+        expect(tickerAt(text, tickerSeconds(text) - 1 / TICKER.fps), text).not.toBe(null);
+        // so the call needs no talk played round again for them: they have passed by the time the handset is down
+        expect(callStretch(tickerSeconds(text)).extra, text).toBe(0);
+        // and each frame of the ticker moves the words on no more than two columns, so they slide rather than jump
+        expect(tickerAt(text, 1 / TICKER.fps).step - tickerAt(text, 0.5 / TICKER.fps).step, text).toBeLessThanOrEqual(2);
+    }
 });
 
 test("drawn after the reference picture: a large cream dial plate fills most of the sloped front, with the dark wheel, its white holes, the marks round it and the label, and the handset has round ends", () => {
