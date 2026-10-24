@@ -381,3 +381,24 @@ def test_a_child_service_lives_while_its_parent_runs_and_stops_with_it(tmp_path:
     except ProcessLookupError:
         alive = False
     assert not alive, "and the child's process is gone"
+
+
+def test_a_parents_restart_stops_its_child_first_and_starts_it_after_and_stopping_all_leaves_none(tmp_path: Path, monkeypatch):
+    import threading
+    import supervisor.service as service
+    monkeypatch.setattr(service, "STOP_GRACE", 0.5)
+    environ = {"PATH": os.environ["PATH"]}
+    services = Services()
+    services.add(Service("journal", ["sleep", "30"], tmp_path, environ, tmp_path / "journal.log"))
+    services.add(Service("sync", ["sleep", "30"], tmp_path, environ, tmp_path / "sync.log", parent="journal"))
+    child = services.service("sync").described()["pid"]
+    restarting = threading.Thread(target=services.restart, args=("journal",))
+    restarting.start()
+    while restarting.is_alive():
+        services.revive_stopped()
+        time.sleep(0.01)
+    restarting.join()
+    assert services.runs("journal") and services.runs("sync"), "both run again after the parent's restart"
+    assert services.service("sync").described()["pid"] != child and [row["name"] for row in services.described()].count("sync") == 1, "the child was started anew after its parent, once, whatever the revives did meanwhile"
+    services.stop_all()
+    assert not services.runs("journal") and not services.runs("sync"), "stopping all leaves no child"

@@ -3,6 +3,7 @@ import signal
 import subprocess
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 BACKOFF = 2.0
@@ -37,6 +38,17 @@ class Service:
         with self._moving:
             self.stop()
             self.start()
+
+    @contextmanager
+    def moving(self):
+        with self._moving:
+            yield
+
+    def is_moving(self) -> bool:
+        if not self._moving.acquire(blocking=False):
+            return True
+        self._moving.release()
+        return False
 
     def is_active(self) -> bool:
         return self._process is not None and self._process.poll() is None

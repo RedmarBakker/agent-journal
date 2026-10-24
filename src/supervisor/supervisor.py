@@ -139,7 +139,8 @@ class Supervisor:
             self.restart_supervisor(resume or self.terminal.resume)
             return
         if name != FRONT:
-            threading.Timer(delay_seconds, self.services.service(name).restart).start()
+            self.services.service(name)
+            threading.Timer(delay_seconds, self.services.restart, args=(name,)).start()
             return
         LaunchResume.record(self.launch, resume)
         self._stopping = True

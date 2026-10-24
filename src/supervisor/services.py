@@ -29,6 +29,15 @@ class Services:
         self.service(name).stop()
         del self._table[name]
 
+    def restart(self, name: str) -> None:
+        parent, children = self.service(name), self.children(name)
+        with parent.moving():
+            for child in children:
+                child.stop()
+            parent.restart()
+            for child in children:
+                child.start()
+
     def children(self, name: str) -> list[Service]:
         return [service for service in self._table.values() if service.parent == name]
 
@@ -38,10 +47,15 @@ class Services:
 
     def revive_stopped(self) -> None:
         for service in list(self._table.values()):
+            if service.parent and self.is_moving(service.parent):
+                continue
             if service.parent and not self.runs(service.parent):
                 self.remove(service.name)
             else:
                 service.revive()
+
+    def is_moving(self, name: str) -> bool:
+        return name in self._table and self._table[name].is_moving()
 
     def described(self) -> list[dict]:
         return [service.described() for service in self._table.values()]
