@@ -211,7 +211,7 @@ class Updater:
                 return
         self.card.step("Installing the new version")
         try:
-            self.installer.run(target.ref, self.repository())
+            self.installer.run(target.ref, self.repository(), target.reason or f"updating to {target.label}")
         except Rejection as refused:
             self.log_reason(target)
             self.problem = str(refused)

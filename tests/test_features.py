@@ -6064,7 +6064,7 @@ class Installer:
     def __init__(self) -> None:
         self.ran = []
 
-    def run(self, ref: str, repository: str) -> None:
+    def run(self, ref: str, repository: str, reason: str) -> None:
         self.ran.append(ref)
 
 
@@ -11263,7 +11263,7 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
     pinned = f"{major}.{minor + 1}.0"
     steps = []
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}"])
-    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: steps.append(ref))
+    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository, reason: steps.append(ref))
     monkeypatch.setattr(Updater, "is_drained", lambda self: steps.append("sent its changes") or True)
     monkeypatch.setattr(Updater, "restart", lambda self: steps.append("restarted"))
     (tmp_path / "team").mkdir()
@@ -11307,7 +11307,7 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
     ended = []
     monkeypatch.setattr(os, "kill", lambda pid, number: ended.append((pid, number)))
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
-    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository: installed.append(ref))
+    monkeypatch.setattr(ReleaseInstaller, "run", lambda self, ref, repository, reason: installed.append(ref))
     monkeypatch.setattr(Updater, "is_drained", lambda self: installed.append("the team's upgrade lease") or True)
     app.container.get(TeamAccount).write({"address": "http://127.0.0.1:9", "token": "t", "device": 9, "account_id": 1, "team_version": pinned})
     try:
@@ -13225,7 +13225,7 @@ def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_afte
     from journal.support.rejection import Rejection
     from carried_sync import CarriedSync
     class RefusingInstaller:
-        def run(self, ref: str, repository: str) -> None:
+        def run(self, ref: str, repository: str, reason: str) -> None:
             raise Rejection("the install was refused")
 
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)
