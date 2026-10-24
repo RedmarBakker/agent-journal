@@ -61,10 +61,13 @@ const workersOpen = ref(false);
 const {rows: everyWorker, loaded: everyWorkerLoaded, refresh: refreshEveryWorker} = useEveryWorker(workersOpen);
 const workersAnchor = ref(null);
 
+const fitness = computed(() => (agent.value?.fitness?.is_measured ? agent.value.fitness : null));
+const fitnessLine = (one) => (fitness.value?.mode === one.key ? ` Fitness ${fitness.value.score} of 100${fitness.value.lines.length ? `: ${fitness.value.lines.join(" ")}` : "."}` : "");
 const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
-        tip: {title: one.label, line: one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note},
+        label: fitness.value?.mode === one.key ? `${one.label} ${fitness.value.score}` : one.label,
+        tip: {title: one.label, line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note) + fitnessLine(one)},
     }))
 );
 const keepMode = (key) => (store.settings = {...store.settings, workers: {...store.settings.workers, mode: key}});

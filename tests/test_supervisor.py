@@ -1,3 +1,4 @@
+import re
 """The supervisor's parts that start no process: the launch, the picker, the hooks set aside, the status line, the inbox's announce file, the mirror, and that it imports every module at start. Its processes are tested in supervisor_processes_run.py."""
 
 import io
@@ -57,24 +58,40 @@ def test_a_new_environment_in_the_menu_may_carry_on_from_a_past_conversation_or_
             {"provider": "codex", "session": "old-3", "updated_at": 1.5, "first_prompt": "a codex conversation", "line_count": 12, "title": "Codex", "environment": ""},
             {"provider": "claude", "session": "old-2", "updated_at": 1.0, "first_prompt": "already used", "line_count": 9, "title": "Claude Code", "environment": "spike"}]
     shown = []
-    menu = menu_answering(tmp_path, monkeypatch, ["3", "login", "2", "1", "2"])
+    menu = menu_answering(tmp_path, monkeypatch, ["3", "login", "2", "1", "1", "2"])
     menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
     menu.fill_chat = lambda name, session: calls.append(("filled", name, session.session, session.provider))
     real_pick = menu.screen.pick
     menu.screen.pick = lambda heading, notes, options, default: shown.append((heading, options)) or real_pick(heading, notes, options, default)
     choice = menu.choose("claude")
-    assert choice.environment == "login" and choice.resume == "old-1", "the picked conversation is carried on, with no second question"
+    assert choice.environment == "login" and choice.resume == "old-1", "the picked conversation is carried on"
     assert ("filled", "login", "old-1", "claude") in calls, "the picked conversation fills the new environment"
-    options = next(options for heading, options in shown if heading.startswith("Carry on from a past conversation"))
-    assert [option.label for option in options] == ["Start fresh", "fix the login page"], "only the launched program's free sessions, each by its first line"
-    assert options[1].separate, "Start fresh stands apart from the conversations"
-    assert not [heading for heading, _ in shown if heading == "Carry on from the last session"], "picking a conversation is the carry-on choice"
+    first = next(options for heading, options in shown if heading.startswith("Start login fresh or continue an earlier session"))
+    assert [option.label for option in first] == ["Start fresh", "Continue from an earlier session"], "the first screen holds the two choices alone"
+    sessions = next(options for heading, options in shown if heading.startswith("Which earlier session does login continue"))
+    assert [option.label for option in sessions] == ["fix the login page"], "the sessions show only once continuing is chosen: the launched program's free sessions, each by its first line"
     calls.clear()
     menu = menu_answering(tmp_path, monkeypatch, ["3", "fresh", "1", "1", "2"])
     menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
     menu.fill_chat = lambda name, session: calls.append(("filled", name, session.session, session.provider))
     assert menu.choose("claude").environment == "fresh"
     assert not [call for call in calls if call[0] == "filled"], "start fresh fills nothing"
+    shown.clear()
+    menu = menu_answering(tmp_path, monkeypatch, ["3", "toaster", "1", "2"])
+    menu.journal = lambda *argv: calls.append(argv) or (json.dumps(kept) if argv == ("environment", "sessions") else "")
+    real_pick = menu.screen.pick
+    menu.screen.pick = lambda heading, notes, options, default: shown.append((heading, options)) or real_pick(heading, notes, options, default)
+    assert menu.choose("claude", new=True) == Choice("toaster", "", stashed_hooks=False, prompt_flags=True) and not [heading for heading, _ in shown if "earlier session" in heading], "a launch into a worktree, which starts fresh, asks nothing about earlier sessions"
+
+
+def test_a_menu_line_longer_than_the_terminal_is_cut_to_its_width_so_a_redraw_lands_in_place(monkeypatch):
+    import os
+    from journal.launcher.screen import Screen
+    monkeypatch.setattr("shutil.get_terminal_size", lambda fallback=None: os.terminal_size((30, 20)))
+    screen = Screen(io.StringIO())
+    lines = screen._lines("Carry on from a past conversation in 1024-toaster?", ["a note far longer than thirty characters, which would wrap"], [Option("The whole journal thing is pretty broken in this repo, can you check")], 0, ())
+    plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
+    assert all(len(line) < 30 for line in plain), "no line drawn wider than the terminal, so none wraps"
 
 
 def test_the_hooks_question_is_asked_even_when_no_other_hooks_are_found_yet(tmp_path: Path, monkeypatch):
@@ -302,13 +319,18 @@ def test_a_bare_worktree_flag_takes_the_chosen_environments_name(tmp_path: Path)
     import subprocess
     git = lambda *args: subprocess.run(["git", "-C", str(tmp_path), *args], capture_output=True, text=True, timeout=30)
     git("init", "-q")
-    git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "--allow-empty", "-m", "start")
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "settings.json").write_text('{"permissions": {}}\n')
+    git("add", ".claude/settings.json")
+    git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "start")
     for argv in (["claude", "-w"], ["claude", "--worktree", "--resume", "abc"]):
         launch = Launch.parse(argv, tmp_path)
         assert launch.worktree_launch and launch.worktree == "" and "--worktree" not in launch.args and "-w" not in launch.args
     launch = Launch.parse(["claude", "-w"], tmp_path)
     produced = launch.launch_file(Choice("calm-river", "", False, False), StatusLine(tmp_path))
     assert produced["front"]["folder"] == str(tmp_path / ".claude" / "worktrees" / "calm-river"), "the worktree is named after the environment the menu chose"
+    hooked = json.loads((tmp_path / ".claude" / "worktrees" / "calm-river" / ".claude" / "settings.json").read_text())
+    assert "hook.sh" in json.dumps(hooked.get("hooks", {})) and str(tmp_path) in json.dumps(hooked["hooks"]), "a project whose settings git tracks without the journal's hooks gets them in the new worktree too, posting to the project's journal"
     assert "worktree-calm-river" in git("branch").stdout
 
 

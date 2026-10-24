@@ -37,6 +37,10 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
 from journal.support.command_text import CommandText
 from journal.features.thinking.support.thinking_window import WORKING_STATES
+from journal.features.workers.support.tool_use_counts import ToolUseCounts
+from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_profiles import WorkersProfiles
+from journal.features.workers.support.fitness_score import FitnessScore
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
 HISTORY_ENTRIES = 5
@@ -76,6 +80,7 @@ class AgentActivity:
         waiting_state, enabled = self.current.wait_text(agent)
         provider = self.providers.lookup(agent.provider)
         status = provider.status(agent.session, self.config.status_home)
+        fitness = self.fitness(agent)
         return {
             **ModelFields.build(agent),
             "status": "stopped" if agent.state == ENDED else self.status(agent.state, STATUS.get(kind, "idle")),
@@ -98,17 +103,22 @@ class AgentActivity:
             "trail": [self.trail_entry(e) for e in [e for e in entries if e.kind == StackHistory.KIND][-HISTORY_ENTRIES:]],
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
+            "fitness": {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines)} if fitness else None,
             **self.rolling(),
         }
+
+    def fitness(self, agent: Agent) -> FitnessScore | None:
+        profile = WorkersProfiles.mode_profile(str(self.settings.option(WorkersOptions.MODE)))
+        return profile.scored(ToolUseCounts.counted(agent)) if profile else None
 
     def rolling(self) -> dict:
         if not self.registry.is_enabled(Faults):
             return {}
-        times = {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
+        averages = {"hook_average_ms": self.numbers.rolling_hook_ms(), "request_average_ms": self.numbers.rolling_request_ms(),
                  "hook_parts": self.numbers.rolling_hook_parts(), "request_parts": self.numbers.rolling_request_parts()}
         if not self.settings.option(FaultsOptions.LOADS):
-            return times
-        return {**times, "points_average": self.numbers.rolling_points(), "point_parts": self.numbers.rolling_point_parts()}
+            return averages
+        return {**averages, "points_average": self.numbers.rolling_points(), "point_parts": self.numbers.rolling_point_parts()}
 
     def scheduled(self, agent: Agent) -> list[dict]:
         moment = time.time()

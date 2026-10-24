@@ -7,7 +7,7 @@ from journal.providers.support.profile_view import ProfileView
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
 from journal.features.profiles.profiles_options import ProfilesOptions
-from journal.features.workers.workers_options import HAND_OVER, WorkersOptions
+from journal.features.workers.workers_options import TESTS_BY_MERGER, WorkersOptions
 
 PREFIX = "journal-"
 UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
@@ -21,7 +21,7 @@ TURN = ("You work the one task the agent that sent you assigned to you, whose br
          "to the agent that sent you, never to the user.")
 WRITES = ("You write: change what the job needs and nothing beyond it. Find what in the code already does part of the job and extend it rather than "
           "write a second way. Write the test that proves your change and name it in a proof. " + TURN)
-TESTS_HANDED_OVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
+TEST_HANDOVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
 TESTS_RUN = "Run the tests you wrote, by name, never the full suite; name each in its proof with the command that runs it."
 
 
@@ -68,7 +68,7 @@ class ProfileFiles:
 
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
-        tests = TESTS_HANDED_OVER if self.settings.option(WorkersOptions.TESTING) == HAND_OVER else TESTS_RUN
+        tests = TEST_HANDOVER if self.settings.option(WorkersOptions.TESTING) == TESTS_BY_MERGER else TESTS_RUN
         body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
         return f"{body}\n\n{tests}"
 

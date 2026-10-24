@@ -17,6 +17,7 @@ from journal.launcher.support.page_wait import PageWait
 from journal.support.project_command import ProjectCommand
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
+from journal.providers.provider import HOOK_SCRIPT
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.config import Config
@@ -97,7 +98,7 @@ class Launch:
         if not self.confirmed and UpdatePrompt(Config(self.root), menu.screen, ReleaseSource()).installed_newer():
             self.log("updated before the launch: starting again on the new version")
             os.execv(sys.executable, [sys.executable, *sys.argv])
-        return menu.choose(self.agent, matched, self.new, self.stashed, self.is_skipping(), self.confirmed)
+        return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)
 
     def is_resumable(self, choice: Choice, folder: Path) -> bool:
         if not choice.resume or folder == self.root or self.provider.copy_session(self.root, folder, choice.resume):
@@ -192,6 +193,7 @@ class Launch:
         folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
         if folder != self.root:
             Menu(self.root, self.package / "journal.py").journal("environment", "branch", choice.environment, worktree.branch)
+            self.provider.wire_hooks(folder, HOOK_SCRIPT, self.provider.hook_command(self.root))
         journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}}
         front_health = {"file": str(self.runtime / "hooks" / f"{choice.environment}.fired"), "stale_seconds": FRONT_STALE_SECONDS, "warning": DEAD_HOOKS_WARNING}
         return {

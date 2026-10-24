@@ -1,3 +1,4 @@
+import re
 import os
 import shutil
 import sys
@@ -84,7 +85,19 @@ class Screen:
             lines += [""] if option.separate and i else []
             lines.append(f"  {self.paint(ACCENT, '❯')} {self.paint(BOLD, label)}{badges}" if i == time else f"    {label}{badges}")
         hint = " · ".join([HINT, *(ACTION_HINTS[key] for key in actions)])
-        return [*lines, "", f"  {self.paint(DIM, hint)}"]
+        return [self.fitted(line) for line in [*lines, "", f"  {self.paint(DIM, hint)}"]]
+
+    @staticmethod
+    def fitted(line: str) -> str:
+        """A line cut to the terminal's width, its colour codes kept, so it never wraps and a redraw moves up exactly the rows it drew."""
+        room, kept, shown = shutil.get_terminal_size().columns - 1, [], 0
+        for part in re.split(r"(\x1b\[[0-9;]*m)", line):
+            if part.startswith("\x1b["):
+                kept.append(part)
+                continue
+            kept.append(part[:max(room - shown, 0)])
+            shown += len(part)
+        return "".join(kept) + ("\x1b[0m" if shown > room else "")
 
     def _pick_with_keys(self, heading: str, notes: list[str], options: list[Option], time: int, actions: tuple[str, ...]) -> tuple[int, str]:
         fd = sys.stdin.fileno()

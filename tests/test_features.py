@@ -792,12 +792,12 @@ def test_a_profile_has_a_kind_and_is_dispatched_only_the_way_its_kind_says(app: 
     assert refused.code != 0 and "no worker profile" in refused.error and "Agent tool" in refused.error
     assert (files.read("journal-senior")["model"], files.read("journal-medior")["model"]) == ("opus", "sonnet"), "the two shipped workers keep their own models, whatever the setting"
     assert "on claude sonnet" in dispatched(app.console(), ["Mr. Brunel", "write it", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "builder"], AGENT).text, "the profile names the model"
-    from journal.features.profiles.support.profile_files import TESTS_HANDED_OVER, TURN
+    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TURN
     from journal.features.templates.shipped import ZERO_TESTS
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.repositories.workers import Workers
     worker = app.container.get(Workers).scoped()[-1]
-    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TESTS_HANDED_OVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
+    assert worker.profile == "builder" and app.container.get(WorkerRunner).instructed(worker) == f"{TURN}\n\nYou write.\nSay \"done\".\n\n{TEST_HANDOVER}\n\nwrite it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the first job comes after the turn and the custom profile, and with the tests handed over the worker is told so, whatever --tests names"
     assert app.container.get(WorkerRunner).instructed(worker.with_(resume="r1")) == f"write it\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "a resumed worker remembers them"
     status, body = hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "builder", "model": "fast", "description": "x", "prompt": "y"})
     assert status == 409 and "worker profile" in body["error"] and "--profile builder" in body["error"]
@@ -1680,33 +1680,46 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
     assert "you are solo" in dispatch() + shell("echo checked"), "subagents past its own reads by the limit tell the solo agent to research itself"
 
 
-def test_the_builder_hands_out_no_more_than_its_share_and_the_orchestrator_writes_no_more_than_its_share(app: App):
+def test_the_builder_is_scored_against_its_ideal_and_told_the_measure_furthest_off(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-    settings = app.container.get(SettingRows)
     said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
     handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
     edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
-    delegating = "times more than you edited files yourself"
-    for n in range(4):
-        assert delegating not in edit(f"a{n}.md") + handover(), "a builder that writes about as much as it hands out hears nothing"
-    assert delegating not in handover() + edit("b.md") + handover() + handover()
-    assert delegating in handover(), "handovers past its own file edits by the set number tell the builder it delegates a lot and writes little, though an edit came between"
+    low = "your fitness as the builder is"
+    for n in range(6):
+        assert low not in edit(f"a{n}.md") + edit(f"b{n}.md") + handover(), "a builder writing most of its work scores near its ideal and hears nothing"
+    lines = "".join(handover() for _ in range(16))
+    assert low in lines and "your own file edits among your edits and handovers is" in lines and "take the next task yourself" in lines, "a builder handing out most of its work is told its score and the measure furthest off, with what to do"
+    from journal.http.agents.agent_activity import AgentActivity
+    from journal.repositories.agents import Agents
+    fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
+    assert fitness["mode"] == "builder" and fitness["is_measured"] and fitness["score"] < 70 and fitness["lines"][0].startswith("your own file edits"), "the agent bar's row carries the score and the measures off the ideal"
 
 
-def test_the_orchestrator_is_told_when_it_writes_far_more_than_it_hands_out(app: App):
+def test_the_orchestrator_is_scored_against_its_ideal_and_told_when_it_writes_far_more_than_it_hands_out(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
     said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
     handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
     edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
-    writing = "times more than you handed work out"
-    handover() + handover()
-    for n in range(9):
-        assert writing not in edit(f"c{n}.md"), "an orchestrator's own edits up to its handovers and the set number are not counted against it"
-    assert writing in edit("d.md"), "its own file edits past its handovers by its larger number tell the orchestrator it writes a lot and delegates little"
-    assert "times more than you edited files yourself" not in handover() + handover() + handover(), "and the builder's line is never said in another mode"
+    low = "your fitness as the orchestrator is"
+    for n in range(5):
+        assert low not in handover() + edit(f"c{n}.md"), "an orchestrator handing out about as much as it fixes itself hears nothing"
+    lines = "".join(edit(f"d{n}.md") for n in range(12))
+    assert low in lines and "your handovers among your edits and handovers is" in lines and "hand the work to a worker" in lines, "one writing far more than it hands out is told its score and what to do"
+    assert "your fitness as the builder" not in lines, "and never the builder's"
+
+
+def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_drifted():
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    ideal = WorkersProfiles.BUILDER.scored(ToolUseCounts(file_edits=12, handovers=2, research_count=10, subagent_dispatches=1))
+    assert (ideal.score, ideal.gaps) == (100, ()), "a builder inside every range scores 100"
+    drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
+    assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
+    assert not WorkersProfiles.SOLO.scored(ToolUseCounts(file_edits=2)).is_measured, "too few actions are not scored at all"
 
 
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
@@ -8139,8 +8152,8 @@ def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_
 
 
 def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app: App):
-    from journal.features.profiles.support.profile_files import TESTS_HANDED_OVER, TESTS_RUN, TURN, ProfileFiles
-    from journal.features.workers.workers_options import RUN_OWN
+    from journal.features.profiles.support.profile_files import TEST_HANDOVER, TESTS_RUN, TURN, ProfileFiles
+    from journal.features.workers.workers_options import TESTS_BY_WORKER
     from journal.providers.support.profile import Profile
     from journal.providers.support.profile_kind import ProfileKind
     files = app.container.get(ProfileFiles)
@@ -8150,9 +8163,9 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
         assert "journal clock-in" in body and "journal todo add" in body and "journal proof <point>" in body and "journal clock-out" in body and "Commit nothing" not in body, f"{name} teaches the turn"
     files.save(Profile("cartographer", "Draws maps", "Read, Edit", "You draw the map the brief asks for.", ProfileKind.WORKER), "sonnet", "")
     assert files.worker_instructions("cartographer").startswith(TURN + "\n\nYou draw the map"), "a worker on a custom profile is told the turn first"
-    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TESTS_HANDED_OVER}", "a shipped one says it once, then how it tests"
-    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, RUN_OWN, Actor.user(1))
-    assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TESTS_HANDED_OVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
+    assert files.worker_instructions("journal-medior") == f"{files.read('journal-medior')['body']}\n\n{TEST_HANDOVER}", "a shipped one says it once, then how it tests"
+    app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TESTS_BY_WORKER, Actor.user(1))
+    assert files.worker_instructions("journal-medior").endswith(TESTS_RUN) and TEST_HANDOVER not in files.worker_instructions("journal-medior"), "with Run the tests it wrote the profile says so"
     assert files.worker_instructions("cartographer").endswith(TESTS_RUN), "and so does a custom one"
 
 
@@ -13498,10 +13511,10 @@ def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many
 def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(app: App):
     from journal.features.templates.shipped import SCOPED_TESTS, ZERO_TESTS
     from journal.features.workers.commands.worker_command import WorkerCommand
-    from journal.features.workers.workers_options import HAND_OVER, RUN_OWN
+    from journal.features.workers.workers_options import TESTS_BY_MERGER, TESTS_BY_WORKER
     command, settings = app.container.get(WorkerCommand), app.container.get(SettingRows)
-    assert settings.option(WorkersOptions.TESTING) == HAND_OVER and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
-    settings.set(WorkersOptions.TESTING.key, RUN_OWN, Actor.user(1))
+    assert settings.option(WorkersOptions.TESTING) == TESTS_BY_MERGER and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
+    settings.set(WorkersOptions.TESTING.key, TESTS_BY_WORKER, Actor.user(1))
     assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
 
 

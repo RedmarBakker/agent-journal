@@ -92,7 +92,7 @@ class Menu:
 
     def _session_step(self, answers: dict) -> bool:
         answers["session"] = ""
-        if answers["selection"] in {row.name for row in answers["rows"]}:
+        if answers["new"] or answers["selection"] in {row.name for row in answers["rows"]}:
             return False
         sessions = self.free_sessions(answers["agent"])
         answers["session"] = self._session_question(answers["selection"], sessions) if sessions else ""
@@ -138,12 +138,11 @@ class Menu:
         return [session for session in self.past_sessions() if session.is_free() and session.provider == agent][:SESSIONS_SHOWN]
 
     def _session_question(self, name: str, sessions: list[PastSessionRow]) -> str:
-        options = [Option("Start fresh"), *(Option(session.label(), session.badges(), separate=index == 0) for index, session in enumerate(sessions))]
-        notes = ["Its chat is filled from the conversation you pick, and the agent carries it on.", "Conversations already in an environment are not listed."]
-        index = self.screen.pick(f"Carry on from a past conversation in {name}?", notes, options, 0)
-        if index == 0:
+        if self.screen.pick(f"Start {name} fresh or continue an earlier session?", [], [Option("Start fresh"), Option("Continue from an earlier session")], 0) == 0:
             return ""
-        session = sessions[index - 1]
+        options = [Option(session.label(), session.badges()) for session in sessions]
+        notes = ["Its chat is filled from the conversation you pick, and the agent carries it on.", "Conversations already in an environment are not listed."]
+        session = sessions[self.screen.pick(f"Which earlier session does {name} continue?", notes, options, 0)]
         self.fill_chat(name, session)
         return session.session
 

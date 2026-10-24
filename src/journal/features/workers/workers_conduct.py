@@ -28,6 +28,7 @@ from journal.features.workers.support.workers_data import WorkersData
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.workers_alignments import WorkersAlignments
+from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
@@ -215,7 +216,17 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
     if event.subagent:
         return state.none()
     mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
-    return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))))
+    return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
+
+
+def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
+    profile, threshold = WorkersProfiles.mode_profile(mode), settings.integer(WorkersOptions.FITNESS_THRESHOLD)
+    if profile is None or threshold <= 0:
+        return ()
+    fitness = profile.scored(workers.tool_uses)
+    if not fitness.is_measured or fitness.score >= threshold:
+        return ()
+    return (WorkersNudges.FITNESS_LOW.create(mode=mode, score=fitness.score, gaps=" ".join(f"{gap.text()}." for gap in fitness.gaps)),)
 
 
 def is_full(dispatched: tuple, limit: int) -> bool:

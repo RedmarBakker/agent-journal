@@ -2,20 +2,19 @@ from journal.support.option import USER, Option
 from journal.support.option_scope import OptionScope
 
 
-HAND_OVER = "Hand the tests over"
-RUN_OWN = "Run the tests it wrote"
+TESTS_BY_MERGER = "Hand the tests over"
+TESTS_BY_WORKER = "Run the tests it wrote"
 
 
 class WorkersOptions:
     TIMEOUT = Option("workers.timeout_minutes", "Time limit of a worker run", "Minutes a worker may run before it is stopped and its report says so; 0 sets no limit", 60, unit="min")
     MODE = Option("workers.mode", "Work mode", "Builder: the agent builds it itself and sends workers when a job is better done beside it. Orchestrator: it plans, hands the work to workers, then reviews and merges it. Solo: it does everything itself, with no workers", "builder", kind="choice", choices=("builder", "orchestrator", "solo"), scope=OptionScope.PERSON, setter=USER)
     BUILDER_HANDOVER_LIMIT = Option("workers.builder_handovers", "Builder: remind after handovers in a row", "Handovers to workers with no code edit of the builder's own between them, after which it is reminded to take the next task itself; 0 never reminds", 2, unit="handovers")
-    BUILDER_HANDOVER_SURPLUS = Option("workers.builder_handovers_over_edits", "Builder: remind after handovers beyond its own file edits", "Handovers to workers beyond the builder's own file edits, among its last 50 tool uses, after which it is reminded that it has been delegating a lot and writing little; 0 never reminds", 3, unit="handovers")
     ORCHESTRATOR_LINE_LIMIT = Option("workers.orchestrator_lines", "Orchestrator: remind after lines of its own code", "Lines of code the orchestrator changes itself since its last handover, after which it is reminded to hand the work to a worker; 0 never reminds", 200, unit="lines")
-    ORCHESTRATOR_EDIT_SURPLUS = Option("workers.orchestrator_edits_over_handovers", "Orchestrator: remind after file edits beyond its handovers", "The orchestrator's own file edits beyond its handovers to workers, among its last 50 tool uses, after which it is reminded that it has been writing a lot and delegating little; 0 never reminds", 8, unit="edits")
+    FITNESS_THRESHOLD = Option("workers.fitness_threshold", "Lowest fitness before the measures off the ideal are listed", "The fitness score, from 0 to 100, against the ideal agent of its work mode, below which the agent sees its score and the measures furthest off the ideal; 0 turns this off", 70, unit="points")
     SOLO_DISPATCH_LIMIT = Option("workers.solo_dispatches", "Solo: remind after subagents over its own research", "Subagent dispatches beyond the solo agent's own reads and searches, among its last 50 tool uses, after which it is reminded to research itself; 0 never reminds", 3, unit="dispatches")
     CHECK_REMINDER_USES = Option("workers.check_reminder_uses", "Name work to check every", "Tool uses between the reminders, while the agent works on, of a worker's work that waits to be checked and merged", 25, unit="tool uses")
-    TESTING = Option("workers.testing", "How workers test", "Hand the tests over: a worker never runs a test or the suite, each proof names the test and the command that runs it, and the agent that merges runs them. Run the tests it wrote: a worker runs the tests it wrote, by name, never the full suite", HAND_OVER, kind="choice", choices=(HAND_OVER, RUN_OWN))
+    TESTING = Option("workers.testing", "How workers test", "Hand the tests over: a worker never runs a test or the suite, each proof names the test and the command that runs it, and the agent that merges runs them. Run the tests it wrote: a worker runs the tests it wrote, by name, never the full suite", TESTS_BY_MERGER, kind="choice", choices=(TESTS_BY_MERGER, TESTS_BY_WORKER))
     WORKER_LIMIT = Option("workers.most_out", "Workers out at once", "The most workers out at a time; a dispatch past it is refused until one reports. 0 is no limit", 3, unit="workers")
     SUBAGENT_LIMIT = Option("workers.most_subagents", "Subagents running at once", "The most subagents running at a time; one more is held until one finishes. 0 is no limit", 5, unit="subagents")
     PROFILE_LIMIT = Option("workers.idle_kept", "Workers kept for reuse per profile", "The most workers of one profile kept out or idle for reuse; past it a dispatch of that profile is refused while one of them is idle, so the job goes to that one. Reviewers always start fresh. 0 is no limit", 8, unit="workers")
