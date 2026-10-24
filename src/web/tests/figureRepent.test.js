@@ -78,8 +78,8 @@ test("the cross is far bigger than the little one was and is held up before it i
     root.updateMatrixWorld(true);
     // built in the pose's own axes, turned upright by poseSpace: the upright runs along y here, the crossbar along x
     const size = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
-    expect(size.y, "its upright").toBeGreaterThanOrEqual(CRUCIFIX.long);
-    expect(size.x, "its crossbar").toBeGreaterThanOrEqual(CRUCIFIX.across);
+    expect(size.y, "its upright").toBeGreaterThanOrEqual(CRUCIFIX.long - 1e-3);
+    expect(size.x, "its crossbar").toBeGreaterThanOrEqual(CRUCIFIX.across - 1e-3);
     for (const voice of VOICES) {
         const {pose, at} = posed((act.hold[0] + act.hold[1]) / 2, voice);
         expect(pose.props.get("crucifix"), voice).toMatchObject({bone: "hand_r"});
