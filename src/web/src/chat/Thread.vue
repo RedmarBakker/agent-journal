@@ -852,7 +852,21 @@ const {colleague, me} = useColleague();
     flex: none;
     flex-direction: column;
     gap: 7px;
-    padding: 0 8px 12px;
+    padding: 0 8px;
+}
+
+/* the room under the foot belongs to its last row, so with the line faded and no docks the pane runs down to the composer and its
+   bubbles fade out there, with no empty strip between */
+.chat-foot > .thread-turn.busy {
+    margin-bottom: 12px;
+}
+
+.chat-foot > .thread-turn.busy.faded {
+    margin-bottom: 0;
+}
+
+.chat-foot:has(> .thread-turn.faded) > .chat-docks:has(> *) {
+    margin-bottom: 12px;
 }
 
 .chat-foot.hidden {
