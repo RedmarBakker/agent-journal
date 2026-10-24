@@ -15,3 +15,16 @@ test("a chat mark's progress bar takes the colour of the mark's tone, and the wo
     expect(barBackground({...run, color: "#d4a017"})).toBe("rgb(212, 160, 23)");
     expect(barBackground(run)).toBe("var(--tone-work)");
 });
+
+test("a chat mark's progress bar shows while its run is active and is gone once the run has ended", () => {
+    const show = (mark) => {
+        const root = document.createElement("div");
+        createApp({render: () => h(ChatMark, {mark})}).mount(root);
+        return root.querySelector(".progress");
+    };
+    const run = {label: "Running tests", figure: "3 passed", fraction: 0.5};
+    expect(show(run)).not.toBeNull();
+    expect(show({...run, ending: "finished"})).toBeNull();
+    expect(show({...run, ending: "failed", tone: "bad"})).toBeNull();
+    expect(show({...run, started: 1, ended: 5, state: "done"})).toBeNull();
+});

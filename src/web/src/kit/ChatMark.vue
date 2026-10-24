@@ -12,6 +12,8 @@ const tag = computed(() => (attrs.onClick ? "button" : "span"));
 const shade = computed(() => props.mark.color || (props.mark.tone ? `var(--tone-${props.mark.tone})` : ""));
 // a mark's progress bar is drawn in the mark's own tint, and in the working colour on a mark with none
 const barShade = computed(() => shade.value || "var(--tone-work)");
+// a run's bar shows while the run is active: a process or watch card that has ended, finished or failed, or any ended mark, has none
+const running = computed(() => !props.mark.ending && !props.mark.ended);
 const hover = computed(() => [props.mark.title, props.mark.time ? clock(props.mark.time) : ""].filter(Boolean).join(" · "));
 const tint = computed(() => ({
     ...(shade.value ? {"--mark": shade.value} : {}),
@@ -41,7 +43,7 @@ const tint = computed(() => ({
                 <span class="figure">{{ mark.figure }}</span>
             </template>
         </span>
-        <template v-if="mark.figure || mark.counting">
+        <template v-if="(mark.figure || mark.counting) && running">
             <span class="progress" :style="{width: `${Math.round((mark.fraction || 0) * 100)}%`, background: barShade}"></span>
         </template>
         <template v-if="mark.settled">
