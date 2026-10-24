@@ -26,7 +26,7 @@ test("a started plan listed as a summary is read whole, then its tasks, so the b
     scope.run(() => usePlanRows(() => rows("plans")));
     await vi.waitFor(() => expect(rows("tasks")).toHaveLength(3));
     const [plan] = rows("plans");
-    expect(api.list.mock.calls.map(([table]) => table)).toEqual(["plans", "tasks"]);
+    expect(api.list.mock.calls).toContainEqual(["plans", {ids: [5]}]);
     expect(standingOf(plan, rows("tasks")).title).toBe("2 of 3 tasks done");
     expect(planProgress(plan)).toMatchObject({total: 2, phase: 2, finished: 1});
     expect(barPlans(rows("plans"))).toEqual([plan]);
