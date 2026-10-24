@@ -27,6 +27,8 @@ export const isActive = (state) => ACTIVE.includes(state);
 export const countsOf = (standing) => COUNTS.filter((c) => standing[c.key]).map((c) => ({...c, n: standing[c.key], text: counted(standing[c.key], c.one, c.many)}));
 
 export const removeWords = (environment, live) =>
-    [live ? "Agent: running" : "", `Removing ${environment.name} deletes everything recorded in it.`].filter(Boolean).join(" ");
+    [live ? "Agent: running" : "", `Removing ${environment.name} deletes everything recorded in it; its worktree, if it has one, stays.`].filter(Boolean).join(" ");
+
+export const worktreeWords = (name) => `Removing the worktree of ${name} deletes its folder; its branch and its last commit stay, and a launch of ${name} makes it again.`;
 
 export const sentence = (text) => String(text).charAt(0).toUpperCase() + String(text).slice(1) + ".";

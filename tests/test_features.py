@@ -6627,6 +6627,11 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     from journal.models.agent_role import AgentRole
     from journal.repositories.agents import Agents
     from journal.repositories.environments import Environments
+    console.run(["environment", "create", "calm-river"], USER)
+    environment = app.container.get(Environments).existing("calm-river")
+    status, answer = posted(app, f"/journal/environments/{environment.row_id}/remove", {}, {"X-Journal-Env": "main"})
+    assert status == 200 and "stays" in answer["worktree"] and tree.is_dir(), "the viewer's Delete, which wipes the environment, keeps its worktree too"
+    console.run(["environment", "create", "calm-river"], USER)
     environment = app.container.get(Environments).existing("calm-river")
     working = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="s-calm", role=AgentRole.MAIN, state="working"), Actor.system())
     refused = console.run(["worktree", "remove", "calm-river"], USER)
@@ -6636,8 +6641,10 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     refused = console.run(["worktree", "remove", "calm-river"], USER)
     assert refused.code != 0 and "1 uncommitted files (draft.txt)" in refused.error and tree.is_dir(), "and while it holds uncommitted work"
     (tree / "draft.txt").unlink()
-    removed = console.run(["worktree", "remove", "calm-river"], USER)
-    assert removed.code == 0 and not tree.exists() and "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout, removed.error
+    status, removed = posted(app, f"/journal/environments/{environment.row_id}/worktree-removal", {}, {"X-Journal-Env": "main"})
+    assert status == 200 and "removed the worktree" in removed["line"] and not tree.exists(), "the viewer's button removes a clean worktree through the same checks"
+    assert "there is no worktree named calm-river" in console.run(["worktree", "remove", "calm-river"], USER).error
+    assert "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout
     assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == git("rev-parse", "worktree-calm-river").stdout.strip(), "its branch and its last commit stay, so a launch of its name makes it again"
     assert "Team chat" in console.run(["worktree", "remove", "team"], USER).error, "the Team chat's worktree is never removed this way"
 

@@ -1,5 +1,6 @@
 <script setup>
-import {countsOf, envState, isActive, removeWords, STATE_WORDS} from "../domain/journals.js";
+import {countsOf, envState, isActive, removeWords, STATE_WORDS, worktreeWords} from "../domain/journals.js";
+import {rows} from "../sync/rows.js";
 import {computed, ref} from "vue";
 import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
@@ -26,6 +27,7 @@ const envRows = computed(() =>
             state: envState(standing),
             counts: countsOf(standing),
             work: standing.task ? `· ${standing.task.title}` : "",
+            worktree: (rows("environments").find((row) => row.id === standing.environment.id) || {}).worktree || "",
         }))
         .filter((row) => matches(`${row.name} environment`, props.query))
         .sort((a, b) => here(b.name) - here(a.name) || a.name.localeCompare(b.name))
@@ -40,6 +42,17 @@ const groups = computed(() =>
 const askOf = (row) => ask.value[row.id] || null;
 const say = (row, kind = "", text = "") => (ask.value = {...ask.value, [row.id]: kind ? {kind, text} : null});
 const confirming = (row) => ["remove", "refused"].includes(askOf(row)?.kind);
+const droppingTree = (row) => askOf(row)?.kind === "worktree";
+
+async function removeTree(row) {
+    if (!droppingTree(row)) return say(row, "worktree", worktreeWords(row.name));
+    try {
+        const removed = await api.removeWorktree(row.id);
+        say(row, "done", removed.line);
+    } catch (error) {
+        say(row, "refused", error.message);
+    }
+}
 
 async function remove(row) {
     if (!confirming(row)) return say(row, "remove", removeWords(row.standing.environment, row.live));
@@ -70,7 +83,14 @@ async function remove(row) {
                             <Btn small @click="say(row)">Keep it</Btn>
                             <Btn kind="danger" small @click="remove(row)">Yes, remove</Btn>
                         </template>
+                        <template v-else-if="droppingTree(row)">
+                            <Btn small @click="say(row)">Keep it</Btn>
+                            <Btn kind="danger" small @click="removeTree(row)">Yes, remove the worktree</Btn>
+                        </template>
                         <template v-else>
+                            <template v-if="row.worktree">
+                                <Btn small :disabled="row.live" v-tip="row.live ? 'End the agent working in it to remove its worktree' : 'Remove this environment\'s worktree folder, keeping its branch'" @click="removeTree(row)">Remove worktree</Btn>
+                            </template>
                             <Btn
                                 kind="danger"
                                 small
