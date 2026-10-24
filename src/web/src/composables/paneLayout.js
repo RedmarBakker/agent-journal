@@ -1,6 +1,6 @@
 import {saveViewerSetting, settingsLoaded, viewerSetting} from "./settings.js";
 import {computed, effectScope, ref, watch} from "vue";
-import {INSPECTOR_VIEWS, VIEWS, WORKER_VIEWS, fresh, freshInspector, freshWorker, leaves, measure, opened, resized, valid} from "../domain/panes.js";
+import {INSPECTOR_VIEWS, VIEWS, WORKER_HOME_VIEWS, WORKER_VIEWS, fresh, freshInspector, freshWorker, freshWorkerHome, leaves, measure, opened, resized, valid} from "../domain/panes.js";
 import {route} from "../route.js";
 
 const SAVE_AFTER = 500;
@@ -117,3 +117,14 @@ export const usePaneLayout = () => madeFor(HOME);
 export const useInspectorLayout = () => madeFor(INSPECTOR);
 
 export const useWorkerLayout = () => madeFor(WORKER);
+
+// a worker's home view keeps a layout of its own, as each worker is laid out as the user left it
+const workerHome = (id) => ({
+    key: `worker_home_layout.${id}`,
+    tab: () => `journal.worker-home-layout.${id}`,
+    views: WORKER_HOME_VIEWS,
+    whole: true,
+    fresh: freshWorkerHome,
+});
+
+export const useWorkerHomeLayout = (id) => madeFor(workerHome(id));

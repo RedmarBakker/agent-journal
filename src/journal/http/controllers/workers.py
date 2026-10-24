@@ -8,6 +8,7 @@ from journal.features.workers.support.worker_task_view import WorkerTaskView
 from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
+from journal.repositories.agents import Agents
 from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.repositories.worker_todos import WorkerTodos
@@ -19,8 +20,8 @@ class WorkerController(Controller[Worker]):
 
     repository: Workers
 
-    def __init__(self, workers: Workers, reports: WorkerReports, actions: WorkerActions, tasks: Tasks, proofs: Proofs, todos: WorkerTodos) -> None:
-        self.repository, self.reports, self.actions, self.tasks, self.proofs, self.todos = workers, reports, actions, tasks, proofs, todos
+    def __init__(self, workers: Workers, reports: WorkerReports, actions: WorkerActions, tasks: Tasks, proofs: Proofs, todos: WorkerTodos, agents: Agents) -> None:
+        self.repository, self.reports, self.actions, self.tasks, self.proofs, self.todos, self.agents = workers, reports, actions, tasks, proofs, todos, agents
 
     def check(self, request: Request) -> Response:
         self.actions.check(request.number("id"), int(request.body.get("point", 0)), request.actor)
@@ -57,8 +58,9 @@ class WorkerController(Controller[Worker]):
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
         views = self.task_views(rows)
+        agent_ids = self.agents.session_numbers({w.session for w in rows})
         former_tasks = self.tasks.earlier_tasks()
-        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": self.queued(w)} for w in rows]
+        return [{**ModelFields.build(w), "report": self.reports.last(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": self.queued(w), "agent": agent_ids.get(w.session, 0)} for w in rows]
 
     def queued(self, worker: Worker) -> list[dict]:
         return [{"id": task.id, "title": task.title} for task in self.tasks.queue(Ref.build(worker))]

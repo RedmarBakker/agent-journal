@@ -30,8 +30,10 @@ const props = defineProps({
     views: {type: Object, required: true},
     available: {type: Array, required: true},
     flushable: {type: Array, default: () => []},
+    arrangement: {type: Object, default: null},
+    shape: {type: Object, default: () => INSPECTOR_SHAPE},
 });
-const {layout, measured, panes, open: opened, apply, replace, resize} = useInspectorLayout();
+const {layout, measured, panes, open: opened, apply, replace, resize} = props.arrangement || useInspectorLayout();
 
 const has = (key) => props.available.includes(key);
 const visibleTabs = (pane) => pane.tabs.filter(has);
@@ -122,7 +124,7 @@ function moveTab(from, to) {
     if (pane && activeOf(pane) && layout.value.panes[to]) apply(placed(layout.value, activeOf(pane), to, "center", from));
 }
 
-const shape = (next) => apply(arranged(layout.value, next));
+const rearrange = (next) => apply(arranged(layout.value, next));
 const phoneView = ref("");
 const phoneViews = computed(() => leaves(layout.value.tree).flatMap((id) => visibleTabs(layout.value.panes[id])));
 const phoneActive = computed(() => (phoneViews.value.includes(phoneView.value) ? phoneView.value : phoneViews.value[0] || ""));
@@ -137,7 +139,7 @@ function show(view) {
 
 const shown = computed(() => (narrow.value ? [phoneActive.value] : leaves(layout.value.tree).map((id) => activeOf(layout.value.panes[id])).filter(Boolean)));
 
-defineExpose({shape, layout, show, shown});
+defineExpose({shape: rearrange, layout, show, shown});
 </script>
 
 <template>
@@ -210,7 +212,7 @@ defineExpose({shape, layout, show, shown});
                 @split="splitPane"
                 @move="moveTab"
                 @shut="(id) => apply(paneClosed(layout, id))"
-                @reset="shape(INSPECTOR_SHAPE)"
+                @reset="rearrange(shape)"
                 @width="(id, width) => replace(tuned(layout, id, {width}))"
                 @flush="(id, flush) => replace(tuned(layout, id, {flush}))"
                 @verbosity="(id, verbosity) => replace(tuned(layout, id, {verbosity}))"

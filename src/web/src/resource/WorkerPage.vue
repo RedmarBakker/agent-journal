@@ -20,7 +20,7 @@ import {checkedCount, doneCount} from "../domain/workerShift.js";
 import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
 import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
-import {peek} from "../route.js";
+import {go, peek} from "../route.js";
 import {store} from "../state/store.js";
 
 const props = defineProps({resource: Object});
@@ -103,7 +103,10 @@ async function send() {
 
 <template>
     <div :class="['worker-page', {narrow}]">
-        <InspectorTop @close="emit('close')">Workers › Worker {{ resource.id }}</InspectorTop>
+        <InspectorTop @close="emit('close')">
+            Workers › Worker {{ resource.id }}
+            <Btn small class="home-link" @click="go('worker', resource.id)">Open its home view</Btn>
+        </InspectorTop>
         <InspectorSummary :name="name" :state="state" :moves="workerMoves(resource)" :facts="facts" :parts="parts" :env="env">
             <template #stamp>
                 <template v-if="hasTask">

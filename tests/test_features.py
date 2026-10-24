@@ -11769,6 +11769,47 @@ def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_t
     assert jobs() == [], "the job is gone once its CronDelete is seen"
 
 
+def test_a_workers_chat_edits_terminal_and_outputs_are_read_by_its_session_and_its_row_names_its_agent(app: App, tmp_path):
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    from journal.models.command_output import CommandOutput
+    from journal.models.message import Message
+    from journal.models.worker import Worker
+    from journal.repositories.agents import Agents
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    agent = app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+    worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w-1"), Actor.system())
+    messages = app.container.get(Messages)
+    messages.save(Message(environment_id=1, author="agent", text="Reading the lexer.", session="w-1", agent_role=AgentRole.WORKER), Actor.agent("w-1"))
+    messages.save(Message(environment_id=1, author="user", text="mind the tests", session="w-1", agent_role=AgentRole.WORKER), Actor.user(1))
+    patch = [{"oldStart": 3, "newStart": 3, "lines": [" a", "-b", "+c", " d"]}]
+
+    def as_worker(kind: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w-1", **body}, {"X-Journal-Env": "main"})
+    as_worker("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "lex.py"), "old_string": "b", "new_string": "c"}, tool_use_id="e1")
+    as_worker("PostToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / "lex.py"), "old_string": "b", "new_string": "c"}, tool_response={"structuredPatch": patch}, tool_use_id="e1")
+    as_worker("PreToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_use_id="b1")
+    as_worker("PostToolUse", tool_name="Bash", tool_input={"command": "pytest -q"}, tool_response="ok", tool_use_id="b1")
+    app.runtime().deferred.drain()
+    folder = tmp_path / "out"
+    folder.mkdir()
+    output = app.container.get(CommandOutputs).save(CommandOutput(environment_id=1, session="w-1", command="pytest -q", folder=str(folder)), Actor.agent("w-1"))
+
+    def read(path: str):
+        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+            return json.loads(reply.read())
+    row = next(w for w in read("workers")["rows"] if w["id"] == worker.id)
+    assert row["agent"] == agent.id and row["session"] == "w-1", "a worker's row names the agent row that runs it"
+    assert [m["text"] for m in read("chats/w-1")["rows"]] == ["Reading the lexer.", "mind the tests"], "the worker's own chat is read by its session"
+    assert "Reading the lexer." not in [m["text"] for m in read("messages")["rows"]], "and never reaches the main chat"
+    assert [(e["path"], e["added"], e["removed"]) for e in read(f"agents/{agent.id}/edits")["edits"]] == [("lex.py", 1, 1)], "its edits are read by its agent row"
+    assert [line["command"] for line in read(f"agents/{agent.id}/terminal")] == ["pytest -q"], "its terminal shows its shell commands"
+    assert [o.row_id for o in app.container.get(CommandOutputs).backgrounded("w-1")] in ([], [output.row_id]) and read(f"outputs/{output.row_id}")["command"] == "pytest -q", "its outputs are kept by its session"
+
+
 def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_task_follow_it(app: App):
     from journal.repositories.plans import Plans
     from journal.repositories.tasks import Tasks

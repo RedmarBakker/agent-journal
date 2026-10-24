@@ -5,8 +5,6 @@ import Btn from "../kit/Btn.vue";
 import EmptyState from "../kit/EmptyState.vue";
 import Icon from "../kit/Icon.vue";
 import ListRow from "../kit/ListRow.vue";
-import MenuPanel from "../kit/MenuPanel.vue";
-import PresetList from "../kit/PresetList.vue";
 import SwitchCase from "../kit/SwitchCase.vue";
 import FileFeed from "../chat/FileFeed.vue";
 import TerminalWindow from "../chat/TerminalWindow.vue";
@@ -16,10 +14,11 @@ import TranscriptLog from "../resource/TranscriptLog.vue";
 import AgentInspectorBands from "./AgentInspectorBands.vue";
 import AgentInspectorHead from "./AgentInspectorHead.vue";
 import AgentTodo from "./AgentTodo.vue";
+import LayoutPicker from "./LayoutPicker.vue";
 import AgentPanes from "./AgentPanes.vue";
 import {scopeIn} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
-import {INSPECTOR_FEED, INSPECTOR_PRESETS, matches, thumbnail} from "../domain/panes.js";
+import {INSPECTOR_FEED, INSPECTOR_PRESETS} from "../domain/panes.js";
 import {levelOf} from "../domain/verbosity.js";
 import {agentOf} from "../domain/agents.js";
 import {useInspectorActions} from "../composables/inspectorActions.js";
@@ -100,21 +99,6 @@ async function loadTask(id) {
     taskId.value = id;
     await (scope ? scope.holding : holding)("tasks", [id]);
 }
-const layoutMenu = ref(false);
-const layoutOpener = ref(null);
-const presets = computed(() =>
-    INSPECTOR_PRESETS.map((p) => ({
-        ...p,
-        cells: thumbnail(p.shape),
-        current: panes.value ? matches(panes.value.layout, p.shape) : false,
-    }))
-);
-
-function pickPreset(key) {
-    layoutMenu.value = false;
-    panes.value.shape(INSPECTOR_PRESETS.find((p) => p.key === key).shape);
-}
-
 const stateKey = computed(() => props.info.state.key);
 const counts = computed(() => props.info.counts);
 const link = computed(() => props.info.link);
@@ -147,16 +131,12 @@ const openSkills = () => go("skills");
             </template>
             <template #tools>
                 <slot name="tools" />
-                <span ref="layoutOpener">
-                    <Btn
-                        small
-                        v-tip="`How the panes are laid out. It applies to every agent's inspector.`"
-                        @click.stop="layoutMenu = !layoutMenu"
-                    >
-                        <Icon name="layout" :size="12" />
-                        Change layout
-                    </Btn>
-                </span>
+                <LayoutPicker
+                    :presets="INSPECTOR_PRESETS"
+                    :layout="panes ? panes.layout : null"
+                    tip="How the panes are laid out. It applies to every agent's inspector."
+                    @pick="(shape) => panes.shape(shape)"
+                />
             </template>
             <template #facts>
                 <template v-if="counts">
@@ -168,11 +148,6 @@ const openSkills = () => go("skills");
                 </template>
             </template>
         </AgentInspectorHead>
-        <template v-if="layoutMenu">
-            <MenuPanel :anchor="layoutOpener" align="end" :min-width="240" :max-width="300" @click.stop @close="layoutMenu = false">
-                <PresetList :presets="presets" @pick="pickPreset" />
-            </MenuPanel>
-        </template>
         <AgentInspectorBands
             :confirm="question && question.confirm"
             :refusal="refusal"

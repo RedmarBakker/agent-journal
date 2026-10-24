@@ -438,3 +438,21 @@ export const WORKER_SHAPE = split("row", 0.44, shaped(["points"]), split("row", 
 export const freshWorker = () => arranged({tree: leaf(1), panes: {1: {tabs: [], active: ""}}, next: 2}, WORKER_SHAPE).layout;
 
 export const freshInspector = () => arranged({tree: leaf(1), panes: {1: {tabs: [], active: ""}}, next: 2}, INSPECTOR_SHAPE).layout;
+
+export const WORKER_HOME_VIEWS = ["chat", "terminal", "feed", "transcript"];
+
+// a worker's home view: its chat and transcript on the left, its terminal and file edits on the right
+export const WORKER_HOME_SHAPE = split("row", 0.5, shaped(["chat", "transcript"]), shaped(["terminal", "feed"]));
+
+export const WORKER_HOME_PRESETS = [
+    {key: "worker-home-default", name: "Default", text: "Its chat on the left, its terminal and edits on the right", shape: WORKER_HOME_SHAPE},
+    {key: "worker-home-chat", name: "Chat only", text: "One wide column", shape: shaped(WORKER_HOME_VIEWS)},
+    {
+        key: "worker-home-review",
+        name: "File edits",
+        text: "What it changed, next to what it says",
+        shape: split("row", 0.5, shaped(["feed", "terminal"]), shaped(["chat", "transcript"])),
+    },
+];
+
+export const freshWorkerHome = () => arranged({tree: leaf(1), panes: {1: {tabs: [], active: ""}}, next: 2}, WORKER_HOME_SHAPE).layout;

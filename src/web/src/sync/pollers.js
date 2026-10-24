@@ -89,6 +89,7 @@ export const POLLERS = Object.freeze({
     },
     "rows.older": {read: ({scope, table}) => scope.earlier(table), demand: true, by: ({scope, table}) => `${scope.env}:${table}`},
     "agent.transcript.older": {read: ({client, agent, session, before}) => client.transcript(agent, session, {before, last: PAGE}), demand: true, pauses: "agent.transcript"},
+    "worker.chat": {read: ({scope}) => scope.chat.refresh(), every: 3000, by: ({scope}) => scope.chat.session},
     "agent.edits": {read: ({client, agent, cursor}) => client.edits(agent, cursor), every: 2000, by: ({client, agent}) => `${client.env()}:${agent}`},
     "agent.edits.older": {read: ({client, agent, before}) => client.edits(agent, 0, {before}), demand: true, pauses: "agent.edits"},
 });
