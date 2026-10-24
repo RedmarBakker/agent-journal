@@ -13203,3 +13203,14 @@ def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_
         listed = app.container.get(WorkerController).listed(Listing(limit=5))
     names = [row["name"] for row in listed["rows"]]
     assert names == ["Still out", "Newer 0", "Newer 1", "Newer 2", "Newer 3", "Newer 4"] and out.row_id, "a page of the newest, and beside it only a worker still out, never every finished one"
+
+
+
+def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many_are_open():
+    from journal.http.listing import Listing
+    from journal.models.task import Task
+    rows = [Task(id=number, environment_id=1, title=str(number)) for number in range(1, 301)]
+    page = Listing(limit=20).listed(rows, lambda row: True)
+    assert [row.row_id for row in page["rows"]] == list(range(261, 301)), "three hundred open rows return the page and the page of open rows before it, never all three hundred"
+    mixed = Listing(limit=20).listed(rows, lambda row: row.row_id % 2 == 1)
+    assert len(mixed["rows"]) <= 40, "the page and at most a page of open rows beside it"
