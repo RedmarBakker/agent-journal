@@ -1436,6 +1436,66 @@ def test_a_plans_timeline_has_each_start_log_and_done_of_its_tasks_oldest_first(
     assert status == 200 and moments == [], "nothing has happened on its tasks yet"
 
 
+def test_a_server_that_stops_an_older_one_tells_each_launch_it_carried_over_in_one_line_at_its_next_hook(tmp_path: Path):
+    import os
+    import socket
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from journal.models.agent import Agent
+    from journal.repositories.agents import Agents
+    from journal.repositories.messages import Messages
+    from journal.support.instance_guard import InstanceGuard
+    from journal.version import VERSION
+    app = main_journal(Config(tmp_path, port=0))
+    with app.container.get(Scope).environment(1):
+        app.container.get(Agents).save(Agent(environment_id=1, session="s1", provider="claude"), Actor.system())
+
+    class OlderJournal(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"root": str(app.config.home), "version": "4.0.0", "pid": 424242, "parent": 424241}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *values):
+            return None
+
+    older = ThreadingHTTPServer(("127.0.0.1", 0), OlderJournal)
+    threading.Thread(target=older.serve_forever, daemon=True).start()
+    app.config.port_file.parent.mkdir(parents=True, exist_ok=True)
+    app.config.port_file.write_text(str(older.server_address[1]))
+    launch = f"/tmp/journal-carried-{os.getpid()}.sock"
+    Path(launch).unlink(missing_ok=True)
+    inbox = app.config.home / "runtime" / "inboxes" / "main"
+    inbox.parent.mkdir(parents=True, exist_ok=True)
+    guard, stopped = app.container.get(InstanceGuard), []
+    guard.stop = stopped.append
+    line = f"the journal now runs version {VERSION}: a newer launch replaced the journal server on 4.0.0 that your launch had"
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as supervisor:
+        supervisor.bind(launch)
+        inbox.write_text(launch)
+        try:
+            assert guard.other_address() == f"http://127.0.0.1:{older.server_address[1]}" and stopped == [424242], "the journal on older code is stopped"
+            older.shutdown()
+            app.runtime().start()
+            hooks = f"http://127.0.0.1:{app.server().port}/hooks/claude"
+
+            def hook() -> str:
+                body = json.dumps({"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "ls"}, "tool_use_id": "t-1"}).encode()
+                return urlopen(HttpRequest(hooks, data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=5).read().decode()
+
+            marks = [message.text for message in app.container.get(Messages).global_matching(environment_id=1) if (message.data or {}).get("shows") == "updates"]
+            assert marks == [f"The journal now runs version {VERSION}: a newer launch replaced the journal server on 4.0.0 that this launch had"], "the launch's chat holds one mark saying so"
+            assert hook().count(line) == 1, "the launch's next hook is answered with the one line"
+            assert line not in hook(), "and only once"
+        finally:
+            older.server_close()
+            app.runtime().stop()
+            Path(launch).unlink(missing_ok=True)
+
+
 def test_a_second_journal_of_the_same_project_stands_by_while_the_first_answers(tmp_path: Path):
     import os
     import socket
