@@ -1,0 +1,5 @@
+{
+ "POST /journal/agents/1/pause": 134,
+ "POST /journal/agents/1/resume": 268,
+ "POST /journal/plans/1/review": 56
+}
