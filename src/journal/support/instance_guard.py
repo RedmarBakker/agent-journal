@@ -3,6 +3,7 @@ import json
 import os
 import signal
 from urllib.error import URLError
+from pathlib import Path
 from urllib.request import urlopen
 
 from journal.config import Config
@@ -14,7 +15,7 @@ LOCK_FILE = "journal.lock"
 
 
 class InstanceGuard:
-    """Whether another journal of this project answers already on the port its file names: a launch by another supervisor then stands by instead of serving beside it, since two servers would split the hooks and the typed lines between them, and the one that stopped would take the port file with it. One started by this journal's own supervisor, or left with no supervisor, is a stray and is stopped, and so is one running other code than is installed, left over from before an update, so this journal takes the port its project keeps. A journal claims the project with a lock on a file before it starts, stored for as long as it runs, so two launched at the same moment never both boot and write the same files."""
+    """Whether another journal of this project answers already on the port its file names: a launch by another supervisor then stands by instead of serving beside it, since two servers would split the hooks and the typed lines between them, and the one that stopped would take the port file with it. One started by this journal's own supervisor, or left with no supervisor, is a stray and is stopped, and so is one running other code than is installed, left over from before an update, so this journal takes the port its project keeps. A journal claims the project with a lock on a file before it starts, held for as long as it runs, so two launched at the same moment never both boot and write the same files, and one standing by waits on that lock itself and serves the moment the other is gone."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -22,9 +23,7 @@ class InstanceGuard:
         self.parent = os.getppid()
 
     def claimed(self) -> bool:
-        lock_path = self.config.home / "runtime" / LOCK_FILE
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        handle = lock_path.open("a")
+        handle = self.lock_handle()
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -32,6 +31,17 @@ class InstanceGuard:
             return False
         self.lock_file = handle
         return True
+
+    # waits on the project's lock itself, so the moment the journal that holds it is gone, this one has it
+    def claimed_when_free(self) -> None:
+        handle = self.lock_handle()
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        self.lock_file = handle
+
+    def lock_handle(self):
+        lock_path = self.config.home / "runtime" / LOCK_FILE
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        return lock_path.open("a")
 
     def other_address(self) -> str:
         for port in self.config.stored_port():
@@ -41,7 +51,7 @@ class InstanceGuard:
                     identity = JournalIdentity.parsed(json.loads(answer.read()))
             except (OSError, URLError, ValueError):
                 return ""
-            if identity.root != str(self.config.home):
+            if Path(identity.root).resolve() != self.config.home.resolve():
                 return ""
             if identity.is_replaceable(VERSION, self.parent):
                 print(f"the journal at {address}, {identity.version} started by process {identity.parent}, holds this project's port: it is stopped", flush=True)

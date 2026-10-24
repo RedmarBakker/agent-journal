@@ -1,5 +1,4 @@
 import gc
-import time
 from journal.engine.clock import Clock
 from journal.engine.job_runner import JobRunner
 from journal.engine.lifecycle import Lifecycle
@@ -45,7 +44,6 @@ from journal.events.models.purged import Purged
 from journal.console.console import Console
 
 
-INSTANCE_CHECK_SECONDS = 2.0
 
 
 class Runtime:
@@ -118,9 +116,7 @@ class Runtime:
         counterpart = self.standby.other_address()
         if counterpart:
             print(f"a journal of this project answers at {counterpart}: waiting until it is gone", flush=True)
-        while counterpart or not self.standby.claimed():
-            time.sleep(INSTANCE_CHECK_SECONDS)
-            counterpart = self.standby.other_address()
+        self.standby.claimed_when_free()
         self.start()
         while self.server._thread.is_alive():
             self.server._thread.join(1.0)

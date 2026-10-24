@@ -6722,6 +6722,25 @@ def test_a_worktree_made_through_a_symlinked_project_path_is_the_same_one_by_eit
     assert [path.name for path in (root / ".claude" / "worktrees").iterdir() if path.is_dir()] == ["calm-river"], "and no second folder or moved-aside sibling beside it"
 
 
+def test_a_journal_standing_by_serves_the_moment_the_one_holding_the_project_is_gone(app: App, tmp_path):
+    import threading
+    import time
+    from journal.config import Config
+    from journal.support.instance_guard import InstanceGuard
+    first, second = InstanceGuard(app.config), InstanceGuard(Config.rooted(app.config.root))
+    assert first.claimed() and not second.claimed(), "one journal holds the project; a second launch's stands by"
+    served = threading.Event()
+    waiting = threading.Thread(target=lambda: (second.claimed_when_free(), served.set()), daemon=True)
+    waiting.start()
+    assert not served.wait(0.3), "it waits while the first holds the project"
+    ended_at = time.monotonic()
+    first.lock_file.close()
+    assert served.wait(1.0) and time.monotonic() - ended_at < 0.5, "and holds it the moment the first is gone, well under a second, not after any retry limit"
+    linked = tmp_path / "linked"
+    linked.symlink_to(app.config.root)
+    assert Config.rooted(linked).home.resolve() == app.config.home.resolve(), "a journal reached through another spelling of its path is the same journal"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
