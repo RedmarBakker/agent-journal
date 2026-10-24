@@ -1,4 +1,5 @@
 import argparse
+import shlex
 import subprocess
 import sys
 
@@ -23,7 +24,12 @@ class RemoteInstall:
         return cls(args.target, args.version)
 
     def command(self) -> list[str]:
-        return ["ssh", "-t", self.target, f"curl -fsSL {INSTALLER.format(version=self.version)} | TEAM_VERSION={self.version} sh"]
+        settings = " ".join(f"{name}={shlex.quote(value)}" for name, value in self.installer_settings().items())
+        return ["ssh", "-t", self.target, f"curl -fsSL {INSTALLER.format(version=self.version)} | {settings} sh"]
+
+    def installer_settings(self) -> dict[str, str]:
+        host = self.target.rsplit("@", 1)[-1]
+        return {"TEAM_VERSION": self.version, **({"TEAM_ADDRESS": host} if "." in host or ":" in host else {})}
 
     def run(self) -> int:
         if not sys.stdin.isatty():

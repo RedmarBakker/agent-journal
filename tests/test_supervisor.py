@@ -14,6 +14,7 @@ from journal.launcher.support.program_settings import ProgramSettings
 from journal.launcher.launch import Launch
 from journal.support.choice import Choice
 from journal.launcher.menu import Menu
+from journal.launcher.remote_install import RemoteInstall
 from journal.launcher.screen import Screen
 from journal.providers.support.status_line import StatusLine
 from journal.providers.claude import Claude
@@ -566,4 +567,11 @@ def test_a_stop_whose_child_was_reaped_by_a_nested_stop_never_signals_pid_minus_
     assert sent == [(4242, signal.SIGTERM)], "only the child the stop began with hears a signal, and no SIGKILL follows once another caller reaped it"
     assert terminal.stop(0.1) == 0 and sent == [(4242, signal.SIGTERM)], "a terminal with no child signals nothing"
     assert Supervisor.is_running(-1) is False and Supervisor.is_running(0) is False, "an owner pid of zero or below is never probed"
+
+
+def test_remote_install_hands_the_host_it_reaches_as_the_team_address():
+    """The installer asks the address the team reaches the server at only when the ssh target names none: an ssh alias."""
+    assert "TEAM_ADDRESS=203.0.113.5 sh" in RemoteInstall("root@203.0.113.5", "4.55.0").command()[-1]
+    assert "TEAM_ADDRESS=team.example.com sh" in RemoteInstall("deploy@team.example.com", "4.55.0").command()[-1]
+    assert "TEAM_ADDRESS" not in RemoteInstall("teamserver", "4.55.0").command()[-1], "an ssh alias names no address the team can reach"
 
