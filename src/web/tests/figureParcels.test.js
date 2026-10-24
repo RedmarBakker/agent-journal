@@ -163,11 +163,11 @@ test("pushing a box is a normal push: leaning in 20 to 30 degrees, both hands fl
     }
 });
 
-test("each parcel is hammered a random eight to twenty seconds, and every blow that lands on it is counted, once", () => {
-    expect([HAMMER.least, HAMMER.most]).toEqual([8000, 20000]);
-    expect(hammerMs(() => 0)).toBe(8000);
-    expect(hammerMs(() => 0.5)).toBe(14000);
-    expect(hammerMs(() => 0.999999)).toBeCloseTo(20000, 0);
+test("each parcel is hammered a random four to ten seconds a stretch, and every blow that lands on it is counted, once", () => {
+    expect([HAMMER.least, HAMMER.most]).toEqual([4000, 10000]);
+    expect(hammerMs(() => 0)).toBe(4000);
+    expect(hammerMs(() => 0.5)).toBe(7000);
+    expect(hammerMs(() => 0.999999)).toBeCloseTo(10000, 0);
     // a blow of 8 frames lands at 0.3 of its way: none before the first lands, then one a blow
     const landed = [0, 2, 2.4, 3, 10, 10.4, 11, 26.4].map((frames) => blowsLanded(frames, 8, 0.3));
     expect(landed).toEqual([0, 0, 1, 1, 1, 2, 2, 4]);
@@ -421,14 +421,14 @@ test("pushing, the head looks ahead past the box, raised against the lean: never
     }
 });
 
-test("each box takes eight to twenty seconds of hammering, the pause before the next varies with now and then a wait of two seconds or more, and each is begun at a new spot", async () => {
+test("each stretch of hammering takes four to ten seconds, the pause before the next varies with now and then a wait of two seconds or more, and each is begun at a new spot", async () => {
     const {HAMMER, hammerMs, boxGapSeconds, buildAim, BUILD_SPREAD} = await import("../src/figure/parcels.js");
     let seed = 7;
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const hammers = Array.from({length: 40}, () => hammerMs(random));
-    expect(Math.min(...hammers)).toBeGreaterThanOrEqual(8000);
-    expect(Math.max(...hammers)).toBeLessThanOrEqual(20000);
-    expect([HAMMER.least, HAMMER.most]).toEqual([8000, 20000]);
+    expect(Math.min(...hammers)).toBeGreaterThanOrEqual(4000);
+    expect(Math.max(...hammers)).toBeLessThanOrEqual(10000);
+    expect([HAMMER.least, HAMMER.most]).toEqual([4000, 10000]);
     const gaps = Array.from({length: 40}, () => boxGapSeconds(random));
     expect(new Set(gaps.map((gap) => gap.toFixed(2))).size).toBeGreaterThan(20);
     expect(gaps.some((gap) => gap >= 2)).toBe(true);

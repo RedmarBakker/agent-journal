@@ -188,37 +188,38 @@ test("the figure sets out to build a box only where there is room behind the box
     }
 });
 
-test("now and then, about one box in four, the figure stops hammering to inspect the box with a magnifying glass, and the box is still built within its time", async () => {
+test("the figure hammers a box in stretches of four to ten seconds; now and then it looks through the glass for five, then hammers a new stretch", async () => {
     const {HAMMER, INSPECT, hammering, inspecting} = await import("../src/figure/parcels.js");
     const {INSPECTING} = await import("../src/figure/figure.js");
+    expect([HAMMER.least, HAMMER.most, INSPECT.ms]).toEqual([4000, 10000, 5000]);
     // a seeded random, so the share is the same every run
     let seed = 2743;
     const random = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
     const boxes = Array.from({length: 2000}, () => hammering(1000, random));
-    const inspected = boxes.filter((box) => box.inspect);
+    const inspected = boxes.filter((box) => box.inspects.length);
     expect(inspected.length / boxes.length).toBeGreaterThan(0.2);
     expect(inspected.length / boxes.length).toBeLessThan(0.3);
+    expect(boxes.some((box) => box.inspects.length === 2), "a new stretch may be broken by a second look").toBe(true);
     for (const box of boxes) {
-        // built within its hammering time, eight to twenty seconds, whether or not it is inspected
-        expect(box.until - box.began).toBeLessThanOrEqual(HAMMER.most);
-        if (!box.inspect) {
-            expect(box.until - box.began).toBeGreaterThanOrEqual(HAMMER.least);
-            continue;
+        expect(box.inspects.length).toBeLessThanOrEqual(INSPECT.most);
+        // the stretches of hammering between the looks, each a whole stretch but the ones a look cut short
+        const looks = box.inspects;
+        let stretchBegun = 0;
+        for (const look of looks) {
+            expect(look.from - stretchBegun, "a look comes inside its stretch").toBeLessThan(HAMMER.most);
+            expect(look.from - stretchBegun).toBeGreaterThan(0);
+            expect(look.to - look.from).toBeCloseTo(INSPECT.ms, 6);
+            // while it lasts the hammering stops: the figure inspects, and hammers before and after it
+            expect(inspecting(box, box.began + (look.from + look.to) / 2)).toBe(true);
+            expect(inspecting(box, box.began + look.from - 1)).toBe(false);
+            expect(inspecting(box, box.began + look.to)).toBe(false);
+            stretchBegun = look.to;
         }
-        // the inspection inside the hammering, its end at or before the box is built
-        expect(box.inspect.from).toBeGreaterThan(0);
-        expect(box.began + box.inspect.to).toBeLessThanOrEqual(box.until);
-        expect(box.inspect.to - box.inspect.from).toBeCloseTo(INSPECT.ms, 6);
-        // while it lasts the hammering stops: the figure inspects, and hammers before and after it
-        const middle = box.began + (box.inspect.from + box.inspect.to) / 2;
-        expect(inspecting(box, middle)).toBe(true);
-        expect(inspecting(box, box.began + box.inspect.from - 1)).toBe(false);
-        expect(inspecting(box, box.began + box.inspect.to)).toBe(false);
+        // after the last look, or with none, a whole stretch of four to ten seconds before the box is built
+        const last = box.until - box.began - stretchBegun;
+        expect(last).toBeGreaterThanOrEqual(HAMMER.least);
+        expect(last).toBeLessThanOrEqual(HAMMER.most);
     }
-    // now and then it decides the box is done there: built at the inspection's end
-    const doneThere = inspected.filter((box) => box.until === box.began + box.inspect.to);
-    expect(doneThere.length).toBeGreaterThan(0);
-    expect(doneThere.length).toBeLessThan(inspected.length);
     // the clip of the inspection plays as long as it lasts, side-on to the box as the hammering is, the glass in its free hand
     const clip = CLIPS.find((each) => each.name === "inspect");
     expect((clip.frames / clip.fps) * 1000).toBeCloseTo(INSPECT.ms, -2);

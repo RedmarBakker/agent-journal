@@ -1630,7 +1630,7 @@ function work(pose, stance, t) {
 // `sweep` along the box and back over `along`, pauses over `pause` with a small nod `nodded` degrees deeper, and puts the glass away over
 // `away`
 export const INSPECTING = {
-    frames: 30, fps: 12, out: [0, 0.15], along: [0.15, 0.7], pause: [0.7, 0.84], away: [0.86, 1],
+    frames: 60, fps: 12, out: [0, 0.08], along: [0.08, 0.76], pause: [0.76, 0.9], away: [0.92, 1],
     turn: 65, bend: 0.35, lean: 34, nod: 22, nodded: 10, box: [0.72, -1.81, 1.2], between: 0.5, front: -1.2, sweep: 0.4, size: 1.45,
     tip: 35, slant: -35,
 };

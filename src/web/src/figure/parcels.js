@@ -122,26 +122,30 @@ export function workLook(parcels, making, xOf, floor, way) {
     return making ? {at: null} : null;
 }
 
-// how long the figure hammers each parcel, a random number of milliseconds between the two
-export const HAMMER = {least: 8000, most: 20000};
+// how long the figure hammers each parcel in one stretch, a random number of milliseconds between the two
+export const HAMMER = {least: 4000, most: 10000};
 export const hammerMs = (random) => HAMMER.least + random() * (HAMMER.most - HAMMER.least);
 
-// Now and then, about one box in `chance`, the figure stops hammering to inspect the box with a magnifying glass for `ms`, starting between
-// `at` of the way through its hammering; `done` of the times it decides the box is done there and builds it at the inspection's end
-export const INSPECT = {chance: 0.25, at: [0.25, 0.6], ms: 2500, done: 0.3};
+// Now and then, about one stretch in `chance`, the figure stops hammering to inspect the box with a magnifying glass for `ms`, starting
+// between `at` of the way through the stretch, and then hammers a new stretch; at most `most` inspections a box
+export const INSPECT = {chance: 0.25, at: [0.25, 0.6], ms: 5000, most: 2};
 
-// The hammering of a box begun at `now`, in milliseconds: when it began, when it is built, and its inspection, if it has one, as when it
-// starts and ends after the box was begun; all inside the hammering's own time (HAMMER)
+// The hammering of a box begun at `now`, in milliseconds: when it began, when it is built, and its inspections, each as when it starts and
+// ends after the box was begun; every stretch of hammering HAMMER long, an inspection cutting its stretch short and starting a new one
 export function hammering(now, random) {
-    const ms = hammerMs(random);
-    if (random() >= INSPECT.chance) return {began: now, until: now + ms, inspect: null};
-    const from = ms * (INSPECT.at[0] + random() * (INSPECT.at[1] - INSPECT.at[0]));
-    const inspect = {from, to: from + INSPECT.ms};
-    return {began: now, until: now + (random() < INSPECT.done ? inspect.to : ms), inspect};
+    const inspects = [];
+    let at = 0;
+    for (;;) {
+        const ms = hammerMs(random);
+        if (inspects.length >= INSPECT.most || random() >= INSPECT.chance) return {began: now, until: now + at + ms, inspects};
+        const from = at + ms * (INSPECT.at[0] + random() * (INSPECT.at[1] - INSPECT.at[0]));
+        inspects.push({from, to: from + INSPECT.ms});
+        at = from + INSPECT.ms;
+    }
 }
 
 // whether the figure inspects the box `box` at `now`, its hammering paused
-export const inspecting = (box, now) => Boolean(box.inspect) && now >= box.began + box.inspect.from && now < box.began + box.inspect.to;
+export const inspecting = (box, now) => box.inspects.some((inspect) => now >= box.began + inspect.from && now < box.began + inspect.to);
 
 // how many blows have landed `frames` frames into a hammering whose blows are `blowFrames` frames long and land `lands` of the way through
 export const blowsLanded = (frames, blowFrames, lands) => Math.max(Math.floor(frames / blowFrames - lands) + 1, 0);
