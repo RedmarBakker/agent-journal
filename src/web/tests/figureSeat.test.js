@@ -306,11 +306,12 @@ test("a figure turns right or left toward the chat mark it reacts to, and toward
     delete globalThis.CSS;
 });
 
-test("no part of the figure is ever outside the chat window: not past its sides, its top or, hanging, its foot", () => {
+test("no part of the figure's body is ever outside the chat window: not past its sides, its top or, hanging, its foot", () => {
     page({left: 150, top: 600, width: 800, height: 120});
     const standing = {x: 500, y: 400, posture: "stand"};
     expect(inWorld(standing, FIGURE)).toBe(true);
-    expect(inWorld({...standing, x: CHAT.right - 40}, FIGURE)).toBe(false);
+    expect(inWorld({...standing, x: CHAT.right - 10}, FIGURE), "its body past the side").toBe(false);
+    expect(inWorld({...standing, x: CHAT.right - 40}, FIGURE), "only the empty side of its picture past it, as when it reaches past the edge").toBe(true);
     expect(inWorld({...standing, y: CHAT.top + 50}, FIGURE)).toBe(false);
     // seated, its legs hang past the line it sits on; hanging, the whole of it is inside
     expect(inWorld({x: 500, y: CHAT.bottom, posture: "sit"}, FIGURE)).toBe(true);

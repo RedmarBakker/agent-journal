@@ -220,6 +220,17 @@ export function nextStay(now, figure, hands, random, {tally = null, free = false
     return {where, until};
 }
 
+// how far in from the chat window's edge the middle of the figure's picture stands to rummage past it, as a share of the picture: near
+// enough that its hands, reaching out to its side, go past the edge into the space beyond, which the window hides
+export const RUMMAGE_INSET = 0.18;
+
+// The spot on the ground at home at the chat window's edge on the side `way` (-1 the left, 1 the right) where the figure rummages past it
+export function rummageSpot(figure, way) {
+    const world = worldBox();
+    const spot = spotOf(null, figure, {x: way > 0 ? world.right : world.left, y: 0});
+    return {...spot, x: way > 0 ? world.right - RUMMAGE_INSET * figure.size : world.left + RUMMAGE_INSET * figure.size};
+}
+
 // The spot of a stay now for a figure at `near`, or null when its bubble or tab is gone or its perch is no longer free; a tab it only
 // visits is not one it points at
 export function stayingAt(stay, figure, near) {
@@ -232,6 +243,7 @@ export function stayingAt(stay, figure, near) {
         return spot ? {...spot, view: null} : null;
     }
     if (stay.where === "edge") return spotOf(null, figure, stay.along);
+    if (stay.where === "rummage") return rummageSpot(figure, stay.way);
     if (stay.where === "mark") return markSpot(stay.card, figure);
     if (stay.where === "ledge") return ledgeSpot(stay.along, figure, near);
     if (stay.where === "composed") return composedSpot(figure, near);

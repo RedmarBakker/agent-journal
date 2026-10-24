@@ -12,7 +12,7 @@ const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).ma
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 
 const ACTED = ["phone_call", "ask_sign", "scroll", "file_card", "hand_rub"];
-const NEW = ["inspect", "ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "binoculars", "flashlight", "peek_under", "rummage", "type_ponder", "wipe_brow", "wave_up"];
+const NEW = ["inspect", "ledge_sit", "look_left", "look_right", "look_up", "tumble", "fume", "eager", "pack_box", "press", "vacuum", "binoculars", "flashlight", "rummage", "type_ponder", "wipe_brow", "wave_up"];
 
 test("every voice plays every journal moment and every new variant in each posture it is drawn in, every frame, and ends as it stood", () => {
     for (const name of [...ACTED, ...NEW]) {

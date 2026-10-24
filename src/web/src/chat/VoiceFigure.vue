@@ -274,10 +274,19 @@ const asleep = () => clipOf(held.value.state) === "sleep";
 
 function heldClip() {
     const {state} = held.value;
-    if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
+    if (variant.state !== state) {
+        variant = {state, clip: variantOf(clipOf(state), Math.random, drawnHere, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
+        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: handAt.value.x >= 0.5 ? 1 : -1};
+    }
     if (body.place.swings) return "rope_swing";
+    // the rummage waits until the figure stands at the window's edge, its stay there, and the glass search until it stands
+    if (variant.clip === "rummage" && (stay.where !== "rummage" || body.trip)) return "idle";
+    if (variant.clip === "search" && !body.trip && !drawnHere("search")) return "idle";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
 }
+
+// how long the figure keeps to the window's edge for a rummage, its walk there and the rummage itself, in seconds
+const RUMMAGE_STAY_SECONDS = 25;
 
 // what a held clip is played as while the figure sits on the edge of a floor facing the viewer: standing idle, it leans back on its hands
 const LEANING = {idle: "ledge_sit"};

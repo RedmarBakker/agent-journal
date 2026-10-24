@@ -159,13 +159,13 @@ export function offWalls(spot, figure, world = worldBox()) {
 }
 
 // Whether a figure on a spot is inside its world: its picture within the world's left, right and top, and the line it rests on at or
-// above the world's foot, as a seated figure's legs hang past any edge it sits on; a hanging figure is inside it whole. A seated figure
-// needs only its body inside, as it sits on the very corner of a box with its legs hanging past the end, the empty sides of its picture
-// over the world's edge
+// above the world's foot, as a seated figure's legs hang past any edge it sits on; a hanging figure is inside it whole. A seated or a
+// standing figure needs only its body inside, the empty sides of its picture over the world's edge, as it sits on the very corner of a
+// box with its legs hanging past the end, or stands at the window's edge reaching past it
 export function inWorld(spot, figure, world = worldBox()) {
     const box = boxAt(spot, figure);
     const width = box.right - box.left;
-    const [left, right] = spot.posture === "sit" ? [box.left + BODY.left * width, box.left + BODY.right * width] : [box.left, box.right];
+    const [left, right] = spot.posture === "sit" || spot.posture === "stand" ? [box.left + BODY.left * width, box.left + BODY.right * width] : [box.left, box.right];
     const foot = spot.posture === "hang" ? box.bottom : spot.y;
     return left >= world.left - EDGE && right <= world.right + EDGE && box.top >= world.top - EDGE && foot <= world.bottom + EDGE;
 }

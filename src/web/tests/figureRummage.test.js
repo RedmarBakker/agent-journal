@@ -36,27 +36,22 @@ test("rummaging is one of the searches, picked now and then: the other ways to s
     expect(CLIPS.find((clip) => clip.name === "rummage")).toMatchObject({ownLook: true, postures: ["stand"]});
 });
 
-test("it buries its head in the opening and digs about, then pops out of it holding up the key it found", () => {
+test("it leans in past the edge and digs about, then pulls back out having found nothing, no key or anything else held up", () => {
     for (const voice of Object.keys(stances)) {
-        // standing at the start, its head is out of the opening
-        expect(rummagingAt(voice, 0).out, voice).toBeLessThan(act.lip);
-        // all the while it digs, its head is in the opening, well past its edge and down in it
+        const standing = rummagingAt(voice, 0).out;
+        // all the while it digs, its head is out past where it stood, well over to its side and down
         for (let u = act.leans[1]; u < act.pops[0]; u += 0.02) {
             const {out, eyes} = rummagingAt(voice, u);
-            expect(out, `${voice} ${u}`).toBeGreaterThan(act.lip + 0.04);
+            expect(out, `${voice} ${u}`).toBeGreaterThan(standing + 0.04);
             expect(eyes.z, `${voice} ${u}`).toBeLessThan(2.4);
         }
-        // popped out, it stands clear of the opening, the key held up over its head
-        const popped = rummagingAt(voice, (act.pops[1] + act.lowers[0]) / 2);
-        expect(popped.out, voice).toBeLessThan(act.lip - 0.1);
-        expect([...popped.pose.props.keys()], voice).toContain("rummage_key");
-        const key = popped.pose.props.get("rummage_key");
-        // held upright in the raised hand, high by the head, the key's ring up over the eyes
-        const grip = key.at.clone().applyMatrix4(popped.moves.get(key.bone)).z;
-        expect(key.frame, voice).toBe("root");
-        expect(grip, voice).toBeGreaterThan(2.6);
-        expect(grip + RUMMAGE_THINGS.key.shaft + 2 * RUMMAGE_THINGS.key.ring[0], voice).toBeGreaterThan(popped.eyes.z + 0.3);
+        // pulled back out, nothing in its hands
+        for (const u of [act.pops[1], (act.pops[1] + 1) / 2, 0.999]) {
+            const props = [...rummagingAt(voice, u).pose.props.keys()].filter((name) => !name.startsWith("rummage_") || name === "rummage_key");
+            expect(props, `${voice} ${u}`).toEqual([]);
+        }
     }
+    expect(RUMMAGE_THINGS.key, "it finds nothing").toBeUndefined();
 });
 
 test("each thing it pulls out is thrown along the arc gravity gives it, up over its shoulder and down onto the floor behind, spinning, a new throw each rummage", async () => {
@@ -103,4 +98,22 @@ test("each thing it pulls out is thrown along the arc gravity gives it, up over 
     const [out] = act.throws;
     const flying = rummagingAt("butler", out + 0.02).pose.props.get(RUMMAGED[0]);
     expect(flying).toMatchObject({bone: "root", size: 1});
+});
+
+test("it rummages at the chat window's edge: its body inside the window, its hands reaching past the edge into the hidden space beyond", async () => {
+    const {RUMMAGE_INSET, rummageSpot} = await import("../src/figure/perches.js");
+    const {BODY, inWorld} = await import("../src/figure/places.js");
+    const {CHAT, boxed, page} = await import("./support/figurePage.js");
+    page(boxed({left: 400, right: 600, top: 300, bottom: 340}));
+    const figure = {size: 112, below: 0.05};
+    for (const way of [-1, 1]) {
+        const spot = rummageSpot(figure, way);
+        const edge = way > 0 ? CHAT.right : CHAT.left;
+        expect(Math.abs(spot.x - edge), `${way}: at the edge`).toBeCloseTo(RUMMAGE_INSET * figure.size, 5);
+        expect(inWorld(spot, figure), `${way}: its body inside the window, so it keeps its footing there`).toBe(true);
+        // the hands reach out to the side further than the spot is from the edge
+        const reach = Math.max(...[0.2, 0.5, 0.8].map((u) => Math.abs(rummagingAt("butler", u).out)));
+        expect(reach * figure.size, `${way}: its hands past the edge`).toBeGreaterThan(Math.abs(spot.x - edge));
+        expect((0.5 - BODY.left) * figure.size, `${way}: its body short of it`).toBeLessThan(Math.abs(spot.x - edge));
+    }
 });

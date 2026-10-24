@@ -2805,25 +2805,21 @@ function flashlight(pose, stance, t) {
     eyesAs(pose, "reading");
 }
 
-// Rummaging (acts.js rummage): how deep it crouches and how far it leans in, in the figure's units and degrees; where its hands dig in the
-// opening, across, forward and up, each `dig` up and down as it digs, the elbows the way `elbow` says; how far it turns side-on to the
-// opening; and where it holds up the key it found, as a hand raised high
+// Rummaging (acts.js rummage): how deep it crouches and how far it leans in, in the figure's units and degrees; where its hands dig past
+// the window's edge, across, forward and up, each `dig` up and down as it digs, the elbows the way `elbow` says; and how far it turns
+// side-on to the edge
 export const RUMMAGE = {crouch: 0.3, lean: 48, nod: 12, hands: [0.3, -1.45, 1.75], dig: 0.3, elbow: [1, -0.4, -0.6], turn: 90, wiggle: 6};
 
 function rummage(pose, stance, t) {
     const act = ACTS.rummage;
     const side = freeSide(stance);
     const into = partOf(t, act.leans) * (1 - partOf(t, act.pops));
-    const holding = partOf(t, act.pops) * (1 - partOf(t, act.lowers));
     const digging = waveOf(t, act.digs);
     crouch(pose, RUMMAGE.crouch * into);
     breathe(pose, 0);
     trunk(pose, {nod: RUMMAGE.nod * into, tilt: RUMMAGE.wiggle * digging * into});
     pose.bendAbove("spine", {x: (RUMMAGE.lean + RUMMAGE.wiggle * digging) * into});
-    if (holding) {
-        actHand(pose, stance, holding, ACTED.high);
-        pose.holdUpright("rummage_key", side);
-    } else armsAtRest(pose, stance, into ? ["l", "r"] : []);
+    armsAtRest(pose, stance, into ? ["l", "r"] : []);
     const [x, y, z] = RUMMAGE.hands;
     for (const [hand, way] of into ? [["l", 1], ["r", -1]] : []) {
         const dug = pose.carried(new THREE.Vector3(SIDES[hand] * x, y, z + way * RUMMAGE.dig * digging));
@@ -2834,21 +2830,6 @@ function rummage(pose, stance, t) {
         if (flung) pose.standProp(name, [flung.at[0], flung.at[1], flung.at[2] + RUMMAGE.crouch * into], {x: flung.turn, z: flung.turn / 3}, 1 - flung.landed);
     });
     if (pose.posture === "stand") pose.revolve(SIDES[side] * RUMMAGE.turn * into);
-    pose.shiftAll([-SIDES[side] * act.back * FRAMED_HEIGHT * holding, 0, 0]);
-}
-
-// crouches, lifts a corner of the floor beside it with the free hand and peeks under it, then lets it down and stands
-function peek_under(pose, stance, t) {
-    const act = ACTS.peek_under;
-    const down = partOf(t, [0, act.lift[0] + 0.1]) * (1 - partOf(t, [act.down[1], 1]));
-    const lifted = partOf(t, act.lift) * (1 - partOf(t, act.down));
-    const peek = partOf(t, act.peek) * (1 - partOf(t, act.down));
-    crouch(pose, ACTED.crouch * down);
-    breathe(pose, 0);
-    trunk(pose, {lean: ACTED.peekLean * down, nod: 14 * down + 10 * peek, turn: -SIDES[freeSide(stance)] * 24 * peek, tilt: 8 * peek});
-    const [x, y, z] = ACTED.corner;
-    actHand(pose, stance, down, [x, y, z + ACTED.lift * lifted]);
-    eyesAs(pose, "reading", peek);
 }
 
 // The figure types on and stops to think now and then at the laptop, thinking as it does anywhere: its head tilted up and aside, its
@@ -2939,7 +2920,7 @@ export const CLIPS = [
     {name: "hang_r", frames: 24, fps: 8, loops: true, leaves: 8, postures: HANGING, pose: dangle("r")},
     {name: "enter", frames: 36, fps: 12, loops: false, postures: MOVE, pose: enter},
     {name: "exit", frames: 28, fps: 12, loops: false, postures: MOVE, pose: exit},
-    {name: "search", frames: 80, fps: 10, loops: true, postures: GESTURE, pose: search},
+    {name: "search", frames: 80, fps: 10, loops: true, postures: ["stand"], pose: search},
     {name: "read", frames: READ_FRAMES, fps: READING.fps, loops: true, intro: READING.intro, outro: READING.outro, leaves: READING.pageEvery, postures: GESTURE, pose: read},
     {name: "write", frames: HELD_FRAMES, intro: ACTING.intro, outro: ACTING.outro, leaves: ACTING.hold, fps: ACTING.fps, loops: true, postures: GESTURE, pose: writing},
     {name: "waiting", frames: WAIT_FRAMES, intro: WAIT.intro, outro: WAIT.outro, leaves: WAIT.hold, fps: ACTING.fps, loops: true, postures: ["stand", "sit"], pose: waiting},
@@ -3009,7 +2990,6 @@ export const CLIPS = [
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
     {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, ownLook: true, postures: MOVE, pose: flashlight},
-    {name: "peek_under", frames: ACTS.peek_under.frames, fps: ACTS.peek_under.fps, loops: true, postures: MOVE, pose: peek_under},
     {name: "rummage", frames: ACTS.rummage.frames, fps: ACTS.rummage.fps, loops: true, postures: MOVE, ownLook: true, pose: rummage},
     {name: "type_ponder", frames: ACTS.type_ponder.frames, fps: ACTS.type_ponder.fps, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, ownLook: true, postures: ON_A_LAP, pose: type_ponder},
     {name: "wipe_brow", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
@@ -3581,20 +3561,19 @@ function propsOf() {
     return props;
 }
 
-// The things the figure flings over its shoulder rummaging (rummage) and the key it finds, in its own shaded style, in the figure's units:
+// The things the figure flings over its shoulder rummaging (rummage), in its own shaded style, in the figure's units:
 // a few loose `papers` fanned apart; a `boot` of a shaft, a foot and a sole; a fish's `bone`, its spine, ribs, head and tail; a closed
-// `book`, its cover and pages; and the `key`, its ring, shaft and bit. Each is drawn at the size the pose gives it, so it can shrink away.
+// `book`, its cover and pages. Each is drawn at the size the pose gives it, so it can shrink away.
 export const RUMMAGE_THINGS = {
     papers: {sheet: [0.9, 0.02, 0.66], count: 3, fan: 18},
     boot: {shaft: [0.4, 0.72, 0.45], foot: [0.4, 0.3, 0.84], sole: 0.07},
     bone: {spine: 1.1, ribs: 5, rib: 0.5, head: [0.24, 0.18, 0.08], tail: [0.2, 0.26], thick: 0.035},
     book: {cover: [0.75, 0.15, 0.56], pages: [0.7, 0.12, 0.53]},
-    key: {ring: [0.14, 0.045], shaft: 0.55, bit: [0.11, 0.13, 0.04]},
-    colours: {paper: 0xf6f1e3, leather: 0x6b4426, sole: 0x2a2420, bone: 0xece4d2, cover: 0xa8323a, pages: 0xf3ead2, gold: 0xe8b84a},
+    colours: {paper: 0xf6f1e3, leather: 0x6b4426, sole: 0x2a2420, bone: 0xece4d2, cover: 0xa8323a, pages: 0xf3ead2},
 };
 
 function rummagedOf(group) {
-    const {papers, boot, bone, book, key, colours} = RUMMAGE_THINGS;
+    const {papers, boot, bone, book, colours} = RUMMAGE_THINGS;
     const sized = (name) => {
         const root = group(name);
         const body = new THREE.Group();
@@ -3627,10 +3606,6 @@ function rummagedOf(group) {
     const tome = sized("rummage_book");
     shadedPart(tome, "cover", new THREE.BoxGeometry(...book.cover), colours.cover);
     shadedPart(tome, "pages", new THREE.BoxGeometry(...book.pages), colours.pages, [(book.cover[0] - book.pages[0]) / 2 + 0.03, 0, 0]);
-    const found = sized("rummage_key");
-    shadedPart(found, "ring", new THREE.TorusGeometry(...key.ring, 8, 20), colours.gold, [0, key.shaft + key.ring[0], 0]);
-    shadedPart(found, "shaft", new THREE.CylinderGeometry(key.ring[1] * 0.8, key.ring[1] * 0.8, key.shaft, 8), colours.gold, [0, key.shaft / 2, 0]);
-    for (const [index, up] of [0.08, 0.22].entries()) shadedPart(found, `bit_${index}`, new THREE.BoxGeometry(...key.bit), colours.gold, [key.bit[0] / 2, up, 0]);
 }
 
 // The torch the figure searches with (flashlight), in the figure's own style and drawn a size too large, as the magnifying glass is, so it

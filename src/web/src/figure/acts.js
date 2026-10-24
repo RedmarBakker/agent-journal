@@ -43,18 +43,13 @@ export const ACTS = {
     // own feet, and swept slowly about there, `sweep` across and up and down (torchAim); its lens `lens` from where the hand grips it, which
     // the beam spreads from (chat/FigureAct.vue)
     flashlight: {frames: 80, fps: 10, aim: [2.4, -0.9, 3.5], sweep: [0.5, 0.35], lens: 0.72},
-    // searching: it crouches, lifts a corner of the floor it stands on and peeks under it, then lets it down
-    peek_under: {frames: 80, fps: 10, lift: [0.08, 0.3], peek: [0.3, 0.75], down: [0.75, 0.92], open: 42},
-    // searching, now and then: like a cartoon character hunting through a closet, it rummages in an opening at the edge beside it. The
-    // opening comes over `opens`, from `lip` of the picture out from the figure's middle to the picture's edge and `height` of it up from
-    // the floor; the figure turns side-on to it and leans in, head and shoulders buried in it, over `leans`, digging about `digs` times;
-    // it flings what it pulls out over its shoulder, one thing over each of `throws` (rummage_things), each from `from` up over `over` and
-    // down behind it at `to` (the figure's units, across, forward and up, before it turns side-on), tumbling `spins` turns, and shrinking
-    // away to nothing over `shrinks` once it lands; it pops out over `pops`, stepping `back` of the picture away from the opening, which
-    // shuts behind it over `closes`, and holds up the key it found until it lowers it over `lowers`
+    // searching, now and then: at the edge of the chat window the figure reaches past it into the space beyond, where nothing is seen, and
+    // rummages there like a cartoon character hunting through a closet: it turns side-on to the edge and leans in, head and shoulders past
+    // it, over `leans`, digging about `digs` times, and flings what it pulls out back over its shoulder, one thing at each of `throws`, each
+    // from `from` (the figure's units, across, forward and up, before it turns side-on) on the arc its throw gives it (throwsFor), shrinking
+    // away to nothing over `shrinks` once it lands; over `pops` it pulls back out, having found nothing
     rummage: {
-        frames: 132, fps: 12, opens: [0, 0.07], leans: [0.05, 0.14], digs: 7, pops: [0.74, 0.8], closes: [0.78, 0.86], lowers: [0.92, 1], back: 0.06, lip: 0.2, height: 0.72,
-        throws: [0.16, 0.25, 0.34, 0.43], from: [0, -1.5, 1.5], shrinks: 0.05,
+        frames: 120, fps: 12, leans: [0.05, 0.14], digs: 7, pops: [0.8, 0.9], throws: [0.18, 0.28, 0.38, 0.48], from: [0, -1.5, 1.5], shrinks: 0.05,
     },
     // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
     fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
