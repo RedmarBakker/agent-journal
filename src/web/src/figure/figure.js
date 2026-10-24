@@ -122,6 +122,7 @@ export class Posing {
         this.stars = 0;
         this.squeezed = 0;
         this.dozing = 0;
+        this.whoa = false;
         this.laptop = false;
         this.tablet = false;
         this.cloth = false;
@@ -4825,7 +4826,7 @@ function place(figure, pose, facing, blend) {
     // the eyes go out before a lit visor comes on, a display with nothing on it; a sign glows in the visor's colour, as white as its flash
     // and as bright as it is lit
     const sign = pose.eyeShape && {...pose.eyeShape, colour: signColour(pose.screen)};
-    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, sign, ticker: pose.ticker});
+    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, whoa: pose.whoa, sign, ticker: pose.ticker});
     for (const material of figure.screens) {
         material.uniforms.lit.value = crt.glow;
         material.uniforms.across.value = crt.across;
@@ -4855,6 +4856,12 @@ export const lookStrength = ({seconds, lasts}) => partOf(seconds, [0, LOOK_EASE.
 export function heartBeat(seconds) {
     const beat = (seconds % BEAT_SECONDS) / BEAT_SECONDS;
     return 1 + 0.28 * swell(beat, 0, 0.3) + 0.14 * swell(beat, 0.3, 0.55);
+}
+
+// held by the pointer: its eyes wide and a round mouth under them on the visor, a 'whoa'
+function startledHeld(pose) {
+    eyesAs(pose, "startled");
+    pose.whoa = true;
 }
 
 function lookAs(pose, {mood, seconds, lasts}) {
@@ -4944,9 +4951,9 @@ export class Stage {
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
 // things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `walkWay` the
 // way it walks to meet the mallet's bug (bug_smash), `at` is where
-    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
+    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans (headTilt.js, grab.js), `grabbed` whether the pointer holds it, startled (startledHeld), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0, ticker = null, grabbed = false} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.ticker = ticker;
         pose.sky = sky;
@@ -4971,6 +4978,7 @@ export class Stage {
         if (toward && !pose.gaze && !sideOn && !holdsHead(clip)) turnToViewer(pose, turned, toward);
         if (eyes) lookAs(pose, eyes);
         if (at?.mood) eyesAs(pose, at.mood, at.amount);
+        if (grabbed) startledHeld(pose);
         if (screen?.sign) pose.shapeEyes(screen.sign.name, screen.sign.strength);
         const moves = place(figure, pose, turned, blend);
         const size = canvas.width * SUPERSAMPLE;

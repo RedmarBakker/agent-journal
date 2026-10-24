@@ -13,9 +13,9 @@ const vectors = (table) => new Map(Object.entries(table).map(([name, at]) => [na
 const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), heads: vectors(rig.heads), along: vectors(rig.along), eyes: rig.eyes.map((at) => new THREE.Vector3(...at))};
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 
-// the pictures approved in place of the eyes' arcs on the visor: the hearts, the stars, the squeezed eyes, and the crosses and the ticks at
-// a run's end (visor.js SIGN)
-const APPROVED = ["cross", "heart_big", "heart_small", "heart_tiny", "squeezed", "star_big", "star_small", "star_twinkle", "tick", "z_big", "z_small"];
+// the pictures approved on the visor beside the eyes' arcs: the hearts, the stars, the squeezed eyes, the crosses and the ticks at
+// a run's end (visor.js SIGN), the Zs of a doze and the round mouth of a startled 'whoa' (grab.js)
+const APPROVED = ["cross", "heart_big", "heart_small", "heart_tiny", "squeezed", "star_big", "star_small", "star_twinkle", "tick", "whoa", "z_big", "z_small"];
 const FRAMES = 12;
 
 describe("the eyes keep their arcs", () => {

@@ -33,6 +33,7 @@ export const PICTURES = {
     z_big: ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
     cross: ["##.....##", "###...###", ".###.###.", "..#####..", "...###...", "..#####..", ".###.###.", "###...###", "##.....##"],
     tick: [".......##", "......###", ".....###.", "##..###..", "######...", ".####....", "..##....."],
+    whoa: [".##.", "#..#", "#..#", ".##."],
 };
 
 // The frames each picture family steps through, each with the least size it takes: the eyes by how open they are, so a blink, a squint
@@ -62,15 +63,19 @@ const EYE_HEIGHT = PICTURES.eye_open.length;
 // The pixels lit for a face, each {column, row, colour}: `face` says how open the `eyes` are (Posing.eyes) and whether they show at all
 // (`eyed`), their `shift` aside and up as shares of their height (Posing.eyeShift), their `tint`, and what takes their place: `hearts`,
 // `stars` or `squeezed` at their size, or a run's end as a `sign` ({name, colour, strength}), shown as far up and down from the middle
-// as its strength; and a Z above them while it is `dozing`, at its size
+// as its strength; a Z above them while it is `dozing`, at its size; and a round mouth under them while it says `whoa`
 export function litPixels(face) {
     if (face.ticker) return tickerPixels(face.ticker.text, face.ticker.step, COLOURS.eyes);
     if (!face.eyed) return [];
     const shown = shownPicture(face);
     const eyes = shown ? EYE_SPOTS.flatMap((spot) => placed(shown, spot, face)) : [];
     const z = face.dozing > 0 ? placed({name: frameFor("z", face.dozing), colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1}, Z_SPOT, face) : [];
-    return [...eyes, ...z];
+    const whoa = face.whoa ? placed({name: "whoa", colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1}, WHOA_SPOT, face) : [];
+    return [...eyes, ...z, ...whoa];
 }
+
+// where the round mouth of a startled 'whoa' is centred on the grid: low between the eyes
+export const WHOA_SPOT = {column: 16, row: 12, mirrored: false};
 
 // where the Z of a figure dozing is centred on the grid: high up between the eyes, toward its left
 export const Z_SPOT = {column: 18, row: 3, mirrored: false};
