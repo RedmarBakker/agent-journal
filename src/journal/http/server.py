@@ -13,7 +13,7 @@ from journal.sync.sync_secret import SyncSecret
 
 
 class Server:
-    """One process, one port; every request is answered on a thread of its own. The port it got is written where the hook script reads it."""
+    """One process, one port; every request is answered on a thread of its own. The port it got is written where the hook script reads it, and removed when it stops only while the file still names that port."""
 
     def __init__(self, config: Config, router: Router, identity: Identity, static: StaticFiles, database: Connection, gate: LoginGate, lifecycle: Lifecycle, secret: SyncSecret) -> None:
         self.config, self.router, self.identity, self.static, self.database, self.gate, self.lifecycle = config, router, identity, static, database, gate, lifecycle
@@ -41,8 +41,12 @@ class Server:
             self._bound[0].shutdown()
         for bound in self._bound:
             bound.server_close()
-        if self._bound:
+        if self._bound and self.is_port_written():
             self.config.port_file.unlink(missing_ok=True)
+
+    # the port file names whichever journal serves the project now; a server stopping after another took over leaves it alone
+    def is_port_written(self) -> bool:
+        return self.config.port_file.is_file() and self.config.port_file.read_text().strip() == str(self.port)
 
     def _build(self) -> ThreadingServer:
         bound = type("BoundHandler", (Handler,), {"router": self.router, "identity": self.identity, "static": self.static, "database": self.database, "gate": self.gate, "lifecycle": self.lifecycle})
