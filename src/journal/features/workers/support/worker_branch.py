@@ -287,8 +287,16 @@ class WorkerBranch:
 
     def pruned(self, branch: str, checkouts: list[Path]) -> None:
         for checkout in checkouts:
-            self.git("worktree", "prune", cwd=checkout)
+            self.worktree_list_pruned(checkout)
             self.git("branch", "-D", branch, cwd=checkout)
+
+    # git drops from its list a worktree whose folder is missing; while a launch's worktree under .claude/worktrees is briefly away,
+    # nothing is pruned, so a worker's clean-up never loses it
+    def worktree_list_pruned(self, checkout: Path) -> None:
+        listed = [Path(line.removeprefix("worktree ")) for line in self.git("worktree", "list", "--porcelain", cwd=checkout).stdout.splitlines() if line.startswith("worktree ")]
+        if any(path.parent.name == "worktrees" and path.parent.parent.name == ".claude" and not path.exists() for path in listed):
+            return
+        self.git("worktree", "prune", cwd=checkout)
 
     def discarded(self, worker: Worker, names: tuple[str, ...]) -> None:
         folder = self.folder(worker)

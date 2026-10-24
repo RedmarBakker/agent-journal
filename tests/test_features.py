@@ -6605,6 +6605,28 @@ def test_a_done_workers_worktree_goes_with_its_branch_its_last_commit_kept_and_n
     assert git("branch", "--list", "worker/1-Lady-Lovelace").stdout.strip() == "" and git("worktree", "list").stdout.count("\n") == 1, "its branch and worktree go after the reply"
 
 
+def test_a_workers_clean_up_never_drops_a_launch_worktree_or_its_branch(app: App):
+    import subprocess
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.models.worker import Worker
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    calm, quiet = Worktree(root, "calm-river").created(), Worktree(root, "quiet-heron").created()
+    branch = app.container.get(WorkerBranch)
+    assert not branch.name(Worker(name="worktree-calm-river")).startswith("worktree-"), "a worker's branch is never named like a launch worktree's"
+    away = calm.with_name("calm-river.away")
+    calm.rename(away)
+    branch.worktree_list_pruned(root)
+    away.rename(calm)
+    listed = git("worktree", "list", "--porcelain").stdout
+    assert f"worktree {calm.resolve()}" in listed and f"worktree {quiet.resolve()}" in listed, "a launch worktree briefly away is never pruned from git's list by a worker's clean-up"
+    branch.pruned("worker/9-Someone", [root])
+    assert {"worktree-calm-river", "worktree-quiet-heron"} <= {line.strip(" *+") for line in git("branch").stdout.splitlines()}, "and a worker's branch delete takes only its own branch"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree

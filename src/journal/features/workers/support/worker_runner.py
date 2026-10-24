@@ -264,7 +264,7 @@ class WorkerRunner:
 
     def worktree_restoration(self, worker: Worker, names: tuple[str, ...]) -> tuple[str, ...]:
         folder, name, checkout = self.branch.folder(worker), self.branch.name(worker), self.branch.checkout(worker)
-        self.branch.git("worktree", "prune", cwd=checkout)
+        self.branch.worktree_list_pruned(checkout)
         if self.branch.git("rev-parse", "--verify", "-q", f"refs/heads/{name}", cwd=checkout).returncode == 0:
             self.added(worker, str(folder), name)
         else:
@@ -283,7 +283,7 @@ class WorkerRunner:
         checkout, path, branch = self.config.root / name, self.branch.folder(worker) / name, self.branch.name(worker)
         if (path / ".git").exists():
             return True
-        self.branch.git("worktree", "prune", cwd=checkout)
+        self.branch.worktree_list_pruned(checkout)
         if self.branch.git("rev-parse", "--verify", "-q", f"refs/heads/{branch}", cwd=checkout).returncode == 0:
             argv = (str(path), branch)
         elif self.branch.git("rev-parse", "--verify", "-q", "HEAD", cwd=checkout).returncode == 0:
@@ -304,5 +304,5 @@ class WorkerRunner:
             raise WorktreeFailure(worker.name, "the project has no commit yet, so there is no tip to cut a worktree from; make a first commit")
         added = self.branch.git("worktree", "add", "-q", *argv, cwd=checkout)
         if added.returncode != 0:
-            self.branch.git("worktree", "prune", cwd=checkout)
+            self.branch.worktree_list_pruned(checkout)
             raise WorktreeFailure(worker.name, added.stderr.strip())
