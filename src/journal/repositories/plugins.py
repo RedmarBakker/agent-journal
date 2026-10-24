@@ -29,6 +29,9 @@ class Plugins(Repository[Plugin]):
     def hearers(self, event: str, actor: object) -> list[Plugin]:
         return [plugin for plugin in self.enabled() if event in plugin.manifest.events and actor != Actor.plugin(plugin.name)]
 
+    def worker_hearers(self, event: str, actor: object) -> list[Plugin]:
+        return [plugin for plugin in self.hearers(event, actor) if plugin.manifest.reaches_workers(event)]
+
     def other_plugins(self, name: str) -> list[Plugin]:
         return [plugin for plugin in self.all() if plugin.name != name]
 

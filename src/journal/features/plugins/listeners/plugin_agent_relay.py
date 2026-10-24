@@ -27,6 +27,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
     """The plugins that receive an agent event: those that can block it are asked at once, in the order they were installed, each inside the window its manifest declares under the ceiling the user set; the rest receive it after the reply, and so does every one once the event is blocked. It stays a listener on purpose: it is the one funnel through which a plugin's text and blocks reach the agent, and what it says is each plugin's, never the journal's conduct."""
 
     blocking = True
+    is_worker_listener = True
     free_request = True
     last_request = True
 
@@ -37,7 +38,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
         hearers = self.relay.listeners(event, event.environment_id)
         ceiling_ms = self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW)
         waiting = self.relay.waiting_lines(event.session) if Protocol.published_name(event) in LINE_EVENT_KEYS else []
-        if Protocol.published_name(event) in LINE_EVENT_KEYS:
+        if Protocol.published_name(event) in LINE_EVENT_KEYS and self.relay.plugins.enabled() and not self.relay.is_worker(event):
             waiting += [line for plugin in self.relay.plugins.enabled() for line in self.queue.lines(plugin, event)]
         decision = Decision.allowed_with("\n".join(waiting)) if waiting else Decision()
         decision = self.request(hearers, event, ceiling_ms, decision)

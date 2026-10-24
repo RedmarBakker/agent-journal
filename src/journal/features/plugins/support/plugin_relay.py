@@ -1,4 +1,5 @@
 from journal.events.agent.agent_event import AgentEvent
+from journal.models.agent_role import AgentRole
 from journal.events.event import Event
 from journal.features.plugins.support.linked_manifests import LinkedManifests
 from journal.features.plugins.support.plugin_answers import PluginAnswers
@@ -37,7 +38,10 @@ class PluginRelay:
         self.text, self.scope = text, scope
 
     def listeners(self, event: Event, environment_id: int) -> list[Plugin]:
-        hearers = self.plugins.hearers(Protocol.published_name(event), getattr(event, "actor", None))
+        name, actor = Protocol.published_name(event), getattr(event, "actor", None)
+        hearers = self.plugins.hearers(name, actor)
+        if hearers and self.is_worker(event):
+            hearers = self.plugins.worker_hearers(name, actor)
         if hearers and self.steps.is_nested_deep():
             self.logged(environment_id, CUT, Actor.system(), {"event": Protocol.published_name(event), "by": getattr(event, "actor", Actor.system()).stamp, "plugins": [p.name for p in hearers]})
             return []
@@ -98,6 +102,12 @@ class PluginRelay:
 
     def logged(self, environment_id: int, kind: str, actor: Actor, data: dict) -> None:
         self.entries.save(Entry(environment_id=environment_id, kind=kind, actor=actor, data=data), actor)
+
+    def is_worker(self, event: Event) -> bool:
+        if not isinstance(event, AgentEvent):
+            return False
+        agents = self.agents.matching(session=event.session)
+        return bool(agents) and agents[0].role == AgentRole.WORKER
 
     def agent_state(self, event: Event) -> str:
         if not isinstance(event, AgentEvent):

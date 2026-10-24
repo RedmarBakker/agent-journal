@@ -7699,6 +7699,47 @@ def test_a_plugin_hears_file_edited_with_the_edit_precomputed_and_holds_it_only_
     assert [h["data"]["path"] for h in heard_two] == ["forbidden.py"], "the holding plugin heard the edit once, on the answer path, never again after the reply"
 
 
+def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one_that_does_not(app: App):
+    from journal.models.worker import Worker
+    from journal.repositories.workers import Workers
+    from journal.support.listener_queue import ListenerQueue
+    echo(app, "asks", hears=["file_edited"], reaches={"file_edited": ["workers"]})
+    echo(app, "silent", hears=["file_edited"])
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    with app.container.get(Scope).environment(1):
+        app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
+    edit = {"file_path": str(app.config.root / "a.py"), "old_string": "x", "new_string": "y"}
+    patch = {"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": ["-x", "+y"]}]}
+    worker = lambda kind, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
+    worker("PreToolUse", tool_name="Edit", tool_input=edit)
+    worker("PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
+    app.container.get(ListenerQueue).drain()
+    assert echo_heard(app, "asks") == ["file_edited"], "the plugin whose manifest says file_edited reaches workers hears the worker's edit"
+    assert echo_heard(app, "silent") == [], "the one that does not ask is left out"
+    hook(app, "PreToolUse", tool_name="Edit", tool_input=edit)
+    hook(app, "PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
+    app.container.get(ListenerQueue).drain()
+    assert echo_heard(app, "silent") == ["file_edited"] and echo_heard(app, "asks") == ["file_edited", "file_edited"], "the main agent's edit reaches both, as before"
+
+
+def test_a_manifest_says_who_an_event_reaches_only_for_an_event_it_hears_and_only_workers_or_subagents(app: App):
+    from journal.features.plugins.support.manifest_reader import ManifestReader
+    from journal.support.rejection import Rejection
+    reader = app.container.get(ManifestReader)
+    folder = app.config.root / "reach"
+    folder.mkdir()
+    (folder / "run").write_text("#!/bin/sh\n")
+    base = {"name": "reach", "version": "1", "program": "run", "journal": "0.0.1", "hears": ["file_edited"]}
+    for reaches, refused in (({"file_edited": ["workers"]}, False), ({"idle": ["workers"]}, True), ({"file_edited": ["everyone"]}, True)):
+        (folder / "journal-plugin.json").write_text(json.dumps({**base, "reaches": reaches}))
+        if refused:
+            with pytest.raises(Rejection):
+                reader.read(folder)
+        else:
+            assert reader.read(folder).reaches_workers("file_edited")
+
+
 def test_every_hook_of_every_tool_arrives_is_recorded_and_answered_even_with_a_message_crossed_in_the_transcript(app: App, tmp_path, monkeypatch):
     """A hook is never lost in silence: for every tool kind, the starting and finished hooks are recorded as their entries and answered, while the transcript holds a message from another session, the path that once raised and answered 500 unseen."""
     import json as j

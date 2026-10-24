@@ -20,6 +20,7 @@ ROW_EVENT = re.compile(r"^(?P<table>[a-z_]+)\.(created|updated|deleted)$")
 PRIVATE_TABLES = ("secrets", "mcp_servers", "users")
 KEYS = {f for f in PluginManifest.__dataclass_fields__} - set(PUBLISHED.values()) | set(PUBLISHED)
 PATHS = ("program", "settings", "skills")
+REACHES = ("workers", "subagents")
 
 
 class ManifestReader:
@@ -90,6 +91,11 @@ class ManifestReader:
                 raise Rejection(f"{manifest.name} hears {event}, which is no event")
             if row and row["table"] in PRIVATE_TABLES:
                 raise Rejection(f"{manifest.name} hears {event}: the {row['table']} rows are never sent to a plugin")
+        for event, kinds in manifest.reaches.items():
+            if event not in manifest.events:
+                raise Rejection(f"{manifest.name} says who {event} reaches but does not hear it")
+            if not set(kinds) <= set(REACHES):
+                raise Rejection(f"{manifest.name} says {event} reaches {', '.join(kinds)}; it may reach {', '.join(REACHES)}")
         for window in manifest.blocks:
             if window.event not in manifest.events:
                 raise Rejection(f"{manifest.name} holds {window.event} but does not hear it")
