@@ -87,9 +87,12 @@ class SlowRequests:
     def budget(self, method: str) -> int:
         return self.settings.integer(FaultsOptions.EDIT_BUDGET if method == "POST" else FaultsOptions.REQUEST)
 
+    @staticmethod
+    def is_busy() -> bool:
+        return os.getloadavg()[0] > (os.cpu_count() or 1)
+
     def judging(self) -> bool:
-        busy = os.getloadavg()[0] > (os.cpu_count() or 1)
-        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted() and not busy and not self.test_runs.is_testing()
+        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted() and not self.is_busy() and not self.test_runs.is_testing()
 
     def environment_id(self) -> int:
         agent = self.agents.all_current()
