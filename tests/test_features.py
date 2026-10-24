@@ -6836,11 +6836,11 @@ def test_an_update_holds_its_mark_until_the_journal_runs_the_version_it_went_to(
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Installer(), auto=True)
     updating.checked()
     assert threshold.paused().target == "4.99.0" and updating.data().updating == "4.99.0", "the update keeps its mark through the restart it asks for"
-    try:
-        updating.update_immediately(Actor.user(1))
-        raise AssertionError("a second update started beside the first")
-    except Rejection as refused:
-        assert "an update to 4.99.0 is under way" in str(refused), "a second update waits for the first"
+    updating.checked()
+    assert "an update to 4.99.0 is under way" in updating.problem, "a second automatic update waits for the first"
+    threshold.write(dataclasses.replace(threshold.paused(), pid=os.getppid(), step="Restarting once outputs 4 end"))
+    updating.install(Actor.user(1))
+    assert threshold.paused().pid == os.getpid(), "an update a person runs goes ahead over a live marker, and the marker is its own"
     threshold.write(dataclasses.replace(threshold.paused(), pid=-1))
     updating.reconcile(timing.time())
     assert threshold.paused() is None and "did not finish" in updating.problem and "update.log" in updating.problem, "a journal that came back on the old version says the update did not finish"
