@@ -2070,6 +2070,24 @@ def test_a_task_is_read_whole_with_its_plan_phase_brief_and_every_log_line_in_or
     assert console.run(["task", "edit", "2"], AGENT).code == 1, "an edit names what changes"
 
 
+def test_a_task_edited_after_a_users_message_is_linked_to_it_and_reminds_while_the_message_is_unlinked(app: App):
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["task", "create", "write the notes"], AGENT)
+    console.run(["message", "send", "also mention the tags"], USER)
+    console.run(["message", "read", "1"], AGENT)
+    reminded = console.run(["task", "edit", "1", "--brief", "notes and tags"], AGENT).text
+    assert "message 1 of the user is read and linked to no task" in reminded and "journal task edit 1 --from 1" in reminded, "one line after the edit names the message and the flag"
+    linked = console.run(["task", "edit", "1", "--brief", "notes, tags and links", "--from", "1"], AGENT).text
+    assert "(from message 1)" in linked and "linked to no task" not in linked
+    with app.container.get(Scope).environment(1):
+        message = app.container.get(Messages).find(1)
+        assert [ref.id for ref in app.container.get(Links).targets(message, Messages.SUBJECT_LINK)] == [1], "the message is linked to the task as create links it"
+    assert "linked to no task" not in console.run(["task", "edit", "1", "--title", "write the notes and tags"], AGENT).text, "a linked message is not asked for again"
+
+
 def test_the_look_runs_the_commands_the_setting_names_each_under_its_heading_in_order(app: App):
     hook(app, "SessionStart")
     console = app.console()

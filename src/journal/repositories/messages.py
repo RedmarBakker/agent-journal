@@ -73,6 +73,9 @@ class Messages(ScopedRepository[Message]):
     def last_user_message(self) -> Message | None:
         return next((m for m in self.selected(self.main_chat().filter(author=Author.USER).order_descending("id").limit(20)) if not m.is_terminal_line), None)
 
+    def read_since(self, moment: datetime) -> list[Message]:
+        return [m for m in self.selected(self.main_chat().filter(author=Author.USER).filter_greater("read_at", moment).order("id")) if not m.is_terminal_line]
+
     def unanswered(self) -> list[Message]:
         voiced_at = self.last_message()
         query = self.main_chat().filter(author=Author.USER).filter_present("read_at")

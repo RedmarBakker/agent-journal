@@ -43,7 +43,8 @@ needs no task; file one for work that is an item of its own, that waits, or that
   `--from <message n>` when it comes from one of the user's messages.
 - `journal task edit <n> --title "<title>" --brief "<what and done when>"` writes either or both anew: the title when the
   first one was wrong, the brief when the user corrects a task or a plan's review changes it. Read the brief first with
-  `journal task show <n>`: `--brief` replaces it whole. A revision is never written as a log line.
+  `journal task show <n>`: `--brief` replaces it whole. A revision is never written as a log line. Add `--from <message n>` when
+  a message of the user's is what changes the task, so the chat shows which one did.
 - `journal task start <n>` takes a task in hand. `journal task list` shows every task here. `journal task show <n>` reads
   one whole: its title, state, plan and phase, brief and every log line in order, so you pick it up where it stood.
 - `journal task log <n> "<where it stands>"` after each step that matters; before a compaction, always. Only the task in

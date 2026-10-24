@@ -11,6 +11,7 @@ from journal.features.tasks.states.ready import Ready
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.support.task_briefing import TaskBriefing
 from journal.features.tasks.support.block_check import BlockCheck
+from journal.features.tasks.support.message_reminder import MessageReminder
 from journal.features.tasks.support.waits import Waits
 from journal.models.link import Link
 from journal.models.support.ref import Ref
@@ -32,8 +33,8 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck) -> None:
-        self.clock, self.next_task = clock, next_task
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder) -> None:
+        self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check = check
 
@@ -48,6 +49,7 @@ class TaskCommand(Command):
         edit.add_argument("--title", default="")
         edit.add_argument("--brief", default="", help="the whole brief, which replaces the old one")
         edit.add_argument("--priority", default="", help="low, normal, high, critical or a number")
+        edit.add_argument("--from", dest="message", type=int, default=0, help="the user's message this edit comes from")
         brief = self.verb(verbs, "brief", "a task's brief written anew, when what done looks like has changed")
         brief.add_argument("n", type=int)
         brief.add_argument("brief")
@@ -80,24 +82,29 @@ class TaskCommand(Command):
 
     def create(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(Task(title=args.title, brief=args.brief, priority=TaskPriority.parsed(args.priority)), caller.actor)
-        if args.message:
-            self.links.save(Link(source=Ref.build(self.messages.find(args.message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
+        self.linked_from(args.message, task, caller)
         if args.start:
             task = self.taking.start(task, caller)
         print(f"task {task.id} {task.state}" + (f" (from message {args.message})" if args.message else ""))
         return 0
 
+    def linked_from(self, message: int, task: Task, caller: Caller) -> None:
+        if message:
+            self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
+
     def start(self, args: Namespace, caller: Caller) -> int:
         return self.claimed_task(args.n, caller, "started")
 
     def rename(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.save(self.tasks.find(args.n).with_(title=args.title), caller.actor)
-        print(f"task {task.id} is now: {task.title}")
+        before = self.tasks.find(args.n)
+        task = self.tasks.save(before.with_(title=args.title), caller.actor)
+        print("\n".join(filter(None, [f"task {task.id} is now: {task.title}", self.reminder.line(before)])))
         return 0
 
     def brief(self, args: Namespace, caller: Caller) -> int:
-        task = self.tasks.save(self.tasks.find(args.n).briefed(args.brief, self.clock.time()), caller.actor)
-        print(f"task {task.id} brief written anew")
+        before = self.tasks.find(args.n)
+        task = self.tasks.save(before.briefed(args.brief, self.clock.time()), caller.actor)
+        print("\n".join(filter(None, [f"task {task.id} brief written anew", self.reminder.line(before)])))
         return 0
 
     def edit(self, args: Namespace, caller: Caller) -> int:
@@ -106,8 +113,10 @@ class TaskCommand(Command):
         task = self.tasks.find(args.n)
         retitled = task.with_(title=args.title) if args.title else task
         ranked = retitled.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else retitled
-        self.tasks.save(ranked.briefed(args.brief, self.clock.time()) if args.brief else ranked, caller.actor)
-        print(f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew")
+        saved = self.tasks.save(ranked.briefed(args.brief, self.clock.time()) if args.brief else ranked, caller.actor)
+        self.linked_from(args.message, saved, caller)
+        written = f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
+        print("\n".join(filter(None, [written + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
         return 0
 
     def log(self, args: Namespace, caller: Caller) -> int:
