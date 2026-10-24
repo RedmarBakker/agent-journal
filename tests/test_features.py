@@ -9248,6 +9248,25 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     assert card.data["line"] == "sleep 2", "the card names the line the alias ran, never the alias"
 
 
+def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_waits_its_foreground_limit(app: App):
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
+    hook(app, "SessionStart")
+    assert console.run(["alias", "add", "snooze", "sleep", "--background"], AGENT).code == 0
+    assert console.run(["alias", "add", "doze", "sh -c 'sleep \"$1\"' doze"], AGENT).code == 0
+    assert "(background)" in console.run(["alias", "list"], USER).text
+    link.working(MAIN)
+    request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+    began = timing.monotonic()
+    moved = b"".join(runner.run(request("journal snooze 3"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    assert timing.monotonic() - began < 2 and re.search(r"output \d+", moved), "a background alias moves at once, not after the foreground limit"
+    began = timing.monotonic()
+    waited = b"".join(runner.run(request("journal doze 0.5"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    assert timing.monotonic() - began >= 0.5 and not re.search(r"output \d+", waited), "a plain alias runs in the foreground within its limit"
+    assert console.run(["alias", "edit", "snooze", "--foreground"], AGENT).code == 0 and "(background)" not in console.run(["alias", "list"], USER).text
+
+
 def test_a_readers_command_run_with_three_different_arguments_tells_the_agent_to_give_the_reader_a_topic(app: App):
     """A command a reader reads, run here with three or more argument sets, does different things, so the reader is asked for a topic that says which."""
     from journal.features.shell.support.shell_request import ShellRequest
@@ -9309,7 +9328,7 @@ def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_bot
     folder = tmp_path / "judging"
     (folder / ".journal-plugin" / "readers").mkdir(parents=True)
     (folder / "journal-plugin.json").write_text(json.dumps({"name": "judging", "version": "1.0.0", "program": "run.py", "aliases": [
-        {"name": "judge", "line": "bin/judge {args} --plain", "env": {"PLAIN": "1"}, "args": ["--changes", "<path>"], "reader": "verdicts"},
+        {"name": "judge", "line": "bin/judge {args} --plain", "env": {"PLAIN": "1"}, "args": ["--changes", "<path>"], "reader": "verdicts", "background": True},
         {"name": "task", "line": "bin/judge"}]}))
     (folder / "run.py").write_text("")
     (folder / ".journal-plugin" / "readers" / "verdicts.pattern").write_text("# the verdict\n^verdict\n")
@@ -9319,6 +9338,13 @@ def test_a_plugins_alias_and_reader_come_with_it_a_taken_name_is_skipped_and_bot
     judge = aliases.single(name="judge")
     assert judge.plugin == "judging" and judge.command("--changes") == f"PLAIN=1 {folder.resolve() / 'bin' / 'judge'} --changes --plain" and judge.description == "takes --changes, <path>"
     assert (app.config.readers / "verdicts.pattern").read_text().startswith("# the verdict\n^verdict\n")
+    assert judge.background, "a plugin's alias declares that a run moves to the background at once"
+    (folder / "journal-plugin.json").write_text(json.dumps({"name": "judging", "version": "1.0.1", "program": "run.py", "aliases": [{"name": "judge", "line": "bin/judge --strict {args}"}]}))
+    (folder / ".journal-plugin" / "readers" / "verdicts.pattern").write_text("# the verdict\n^judged\n")
+    upgraded = console.run(["plugin", "upgrade", "judging", "--yes"], USER)
+    assert upgraded.code == 0, upgraded.text + upgraded.error
+    judge = aliases.single(name="judge")
+    assert "--strict" in judge.line and not judge.background and "^judged" in (app.config.readers / "verdicts.pattern").read_text(), "an upgrade writes the plugin's aliases and readers again from its new manifest"
     assert console.run(["plugin", "remove", "judging"], USER).code == 0
     assert aliases.matching(name="judge") == [] and not (app.config.readers / "verdicts.pattern").exists(), "the plugin's alias and reader go with it"
 

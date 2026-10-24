@@ -25,14 +25,8 @@ function rummagingAt(voice, u) {
     return {pose, moves, out: (out * eyes.x) / PICTURE, eyes};
 }
 
-test("rummaging is one of the searches, picked now and then: the other ways to search are each picked at least as often, and all together far more", () => {
-    const searches = choicesFor({moment: "held:search", home: true});
-    const rummage = searches.find((each) => each.name === "rummage");
-    expect(rummage).toBeTruthy();
-    const others = searches.filter((each) => each !== rummage);
-    expect(others.map((each) => each.name)).toEqual(["search", "binoculars"]);
-    for (const other of others) expect(other.weight, other.name).toBeGreaterThanOrEqual(rummage.weight);
-    expect(rummage.weight / searches.reduce((sum, each) => sum + each.weight, 0)).toBeLessThan(0.2);
+test("rummaging is taken out of the searches for now, its clip kept for a later revision", () => {
+    expect(choicesFor({moment: "held:search", home: true}).map((each) => each.name)).toEqual(["search", "binoculars"]);
     expect(CLIPS.find((clip) => clip.name === "rummage")).toMatchObject({ownLook: true, postures: ["stand"]});
 });
 

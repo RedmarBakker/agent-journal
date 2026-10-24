@@ -27,12 +27,15 @@ class AliasCommand(Command):
         addition.add_argument("--reader", default="", help="the reader that reads its output; a run moved to the background is watched through it")
         addition.add_argument("--about", dest="description", default="", help="what it does, in a few words")
         addition.add_argument("--env", dest="variables", action="append", default=[], metavar="KEY=VALUE", help="a variable put before the line; more than one may be given")
+        addition.add_argument("--background", action="store_true", help="a run moves to the background the moment it starts, watched through its reader")
         self.verb(verbs, "list", "the project's aliases, each with its line and its reader")
         edit = self.verb(verbs, "edit", "change an alias's line, reader or what it does")
         edit.add_argument("name")
         edit.add_argument("--line")
         edit.add_argument("--reader")
         edit.add_argument("--about", dest="description")
+        edit.add_argument("--background", dest="background", action="store_const", const=True, help="a run moves to the background the moment it starts")
+        edit.add_argument("--foreground", dest="background", action="store_const", const=False, help="a run waits the usual seconds before it moves to the background")
         self.verb(verbs, "remove", "take an alias away").add_argument("name")
 
     def add(self, args: Namespace, caller: Caller) -> int:
@@ -42,20 +45,20 @@ class AliasCommand(Command):
         if refusal:
             raise Rejection(refusal)
         self.reader_check(args.reader)
-        self.aliases.save(Alias(name=args.name, line=args.line, reader=args.reader, description=args.description, variables=self.assignments(args.variables)), caller.actor)
+        self.aliases.save(Alias(name=args.name, line=args.line, reader=args.reader, description=args.description, variables=self.assignments(args.variables), background=args.background), caller.actor)
         print(f"alias {args.name} added: journal {args.name} [args] runs {args.line}")
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for alias in self.aliases.rows():
-            print(f"{alias.name:<20} {alias.line}" + (f"  (reader {alias.reader})" if alias.reader else ""))
+            print(f"{alias.name:<20} {alias.line}" + (f"  (reader {alias.reader})" if alias.reader else "") + ("  (background)" if alias.background else ""))
         return 0
 
     def edit(self, args: Namespace, caller: Caller) -> int:
         alias = self.aliases.single(name=args.name)
         if args.reader:
             self.reader_check(args.reader)
-        changes = {key: value for key in ("line", "reader", "description") if (value := getattr(args, key)) is not None}
+        changes = {key: value for key in ("line", "reader", "description", "background") if (value := getattr(args, key)) is not None}
         self.aliases.save(alias.with_(**changes), caller.actor)
         print(f"alias {args.name} changed")
         return 0

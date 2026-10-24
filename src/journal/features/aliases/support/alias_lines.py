@@ -5,7 +5,7 @@ from journal.support.chain import Chain
 
 
 class AliasLines:
-    """A shell line with each journal <alias> [args] part written out as the line its alias stands for, the alias an argv typed at a terminal calls, and the alias a written-out part runs."""
+    """A shell line with each journal <alias> [args] part written out as the line its alias stands for, the alias an argv typed at a terminal calls, the alias a written-out part runs, and the part of a line that runs one moving to the background at once."""
 
     def __init__(self, aliases: Aliases) -> None:
         self.aliases = aliases
@@ -23,3 +23,6 @@ class AliasLines:
 
     def running(self, part: str) -> Alias | None:
         return self.aliases.longest_alias(part)
+
+    def background_part(self, line: str) -> str:
+        return next((part for part in Chain.self_parts(line) if (alias := self.running(part)) is not None and alias.background), "")

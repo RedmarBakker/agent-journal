@@ -195,16 +195,14 @@ export const PILE = [
         shenanigan(showpiece(clip("disco", 2, {ball: "bubble"}))),
         nothing(560),
     ]),
-    // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars or, now and then, rummaging past
-    // the window's edge and flinging things over its shoulder; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
+    // how a held clip is played for one stretch of it: searching with the magnifying glass or binoculars; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
     // waving up at it; and while the context compacts, packed into a box that shrinks, squashed under a press, vacuuming up words, or
     // squaring a stack of papers
-    // no search within two minutes of the last, and each, the magnifying glass, the binoculars and the rummage, at most once in five
+    // no search within two minutes of the last, and each, the magnifying glass and the binoculars, at most once in five
     // minutes, so the next is always another; none at all while all wait;
     // the binoculars only from the compose box, scanning up the chat; the glass held up to a bubble only with one within reach (perches.js
-    // bubbleNear); the rummage at the corner nearest, from a ladder where the window's side lies past the ground's end (perches.js
-    // rummageSpot)
-    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, {...prop("glass_bubble", 2), when: {bubble: true}}, prop("rummage", 1)]),
+    // bubbleNear)
+    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, {...prop("glass_bubble", 2), when: {bubble: true}}]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),

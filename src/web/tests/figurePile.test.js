@@ -187,7 +187,6 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip search ×3 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip binoculars ×2 when moment=held:search home=true, plays out, group cools 120s, cools 300s",
         "clip glass_bubble ×2 when moment=held:search bubble=true, plays out, group cools 120s, cools 300s",
-        "clip rummage ×1 when moment=held:search, plays out, group cools 120s, cools 300s",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
         "clip watch ×2 when moment=held:watch, plays out",
