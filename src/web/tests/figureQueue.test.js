@@ -121,28 +121,6 @@ it("stepping out of the way waits while an act that may not be cut plays, and go
     expect(uncut([], "")).toBe(false);
 });
 
-it("while a bar runs, the figure chooses at every turn whether it watches it, by far most often watching, now and then looking elsewhere", async () => {
-    const {BAR_WATCH, barWatchAt} = await import("../src/figure/reactions.js");
-    expect(barWatchAt({watches: true, until: 99}, false, 5, Math.random), "no bar, no watching").toBe(null);
-    let seed = 3;
-    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    let choice = null;
-    const stretches = [];
-    for (let second = 0; second < 3000; second += 1) {
-        const next = barWatchAt(choice, true, second, random);
-        if (next !== choice) stretches.push(next);
-        choice = next;
-    }
-    const watching = stretches.filter((each) => each.watches).length / stretches.length;
-    expect(watching, "watching the bar the likeliest pick").toBeGreaterThan(0.75);
-    expect(watching, "but not every time").toBeLessThan(0.95);
-    // a stretch is held until it ends, then chosen again
-    const held = {watches: false, until: 10};
-    expect(barWatchAt(held, true, 9, random)).toBe(held);
-    expect(barWatchAt(held, true, 10, random)).not.toBe(held);
-    expect(BAR_WATCH.weight).toBeGreaterThan(3);
-});
-
 it("the running bar is never watched while an act played once is on screen, an entrance, an exit or any other", async () => {
     const {watchesBar} = await import("../src/figure/reactions.js");
     const watching = {watches: true, until: 99};

@@ -220,6 +220,8 @@ export const PILE = [
     ...at("climb", {}, [pick("hops", 3, {footholds: true})]),
     // while a run goes, whether the figure builds a server unit now (UNIT), the build's sequence waiting its cooldown
     ...at("unit", {cooldown: SEQUENCES.build.cooldown}, [pick("unit", UNIT.weight), nothing(1)]),
+    // the bar of a run the figure waits on seated jumping ahead or passing its near end (runWait.js): it looks up at it
+    ...at("progress_jump", {cooldown: 6}, [clip("look_up", 1)]),
     // what takes the work away once it is committed, the UFO or the crane, one of them every time with no cooldown, and the side the crane
     // rolls in from
     ...at("carrier", {}, [pick("ufo", 3), pick("crane", 1)]),

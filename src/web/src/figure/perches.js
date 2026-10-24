@@ -349,10 +349,11 @@ export function targetFor({state, counts, stay, now, near, figure, hands, work =
 const unlessClosing = (spot, near) => (spot?.on && spot.on !== near.on && spot.on === groundEdge().element && homeCloses() ? null : spot);
 
 // Where a figure at `near` eager for the bar docked over the compose box goes: onto the bars, at the spot it watches the bar from
-// (places.js watchSpot), else anywhere on them; null once it stands there, where it stays until the run ends
+// (places.js watchSpot), else anywhere on them, on its feet, as from the edge it sat on waiting (runWait.js); null once it stands there,
+// where it stays until the run ends
 export function eagerSpot(near, figure) {
     const spot = watchSpot(figure) ?? spotOf(null, figure);
-    return near?.on === spot.on && Math.abs(near.x - spot.x) < 2 ? null : spot;
+    return near?.on === spot.on && near.posture === spot.posture && Math.abs(near.x - spot.x) < 2 ? null : spot;
 }
 
 // a spot at home on the bars docked over the compose box, while a bar runs there, is the spot the figure watches it from

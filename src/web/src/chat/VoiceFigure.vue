@@ -60,7 +60,7 @@ import ComicBubble from "./ComicBubble.vue";
 import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
-import {FRESH_SECONDS, READING, answerTo, barWatchAt, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
+import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
 import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -104,6 +104,7 @@ import {
 import {STILL, landedSwing, swung} from "../figure/pendulum.js";
 import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
+import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
 import {MESSAGE_SECONDS, glanceAfter, glancePoint, headBlend, holdsHead, leadingLook} from "../figure/looks.js";
 import {store} from "../state/store.js";
@@ -249,8 +250,11 @@ let watching = "watch";
 let variant = {state: "", clip: ""};
 // the chat marks of the workers given work while the telephone's cooldown runs, all called together once it is over (reactions.js heldCall)
 let heldCalls = [];
-// the stretch the figure is in while a progress bar runs, watching it or with its eyes elsewhere (reactions.js barWatchAt), or null
+// the stretch the figure is in while a progress bar runs, watching it or with its eyes elsewhere (runWait.js barWatchAt), or null
 let barWatch = null;
+// the sitting act it plays seated waiting on a run (runWait.js sittingActAt), or null, and how far the run's bar had run at the last look
+let sittingAct = null;
+let lastShare = null;
 
 // the clip of this name the figure has, or idle when it has none
 const clipNamed = (name) => clips.find((clip) => clip.name === name) || clips.find((clip) => clip.name === "idle");
@@ -297,6 +301,8 @@ function heldClip() {
     if (body.place.swings) return "rope_swing";
     // at a wall with nothing to do it leans against it (perches.js leanSpot)
     if (body.place.lean && ["idle", "waiting"].includes(clipOf(state))) return "lean";
+    // seated on the card of a run it waits on, it plays its sitting acts in turn
+    if (seatedOnRun()) return (sittingAct = sittingActAt(sittingAct, now.value, Math.random)).clip;
     // the rummage waits until the figure stands at the window's edge, its stay there, and the glass search until it stands
     if (variant.clip === "rummage" && (stay.where !== "rummage" || body.trip)) return "idle";
     if (variant.clip === "search" && !body.trip && !drawnHere("search")) return "idle";
@@ -842,6 +848,19 @@ const scene = () => ({
     leaving: body.leaving,
 });
 
+// the progress bar of the run docked over the compose box (places.js progressOf), or null
+function runningBar() {
+    const docks = groundEdge();
+    return docks.docked ? progressOf(docks.element) : null;
+}
+
+// where the figure sits waiting on the run at its `stage` (runWait.js runSeat): on the edge of the docked card the bar runs on, once it has
+// watched the line, while it builds or pushes nothing; null otherwise
+const waitingSeat = (stage, pushing) => (stage === "sit" && !workOf() && !pushing && body.place.on === groundEdge().element ? runSeat(figureSize(), body.place) : null);
+
+// whether the figure sits on the edge of the docked card of the run it waits on
+const seatedOnRun = () => runStage(runningBar(), now.value) === "sit" && !body.trip && body.place.posture === "sit" && body.place.on === groundEdge().element;
+
 // the sequence that holds the figure now (pile.js sequenceIn): the build, while it has a box in hand, unless the UFO or the crane has come
 const sequenceNow = () => sequenceIn({box: parcels.value.some((each) => each.state !== "piled"), carrier: taking.value?.by ?? ""});
 
@@ -860,8 +879,12 @@ function look() {
     const ongoing = stillGoing(beats.value, doings.value.state, beatOnScreen());
     beats.value = freshBeats(ongoing.beats, beatOnScreen(), now.value);
     cutting ||= ongoing.cut;
-    const ground = groundEdge();
-    barWatch = barWatchAt(barWatch, Boolean(ground.docked && progressEdge(ground.element)), now.value, Math.random);
+    const stage = runStage(runningBar(), now.value);
+    barWatch = barWatchAt(barWatch, stage, now.value, Math.random);
+    // seated waiting on a run, it looks up when the bar jumps ahead or passes its near end
+    const bar = runningBar();
+    if (stage === "sit" && progressJumped(lastShare, bar.share)) react({beat: "progress_jump", time: now.value});
+    lastShare = stage ? bar.share : null;
     const called = heldCall(heldCalls, beats.value, memory.reacted, now.value);
     if (called) {
         beats.value = [...beats.value, {...called, queuedAt: now.value}];
@@ -929,7 +952,7 @@ function look() {
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
     // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended; for a long run it drops what it does
-    const going = eager?.on ? eagerSpot(body.place, figureSize()) : target.spot;
+    const going = eager?.on ? eagerSpot(body.place, figureSize()) : (waitingSeat(stage, pushing) ?? target.spot);
     // a trip that waits to set off gives way to one that drops everything
     if (eager?.urgent && going && body.trip && !body.trip.urgent && !body.trip.moves) body.trip = null;
     if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going && mayLeave(perched, performance.now() / 1000, Boolean(eager?.urgent))) {

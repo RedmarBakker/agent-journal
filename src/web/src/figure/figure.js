@@ -116,6 +116,7 @@ export class Posing {
         this.hearts = 0;
         this.stars = 0;
         this.squeezed = 0;
+        this.dozing = 0;
         this.laptop = false;
         this.tablet = false;
         this.cloth = false;
@@ -298,6 +299,11 @@ export class Posing {
     // the eyes squeezed shut laughing, a kawaii > <, `size` times their own size; 0 leaves the eyes
     squeezeEyes(size) {
         this.squeezed = size;
+    }
+
+    // dozing, a Z on the visor `size` big (visorPixels.js FRAMES z); 0 for none
+    doze(size) {
+        this.dozing = size;
     }
 
     // a laptop open on the lap, its lid toward the face
@@ -2728,6 +2734,37 @@ function ledge_sit(pose, stance, t) {
     pose.tap = LEDGE.toes * Math.max(waveOf(t, 2), 0);
 }
 
+// Checks a pocket watch where it sits on an edge waiting on a run (runWait.js): the free hand brings it out of the waistcoat pocket at
+// `pocket` up before the chest at `held` over `out`, the head bowed `look` degrees to read it, and puts it back over `back`; the legs swing
+// as they do on the edge
+export const WATCH_CHECK = {pocket: [0.35, -0.5, 1.45], held: [0.15, -0.95, 1.95], look: 18, out: [0.1, 0.3], back: [0.72, 0.92]};
+
+function pocket_watch(pose, stance, t) {
+    const side = freeSide(stance);
+    const out = partOf(t, WATCH_CHECK.out) * (1 - partOf(t, WATCH_CHECK.back));
+    const at = (point) => new THREE.Vector3(SIDES[side] * point[0], point[1], point[2]);
+    breathe(pose, t);
+    trunk(pose, {lean: 4 * out, nod: WATCH_CHECK.look * out});
+    armsAtRest(pose, stance, [side]);
+    handTo(pose, side, Math.max(out, 0.001), pose.withinReach(side, at(WATCH_CHECK.pocket).lerp(at(WATCH_CHECK.held), out), 0.97), new THREE.Vector3(SIDES[side] * 0.6, -0.5, -0.6));
+    if (out > 0.15) pose.holdUpright("pocket_watch", side, [0, 0, 0], {x: -30});
+    pose.swing(0.4 * waveOf(t));
+}
+
+// Dozes where it sits on an edge waiting on a run (runWait.js): the head sinking forward up to `nod` degrees and the shoulders slumping
+// `lean`, the eyes shut, a Z coming and going on the visor (visorPixels.js), the legs still but for a slow sway
+export const DOZE = {nod: 24, lean: 8};
+
+function doze(pose, stance, t) {
+    const sink = 0.7 + 0.3 * Math.sin(2 * Math.PI * t);
+    breathe(pose, t);
+    trunk(pose, {lean: DOZE.lean * sink, nod: DOZE.nod * sink});
+    armsAtRest(pose, stance);
+    pose.shutEyes(0);
+    pose.doze(1 + (Math.floor(t * 4) % 2));
+    pose.swing(0.15 * waveOf(t));
+}
+
 // hops on up from bubble to bubble, arms flung up and legs tucked, very fast
 function hop_up(pose, stance, t) {
     const pump = waveOf(t);
@@ -3206,6 +3243,8 @@ export const CLIPS = [
     {name: "look_up", head: HEAD.holds, frames: GLANCE.frames, fps: GLANCE.fps, loops: false, postures: GESTURE, pose: glanceAt(0, 1)},
     {name: "tumble", head: HEAD.holds, frames: TUMBLE.frames, fps: TUMBLE.fps, loops: false, postures: MOVE, pose: tumble},
     {name: "ledge_sit", head: HEAD.free, frames: 32, fps: 8, loops: true, leaves: 8, postures: ON_A_LAP, pose: ledge_sit},
+    {name: "pocket_watch", head: HEAD.holds, frames: 48, fps: 10, loops: true, postures: ON_A_LAP, pose: pocket_watch},
+    {name: "doze", head: HEAD.holds, frames: 48, fps: 8, loops: true, leaves: 24, postures: ON_A_LAP, pose: doze},
     {name: "hop_up", head: HEAD.free, frames: 8, fps: 16, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: hop_up},
     {name: "rope_swing", head: HEAD.gestures, frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ON_A_LAP, pose: rope_swing},
     {name: "chute", head: HEAD.holds, frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
@@ -3878,6 +3917,7 @@ export function propsOf() {
     bigMalletOf(group("big_mallet"));
     haloOf(group("halo"));
     crucifixOf(group("crucifix"));
+    pocketWatchOf(group("pocket_watch"));
     rummagedOf(group);
     return props;
 }
@@ -4020,6 +4060,21 @@ export function crucifixOf(prop) {
     shadedPart(root, "upright", new THREE.BoxGeometry(bar, bar, long), colours.wood, [0, 0, long * 0.2]);
     shadedPart(root, "crossbar", new THREE.BoxGeometry(across, bar, bar), colours.wood, [0, 0, long * 0.2 + at]);
     shadedPart(root, "centre", new THREE.SphereGeometry(bar * 0.7, 10, 8), colours.gold, [0, -bar * 0.5, long * 0.2 + at]);
+}
+
+// The pocket watch the figure checks sitting waiting on a run, shaded and outlined in gold, in the figure's units: a case `radius` across
+// and `depth` thick, its cream face toward the viewer, the hour and the minute hands on it, and the bow it hangs from on top
+export const POCKET_WATCH = {radius: 0.2, depth: 0.08, bow: 0.06, colours: {gold: 0xe8b84a, face: 0xf6f1e3, hands: 0x272936}};
+
+export function pocketWatchOf(prop) {
+    const root = poseSpace(prop);
+    const {radius, depth, bow, colours} = POCKET_WATCH;
+    const round = new THREE.Euler(Math.PI / 2, 0, 0);
+    shadedPart(root, "case", new THREE.CylinderGeometry(radius, radius, depth, 24).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(round)), colours.gold, [0, 0, 0]);
+    shadedPart(root, "face", new THREE.CylinderGeometry(radius * 0.82, radius * 0.82, depth * 0.3, 24).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(round)), colours.face, [0, -depth * 0.45, 0]);
+    shadedPart(root, "hour_hand", new THREE.BoxGeometry(radius * 0.08, depth * 0.2, radius * 0.45), colours.hands, [radius * 0.1, -depth * 0.62, radius * 0.18]);
+    shadedPart(root, "minute_hand", new THREE.BoxGeometry(radius * 0.6, depth * 0.2, radius * 0.06), colours.hands, [radius * 0.28, -depth * 0.62, 0]);
+    shadedPart(root, "bow", new THREE.TorusGeometry(bow, bow * 0.3, 8, 16).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(round)), colours.gold, [0, 0, radius + bow * 0.8]);
 }
 
 // The bug of a fixed test run, shaded and outlined as the figure's props are: a beetle `long` of the picture's pixels long walking toward
@@ -4617,7 +4672,7 @@ function place(figure, pose, facing, blend) {
     // the eyes go out before a lit visor comes on, a display with nothing on it; a sign glows in the visor's colour, as white as its flash
     // and as bright as it is lit
     const sign = pose.eyeShape && {...pose.eyeShape, colour: signColour(pose.screen)};
-    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, sign});
+    const lit = litPixels({eyed: crt.eyes > EYES_GONE, eyes: pose.eyes, shift: pose.eyeShift, tint: pose.eyeTint, hearts: pose.hearts, stars: pose.stars, squeezed: pose.squeezed, dozing: pose.dozing, sign});
     for (const material of figure.screens) {
         material.uniforms.lit.value = crt.glow;
         material.uniforms.across.value = crt.across;

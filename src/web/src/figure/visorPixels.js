@@ -24,6 +24,8 @@ export const PICTURES = {
     star_twinkle: ["o...#...o", "....#....", "...###...", "####o####", ".#######.", "..#####..", "..##.##..", ".##...##.", "o#.....#o"],
     star_small: ["..#..", ".###.", "##o##", ".###.", ".#.#."],
     squeezed: ["##....", ".###..", "...##.", "....##", "...##.", ".###..", "##...."],
+    z_small: ["###", "..#", ".#.", "#..", "###"],
+    z_big: ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
     cross: ["##.....##", "###...###", ".###.###.", "..#####..", "...###...", "..#####..", ".###.###.", "###...###", "##.....##"],
     tick: [".......##", "......###", ".....###.", "##..###..", "######...", ".####....", "..##....."],
 };
@@ -34,6 +36,7 @@ export const FRAMES = {
     eyes: [["eye_shut", 0], ["eye_half", 0.25], ["eye_narrowed", 0.55], ["eye_open", 0.82], ["eye_wide", 1.25]],
     hearts: [["heart_tiny", 0.05], ["heart_small", 0.6], ["heart_big", 1.08]],
     stars: [["star_small", 0.05], ["star_big", 0.6], ["star_twinkle", 1.12]],
+    z: [["z_small", 0.05], ["z_big", 1.5]],
 };
 
 // the frame of the family `name` for `size`: the last whose least size it reaches, or none below the first
@@ -54,13 +57,17 @@ const EYE_HEIGHT = PICTURES.eye_open.length;
 // The pixels lit for a face, each {column, row, colour}: `face` says how open the `eyes` are (Posing.eyes) and whether they show at all
 // (`eyed`), their `shift` aside and up as shares of their height (Posing.eyeShift), their `tint`, and what takes their place: `hearts`,
 // `stars` or `squeezed` at their size, or a run's end as a `sign` ({name, colour, strength}), shown as far up and down from the middle
-// as its strength
+// as its strength; and a Z above them while it is `dozing`, at its size
 export function litPixels(face) {
     if (!face.eyed) return [];
     const shown = shownPicture(face);
-    if (!shown) return [];
-    return EYE_SPOTS.flatMap((spot) => placed(shown, spot, face));
+    const eyes = shown ? EYE_SPOTS.flatMap((spot) => placed(shown, spot, face)) : [];
+    const z = face.dozing > 0 ? placed({name: frameFor("z", face.dozing), colour: COLOURS.eyes, light: COLOURS.eyes, reach: 1}, Z_SPOT, face) : [];
+    return [...eyes, ...z];
 }
+
+// where the Z of a figure dozing is centred on the grid: high up between the eyes, toward its left
+export const Z_SPOT = {column: 18, row: 3, mirrored: false};
 
 // the picture shown in each eye's place, its colours, how far it reaches up and down from its middle (1 the whole picture), whether it
 // glances with the eyes, and whether it points one way

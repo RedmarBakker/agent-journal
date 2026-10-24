@@ -207,6 +207,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "pick hops ×3 when moment=climb footholds=true",
         "pick unit ×19 when moment=unit, group cools 180s",
         "nothing nothing ×1 when moment=unit, group cools 180s",
+        "clip look_up ×1 when moment=progress_jump, cut after 1s, group cools 6s",
         "pick ufo ×3 when moment=carrier",
         "pick crane ×1 when moment=carrier",
         "pick left ×1 when moment=crane_from",
