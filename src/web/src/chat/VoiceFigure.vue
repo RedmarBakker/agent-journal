@@ -274,7 +274,7 @@ const asleep = () => clipOf(held.value.state) === "sleep";
 
 function heldClip() {
     const {state} = held.value;
-    if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip, memory.reacted, now.value)};
+    if (variant.state !== state) variant = {state, clip: variantOf(clipOf(state), Math.random, hasClip, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
     if (body.place.swings) return "rope_swing";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
 }

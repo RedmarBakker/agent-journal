@@ -133,12 +133,12 @@ test("every moment the figure acts out has more than one way to play it, picks a
     }
     expect(workMoments("building", false, 0, 5).moments).toEqual([{beat: "building", time: 5}]);
     // searching, typing and watching the UFO, each picked again for each stretch
-    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "flashlight", "peek_under", "rummage"]);
+    expect(of("held:search").map((each) => each.name)).toEqual(["search", "binoculars", "flashlight", "rummage"]);
     for (const clip of ["search", "type", "watch", "compacting"]) {
         const among = of(`held:${clip}`);
         expect(among.length, clip).toBeGreaterThan(1);
         expect(among.map((each) => each.name), clip).toContain(clip);
-        expect(picks(among, (random) => variantOf(clip, random, has)), clip).toEqual(among.map((each) => each.name));
+        expect(picks(among, (random) => variantOf(clip, random, has, {home: true})), clip).toEqual(among.map((each) => each.name));
         expect(variantOf(clip, () => 0.99, (name) => name === clip), clip).toBe(clip);
     }
     expect(variantOf("idle", () => 0, has)).toBe("idle");

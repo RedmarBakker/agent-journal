@@ -177,9 +177,8 @@ test("every animation in the pile, with its weight and the condition it plays un
         "shenanigan clip disco ×2 when moment=pastime ball=bubble, plays out",
         "nothing nothing ×560 when moment=pastime",
         "clip search ×3 when moment=held:search, plays out",
-        "clip binoculars ×2 when moment=held:search, plays out",
+        "clip binoculars ×2 when moment=held:search home=true, plays out",
         "clip flashlight ×2 when moment=held:search, plays out",
-        "clip peek_under ×1 when moment=held:search, plays out",
         "clip rummage ×1 when moment=held:search, plays out",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
@@ -331,10 +330,18 @@ test("searching, the magnifying glass and the binoculars each come at most once 
     const {variantOf} = await import("../src/figure/reactions.js");
     const memory = new Map();
     const drawn = [];
-    for (let second = 0; second < 600; second += 10) drawn.push({second, clip: variantOf("search", Math.random, () => true, memory, second)});
+    for (let second = 0; second < 600; second += 10) drawn.push({second, clip: variantOf("search", Math.random, () => true, {memory, now: second, home: true})});
     for (const prop of ["search", "binoculars"]) {
         const times = drawn.filter((each) => each.clip === prop).map((each) => each.second);
         for (let index = 1; index < times.length; index++) expect(times[index] - times[index - 1], prop).toBeGreaterThanOrEqual(300);
     }
-    expect(drawn.every((each) => ["search", "binoculars", "flashlight", "peek_under", "rummage"].includes(each.clip))).toBe(true);
+    expect(drawn.every((each) => ["search", "binoculars", "flashlight", "rummage"].includes(each.clip))).toBe(true);
+});
+
+test("the binoculars are picked only while the figure stands on the compose box, to scan up the chat from there", async () => {
+    const {choicesFor} = await import("../src/figure/pile.js");
+    expect(choicesFor({moment: "held:search", home: true}).map((each) => each.name)).toContain("binoculars");
+    expect(choicesFor({moment: "held:search", home: false}).map((each) => each.name)).not.toContain("binoculars");
+    const {ACTS} = await import("../src/figure/acts.js");
+    expect(ACTS.binoculars.up, "tipped up the chat").toBeGreaterThan(5);
 });

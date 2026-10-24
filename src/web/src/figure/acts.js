@@ -35,8 +35,9 @@ export const ACTS = {
     got_it: {frames: 30, fps: 12, rise: [0, 0.25], appears: [0.05, 0.15], lights: [0.18, 0.26], fades: [0.72, 0.88], goes: [0.86, 1]},
     // a fact or a reminder: a small cabinet grows beside it, its drawer slides out, it files a card in it and the drawer shuts
     file_card: {frames: 42, fps: 12, grows: [0, 0.15], opens: [0.12, 0.28], reach: [0.2, 0.44], filed: [0.44, 0.56], back: [0.56, 0.72], shuts: [0.58, 0.72], sinks: [0.86, 1]},
-    // searching: binoculars at its eyes, sweeping slowly left and right
-    binoculars: {frames: 80, fps: 10, sweep: 1},
+    // searching from the compose box: binoculars at its eyes, tipped `up` degrees up the chat and scanning slowly up and down it `scan`
+    // degrees either way, twice, with a little turn left and right
+    binoculars: {frames: 100, fps: 10, sweep: 1, up: 9, scan: 6},
     // searching with a torch (figure.js flashlight, torchOf): held up and forward, its beam aimed at `aim` (across to the free hand's side,
     // forward and up from the feet, in the figure's units), at about the height of its head, where a chat bubble beside it is, never at its
     // own feet, and swept slowly about there, `sweep` across and up and down (torchAim); its lens `lens` from where the hand grips it, which

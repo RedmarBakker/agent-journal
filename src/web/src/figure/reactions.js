@@ -9,9 +9,10 @@ import {lookAngles, lookWay, upFor} from "./look.js";
 export const carrierOf = (random) => draw({moment: "carrier"}, random).name;
 export const craneFrom = (random) => draw({moment: "crane_from"}, random).name;
 
-// the clip a held clip is played as for this stretch of it (pile.js held:), itself when it is played one way only; `memory` holds when each
-// variant waiting a cooldown may be drawn again, at `now`
-export const variantOf = (clip, random, has, memory = null, now = 0) => draw({moment: `held:${clip}`, has, memory, now}, random)?.name ?? clip;
+// the clip a held clip is played as for this stretch of it (pile.js held:), itself when it is played one way only; `scene` says what the
+// variants' conditions read: `memory` when each variant waiting a cooldown last played, at `now`, and `home` whether the figure stands on
+// the compose box
+export const variantOf = (clip, random, has, scene = {}) => draw({moment: `held:${clip}`, has, ...scene}, random)?.name ?? clip;
 
 // how long the eyes keep a look, counted only while they are shown
 export const LOOK_SECONDS = 3;

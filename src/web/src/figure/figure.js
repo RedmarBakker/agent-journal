@@ -2773,13 +2773,20 @@ function chute(pose, stance, t) {
 
 // The figure looks all about through binoculars held up to its eyes, sweeping slowly from one side to the other, the hand keeping them
 // before the eyes as the head turns
+// how far the binoculars rise for each degree the head tips up, in the figure's units, as far as the arm reaches
+const BINOCULAR_RISE = 0.006;
+
+// scans up and down the chat through binoculars from the compose box (acts.js binoculars): head and binoculars tipped up the chat and
+// swept slowly up and down it, the body turning a little left and right, the hand holding them to the eyes as the head moves
 function binoculars(pose, stance, t) {
-    const turn = ACTED.sweep * waveOf(t, ACTS.binoculars.sweep);
-    trunk(pose, {twist: turn, nod: -4});
+    const act = ACTS.binoculars;
+    const turn = 0.4 * ACTED.sweep * waveOf(t, act.sweep);
+    const up = act.up + act.scan * waveOf(t, 2);
+    trunk(pose, {twist: turn, nod: -up});
     const side = freeSide(stance);
     const [x, y, z] = ACTED.binoculars;
-    const at = new THREE.Vector3(SIDES[side] * x, y, z).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
-    actHand(pose, stance, 1, [SIDES[side] * at.x, at.y, at.z], {x: -60});
+    const at = new THREE.Vector3(SIDES[side] * x, y, z + BINOCULAR_RISE * up).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
+    actHand(pose, stance, 1, [SIDES[side] * at.x, at.y, at.z], {x: -60 - up});
 }
 
 // The look along the torch's beam: the head turned `turn` degrees toward the free side for each unit across the beam lands, and tipped up
