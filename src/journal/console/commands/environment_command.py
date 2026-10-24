@@ -36,6 +36,7 @@ from journal.sync.team_account import TeamAccount
 from journal.features.team.support.start_rule import StartRule
 from journal.features.hydration.support.session_hydration import SessionHydration
 from journal.features.team.support.environment_sharing import EnvironmentSharing
+from journal.engine.support.launch_files import LaunchFiles
 
 TAKEOVER_WINDOW = timedelta(hours=12)
 
@@ -43,11 +44,11 @@ TAKEOVER_WINDOW = timedelta(hours=12)
 class EnvironmentCommand(Command):
     noun = "environment"
 
-    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing) -> None:
+    def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles) -> None:
         self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
         self.environments, self.agents, self.tasks, self.messages, self.questions, self.workers, self.entries = environments, agents, tasks, messages, questions, workers, entries
         self.rules, self.facts, self.reminders, self.providers, self.config, self.scope = rules, facts, reminders, providers, config, scope
-        self.memory, self.overview_commands, self.taking = memory, overview_commands, taking
+        self.memory, self.overview_commands, self.taking, self.launches = memory, overview_commands, taking, launches
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "overview", "everything in flight in this environment: the task in hand, open tasks, messages, questions, workers, background runs, and the rules, facts and reminders, then each command the setting briefing.look_commands names, under its heading; owed at every session start")
@@ -75,7 +76,8 @@ class EnvironmentCommand(Command):
             agents = sorted(self.agents.global_matching(environment_id=environment.row_id, role=AgentRole.MAIN), key=lambda item: item.update_time)
             last = agents[-1] if agents else None
             resumable = [item for item in agents if item.session and self.providers.lookup(item.provider).transcript(self.config.root, item.session)]
-            rows.append(EnvironmentRow(environment.name, last is not None and last.state != "ended", self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number())))
+            working = last is not None and last.state != "ended" and not self.launches.is_abandoned(environment.name)
+            rows.append(EnvironmentRow(environment.name, working, self.age(last.update_time) if last else "", {item.provider: item.session for item in resumable}, self.starts.refusal(environment, self.account.user_number())))
         return rows
 
     def overview(self, args: Namespace, caller: Caller) -> int:

@@ -7,7 +7,7 @@ import sys
 import traceback
 import uuid
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from journal.support.choice import Choice
@@ -98,7 +98,7 @@ class Launch:
 
     def choice(self) -> Choice:
         menu = Menu(self.root, self.package / "journal.sh")
-        matched = self.environment or self.worktree or self.resume_folder(menu)
+        matched = self.unheld(menu, self.environment or self.worktree or self.resume_folder(menu))
         if not sys.stdin.isatty():
             menu.environment_rows(matched or self.default_environment(), menu.environments())
             return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
@@ -107,6 +107,21 @@ class Launch:
             self.log("updated before the launch: starting again on the new version")
             os.execv(sys.executable, [sys.executable, *sys.argv])
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)
+
+    # a worktree launch never shares an environment a live session holds: it takes name-2, name-3 and so on, a worktree of its own
+    def unheld(self, menu: Menu, name: str) -> str:
+        if not (self.worktree_launch and name):
+            return name
+        held = {row.name for row in menu.environments() if row.working}
+        candidate, number = name, 1
+        while candidate in held:
+            number += 1
+            candidate = f"{name}-{number}"
+        return candidate
+
+    # the worktree a launch named follows its environment when that was renamed for a live session holding it
+    def chosen(self, choice: Choice) -> "Launch":
+        return replace(self, worktree=choice.environment) if self.worktree and not self.environment else self
 
     def is_resumable(self, choice: Choice, folder: Path) -> bool:
         if not choice.resume or folder == self.root or self.provider.copy_session(self.root, folder, choice.resume):
@@ -167,7 +182,7 @@ class Launch:
             if choice.stashed_hooks:
                 peers.stash()
             try:
-                code = self.supervise(choice)
+                code = self.chosen(choice).supervise(choice)
             finally:
                 peers.restore()
             self.log(f"ended: the supervisor's loop exited with {code}")

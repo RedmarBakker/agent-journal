@@ -285,6 +285,37 @@ def test_a_workers_environment_carries_no_providers_markers_no_session_and_no_la
     assert app.container.get(HelperSetup).variables("main", Actor.verifier(3), AgentToken("tok"))["JOURNAL_ACTOR"] == "verifier:3", "a verifier's shell names it as a verifier, never a worker"
 
 
+def test_a_worktree_launch_takes_name_2_beside_a_live_session_and_reuses_a_crashed_ones_name(app: App, monkeypatch):
+    import json
+    import os
+    import subprocess
+    from journal.launcher.launch import Launch
+    from journal.launcher.menu import Menu
+    from journal.models.agent import Agent
+    from journal.providers.support.status_line import StatusLine
+    from journal.repositories.agents import Agents
+    from journal.repositories.environments import Environments
+    root = app.config.root
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=root, capture_output=True, timeout=30)
+    monkeypatch.setattr(Menu, "journal", lambda self, *argv: app.console().run(list(argv), Caller.user("main")).text)
+    gone = subprocess.Popen(["true"])
+    gone.wait(10)
+    launches = app.config.home / "runtime" / "launches"
+    launches.mkdir(parents=True, exist_ok=True)
+    for name, owner in (("alpha", os.getpid()), ("beta", gone.pid)):
+        app.console().run(["environment", "create", name], Caller.user("main"))
+        environment = app.container.get(Environments).existing(name)
+        app.container.get(Agents).save(Agent(environment_id=environment.row_id, session=f"s-{name}", provider="claude", state="idle"), Actor.system())
+        (launches / f"{name}.json").write_text(json.dumps({"launch": f"launch-{name}", "owner": owner}))
+    live = Launch.parse(["claude", "--worktree", "alpha"], root)
+    choice = live.choice()
+    folder = live.chosen(choice).launch_file(choice, StatusLine(root))["front"]["folder"]
+    assert choice.environment == "alpha-2" and folder == str(root / ".claude" / "worktrees" / "alpha-2"), "a live session holds alpha, so the launch takes alpha-2 with a worktree of its own"
+    crashed = Launch.parse(["claude", "--worktree", "beta"], root)
+    assert crashed.choice().environment == "beta", "a crashed session, its launcher gone, holds nothing, so its name is taken again"
+
+
 def test_two_worktree_launches_run_side_by_side_each_with_its_own_environment_and_agent(app: App, monkeypatch):
     import json
     import subprocess
