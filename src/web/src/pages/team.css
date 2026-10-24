@@ -206,3 +206,42 @@
     gap: 18px;
     min-width: 0;
 }
+
+.team-choices {
+    display: flex;
+    gap: 8px;
+}
+
+.team-section {
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.team-sub {
+    margin: 0;
+    color: var(--text-3);
+    font-size: 12px;
+}
+
+.team-keep,
+.team-refusal {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+}
+
+.team-keep {
+    color: var(--tone-warn);
+    font-size: 12px;
+}
+
+.team-refusal {
+    color: var(--danger);
+}
+
+.team-keep .state-dot,
+.team-refusal .state-dot {
+    margin-top: 5px;
+}

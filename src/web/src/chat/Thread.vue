@@ -524,42 +524,44 @@ const {colleague, me} = useColleague();
                         </TransitionGroup>
                     </template>
                 </div>
-                <div v-if="rendering" :class="['chat-foot', {hidden: feeding || !ready}]" data-figure-chat-foot>
-                    <div ref="docks" class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
-                        <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
-                            <template v-for="docked in rowDocks" :key="docked.id">
-                                <ChatDock :message="docked" :folded="short || !planOpen" />
-                            </template>
-                        </TransitionGroup>
-                        <Transition name="dock" :duration="DOCK_MOTION_MS">
-                            <DumpDock v-if="dumpDock" :key="dumpDock.id" :dump="dumpDock" :folded="short || !planOpen" />
-                        </Transition>
-                        <Transition name="dock" :duration="DOCK_MOTION_MS">
-                            <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
-                        </Transition>
+                <template v-if="rendering">
+                    <div :class="['chat-foot', {hidden: feeding || !ready}]" data-figure-chat-foot>
+                        <div ref="docks" class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
+                            <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
+                                <template v-for="docked in rowDocks" :key="docked.id">
+                                    <ChatDock :message="docked" :folded="short || !planOpen" />
+                                </template>
+                            </TransitionGroup>
+                            <Transition name="dock" :duration="DOCK_MOTION_MS">
+                                <DumpDock v-if="dumpDock" :key="dumpDock.id" :dump="dumpDock" :folded="short || !planOpen" />
+                            </Transition>
+                            <Transition name="dock" :duration="DOCK_MOTION_MS">
+                                <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
+                            </Transition>
+                        </div>
+                        <template v-if="busy && !waitingNow">
+                            <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
+                                <div class="thread-meta">
+                                    <Dot kind="started" solid :size="6" />
+                                    <RunningCommand :idle="line.doing" />
+                                </div>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
+                                <div class="thread-meta">
+                                    <Dot kind="queued" solid :size="6" />
+                                    <template v-if="waitingNow">
+                                        <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
+                                    </template>
+                                    <template v-else>
+                                        <span>idle</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
                     </div>
-                    <template v-if="busy && !waitingNow">
-                        <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
-                            <div class="thread-meta">
-                                <Dot kind="started" solid :size="6" />
-                                <RunningCommand :idle="line.doing" />
-                            </div>
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
-                            <div class="thread-meta">
-                                <Dot kind="queued" solid :size="6" />
-                                <template v-if="waitingNow">
-                                    <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
-                                </template>
-                                <template v-else>
-                                    <span>idle</span>
-                                </template>
-                            </div>
-                        </div>
-                    </template>
-                </div>
+                </template>
                 <Transition name="pane">
                     <template v-if="feeding">
                         <FileFeed :key="feedKey" :agent="owner.id" :options="ui.threadFeed" @options="ui.threadFeed = $event" />

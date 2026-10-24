@@ -108,12 +108,14 @@ test("the Team page lists each person with their environments and opens a collea
 });
 
 test("connecting opens on two choices: claiming a server asks its address and then the admin account, an account connects with the form", async () => {
-    const form = readFileSync(resolve(__dirname, "../src/pages/TeamConnect.vue"), "utf8");
+    const read = (name) => readFileSync(resolve(__dirname, `../src/pages/${name}.vue`), "utf8");
+    const form = read("TeamConnect") + read("TeamChoice") + read("TeamClaim") + read("TeamAccount");
     expect(form).toMatch(/const step = ref\("choice"\)/);
-    expect(form).toMatch(/<Btn kind="primary" @click="open\('claim'\)">Claim a server<\/Btn>\s*<Btn @click="open\('connect'\)">Connect with an account<\/Btn>/);
+    expect(read("TeamConnect")).toMatch(/<SwitchCase :value="step">[\s\S]*#choice[\s\S]*#claim[\s\S]*#default/);
+    expect(read("TeamChoice")).toMatch(/<Btn kind="primary" @click="\$emit\('open', 'claim'\)">Claim a server<\/Btn>\s*<Btn @click="\$emit\('open', 'connect'\)">Connect with an account<\/Btn>/);
     expect([...form.matchAll(/<FormField label="([^"]+)"/g)].map((m) => m[1])).toEqual(["Server address", "Team URL", "Email", "Password"]);
     expect(form).not.toMatch(/[Ss]etup code|setup_code/);
-    expect(form).toMatch(/<Btn @click="generate">Generate<\/Btn>/);
+    expect(form).toMatch(/<Btn @click="\$emit\('generate'\)">Generate<\/Btn>/);
     expect(form).not.toMatch(/ListBox/);
     expect(form).toMatch(/const got = await api\.checkTeam\(\{url: url\.value\}\);[\s\S]*?if \(got\.refusal\) failure\.value = got\.refusal;\s*else step\.value = "account";/);
     expect(form).toMatch(/\{\{ busy \? "Checking" : "Next" \}\}/);

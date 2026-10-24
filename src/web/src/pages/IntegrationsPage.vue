@@ -6,9 +6,11 @@ import {usePoll} from "../composables/poll.js";
 import {ago} from "../format/time.js";
 import {agentOnline} from "../composables/leadAgent.js";
 import Btn from "../kit/Btn.vue";
-import StateDot from "../kit/StateDot.vue";
 import TextInput from "../kit/TextInput.vue";
 import SkeletonLine from "../kit/SkeletonLine.vue";
+import IntegrationPending from "./IntegrationPending.vue";
+import IntegrationServer from "./IntegrationServer.vue";
+import IntegrationSuggestion from "./IntegrationSuggestion.vue";
 
 const servers = ref([]);
 const suggested = ref([]);
@@ -28,14 +30,6 @@ function act(name, work) {
 const keys = ref({});
 
 const offered = computed(() => suggested.value.filter((s) => !s.installed));
-const DOTS = {connected: "done", failed: "failed", needs_key: "queued", needs_auth: "queued", installed: "draft"};
-const WORDS = {
-    connected: "Connected",
-    failed: "Could not connect",
-    needs_key: "Needs its key",
-    needs_auth: "Needs signing in",
-    installed: "Installed, not checked yet",
-};
 
 const checkedAt = ref(0);
 const checking = ref(false);
@@ -105,10 +99,6 @@ watch(signingIn, (name) => {
 });
 onUnmounted(() => clearInterval(signInPolling));
 
-// how a suggested server is let in, in words
-function letIn(suggestion) {
-    return {key: `Needs a key (${suggestion.key_var}).`, oauth: "Signs in on its own."}[suggestion.auth] || "Needs no key.";
-}
 </script>
 
 <template>
@@ -132,10 +122,7 @@ function letIn(suggestion) {
             <p class="integrations-notice">{{ notice }}</p>
         </template>
         <template v-if="restartPending.length">
-            <p class="integrations-pending">
-                <span class="integrations-spinner" />
-                The agent restarts as soon as it finishes what it is doing; the change applies then.
-            </p>
+            <IntegrationPending>The agent restarts as soon as it finishes what it is doing; the change applies then.</IntegrationPending>
         </template>
 
         <template v-if="firstCheck">
@@ -160,55 +147,16 @@ function letIn(suggestion) {
         <template v-else>
             <ul class="integrations-list">
                 <template v-for="s in servers" :key="s.name">
-                    <li class="integration">
-                        <div class="integration-row">
-                            <StateDot :state="DOTS[s.state] || 'draft'" />
-                            <strong>{{ s.title }}</strong>
-                            <span class="integration-state">{{ WORDS[s.state] || s.state }}</span>
-                            <span class="integration-grow" />
-                            <Btn kind="ghost" small :busy="busy === s.name" @click="remove(s)">Remove</Btn>
-                        </div>
-                        <template v-if="s.last_error">
-                            <p class="integration-error">{{ s.last_error }}</p>
-                        </template>
-                        <code class="integration-how">{{ s.url || s.command }}</code>
-                        <template v-if="s.managed && s.auth === 'key'">
-                            <div class="integration-key">
-                                <TextInput
-                                    :value="keys[s.name]"
-                                    type="password"
-                                    :placeholder="
-                                        s.has_key ? `${s.key_var} is set; paste a new one to replace it` : `Paste the ${s.key_var}`
-                                    "
-                                    @input="keys[s.name] = $event.target.value"
-                                    @keydown.enter="saveKey(s)"
-                                />
-                                <Btn
-                                    kind="primary"
-                                    small
-                                    :busy="busy === s.name"
-                                    :disabled="!(keys[s.name] || '').trim()"
-                                    @click="saveKey(s)"
-                                >
-                                    {{ s.has_key ? "Replace key" : "Save key" }}
-                                </Btn>
-                            </div>
-                        </template>
-                        <template v-else-if="s.managed && s.auth === 'oauth' && signingIn === s.name">
-                            <div class="integration-key">
-                                <span class="integration-note integrations-pending">
-                                    <span class="integrations-spinner" />
-                                    Signing in: approve it in the browser window the agent opened.
-                                </span>
-                            </div>
-                        </template>
-                        <template v-else-if="s.managed && s.auth === 'oauth'">
-                            <div class="integration-key">
-                                <span class="integration-note">Asks the agent to sign in; a browser window opens from its terminal.</span>
-                                <Btn kind="primary" small :busy="busy === s.name" :disabled="!agentOnline" @click="signIn(s)">Sign in</Btn>
-                            </div>
-                        </template>
-                    </li>
+                    <IntegrationServer
+                        v-model:key-value="keys[s.name]"
+                        :server="s"
+                        :busy="busy === s.name"
+                        :signing-in="signingIn === s.name"
+                        :agent-online="agentOnline"
+                        @remove="remove(s)"
+                        @save-key="saveKey(s)"
+                        @sign-in="signIn(s)"
+                    />
                 </template>
             </ul>
         </template>
@@ -245,14 +193,7 @@ function letIn(suggestion) {
         <template v-else>
             <ul class="integrations-grid">
                 <template v-for="s in offered" :key="s.name">
-                    <li class="suggestion">
-                        <strong>{{ s.title }}</strong>
-                        <p>{{ s.about }}</p>
-                        <span class="integration-note">
-                            {{ letIn(s) }}
-                        </span>
-                        <Btn kind="primary" small :busy="busy === s.name" @click="install(s)">Install</Btn>
-                    </li>
+                    <IntegrationSuggestion :suggestion="s" :busy="busy === s.name" @install="install(s)" />
                 </template>
             </ul>
         </template>
@@ -291,29 +232,6 @@ function letIn(suggestion) {
     color: var(--text-dim, #9aa0a6);
 }
 
-.integrations-pending {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-dim, #9aa0a6);
-}
-
-.integrations-spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--line, #2a2d33);
-    border-top-color: var(--accent, #7b86f5);
-    border-radius: 50%;
-    animation: integrations-spin 0.9s linear infinite;
-}
-
-@keyframes integrations-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
 .integrations-notice {
     margin: 0;
     color: var(--warn, #e0a848);
@@ -343,67 +261,13 @@ function letIn(suggestion) {
     background: var(--panel, #16181c);
 }
 
-.integration-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.integration-grow {
-    flex: 1;
-}
-
-.integration-state {
-    color: var(--text-dim, #9aa0a6);
-    font-size: 13px;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
 .integrations-checked {
     color: var(--text-3);
     font-size: 12px;
 }
 
-.integration-error {
-    margin: 0;
-    color: var(--text-2);
-    font-size: 13px;
-    overflow-wrap: anywhere;
-}
-
-.integration-how {
-    font-size: 12px;
-    color: var(--text-dim, #9aa0a6);
-    overflow-wrap: anywhere;
-}
-
-.integration-key {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.integration-key > :first-child {
-    flex: 1;
-}
-
-.integration-note {
-    font-size: 12px;
-    color: var(--text-dim, #9aa0a6);
-}
-
 .integrations-sub {
     margin: 8px 0 0;
     font-size: 15px;
-}
-
-.suggestion p {
-    margin: 0;
-    color: var(--text-dim, #9aa0a6);
-    font-size: 13px;
-    flex: 1;
 }
 </style>
