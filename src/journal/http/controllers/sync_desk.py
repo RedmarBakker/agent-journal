@@ -10,7 +10,7 @@ from sync_server.sync_answer import SyncAnswer
 
 
 class SyncDeskController:
-    """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, and the carrier paused and resumed around an upgrade."""
+    """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, and, around an upgrade, the queue drained and the carrier paused, then resumed."""
 
     def __init__(self, desk: SyncDesk, client: SyncClient, secret: SyncSecret) -> None:
         self.desk, self.client, self.secret = desk, client, secret
@@ -36,6 +36,11 @@ class SyncDeskController:
         if "answer" not in request.body:
             return Response.json({"applied": 0})
         return Response.json({"applied": self.desk.pushed_rows(list(request.body.get("ids", ())), SyncAnswer.parsed(**request.body["answer"]))})
+
+    def drain(self, request: Request) -> Response:
+        self.client.prepare_upgrade()
+        self.client.stop()
+        return Response.json({"drained": not self.desk.has_waiting(), "paused": True})
 
     def pause(self, request: Request) -> Response:
         self.client.stop()

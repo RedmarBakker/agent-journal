@@ -12880,3 +12880,34 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
     assert status({"X-Journal-Sync-Secret": secret, "X-Forwarded-For": "203.0.113.9"}) == 403, "a request passed on by a proxy is refused even with the secret"
     assert status({"X-Journal-Sync-Secret": secret}) == 200
 
+
+
+def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refused_install_resumes_sync(app: App, monkeypatch):
+    from journal.features.updates.support.updater import Updater
+    from journal.models.outgoing_change import CREATED, OutgoingChange
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.support.rejection import Rejection
+    from journal.sync.sync_client import SyncClient
+    class RefusingInstaller:
+        def run(self, ref: str, repository: str) -> None:
+            raise Rejection("the install was refused")
+
+    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)
+    server, account = joined_team(app)
+    port = app.server().port
+    door = lambda path: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=30).read())
+    outgoing = app.container.get(OutgoingChanges)
+    outgoing.clear()
+    app.console().run(["task", "create", "made before the upgrade"], USER)
+    assert outgoing.waiting(), "the new task waits to go to the team"
+    assert door("drain") == {"drained": True, "paused": True} and outgoing.waiting() == [], "the drain answers once the queue is empty"
+    client = app.container.get(SyncClient)
+
+    monkeypatch.setattr(Updater, "restart", lambda self: None)
+    account.record_pull(account.sequence(), "4.99.0")
+    updating.read()
+    updating.install_newest(Actor.user(1))
+    assert updating.problem == "the install was refused" and not client.stopping.is_set(), "a refused install leaves sync running again"
+    client.stop()
+    account.left(0)
+    server.shutdown()

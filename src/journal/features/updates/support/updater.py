@@ -186,15 +186,19 @@ class Updater:
 
     def install_newest(self, actor: Actor) -> None:
         target = self.target()
-        if self.leads_upgrade():
+        drained = self.leads_upgrade()
+        if drained:
             self.card.step("Sending this journal's changes to the team")
             self.client.prepare_upgrade()
+            self.client.stop()
         self.card.step("Installing the new version")
         try:
             self.installer.run(target.ref, self.repository())
         except Rejection as refused:
             self.problem = str(refused)
             self.card.clear()
+            if drained:
+                self.client.start()
             return
         self.problem = ""
         self.lead(target.label)
