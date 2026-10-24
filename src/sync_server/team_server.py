@@ -33,6 +33,8 @@ from sync_server.db.store import Store
 from sync_server.devices import Devices
 from sync_server.id_ranges import IdRanges
 from sync_server.login_handler import LoginHandler
+from sync_server.setup_code import SetupCode
+from sync_server.setup_page import SetupPage
 from sync_server.people_handler import PeopleHandler
 from sync_server.pull_handler import PullHandler
 from sync_server.push_handler import PushHandler
@@ -57,7 +59,9 @@ class TeamServer:
         self.log = ChangeLog(self.store, ChangeRows(self.store), RowValues(self.store))
         self.ranges = IdRanges(self.store, IdBlockRows(self.store))
         self.invitations = Invitations(self.store, InvitationRows(self.store), self.accounts)
-        self.logins = LoginHandler(self.devices, self.invitations, self.accounts, self.clock)
+        self.setup = SetupCode(data, self.accounts)
+        self.setup_page = SetupPage(self.accounts, self.setup, self.clock)
+        self.logins = LoginHandler(self.devices, self.invitations, self.accounts, self.clock, self.setup)
         self.blocks = BlocksHandler(self.ranges, self.devices)
         self.details = TeamDetails(TeamDetailRows(self.store), self.log, self.accounts)
         self.admins = AdminHandler(self.devices, self.accounts, self.invitations, self.clock, self.details)

@@ -41,6 +41,8 @@ from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.version import VERSION
 from journal.features.updates.support.release_installer import ReleaseInstaller
 from journal.features.updates.support.release_source import REPOSITORY
+from sync_server.login_request import LoginRequest
+from journal.sync.team_refusal import TeamRefusal
 from sync_server.team_details import ANY
 from sync_server.team_summary import TeamSummary
 
@@ -115,10 +117,16 @@ class TeamJoin:
 
     def login(self, url: TeamUrl, summary: TeamSummary, email: str, name: str, password: str) -> LoginAnswer:
         if not summary.has_admin:
-            return self.link.install(url.address, email, name, password, socket.gethostname())
+            return self.link.install(url.address, email, name, password, socket.gethostname(), url.setup_code)
         if not url.is_invitation():
-            raise Rejection(f"the team server at {url.address} has its admin already: join with the invitation URL an admin shares from the Team tab")
+            return self.account_login(url, email, password)
         return self.link.accept(url.address, url.code, email, name, password, socket.gethostname())
+
+    def account_login(self, url: TeamUrl, email: str, password: str) -> LoginAnswer:
+        try:
+            return self.link.login(url.address, LoginRequest(email, password, socket.gethostname()))
+        except TeamRefusal as refused:
+            raise Rejection(f"the team server at {url.address} has its admin already: join with your own account's email and password there, or with the invitation URL an admin shares from the Team tab ({refused})") from refused
 
     def trust(self, address: str, fingerprint: str) -> None:
         certificate = self.link.root_certificate(address)

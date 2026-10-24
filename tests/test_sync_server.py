@@ -472,7 +472,7 @@ def test_a_one_time_signin_link_is_issued_to_a_member_and_taken_up_once_by_the_h
     with pytest.raises(Refusal, match="used already or has expired"):
         team.signins.redeemed(hosted, late, 10.0 + 121)
     routes = (Path(__file__).resolve().parents[1] / "docker/team-server/routes.caddy").read_text()
-    assert "not header Cookie *journal_session=*" in routes and "respond 403" in routes, "the proxy forbids a browser without a session"
+    assert "not header Cookie *journal_session=*" in routes and "rewrite * /setup" in routes, "a browser without a session is sent to the setup page, which forbids it once the server has its admin"
     team.store.close()
 
 
@@ -529,3 +529,35 @@ def test_a_pool_request_goes_to_one_machine_with_a_free_slot_on_its_version_and_
         assert [request.body["request"] for request in answered_back] == [second.id] and second.id not in pulled("second"), "one nobody claimed in ten minutes is answered back to its environment's host and offered no more; a claimed one is left alone"
     finally:
         team.store.close()
+
+
+def test_a_new_team_server_is_claimed_only_with_its_setup_code_which_is_gone_once_the_admin_exists(tmp_path, monkeypatch):
+    from sync_server.install_request import InstallRequest
+    from sync_server.team_server import TeamServer
+    monkeypatch.setenv("TEAM_SETUP_CODE", "abcd-efgh")
+    team = TeamServer(tmp_path)
+    assert team.setup.issued() == "ABCD-EFGH", "the code the installer gave the server, as it reads"
+    claim = lambda code: team.logins.installed(InstallRequest("ada@example.com", "Ada", "correct horse battery staple", "laptop", code), "1.2.3.4")
+    with pytest.raises(Refusal, match="setup code"):
+        claim("WRONG-CODE")
+    assert team.accounts.is_empty(), "a wrong code claims nothing"
+    answer = claim("abcd-efgh")
+    assert answer.role == "admin" and not (tmp_path / "setup-code").exists(), "the right code makes the admin, and the code is forgotten"
+    assert team.setup.issued() == "", "a server with its admin has no code to give"
+
+
+def test_a_new_team_servers_address_shows_the_setup_page_until_it_is_claimed_and_forbids_after(tmp_path, monkeypatch):
+    from urllib.parse import urlencode
+    from sync_server.team_server import TeamServer
+    monkeypatch.delenv("TEAM_SETUP_CODE", raising=False)
+    team = TeamServer(tmp_path)
+    code = team.setup.issued()
+    assert len(code) == 9 and code[4] == "-", "a code made by the server itself: four letters, a dash, four more"
+    status, page = team.setup_page.shown("https://team.example")
+    assert status == 200 and "Setup code" in page and "<form" in page
+    form = lambda fields: urlencode(fields).encode()
+    status, page = team.setup_page.posted(form({"code": "ZZZZ-ZZZZ", "name": "Ada", "email": "ada@example.com", "password": "correct horse battery staple"}), "https://team.example")
+    assert status == 200 and "not this server" in page and team.accounts.is_empty(), "a wrong code is asked again"
+    status, page = team.setup_page.posted(form({"code": code, "name": "Ada", "email": "ada@example.com", "password": "correct horse battery staple"}), "https://team.example")
+    assert status == 200 and "is yours, Ada" in page and "journal team join https://team.example --email ada@example.com" in page
+    assert team.setup_page.shown("https://team.example")[0] == 403, "claimed, the address is forbidden to a stranger again"

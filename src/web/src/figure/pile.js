@@ -188,7 +188,7 @@ export const PILE = [
     // no search within two minutes of the last, and each, the magnifying glass, the binoculars and the rummage, at most once in five
     // minutes, so the next is always another; none at all while all wait;
     // the binoculars only from the compose box, scanning up the chat
-    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, prop("rummage", 1)]),
+    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),

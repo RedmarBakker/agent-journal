@@ -11,13 +11,15 @@ handle @closed {
 	respond 404
 }
 # A browser reaches the hosted journal only with a session, which only the one-time link a member's own journal opens
-# sets; every other request is forbidden before it reaches the hosted journal.
+# sets; every other request goes to the team server's setup page, which claims a server with no admin yet and forbids
+# everything once it has one, so nothing reaches the hosted journal.
 @stranger {
 	not path /open
 	not header Cookie *journal_session=*
 }
 handle @stranger {
-	respond 403
+	rewrite * /setup
+	reverse_proxy 127.0.0.1:8470
 }
 handle {
 	reverse_proxy 127.0.0.1:8421 {

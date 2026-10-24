@@ -25,9 +25,9 @@ test("every act is an object of the pile with its group, its lifetime and the co
     expect(drawn(0)).toBe("search");
     expect(drawn(119)).toBe(null);
     expect(drawn(120)).toBe("binoculars");
-    expect(drawn(240)).toBe("rummage");
-    expect(drawn(300)).toBe(null);
-    expect(drawn(360)).toBe("search");
+    expect(drawn(240), "both wait their own five minutes").toBe(null);
+    expect(drawn(300)).toBe("search");
+    expect(drawn(420)).toBe("binoculars");
 });
 
 test("an act waits in the queue only its lifetime: the tickle's swat of three seconds is dropped after them, a nod of the default ten kept within its own", () => {

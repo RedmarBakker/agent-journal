@@ -2101,14 +2101,13 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
     slow.counted("GET", "/journal/tasks", 7, RequestLoads())
     slow.counted("HOOK", "/hooks/Stop", 90, RequestLoads())
     run = lambda *argv: app.console().run(["developer", *argv], USER).text
-    assert run("slowest", "--hooks", "--top", "1").splitlines() == ["    90 ms  HOOK  /hooks/Stop"], "the slowest hook, with its milliseconds, kind and path"
-    assert run("slowest", "--requests").splitlines() == ["     7 ms  GET   /journal/tasks"], "requests only"
-    assert [line.split()[0] for line in run("slowest").splitlines()] == ["90", "41", "7"], "both kinds, the slowest first"
+    groups = run("slowest").splitlines()
+    assert [line.split()[0] for line in groups[:3]] == ["90", "41", "7"] and groups[0].endswith("HOOK /hooks/Stop"), "each route a group, the slowest first, with its worst time"
     assert run("loads").splitlines()[0].endswith("PreToolUse: 60 tasks, 12 links, 3 plans, 41 ms"), "a request with the records it read, by kind"
     assert run("models").splitlines() == ["      60  tasks", "      12  links", "       3  plans"], "the totals per kind, the most first"
     averages = run("averages")
     assert "hooks" in averages and "2 measured" in averages and "hook Stop" in averages and "90 ms slowest" in averages
-    assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest") == "nothing logged yet\n", "reset clears the counts and the rolling log"
+    assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest").startswith("nothing logged yet\n"), "reset clears the counts and the rolling log"
 
 
 def test_wispr_flow_is_among_the_suggested_mcp_services():

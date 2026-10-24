@@ -34,12 +34,16 @@ from sync_server.upload_request import UploadRequest
 BEARER = "Bearer "
 FILES_PATH = "/files/"
 FORWARDED_HEADER = "X-Forwarded-For"
+# where a browser that is no member is sent: the page claiming a server with no admin yet, else a refusal
+SETUP_PATH = "/setup"
 
 
 class TeamRequestHandler(BaseHTTPRequestHandler):
     """One request to the team server, answered in JSON: POST /login, /accept, /install (the first connection to a server with no account, which makes its admin), /signin-links (a member's journal asking for a one-time link to open the hosted journal signed in) and /signin-links/redeem (the hosted journal taking one up), /host-requests and /host-requests/done (a write asked of an environment's host, and the host saying it is made), /pool-requests (a job asked of any machine of the pool), /device-requests (a write asked of one machine), /host-requests/claim and /host-requests/decline (a machine taking a pool request up, or turning it down), /push, answered with the pull it carries, /blocks, /invite, /devices/revoke, /people/remove, /people/password (an admin resetting a person's password), /password (a person changing their own), /team/version, /team/versions, /upload and /upgrade, GET /pull?after=<sequence>&wait=<seconds>&keys=<environment keys, comma separated>&slots=<pool slots offered>&free=<free ones>&version=<journal version>, which brings the writes waiting for those environments' host, for the device and for the pool too, /copy, /devices, /people and /team, which alone needs no token; /files/<table>/<row>/<name>, read with GET and written with POST of its bytes, and /leases?name=<name>, which POST /leases/take and /leases/release change; a refusal is a 403 with its line, an unknown path a 404. Every request names the protocol its journal speaks and every answer the server's: a journal on an older protocol is answered 426 with the line to upgrade it, and a push or pull from a journal on an older migration than the team's, or on another version than the pinned one while the team requires it, is refused with it; the device holding the upgrade lease is let through on its old version to send and pull before it upgrades."""
 
     def do_GET(self) -> None:
+        if urlsplit(self.path).path == SETUP_PATH:
+            return self.page(self.server.team.setup_page.shown(self.public_address()))
         if self.is_outdated_client():
             return
         url = urlsplit(self.path)
@@ -52,6 +56,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         self.answered(routes.get(url.path))
 
     def do_POST(self) -> None:
+        if urlsplit(self.path).path == SETUP_PATH:
+            return self.page(self.server.team.setup_page.posted(self.raw_body(), self.public_address()))
         if self.is_outdated_client():
             return
         team = self.server.team
@@ -86,6 +92,18 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
             "/leases/release": lambda: team.leases.release(self.typed(LeaseRequest).name, team.devices.device(self.token()), team.clock.time()),
         }
         self.answered(routes.get(urlsplit(self.path).path))
+
+    def page(self, answer: tuple[int, str]) -> None:
+        status, text = answer
+        body = text.encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8" if status == 200 else "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def public_address(self) -> str:
+        return f"https://{self.headers.get('Host', '')}"
 
     def is_outdated_client(self) -> bool:
         client_protocol = int(self.headers.get(PROTOCOL_HEADER, UNVERSIONED))

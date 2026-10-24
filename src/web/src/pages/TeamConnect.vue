@@ -14,6 +14,7 @@ import "./team.css";
 const props = defineProps({email: {type: String, default: ""}});
 const emit = defineEmits(["joined"]);
 const url = ref("");
+const setupCode = ref("");
 const email = ref("");
 const {password, generated, generate} = usePasswordField();
 const busy = ref(false);
@@ -25,7 +26,7 @@ async function join() {
     busy.value = true;
     failure.value = "";
     try {
-        const got = await api.joinTeam({url: url.value, email: email.value, password: password.value});
+        const got = await api.joinTeam({url: url.value, setup_code: setupCode.value, email: email.value, password: password.value});
         password.value = "";
         choose(got.environment);
         emit("joined", got.outcome);
@@ -43,6 +44,9 @@ async function join() {
             <div class="team-block">
                 <FormField label="Team URL" for="team-url" help="The invitation URL an admin sent you, or the URL of a new team server.">
                     <TextInput id="team-url" :value="url" placeholder="https://team.example.com" @input="url = $event.target.value" />
+                </FormField>
+                <FormField label="Setup code" for="team-setup-code" help="For a new team server only: the code its installer printed, which makes you its admin. Leave it empty for an invitation URL.">
+                    <TextInput id="team-setup-code" :value="setupCode" placeholder="ABCD-EFGH" @input="setupCode = $event.target.value" />
                 </FormField>
                 <FormField label="Email" for="team-email" help="Your user name on the team. Filled in from git when git knows it.">
                     <TextInput id="team-email" :value="email" type="email" autocomplete="email" @input="email = $event.target.value" />

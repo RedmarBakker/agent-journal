@@ -32,7 +32,7 @@ class TeamController:
 
     def join(self, request: Request) -> Response:
         body = request.body
-        outcome = TeamRequests.reached(lambda: self.joining.join(TeamUrl.parse(str(body.get("url", ""))), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
+        outcome = TeamRequests.reached(lambda: self.joining.join(TeamUrl.parse(str(body.get("url", ""))).with_setup_code(str(body.get("setup_code", ""))), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
         return Response.json({"outcome": outcome, "environment": request.environment}, 201)
 
     def pool(self, request: Request) -> Response:

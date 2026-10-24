@@ -107,9 +107,9 @@ test("the Team page lists each person with their environments and opens a collea
     expect(admin).toMatch(/<TeamInvite \/>\s*<TeamDevices \/>/);
 });
 
-test("the join form asks only for the team URL, the email git knows and a password it can generate", async () => {
+test("the join form asks only for the team URL, a new server's setup code, the email git knows and a password it can generate", async () => {
     const form = readFileSync(resolve(__dirname, "../src/pages/TeamConnect.vue"), "utf8");
-    expect([...form.matchAll(/<FormField label="([^"]+)"/g)].map((m) => m[1])).toEqual(["Team URL", "Email", "Password"]);
+    expect([...form.matchAll(/<FormField label="([^"]+)"/g)].map((m) => m[1])).toEqual(["Team URL", "Setup code", "Email", "Password"]);
     expect(form).toMatch(/<Btn @click="generate">Generate<\/Btn>/);
     const {strongPassword} = await import("../src/domain/passwords.js");
     const made = strongPassword();

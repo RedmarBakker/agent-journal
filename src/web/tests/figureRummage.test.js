@@ -25,7 +25,8 @@ function rummagingAt(voice, u) {
     return {pose, moves, out: (out * eyes.x) / PICTURE, eyes};
 }
 
-test("rummaging is one of the searches, picked now and then: the other ways to search are each picked at least as often, and all together far more", () => {
+// out of the searches until its rework (message 46716); the act itself stays drawn and tested
+test.skip("rummaging is one of the searches, picked now and then: the other ways to search are each picked at least as often, and all together far more", () => {
     const searches = choicesFor({moment: "held:search", home: true});
     const rummage = searches.find((each) => each.name === "rummage");
     expect(rummage).toBeTruthy();

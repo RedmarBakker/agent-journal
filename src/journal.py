@@ -16,6 +16,9 @@ def main(argv: list[str]) -> int:
     if argv[:1] and argv[0] in AGENTS:
         from journal.launcher.launch import Launch
         return Launch.parse(argv, root).run()
+    if argv[:2] == ["remote", "github"]:
+        from journal.launcher.remote_github import RemoteGithub
+        return RemoteGithub.parsed(argv[2:], root).run()
     if argv[:1] == ["remote"]:
         from journal.launcher.remote_install import RemoteInstall
         return RemoteInstall.parsed(argv[1:]).run()
