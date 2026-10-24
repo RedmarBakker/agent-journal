@@ -6,6 +6,7 @@ from journal.sync.attachments import Attachments
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
+from journal.http.row_list_page import RowListPage
 from journal.http.listing import Listing
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
@@ -33,24 +34,22 @@ class MessageController(Controller[Message]):
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def listed(self, listing: Listing) -> RowList:
-        page = listing.listed(self.question_list(listing), lambda m: True, timeline=True)
+        page = self.chat_page(self.repository.main_chat(), listing)
         unread = self.repository.unviewed()
         counts = Counts(all=self.repository.counted(self.repository.main_chat()), open=len(self.open_ids()) + unread, unread=unread)
         return RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=counts)
 
-    def question_list(self, listing: Listing) -> list[Message]:
+    def chat_page(self, chat: Query, listing: Listing) -> RowListPage:
         if listing.ids:
-            return self.repository.numbered(listing.ids)
-        return self.chat_rows(self.repository.main_chat(), listing)
-
-    def chat_rows(self, chat: Query, listing: Listing) -> list[Message]:
+            return listing.listed(self.repository.numbered(listing.ids), lambda m: True, timeline=True)
         if listing.cutoff_at:
-            return self.repository.changes(chat, datetime.fromtimestamp(listing.cutoff_at, timezone.utc), listing.lower_id, listing.limit + 1)
-        return self.repository.window(chat, listing.limit + 1, listing.upper_id, listing.lower_id)
+            return listing.listed(self.repository.changes(chat, datetime.fromtimestamp(listing.cutoff_at, timezone.utc), listing.lower_id, listing.limit + 1), lambda m: True, timeline=True)
+        rows, has_older = self.repository.written_page(chat, listing.limit, listing.upper_id, listing.lower_id)
+        return RowListPage(rows=rows, is_last_page=not has_older)
 
     def agent_chat(self, request: Request) -> Response:
         listing = Listing.query_listing(request.query)
-        page = listing.listed(self.chat_rows(self.repository.agent_chat(request.params["session"]), listing), lambda m: True, timeline=True)
+        page = self.chat_page(self.repository.agent_chat(request.params["session"]), listing)
         return Response.json(RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=Counts(all=len(page["rows"]), open=0, unread=0)))
 
     def open_ids(self) -> set[int]:

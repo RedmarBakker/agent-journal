@@ -17,6 +17,9 @@ from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.environment_owners import EnvironmentOwners
 
 
+# the most rows one page of the chat holds, its written messages and the marks between them together
+PAGE_ROWS_MOST = 400
+
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
     SUBJECT_LINK = "about"
@@ -114,11 +117,27 @@ class Messages(ScopedRepository[Message]):
         return prior_items[0] if prior_items else self.save(message.arrived(), actor)
 
     def window(self, chat: Query, last: int, previous: int = 0, following: int = 0) -> list[Message]:
+        return self.latest_rows(self.bounded(chat, previous, following), last)
+
+    # a page of the chat: its newest messages down to the count-th a person or an agent wrote, every mark between them with them, and
+    # whether a written message older than those is left
+    def written_page(self, chat: Query, count: int, previous: int = 0, following: int = 0) -> tuple[list[Message], bool]:
+        query = self.bounded(chat, previous, following)
+        written = self.latest_rows(query.filter_unequal("author", Author.SYSTEM.value), count + 1)
+        if len(written) <= count:
+            return self.latest_rows(query, PAGE_ROWS_MOST), False
+        oldest = written[1]
+        return self.latest_rows(query.filter_greater_equal("created_at", oldest.created_at.isoformat()), PAGE_ROWS_MOST), True
+
+    def bounded(self, chat: Query, previous: int, following: int) -> Query:
         query = chat
         if following:
             query = query.filter_greater("created_at", self.find(following).created_at.isoformat())
         if previous:
             query = query.filter_less("created_at", self.find(previous).created_at.isoformat())
+        return query
+
+    def latest_rows(self, query: Query, last: int) -> list[Message]:
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))
 
     def changes(self, chat: Query, time: datetime, lower_id: int, limit: int) -> list[Message]:

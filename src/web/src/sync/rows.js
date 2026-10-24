@@ -8,7 +8,7 @@ import {closable, isClosed, updatedAt} from "../domain/row.js";
 import {TABLES} from "../domain/tables.js";
 import {route} from "../route.js";
 import {store} from "../state/store.js";
-import {PAGE, RECENT, pageOf} from "./paging.js";
+import {PAGE, RECENT, pageOf, pageStart} from "./paging.js";
 
 export {PAGE, RECENT, pageOf};
 
@@ -47,8 +47,9 @@ export function rows(table) {
 
 function trimmed(table) {
     const held = store.rows[table] || [];
-    if (held.length <= pageOf(table)) return;
-    const recent = new Set(held.slice(-pageOf(table)));
+    const start = pageStart(table, held);
+    if (start === 0) return;
+    const recent = new Set(held.slice(start));
     store.rows[table] = held.filter((r) => recent.has(r) || (closable(table) && !isClosed(r)));
     store.paging.size[table] = pageOf(table);
     store.paging.more[table] = true;

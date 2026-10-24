@@ -22,6 +22,7 @@ import {quoted} from "../format/quote.js";
 import {reportOf} from "../domain/report.js";
 import {EARLIER, answered} from "../domain/thread.js";
 import {pendingRow} from "../domain/placeholders.js";
+import {colleagueColour} from "../domain/people.js";
 import {focusTurn, laidOut} from "../platform/view.js";
 import {optimistic} from "../sync/rows.js";
 import {render} from "../text/index.js";
@@ -41,7 +42,8 @@ const sent = computed(() => Boolean(props.turn.data?.sent_to));
 const received = computed(() => Boolean(props.turn.data?.peer || props.turn.data?.from_main));
 const fromMain = computed(() => sent.value || received.value);
 const opening = computed(() => Boolean(props.turn.data?.opening));
-const mine = computed(() => props.turn.who === "user");
+const colleague = computed(() => colleagueColour(props.turn.creator, store.people));
+const mine = computed(() => props.turn.who === "user" && !colleague.value);
 const reactions = computed(() => {
     const seen = {};
     for (const r of rowsOf("reactions").filter((r) => r.message_id === props.turn.id)) (seen[r.emoji] ||= []).push(r.author);
@@ -95,8 +97,9 @@ async function drop() {
 
 <template>
     <div
-        :class="['thread-turn', {mine, report, ask: turn.kind === 'question', long, quoting: quoteText, lit: store.focus === turn.key, 'comment-origin': resourceComment}]"
+        :class="['thread-turn', {mine, colleague, report, ask: turn.kind === 'question', long, quoting: quoteText, lit: store.focus === turn.key, 'comment-origin': resourceComment}]"
         :data-ref="turn.key"
+        :style="colleague ? {'--person-colour': colleague} : null"
         :data-figure-agent="turn.who === 'agent' ? '' : null"
         @mouseleave="picking = false"
     >
@@ -205,6 +208,11 @@ async function drop() {
 .thread-turn.mine .thread-bubble {
     border-color: color-mix(in srgb, var(--accent) 45%, transparent);
     background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.thread-turn.colleague .thread-bubble {
+    border-color: color-mix(in srgb, var(--person-colour) 45%, transparent);
+    background: color-mix(in srgb, var(--person-colour) 14%, transparent);
 }
 
 .thread-turn.report .thread-bubble {

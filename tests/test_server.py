@@ -1797,3 +1797,23 @@ def test_the_health_url_answers_unwell_while_an_environments_hooks_fire_without_
         fired.unlink(missing_ok=True)
         arrivals.taken.clear()
         arrivals.taken.update(taken)
+
+
+def test_a_chat_page_holds_its_limit_of_written_messages_with_every_mark_between_them(server, app: App):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.messages import Messages
+    messages = app.container.get(Messages)
+    with app.container.get(Scope).environment(1):
+        for n in range(60):
+            messages.save(Message(environment_id=1, author=Author.USER if n % 2 else Author.AGENT, text=f"written {n}"), Actor.user(1))
+            for k in range(3):
+                messages.save(Message(environment_id=1, author=Author.SYSTEM, text=f"mark {n}.{k}", data={"kind": "card"}), Actor.system())
+    status, first = call(server, "GET", "/journal/messages?limit=25")
+    written = [row for row in first["rows"] if row["author"] != "system"]
+    assert status == 200 and len(written) == 25 and written[-1]["text"] == "written 59" and not first["is_last_page"], "the first page holds the newest 25 written messages, however many marks sit between them"
+    assert len(first["rows"]) > 25 and any(row["author"] == "system" for row in first["rows"]), "and the marks between them ride along"
+    oldest = min(row["id"] for row in first["rows"])
+    _, older = call(server, "GET", f"/journal/messages?limit=25&before={oldest}")
+    older_written = [row for row in older["rows"] if row["author"] != "system"]
+    assert len(older_written) == 25 and older_written[-1]["text"] == "written 34", "the next older page holds the 25 written messages before them"
