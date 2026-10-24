@@ -252,6 +252,7 @@ def test_an_environment_is_renamed_with_everything_in_it_and_never_while_an_agen
 
 def test_any_row_docks_above_the_chat_by_noun_and_number_in_either_order(app: App):
     from journal.repositories.messages import Messages
+    app.runtime().boot()
     console = app.console()
     console.run(["task", "create", "write the notes", "--brief", "what and where\nand how"], MAIN)
     docked = console.run(["task", "12", "dock"], MAIN)

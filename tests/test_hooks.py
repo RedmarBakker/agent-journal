@@ -144,7 +144,7 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     from journal.hooks.receiver import GUARD_FAILED
     from journal.repositories.messages import Messages
     from journal.events.moments.fault_moment import FaultMoment
-    from journal.features.faults.listeners.fault_cards import FaultCards
+    from journal.features.record.listeners.fault_cards import FaultCards
     app.container.get(Bus).listen(ToolStarting, Raising())
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
