@@ -3,6 +3,8 @@ set -eu
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
+# a version written into a release tag by hand, outside Release.tagged, is refused with its file and line
+python3 scripts/checks/release_tags.py
 git diff --cached --quiet -- VERSION && exit 0
 npm --prefix src/web run build
 git add src/web/dist

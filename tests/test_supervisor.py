@@ -599,3 +599,16 @@ def test_the_boot_menu_is_left_quietly_with_escape_or_ctrl_c():
             assert left.code == code, (key, left.code)
         assert "Left without starting the journal." in printed.getvalue() and "Traceback" not in printed.getvalue()
 
+
+
+def test_a_release_tag_is_made_in_one_place_and_a_hand_written_one_is_refused_at_commit():
+    """The team image and the installer are asked for by the release's tag, v4.55.3; a version written into a tag by hand once asked for 4.55.2, which no release has."""
+    import importlib.util
+    from journal.support.release import Release
+    assert Release.tagged("4.55.3") == "v4.55.3" and Release.tagged("v4.55.3") == "v4.55.3", "either spelling gives the tag"
+    assert "/releases/download/v4.55.3/install.sh" in RemoteInstall("root@203.0.113.5", "4.55.3").command()[-1]
+    spec = importlib.util.spec_from_file_location("release_tags", Path(__file__).resolve().parents[1] / "scripts" / "checks" / "release_tags.py")
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    assert check.problems() == [], "no tag is written by hand in the packages"
+    assert all(check.HAND_WRITTEN_TAG.search(line) for line in ('url = f"v{version}"', 'tag = "v" + version', '"releases/download/v{version}/install.sh"')), "the guard knows a tag written by hand"

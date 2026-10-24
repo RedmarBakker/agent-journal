@@ -11,6 +11,14 @@ class Release:
     tag: str
 
     @classmethod
+    def tagged(cls, version: str) -> str:
+        return f"v{cls(version).version}"
+
+    @staticmethod
+    def major_prefix(major: int) -> str:
+        return f"v{major}."
+
+    @classmethod
     def lookup(cls, tags: list[str]) -> list["Release"]:
         return sorted((cls(tag) for tag in tags if TAG.match(tag)), key=lambda release: release.numbers)
 

@@ -127,12 +127,12 @@ class Updater:
         self.problem = "" if blocked.target == self.label() else f"The update to {blocked.target} did not finish: .journal/runtime/update.log says how it went"
 
     def update_immediately(self, actor: Actor) -> None:
-        self.card.claim(self.label(), self.target().label)
+        self.card.taken(self.label(), self.target().label)
         if not self.separate(lambda: self.install_newest(actor)):
             raise Rejection("an update is under way already")
 
     def install(self, actor: Actor) -> None:
-        self.card.claim(self.label(), self.target().label)
+        self.card.taken(self.label(), self.target().label)
         self.install_newest(actor)
         if self.problem:
             raise Rejection(self.problem)
@@ -170,7 +170,7 @@ class Updater:
             if self.branch():
                 self.head = self.source.head_commit(self.repository(), self.branch())
             else:
-                self.releases = Release.lookup(self.source.tags(f"v{self.running().major}."))
+                self.releases = Release.lookup(self.source.tags(Release.major_prefix(self.running().major)))
             self.problem = ""
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             self.problem = f"The releases could not be read from {self.repository()}: {error}"

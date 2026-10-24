@@ -3,9 +3,10 @@ import shlex
 import subprocess
 import sys
 
+from journal.support.release import Release
 from journal.version import VERSION
 
-INSTALLER = "https://github.com/jessegall/agent-journal/releases/download/v{version}/install.sh"
+INSTALLER = "https://github.com/jessegall/agent-journal/releases/download/{tag}/install.sh"
 
 
 class RemoteInstall:
@@ -25,7 +26,7 @@ class RemoteInstall:
 
     def command(self) -> list[str]:
         settings = "".join(f"{name}={shlex.quote(value)} " for name, value in self.installer_settings().items())
-        return ["ssh", "-t", self.target, f"curl -fsSL {INSTALLER.format(version=self.version)} | {settings}sh"]
+        return ["ssh", "-t", self.target, f"curl -fsSL {INSTALLER.format(tag=Release.tagged(self.version))} | {settings}sh"]
 
     def installer_settings(self) -> dict[str, str]:
         host = self.target.rsplit("@", 1)[-1]

@@ -18,7 +18,7 @@ class UpdatePrompt:
     def newest(self) -> Release | None:
         installed = Release.lookup([VERSION])[0]
         try:
-            newer = [r for r in Release.lookup(self.source.tags(f"v{installed.major}.")) if r.upgrades(installed) and TeamAccount(self.config).allows(r)]
+            newer = [r for r in Release.lookup(self.source.tags(Release.major_prefix(installed.major))) if r.upgrades(installed) and TeamAccount(self.config).allows(r)]
         except (OSError, ValueError):
             return None
         return newer[-1] if newer else None

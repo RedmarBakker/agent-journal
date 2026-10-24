@@ -5,6 +5,7 @@ import time
 from typing import Callable
 from datetime import datetime, timezone
 
+from journal.support.release import Release
 from journal.config import Config
 from journal.repositories.agents import Agents
 from journal.repositories.entries import Entries
@@ -99,7 +100,7 @@ class TeamJoin:
             return ""
         if summary.versions == ANY and summary.migration == self.schema.version():
             return ""
-        tag = f"v{summary.version}"
+        tag = Release.tagged(summary.version)
         return f"the team runs journal version {summary.version} and this journal {VERSION}: install {summary.version} first with curl -fsSL {ReleaseInstaller.script_path(REPOSITORY, tag)} | AGENT_JOURNAL_REF={tag} sh, then join again"
 
     def history_refusal(self, summary: TeamSummary, address: str) -> str:
