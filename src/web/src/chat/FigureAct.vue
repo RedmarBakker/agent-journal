@@ -5,7 +5,6 @@ import AskSign from "./act/AskSign.vue";
 import {COLOURS} from "./act/colours.js";
 import DiscoBall from "./act/DiscoBall.vue";
 import FileCard from "./act/FileCard.vue";
-import FixedRunBug from "./act/FixedRunBug.vue";
 import FumeSteam from "./act/FumeSteam.vue";
 import HandRub from "./act/HandRub.vue";
 import PackBox from "./act/PackBox.vue";
@@ -66,9 +65,6 @@ const thinking = computed(() => Boolean(ACTS[props.name].pulse));
             </template>
             <template v-if="name === 'fume'">
                 <FumeSteam :u="u" :head="head" />
-            </template>
-            <template v-if="name === 'bug_smash' && bug">
-                <FixedRunBug :u="u" :middle="middle" :floor="floor" :size="size" :bug="bug" />
             </template>
             <template v-if="name === 'bug_shot' && bug">
                 <WallBugs :u="u" :middle="middle" :size="size" :bug="bug" :bugs="wallBugs" />

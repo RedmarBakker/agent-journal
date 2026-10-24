@@ -1,3 +1,4 @@
+import {fallStep} from "../domain/falls.js";
 import {stretchedFrame} from "./timeline.js";
 
 // The journal moments and the searches the figure acts out with things the page draws beside it (chat/FigureAct.vue): for each act its
@@ -73,10 +74,15 @@ export const ACTS = {
         frames: 80, fps: 12, draw: [0, 0.22], turn: [0.25, 0.55], aim: [0.25, 0.32], shots: [0.33, 0.48], count: 2, splat: 0.48, fly: [0.56, 0.64], drops: [0.64, 1],
         lens: [{at: [-1.3, -1.6], size: 0.2}, {at: [0.9, -0.9], size: 0.14}, {at: [-0.4, 0.2], size: 0.16}, {at: [1.6, -2.1], size: 0.1}],
     },
-    // a fixed run's bug smashed with a big wooden mallet: it crawls in over `crawl` to `away` of the picture out on the figure's left; the
-    // figure raises the mallet high before its head over `raise` and holds it there for the wind-up until `swing`, swings it down over
-    // `swing` and flattens the bug at `blow`, which lies flat and fades over `gone`, and lowers the mallet over `lower`
-    bug_smash: {frames: 66, fps: 12, side: 1, crawl: [0, 0.3], raise: [0.22, 0.4], swing: [0.5, 0.58], blow: 0.58, gone: [0.75, 0.9], lower: [0.8, 0.96], away: 0.42},
+    // a fixed run's bug smashed with a big wooden mallet on the floor the figure stands on (smashPlan): the bug climbs up the back of the
+    // floor's box, out of sight behind it, over `emerge`, comes over its top edge onto it over `climb`, and it and the figure walk to meet
+    // each other over `walk`, until it is `away` of the picture out on the figure's left (`side`); the figure raises the mallet high before
+    // its head over `raise` and holds it there for the wind-up until `swing`, swings it down over `swing` and flattens the bug at `blow`,
+    // which lies flat and fades over `gone`, and lowers the mallet over `lower`
+    bug_smash: {
+        frames: 96, fps: 12, side: 1, emerge: [0, 0.09], climb: [0.09, 0.16], walk: [0.16, 0.38], raise: [0.46, 0.58], swing: [0.66, 0.72], blow: 0.72, gone: [0.84, 0.95],
+        lower: [0.88, 0.99], away: 0.42,
+    },
     // a sin repented: a halo grows over the head over `grows` and fades over `fades`, the figure floating up `float` of its units and down
     // with its hands folded and a serene, holy look
     halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.06},
@@ -177,18 +183,57 @@ export function pogoHop(heights, share) {
 // the pogo stick's bounces on the spot, in the figure's heights, each higher than the last
 export const pogoBounces = () => Array.from({length: ACTS.pogo.count}, (_, hop) => (ACTS.pogo.bounce * (hop + 1)) / ACTS.pogo.count);
 
-// Where the bug a fixed test run's mallet smashes is `u` of the way through `act` (ACTS bug_smash), in a picture `size` pixels across: how
-// far out from the figure's middle it is, in pixels toward the act's side, crawling in from further out; whether it is still whole; how
-// flat a mallet's blow has left it, 0 whole to 1 flat; and how much of it still shows as it fades
-export function bugAt(act, u, size) {
-    const crawled = partOf(u, act.crawl);
-    const flat = act.blow !== undefined && u >= act.blow ? 1 : 0;
+// The meeting of the mallet act on the floor the figure stands on, in shares of the figure's picture: the bug comes up behind the floor's
+// box `reach` further out than the blow lands, never nearer an end of the floor than `margin`, starting `tall` below its top edge, out of
+// sight; the figure walks in steps `stride` long; and the bug keeps to its floor while the floor moves no more than `carried` pixels in a
+// frame, as the figure does (floors.js CARRIED_WITHIN)
+export const SMASH = {reach: 1.2, margin: 0.25, tall: 0.14, stride: 0.5, carried: 5};
+
+// The mallet act of a figure with its middle at `x` on the floor `floor` (its left, right and top on the page), its picture `size` pixels
+// across: where the figure and the bug start and end, each [from, to] in pixels from the floor's left, so a floor that moves carries them;
+// both walk to meet halfway, the bug ending `away` of the picture out on the figure's left, where the blow lands, and a figure with too
+// little room for that walks back to it on its own
+export function smashPlan(x, floor, size) {
+    const {away, side} = ACTS.bug_smash;
+    const out = side * away * size;
+    const [low, high] = [floor.left + SMASH.margin * size, floor.right - SMASH.margin * size];
+    const from = Math.min(Math.max(x + out + side * SMASH.reach * size, low), high);
+    const gap = from - out - x;
+    const to = from - (side * gap > 0 ? gap / 2 : 0);
+    return {figure: [x - floor.left, to - out - floor.left], bug: [from - floor.left, to - floor.left]};
+}
+
+// The mallet act by the plan `plan` (smashPlan) `u` of the way through, the figure's picture `size` pixels across: the figure's middle in
+// pixels from the floor's left, the steps it has walked and the way it walks (1 the viewer's right); and the bug: in pixels from the floor's
+// left, how far below the floor's top edge it is, behind the box, the degrees it is turned from walking, 90 head up as it climbs, whether
+// it is still whole, how flat the blow has left it, 0 whole to 1 flat, and how much of it still shows as it fades
+export function smashAt(plan, u, size) {
+    const act = ACTS.bug_smash;
+    const walked = partOf(u, act.walk);
+    const along = ([from, to]) => from + (to - from) * walked;
     return {
-        out: act.side * size * (act.away + 1.1 * (1 - crawled)),
-        whole: act.splat === undefined ? u < act.blow : u < act.splat,
-        flat,
-        shows: act.gone ? 1 - partOf(u, act.gone) : act.splat === undefined || u < act.splat ? 1 : 0,
+        figure: along(plan.figure),
+        steps: Math.abs(along(plan.figure) - plan.figure[0]) / (SMASH.stride * size),
+        way: Math.sign(plan.figure[1] - plan.figure[0]),
+        bug: {
+            dx: along(plan.bug),
+            below: SMASH.tall * size * (1 - partOf(u, act.emerge)),
+            turn: 90 * (1 - partOf(u, act.climb)),
+            whole: u < act.blow,
+            flat: u >= act.blow ? 1 : 0,
+            shows: 1 - partOf(u, act.gone),
+        },
     };
+}
+
+// One frame of the mallet act's bug, `bug` ({x, y, speed, falling}), `on` where the act puts it on its floor now ({x, y}), or null once the
+// floor is gone or no longer reaches under it: on its floor while that holds it, carried with it, up too; once it went, or dropped further
+// in a frame than SMASH carried, as a bar docked over the compose box closes, it falls at GRAVITY from where it was onto `ground`, the top of what is
+// under it, and stays there
+export function bugStep(bug, on, ground, seconds) {
+    if (!bug.falling && on && (bug.y === undefined || on.y - bug.y <= SMASH.carried)) return {x: on.x, y: on.y, speed: 0, falling: false};
+    const fell = fallStep({y: bug.y, speed: bug.speed}, ground, seconds);
+    return {x: bug.x, y: fell.y, speed: fell.speed, falling: true};
 }
 
 // The bugs of a bug shot on the chat window's walls: at least `least` and at most `most` of them, each on the left, the right or the top wall,

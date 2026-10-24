@@ -132,6 +132,7 @@ export class Posing {
         this.sky = null;
         this.throws = null;
         this.leanWay = 0;
+        this.walkWay = 0;
         this.screen = null;
         this.facing = 0;
         this.target = null;
@@ -615,17 +616,17 @@ function strideUnder(pose) {
     pose.lift("root", {z: 0.05 * Math.cos(4 * Math.PI * pose.stride)});
 }
 
-function strideLegs(pose) {
+function strideLegs(pose, k = 1) {
     for (const [side, offset] of [
         ["l", 0.0],
         ["r", Math.PI],
     ]) {
         const angle = 2 * Math.PI * pose.stride + offset;
-        const thigh = -30 * Math.sin(angle);
-        const knee = 42 * Math.max(Math.cos(angle), 0);
+        const thigh = -30 * k * Math.sin(angle);
+        const knee = 42 * k * Math.max(Math.cos(angle), 0);
         pose.turn(`thigh_${side}`, {x: thigh});
         pose.turn(`shin_${side}`, {x: knee});
-        pose.turn(`foot_${side}`, {x: -0.8 * (thigh + knee) + 6});
+        pose.turn(`foot_${side}`, {x: -0.8 * (thigh + knee) + 6 * k});
     }
 }
 
@@ -2983,13 +2984,16 @@ export function malletAt(t) {
     return between(hold("blow"), hold("rest"), partOf(t, lower));
 }
 
-// smashes the bug flat with a big wooden mallet (acts.js bug_smash): takes it up in both hands, raises it high before its head, swings it
+// smashes the bug flat with a big wooden mallet (acts.js bug_smash): walks to meet the bug the way it goes (pose.walkWay, 1 the viewer's
+// right, its steps pose.stride), turned that way as it walks; takes the mallet up in both hands, raises it high before its head, swings it
 // down onto the bug at its left and holds it there a moment, its eyes in fight mode from the raise until the bug is gone, then lowers it
 function bug_smash(pose, stance, t) {
     const act = ACTS.bug_smash;
+    const walking = Math.abs(pose.walkWay) * partOf(t, [act.walk[0] - 0.03, act.walk[0]]) * (1 - partOf(t, [act.walk[1], act.walk[1] + 0.04]));
     const held = partOf(t, [act.raise[0] - 0.08, act.raise[0]]) * (1 - partOf(t, [act.lower[1] - 0.04, act.lower[1]]));
     const {grip, way} = malletAt(t);
     const blow = swell(t, act.blow - 0.02, act.blow + 0.06);
+    if (walking) strideUnder(pose);
     breathe(pose, t);
     trunk(pose, {lean: 10 * blow, nod: 6 * blow});
     crouch(pose, 0.12 * blow);
@@ -3000,7 +3004,8 @@ function bug_smash(pose, stance, t) {
     const turn = {y: THREE.MathUtils.radToDeg(-Math.asin(way.z)), z: THREE.MathUtils.radToDeg(Math.atan2(way.y, way.x))};
     if (held > 0.3) pose.holdUpright("big_mallet", "r", [0, 0, 0], turn);
     fightEyes(pose, t, held * (1 - partOf(t, act.gone)));
-    if (pose.posture === "stand") pose.revolve(SIDES.l * MALLET_SWING.turn * held);
+    if (walking) strideLegs(pose, walking);
+    if (pose.posture === "stand") pose.revolve(SIDES.l * MALLET_SWING.turn * held + pose.walkWay * 90 * walking);
 }
 
 // The halo of a repented sin, over the head (acts.js halo): `above` the head's pivot, as wide as `radius`, its ring `ring` thick, tipped
@@ -4137,7 +4142,7 @@ export function bigMalletOf(prop) {
     const {handle, grip, head, width, band, colours} = BIG_MALLET;
     shadedPart(root, "handle", new THREE.CylinderGeometry(grip, grip * 1.2, handle, 12), colours.handle, [handle / 2, 0, 0]).rotation.z = Math.PI / 2;
     shadedPart(root, "head", new THREE.CylinderGeometry(head, head, width, 20), colours.head, [handle, 0, 0]).rotation.x = Math.PI / 2;
-    for (const end of [-1, 1]) shadedPart(root, `band_${end}`, new THREE.CylinderGeometry(head * 1.04, head * 1.04, band, 20), colours.band, [handle, end * (width / 2 - band), 0]).rotation.x = Math.PI / 2;
+    for (const end of [-1, 1]) shadedPart(root, `band_${end}`, new THREE.CylinderGeometry(head * 1.04, head * 1.04, band, 20), colours.band, [handle, 0, end * (width / 2 - band)]).rotation.x = Math.PI / 2;
 }
 
 // the halo of a repented sin (HALO_RING), a golden ring lying flat over the head, as big as the act has grown it
@@ -4886,14 +4891,16 @@ export class Stage {
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
-// things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `at` is where
+// things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `walkWay` the
+// way it walks to meet the mallet's bug (bug_smash), `at` is where
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, walkWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         pose.throws = throws;
         pose.leanWay = leanWay;
+        pose.walkWay = walkWay;
         pose.screen = screen;
         pose.at = at;
         pose.target = target;

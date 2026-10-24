@@ -4,7 +4,7 @@ import * as THREE from "three";
 import {expect, test} from "vitest";
 
 const {BIG_MALLET, CLIPS, FIGHT_EYES, Posing, RIFLE, RIFLE_PARTS, bigMalletOf, bugOf, burstKick, crucifixOf, rifleLine, rifleOf} = await import("../src/figure/figure.js");
-const {ACTS, bugAt, splatDrops} = await import("../src/figure/acts.js");
+const {ACTS, smashAt, smashPlan, splatDrops} = await import("../src/figure/acts.js");
 const {SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
 const {reactionTo} = await import("../src/figure/reactions.js");
 const {beatsAfter, withSystemCards} = await import("../src/domain/figureState.js");
@@ -88,8 +88,9 @@ test("a fixed run may instead bring the mallet, on its own cooldown: drawn in 3D
     expect(choicesFor({moment: "tests_fixed", memory, now: SHOWPIECES.bug_smash}).some((entry) => entry.name === "bug_smash")).toBe(true);
     expect(sizeOf(bigMalletOf).y).toBeGreaterThan(BIG_MALLET.head);
     const act = ACTS.bug_smash;
-    expect(bugAt(act, act.blow - 0.01, 112)).toMatchObject({flat: 0, whole: true});
-    expect(bugAt(act, act.blow, 112)).toMatchObject({flat: 1, whole: false});
+    const plan = smashPlan(500, {left: 200, right: 1000, top: 600}, 112);
+    expect(smashAt(plan, act.blow - 0.01, 112).bug).toMatchObject({flat: 0, whole: true});
+    expect(smashAt(plan, act.blow, 112).bug).toMatchObject({flat: 1, whole: false});
     // the mallet over the head at the top of its raise, its head above the figure's head
     for (const voice of VOICES) {
         const {pose, at} = posed("bug_smash", act.raise[1], voice);

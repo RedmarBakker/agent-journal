@@ -94,7 +94,7 @@ export const FLUNG = {speed: 1500, rising: 200, share: 0.6};
 // the speed a figure is thrown up at, in pixels a second (up is less than 0), off a bubble that rose `risen` pixels in its burst (FLUNG)
 export const throwSpeed = (risen) => -Math.sqrt(2 * GRAVITY * FLUNG.share * risen);
 
-const floorNamed = (floors, id) => floors.find((floor) => floor.id === id) ?? null;
+export const floorNamed = (floors, id) => floors.find((floor) => floor.id === id) ?? null;
 
 // What a figure resting on a spot keeps of it: the floor it rests on by id, the spot's place from that floor's left end and top, the
 // posture it rests in there, and whether it rests at home on the bars docked over the compose box, which it then rides on as they grow

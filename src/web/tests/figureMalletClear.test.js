@@ -4,7 +4,7 @@ import * as THREE from "three";
 import {expect, test} from "vitest";
 
 const {BIG_MALLET, CLIPS, Posing} = await import("../src/figure/figure.js");
-const {ACTS, bugAt} = await import("../src/figure/acts.js");
+const {ACTS} = await import("../src/figure/acts.js");
 const {FRAMED} = await import("../src/figure/frame.js");
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -74,7 +74,7 @@ test("at the top of the swing the mallet stands above and in front of the head, 
         }
         // the blow: the mallet's head down on the floor where the bug lies, out on the figure's left
         const {mallet} = posed(act.blow, voice);
-        const bug = (bugAt(act, act.blow, 112).out / 112) * FRAMED.height;
+        const bug = act.side * act.away * FRAMED.height;
         expect(Math.abs(mallet.head.at.x - bug), `${voice} across, at the bug`).toBeLessThan(0.6);
         expect(mallet.head.at.z - mallet.head.reach, `${voice} down on the floor`).toBeLessThan(0.3);
     }

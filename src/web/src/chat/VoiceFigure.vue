@@ -18,9 +18,10 @@ import {
     legEnded,
     liftedLegs,
     slideAt,
+    catching,
     underWalker,
 } from "../domain/figureMotion.js";
-import {footingNow, footingOn, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors} from "../figure/floors.js";
+import {floorNamed, footingNow, footingOn, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors} from "../figure/floors.js";
 import {useFigureBody} from "../composables/figureBody.js";
 import {
     actOver,
@@ -61,7 +62,8 @@ import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, bugShotFrame, bugShotScene, hidesBelowFloor, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
+import {ACTS, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
+import FixedRunBug from "./act/FixedRunBug.vue";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -424,6 +426,7 @@ function step() {
     const posture = drawnIn(shown, body.trip ? POSTURES[body.place.posture].travels : body.place.posture, body.trip?.moves);
     // seated, it faces as its seat does, whatever the clip still on screen faced, and turned aside at its laptop (places.js seatedFacing)
     poseToward({posture, facing: SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
+    smashOn(shown);
     // the leg waiting for the clip it sets off with goes in the frame that clip goes on screen, so the walk is never drawn on the spot
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
     drawn = posed.posture;
@@ -445,7 +448,8 @@ function step() {
     player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, shiftedOnSeat(shown, seconds), {
         posture: drawn,
         eyes: look.eyes,
-        stride,
+        stride: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : stride,
+        walkWay: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.way : 0,
         sky: shown.clip.name === watching ? sky : null,
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
         leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : 0,
@@ -462,6 +466,55 @@ function step() {
     keepLadder();
     frameTimer = requestAnimationFrame(step);
 }
+
+// The mallet act (acts.js smashPlan, smashAt): planned on the floor the figure stands on as it begins; each frame the figure walks along
+// that floor to meet the bug and the bug keeps to it, falling once it goes (acts.js bugStep), on until its beat is done; null with none
+const smashing = ref(null);
+
+function smashOn(shown) {
+    const playing = shown.clip.name === "bug_smash";
+    if (!playing && beats.value[0]?.clip !== "bug_smash") return (smashing.value = null);
+    const floors = latestFloors().floors;
+    if (!smashing.value) return playing && body.footing ? planSmash(floors) : null;
+    const {id, plan, bug, seconds} = smashing.value;
+    const at = playing ? smashAt(plan, frameOf(shown) / shown.clip.frames, SIZE) : smashing.value.at;
+    const floor = floorNamed(floors, id);
+    const x = floor ? floor.left + at.bug.dx : bug.x;
+    const on = floor && x >= floor.left && x <= floor.right ? {x, y: floor.top} : null;
+    const time = performance.now() / 1000;
+    smashing.value = {...smashing.value, at, bug: bugStep(bug, on, groundAt(bug.x, bug.y), time - seconds), seconds: time};
+    if (playing && floor && !body.airborne) walkToBug(floor, at.figure);
+}
+
+// the mallet act planned on the floor the figure stands on, its bug where it starts, behind that floor's box
+function planSmash(floors) {
+    const floor = floorNamed(floors, body.footing.id);
+    if (!floor) return;
+    const plan = smashPlan(body.place.x, floor, SIZE);
+    const at = smashAt(plan, 0, SIZE);
+    smashing.value = {id: body.footing.id, plan, at, bug: {x: floor.left + at.bug.dx, y: floor.top, speed: 0, falling: false}, seconds: performance.now() / 1000};
+}
+
+// the figure on its floor `floor`, `dx` pixels from its left, as it walks to meet the mallet's bug
+function walkToBug(floor, dx) {
+    const spot = {...body.place, x: floor.left + dx};
+    if (Math.abs(spot.x - body.place.x) < 0.3) return;
+    body.footing = footingOn(spot) ?? body.footing;
+    body.place = spot;
+}
+
+// the top of the ground at home under the point `x`, `y` on the page, else below the bottom of the window, where a falling bug goes out of sight
+const groundAt = (x, y) => Math.min(window.innerHeight + SIZE, ...catching(latestFloors().floors, false).filter((floor) => floor.left <= x && x <= floor.right && floor.top >= y).map((floor) => floor.top));
+
+// the mallet's bug as the page draws it (act/FixedRunBug.vue): where it is, climbing up behind its floor's box to its top edge, walking or
+// fallen, and the way it walks; whole while it falls, as the blow misses it
+const smashedBug = computed(() => {
+    if (!smashing.value) return null;
+    const {at, bug, plan} = smashing.value;
+    const below = bug.falling ? 0 : at.bug.below;
+    const fell = bug.falling ? {whole: true, flat: 0} : {};
+    return {...at.bug, ...fell, x: bug.x, y: bug.y + below, below, edge: below > 0 ? bug.y : null, way: Math.sign(plan.bug[1] - plan.bug[0]) || -1, step: Math.floor(smashing.value.seconds * 6) % 2};
+});
 
 // The act played once on screen, `shown`, at its end: a swat starts again while the tickling goes on, so the figure swats for as long as it
 // is tickled; a departure takes the figure away; an arrival or a landing is done; any other is a beat, taken off the queue
@@ -1769,6 +1822,9 @@ const style = computed(() => {
             </template>
         </div>
     </div>
+    <template v-if="smashedBug && bugPicture">
+        <FixedRunBug :bug="bugPicture" :at="smashedBug" />
+    </template>
     <template v-for="drawing in drawnParcels" :key="drawing.id">
         <template v-if="blocks">
             <CodeParcel
