@@ -72,9 +72,9 @@ the skill that fixes it, so you are never guessing which to read.
 
 **⚠️ THE ONE RULE EVERY OTHER DEFERS TO — TRACE TO THE SOURCE.** Every sin has an origin; fix it
 THERE, never where it surfaces. A finding is a symptom, so before you change a line, walk back to
-where the bad value, missing type or wrong shape ORIGINATES. Do NOT silence it: a `?? default`, a
-cast, a null-check, a wrapper, a try/catch, or dropping a type to satisfy a detector hides the
-problem and adds code. If the honest fix touches many call sites, touch them — that breadth
+where the bad value, missing type or wrong shape is BORN. Do NOT silence it: a `?? default`, a
+cast, a null-check, a wrapper, a try/catch, or dropping a type to satisfy a detector launders the
+problem and grows the code. If the honest fix touches many call sites, touch them — that breadth
 IS the bug surfacing. Load `commandments-php-fix-at-the-source` before your first edit, and
 again rather than working from memory, since a compaction drops it silently.
 
@@ -83,7 +83,7 @@ uncommitted work, `--branch` for what differs from main, or a path to judge that
 slow, so it writes a checklist (the run prints the path) and THAT file, not repeated scans, is how
 you work: top to bottom, one line at a time — read that section's skill, fix the sin at its
 source, delete the line. Re-run only when the file is empty, and keep going until a run is clean.
-Where your harness reports each sin as you change a file, those marks cover what you changed and
+Where your harness raises each sin as you change a file, those marks cover what you changed and
 nothing else: a tree you have not touched is judged only by asking.
 
 **Don't recognise a rule?** `.journal/plugins/code-commandments/bin/commandments-release info <sin>` prints what it flags, why, how it is fixed and
