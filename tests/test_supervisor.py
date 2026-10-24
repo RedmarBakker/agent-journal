@@ -619,3 +619,19 @@ def test_the_commit_guard_refuses_a_private_word_or_a_real_machines_address_and_
     found = guard.problems([("a.py", 3, "ssh root@8.8.8.8 for the Acme shop"), ("b.py", 9, "curl https://203.0.113.5 and 127.0.0.1 and 10.0.0.2")], ["acme"])
     assert found == ["a.py:3: private word 1 of " + str(guard.WORDS), "a.py:3: the address 8.8.8.8 is a real machine's; use a documentation address such as 203.0.113.5"], found
     assert all("acme" not in line.lower() for line in found), "the word itself is never printed"
+
+
+def test_a_service_is_told_its_supervisors_process_and_lives_for_it(tmp_path: Path):
+    import time
+    from journal.support.parent_process import ParentProcess
+    from supervisor.service import Service
+    told = tmp_path / "told"
+    service = Service("journal", ["sh", "-c", f'echo "$SUPERVISOR_PID" > "{told}"'], tmp_path, {}, tmp_path / "journal.log")
+    service.start()
+    for _ in range(50):
+        if told.is_file() and told.read_text().strip():
+            break
+        time.sleep(0.05)
+    assert told.read_text().strip() == str(os.getpid()), "every service is told the supervisor's own process, to live for it"
+    service.stop()
+    assert ParentProcess(os.getpid()).is_alive() and not ParentProcess(2**22 + 12345).is_alive(), "a process gone is seen gone"

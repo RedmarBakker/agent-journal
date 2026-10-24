@@ -29,7 +29,7 @@ class Service:
         self._last_start = time.time()
         with self.log.open("ab") as log_file:
             try:
-                self._process = subprocess.Popen(self.command, cwd=self.folder, env=self.environ, stdin=subprocess.PIPE, stdout=log_file, stderr=log_file, start_new_session=True)
+                self._process = subprocess.Popen(self.command, cwd=self.folder, env={**self.environ, "SUPERVISOR_PID": str(os.getpid())}, stdin=subprocess.PIPE, stdout=log_file, stderr=log_file, start_new_session=True)
             except OSError as fault:
                 log_file.write(f"{self.name} could not start: {fault}\n".encode())
                 self._deaths = [death for death in self._deaths if self._last_start - death < WINDOW_SECONDS] + [self._last_start]

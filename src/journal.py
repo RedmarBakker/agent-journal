@@ -7,15 +7,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from journal.app import App  # noqa: E402
 from journal.config import Config  # noqa: E402
 from journal.providers.providers import Providers  # noqa: E402
+from journal.support.parent_process import ParentProcess  # noqa: E402
 from journal.sync.carrier_process import CarrierProcess  # noqa: E402
 
 AGENTS = ("claude", "codex")
 
 
 def main(argv: list[str]) -> int:
-    # the process this one lives for: the journal server that started a carrier names itself, as a framework build's python starts
-    # the real interpreter as a child of its own, which outlives a killed parent; else the parent
-    parent = int(os.environ.get("JOURNAL_PARENT_PID") or os.getppid())
+    parent = ParentProcess.named("JOURNAL_PARENT_PID")
     root = Path(os.environ.get("JOURNAL_ROOT") or Path.cwd())
     if argv[:1] and argv[0] in AGENTS:
         from journal.launcher.launch import Launch
