@@ -55,11 +55,15 @@ class WorkerController(Controller[Worker]):
         return row.is_active()
 
     def shown_page(self, rows: list[Worker]) -> list[dict]:
+        reports = self.reports.lasts(rows)
+        return [{**row, "report": reports[worker.row_id]} for worker, row in zip(rows, self.index_page(rows))]
+
+    def index_page(self, rows: list[Worker]) -> list[dict]:
         holdings = self.tasks.worker_holdings()
         views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
-        former_tasks, queues, reports = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.reports.lasts(rows)
-        return [{**ModelFields.build(w), "report": reports[w.row_id], "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "agent": agent_ids.get(w.session, 0)} for w in rows]
+        former_tasks, queues = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows)
+        return [{**ModelFields.build(w), "files": w.files_line(), "conversation": w.conversation(), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "agent": agent_ids.get(w.session, 0)} for w in rows]
 
     def task_views(self, rows: list[Worker], holdings: dict[int, int]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}

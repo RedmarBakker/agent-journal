@@ -3874,10 +3874,10 @@ def test_a_workers_report_stays_on_its_row_however_much_is_said_after(app: App):
     messages = app.container.get(Messages)
     for i in range(250):
         messages.save(Message(author=Author.USER, text=f"word {i}"), USER.actor)
-    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/workers", method="GET", headers={"X-Journal-Env": "main"})
+    request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/workers?ids=1", method="GET", headers={"X-Journal-Env": "main"})
     with urlopen(request, timeout=5) as reply:
         worker = json.loads(reply.read())["rows"][0]
-    assert worker["report"] == "the parser is written", "the report is linked from the worker, not found among the recent messages"
+    assert worker["report"] == "the parser is written", "the report is linked from the worker, not found among the recent messages, and read for that worker alone"
 
 def test_a_workers_report_message_carries_the_report_kind_and_its_worker(app: App):
     from journal.repositories.messages import Messages
@@ -13206,6 +13206,12 @@ def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_
         listed = app.container.get(WorkerController).listed(Listing(limit=5))
     names = [row["name"] for row in listed["rows"]]
     assert names == ["Still out", "Newer 0", "Newer 1", "Newer 2", "Newer 3", "Newer 4"] and out.row_id, "a page of the newest, and beside it only a worker still out, never every finished one"
+    with app.container.get(Scope).environment(MAIN):
+        long = workers.save(Worker(environment_id=MAIN, name="Long brief", brief="b" * 5000, state=WorkerState.READY), Actor.system())
+        previewed = next(row for row in app.container.get(WorkerController).listed(Listing(limit=5))["rows"] if row["name"] == "Long brief")
+        whole = app.container.get(WorkerController).listed(Listing(ids=(long.row_id,)))["rows"][0]
+    assert "report" not in previewed, "a list carries no report"
+    assert "report" in whole, "a worker read by its id comes with its report"
 
 
 

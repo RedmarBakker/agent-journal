@@ -24,7 +24,11 @@ class Controller(Generic[S]):
     def listed(self, listing: Listing) -> RowList:
         rows = self.rows()
         page = listing.listed(rows, self.is_open, self.is_timeline)
-        return RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(rows))
+        shown = self.shown_page(page["rows"]) if listing.ids else self.index_page(page["rows"])
+        return RowList(rows=shown, is_last_page=page["is_last_page"], counts=self.counts(rows))
+
+    def index_page(self, rows: list[S]) -> list:
+        return self.shown_page(rows)
 
     def rows(self) -> list[S]:
         return self.repository.all()
