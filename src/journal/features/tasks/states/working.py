@@ -18,7 +18,7 @@ from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
-from journal.features.briefing.feature import Briefing
+from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.git.feature import Git
 
 OPEN_TASK_LIMIT_SECONDS = 900.0
@@ -91,7 +91,7 @@ class Working(BaseState):
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         nudges = [self.continue_nudge(event.time)]
         if event.source == COMPACT:
-            nudges.append(Briefing.COMPACTION_SUMMARY.create(task=self.label(), last_log=event.data.part(TasksPart).last_log_line, uncommitted=event.data.part(Git).uncommitted))
+            nudges.append(BriefingNudges.COMPACTION_SUMMARY.create(task=self.label(), last_log=event.data.part(TasksPart).last_log_line, uncommitted=event.data.part(Git).uncommitted))
         return self.swap(replace(self, active_at=event.time), *nudges)
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:

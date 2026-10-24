@@ -6,6 +6,9 @@ from journal.events.agent.stop import Stop
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 from journal.features.briefing.support.briefing_data import BriefingData
+from journal.features.briefing.briefing_nudges import BriefingNudges
+from journal.features.briefing.briefing_part import BriefingPart
+from journal.features.briefing.states.reading_overview import ReadingOverview
 
 COMPACT = "compact"
 
@@ -16,39 +19,30 @@ class BriefingConduct(Conduct):
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         if event.is_resume():
             return self.none()
-        feature = briefing_feature()
-        lines = start_block(event.data.part(feature), event.source)
+        lines = start_block(event.data.part(BriefingPart), event.source)
         if event.is_compaction_start():
-            from journal.features.briefing.states.reading_overview import ReadingOverview
-            return self.push(ReadingOverview(), *lines, feature.OVERVIEW_FIRST.create())
-        return self.none(*lines, feature.OVERVIEW_REQUEST.create())
+            return self.push(ReadingOverview(), *lines, BriefingNudges.OVERVIEW_FIRST.create())
+        return self.none(*lines, BriefingNudges.OVERVIEW_REQUEST.create())
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        feature = briefing_feature()
-        if event.subagent or not event.call.writes or event.data.part(feature).is_overview_read:
+        if event.subagent or not event.call.writes or event.data.part(BriefingPart).is_overview_read:
             return self.none()
-        return self.refuse(feature.OVERVIEW_REQUEST.create())
+        return self.refuse(BriefingNudges.OVERVIEW_REQUEST.create())
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        feature = briefing_feature()
-        return self.none() if event.data.part(feature).is_overview_read else self.refuse(feature.OVERVIEW_STOP.create())
+        return self.none() if event.data.part(BriefingPart).is_overview_read else self.refuse(BriefingNudges.OVERVIEW_STOP.create())
 
-
-def briefing_feature():
-    from journal.features.briefing.feature import Briefing
-    return Briefing
 
 
 def start_block(briefing: BriefingData, source: str) -> list[Nudge]:
-    feature = briefing_feature()
     takeover_at = "" if source == COMPACT else briefing.peer_session_active_at
     optional = (
-        (takeover_at, lambda: feature.TAKEOVER.create(time=takeover_at)),
-        (source != COMPACT and briefing.team_history, lambda: feature.TEAM_HISTORY.create(rows=briefing.team_history)),
-        (briefing.rules, lambda: feature.ACTIVE_RULES.create(count=briefing.rules_count, rows=briefing.rules)),
-        (briefing.facts, lambda: feature.ENVIRONMENT_FACTS.create(rows=briefing.facts)),
-        (briefing.reminders, lambda: feature.ENVIRONMENT_REMINDERS.create(rows=briefing.reminders)),
-        (briefing.interrupted_runs, lambda: feature.INTERRUPTED_RUNS.create(rows=briefing.interrupted_runs)),
-        (briefing.waiting, lambda: feature.PENDING_ITEMS.create(rows=briefing.waiting)),
+        (takeover_at, lambda: BriefingNudges.TAKEOVER.create(time=takeover_at)),
+        (source != COMPACT and briefing.team_history, lambda: BriefingNudges.TEAM_HISTORY.create(rows=briefing.team_history)),
+        (briefing.rules, lambda: BriefingNudges.ACTIVE_RULES.create(count=briefing.rules_count, rows=briefing.rules)),
+        (briefing.facts, lambda: BriefingNudges.ENVIRONMENT_FACTS.create(rows=briefing.facts)),
+        (briefing.reminders, lambda: BriefingNudges.ENVIRONMENT_REMINDERS.create(rows=briefing.reminders)),
+        (briefing.interrupted_runs, lambda: BriefingNudges.INTERRUPTED_RUNS.create(rows=briefing.interrupted_runs)),
+        (briefing.waiting, lambda: BriefingNudges.PENDING_ITEMS.create(rows=briefing.waiting)),
     )
-    return [feature.JOURNAL_READY.create(env=briefing.environment), feature.JOURNAL_DISCRETION.create(), feature.JOURNAL_LAWS.create(), *(line() for matched, line in optional if matched)]
+    return [BriefingNudges.JOURNAL_READY.create(env=briefing.environment), BriefingNudges.JOURNAL_DISCRETION.create(), BriefingNudges.JOURNAL_LAWS.create(), *(line() for matched, line in optional if matched)]

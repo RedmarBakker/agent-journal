@@ -7,6 +7,7 @@ from journal.hooks.support.tool_calls import ToolCalls
 from journal.http.support.request import REQUEST_TIME_HEADER, Request
 from journal.support.response import Response
 from journal.providers.providers import Providers
+from journal.features.faults.faults_options import FaultsOptions
 
 LAUNCH_HEADER = "x-journal-launch"
 WORKER_HEADER = "x-journal-worker"
@@ -31,8 +32,7 @@ class HookController:
         return provider.answer(hook, decision) if self.is_copy_shown() else provider.agent_answer(hook, decision)
 
     def is_copy_shown(self) -> bool:
-        from journal.features.faults.feature import Faults
-        return bool(self.settings.option(Faults.HOOK_LINE_COPY))
+        return bool(self.settings.option(FaultsOptions.HOOK_LINE_COPY))
 
     def announce(self, hook: Hook) -> Response:
         if parts := self.shell_parts(hook):

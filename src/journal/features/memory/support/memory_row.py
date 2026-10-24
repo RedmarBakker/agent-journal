@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from journal.support.card_kind import CardKind
+from journal.features.memory.memory_nudges import MemoryNudges
 
 
 @dataclass(frozen=True)
@@ -18,5 +19,4 @@ class MemoryRow:
     is_single_use: bool = False
 
     def line(self) -> str:
-        from journal.features.memory.feature import Memory
-        return Memory.MEMORY_READ_REQUEST.create(noun=self.noun, n=self.id).rendered()
+        return MemoryNudges.MEMORY_READ_REQUEST.create(noun=self.noun, n=self.id).rendered()

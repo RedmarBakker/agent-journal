@@ -7,6 +7,7 @@ from journal.models.message import Message
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
+from journal.features.messages.messages_nudges import MessagesNudges
 
 DELIVERED = (Created, SyncedCreation)
 
@@ -18,7 +19,6 @@ class DeliverMessage(Listener[ModelEvent]):
         self.agents, self.nudger, self.supervisor, self.scope = agents, nudger, supervisor, scope
 
     def handle(self, event: ModelEvent) -> None:
-        from journal.features.messages.feature import Messages
         message = event.model
         if not isinstance(event, DELIVERED) or not isinstance(message, Message) or not message.is_main_unread:
             return
@@ -26,6 +26,6 @@ class DeliverMessage(Listener[ModelEvent]):
             agent = self.agents.current()
         if agent is None:
             return
-        line = self.nudger.deliver(agent, Messages.NEW_MESSAGE.create(n=message.id))
+        line = self.nudger.deliver(agent, MessagesNudges.NEW_MESSAGE.create(n=message.id))
         if line:
             self.supervisor.type(message.environment_id, line)

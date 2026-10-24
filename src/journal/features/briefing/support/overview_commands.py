@@ -1,6 +1,6 @@
 from journal.console.support.chained_line import ChainedLine
-from journal.features.briefing.feature import Briefing
 from journal.repositories.setting_rows import SettingRows
+from journal.features.briefing.briefing_options import BriefingOptions
 
 
 class OverviewCommands:
@@ -10,4 +10,4 @@ class OverviewCommands:
         self.settings = settings
 
     def lines(self) -> list[ChainedLine]:
-        return [ChainedLine(command) for command in self.settings.texts(Briefing.OVERVIEW_COMMANDS)]
+        return [ChainedLine(command) for command in self.settings.texts(BriefingOptions.OVERVIEW_COMMANDS)]

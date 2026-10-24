@@ -7,6 +7,9 @@ from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
 from journal.support.code_files import CodeFiles
 from journal.events.agent.turn_displayed import TurnDisplayed
+from journal.features.etiquette.etiquette_nudges import EtiquetteNudges
+from journal.features.etiquette.etiquette_options import EtiquetteOptions
+from journal.features.etiquette.etiquette_part import EtiquettePart
 
 SHOP_TALK = re.compile(r"\bjournal (task|plan|message|question|fact|rule|reminder|sequence|worker|check|skill|stuck|nothing) [a-z]+\b|\[journal\]", re.I)
 THIRD_PERSON = re.compile(r"\bthe user\b", re.I)
@@ -18,27 +21,24 @@ class EtiquetteConduct(Conduct):
     """The etiquette feature's conduct in every state: a turn for the user read once for shop talk, the third person, em dashes and run-on paragraphs, the reminder what a journal line is every so many lines sent, and the reminder that code is written in plain words every so many edits of code files."""
 
     def on_turn_displayed(self, event: TurnDisplayed, settings: Settings) -> Transition:
-        from journal.features.etiquette.feature import Etiquette
         if not event.final:
             return self.none()
-        rows = [nudge.create() for pattern, nudge in ((SHOP_TALK, Etiquette.SHOP_TALK_WARNING), (THIRD_PERSON, Etiquette.SECOND_PERSON), (EM_DASHES, Etiquette.EM_DASH_WARNING)) if pattern.search(event.content)]
+        rows = [nudge.create() for pattern, nudge in ((SHOP_TALK, EtiquetteNudges.SHOP_TALK_WARNING), (THIRD_PERSON, EtiquetteNudges.SECOND_PERSON), (EM_DASHES, EtiquetteNudges.EM_DASH_WARNING)) if pattern.search(event.content)]
         if runs_together(event.content):
-            rows.append(Etiquette.PARAGRAPH_SPACING.create())
+            rows.append(EtiquetteNudges.PARAGRAPH_SPACING.create())
         return self.none(*rows)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        from journal.features.etiquette.feature import Etiquette
-        edits = settings.integer(Etiquette.PLAIN_CODE_INTERVAL)
-        if event.subagent or edits <= 0 or not CodeFiles.has_code(event.call.edited_paths) or event.data.part(Etiquette).code_edits % edits:
+        edits = settings.integer(EtiquetteOptions.PLAIN_CODE_INTERVAL)
+        if event.subagent or edits <= 0 or not CodeFiles.has_code(event.call.edited_paths) or event.data.part(EtiquettePart).code_edits % edits:
             return self.none()
-        return self.none(Etiquette.PLAIN_CODE.create())
+        return self.none(EtiquetteNudges.PLAIN_CODE.create())
 
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
-        from journal.features.etiquette.feature import Etiquette
-        all_items = settings.integer(Etiquette.REMINDER_INTERVAL)
-        if event.subagent or all_items <= 0 or event.data.part(Etiquette).reminder_gap < all_items:
+        all_items = settings.integer(EtiquetteOptions.REMINDER_INTERVAL)
+        if event.subagent or all_items <= 0 or event.data.part(EtiquettePart).reminder_gap < all_items:
             return self.none()
-        return self.none(Etiquette.JOURNAL_LINE_RULE.create())
+        return self.none(EtiquetteNudges.JOURNAL_LINE_RULE.create())
 
 
 def runs_together(text: str) -> bool:

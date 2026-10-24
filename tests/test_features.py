@@ -50,6 +50,8 @@ from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
+from journal.features.briefing.briefing_options import BriefingOptions
+from journal.features.messages.messages_nudges import MessagesNudges
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -3293,13 +3295,13 @@ def test_the_etiquette_reminder_comes_after_fifty_lines_and_never_floods(app: Ap
     agent, nudger = app.container.get(SessionAgents).agent("s1", 1), app.container.get(Nudger)
     after_tool = lambda: hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": "a"})[1].get("hookSpecificOutput", {}).get("additionalContext", "")
     for i in range(50):
-        nudger.deliver(agent, MessagesFeature.NEW_MESSAGE.create(n=i))
+        nudger.deliver(agent, MessagesNudges.NEW_MESSAGE.create(n=i))
     app.runtime().deferred.drain()
     assert "a [journal] line is an instruction" in after_tool(), "fifty lines since the last reminder, counted once the replies have gone, bring it at the next tool use"
     app.runtime().deferred.drain()
     assert "a [journal] line is an instruction" not in after_tool(), "said, the count starts again"
     for i in range(1000):
-        nudger.deliver(agent, MessagesFeature.NEW_MESSAGE.create(n=1000 + i))
+        nudger.deliver(agent, MessagesNudges.NEW_MESSAGE.create(n=1000 + i))
     app.runtime().deferred.drain()
     assert "a [journal] line is an instruction" not in after_tool(), "a thousand lines later but inside the reminder's own window, none again: no flood"
 
@@ -11601,7 +11603,6 @@ def test_the_owner_sees_and_pauses_their_agent_from_the_hosted_journal_and_a_col
 
 
 def test_the_overview_lists_only_the_workers_still_to_act_on(app: App):
-    from journal.features.briefing.feature import Briefing
     from journal.models.worker import Worker
     from journal.models.worker_state import WorkerState
     from journal.repositories.workers import Workers
@@ -11614,7 +11615,7 @@ def test_the_overview_lists_only_the_workers_still_to_act_on(app: App):
     assert "Lady Lovelace" in shown and "Mr. Babbage" in shown, "the one out and the one with work to check are listed"
     assert "Mr. Pepys" not in shown and "Mr. Brunel" not in shown, "a reported and a merged one are history, left out"
     assert all(name in listed for name in ("Mr. Pepys", "Mr. Brunel", "Lady Lovelace", "Mr. Babbage")), "the full list still has every one"
-    assert "journal worker open" in Briefing.OVERVIEW_COMMANDS.default and "journal worker list" not in Briefing.OVERVIEW_COMMANDS.default, "the overview runs the short list"
+    assert "journal worker open" in BriefingOptions.OVERVIEW_COMMANDS.default and "journal worker list" not in BriefingOptions.OVERVIEW_COMMANDS.default, "the overview runs the short list"
 
 
 def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app: App):

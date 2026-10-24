@@ -2,6 +2,7 @@ from journal.events.agent.line_delivered import LineDelivered
 from journal.events.agent_listener import AgentListener
 from journal.repositories.checks import Checks
 from journal.support.actor import Actor
+from journal.features.checks.checks_nudges import ChecksNudges
 
 
 class CheckFailureRecord(AgentListener[LineDelivered]):
@@ -11,7 +12,6 @@ class CheckFailureRecord(AgentListener[LineDelivered]):
         self.checks = checks
 
     def handle(self, event: LineDelivered) -> None:
-        from journal.features.checks.feature import Checks as Feature
-        if event.nudge not in (Feature.CHECK_FAILED.key, Feature.CHECK_FAILURE_REPEAT.key):
+        if event.nudge not in (ChecksNudges.CHECK_FAILED.key, ChecksNudges.CHECK_FAILURE_REPEAT.key):
             return
         self.checks.save(self.checks.find(int(event.values["n"])).failure_reported(event.time), Actor.system())

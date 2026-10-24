@@ -6,6 +6,7 @@ from journal.hooks.support.transcript_turns import TranscriptTurns
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
+from journal.features.messages.messages_options import MessagesOptions
 
 
 class TranscriptScan(Listener[ClockTicked]):
@@ -15,8 +16,7 @@ class TranscriptScan(Listener[ClockTicked]):
         self.agents, self.turns, self.events, self.scope, self.settings = agents, turns, events, scope, settings
 
     def handle(self, event: ClockTicked) -> None:
-        from journal.features.messages.feature import Messages
-        deadline = event.time - self.settings.decimal(Messages.TRANSCRIPT_SCAN_DELAY)
+        deadline = event.time - self.settings.decimal(MessagesOptions.TRANSCRIPT_SCAN_DELAY)
         for agent in self.agents.program_main_agents():
             with self.scope.environment(agent.environment_id):
                 saved = self.turns.missed(agent.session, agent.provider, deadline)

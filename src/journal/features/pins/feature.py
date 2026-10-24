@@ -1,28 +1,26 @@
 from journal.features.feature import Feature
-from journal.engine.nudge import Nudge
 from journal.features.pins.commands.notice_command import NoticeCommand
 from journal.features.pins.listeners.dock_new_writing import DockNewWriting
 from journal.features.pins.pins_conduct import PinsConduct
 from journal.features.pins.support.pins_data_reader import PinsDataReader
 from journal.features.pins.support.pins_data import PinsData
-from journal.support.option import Option
 from journal.support.skill import Skill
+from journal.features.pins.pins_part import PinsPart
+from journal.features.pins.pins_nudges import PinsNudges
+from journal.features.pins.pins_options import PinsOptions
 
 
 class Pins(Feature[PinsData]):
-    PIN_SUGGESTION_INTERVAL = Option("pins.suggest_every", "Suggest an unpinned link again after", "The agent's tool uses before a link it has not pinned is suggested again", 50, unit="tool uses")
-    name = "pins"
+    name = PinsPart.name
     title = "Pinned links"
     help = "A link the agent gives the user is pinned above the chat, so it is not lost as the chat scrolls; the user closes it when done."
     commands = (NoticeCommand,)
     listeners = (DockNewWriting,)
-    options = (PIN_SUGGESTION_INTERVAL,)
+    options = (PinsOptions.PIN_SUGGESTION_INTERVAL,)
     data = (PinsDataReader,)
     conduct = (PinsConduct,)
 
-    LINK_PIN_REQUEST = Nudge(name, "pin_the_link", "{{url}} is not pinned", "pin it if the user will come back to it: `journal notice create \"<what it is>\" --link \"{{url}}\" --label \"<Open ...>\"`", repeat_interval=0)
-    UNPINNED_CLAIM = Nudge(name, "pin_claimed_unmade", "you told the user a link is pinned, but no pin was made in the last minute", "pin it now with `journal notice create \"<what it is>\" --link \"<url>\" --label \"<Open ...>\"`, or tell the user where to find it instead", repeat_interval=0)
-    nudges = (LINK_PIN_REQUEST, UNPINNED_CLAIM)
+    nudges = (PinsNudges.LINK_PIN_REQUEST, PinsNudges.UNPINNED_CLAIM)
 
     skill = Skill("pinned-links", 'Load it when you point the user at a design, a page or anything else outside the journal. A link the agent gives the user in the chat is pinned to the chat, so it is not lost as the chat scrolls.', """
 # Pinned links

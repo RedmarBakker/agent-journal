@@ -1,7 +1,7 @@
 from journal.features.feature import Feature
-from journal.engine.nudge import Nudge
 from journal.features.mcp.commands.mcp_command import McpCommand
 from journal.features.mcp.listeners.pending_restart import PendingRestart
+from journal.features.mcp.mcp_nudges import McpNudges
 
 
 class Mcp(Feature):
@@ -9,6 +9,5 @@ class Mcp(Feature):
     title = "MCP"
     help = "Integrations are MCP servers: suggested ones are installed from the viewer, let in with a key kept outside the project or by signing in, and the agents are restarted so they apply at once."
     commands = (McpCommand,)
-    SERVER_LOGIN = Nudge(name, "sign_in_to_the_server", "sign in to {{title}}", "call mcp__{{name}}__authenticate, then complete_authentication once the browser has returned, and say in the chat that {{title}} is signed in", repeat_interval=0, chat_answerable=True)
-    nudges = (SERVER_LOGIN,)
+    nudges = (McpNudges.SERVER_LOGIN,)
     listeners = (PendingRestart,)

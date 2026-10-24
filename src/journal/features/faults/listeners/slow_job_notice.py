@@ -2,6 +2,8 @@ from journal.events.listener import Listener
 from journal.events.slow_tick import SlowTick
 from journal.repositories.setting_rows import SettingRows
 from journal.engine.support.nudge_log import NudgeLog
+from journal.features.faults.faults_nudges import FaultsNudges
+from journal.features.faults.faults_options import FaultsOptions
 
 
 class SlowJobNotice(Listener[SlowTick]):
@@ -11,6 +13,5 @@ class SlowJobNotice(Listener[SlowTick]):
         self.settings, self.nudges = settings, nudges
 
     def handle(self, event: SlowTick) -> None:
-        from journal.features.faults.feature import Faults
-        if self.settings.option(Faults.JOBS):
-            self.nudges.type(Faults.SLOW_JOB.create(job=event.job, seconds=event.seconds))
+        if self.settings.option(FaultsOptions.JOBS):
+            self.nudges.type(FaultsNudges.SLOW_JOB.create(job=event.job, seconds=event.seconds))

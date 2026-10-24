@@ -7,6 +7,8 @@ from journal.repositories.notices import Notices
 from journal.repositories.scope import Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.support.stage_times import StageTimes
+from journal.features.pins.pins_nudges import PinsNudges
+from journal.features.pins.pins_options import PinsOptions
 
 LINK = re.compile(r"https?://[^\s<>()\[\]\"'`]+")
 
@@ -29,6 +31,5 @@ class PinsDataReader:
         return newest.creation_time.timestamp() if newest is not None else None
 
     def recent_suggestions(self, agent: Agent) -> tuple[str, ...]:
-        from journal.features.pins.feature import Pins
-        interval = self.settings.integer(Pins.PIN_SUGGESTION_INTERVAL)
-        return tuple(url.rstrip("/") for line in self.entries.use_lines(agent.session, Pins.LINK_PIN_REQUEST.key, agent.tool_uses - interval) for url in LINK.findall(line))
+        interval = self.settings.integer(PinsOptions.PIN_SUGGESTION_INTERVAL)
+        return tuple(url.rstrip("/") for line in self.entries.use_lines(agent.session, PinsNudges.LINK_PIN_REQUEST.key, agent.tool_uses - interval) for url in LINK.findall(line))

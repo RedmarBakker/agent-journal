@@ -6,6 +6,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.timings import Timings
 from journal.support.actor import Actor
 from journal.support.stage_times import StageTimes
+from journal.features.faults.faults_options import FaultsOptions
 
 STAGES_PREFIX = "developer.stages."
 
@@ -31,9 +32,8 @@ class DeveloperTally:
             self._sums[key] = self._sums.get(key, 0) + amount
 
     def stage_samples(self) -> None:
-        from journal.features.faults.feature import Faults
         samples = self.stages.drained()
-        if not self.settings.option(Faults.STAGE_TIMING):
+        if not self.settings.option(FaultsOptions.STAGE_TIMING):
             return
         for stage, ms in samples:
             self.measured(f"{STAGES_PREFIX}{stage}", ms)

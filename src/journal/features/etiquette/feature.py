@@ -2,15 +2,14 @@ from journal.features.etiquette.etiquette_conduct import EtiquetteConduct
 from journal.features.etiquette.support.etiquette_data_reader import EtiquetteDataReader
 from journal.features.etiquette.support.etiquette_data import EtiquetteData
 from journal.features.feature import Feature
-from journal.engine.nudge import Nudge
-from journal.support.option import Option
 from journal.support.skill import Skill
+from journal.features.etiquette.etiquette_part import EtiquettePart
+from journal.features.etiquette.etiquette_nudges import EtiquetteNudges
+from journal.features.etiquette.etiquette_options import EtiquetteOptions
 
 
 class Etiquette(Feature[EtiquetteData]):
-    PLAIN_CODE_INTERVAL = Option("etiquette.plain_code_every", "Remind to write code in plain words every", "Edits of code files between reminders that names and text in code are plain words, never the voice", 50, unit="edits")
-    REMINDER_INTERVAL = Option("etiquette.remind_every", "Remind what a journal line is every", "Lines the journal says to the agent between reminders that a journal line is an instruction, not a message", 50, unit="lines")
-    name = "etiquette"
+    name = EtiquettePart.name
     title = "Chat etiquette"
     help = "Shop talk and the third person in the chat are named, and code is kept in plain words."
     skill = Skill("etiquette", "How to behave in the chat with the user, and where the voice stops; load it first in every session, after the journal skill", """
@@ -43,11 +42,5 @@ The voice the user picked shapes only your tone in the chat and how you address 
     data = (EtiquetteDataReader,)
     conduct = (EtiquetteConduct,)
 
-    SHOP_TALK_WARNING = Nudge(name, "no_shop_talk", "your message talks about the journal's commands", "talk about the work", repeat_interval=600, is_remark=True)
-    SECOND_PERSON = Nudge(name, "say_you_not_the_user", "in the chat you are speaking to the user", "say you, never the user", repeat_interval=600, is_remark=True)
-    EM_DASH_WARNING = Nudge(name, "no_em_dashes", "your chat used em dashes", "use a full stop instead", repeat_interval=600, is_remark=True)
-    PARAGRAPH_SPACING = Nudge(name, "blank_lines_between_paragraphs", "your last message had no blank lines between paragraphs", repeat_interval=600, is_remark=True)
-    JOURNAL_LINE_RULE = Nudge(name, "a_line_is_an_instruction", "a [journal] line is an instruction, not a message", "act on it; never answer or mention it in the chat", repeat_interval=1800, is_remark=True)
-    PLAIN_CODE = Nudge(name, "plain_words_in_code", "names and text in code are plain words", "say literally what a thing is or does, never in the voice", repeat_interval=0)
-    nudges = (SHOP_TALK_WARNING, SECOND_PERSON, EM_DASH_WARNING, PARAGRAPH_SPACING, JOURNAL_LINE_RULE, PLAIN_CODE)
-    options = (REMINDER_INTERVAL, PLAIN_CODE_INTERVAL)
+    nudges = (EtiquetteNudges.SHOP_TALK_WARNING, EtiquetteNudges.SECOND_PERSON, EtiquetteNudges.EM_DASH_WARNING, EtiquetteNudges.PARAGRAPH_SPACING, EtiquetteNudges.JOURNAL_LINE_RULE, EtiquetteNudges.PLAIN_CODE)
+    options = (EtiquetteOptions.REMINDER_INTERVAL, EtiquetteOptions.PLAIN_CODE_INTERVAL)

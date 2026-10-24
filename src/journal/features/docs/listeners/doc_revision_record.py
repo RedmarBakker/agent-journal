@@ -5,6 +5,7 @@ from journal.models.doc import Doc
 from journal.models.doc_revision import FIRST_NOTE, DocRevision
 from journal.repositories.doc_revisions import DocRevisions
 from journal.repositories.setting_rows import SettingRows
+from journal.features.docs.docs_options import DocsOptions
 
 
 class DocRevisionRecord(Listener[Saved]):
@@ -18,9 +19,8 @@ class DocRevisionRecord(Listener[Saved]):
             self.recorded(event.model, event)
 
     def recorded(self, doc: Doc, event: Saved) -> None:
-        from journal.features.docs.feature import DocsFeature
         time = self.clock.time()
-        closes_at = time + self.settings.decimal(DocsFeature.REVISION_WINDOW) * 60
+        closes_at = time + self.settings.decimal(DocsOptions.REVISION_WINDOW) * 60
         latest = self.revisions.latest(doc)
         if latest is None:
             self.revisions.added(DocRevision.build(doc, 1, FIRST_NOTE, closes_at), doc, event.actor)

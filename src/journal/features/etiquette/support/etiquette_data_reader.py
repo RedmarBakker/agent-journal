@@ -1,6 +1,7 @@
 from journal.features.etiquette.support.etiquette_data import EtiquetteData
 from journal.models.agent import Agent
 from journal.repositories.entries import Entries
+from journal.features.etiquette.etiquette_nudges import EtiquetteNudges
 
 
 class EtiquetteDataReader:
@@ -10,5 +11,4 @@ class EtiquetteDataReader:
         self.entries = entries
 
     def read(self, agent: Agent) -> EtiquetteData:
-        from journal.features.etiquette.feature import Etiquette
-        return EtiquetteData(reminder_gap=self.entries.recent_line_entries(agent.session, Etiquette.JOURNAL_LINE_RULE.key), code_edits=agent.code_edits)
+        return EtiquetteData(reminder_gap=self.entries.recent_line_entries(agent.session, EtiquetteNudges.JOURNAL_LINE_RULE.key), code_edits=agent.code_edits)

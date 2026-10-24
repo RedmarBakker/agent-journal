@@ -4,6 +4,7 @@ import time
 import traceback
 
 from journal.repositories.setting_rows import SettingRows
+from journal.features.faults.faults_options import FaultsOptions
 
 STALL_SECONDS = 5.0
 CHECK_SECONDS = 1.0
@@ -20,8 +21,7 @@ class StallWatch:
         self.watcher = threading.Thread(target=self.watch, name="stall-watch", daemon=True)
 
     def begin(self, path: str) -> None:
-        from journal.features.faults.feature import Faults
-        if not self.settings.option(Faults.STALL_STACKS):
+        if not self.settings.option(FaultsOptions.STALL_STACKS):
             return
         with self.lock:
             self.running[threading.get_ident()] = (time.monotonic(), path)

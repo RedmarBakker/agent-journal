@@ -6,6 +6,7 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.user_resumed import UserResumed
+from journal.features.pausing.pausing_nudges import PausingNudges
 
 MESSAGE_READS = re.compile(r"journal\s+message\s+(read|unread|recent)\b")
 
@@ -24,11 +25,9 @@ class UserPause(Wait):
         return True
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        from journal.features.pausing.feature import PausingFeature
         if event.call.is_journal and MESSAGE_READS.search(event.call.command):
             return self.none()
-        return self.refuse(PausingFeature.PAUSED.create())
+        return self.refuse(PausingNudges.PAUSED.create())
 
     def on_user_resumed(self, event: UserResumed, settings: Settings) -> Transition:
-        from journal.features.pausing.feature import PausingFeature
-        return self.pop(PausingFeature.RESUMED.create()) if event.agent_session == event.session else self.none()
+        return self.pop(PausingNudges.RESUMED.create()) if event.agent_session == event.session else self.none()

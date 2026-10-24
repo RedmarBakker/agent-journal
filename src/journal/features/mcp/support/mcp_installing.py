@@ -13,6 +13,7 @@ from journal.chat.turn import Turn
 from journal.repositories.mcp_servers import McpServers
 from journal.supervisor_link import SupervisorLink
 from journal.models.agent import Agent
+from journal.features.mcp.mcp_nudges import McpNudges
 
 
 class McpInstalling:
@@ -63,9 +64,8 @@ class McpInstalling:
         return server.checked(existing.state, existing.text)
 
     def login(self, server: McpServer) -> bool:
-        from journal.features.mcp.feature import Mcp
         for agent in self.running():
-            line = self.nudger.deliver(agent, Mcp.SERVER_LOGIN.create(name=server.name, title=server.title))
+            line = self.nudger.deliver(agent, McpNudges.SERVER_LOGIN.create(name=server.name, title=server.title))
             if line:
                 self.supervisor.type(agent.environment_id, line)
                 return True

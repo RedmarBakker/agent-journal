@@ -11,6 +11,8 @@ from journal.events.rows.dump_question import DumpQuestion
 from journal.events.rows.dump_choice import DumpChoice
 from journal.events.rows.dump_sorted import DumpSorted
 from journal.support.permission import Permission
+from journal.features.dumps.dumps_nudges import DumpsNudges
+from journal.features.dumps.dumps_part import DumpsPart
 
 USER_TEXT = -2
 AGENT_HANDOVER = -1
@@ -30,44 +32,39 @@ class SortingDump(BaseState):
         return (f"your answer on dump {self.dump_id}", f"dump:{self.dump_id}") if self.asking else ("", "")
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        from journal.features.dumps.feature import DumpsFeature
-        return self.none() if self.asking else self.refuse(DumpsFeature.DUMP_OPEN_REMINDER.create(n=self.dump_id))
+        return self.none() if self.asking else self.refuse(DumpsNudges.DUMP_OPEN_REMINDER.create(n=self.dump_id))
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
         return self.none()
 
     def on_dump_arrived(self, event: DumpArrived, settings: Settings) -> Transition:
         event.stop_propagation()
-        from journal.features.dumps.feature import DumpsFeature
         if event.dump_id != self.dump_id or not event.waiting:
             return self.none()
-        return self.none().typing(DumpsFeature.DUMP_ARRIVAL.create(n=event.dump_id, count=item_count(event.waiting)))
+        return self.none().typing(DumpsNudges.DUMP_ARRIVAL.create(n=event.dump_id, count=item_count(event.waiting)))
 
     def on_dump_question(self, event: DumpQuestion, settings: Settings) -> Transition:
         return self.swap(replace(self, asking=True)) if event.dump_id == self.dump_id else self.none()
 
     def on_dump_answered(self, event: DumpAnswered, settings: Settings) -> Transition:
-        from journal.features.dumps.feature import DumpsFeature
         if event.dump_id != self.dump_id:
             return self.none()
-        return self.swap(replace(self, asking=False)).typing(DumpsFeature.DUMP_ANSWER.create(n=event.dump_id, answer=event.answer, question=event.question))
+        return self.swap(replace(self, asking=False)).typing(DumpsNudges.DUMP_ANSWER.create(n=event.dump_id, answer=event.answer, question=event.question))
 
     def on_dump_choice(self, event: DumpChoice, settings: Settings) -> Transition:
-        from journal.features.dumps.feature import DumpsFeature
         if event.dump_id != self.dump_id or event.choice == USER_TEXT:
             return self.none()
         if event.choice == AGENT_HANDOVER:
-            return self.none().typing(DumpsFeature.DUMP_HANDOVER.create(n=event.dump_id))
-        return self.none().typing(DumpsFeature.DUMP_STEP_CHOICE.create(n=event.dump_id, label=event.label))
+            return self.none().typing(DumpsNudges.DUMP_HANDOVER.create(n=event.dump_id))
+        return self.none().typing(DumpsNudges.DUMP_STEP_CHOICE.create(n=event.dump_id, label=event.label))
 
     def on_dump_sorted(self, event: DumpSorted, settings: Settings) -> Transition:
-        from journal.features.dumps.feature import DumpsFeature
         if event.dump_id != self.dump_id:
             return self.none()
-        summed = () if event.stopped else (DumpsFeature.DUMP_SUMMARY_REQUEST.create(n=event.dump_id, outcome=event.outcome),)
-        following = event.data.part(DumpsFeature)
+        summed = () if event.stopped else (DumpsNudges.DUMP_SUMMARY_REQUEST.create(n=event.dump_id, outcome=event.outcome),)
+        following = event.data.part(DumpsPart)
         if following.current_dump and following.current_dump != self.dump_id:
-            return self.swap(replace(self, dump_id=following.current_dump, asking=False)).typing(*summed, DumpsFeature.DUMP_ARRIVAL.create(n=following.current_dump, count=item_count(following.waiting)))
+            return self.swap(replace(self, dump_id=following.current_dump, asking=False)).typing(*summed, DumpsNudges.DUMP_ARRIVAL.create(n=following.current_dump, count=item_count(following.waiting)))
         return self.pop().typing(*summed)
 
 

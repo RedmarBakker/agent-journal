@@ -5,6 +5,7 @@ from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
+from journal.features.memory.memory_nudges import MemoryNudges
 
 
 class SingleUseMemoryStrike(AgentListener[LineDelivered]):
@@ -14,8 +15,7 @@ class SingleUseMemoryStrike(AgentListener[LineDelivered]):
         self.repositories, self.scope = {"fact": facts, "rule": rules, "reminder": reminders}, scope
 
     def handle(self, event: LineDelivered) -> None:
-        from journal.features.memory.feature import Memory
-        if event.nudge != Memory.MEMORY_TRIGGERED.key or not event.values.get("single_use"):
+        if event.nudge != MemoryNudges.MEMORY_TRIGGERED.key or not event.values.get("single_use"):
             return
         repository = self.repositories[event.values["noun"]]
         with self.scope.environment(event.environment_id):

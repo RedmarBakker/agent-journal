@@ -11,7 +11,6 @@ from journal.features.faults.support.slow_request_tally import SlowRequestTally
 from journal.support.listener_queue import ListenerQueue
 from journal.engine.clock import Clock
 from journal.engine.lifecycle import Lifecycle
-from journal.features.faults.feature import Faults
 from journal.repositories.agents import Agents
 from journal.repositories.environments import Environments
 from journal.features.faults.support.developer_tally import DeveloperTally
@@ -23,6 +22,8 @@ from journal.repositories.setting_rows import SettingRows
 from journal.engine.support.nudge_log import NudgeLog
 from journal.support.timeout import Timeout
 from journal.repositories.scope import Scope
+from journal.features.faults.faults_nudges import FaultsNudges
+from journal.features.faults.faults_options import FaultsOptions
 
 CHECK_INTERVAL_SECONDS = 5.0
 
@@ -46,7 +47,7 @@ class SlowRequests:
         self.slow_tally = SlowRequestTally()
 
     def begin(self, request_at: float) -> RequestTimer:
-        if self.settings.option(Faults.LOADS):
+        if self.settings.option(FaultsOptions.LOADS):
             LoadTally.begin()
         return RequestTimer(request_at)
 
@@ -82,11 +83,11 @@ class SlowRequests:
         return route.startswith(OUTWARD_COMMANDS) or route in OUTWARD_ROUTES
 
     def budget(self, method: str) -> int:
-        return self.settings.integer(Faults.EDIT_BUDGET if method == "POST" else Faults.REQUEST)
+        return self.settings.integer(FaultsOptions.EDIT_BUDGET if method == "POST" else FaultsOptions.REQUEST)
 
     def judging(self) -> bool:
         busy = os.getloadavg()[0] > (os.cpu_count() or 1)
-        return bool(self.settings.option(Faults.REPORT)) and self.lifecycle.is_booted() and not busy and not self.test_runs.is_testing()
+        return bool(self.settings.option(FaultsOptions.REPORT)) and self.lifecycle.is_booted() and not busy and not self.test_runs.is_testing()
 
     def environment_id(self) -> int:
         agent = self.agents.all_current()
@@ -96,7 +97,7 @@ class SlowRequests:
         self.slow_tally = self.slow_tally.flagged(route, ms, self.clock.time())
 
     def check_gathered(self, moment: float) -> None:
-        if moment - self.checked_at < CHECK_INTERVAL_SECONDS or not self.settings.option(Faults.REPORT):
+        if moment - self.checked_at < CHECK_INTERVAL_SECONDS or not self.settings.option(FaultsOptions.REPORT):
             return
         self.checked_at = moment
         self.deferred.add(lambda: self.report_gathered(self.clock.time()))
@@ -109,7 +110,7 @@ class SlowRequests:
             agent = self.agents.current()
             if agent is None:
                 return
-            self.nudges.type_line(agent, Faults.SLOW_REQUESTS.create(count=tally.gathered, route=tally.slowest_route, ms=tally.slowest_ms))
+            self.nudges.type_line(agent, FaultsNudges.SLOW_REQUESTS.create(count=tally.gathered, route=tally.slowest_route, ms=tally.slowest_ms))
             self.slow_tally = tally.reported(moment)
             self.show(tally, self.budget("GET"), moment)
 
@@ -119,5 +120,5 @@ class SlowRequests:
     def is_reportable(self, reported_at: float, moment: float) -> bool:
         if not reported_at:
             return True
-        minutes = self.settings.integer(Faults.REPEAT)
+        minutes = self.settings.integer(FaultsOptions.REPEAT)
         return minutes > 0 and Timeout.minutes(minutes).started(reported_at).is_elapsed(moment)

@@ -20,6 +20,7 @@ from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.support.missing_row import MissingRow
 from journal.supervisor_link import SupervisorLink
+from journal.features.messages.messages_nudges import MessagesNudges
 
 REPLY_TAG = re.compile(r"^[ \t]*(?:>\s?)?(?:\*\*)?\[!reply:(\d+(?:,\d+)*)\](?:\*\*)?[ \t]*", re.MULTILINE)
 STRAY_TAG = re.compile(r"\[!reply:(\d+)\]")
@@ -36,11 +37,10 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         self.recording = threading.Lock()  # the same block arrives at once from the transcript and from the display hook
 
     def handle(self, event: TurnDisplayed) -> None:
-        from journal.features.messages.feature import Messages as MessagesFeature
         if not event.final or not event.text.strip():
             return
         if ReactionEmoji.is_emoji(event.text):
-            self.supervisor.type(event.environment_id, MessagesFeature.EMOJI_REPLY.create(emoji=event.text.strip()).rendered())
+            self.supervisor.type(event.environment_id, MessagesNudges.EMOJI_REPLY.create(emoji=event.text.strip()).rendered())
             return
         with self.recording:
             self._record(event)
@@ -64,11 +64,10 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             self.supervisor.type(event.environment_id, f"the [!reply:{n}] tag must open a line of your turn; message {n} is still unanswered")
 
     def unanswered(self, tagged: list[int], event: TurnDisplayed) -> list[int]:
-        from journal.features.messages.feature import Messages as MessagesFeature
         replied = [(n, reply) for n in tagged if (reply := self.earlier_reply(n)) is not None]
         recent = [n for n in tagged if n not in {m for m, _ in replied}]
         if replied and not recent:
-            line_text = MessagesFeature.DUPLICATE_REPLY.create(n=replied[0][0], reply=replied[0][1].id)
+            line_text = MessagesNudges.DUPLICATE_REPLY.create(n=replied[0][0], reply=replied[0][1].id)
             self.supervisor.type(event.environment_id, line_text.rendered())
         return recent
 
@@ -79,13 +78,12 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             return None
 
     def is_repeat_reply(self, text: str, tagged: list[int], event: TurnDisplayed) -> bool:
-        from journal.features.messages.feature import Messages as MessagesFeature
         prompt = self.turn_prompt(event)
         if tagged or not text or prompt is None:
             return False
         repeated = WordOverlap.repeats(text, self.messages.recent_replies(prompt.creation_time), REPEAT_OVERLAP_RATIO)
         if repeated:
-            self.supervisor.type(event.environment_id, MessagesFeature.REPEATED_CLOSING_TEXT.create(reply=repeated[0].id, n=repeated[0].reply_target).rendered())
+            self.supervisor.type(event.environment_id, MessagesNudges.REPEATED_CLOSING_TEXT.create(reply=repeated[0].id, n=repeated[0].reply_target).rendered())
         return bool(repeated)
 
     def turn_prompt(self, event: TurnDisplayed) -> Entry | None:

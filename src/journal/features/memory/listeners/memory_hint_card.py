@@ -6,6 +6,7 @@ from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.support.card_kind import CardKind
 from journal.models.support.ref import Ref
+from journal.features.memory.memory_nudges import MemoryNudges
 
 MEMORY_CHAT_KINDS = {"fact": CardKind.FACTS, "rule": CardKind.RULES, "reminder": CardKind.REMINDERS}
 
@@ -18,8 +19,7 @@ class MemoryHintCard(AgentListener[LineDelivered]):
         self.repositories: dict[str, Facts | Rules | Reminders] = {"fact": facts, "rule": rules, "reminder": reminders}
 
     def handle(self, event: LineDelivered) -> None:
-        from journal.features.memory.feature import Memory
-        if event.nudge != Memory.MEMORY_READ_REQUEST.key:
+        if event.nudge != MemoryNudges.MEMORY_READ_REQUEST.key:
             return
         noun, n = event.values["noun"], int(event.values["n"])
         row = self.repositories[noun].find(n)

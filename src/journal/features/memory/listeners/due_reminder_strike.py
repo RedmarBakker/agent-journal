@@ -3,6 +3,7 @@ from journal.events.agent_listener import AgentListener
 from journal.repositories.reminders import Reminders
 from journal.repositories.scope import Scope
 from journal.support.actor import Actor
+from journal.features.memory.memory_nudges import MemoryNudges
 
 
 class DueReminderStrike(AgentListener[LineDelivered]):
@@ -12,8 +13,7 @@ class DueReminderStrike(AgentListener[LineDelivered]):
         self.reminders, self.scope = reminders, scope
 
     def handle(self, event: LineDelivered) -> None:
-        from journal.features.memory.feature import Memory
-        if event.nudge != Memory.REMINDER_DUE.key:
+        if event.nudge != MemoryNudges.REMINDER_DUE.key:
             return
         with self.scope.environment(event.environment_id):
             for reminder in self.reminders.matching(id=int(event.values["n"])):

@@ -8,6 +8,8 @@ from journal.support.timeout import Timeout
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.turn_failed import TurnFailed
 from journal.events.rows.message_arrived import MessageArrived
+from journal.features.messages.messages_nudges import MessagesNudges
+from journal.features.messages.messages_part import MessagesPart
 
 
 @dataclass(frozen=True)
@@ -37,9 +39,8 @@ class UsageLimited(Wait):
         return self.pop(Usage.LIMIT_CHECK.create())
 
     def on_message_arrived(self, event: MessageArrived, settings: Settings) -> Transition:
-        from journal.features.messages.feature import Messages
-        unread = event.data.part(Messages).unread
-        return self.pop(Messages.inbox(unread)) if unread else self.pop()
+        unread = event.data.part(MessagesPart).unread
+        return self.pop(MessagesNudges.inbox(unread)) if unread else self.pop()
 
     def on_turn_failed(self, event: TurnFailed, settings: Settings) -> Transition:
         event.stop_propagation()

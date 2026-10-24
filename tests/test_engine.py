@@ -96,6 +96,8 @@ from journal.features.shell.shell_options import ShellOptions
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.shell.shell_part import ShellPart
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.etiquette.etiquette_options import EtiquetteOptions
+from journal.features.messages.messages_options import MessagesOptions
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -924,7 +926,6 @@ def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data(
     from journal.features.voices.feature import Voices
     from journal.features.voices.voices_conduct import VoicesConduct
     from journal.features.voices.support.voices_data import VoicesData
-    from journal.features.etiquette.feature import Etiquette
     from journal.features.etiquette.etiquette_conduct import EtiquetteConduct
     from journal.features.etiquette.support.etiquette_data import EtiquetteData
     from journal.features.pins.pins_conduct import PinsConduct
@@ -934,7 +935,7 @@ def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data(
     from journal.events.agent.tool_finished import ToolFinished
     from journal.events.agent.turn_displayed import TurnDisplayed
     from journal.events.rows.setting_changed import SettingChanged
-    settings = SettingsValue({WorkersFeature.MODE.key: "builder", Etiquette.REMINDER_INTERVAL.key: 50})
+    settings = SettingsValue({WorkersFeature.MODE.key: "builder", EtiquetteOptions.REMINDER_INTERVAL.key: 50})
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
     data = FeatureData({"plans": PlansData((), None, 0, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()), "voices": VoicesData(instruction="as a butler"), "etiquette": EtiquetteData(reminder_gap=50, code_edits=0), "pins": PinsData(pinned=("https://a.test/pinned",), recent_suggestions=("https://a.test/said",), newest_pin_at=0.0), "migration": MigrationData(version_3_waiting=True)})
@@ -1029,7 +1030,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     from journal.events.agent.session_started import SessionStarted
     from journal.events.rows.secret_allowed import SecretAllowed
     from journal.events.rows.worker_reported import WorkerReported
-    settings = SettingsValue({WorkersFeature.CHECK_REMINDER_USES.key: 25, MessagesFeature.TOOL_BLOCK_LIMIT.key: 10, MessagesFeature.ANSWER_REQUEST_LIMIT.key: 3, MessagesFeature.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersFeature.SUBAGENT_LIMIT.key: 2, "tasks.auto": False})
+    settings = SettingsValue({WorkersFeature.CHECK_REMINDER_USES.key: 25, MessagesOptions.TOOL_BLOCK_LIMIT.key: 10, MessagesOptions.ANSWER_REQUEST_LIMIT.key: 3, MessagesOptions.EDIT_BLOCK_LIMIT.key: 5, ShellOptions.SHOWN.key: 100, WorkersFeature.SUBAGENT_LIMIT.key: 2, "tasks.auto": False})
     private = tmp_path / "private"
     parts = {
         "plans": PlansData((), None, 0, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()),

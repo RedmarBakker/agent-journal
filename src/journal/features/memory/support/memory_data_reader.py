@@ -11,6 +11,7 @@ from journal.repositories.reminders import Reminders
 from journal.repositories.rules import Rules
 from journal.repositories.setting_rows import SettingRows
 from journal.support.card_kind import CardKind
+from journal.features.memory.memory_options import MemoryOptions
 
 
 class MemoryDataReader:
@@ -25,8 +26,7 @@ class MemoryDataReader:
 
     def read(self, agent: Agent) -> MemoryData:
         rows = [*(self.row("fact", fact, CardKind.FACTS) for fact in self.facts.scoped()), *(self.row("rule", rule, CardKind.RULES) for rule in self.rules.all()), *(self.row("reminder", reminder, CardKind.REMINDERS) for reminder in self.reminders.standing())]
-        from journal.features.memory.feature import Memory
-        return MemoryData(threshold_due=agent.threshold_due, context_threshold=agent.context_threshold, rows=tuple(rows), stale=self.stale(self.settings.integer(Memory.STALENESS_LIMIT)), timed=tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()))
+        return MemoryData(threshold_due=agent.threshold_due, context_threshold=agent.context_threshold, rows=tuple(rows), stale=self.stale(self.settings.integer(MemoryOptions.STALENESS_LIMIT)), timed=tuple(TimedReminder(r.row_id, r.text, r.due_at.timestamp()) for r in self.reminders.timed()))
 
     def stale(self, days: int) -> tuple[str, ...]:
         moment = datetime.now(timezone.utc)
