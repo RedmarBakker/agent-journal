@@ -12842,3 +12842,23 @@ def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll
     account.left(0)
     server.shutdown()
 
+
+
+def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_names(app: App):
+    """Each corpus line's reading names the reader that should read its output, of the fixed set in shell_corpus_reading/readers.json; the lines where the journal chooses otherwise are frozen in disagreements.json, so a fix shrinks the list and a new miss fails; CORPUS_FREEZE=1 writes the list anew after review."""
+    from journal.features.shell.support.readers import Readers
+    folder = Path(__file__).parent / "shell_corpus_reading"
+    console, readers = app.console(), app.container.get(Readers)
+    for name, commands in json.loads((folder / "readers.json").read_text()).items():
+        assert console.run(["reader", "add", name, "--commands", commands, "--pattern", ".", "--about", f"the {name} runs"], AGENT).code == 0
+    rows = [json.loads(line) for line in (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()]
+    chosen = lambda line: (reader.name if (reader := readers.reading(line)) and reader.name in {row for row in json.loads((folder / "readers.json").read_text())} else "")
+    found = {str(n): {"expected": row["reading"]["reader"], "journal": got} for n, row in enumerate(rows, 1) if (got := chosen(row["line"])) != row["reading"]["reader"]}
+    frozen = folder / "disagreements.json"
+    if os.environ.get("CORPUS_FREEZE"):
+        frozen.write_text(json.dumps(found, indent=0, sort_keys=True) + "\n")
+    known = json.loads(frozen.read_text())
+    new = {n: found[n] | {"line": rows[int(n) - 1]["line"][:120]} for n in found if found[n] != known.get(n)}
+    assert not new, f"{len(new)} lines read otherwise than their reading names, the first: {list(new.items())[:3]}"
+    fixed = [n for n in known if n not in found]
+    assert not fixed, f"{len(fixed)} frozen disagreements are fixed: write the list anew with CORPUS_FREEZE=1, the first: {fixed[:5]}"
