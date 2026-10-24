@@ -71,10 +71,10 @@ export const ACTS = {
         frames: 80, fps: 12, draw: [0, 0.22], turn: [0.25, 0.55], aim: [0.25, 0.32], shots: [0.33, 0.48], count: 2, splat: 0.48, fly: [0.56, 0.64], drops: [0.64, 1],
         lens: [{at: [-1.3, -1.6], size: 0.2}, {at: [0.9, -0.9], size: 0.14}, {at: [-0.4, 0.2], size: 0.16}, {at: [1.6, -2.1], size: 0.1}],
     },
-    // the same bug smashed with a big wooden mallet instead: it crawls in over `crawl` to `away` of the picture out on the figure's left;
-    // the figure raises the mallet over its head over `raise`, swings it down over `swing` and flattens the bug at `blow`, which lies flat
-    // and fades over `gone`, and lowers the mallet over `lower`
-    bug_smash: {frames: 66, fps: 12, side: 1, crawl: [0, 0.3], raise: [0.28, 0.5], swing: [0.5, 0.58], blow: 0.58, gone: [0.75, 0.9], lower: [0.8, 0.96], away: 0.42},
+    // a fixed run's bug smashed with a big wooden mallet: it crawls in over `crawl` to `away` of the picture out on the figure's left; the
+    // figure raises the mallet high before its head over `raise` and holds it there for the wind-up until `swing`, swings it down over
+    // `swing` and flattens the bug at `blow`, which lies flat and fades over `gone`, and lowers the mallet over `lower`
+    bug_smash: {frames: 66, fps: 12, side: 1, crawl: [0, 0.3], raise: [0.22, 0.4], swing: [0.5, 0.58], blow: 0.58, gone: [0.75, 0.9], lower: [0.8, 0.96], away: 0.42},
     // a sin repented: a halo grows over the head over `grows` and fades over `fades`, the figure floating up `float` of its units and down
     // with its hands folded and a serene, holy look
     halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.06},

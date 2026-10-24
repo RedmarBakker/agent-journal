@@ -2902,40 +2902,49 @@ function bug_shot(pose, stance, t) {
     if (pose.posture === "stand") pose.revolve(onto.turn * aim);
 }
 
-// The big wooden mallet swung over the head at the bug (acts.js bug_smash), in the figure's units: both hands about `hands`, `reach` out
-// along the handle's way from there, the right at its end and the left `apart` further up it; the handle's way up from the figure's left,
-// in degrees, resting at `rest`, raised over the head to `up` and swung down to `blow`; the figure turned `turn` degrees toward the bug
-export const MALLET_SWING = {hands: [0.12, -0.38, 2.15], reach: 0.5, apart: 0.3, rest: -70, up: 125, blow: -52, turn: 30};
+// The big wooden mallet swung at the bug (acts.js bug_smash), in the figure's units: where the right hand grips its handle and the way the
+// handle points from there, resting low at its side, its head on the floor (`rest`); raised for the wind-up (`top`), the hands low before
+// the chest, as the arms cannot reach past the big head, and the handle leaning well forward, so the mallet's head stands above the eyes
+// and well in front of the visor and any hat, never passing through them; and swung down onto the bug out on its left (`blow`); the left
+// hand `apart` further up the handle; the figure turned `turn` degrees toward the bug
+export const MALLET_SWING = {
+    rest: {grip: [0.3, -0.5, 1.5], way: [0.6, -0.2, -0.77]},
+    top: {grip: [-0.25, -0.8, 2.2], way: [0.25, -1.35, 1.6]},
+    blow: {grip: [0.5, -0.6, 1.4], way: [1.7, 0.1, -0.98]},
+    apart: 0.3,
+    turn: 30,
+};
 
-// the mallet's handle way `t` of the way through the smash, in degrees up from the figure's left
-export function malletAngle(t) {
+// where the right hand grips the mallet and the way its handle points `t` of the way through the smash: raised from its rest to the top over
+// `raise` and held there for the wind-up, swung down, gathering speed, onto the bug over `swing` and held there, and lowered to rest over
+// `lower`
+export function malletAt(t) {
     const {raise, swing, lower} = ACTS.bug_smash;
-    const {rest, up, blow} = MALLET_SWING;
-    if (t < swing[0]) return rest + (up - rest) * partOf(t, raise);
-    if (t < lower[0]) return up + (blow - up) * partOf(t, swing) ** 2;
-    return blow + (rest - blow) * partOf(t, lower);
+    const hold = (name) => ({grip: new THREE.Vector3(...MALLET_SWING[name].grip), way: new THREE.Vector3(...MALLET_SWING[name].way).normalize()});
+    const between = (from, to, k) => ({grip: from.grip.clone().lerp(to.grip, k), way: from.way.clone().lerp(to.way, k).normalize()});
+    if (t < swing[0]) return between(hold("rest"), hold("top"), partOf(t, raise));
+    if (t < lower[0]) return between(hold("top"), hold("blow"), partOf(t, swing) ** 2);
+    return between(hold("blow"), hold("rest"), partOf(t, lower));
 }
 
-// smashes the bug flat with a big wooden mallet (acts.js bug_smash): takes it up in both hands, raises it over its head, swings it down
-// onto the bug at its left and holds it there a moment, its eyes in fight mode from the raise until the bug is gone, then lowers it
+// smashes the bug flat with a big wooden mallet (acts.js bug_smash): takes it up in both hands, raises it high before its head, swings it
+// down onto the bug at its left and holds it there a moment, its eyes in fight mode from the raise until the bug is gone, then lowers it
 function bug_smash(pose, stance, t) {
     const act = ACTS.bug_smash;
-    const {hands, reach, apart, turn} = MALLET_SWING;
     const held = partOf(t, [act.raise[0] - 0.08, act.raise[0]]) * (1 - partOf(t, [act.lower[1] - 0.04, act.lower[1]]));
-    const way = radians(malletAngle(t));
-    const along = new THREE.Vector3(Math.cos(way), 0, Math.sin(way));
-    const grip = new THREE.Vector3(...hands).addScaledVector(along, reach);
+    const {grip, way} = malletAt(t);
     const blow = swell(t, act.blow - 0.02, act.blow + 0.06);
     breathe(pose, t);
-    trunk(pose, {lean: 10 * blow - 4 * partOf(t, act.raise) * (1 - partOf(t, act.swing)), nod: 10 * held});
+    trunk(pose, {lean: 10 * blow, nod: 6 * blow});
     crouch(pose, 0.12 * blow);
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
     handTo(pose, "r", held, pose.withinReach("r", grip, 0.97), new THREE.Vector3(-0.6, -0.4, -0.6));
-    handTo(pose, "l", held, pose.withinReach("l", grip.clone().addScaledVector(along, apart), 0.97), new THREE.Vector3(0.6, -0.4, -0.6));
-    if (held > 0.3) pose.holdUpright("big_mallet", "r", [0, 0, 0], {y: -malletAngle(t)});
+    handTo(pose, "l", held, pose.withinReach("l", grip.clone().addScaledVector(way, MALLET_SWING.apart), 0.97), new THREE.Vector3(0.6, -0.4, -0.6));
+    const turn = {y: THREE.MathUtils.radToDeg(-Math.asin(way.z)), z: THREE.MathUtils.radToDeg(Math.atan2(way.y, way.x))};
+    if (held > 0.3) pose.holdUpright("big_mallet", "r", [0, 0, 0], turn);
     fightEyes(pose, t, held * (1 - partOf(t, act.gone)));
-    if (pose.posture === "stand") pose.revolve(SIDES.l * turn * held);
+    if (pose.posture === "stand") pose.revolve(SIDES.l * MALLET_SWING.turn * held);
 }
 
 // The halo of a repented sin, over the head (acts.js halo): `above` the head's pivot, as wide as `radius`, its ring `ring` thick, tipped
