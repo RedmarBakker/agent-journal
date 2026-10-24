@@ -1,4 +1,4 @@
-from journal.features.workers.support.tool_use_counts import NEWEST_TOOL_USES, ToolUseCounts
+from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
 from journal.config import Config
@@ -35,7 +35,7 @@ class WorkersDataReader:
     def read(self, agent: Agent) -> WorkersData:
         rows, subagents = self.workers.scoped(), self.subagents.session_subagents(agent.session)
         agent_rows = [w for w in rows if agent.session in (w.session, w.resume)] if agent.role.is_sent() else []
-        tool_uses = ToolUseCounts.counted(self.entries.tool_starts(agent.session, NEWEST_TOOL_USES))
+        tool_uses = ToolUseCounts.counted(agent)
         return WorkersData(
             dispatched_workers=tuple(w for w in rows if w.is_running()),
             idle_workers=tuple(w for w in rows if w.is_idle()),

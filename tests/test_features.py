@@ -2208,7 +2208,7 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
     assert "cleared" in run("reset") and run("models") == "nothing counted yet\n" and run("slowest").startswith("nothing logged yet\n"), "reset clears the counts and the rolling log"
 
 
-def test_the_agent_bars_data_carries_the_average_of_the_last_250_hooks_and_requests_in_developer_mode_only(app: App):
+def test_the_agent_bars_data_carries_the_average_of_each_hook_kinds_and_routes_last_250_in_developer_mode_only(app: App):
     from journal.features.faults.support.slow_requests import SlowRequests
     from journal.http.agents.agent_activity import AgentActivity
     from journal.models.support.request_loads import RequestLoads
@@ -2223,6 +2223,11 @@ def test_the_agent_bars_data_carries_the_average_of_the_last_250_hooks_and_reque
     assert "hook_average_ms" not in row() and "request_average_ms" not in row(), "the bar's data carries no reading while developer mode is off"
     app.container.get(SettingRows).set("features.faults", True, Actor.user(1))
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (10, 20), "each average is taken over the last 250 alone, the first 50 left out"
+    for n in range(1000):
+        slow.counted("GET", "/journal/messages", 4, RequestLoads())
+    slow.counted("HOOK", "/hooks/Stop", 30, RequestLoads())
+    slow.counted("GET", f"/journal/tasks/{n}", 100, RequestLoads())
+    assert (row()["hook_average_ms"], row()["request_average_ms"]) == (20, 41), "each hook kind and each route is averaged on its own, a task's number taken out, and the bar shows the average of those averages, so a frequent cheap request counts once"
     app.container.get(DeveloperTally).cleared()
     assert (row()["hook_average_ms"], row()["request_average_ms"]) == (0, 0), "a reset clears them"
 
@@ -3734,9 +3739,7 @@ def test_a_run_a_worker_starts_is_its_own_and_its_step_waits_for_its_stop(app: A
     app.runtime().deferred.drain()
     active = app.container.get(RunTracker)
     assert active.current("s2", 1).title == "Building a plan" and active.current("s1", 1) is None and not any("Building" in line or "step 1" in line for line in transmitted), "the run is the worker's, and its step is not typed to the agent"
-    hook(app, "PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / ".claude/skills/journal-sequences/SKILL.md")}, tool_response="", session_id="s2")
-    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, session_id="s2")
-    assert "step 1" in hook(app, "Stop", session_id="s2")[1]["reason"], "the worker is told the step at its stop"
+    assert "step 1" not in str(hook(app, "Stop")[1]), "the agent's stop is not told the worker's step"
 
 def test_the_steps_hold_comes_after_the_look_the_mark_and_the_skill_and_each_is_paid_in_turn(skilled):
     app, console = skilled, skilled.console()
@@ -7881,6 +7884,7 @@ def test_a_worker_is_started_only_on_a_task_whose_brief_is_its_job(app: App, mon
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
     from journal.repositories.workers import Workers
+    from journal.features.templates.shipped import ZERO_TESTS
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
     console = app.console()
     hook(app, "SessionStart")
@@ -7892,7 +7896,7 @@ def test_a_worker_is_started_only_on_a_task_whose_brief_is_its_job(app: App, mon
     console.run(["task", "create", "the parser", "--brief", "the parser reads the grammar"], AGENT)
     assert send("--task", "2", "use the old lexer").code == 0
     with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Workers).find(1).brief == "the parser reads the grammar\n\nuse the old lexer\n\nYou change: the files of its task\n\nHow you test: Run only the tests that cover your change, by name, and the new tests you write. Never run the full suite: the agent that sent you runs it once your work is back.", "the worker's brief is its task's, the dispatch's text only adds to it"
+        assert app.container.get(Workers).find(1).brief == f"the parser reads the grammar\n\nuse the old lexer\n\nYou change: the files of its task\n\nHow you test: {ZERO_TESTS.brief}", "the worker's brief is its task's, the dispatch's text only adds to it"
     console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words", "--start"], AGENT)
     assert send("--task", "3").code == 0, "the dispatcher hands over the task it holds"
     with app.container.get(Scope).environment(MAIN):
@@ -10210,16 +10214,20 @@ def test_a_dispatch_names_how_its_worker_tests_from_a_test_template(app: App, mo
     app.container.get(SettingRows).set("workers.most_out", 0, Actor.user(1))
     for n in range(1, 6):
         console.run(["task", "create", f"job {n}", "--brief", f"the job {n}"], AGENT)
-    assert "--tests" in dispatch("Lady Lovelace", 1).error, "a dispatch without a test template is refused"
-    assert "no test template is titled Every test: name one with --tests, " in dispatch("Lady Lovelace", 1, "--tests", "Every test").error, "an unknown one is refused, naming those there are"
-    for n, template in enumerate((ZERO_TESTS, SCOPED_TESTS, FULL_SUITE), start=1):
+    assert dispatch("Lady Lovelace", 1, "--tests", FULL_SUITE.title).code == 0 and app.container.get(Workers).find(1).brief.endswith(f"How you test: {ZERO_TESTS.brief}"), "while workers hand the tests over, every worker is told to run none, whatever the dispatch names"
+    app.container.get(SettingRows).set("workers.testing", "Run the tests it wrote", Actor.user(1))
+    console.run(["task", "create", "job 0", "--brief", "the job 0"], AGENT)
+    assert dispatch("Mr. Babbage", 6).code == 0 and app.container.get(Workers).find(2).brief.endswith(f"How you test: {SCOPED_TESTS.brief}"), "a dispatch naming no test template gets the scoped tests"
+    console.run(["task", "create", "job 7", "--brief", "the job 7"], AGENT)
+    assert "no test template is titled Every test: name one with --tests, " in dispatch("Lady Byron", 7, "--tests", "Every test").error, "an unknown one is refused, naming those there are"
+    for n, template in enumerate((ZERO_TESTS, SCOPED_TESTS, FULL_SUITE), start=2):
         assert dispatch(f"Worker {n}", n, "--tests", template.title).code == 0
-        assert app.container.get(Workers).find(n).brief.endswith(f"How you test: {template.brief}"), f"{template.title}'s text goes into the brief"
+        assert app.container.get(Workers).find(n + 1).brief.endswith(f"How you test: {template.brief}"), f"{template.title}'s text goes into the brief"
     console.run(["template", "create", "Lint only", "--purpose", "testing", "--applies-to", "worker", "--brief", "Run the linter, never the tests."], AGENT)
-    assert dispatch("Worker 4", 4, "--tests", "Lint only").code == 0
-    assert app.container.get(Workers).find(4).brief.endswith("How you test: Run the linter, never the tests."), "a project's own test template is used by its title"
+    assert dispatch("Worker 5", 5, "--tests", "Lint only").code == 0
+    assert app.container.get(Workers).find(6).brief.endswith("How you test: Run the linter, never the tests."), "a project's own test template is used by its title"
     console.run(["template", "create", "A review", "--purpose", "critique", "--brief", "Find what is wrong."], AGENT)
-    assert "no test template is titled A review" in dispatch("Worker 5", 5, "--tests", "A review").error, "a template of another purpose is no test template"
+    assert "no test template is titled A review" in dispatch("Worker 6", 7, "--tests", "A review").error, "a template of another purpose is no test template"
 
 
 def test_a_turn_refused_on_the_usage_limit_holds_the_agent_typing_nothing_until_the_limit_is_over(app: App, monkeypatch):

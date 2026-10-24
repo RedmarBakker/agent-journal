@@ -144,7 +144,7 @@ def test_load_counting_names_the_rows_each_request_loaded_only_while_it_is_on(tm
             if counted:
                 break
             time.sleep(0.1)
-        assert counted and int(re.search(r"(\d+) tasks", counted[0]["loads"]).group(1)) >= 3 and counted[0]["ms"] >= 0, "on, a request names the rows it loaded by their table"
+        assert counted and int(re.search(r"tasks \d+ points: (\d+) rows", counted[0]["loads"]).group(1)) >= 3 and counted[0]["ms"] >= 0, "on, a request names the rows it loaded by their table"
         totals = {total["model"]: total["rows"] for total in developer()["models"]}
         assert totals["tasks"] >= 3, "and they add up per model since the last reset"
         reset = call(server, "POST", "/journal/developer/reset")[1]

@@ -142,6 +142,9 @@ class Tasks(ScopedRepository[Task]):
     def holders(self) -> dict[int, Ref]:
         return {link.target.id: link.source for link in self.links.all_matching(kind=CURRENT_TASK_LINK)}
 
+    def row_holders(self, rows: list[Task]) -> dict[int, Ref]:
+        return {link.target.id: link.source for link in self.links.model_links("target", rows, CURRENT_TASK_LINK)}
+
     def holder_started(self, started: Task, holder: Ref | None, actor: Actor) -> Task:
         self.assign_holder(started, holder, actor)
         return self.save(started, actor)

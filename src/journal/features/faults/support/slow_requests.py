@@ -30,6 +30,8 @@ CHECK_INTERVAL_SECONDS = 5.0
 
 
 HOOK = "HOOK"
+# the route a hook is posted to, timed again by the receiver as the hook it carries
+HOOK_ROUTE = "/hooks/"
 # the Developer tab's own requests and the developer command, never timed or counted, so reading the numbers never adds to them
 # the developer's own reports, and the sync carrier's doors, whose batch waits for the next commit as long as it is asked to
 UNMEASURED_PATHS = ("/journal/developer", "/cli/developer", "/journal/sync/")
@@ -59,7 +61,7 @@ class SlowRequests:
             return
         self.counted(method, path, round(ms), loads)
         self.check_gathered(time.monotonic())
-        route = re.sub(r"/\d+(?=/|$)", "/{n}", path)
+        route = self.route(path)
         if self.is_first(f"{method} {route}") or not self.judging() or self.is_outward(route):
             return
         budget = self.budget(method)
@@ -67,8 +69,14 @@ class SlowRequests:
             return
         self.deferred.add(lambda: self.flagged(f"{method} {route}", round(ms)))
 
+    @staticmethod
+    def route(path: str) -> str:
+        return re.sub(r"/\d+(?=/|$)", "/{n}", path)
+
     def counted(self, method: str, path: str, ms: int, loads: RequestLoads) -> None:
         self.tally.measured("developer.hooks" if method == HOOK else "developer.requests", ms)
+        if method == HOOK or not path.startswith(HOOK_ROUTE):
+            self.tally.windowed("developer.hooks" if method == HOOK else "developer.requests", f"{method} {self.route(path)}", ms)
         self.tally.logged(Timing(method=method, route=path, ms=ms, time=self.clock.time(), loads=loads))
         for count in loads.counts:
             self.tally.added(f"{LOADS_PREFIX}{count.model}", count.rows)

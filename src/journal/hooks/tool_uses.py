@@ -7,6 +7,8 @@ from journal.repositories.agents import Agents
 from journal.repositories.entries import Entries
 from journal.support.actor import Actor
 from journal.support.code_files import CodeFiles
+from journal.support.recorded_call import RecordedCall
+from journal.features.workers.support.tool_use_counts import ToolUseCounts
 
 
 class ToolUses:
@@ -27,12 +29,17 @@ class ToolUses:
         return self.tool_counted(event, rows[0])
 
     def tool_counted(self, event: AgentEvent, agent: Agent) -> AgentEvent:
+        if isinstance(event, ToolStarting) and not event.subagent and ToolUseCounts.is_handover(event.call.recorded()):
+            agent = self.agents.save(agent.with_handover(event.time), Actor.system())
         if isinstance(event, ToolStarting) and not event.call.is_journal and not event.subagent:
-            agent = self.agents.save(self.used(agent, event), Actor.system())
+            agent = self.agents.save(self.used(agent, event.call.recorded()), Actor.system())
             shape = event.call.recorded().shape
             return event.counted(agent.tool_uses).shape_counted(self.entries.shape_count(event.session, shape) + 1 if shape else 0)
         return event.counted(agent.tool_uses)
 
     @staticmethod
-    def used(agent: Agent, event: ToolStarting) -> Agent:
-        return agent.tool_used().code_edited() if CodeFiles.has_code(event.call.edited_paths) else agent.tool_used()
+    def used(agent: Agent, call: RecordedCall) -> Agent:
+        agent = agent.tool_used()
+        agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
+        agent = agent.subagent_dispatched() if ToolUseCounts.is_subagent_dispatch(call) else agent
+        return agent.researched() if ToolUseCounts.is_research(call) else agent

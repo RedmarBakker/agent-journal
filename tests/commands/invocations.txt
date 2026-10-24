@@ -25,6 +25,7 @@ agent todo list --help
 agent clock-in record --help
 agent clock-out record --help
 agent proof record --help
+agent verdict give --help
 user message send "Please look at the footer"
 agent message list
 agent message unread
@@ -248,6 +249,7 @@ agent developer slowest
 agent developer inspect --help
 agent developer reset
 agent developer profile --help
+agent developer client-errors
 agent plugin list
 agent plugin settings --help
 agent plugin install --help
