@@ -12,7 +12,8 @@ const {
     facingToward,
     groundEdge,
     hiddenAt,
-    USER_TURN,
+    AGENT_TURN,
+    agentWordsAt,
     inWorld,
     postureOf,
     restOf,
@@ -370,9 +371,9 @@ test("the user's own messages never send the figure out of the way: only the age
     page({left: 300, top: 600, width: 400, height: 120});
     const spot = restOf(FIGURE, {x: 500, y: 600});
     const words = {left: spot.x - 30, right: spot.x + 30, top: 600 - 60, bottom: 600 - 40};
-    write([{...words, within: USER_TURN}]);
+    write([{...words, within: ".thread-turn.mine"}]);
     expect(hiddenAt(spot, FIGURE), "a user's message is counted where the figure looks for a place to rest").toBeGreaterThan(0);
-    expect(hiddenAt(spot, FIGURE, USER_TURN), "but never as words to step out of the way of").toBe(0);
-    write([words]);
-    expect(hiddenAt(spot, FIGURE, USER_TURN), "the agent's words are").toBeGreaterThan(0);
+    expect(agentWordsAt(spot, FIGURE), "but never as words to step out of the way of").toBe(0);
+    write([{...words, within: AGENT_TURN}]);
+    expect(agentWordsAt(spot, FIGURE), "the agent's words are").toBeGreaterThan(0);
 });

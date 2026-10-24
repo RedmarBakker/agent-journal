@@ -189,15 +189,16 @@ export function clickedBody(posture, below) {
     return {...BODY, bottom: Math.min(BODY.bottom, 1 - below - POSTURES[posture].drop)};
 }
 
-// the user's own messages, whose words the user knows, so the figure need not step out of their way
-export const USER_TURN = ".thread-turn.mine";
+// an agent's message, the only one whose words the figure steps out of the way of, as the user knows the words of its own
+export const AGENT_TURN = "[data-figure-agent]";
 
 // whether a word is drawn at this point of the page: the character the page has there holds ink, is drawn, and its box holds the point;
-// a word inside an element `passed` names is not counted
-function onWord(x, y, passed = "") {
+// a word inside an element `passed` names is not counted, nor, given `only`, one outside the elements it names
+function onWord(x, y, passed = "", only = "") {
     const caret = document.caretRangeFromPoint?.(x, y);
     if (!caret || caret.startContainer.nodeType !== Node.TEXT_NODE || !visible(caret.startContainer.parentElement)) return false;
     if (passed && caret.startContainer.parentElement.closest(passed)) return false;
+    if (only && !caret.startContainer.parentElement.closest(only)) return false;
     const text = caret.startContainer;
     const at = Math.min(caret.startOffset, text.length - 1);
     for (const from of [at - 1, at].filter((each) => each >= 0)) {
@@ -229,6 +230,30 @@ export function hiddenAt(spot, figure, passed = "") {
     const onControl = (x, y) =>
         controls.some((control) => x >= control.left && x <= control.right && y >= control.top && y <= control.bottom);
     return bodyPoints(box).filter(([x, y]) => onControl(x, y) || onWord(x, y, passed)).length;
+}
+
+// How many of the points of its body a figure at this spot draws over the words of an agent's message (AGENT_TURN), the part of it above
+// the line it stands or sits on: what may send it out of the way, a user's message never
+export function agentWordsAt(spot, figure) {
+    const picture = boxAt(spot, figure);
+    return bodyPoints({...picture, bottom: Math.min(picture.bottom, spot.y)}).filter(([x, y]) => onWord(x, y, "", AGENT_TURN)).length;
+}
+
+// Where a figure at `near` steps aside to from an agent's message over it, by the least needed: the nearest place along the line it stands
+// on, between `bounds.left` and `bounds.right` on the page, `step` pixels at a time either way, where it covers none of an agent's words
+// (agentWordsAt); null when there is none
+export const ASIDE_STEP = 4;
+export function asideOf(figure, near, bounds) {
+    const half = figure.size / 2;
+    const reach = Math.max(near.x - bounds.left, bounds.right - near.x);
+    for (let moved = ASIDE_STEP; moved <= reach; moved += ASIDE_STEP) {
+        for (const x of [near.x - moved, near.x + moved]) {
+            if (x - half < bounds.left || x + half > bounds.right) continue;
+            const spot = {...near, x};
+            if (!agentWordsAt(spot, figure)) return spot;
+        }
+    }
+    return null;
 }
 
 // The spot of those inside the figure's world that hides the fewest controls and words, none where it can, or null when none is inside

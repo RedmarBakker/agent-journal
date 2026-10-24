@@ -46,7 +46,7 @@ import {
     stretchedFrame,
 } from "../domain/figureState.js";
 import {loadVoiceFigure} from "../figure/assets.js";
-import {MARK_STAY, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
+import {CLEARED_SECONDS, MARK_STAY, bubbleNear, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, ladderShown, markSpot, nearerWay, mayLeave, perchedAfter, playsSeated, seatStay, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import StepLadder from "./StepLadder.vue";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {jumpMost} from "../figure/climbs.js";
@@ -89,11 +89,11 @@ import {
     callSays,
     callStretch,
     coveredBy,
+    agentWordsAt,
+    asideOf,
     watchLook,
     progressOf,
-    hiddenAt,
     nearestTell,
-    USER_TURN,
     roomToStepAside,
     spotOf,
     SEATED,
@@ -326,7 +326,9 @@ const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(phrasesSec
 function current() {
     if (!body.trip?.moves || body.trip.hopping) beats.value = beats.value.filter((beat) => beat.clip !== "stumble");
     const first = headBeat(beats.value, sequenceNow());
-    const beat = first && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto, holds: first.holds, stretch: stretchOf(first)};
+    // seated, it keeps its seat for its stay: an act that would stand it up waits (perches.js playsSeated)
+    const sits = (name) => playsSeated(clipNamed(name), body.place.posture, perched, now.value);
+    const beat = first && sits(first.clip) && {clip: first.clip, facing: facingToward(first.card, body.at.x + SIZE / 2), onto: first.onto, holds: first.holds, stretch: stretchOf(first)};
     const scene = {
         mode: modeOf(body),
         leaving: body.leaving,
@@ -345,7 +347,8 @@ function current() {
         composeFacing: composeFacing(),
         readingFacing: readingTurn(),
     };
-    const wanted = clipFor(scene, canDraw);
+    const chosen = clipFor(scene, canDraw);
+    const wanted = eager?.on || chosen.startsLeg || sits(chosen.clip) ? chosen : {clip: body.place.leans ? "ledge_sit" : "idle", facing: body.place.face ?? 0};
     return {...wanted, clip: clipNamed(wanted.clip)};
 }
 
@@ -620,7 +623,7 @@ function restOn(spot) {
 function settle(spot, held = footingOn(spot)) {
     body.place = spot;
     body.footing = held;
-    covering = hiddenAt(spot, figureSize(), USER_TURN);
+    covering = agentWordsAt(spot, figureSize());
 }
 
 // Each frame the figure keeps to what it rests on as that moves (figure/floors.js groundUnder), falling with the bars under it or lifted by them;
@@ -920,6 +923,10 @@ function look() {
     // listening again after the anticipation, it answers what came meanwhile, then the run's end
     react();
     if (eagerness.moment) react(eagerness.moment);
+    // seated down, it keeps its seat a while (perches.js seatStay)
+    const seated = SEATED.has(body.place.posture) && !body.trip;
+    perched = seatStay(perched, seated, wasSeated, now.value, Math.random);
+    wasSeated = seated;
     const work = workMoments(held.value.state, typed, workBegan, now.value);
     typed = false;
     workBegan = work.began;
@@ -937,7 +944,7 @@ function look() {
     if (pastime?.flies) takeOff();
     const after = [egg, pastime?.flies ? null : pastime].filter(Boolean);
     if (after.length) beats.value = [...beats.value, ...after];
-    if (coveredSince() && !body.airborne && !body.place.stays && !uncut(beats.value, beatOnScreen()) && roomToStepAside(body.place)) stepOutOf(boxAt(body.place, figureSize(), drawn));
+    if (coveredSince() && !body.airborne && !body.place.stays && !uncut(beats.value, beatOnScreen()) && roomToStepAside(body.place)) stepAsideFromMessage();
     grantUnit();
     clearLeftPile();
     const target = targetFor({
@@ -978,6 +985,8 @@ let hurried = false;
 // the stay on a bubble the figure jumped up onto on purpose, which no trip but an urgent one takes it from before it ends (perches.js
 // PERCHED), or null
 let perched = null;
+// whether the figure sat at the last look, so its sitting down is told apart from its staying seated
+let wasSeated = false;
 
 // The figure steps out of the way of what is under `box`, its picture, and sprints there, as when it is clicked or a new message appears
 // under it (perches.js stepAside)
@@ -986,9 +995,19 @@ function stepOutOf(box) {
     hurried = true;
 }
 
-// whether something has appeared under the figure since it came to rest, as a new message of the agent's under its feet; the user's own
-// messages never send it aside
-const coveredSince = () => !body.trip && body.footing && hiddenAt(body.place, figureSize(), USER_TURN) > covering;
+// whether an agent's message has appeared under the figure since it came to rest, its words under its body; the user's own messages
+// never send it aside, whatever they cover
+const coveredSince = () => !body.trip && body.footing && agentWordsAt(body.place, figureSize()) > covering;
+
+// The figure steps aside from an agent's message over it by the least needed (places.js asideOf), along the floor it stands on, staying
+// there CLEARED_SECONDS; where no place along it is clear, out of the way of its whole picture as when it is clicked
+function stepAsideFromMessage() {
+    const floor = latestFloors().floors.find((each) => each.element && each.element === body.place.on) ?? {left: groundEdge().edge.left, right: groundEdge().edge.left + groundEdge().edge.width};
+    const aside = asideOf(figureSize(), body.place, floor);
+    if (!aside) return stepOutOf(boxAt(body.place, figureSize(), drawn));
+    stay = {where: "aside", spot: aside, until: now.value + CLEARED_SECONDS};
+    hurried = true;
+}
 
 function clicked(event) {
     stepOutOf(event.currentTarget.parentElement.getBoundingClientRect());

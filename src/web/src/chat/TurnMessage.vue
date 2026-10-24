@@ -97,6 +97,7 @@ async function drop() {
     <div
         :class="['thread-turn', {mine, report, ask: turn.kind === 'question', long, quoting: quoteText, lit: store.focus === turn.key, 'comment-origin': resourceComment}]"
         :data-ref="turn.key"
+        :data-figure-agent="turn.who === 'agent' ? '' : null"
         @mouseleave="picking = false"
     >
         <template v-if="opening">

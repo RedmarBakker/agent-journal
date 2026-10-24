@@ -324,6 +324,7 @@ export function stayingAt(stay, figure, near) {
     if (stay.where === "lean") return leanSpot(figure, near);
     if (stay.where === "rope_swing") return swingSpot(readFloors().floors.find((floor) => floor.id === stay.floor), figure);
     if (stay.where === "seat") return seatOf(figure, near) ?? restOf(figure, near);
+    if (stay.where === "aside") return stay.spot;
     return restOf(figure, near);
 }
 
@@ -408,6 +409,22 @@ export const perchedAfter = (climbed, kind, now) => (climbed && kind === "bubble
 
 // whether the figure may set off on a trip away at `now`, `perched` as it is: once its stay is over, or at once for an `urgent` trip
 export const mayLeave = (perched, now, urgent) => urgent || !perched || now >= perched.until;
+
+// Seated, in a corner, on a bubble's edge or on a card, the figure keeps its seat at least `least` seconds, and up to `more` longer by roll,
+// before any act or trip but an urgent one stands it up, so it never sits down and gets up again a moment later
+export const SEAT_STAY = {least: 30, more: 30};
+
+// The stay that holds the figure at `now`: a new seat's once it sits down, `seated` now and not before (`wasSeated`), drawn with `random`;
+// `perched` as it was while it stays seated, or while it stands on a bubble it climbed onto; none once it stands up from its seat
+export function seatStay(perched, seated, wasSeated, now, random) {
+    if (!seated) return perched?.seated ? null : perched;
+    if (wasSeated && perched?.seated) return perched;
+    return {until: now + SEAT_STAY.least + random() * SEAT_STAY.more, seated: true};
+}
+
+// whether the clip `clip` may play now at a place of `posture` while `perched` holds the figure at `now`: any but one that would stand it up
+// from a seat it keeps
+export const playsSeated = (clip, posture, perched, now) => !perched?.seated || now >= perched.until || clip.postures.includes(posture);
 
 // how long the box a figure stepped aside from stays clear of it, in seconds
 export const CLEARED_SECONDS = 30;
