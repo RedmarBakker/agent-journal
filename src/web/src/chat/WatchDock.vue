@@ -47,7 +47,7 @@ watch(
             <span class="watch-dock-state" :data-state="runState" :style="{'--tone': STATE_TONES[runState]}">
                 <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
             </span>
-            <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="opened ? 'Fold the output' : 'Show the whole output'" @click="toggle">{{ message.text }}</button>
+            <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="[card.line, opened ? 'Fold the output' : 'Show the whole output'].filter(Boolean).join('\n\n')" @click="toggle">{{ message.text }}</button>
             <template v-if="card.count">
                 <span class="watch-dock-figure">{{ card.count }}</span>
             </template>
@@ -55,9 +55,6 @@ watch(
                 <span class="watch-dock-ending">{{ card.ending }}</span>
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
-        </template>
-        <template v-if="card.line">
-            <code class="watch-dock-command">{{ card.line }}</code>
         </template>
         <template v-if="opened && colleague">
             <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
@@ -93,16 +90,6 @@ watch(
     padding: 6px 15px 10px;
     font-size: 11px;
     color: var(--text-3);
-}
-
-.watch-dock-command {
-    display: block;
-    padding: 0 15px 10px;
-    overflow: hidden;
-    color: var(--text-3);
-    font-size: 9.5px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .watch-dock-output {

@@ -26,7 +26,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-test("a docked output is titled in words, names its command beneath, and opens on a click to its whole output in a box that scrolls", async () => {
+test("a docked output is titled in words, keeps its command in its tooltip, not beneath, and opens on a click to its whole output in a box that scrolls", async () => {
     const read = vi.spyOn(api, "readOutput").mockResolvedValue({command: "pytest -q", outcome: "running", lines: ["collecting", "FAILED test_b", "[ 40%] test_c"], start: 0, next: 3});
     const host = document.createElement("div");
     document.body.append(host);
@@ -35,7 +35,7 @@ test("a docked output is titled in words, names its command beneath, and opens o
     app.mount(host);
     await flush();
     expect(host.querySelector(".watch-dock-label").textContent.trim()).toBe("Running the tests");
-    expect(host.querySelector(".watch-dock-command").textContent).toBe("pytest -q");
+    expect(host.querySelector(".watch-dock-command")).toBe(null);
     expect(host.querySelector(".watch-dock-output")).toBeNull();
     host.querySelector(".watch-dock-label").click();
     await flush();

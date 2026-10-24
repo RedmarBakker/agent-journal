@@ -24,3 +24,11 @@ test("Show in chat offers the presets and opens the chat mark kinds as a submenu
     expect(menu).toContain("<template #marks>");
     expect(menu).toContain(`@open="list = 'marks'"`);
 });
+
+test("a docked command card shows its title, progress and lines but no command line, which stays in its tooltip and in the card in the chat", () => {
+    const dock = readFileSync("src/chat/WatchDock.vue", "utf8");
+    const turn = readFileSync("src/chat/Turn.vue", "utf8");
+    expect(dock).not.toContain('class="watch-dock-command"');
+    expect(dock).toContain(":title=\"[card.line,");
+    expect(turn).toContain('<li class="mark-line mark-command">{{ data.line }}</li>');
+});
