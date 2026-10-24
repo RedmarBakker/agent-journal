@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 
-const {CLIPS, HEAD_TURN, Posing, bodyTurnFor, lookToward} = await import("../src/figure/figure.js");
+const {CLIPS, HEAD_TURN, LEGS, Posing, bodyTurnFor, lookToward} = await import("../src/figure/figure.js");
 const {LOOKS, WALKING, haltsWalk, headBlend, leadingLook, visitsAfterHalt, walkingGlance} = await import("../src/figure/looks.js");
 const {seeded} = await import("./support/seeded.js");
 
@@ -98,4 +98,40 @@ test("once it has arrived the looks blend as before: a look on any side is taken
     const further = lookToward(pose, {x: -0.6, y: 0.3}, 90);
     expect(further).not.toBe(0);
     expect(bodyTurnFor("stand", further)).toBe(further);
+});
+
+test("admiring something on the page, standing it turns round to face it, its back to the viewer; seated it turns only a little, its head the rest of the way", async () => {
+    const {admiringLook} = await import("../src/figure/admire.js");
+    const {SEAT_POSE} = await import("../src/figure/places.js");
+    // the look at what it admires is behind it on the page, and faces it
+    expect(admiringLook({left: 100, right: 220, top: 40, bottom: 120})).toEqual({x: 160, y: 80, mood: "admiring", behind: true, faces: true});
+    const apart = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+    // what it admires, as shares of its picture: up and to its left, up and to its right, straight up behind its head, far to its left
+    for (const [x, y] of [[0.2, 0.1], [0.8, 0.15], [0.5, 0.05], [0.05, 0.3]]) {
+        const at = {x, y, behind: true, faces: true};
+        for (const voice of Object.keys(stances)) {
+            const label = `${voice} admiring at ${x},${y}`;
+            // standing: the whole body turned round to it, past a quarter turn, its back to the viewer, the head straight on at it
+            const standing = new Posing(RIG, "stand", 0);
+            clipNamed("idle").pose(standing, stanceOf(voice), 0.3);
+            const turned = bodyTurnFor("stand", lookToward(standing, at, 0));
+            const stood = standing.moves(turned);
+            expect(Math.abs(yaw(stood.get("chest"))), `${label} standing: its back to the viewer`).toBeGreaterThan(90);
+            expect(apart(yaw(stood.get("head")), yaw(stood.get("chest"))), `${label} standing: its head on with its body`).toBeLessThan(15);
+            // seated, on an edge or composed on a floor: the body turned no further than it shifts on its seat, the head turned its way past it
+            for (const posture of ["sit", "composed"]) {
+                const pose = new Posing(RIG, posture, 0);
+                LEGS[posture].under(pose);
+                clipNamed("idle").pose(pose, stanceOf(voice), 0.3);
+                LEGS[posture].over(pose);
+                const little = bodyTurnFor(posture, lookToward(pose, at, 0));
+                const moves = pose.moves(little);
+                const seatedLabel = `${label} seated ${posture}`;
+                expect(Math.abs(little), `${seatedLabel}: turned only a little`).toBeLessThanOrEqual(Math.max(...SEAT_POSE.turns));
+                expect(Math.abs(yaw(moves.get("chest"))), `${seatedLabel}: never round`).toBeLessThan(45);
+                expect(apart(yaw(moves.get("head")), yaw(moves.get("chest"))), `${seatedLabel}: its head turned back toward it`).toBeGreaterThan(HEAD_TURN - 10);
+                expect(Math.sign(yaw(moves.get("head"))), `${seatedLabel}: toward it`).toBe(Math.sign(little));
+            }
+        }
+    }
 });

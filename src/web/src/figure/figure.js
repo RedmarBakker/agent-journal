@@ -4,7 +4,7 @@ import * as THREE from "three";
 import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
-import {POSTURES, signedTurn} from "./places.js";
+import {POSTURES, SEATED, SEAT_POSE, signedTurn} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {FRAMES_PER_SECOND, GRID, TICKER, litPixels} from "./visorPixels.js";
 import {HEAD, holdsHead} from "./looks.js";
@@ -1431,14 +1431,18 @@ function propHand(pose, side, ready, target, turn = {}) {
 export const HEAD_TURN = 65;
 export const HEAD_TIP = {down: 35, up: 25};
 
+// how far round, `yaw`, and how far down, `pitch`, in radians, the eyes look from where the head turns, to see `target`, a point in the
+// figure's own axes (look.js lookAngles)
+function lookAngle(pose, target) {
+    const centre = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length);
+    const way = target.clone().sub(pose.head("head", pose.standing("head")));
+    return lookAngles(way.x, -way.y, way.z, centre.z - pose.rig.heads.get("head").z);
+}
+
 // The head turned to look at `target`, `amount` of the way, never further round than HEAD_TURN from the body: it returns how many degrees
 // further round the look is, which the body turns
 function eyesToward(pose, target, amount = 1) {
-    const centre = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length);
-    const pivot = pose.head("head", pose.standing("head"));
-    const way = target.clone().sub(pivot);
-    const above = centre.z - pose.rig.heads.get("head").z;
-    const looked = lookAngles(way.x, -way.y, way.z, above);
+    const looked = lookAngle(pose, target);
     const pitch = THREE.MathUtils.clamp(looked.pitch, radians(-HEAD_TIP.up), radians(HEAD_TIP.down));
     const yaw = THREE.MathUtils.radToDeg(looked.yaw);
     const turned = THREE.MathUtils.clamp(yaw, -HEAD_TURN, HEAD_TURN);
@@ -1829,11 +1833,15 @@ export const eyesAboveOf = (figure) => (figure.rig.eyes.reduce((sum, eye) => sum
 // the UFO it watches or the leading edge of a progress bar under its feet, in front of the figure, or `at.behind` it on the page, the
 // figure turned `facing` degrees; `at.amount` of the way from
 // the head as its clip has it, 0 to 1, as the look eases in and out. It returns how many degrees the body turns for a look further round
-// than the head goes, the body following the head as the look eases in, so the head leads.
+// than the head goes, the body following the head as the look eases in, so the head leads. A look that `at.faces` what it looks at, as at
+// what it admires, turns the body the whole way round to it standing, the head then looking straight on at it; seated the body turns as
+// for any look (bodyTurnFor).
 export function lookToward(pose, at, facing = 0) {
     const point = new THREE.Vector3((at.x - 0.5) * FRAMED_HEIGHT, at.behind ? -LOOK_DEPTH : LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - at.y) * FRAMED_HEIGHT);
+    const turnedBy = (turn) => point.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-(facing + turn)));
+    const whole = at.faces && pose.posture === "stand" ? THREE.MathUtils.radToDeg(lookAngle(pose, turnedBy(0)).yaw) : 0;
     const own = pose.matrix("head").clone();
-    const further = eyesToward(pose, point.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing)));
+    const further = whole + eyesToward(pose, turnedBy(whole));
     const amount = at.amount ?? 1;
     if (amount < 1) pose.final.set("head", between(own, pose.matrix("head"), amount));
     return further * amount * amount;
@@ -4948,8 +4956,15 @@ function place(figure, pose, facing, blend) {
 }
 
 // How many degrees the body turns for a look `further` round than its head goes (lookToward), in `posture`: none while it walks, its body
-// facing the way it walks whatever its head glances at, else all of it
-export const bodyTurnFor = (posture, further) => (posture === "walk" ? 0 : further);
+// facing the way it walks whatever its head glances at; seated, only a little, no further than it shifts on its seat (places.js
+// SEAT_POSE), so it never turns round where it sits and its head turns the rest of its way; standing, all of it, so a look behind it on
+// the page, as at what it admires, turns it round to it, its back to the viewer
+export function bodyTurnFor(posture, further) {
+    if (posture === "walk") return 0;
+    if (!SEATED.has(posture)) return further;
+    const most = Math.max(...SEAT_POSE.turns);
+    return Math.min(Math.max(further, -most), most);
+}
 
 // A look the eyes take on over whatever the body does, `seconds` into a look that lasts `lasts` seconds: taken on at once and let go at the
 // end, the head turned to the viewer meanwhile so the eyes are seen. Hearts beat as a heart does, a strong swell and a weaker one.

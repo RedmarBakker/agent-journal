@@ -1,3 +1,5 @@
+import {middleOf} from "./places.js";
+
 // The figure now and then admires a picture in a message near it (places.js picturesNear). Once one is near it waits `waits` seconds,
 // then looks at the nearest for `seconds`, following it with its head as the chat moves it, an admiring look in its eyes, and looks away
 // when its time is up or the picture is no longer near; it then rests `rests` seconds before it admires one again. Every number of it is
@@ -17,3 +19,8 @@ export function admiringAfter(admiring, near, now, random) {
     if (!admiring.next) return {...NOT_ADMIRING, next: now + drawn(ADMIRE.waits, random)};
     return now < admiring.next ? admiring : {picture: near[0], until: now + drawn(ADMIRE.seconds, random), next: 0};
 }
+
+// The look at what it admires, `box` its place on the page: at its middle, an admiring look in the eyes, `behind` the figure, on the
+// page it stands before, and one that `faces` it: standing it turns round to it, its back to the viewer, and seated it turns a little
+// where it sits and its head the rest of the way (figure.js lookToward, bodyTurnFor)
+export const admiringLook = (box) => ({...middleOf(box), mood: "admiring", behind: true, faces: true});

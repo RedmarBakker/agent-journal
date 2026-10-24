@@ -67,7 +67,7 @@ import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldC
 import {ACTS, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
 import FixedRunBug from "./act/FixedRunBug.vue";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
-import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
+import {NOT_ADMIRING, admiringAfter, admiringLook} from "../figure/admire.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
 import {UPRIGHT, tiltAfter, tiltAt} from "../figure/headTilt.js";
 import {SEQUENCES, alive, givesWay, sequenceIn} from "../figure/pile.js";
@@ -1465,7 +1465,7 @@ function lookCandidates(shown) {
         ["said", "said", newMessage("user")?.point],
         ["message", "message", newMessage("agent")?.point],
         ["work", "work", work?.at],
-        ["picture", "picture", admiring.picture && {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"}],
+        ["picture", "picture", admiring.picture && admiringLook(admiring.picture.getBoundingClientRect())],
         ["bar", "bar", barLook(shown)],
         ["glance", "glance", glanceLook()],
     ];
@@ -1603,7 +1603,7 @@ function lookingAt(shown) {
     lookBlend = headBlend(walk.look, shown.clip);
     gaze = gazeAfter(gaze, walk.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead, lookBlend);
     if (!gaze.amount || !gaze.point) return null;
-    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: gaze.amount, behind: Boolean(gaze.point.behind), mood: gaze.point.mood ?? ""};
+    return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: gaze.amount, behind: Boolean(gaze.point.behind), faces: Boolean(gaze.point.faces), mood: gaze.point.mood ?? ""};
 }
 
 // the middle of the figure's head on the page, about which its look turns
