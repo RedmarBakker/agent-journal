@@ -2,7 +2,6 @@
 import {describe, expect, it} from "vitest";
 import {PICTURES} from "../src/figure/visorPixels.js";
 import {SIGN, VISOR, glowTurn, lightOnce, signAt, visorAt, visorFor} from "../src/figure/visor.js";
-import {seeded} from "./support/seeded.js";
 
 // the visor `seconds` after a run ending `tone` lit it, `lit` being how visorFor drew it, lit as the run ended
 function shownAt(lit, seconds) {
@@ -11,18 +10,12 @@ function shownAt(lit, seconds) {
 }
 
 describe("a run's end shown in the eyes", () => {
-    it("draws, with a seeded random, the crosses for some failures and the ticks for some passes, the plain glow for the rest", () => {
-        const random = seeded(2758);
+    it("shows every run's end as its sign, the crosses for every failure and the ticks for every pass, never a lit visor", () => {
         for (const [tone, name] of [["bad", "cross"], ["good", "tick"]]) {
-            const lit = Array.from({length: 60}, (_, index) => visorFor([{tone}], null, index * 10, random));
-            const signs = lit.filter((each) => each.sign);
-            expect(signs.length, `${tone}: some`).toBeGreaterThan(5);
-            expect(signs.length, `${tone}: never every time, most the plain glow`).toBeLessThan(30);
-            for (const each of signs) expect(shownAt(each, 1).sign.name).toBe(name);
-            for (const each of lit.filter((one) => !one.sign)) {
-                const glow = shownAt(each, 1);
-                expect(glow.sign).toBeUndefined();
-                expect(glow.glow).toBe(1);
+            for (let index = 0; index < 20; index++) {
+                const shown = shownAt(visorFor([{tone}], null, index * 10), 1);
+                expect(shown.sign.name).toBe(name);
+                expect(shown.glow).toBe(0);
             }
         }
     });

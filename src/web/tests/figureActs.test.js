@@ -419,10 +419,10 @@ test("falls are snappy: the tumble drops to its knees in a quarter of a second w
     expect(land.frames / land.fps).toBeLessThanOrEqual(0.35);
 });
 
-const {VISOR, crtAt, glowTurn} = await import("../src/figure/visor.js");
+const {SIGN, glowTurn, visorAt} = await import("../src/figure/visor.js");
 const {turnToViewer} = await import("../src/figure/figure.js");
 
-test("while the visor glows the figure turns toward the viewer, partly and never head on, held all the glow long, from every facing, for every voice", () => {
+test("while its eyes show a run's end the figure turns toward the viewer, partly and never head on, held all the glow long, from every facing, for every voice", () => {
     // the head's way from the viewer, in degrees, for a figure turned `facing` degrees, posed and turned toward the viewer `strength` of the way
     const fromViewer = (voice, facing, strength) => {
         const pose = posedAt("idle", voice, 0.3);
@@ -434,7 +434,7 @@ test("while the visor glows the figure turns toward the viewer, partly and never
         return {away: Math.abs(yaw(ahead)), apart: Math.abs(((yaw(ahead) - yaw(chest) + 540) % 360) - 180)};
     };
     const glow = [];
-    for (let seconds = VISOR.eyesOut; seconds < VISOR.seconds - VISOR.eyesBack; seconds += 0.05) glow.push(glowTurn(crtAt(seconds)));
+    for (let seconds = 0; seconds < SIGN.fade[0]; seconds += 0.05) glow.push(glowTurn(visorAt({tone: "bad", at: 0}, seconds, false)));
     expect(glow.every((strength) => strength === 1)).toBe(true);
     for (const voice of Object.keys(stances)) {
         for (const facing of [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]) {

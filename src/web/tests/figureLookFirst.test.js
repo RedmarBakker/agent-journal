@@ -22,7 +22,7 @@ test("a run ends with its mark behind the figure: the head turns to the mark at 
     const facing = 90;
     const mark = {x: -260, y: -80};
     let gaze = {point: {x: 400, y: 70}, amount: 1, at: 1};
-    let lit = visorFor([{tone: "good", card: "messages:7"}], null, 0, () => 0.99);
+    let lit = visorFor([{tone: "good", card: "messages:7"}], null, 0);
     const turnedFirst = Math.abs(Math.atan2(mark.y - HEAD.y, mark.x - HEAD.x) - Math.atan2(gaze.point.y - HEAD.y, gaze.point.x - HEAD.x));
     let glowedAt = null;
     for (let frame = 1; frame < 120 && glowedAt === null; frame++) {
@@ -55,7 +55,7 @@ test("a run ends with its mark behind the figure: the head turns to the mark at 
 });
 
 test("a run whose mark the figure cannot turn to glows anyway, once the wait is over", () => {
-    let lit = visorFor([{tone: "bad", card: "messages:8"}], null, 10, () => 0.99);
+    let lit = visorFor([{tone: "bad", card: "messages:8"}], null, 10);
     lit = lightOnce(lit, false, 10 + VISOR.waits - 0.01);
     expect(lit.at).toBe(null);
     lit = lightOnce(lit, false, 10 + VISOR.waits);

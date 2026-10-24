@@ -3308,8 +3308,8 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float pixel = step(gap, cell.x) * step(gap, cell.y);
         vec4 shown = texture2D(pixels, (floor(place) + 0.5) / grid);
         float centre = max(1.0 - length(from), 0.0);
-        vec3 lit = glow * mix(dark, 1.0, pixel);
-        vec3 screen = mix(lit + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
+        vec3 shine = glow * lit * mix(dark, 1.0, pixel);
+        vec3 screen = mix(shine + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
         vec3 drawn = mix(shaded * (1.0 - step(0.001, lit + flash) * 0.6), shown.rgb * mix(dark, 1.0, pixel), shown.a);
         gl_FragColor = vec4(mix(drawn, screen, band * max(lit, flash)), 1.0);
         #include <colorspace_fragment>
@@ -4649,7 +4649,7 @@ export function turnToViewer(pose, facing, strength) {
 }
 
 // the colour of a run's end shown in the eyes on the visor `screen` (visor.js visorAt), as white as its flash and as bright as it is lit
-const signColour = (screen) => {
+export const signColour = (screen) => {
     const sign = screen?.sign;
     return sign ? screen.colour.map((part) => (part + (1 - part) * sign.white) * sign.lit) : [1, 1, 1];
 };
