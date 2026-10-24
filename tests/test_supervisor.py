@@ -339,8 +339,8 @@ def test_a_bare_worktree_flag_makes_a_fresh_name_and_a_given_environment_names_i
     launch = Launch.parse(["claude", "--env", "calm-river", "-w"], tmp_path)
     produced = launch.launch_file(Choice("calm-river", "", False, False), StatusLine(tmp_path))
     assert produced["front"]["folder"] == str(tmp_path / ".claude" / "worktrees" / "calm-river"), "the worktree is named after the environment the menu chose"
-    hooked = json.loads((tmp_path / ".claude" / "worktrees" / "calm-river" / ".claude" / "settings.json").read_text())
-    assert "hook.sh" in json.dumps(hooked.get("hooks", {})) and str(tmp_path) in json.dumps(hooked["hooks"]), "a project whose settings git tracks without the journal's hooks gets them in the new worktree too, posting to the project's journal"
+    hooked = json.loads((tmp_path / ".claude" / "worktrees" / "calm-river" / ".claude" / "settings.local.json").read_text())
+    assert "hook.sh" in json.dumps(hooked.get("hooks", {})) and str(tmp_path) in json.dumps(hooked["hooks"]), "a project whose settings git tracks without the journal's hooks gets them in the new worktree too, through the linked local settings, posting to the project's journal"
     assert "worktree-calm-river" in git("branch").stdout
 
 

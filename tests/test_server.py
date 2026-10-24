@@ -1016,6 +1016,7 @@ def test_the_secrets_page_makes_fills_allows_deletes_and_restores_a_secret(serve
 
 def test_the_transcript_of_an_agent_and_of_its_subagent_are_read_from_the_providers_files(server, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     project = tmp_path / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(server.config.root.resolve()))
     (project / "s5" / "subagents").mkdir(parents=True)
     rows = [{"type": "user", "timestamp": "2026-10-17T10:00:00Z", "message": {"content": "fix the login"}},
@@ -1136,6 +1137,7 @@ def phone_call(share_server, method: str, path: str, body: dict | None = None, o
 
 def test_a_phone_pairs_through_the_tunnel_and_is_known_by_its_cookie_alone(sharing, monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     server, share_server = sharing
     call(server, "POST", "/journal/settings", {"sharing": {"host": "tunler.example"}})
     origin = f"https://{call(server, 'GET', '/journal/tunnel')[1]['address']}"
@@ -1269,6 +1271,7 @@ def test_a_visitor_comments_on_a_shared_document_and_it_comes_to_the_chat(sharin
 
 def test_the_tunnel_says_what_keeps_links_from_reaching_the_journal(server, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     monkeypatch.setenv("PATH", str(tmp_path))
     data = call(server, "GET", "/journal/tunnel")[1]
     assert data["installed"] is False and data["problems"] == ["tunler is not installed on this machine, so share links cannot reach this journal."]

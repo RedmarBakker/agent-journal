@@ -725,6 +725,7 @@ def test_a_codex_workers_turns_are_read_from_its_rollout_into_its_chat(app: App,
     from journal.repositories.messages import Messages
     from journal.repositories.workers import Workers
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     session = "01a15a25-535e-7cc2-993e-d38deedb6b41"
     rollout = tmp_path / "home" / ".codex" / "sessions" / date.today().strftime("%Y/%m/%d") / f"rollout-2026-10-22T10-00-00-{session}.jsonl"
     rollout.parent.mkdir(parents=True)
@@ -744,6 +745,7 @@ def test_a_running_workers_session_is_looked_up_once_and_kept_on_its_row(app: Ap
     from journal.repositories.agents import Agents
     from journal.repositories.workers import Workers
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     app.container.get(Agents).save(Agent(environment_id=1, session="c1", provider="codex", state="idle"), Actor.system())
     workers = app.container.get(Workers)
     worker = workers.save(Worker(environment_id=1, name="Ada Lovelace", brief="write storage.py", provider="codex", model="gpt-5", worktree=True).running_as(1, timing.time() - 5), Actor.system())
@@ -5018,6 +5020,7 @@ def test_the_agent_is_kept_out_of_the_secrets_and_the_mcp_keys(app: App, tmp_pat
     from journal.support.secret_values import SecretValues
     monkeypatch.setenv("AGENT_JOURNAL_SECRETS", str(tmp_path / "private"))
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     hook(app, "SessionStart")
     read_skill(app, "journal")
     app.console().run(["environment", "overview"], AGENT)
@@ -8112,6 +8115,7 @@ def test_a_running_codex_workers_transcript_is_found_by_its_rollouts_folder_befo
     day = home / ".codex" / "sessions" / "2026" / "10" / "20"
     day.mkdir(parents=True)
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     remote = day / "rollout-2026-10-20T21-00-00-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl"
     remote.write_text(js.dumps({"type": "session_meta", "payload": {"cwd": "/somewhere/else"}}) + "\n")
     journal_owned = day / "rollout-2026-10-20T21-58-57-01a15ae5-449b-7131-9ee4-edd40f4e3dc3.jsonl"
@@ -9509,6 +9513,7 @@ def test_a_workers_session_is_kept_as_it_prints_it_and_never_taken_from_the_disp
     from journal.repositories.workers import Workers
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     dispatcher = home / ".claude" / "projects" / Claude.folder_name(app.config.root) / "dispatcher-session.jsonl"
     dispatcher.parent.mkdir(parents=True)
     hook(app, "SessionStart")
@@ -9581,6 +9586,7 @@ def test_a_notify_reaches_only_a_running_claude_worker_and_moves_no_wait(app: Ap
     from journal.repositories.workers import Workers
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     hook(app, "SessionStart")
     console, workers, sessions = app.console(), app.container.get(Workers), app.container.get(SessionAgents)
     console.run(["task", "create", "t", "--start"], AGENT)
@@ -9628,6 +9634,7 @@ def test_a_running_workers_session_takes_the_notify_after_its_key_and_only_as_th
     from journal.repositories.workers import Workers
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     hook(app, "SessionStart")
     console, workers = app.console(), app.container.get(Workers)
     dispatched(console, ["Mr. Babbage", "the engine", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "fast"], AGENT)
@@ -9848,6 +9855,7 @@ def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: A
     from journal.repositories.workers import Workers
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     kept_conversation(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers, messages = app.console(), app.container.get(Workers), app.container.get(Messages)
@@ -10052,6 +10060,7 @@ def test_a_worker_messages_only_its_own_dispatchers_other_workers_and_starts_no_
     kept_conversation(app, monkeypatch)
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     hook(app, "SessionStart")
     console, workers = app.console(), app.container.get(Workers)
     for name, dispatcher, state in (("Mr. Watt", "s1", WorkerState.DISPATCHED), ("Mr. Boulton", "s1", WorkerState.REPORTED), ("Mr. Other", "s2", WorkerState.REPORTED), ("Mr. Retired", "s1", WorkerState.STOPPED)):
@@ -13411,6 +13420,7 @@ def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_
     from journal.repositories.messages import Messages
     from journal.repositories.workers import Workers
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     session = "01a15a25-535e-7cc2-993e-d38deedb6b42"
     rollout = tmp_path / "home" / ".codex" / "sessions" / date.today().strftime("%Y/%m/%d") / f"rollout-2026-10-22T10-00-00-{session}.jsonl"
     rollout.parent.mkdir(parents=True)

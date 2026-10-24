@@ -1722,6 +1722,7 @@ def test_a_workers_turns_and_its_brief_are_messages_of_its_own_chat_with_their_t
     from journal.support.agent_token import AgentToken
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     transcript = home / ".claude" / "projects" / Claude.folder_name(app.config.root) / "w1.jsonl"
     transcript.parent.mkdir(parents=True)
     said = lambda text: json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n"
@@ -1759,6 +1760,7 @@ def test_a_subagents_prompt_the_message_sent_to_it_and_its_turns_are_messages_of
     from journal.repositories.messages import Messages
     home = tmp_path / "home"
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     transcript = home / ".claude" / "projects" / Claude.folder_name(app.config.root) / "s1" / "subagents" / "agent-a9.jsonl"
     transcript.parent.mkdir(parents=True)
     said = lambda text: json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}) + "\n"

@@ -15,6 +15,7 @@ from tests.main_journal import main_journal
 @pytest.fixture
 def app(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     (tmp_path / "home" / ".local" / "bin").mkdir(parents=True)
     return main_journal(Config(tmp_path, port=0))
 
@@ -104,6 +105,7 @@ def test_the_private_folder_keeps_keys_and_secrets_to_their_user_and_out_of_git(
     import stat
     from journal.support.private_folder import SECRETS_VARIABLE, PrivateFolder
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     monkeypatch.delenv(SECRETS_VARIABLE, raising=False)
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     folder = PrivateFolder(tmp_path / "proj")
