@@ -73,6 +73,8 @@ class Updater:
         return bool(self.newer())
 
     def target(self) -> UpdateTarget:
+        if not self.is_published() and self.is_pinned():
+            raise Rejection(f"this journal is in a team, and the team decides its version: it pins {self.account.team_version() or 'none yet'}, and this journal runs {self.label()}; the team's admin moves the pin with journal team upgrade")
         if not self.is_published():
             raise Rejection(f"there is nothing newer than {self.label()} to install")
         if self.branch():
@@ -80,8 +82,13 @@ class Updater:
         newest = self.newer()[-1]
         return UpdateTarget(newest.tag, newest.version)
 
+    # a journal in a team installs the version its team pins by itself, whatever the setting says; any other updates on its own when set to
     def automatic(self) -> bool:
-        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted()) and self.is_published()
+        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted() or self.is_pinned()) and self.is_published()
+
+    # whether the team decides this journal's version: joined, and not the hosted journal that leads the team onto a release
+    def is_pinned(self) -> bool:
+        return self.account.is_joined() and not self.leads_team()
 
     def is_hosted(self) -> bool:
         return self.hosting.is_hosted()
@@ -105,7 +112,7 @@ class Updater:
 
     def tick(self, time: float) -> None:
         self.reconcile(time)
-        if self.is_hosted() and self.account.team_version() not in (VERSION, self.team_version_seen):
+        if (self.is_hosted() or self.is_pinned()) and self.account.team_version() not in (VERSION, self.team_version_seen, ""):
             self.team_version_seen = self.account.team_version()
             self.separate(self.checked)
         elif time >= self._next_check_at:

@@ -13035,3 +13035,35 @@ def test_a_script_run_by_its_path_from_outside_the_project_is_owed_a_reader_at_o
     assert "reader due for scan.sh" in said, "owed a reader on its first run in the background"
     console.run(["reader", "add", "scans", "--commands", "scan.py", "--pattern", "scanned", "--about", "the scans"], AGENT)
     assert app.container.get(Readers).reading(f"python3 {elsewhere / 'scan.py'} {app.config.root}").name == "scans", "a script run through python3 is known by its file name"
+
+
+def test_a_journal_in_a_team_installs_the_version_its_team_pins_by_itself_and_no_other(app: App, monkeypatch):
+    import time as clock
+    from journal.features.updates.support.updater import Updater
+    from journal.support.rejection import Rejection
+    from journal.sync.team_account import TeamAccount
+    from journal.version import VERSION
+    major = VERSION.split(".")[0]
+    pin, beside = f"{major}.98.0", f"{major}.99.0"
+    monkeypatch.setattr(Updater, "restart", lambda self: None)
+    monkeypatch.setattr(Updater, "leads_upgrade", lambda self: False)
+    installer = Installer()
+    updating = updating_with(app, Source(f"v{VERSION}", f"v{pin}", f"v{beside}"), installer, auto=False)
+    account = app.container.get(TeamAccount)
+    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0, "team_version": pin})
+    try:
+        updating.tick(0.0)
+        for _ in range(50):
+            if installer.ran:
+                break
+            clock.sleep(0.05)
+        assert installer.ran == [f"v{pin}"], "with automatic updates off, the pinned version is installed by itself, never the newer one beside it"
+        account.write({**account.contents(), "team_version": VERSION})
+        updating.read()
+        try:
+            updating.target()
+            raise AssertionError("a manual update past the pin was not refused")
+        except Rejection as refused:
+            assert "the team decides its version" in str(refused) and VERSION in str(refused), str(refused)
+    finally:
+        account.left(0)
