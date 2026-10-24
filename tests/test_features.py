@@ -2231,8 +2231,10 @@ def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
     from journal.features.workers.support.worker_process_card import WorkerProcessCard
     from journal.models.worker import Worker
     from journal.models.worker_state import WorkerState
-    card = app.container.get(WorkerProcessCard)
-    tones = {state: card.standing(Worker(environment_id=1, name="Dieter Rams", brief="b", state=state)).tone for state in (WorkerState.MERGED, WorkerState.RELEASED, WorkerState.DELIVERED, WorkerState.REPORTED)}
+    from journal.repositories.workers import Workers
+    card, workers = app.container.get(WorkerProcessCard), app.container.get(Workers)
+    states = (WorkerState.MERGED, WorkerState.RELEASED, WorkerState.DELIVERED, WorkerState.REPORTED)
+    tones = {state: card.standing(workers.save(Worker(environment_id=1, name=f"Worker {state}", brief="b", state=state), Actor.system())).tone for state in states}
     assert tones == {WorkerState.MERGED: "", WorkerState.RELEASED: "", WorkerState.DELIVERED: "", WorkerState.REPORTED: "work"}, "merged, released and ready to check are plain; a report is a quiet blue"
 
 
