@@ -108,6 +108,10 @@ export class ApiClient {
         return this.get("/developer");
     }
 
+    clientError(error) {
+        return this.post("/client-errors", error);
+    }
+
     developerReset() {
         return this.post("/developer/reset");
     }

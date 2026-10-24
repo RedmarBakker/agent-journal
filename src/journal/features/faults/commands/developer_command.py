@@ -3,6 +3,7 @@ from argparse import Namespace
 from datetime import datetime
 
 from journal.console.command import Command
+from journal.features.client_errors.support.client_error_store import ClientErrorStore
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.features.faults.support.thread_sampler import ThreadSampler
 from journal.http.journal.answer_time import AnswerTime
@@ -23,7 +24,8 @@ class DeveloperCommand(Command):
 
     noun = "developer"
 
-    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans, large_reads: LargeReads) -> None:
+    def __init__(self, numbers: DeveloperNumbers, sampler: ThreadSampler, queries: QueryTimes, plans: QueryPlans, large_reads: LargeReads, client_errors: ClientErrorStore) -> None:
+        self.viewer_errors = client_errors
         self.numbers, self.sampler, self.statements, self.plans, self.large_reads = numbers, sampler, queries, plans, large_reads
 
     def arguments(self, verbs) -> None:
@@ -39,6 +41,9 @@ class DeveloperCommand(Command):
         queries.add_argument("--count", type=int, default=TOP, help="how many statements")
         reads = self.verb(verbs, "reads", "the reads of more rows than a page since the last reset, the largest first, each with the code that asked: a page read asking more was cut to a page")
         reads.add_argument("--count", type=int, default=TOP, help="how many reads")
+        errors = self.verb(verbs, "client-errors", "the console errors the viewer posted, each with its stack and how many times it came, until they are cleared")
+        errors.set_defaults(verb="client_errors")
+        errors.add_argument("--clear", action="store_true", help="empty the list, which ends the reminders")
         self.verb(verbs, "reset", "clear the times, the rolling log and the counts")
         profile = self.verb(verbs, "profile", "watch every thread of the server for a while and print where its time goes, the busiest functions first")
         profile.add_argument("seconds", type=float, nargs="?", default=PROFILE_SECONDS, help=f"how long to watch, at most {PROFILE_LIMIT_SECONDS:.0f} seconds")
@@ -103,6 +108,14 @@ class DeveloperCommand(Command):
 
     def reads(self, args: Namespace, caller: Caller) -> int:
         self.print_lines([read.line() for read in self.large_reads.largest(args.count)], "no read of more rows than a page since the last reset")
+        return 0
+
+    def client_errors(self, args: Namespace, caller: Caller) -> int:
+        if args.clear:
+            self.viewer_errors.clear()
+            print("the viewer's console errors are cleared")
+            return 0
+        self.print_lines([error.line() for error in self.viewer_errors.all()], "the viewer logged no console errors")
         return 0
 
     def reset(self, args: Namespace, caller: Caller) -> int:

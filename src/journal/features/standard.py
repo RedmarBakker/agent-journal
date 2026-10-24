@@ -3,6 +3,7 @@ from journal.features.briefing.feature import Briefing
 from journal.features.checks.feature import Checks
 from journal.features.edits.feature import EditsFeature
 from journal.features.etiquette.feature import Etiquette
+from journal.features.client_errors.feature import ClientErrors
 from journal.features.faults.feature import Faults
 from journal.features.phone.feature import PhoneFeature
 from journal.features.git.feature import Git
@@ -47,5 +48,5 @@ from journal.features.team.feature import TeamFeature
 class Standard:
     """The features the journal ships with, in the order they register."""
 
-    FEATURES = (Skills, Briefing, Memory, Tasks, Messages, Questions, Plans, Sequences, PausingFeature, Usage, Workers, Laws, Triggers, Checks, Shell, AliasesFeature, Thinking, Mcp, Secrets, Sharing, Delivery, TemplatesFeature, ReportsFeature, DocsFeature, CollectionsFeature, DumpsFeature, Pins, Etiquette, Voices, Profiles, Git, EditsFeature, PluginsFeature, Faults, PhoneFeature, MigrationFeature, MentionsFeature, SearchFeature, Updates, SuggestionsFeature, TeamFeature, Schedules, Hydration, Record)
+    FEATURES = (Skills, Briefing, Memory, Tasks, Messages, Questions, Plans, Sequences, PausingFeature, Usage, Workers, Laws, Triggers, Checks, Shell, AliasesFeature, Thinking, Mcp, Secrets, Sharing, Delivery, TemplatesFeature, ReportsFeature, DocsFeature, CollectionsFeature, DumpsFeature, Pins, Etiquette, Voices, Profiles, Git, EditsFeature, PluginsFeature, Faults, ClientErrors, PhoneFeature, MigrationFeature, MentionsFeature, SearchFeature, Updates, SuggestionsFeature, TeamFeature, Schedules, Hydration, Record)
 

@@ -6,11 +6,14 @@ import {watchPresses} from "./platform/pressed.js";
 import {followPage} from "./state/updating.js";
 import {logInputs} from "./platform/inputLog.js";
 import {pasteByHand} from "./platform/pasteByHand.js";
+import {reportErrors} from "./platform/errorReport.js";
+import {api} from "./api/client.js";
 
 watchPresses();
 // the input log is for hunting a lost paste: on only when the browser's storage says so (journal.inputLog = on)
 if (localStorage.getItem("journal.inputLog") === "on") logInputs(window);
 pasteByHand(window);
+reportErrors(window, (error) => api.clientError(error));
 followPage(document);
 
 function start({root = App, given = new Map()} = {}) {

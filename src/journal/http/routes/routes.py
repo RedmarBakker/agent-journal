@@ -52,6 +52,7 @@ from journal.http.controllers.tunnel import TunnelController
 from journal.http.controllers.phones import PhoneController
 from journal.http.controllers.updates import UpdateController
 from journal.http.controllers.viewer import ViewerController
+from journal.http.controllers.client_errors import ClientErrorController
 from journal.http.controllers.voices import VoiceController
 from journal.http.controllers.subagents import SubagentController
 from journal.http.controllers.workers import WorkerController
@@ -93,6 +94,7 @@ class Routes:
         for path, handler in (("manifest", journal.manifest), ("identity", journal.identity), ("health", journal.health), ("journals", journal.journals), ("summary", journal.summary), ("bar", journal.bar), ("developer", journal.developer)):
             router.get(f"{API}/{path}", handler)
         router.post(f"{API}/developer/reset", journal.developer_reset)
+        router.post(f"{API}/client-errors", get(ClientErrorController).store)
         router.get(f"{API}/settings", settings.index)
         router.post(f"{API}/settings", settings.store)
         router.get(f"{API}/updates", get(UpdateController).index)

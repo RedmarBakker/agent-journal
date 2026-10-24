@@ -13236,3 +13236,25 @@ def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(a
     assert settings.option(WorkersOptions.TESTING) == HAND_OVER and command.testing_template("Full suite").title == ZERO_TESTS.title, "by default no template makes a worker run tests"
     settings.set(WorkersOptions.TESTING.key, RUN_OWN, Actor.user(1))
     assert command.testing_template("").title == SCOPED_TESTS.title and command.testing_template("Full suite").title == "Full suite", "Run the tests it wrote uses the template named, Scoped tests when none is"
+
+
+def test_the_viewers_console_errors_tell_the_agent_at_once_remind_it_every_fifty_tool_uses_and_end_when_cleared(app: App, monkeypatch):
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    use = lambda: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]
+    post = lambda message, stack: posted(app, "/journal/client-errors", {"message": message, "stack": stack}, {"X-Journal-Env": "main"})
+    assert post("x is undefined", "at Chat.vue:12")[0] == 200
+    assert post("x is undefined", "at Chat.vue:12")[0] == 200
+    assert keystrokes == ["[journal] the viewer logged a console error. read them with journal developer client-errors"], "the first error is told at once, and the same error again is counted and not told"
+    for _ in range(49):
+        assert "still unhandled:" not in str(use())
+    assert "still unhandled: a console error the viewer logged" in str(use()), "reminded at the fiftieth tool use after the line"
+    assert "still unhandled:" not in str(use()), "never more often"
+    listed = app.console().run(["developer", "client-errors"], AGENT).text
+    assert "2x x is undefined" in listed and "at Chat.vue:12" in listed and listed.count("x is undefined") == 1
+    assert "cleared" in app.console().run(["developer", "client-errors", "--clear"], AGENT).text
+    assert "no console errors" in app.console().run(["developer", "client-errors"], AGENT).text
+    for _ in range(60):
+        assert "still unhandled:" not in str(use()), "a cleared store ends the reminders"
