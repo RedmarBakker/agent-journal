@@ -27,7 +27,7 @@ class Translation:
     """Each hook kind to the agent event it means; one table, so no kind is ever read twice in two places."""
 
     EVENTS = {
-        HookKind.SESSION_START: lambda hook, calls: SessionStarted(source=hook.source),
+        HookKind.SESSION_START: lambda hook, calls: SessionStarted(source=hook.source, folder=hook.folder),
         HookKind.USER_PROMPT: lambda hook, calls: PromptSubmitted(prompt=hook.text),
         HookKind.PRE_TOOL_USE: lambda hook, calls: ToolStarting(call=calls.build(hook)),
         HookKind.POST_TOOL_USE: lambda hook, calls: ToolFinished(call=calls.build(hook), output=hook.output, response=hook.response),

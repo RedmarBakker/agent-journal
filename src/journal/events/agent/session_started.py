@@ -16,6 +16,7 @@ class SessionStarted(AgentEvent):
     typing_delay: ClassVar[float] = 4.0
 
     source: str = ""
+    folder: str = ""
 
     def is_compaction_start(self) -> bool:
         return self.source == COMPACTION_SOURCE

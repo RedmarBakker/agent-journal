@@ -96,6 +96,10 @@ class Hook:
         return self.body.get("source", "")
 
     @property
+    def folder(self) -> str:
+        return str(self.body.get("cwd", ""))
+
+    @property
     def stop_refused_earlier(self) -> bool:
         return bool(self.body.get("stop_hook_active"))
 

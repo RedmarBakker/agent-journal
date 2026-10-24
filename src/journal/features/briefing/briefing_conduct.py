@@ -5,6 +5,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.agent.ticked import Ticked
 from journal.features.briefing.support.briefing_data import BriefingData
 from journal.features.briefing.briefing_nudges import BriefingNudges
 from journal.features.briefing.briefing_part import BriefingPart
@@ -19,7 +20,7 @@ class BriefingConduct(Conduct):
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         if event.is_resume():
             return self.none()
-        lines = start_block(event.data.part(BriefingPart), event.source)
+        lines = [*start_block(event.data.part(BriefingPart), event.source), *folder_check(event)]
         if event.is_compaction_start():
             return self.push(ReadingOverview(), *lines, BriefingNudges.OVERVIEW_FIRST.create())
         return self.none(*lines, BriefingNudges.OVERVIEW_REQUEST.create())
@@ -29,9 +30,23 @@ class BriefingConduct(Conduct):
             return self.none()
         return self.refuse(BriefingNudges.OVERVIEW_REQUEST.create())
 
+    def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
+        briefing = event.data.part(BriefingPart)
+        if not briefing.is_launch_folder_gone:
+            return self.none()
+        return self.none(BriefingNudges.FOLDER_GONE.create(env=briefing.environment, launch_folder=briefing.launch_folder))
+
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         return self.none() if event.data.part(BriefingPart).is_overview_read else self.refuse(BriefingNudges.OVERVIEW_STOP.create())
 
+
+
+# a session started in another folder than its launch named works in one checkout while the journal looks at another
+def folder_check(event: SessionStarted) -> list[Nudge]:
+    briefing = event.data.part(BriefingPart)
+    if not event.folder or not briefing.launch_folder or event.folder.rstrip("/") == briefing.launch_folder.rstrip("/"):
+        return []
+    return [BriefingNudges.FOLDER_MISMATCH.create(folder=event.folder, env=briefing.environment, launch_folder=briefing.launch_folder)]
 
 
 def start_block(briefing: BriefingData, source: str) -> list[Nudge]:

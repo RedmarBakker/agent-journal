@@ -1978,3 +1978,19 @@ def test_a_worker_not_running_hears_its_tasks_edit_once_with_its_next_job(app: A
     with scope.environment(1):
         assert workers.find(worker.id).edited_task == task.id, "the edit waits on the worker's row, once however many edits came"
     assert EDITED_NOTE.format(task=task.id).startswith(f"Task {task.id} was changed while you were away")
+
+
+def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_warned_with_the_commands_that_fix_it():
+    from journal.features.briefing.briefing_conduct import BriefingConduct
+    from journal.features.briefing.support.briefing_data import BriefingData
+    from journal.features.tasks.support.tasks_data import TasksData
+    tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=())
+    briefing = lambda **fields: FeatureData({"tasks": tasks, "briefing": BriefingData(is_overview_read=True, environment="development", peer_session_active_at="", rules="", rules_count=0, facts="", reminders="", waiting="", team_history="", launch_folder="/projects/app", **fields)})
+    lines = lambda answer: " ".join(nudge.rendered() for nudge in answer.nudges)
+    elsewhere = Ready().respond(SessionStarted(source="startup", folder="/projects/app/.claude/worktrees/development").with_data(briefing()), SettingsValue({}), (BriefingConduct,))
+    assert "this session runs in /projects/app/.claude/worktrees/development, but development was launched in /projects/app" in lines(elsewhere) and "start development again from /projects/app with `journal`" in lines(elsewhere), "a session in another folder is told, with the commands"
+    at_home = Ready().respond(SessionStarted(source="startup", folder="/projects/app/").with_data(briefing()), SettingsValue({}), (BriefingConduct,))
+    assert "this session runs in" not in lines(at_home), "the launch's own folder is no warning"
+    gone = Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing(is_launch_folder_gone=True)), SettingsValue({"tasks.auto": False}), (BriefingConduct,))
+    assert "the folder development was launched in, /projects/app, is gone" in lines(gone) and "`journal message unread`" in lines(gone), "a folder gone is told on the tick, since the session's hooks no longer run"
+    assert not Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing()), SettingsValue({"tasks.auto": False}), (BriefingConduct,)).nudges, "a folder still there is no warning"

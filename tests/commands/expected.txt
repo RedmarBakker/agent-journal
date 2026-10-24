@@ -1296,6 +1296,8 @@ briefing.overview_before_anything  [briefing]  after the compaction, run `journa
 briefing.reminders_here  [briefing]  reminders here: {{rows}}
 briefing.rules_in_force  [briefing]  {{count}} rules in force: {{rows}}
 briefing.runs_interrupted  [briefing]  the restart cut off these background runs: {{rows}}. run again what you still need
+briefing.session_folder_gone  [briefing]  the folder {{env}} was launched in, {{launch_folder}}, is gone: this session's hooks run from it, so the journal's lines and the user's messages no longer reach you. tell the user, then quit and start {{env}} again from the project root with `journal`; until then read messages with `journal message unread`
+briefing.session_in_another_folder  [briefing]  this session runs in {{folder}}, but {{env}} was launched in {{launch_folder}}: your edits and the journal's view of them are in different checkouts. quit and start {{env}} again from {{launch_folder}} with `journal`; to work in {{folder}} instead, check its branch out there, run `journal environment branch {{env}} <branch>` and launch from it
 briefing.stopped_unoriented  [briefing]  you stopped before running `journal environment overview` this session. run it first
 briefing.team_chat_history  [briefing]  the Team chat's latest messages, from before you started: {{rows}}. answer a message only when it is still unread
 briefing.the_laws_apply  [briefing]  the laws L1 to L10 in AGENTS.md apply to you
@@ -1508,7 +1510,7 @@ workers.worker_place_free  [workers]  worker {{n}}, {{name}}, is done; open: {{t
 workers.worker_quiet  [workers]  worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes. look at its transcript, notify it with `journal worker notify {{n}} "<text>"`, or stop it
 workers.worker_reported  [workers]  worker {{n}}, {{name}}, reported in the chat
 workers.worker_stopped_unreported  [workers]  worker {{n}}, {{name}}, stopped before it reported
-216 nudges
+218 nudges
 
 $ agent: journal worker list
 exit 0

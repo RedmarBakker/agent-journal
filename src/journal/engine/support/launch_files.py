@@ -19,6 +19,9 @@ class LaunchFiles:
         current = self.launch(environment).get("launch", "")
         return not current or launch_id == current
 
+    def folder(self, environment: str) -> str:
+        return self.launch(environment).get("front", {}).get("folder", "")
+
     def launch(self, environment: str) -> dict:
         path = self.config.home / "runtime" / "launches" / f"{environment}.json"
         return json.loads(path.read_text()) if path.is_file() else {}
