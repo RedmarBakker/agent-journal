@@ -42,3 +42,15 @@ test("the status line keeps its row at the foot, busy or idle, and slides out on
     expect(thread.split("function watchScroll() {")[1].split("\n}\n")[0]).toContain("offFoot.value = gap > FAR;");
     expect(thread).toContain("<span>idle</span>");
 });
+
+test("the docks and the status line take their own room under the pane, so a bubble never sits behind them and a reader at the foot stays at it", () => {
+    const pane = thread.split('ref="scroller"')[1].split('<Transition name="pane">')[0];
+    const [inside, below] = pane.split('<div v-if="rendering" :class="[\'chat-foot\'');
+    expect(below).toContain('ref="docks" class="chat-docks"');
+    expect(inside).not.toContain("chat-docks");
+    expect(rule(".chat-foot")).not.toContain("sticky");
+    expect(thread).toContain(
+        "const paneWatch = new ResizeObserver(() => scroller.value && !away.value && (scroller.value.scrollTop = scroller.value.scrollHeight));"
+    );
+    expect(thread).toContain("paneWatch.observe(scroller.value);");
+});

@@ -47,6 +47,8 @@ import {ui} from "../state/ui.js";
 import {useColleague} from "../composables/colleague.js";
 
 const scroller = ref(null);
+const views = ref(null);
+const docks = ref(null);
 const props = defineProps({view: {type: String, default: ""}, hidden: {type: Array, default: () => DEFAULT_HIDDEN}});
 const pane = computed(() => props.view || store.pane);
 const scope = useScope();
@@ -128,10 +130,12 @@ let lastTop = 0;
 let lastScroll = 0;
 let planTimer = 0;
 const PLAN_SETTLE = 180;
-const PLAN_MOVE = 500;
 const short = ref(false);
 const SHORT_CHAT = 420;
 const sizeWatch = new ResizeObserver(([entry]) => (short.value = entry.contentRect.height < SHORT_CHAT));
+// the docks and the status line take their own room under the pane, so the pane changes height as they open, fold or leave: a reader
+// following the foot stays at it, and the bubbles move up or down with the docks
+const paneWatch = new ResizeObserver(() => scroller.value && !away.value && (scroller.value.scrollTop = scroller.value.scrollHeight));
 const AT_BOTTOM = 2;
 const FOLD_AT = 8;
 const FOLDED_PLAN = 32;
@@ -220,7 +224,8 @@ onMounted(() => {
         settled();
     });
     if (scroller.value) added.observe(scroller.value, {childList: true});
-    if (scroller.value) sizeWatch.observe(scroller.value);
+    if (views.value) sizeWatch.observe(views.value);
+    if (scroller.value) paneWatch.observe(scroller.value);
     frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => (rendering.value = true));
     });
@@ -239,6 +244,7 @@ onUnmounted(() => {
     grew?.disconnect();
     added?.disconnect();
     sizeWatch.disconnect();
+    paneWatch.disconnect();
     clearTimeout(planTimer);
     cancelAnimationFrame(frame);
 });
@@ -273,30 +279,18 @@ function followPlan(s) {
     const up = s.scrollTop < lastTop;
     lastTop = s.scrollTop;
     if (gap <= AT_BOTTOM && down) settlePlan(true);
-    else if (up && gap > foldingRoom(s)) settlePlan(false);
+    else if (up && gap > foldingRoom()) settlePlan(false);
     return gap;
 }
 
-function foldingRoom(s) {
-    const dock = s.querySelector(".chat-docks");
-    return planOpen.value && dock ? Math.max(FOLD_AT, dock.offsetHeight - FOLDED_PLAN) : FOLD_AT;
+function foldingRoom() {
+    return planOpen.value && docks.value ? Math.max(FOLD_AT, docks.value.offsetHeight - FOLDED_PLAN) : FOLD_AT;
 }
 
 function settlePlan(open) {
     clearTimeout(planTimer);
     if (open) planOpen.value = true;
     else planTimer = setTimeout(() => (planOpen.value = false), PLAN_SETTLE);
-}
-
-watch(planOpen, (open) => open && holdBottom());
-
-function holdBottom() {
-    const s = scroller.value;
-    const dock = s?.querySelector(".chat-docks");
-    if (!dock) return;
-    const pin = new ResizeObserver(() => planOpen.value && !away.value && Date.now() - scrolledAt >= BY_HAND && (s.scrollTop = s.scrollHeight));
-    pin.observe(dock);
-    setTimeout(() => pin.disconnect(), PLAN_MOVE);
 }
 
 function leftTheBottom(s) {
@@ -506,7 +500,7 @@ const {colleague, me} = useColleague();
                     <WaitingPanel :waiting="waitingNow" :anchor="waitingAnchor" @close="waitingOpen = false" />
                 </template>
             </div>
-            <div class="thread-views">
+            <div ref="views" class="thread-views">
                 <div
                     ref="scroller"
                     :class="['thread-scroll', {focusing: store.focus, loading: !ready, hidden: feeding}]"
@@ -536,41 +530,41 @@ const {colleague, me} = useColleague();
                                 @grew="settled"
                             />
                         </TransitionGroup>
-                        <div :class="['chat-foot', {docked: dockCount}]" data-figure-chat-foot>
-                            <div class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
-                                <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
-                                    <template v-for="docked in rowDocks" :key="docked.id">
-                                        <ChatDock :message="docked" :folded="short || !planOpen" />
-                                    </template>
-                                </TransitionGroup>
-                                <Transition name="dock" :duration="DOCK_MOTION_MS">
-                                    <DumpDock v-if="dumpDock" :key="dumpDock.id" :dump="dumpDock" :folded="short || !planOpen" />
-                                </Transition>
-                                <Transition name="dock" :duration="DOCK_MOTION_MS">
-                                    <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
-                                </Transition>
+                    </template>
+                </div>
+                <div v-if="rendering" :class="['chat-foot', {hidden: feeding || !ready}]" data-figure-chat-foot>
+                    <div ref="docks" class="chat-docks" :data-figure-docked-bars="dockCount ? '' : null">
+                        <TransitionGroup name="dock" :duration="DOCK_MOTION_MS">
+                            <template v-for="docked in rowDocks" :key="docked.id">
+                                <ChatDock :message="docked" :folded="short || !planOpen" />
+                            </template>
+                        </TransitionGroup>
+                        <Transition name="dock" :duration="DOCK_MOTION_MS">
+                            <DumpDock v-if="dumpDock" :key="dumpDock.id" :dump="dumpDock" :folded="short || !planOpen" />
+                        </Transition>
+                        <Transition name="dock" :duration="DOCK_MOTION_MS">
+                            <PlanCard v-if="planCard" :key="planCard.id" :plan="planCard" :folded="short || !planOpen" />
+                        </Transition>
+                    </div>
+                    <template v-if="busy && !waitingNow">
+                        <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
+                            <div class="thread-meta">
+                                <Dot kind="started" solid :size="6" />
+                                <RunningCommand :idle="line.doing" />
                             </div>
-                            <template v-if="busy && !waitingNow">
-                                <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
-                                    <div class="thread-meta">
-                                        <Dot kind="started" solid :size="6" />
-                                        <RunningCommand :idle="line.doing" />
-                                    </div>
-                                </div>
-                            </template>
-                            <template v-else>
-                                <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
-                                    <div class="thread-meta">
-                                        <Dot kind="queued" solid :size="6" />
-                                        <template v-if="waitingNow">
-                                            <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
-                                        </template>
-                                        <template v-else>
-                                            <span>idle</span>
-                                        </template>
-                                    </div>
-                                </div>
-                            </template>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
+                            <div class="thread-meta">
+                                <Dot kind="queued" solid :size="6" />
+                                <template v-if="waitingNow">
+                                    <button type="button" class="thread-waiting" title="Open the waiting list" @click="toggleWaiting">waiting</button>
+                                </template>
+                                <template v-else>
+                                    <span>idle</span>
+                                </template>
+                            </div>
                         </div>
                     </template>
                 </div>
@@ -739,7 +733,7 @@ const {colleague, me} = useColleague();
     display: flex;
     flex-direction: column;
     gap: 7px;
-    padding: 14px 8px 12px;
+    padding: 14px 8px 7px;
 }
 
 .thread-scroll:has(.thread-turn:hover) :deep(.thread-turn:not(:hover) .thread-bubble) {
@@ -847,21 +841,20 @@ const {colleague, me} = useColleague();
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
-/* The docked bars and the line under them stick to the bottom together, so a row arriving above never pushes the bars down while the
-   chat scrolls after it */
+/* The docked bars and the line under them take their own room under the pane, so the pane's last bubble always ends above them */
 .chat-foot {
-    position: sticky;
-    bottom: 0;
+    position: relative;
     z-index: 2;
+    order: 2;
     display: flex;
     flex: none;
     flex-direction: column;
     gap: 7px;
-    width: 100%;
+    padding: 0 8px 12px;
 }
 
-.chat-foot.docked {
-    margin-top: auto;
+.chat-foot.hidden {
+    visibility: hidden;
 }
 
 .chat-docks {
