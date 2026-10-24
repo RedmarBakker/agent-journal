@@ -5845,11 +5845,9 @@ class Plugins:
 class Installer:
     def __init__(self) -> None:
         self.ran = []
-        self.reasons = []
 
-    def run(self, ref: str, repository: str, reason: str) -> None:
+    def run(self, ref: str, repository: str) -> None:
         self.ran.append(ref)
-        self.reasons.append(reason)
 
 
 def updating_with(app, source: Source, installer: Installer, auto: bool) -> Updater:
@@ -7310,7 +7308,7 @@ def test_a_journal_set_to_follow_a_branch_installs_that_branchs_head_only_when_i
     source.head = newer
     updating.checked()
     assert installer.ran == ["development"] and updating.data().latest == newer[:7] and updating.data().branch == "development", "the branch moved ahead, so its head is installed, by its name"
-    assert installer.reasons == [f"{newer[:12]} is ahead of the installed {installed[:12]}"], "the update log says which commit and why"
+    assert (app.config.home / "runtime" / "update.log").read_text().endswith(f"installing development at {newer[:7]}: {newer[:12]} is ahead of the installed {installed[:12]}\n"), "the update log says which commit and why"
     assert updating.data().installed == f"development at {installed[:7]}" and updating.label() == f"development at {installed[:7]}", "what is installed is named by the branch and its commit"
 
 
@@ -12966,7 +12964,7 @@ def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refu
     from journal.support.rejection import Rejection
     from journal.sync.sync_client import SyncClient
     class RefusingInstaller:
-        def run(self, ref: str, repository: str, reason: str) -> None:
+        def run(self, ref: str, repository: str) -> None:
             raise Rejection("the install was refused")
 
     updating = updating_with(app, Source("v4.0.0", "v4.99.0"), RefusingInstaller(), auto=False)

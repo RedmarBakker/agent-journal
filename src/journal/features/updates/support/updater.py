@@ -85,7 +85,7 @@ class Updater:
         if self.branch():
             return UpdateTarget(self.branch(), f"{self.branch()} at {self.head[:7]}", f"{self.head[:12]} is ahead of the installed {self.installed_commit()[:12] or 'unrecorded commit'}")
         newest = self.newer()[-1]
-        return UpdateTarget(newest.tag, newest.version, f"{newest.version} is newer than the installed {VERSION}")
+        return UpdateTarget(newest.tag, newest.version)
 
     # a journal in a team installs the version its team pins by itself, whatever the setting says; any other updates on its own when set to
     def automatic(self) -> bool:
@@ -206,17 +206,26 @@ class Updater:
             self.client.prepare_upgrade()
         self.card.step("Installing the new version")
         try:
-            self.installer.run(target.ref, self.repository(), target.reason)
+            self.installer.run(target.ref, self.repository())
         except Rejection as refused:
+            self.log_reason(target)
             self.problem = str(refused)
             self.card.clear()
             if drained:
                 self.sync.run()
             return
+        self.log_reason(target)
         self.problem = ""
         self.lead(target.label)
         self.card.step("Restarting the journal")
         self.restart()
+
+    def log_reason(self, target: UpdateTarget) -> None:
+        if target.reason:
+            log = self.config.home / "runtime" / "update.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with log.open("a") as written:
+                written.write(f"installing {target.label}: {target.reason}\n")
 
     def lead(self, version: str) -> None:
         if not self.leads_team() or not self.account.is_joined():
