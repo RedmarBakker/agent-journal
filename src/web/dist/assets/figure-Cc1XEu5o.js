@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-By2cDcsH.js
-import{A as re,p as Se,a as ap,b as cp,h as Ol,s as lp,R as up,f as hp,F as fp,g as dp,l as pp,t as mp,P as ns,L as gp,c as _p,V as xp}from"./main-D6mhkvqW.js";import{e as Dc}from"./tokens-yhQHMRrA.js";import"./tip-B4NzFvpQ.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{A as re,p as Se,a as ap,b as cp,h as Ol,s as lp,R as up,f as hp,F as fp,g as dp,l as pp,t as mp,P as ns,L as gp,c as _p,V as xp}from"./main-TzPKvXb_.js";import{e as Dc}from"./tokens-yhQHMRrA.js";import"./tip-B4NzFvpQ.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 7aa57f955 (Now and then the figure admires a picture in a message near it: a few seconds after one comes near it looks at it for a few seconds, following it with its head as the chat scrolls it, its eyes wide and warm, then looks away and rests a minute or two before it admires one again):src/web/dist/assets/figure-DRbSjPH6.js
+import{A as re,p as Se,a as ap,b as cp,h as Ol,s as lp,R as up,f as hp,F as fp,g as dp,l as pp,t as mp,P as ns,L as gp,c as _p,V as xp}from"./main-B_w41J2S.js";import{e as Dc}from"./tokens-yhQHMRrA.js";import"./tip-B4NzFvpQ.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
