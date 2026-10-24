@@ -67,15 +67,13 @@ test("the bug is drawn in 3D, and shot it splatters, its drops flying out at the
     const size = bug.bounds.getSize(new THREE.Vector3());
     expect(size.z).toBeGreaterThan(size.x * 0.3);
     const act = ACTS.bug_shot;
-    expect(bugAt(act, act.splat - 0.01, 112).whole).toBe(true);
-    expect(bugAt(act, act.splat, 112).whole).toBe(false);
     const flying = Array.from({length: 9}, (_, step) => splatDrops(act.fly[0] + ((act.fly[1] - act.fly[0]) * step) / 8, 112, {x: 200, y: 100}, {x: 56, y: 56}));
     for (let drop = 0; drop < act.lens.length; drop++) {
         for (let step = 1; step < flying.length; step++) expect(flying[step][drop].r, `drop ${drop} step ${step}`).toBeGreaterThan(flying[step - 1][drop].r);
         expect(flying[0][drop].landed).toBe(false);
         expect(flying.at(-1)[drop].landed).toBe(true);
     }
-    expect(splatDrops(act.splat - 0.01, 112, {x: 0, y: 0}, {x: 0, y: 0})).toEqual([]);
+    expect(splatDrops(act.fly[0] - 0.01, 112, {x: 0, y: 0}, {x: 0, y: 0}), "none before the last bug is shot").toEqual([]);
 });
 
 test("a fixed run may instead bring the mallet, on its own cooldown: drawn in 3D, swung over the head, it flattens the bug at the blow", () => {

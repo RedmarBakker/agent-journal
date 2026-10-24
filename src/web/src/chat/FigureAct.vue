@@ -15,13 +15,15 @@ import PressPlate from "./act/PressPlate.vue";
 import RopeSwing from "./act/RopeSwing.vue";
 import ThoughtCloud from "./act/ThoughtCloud.vue";
 import VacuumCleaner from "./act/VacuumCleaner.vue";
+import WallBugs from "./act/WallBugs.vue";
 
 // What the figure holds and what grows beside it while it acts out a journal moment or a search (figure/acts.js), drawn over its picture:
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
 // way across the picture the free hand's side is, 1 to the right, and `hand.other` the other hand's grip); the picture `size` pixels square; and `room`, the pixels from its left
 // and right sides to the screen's edges, which a runner runs off past; `ball`, where the disco ball hangs over the feet while it
 // dances (perches.js discoBall); `canopy`, the parachute's canopy drawn in 3D (figure.js Stage.drawCanopy); and `bug`, a fixed run's
-// bug drawn in 3D (figure.js Stage.drawBug). Each act's drawing is its own component in act/, given these in pixels.
+// bug drawn in 3D (figure.js Stage.drawBug), with `wallBugs`, the bug shot's bugs on the chat window's walls in the picture's pixels
+// (acts.js bugShotScene). Each act's drawing is its own component in act/, given these in pixels.
 const props = defineProps({
     name: {type: String, required: true},
     u: {type: Number, required: true},
@@ -33,6 +35,7 @@ const props = defineProps({
     ball: {type: Object, default: null},
     canopy: {type: Object, default: null},
     bug: {type: Object, default: null},
+    wallBugs: {type: Array, default: () => []},
 });
 
 const px = (share) => share * props.size;
@@ -44,7 +47,6 @@ const middle = computed(() => px(0.5));
 const out = computed(() => props.hand.out);
 // whether the act shows thinking with a thought cloud (acts.js ponder, think_cloud, type_ponder)
 const thinking = computed(() => Boolean(ACTS[props.name].pulse));
-const fixedRun = computed(() => props.name === "bug_shot" || props.name === "bug_smash");
 </script>
 
 <template>
@@ -65,8 +67,11 @@ const fixedRun = computed(() => props.name === "bug_shot" || props.name === "bug
             <template v-if="name === 'fume'">
                 <FumeSteam :u="u" :head="head" />
             </template>
-            <template v-if="fixedRun && bug">
-                <FixedRunBug :name="name" :u="u" :middle="middle" :floor="floor" :size="size" :bug="bug" />
+            <template v-if="name === 'bug_smash' && bug">
+                <FixedRunBug :u="u" :middle="middle" :floor="floor" :size="size" :bug="bug" />
+            </template>
+            <template v-if="name === 'bug_shot' && bug">
+                <WallBugs :u="u" :middle="middle" :size="size" :bug="bug" :bugs="wallBugs" />
             </template>
             <template v-if="name === 'disco' && ball">
                 <DiscoBall :u="u" :middle="middle" :floor="floor" :size="size" :ball="ball" />

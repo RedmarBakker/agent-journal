@@ -61,7 +61,7 @@ import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
+import {ACTS, bugShotFrame, bugShotScene, hidesBelowFloor, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -320,7 +320,8 @@ const RUMMAGE_STAY_SECONDS = 25;
 const LEANING = {idle: "ledge_sit"};
 
 // how a beat's clip is held longer: the telephone's talk, until the bubble has said all it says (places.js callStretch); null for any other
-const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(phrasesSeconds(callPhrases())) : null);
+// and the bug shot's turn, once for each of its bugs (acts.js bugShotFrame)
+const stretchOf = (beat) => (beat.clip === "phone_call" ? callStretch(phrasesSeconds(callPhrases())) : beat.clip === "bug_shot" ? bugShotFrame(0, beat.bugs.length).stretch : null);
 
 // what plays now, as figureState.js clipFor decides it, with the clip itself in place of its name
 function current() {
@@ -447,6 +448,7 @@ function step() {
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
         leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : 0,
         at: lookingAt(shown),
+        target: aimAt(shown),
         open: blinked(),
         screen: lit,
         tilt: shown.clip.name === "idle" ? Math.round(tiltAt(headTilt, seconds) * 4) / 4 : 0,
@@ -1471,7 +1473,8 @@ function answered(moment) {
     const answer = answerTo(moment, voice.value, memory, now.value, Math.random, hasClip);
     if (moment.beat === "messaged" && moment.card && !answer && !heldCalls.includes(moment.card)) heldCalls = [...heldCalls, moment.card];
     if (answer?.beat && queues(beats.value, answer.beat)) {
-        const beat = {...answer.beat, queuedAt: now.value};
+        // a bug shot brings its bugs, two to five of them on the chat window's walls (acts.js wallBugs)
+        const beat = {...answer.beat, queuedAt: now.value, bugs: answer.beat.clip === "bug_shot" ? wallBugs(Math.random) : []};
         beats.value = FIRST.has(moment.beat) ? queuedFirst(beats.value, beat, beatOnScreen()) : [...beats.value, beat];
     }
     // a celebration on its chat mark: off to stand on it, when it has a stand free and no sequence holds the figure, else played where it is
@@ -1619,6 +1622,22 @@ const markStyle = computed(() => ({
 }));
 
 // the act on screen, with how far through it the figure is, which the page draws what it holds for (figure/acts.js), or null
+// The bug shot on screen, its bugs on the walls and the point its rifle aims at (acts.js bugShotScene), or null
+const shooting = ref(null);
+
+// the point in its picture the figure's rifle aims at while it shoots the bugs on the walls, as shares of the picture, or null; the bugs
+// kept for the page to draw, in the picture's pixels
+function aimAt(shown) {
+    const bugs = shown.clip.name === "bug_shot" ? beats.value[0]?.bugs : null;
+    shooting.value = bugs?.length ? bugShotScene(bugs, worldBox(), rawFrameOf(shown)) : null;
+    if (!shooting.value) return null;
+    const {target} = shooting.value;
+    return {x: (target.x - body.at.x) / SIZE, y: (target.y - body.at.y) / SIZE};
+}
+
+// the bugs on the walls as the act's drawing takes them, in the figure's picture's pixels
+const wallBugsDrawn = computed(() => (shooting.value?.bugs ?? []).map((bug) => ({...bug, x: bug.x - body.at.x, y: bug.y - body.at.y})));
+
 const acting = computed(() => (ACTS[shownClip.value?.name] ? {name: shownClip.value.name, u: shownFrame.value / shownClip.value.frames} : null));
 const room = computed(() => ({left: body.at.x, right: window.innerWidth - body.at.x - SIZE}));
 
@@ -1729,7 +1748,7 @@ const style = computed(() => {
                 </span>
             </template>
             <template v-if="acting">
-                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" />
+                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" :wall-bugs="wallBugsDrawn" />
             </template>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">

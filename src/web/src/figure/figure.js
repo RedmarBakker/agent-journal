@@ -134,6 +134,7 @@ export class Posing {
         this.leanWay = 0;
         this.screen = null;
         this.facing = 0;
+        this.target = null;
     }
 
     standing(name) {
@@ -2839,11 +2840,14 @@ function disco(pose, stance, t) {
 // cheek down to the sights by `cheek` degrees of nod and head turn
 export const RIFLE = {grip: [-0.1, -0.62, 2.0], down: 12, fore: 0.9, behind: [-0.45, 0.45, 1.45], kick: 0.13, climb: 7, shoulder: 7, turn: 22, cheek: 14};
 
-// The rifle's line as it is held, kicked `kick` of the way back: where the grip is, the way the barrel points, and its pitch down, degrees
-export function rifleLine(kick) {
-    const pitch = RIFLE.down - RIFLE.climb * kick;
-    const along = new THREE.Vector3(Math.cos(radians(pitch)), 0, -Math.sin(radians(pitch)));
-    return {grip: new THREE.Vector3(...RIFLE.grip).addScaledVector(along, -RIFLE.kick * kick), along, pitch};
+// The rifle's line as it is held, kicked `kick` of the way back, aimed `aim` degrees down (RIFLE down unless it aims at a bug), out to the
+// figure's left, `way` 1, or held the other way round, out to its right, `way` -1: where the grip is, the way the barrel points, and its
+// pitch down, degrees
+export function rifleLine(kick, aim = RIFLE.down, way = 1) {
+    const pitch = aim - RIFLE.climb * kick;
+    const along = new THREE.Vector3(way * Math.cos(radians(pitch)), 0, -Math.sin(radians(pitch)));
+    const [x, y, z] = RIFLE.grip;
+    return {grip: new THREE.Vector3(way * x, y, z).addScaledVector(along, -RIFLE.kick * kick), along, pitch};
 }
 
 // how far into a burst of the bug shot `t` is: 1 the moment a burst fires, dying away before the next, 0 between bursts
@@ -2853,30 +2857,49 @@ export const burstKick = (t) => {
     return Math.max(0, 1 - ((((t - shots[0]) / (shots[1] - shots[0])) * count) % 1) * 3);
 };
 
-// shoots the bug a fixed run brings (acts.js bug_shot): reaches behind its back for the rifle, shoulders it, the stock into the right
-// shoulder and the left hand forward on the handguard, its cheek down to the sights, turned toward the bug on its left, each burst kicking
-// the rifle and the shoulder back; its eyes in fight mode from the draw until the bug is gone, and the rifle lowered once it has splattered
+// The way the rifle aims at the bug it shoots, the page point `target` (as shares of the picture, pose.target) in the figure's units, the
+// body turned `facing` degrees: held out to the side the bug is on (`way`, 1 the figure's left, as rifleLine), so the figure keeps its front
+// to the viewer; how many degrees the body turns round so the barrel points at it across the floor, and how many the barrel points down
+// at it from the grip; the barrel straight out to the figure's left, a little down, with no target
+export function rifleAim(target, facing) {
+    if (!target) return {turn: SIDES.l * RIFLE.turn, down: RIFLE.down, way: 1};
+    const point = new THREE.Vector3((target.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - target.y) * FRAMED_HEIGHT).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing));
+    const way = point.x >= 0 ? 1 : -1;
+    const turn = THREE.MathUtils.radToDeg(Math.atan2(way * point.y, way * point.x)) * way;
+    const grip = rifleLine(0, RIFLE.down, way).grip.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
+    const toward = point.clone().sub(grip);
+    return {turn, down: THREE.MathUtils.radToDeg(Math.atan2(-toward.z, Math.hypot(toward.x, toward.y))), way};
+}
+
+// shoots the bugs a fixed run brings (acts.js bug_shot): reaches behind its back for the rifle, shoulders it, the stock into the right
+// shoulder and the left hand forward on the handguard, its cheek down to the sights, turned toward the bug it aims at (pose.target, one
+// bug each turn of the act, acts.js bugShotFrame), swinging onto it as each turn begins, each burst kicking the rifle and the shoulder back;
+// its eyes in fight mode from the draw until the last bug is gone, and the rifle lowered once it has splattered
 function bug_shot(pose, stance, t) {
     const act = ACTS.bug_shot;
     const middle = (act.draw[0] + act.draw[1]) / 2;
     const reach = partOf(t, [act.draw[0], middle]) * (1 - partOf(t, [middle, act.draw[1]]));
     const aim = partOf(t, [middle, act.draw[1]]) * (1 - partOf(t, [act.drops[0] + 0.05, act.drops[0] + 0.2]));
     const kick = burstKick(t);
-    const line = rifleLine(kick);
+    const onto = rifleAim(pose.target, pose.facing);
+    const line = rifleLine(kick, onto.down, onto.way);
+    // the hand on the grip, the right one for the barrel out to the left, and the other forward on the handguard
+    const [grip, fore] = onto.way > 0 ? ["r", "l"] : ["l", "r"];
+    const [bx, by, bz] = RIFLE.behind;
     breathe(pose, t);
-    pose.turn("chest", {z: -RIFLE.shoulder * kick});
-    trunk(pose, {nod: RIFLE.cheek * aim - 4 * kick, turn: RIFLE.cheek * aim, tilt: -RIFLE.cheek * 0.4 * aim});
+    pose.turn("chest", {z: -onto.way * RIFLE.shoulder * kick});
+    trunk(pose, {nod: RIFLE.cheek * aim - 4 * kick, turn: onto.way * RIFLE.cheek * aim, tilt: -onto.way * RIFLE.cheek * 0.4 * aim});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
-    if (reach > aim) handTo(pose, "r", reach, new THREE.Vector3(...RIFLE.behind), new THREE.Vector3(-1, 0.5, -0.5));
-    else handTo(pose, "r", aim, pose.withinReach("r", line.grip, 0.97), new THREE.Vector3(-1, -0.2, -0.6));
-    handTo(pose, "l", aim, pose.withinReach("l", line.grip.clone().addScaledVector(line.along, RIFLE.fore), 0.97), new THREE.Vector3(0.6, -0.6, -0.6));
+    if (reach > aim) handTo(pose, grip, reach, new THREE.Vector3(onto.way * bx, by, bz), new THREE.Vector3(-onto.way, 0.5, -0.5));
+    else handTo(pose, grip, aim, pose.withinReach(grip, line.grip, 0.97), new THREE.Vector3(-onto.way, -0.2, -0.6));
+    handTo(pose, fore, aim, pose.withinReach(fore, line.grip.clone().addScaledVector(line.along, RIFLE.fore), 0.97), new THREE.Vector3(onto.way * 0.6, -0.6, -0.6));
     if (aim > 0.05 || reach > 0.3) {
-        pose.holdUpright("rifle", "r", [0, 0, 0], {y: line.pitch});
+        pose.holdUpright("rifle", grip, [0, 0, 0], {y: line.pitch, z: onto.way > 0 ? 0 : 180});
         pose.props.get("rifle").firing = kick > 0.6;
     }
-    fightEyes(pose, t, partOf(t, act.draw) * (1 - partOf(t, [act.splat, act.fly[1]])));
-    if (pose.posture === "stand") pose.revolve(SIDES.l * RIFLE.turn * aim);
+    fightEyes(pose, t, partOf(t, act.draw) * (1 - partOf(t, [act.fly[0], act.fly[1]])));
+    if (pose.posture === "stand") pose.revolve(onto.turn * aim);
 }
 
 // The big wooden mallet swung over the head at the bug (acts.js bug_smash), in the figure's units: both hands about `hands`, `reach` out
@@ -4790,15 +4813,16 @@ export class Stage {
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
 // things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `at` is where
-    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
+    // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `target` the bug its rifle aims at there (rifleAim), `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, at = null, open = 1, screen = null, tilt = 0} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, at = null, target = null, open = 1, screen = null, tilt = 0} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         pose.throws = throws;
         pose.leanWay = leanWay;
         pose.screen = screen;
         pose.at = at;
+        pose.target = target;
         pose.facing = facing;
         if (!clip.legs) LEGS[posture]?.under(pose);
         clip.pose(pose, figure.stance, frame / clip.frames);

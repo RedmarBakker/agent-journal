@@ -1,3 +1,5 @@
+import {stretchedFrame} from "./timeline.js";
+
 // The journal moments and the searches the figure acts out with things the page draws beside it (chat/FigureAct.vue): for each act its
 // length, unless it plays a clip of figure.js's own, and the shares of its clip over which each of its parts plays, read alike by the clip
 // that moves the body (figure.js) and by the page that draws what it holds, so the hand and the thing in it never part.
@@ -59,13 +61,14 @@ export const ACTS = {
     // onto the bubble on its own feet; every hop and the fall are timed by one gravity (pogoHop); the stick `stick` of its height long,
     // its handles where the hands hold it
     pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.62], count: 3, bounce: 0.45, spring: [0.62, 0.82], over: 0.3, release: [0.82, 0.86], drop: [0.82, 1], stick: 0.62},
-    // a passing test run's bug: a small bug crawls in along the floor over `crawl` to `away` of the picture out on the figure's left, the
-    // `side` of the picture it is on; the figure pulls a rifle from behind its back over `draw` and shoulders it, shoots `count` bursts
-    // over `shots`, each kicking the rifle and the shoulder back, the bug splatters at `splat`, and drops of the splatter fly out at the
-    // screen over `fly`, growing as they come, land on it as on a camera's lens at their `lens` places (from the figure's middle, in shares
-    // of the picture, as big as `size`), and run down and fade over `drops`
+    // a fixed run's bugs: two to five of them crawl along the chat window's walls (WALL_BUGS); the figure pulls a rifle from behind its back
+    // over `draw` and shoulders it, then shoots them one by one, each in its own `turn` of the act played over again for every bug
+    // (bugShotFrame): it swings its aim onto the bug over `aim`, shoots `count` bursts over `shots`, each kicking the rifle and the shoulder
+    // back, and the bug splatters on its wall at `splat`; after the last, drops of its splatter fly out at the screen over `fly`, growing
+    // as they come, land on it as on a camera's lens at their `lens` places (from the figure's middle, in shares of the picture, as big as
+    // `size`), and run down and fade over `drops`, as the rifle is lowered
     bug_shot: {
-        frames: 72, fps: 12, side: 1, crawl: [0, 0.3], draw: [0.2, 0.38], shots: [0.4, 0.56], count: 3, splat: 0.56, fly: [0.56, 0.64], drops: [0.64, 1], away: 0.85,
+        frames: 80, fps: 12, draw: [0, 0.22], turn: [0.25, 0.55], aim: [0.25, 0.32], shots: [0.33, 0.48], count: 2, splat: 0.48, fly: [0.56, 0.64], drops: [0.64, 1],
         lens: [{at: [-1.3, -1.6], size: 0.2}, {at: [0.9, -0.9], size: 0.14}, {at: [-0.4, 0.2], size: 0.16}, {at: [1.6, -2.1], size: 0.1}],
     },
     // the same bug smashed with a big wooden mallet instead: it crawls in over `crawl` to `away` of the picture out on the figure's left;
@@ -172,7 +175,7 @@ export function pogoHop(heights, share) {
 // the pogo stick's bounces on the spot, in the figure's heights, each higher than the last
 export const pogoBounces = () => Array.from({length: ACTS.pogo.count}, (_, hop) => (ACTS.pogo.bounce * (hop + 1)) / ACTS.pogo.count);
 
-// Where the bug of a fixed test run is `u` of the way through `act` (ACTS bug_shot or bug_smash), in a picture `size` pixels across: how
+// Where the bug a fixed test run's mallet smashes is `u` of the way through `act` (ACTS bug_smash), in a picture `size` pixels across: how
 // far out from the figure's middle it is, in pixels toward the act's side, crawling in from further out; whether it is still whole; how
 // flat a mallet's blow has left it, 0 whole to 1 flat; and how much of it still shows as it fades
 export function bugAt(act, u, size) {
@@ -186,12 +189,66 @@ export function bugAt(act, u, size) {
     };
 }
 
+// The bugs of a bug shot on the chat window's walls: at least `least` and at most `most` of them, each on the left, the right or the top wall,
+// `inset` pixels in from it, crawling along it `speed` pixels a second, turning back `margin` of the wall's length from its ends
+export const WALL_BUGS = {least: 2, most: 5, walls: ["left", "right", "top"], inset: 8, speed: 14, margin: 0.1};
+
+// the bugs of a bug shot drawn with `random`, each {wall, along, way}: its wall, where along it it starts, 0 to 1, and the way it crawls
+export function wallBugs(random) {
+    const count = WALL_BUGS.least + Math.floor(random() * (WALL_BUGS.most - WALL_BUGS.least + 1));
+    return Array.from({length: count}, () => ({
+        wall: WALL_BUGS.walls[Math.floor(random() * WALL_BUGS.walls.length)],
+        along: WALL_BUGS.margin + random() * (1 - 2 * WALL_BUGS.margin),
+        way: random() < 0.5 ? -1 : 1,
+    }));
+}
+
+// Where the wall bug `bug` is `seconds` after it came, in the chat window `world` (its left, top, right and bottom on the page): the page
+// point it stands at on its wall, crawling back and forth along it, and the way its back faces, in degrees, 0 its feet down
+export function wallBugAt(bug, world, seconds) {
+    const tall = bug.wall === "top" ? world.right - world.left : world.bottom - world.top;
+    const span = 1 - 2 * WALL_BUGS.margin;
+    const run = (bug.along - WALL_BUGS.margin + (bug.way * WALL_BUGS.speed * seconds) / tall) / span;
+    const phase = ((run % 2) + 2) % 2;
+    const along = WALL_BUGS.margin + span * (phase <= 1 ? phase : 2 - phase);
+    if (bug.wall === "top") return {x: world.left + along * tall, y: world.top + WALL_BUGS.inset, turn: 180};
+    const x = bug.wall === "left" ? world.left + WALL_BUGS.inset : world.right - WALL_BUGS.inset;
+    return {x, y: world.top + along * tall, turn: bug.wall === "left" ? 90 : -90};
+}
+
+// The bug shot `raw` frames in when it shoots `count` bugs: the frame of its clip, its turn played over once for each bug (timeline.js
+// stretchedFrame, `stretch`); the bug it aims at, by its turn; and how many it has shot, a bug splattering at its turn's `splat`
+export function bugShotFrame(raw, count) {
+    const act = ACTS.bug_shot;
+    const [from, to] = act.turn.map((share) => share * act.frames);
+    const stretch = {from, to, extra: (count - 1) * (to - from)};
+    const frame = stretchedFrame(raw, stretch);
+    const turn = raw < from ? 0 : Math.min(Math.floor((raw - from) / (to - from)), count - 1);
+    const done = raw >= from + count * (to - from);
+    const shot = done ? count : turn + (frame / act.frames >= act.splat ? 1 : 0);
+    return {frame, stretch, bug: turn, shot};
+}
+
+// The bug shot `raw` frames in, its bugs `bugs` (wallBugs) in the chat window `world`: each bug where it is on its wall (wallBugAt), still
+// where it was shot once it is, and whether it is; the frame of the clip (bugShotFrame); and the page point the rifle aims at, swung from
+// the bug before onto the bug of this turn over the turn's `aim`
+export function bugShotScene(bugs, world, raw) {
+    const act = ACTS.bug_shot;
+    const {frame, bug, shot} = bugShotFrame(raw, bugs.length);
+    const turnFrames = (act.turn[1] - act.turn[0]) * act.frames;
+    const shotAt = (index) => (act.turn[0] * act.frames + index * turnFrames + (act.splat - act.turn[0]) * act.frames) / act.fps;
+    const placed = bugs.map((each, index) => ({...wallBugAt(each, world, Math.min(raw / act.fps, shotAt(index))), shot: index < shot}));
+    const swing = partOf(frame / act.frames, act.aim);
+    const [from, to] = [placed[Math.max(bug - 1, 0)], placed[bug]];
+    return {bugs: placed, frame, target: {x: from.x + (to.x - from.x) * swing, y: from.y + (to.y - from.y) * swing}};
+}
+
 // The drops of a shot bug's splatter `u` of the way through the bug shot (ACTS bug_shot), in a picture `size` pixels across, the bug at
 // `from` (x, y) and the picture's middle at `middle`: each flying out at the screen from the bug over `fly`, growing from a speck to its
-// size as it comes, then on the glass at its lens place, running down and fading; none before the splat
+// size as it comes, then on the glass at its lens place, running down and fading; none before they fly, after the last bug is shot
 export function splatDrops(u, size, from, middle) {
-    const {splat, fly, drops, lens} = ACTS.bug_shot;
-    if (u < splat) return [];
+    const {fly, drops, lens} = ACTS.bug_shot;
+    if (u < fly[0]) return [];
     const flown = partOf(u, fly);
     const dripped = partOf(u, drops);
     return lens.map((drop) => {
