@@ -594,7 +594,11 @@ const {colleague, me} = useColleague();
     gap: 3px;
     align-self: stretch;
     width: 100%;
-    transition: opacity 0.25s ease;
+    max-height: 48px;
+    transition:
+        opacity 0.25s ease,
+        max-height 0.25s ease,
+        margin-top 0.25s ease;
 }
 
 .thread-turn.busy .thread-bubble {
@@ -664,9 +668,14 @@ const {colleague, me} = useColleague();
     min-height: 0;
 }
 
-/* the line of what the agent is doing fades while the reader has scrolled up, and comes back at the foot */
+/* the line of what the agent is doing fades and gives up its row while the reader has scrolled up, so the folded docks
+   sit right above the composer; back at the foot the row opens again under the docks */
 .thread-turn.busy.faded {
+    max-height: 0;
+    margin-top: -7px;
+    overflow: hidden;
     opacity: 0;
+    pointer-events: none;
 }
 
 .thread-scroll {
