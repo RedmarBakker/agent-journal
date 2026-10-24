@@ -6706,6 +6706,21 @@ def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_r
     assert "hosted journal has no checkout" in console.run(["worktree", "remove", "quiet-heron"], USER).error, "and refuses to remove one with a plain line"
 
 
+def test_a_worktree_made_through_a_symlinked_project_path_is_the_same_one_by_either_spelling(app: App, tmp_path):
+    import subprocess
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    linked = tmp_path / "linked-project"
+    linked.symlink_to(root)
+    through_link = Worktree(linked, "calm-river").created()
+    direct = Worktree(root, "calm-river").created()
+    assert through_link.resolve() == direct.resolve() and Worktree(root, "calm-river").is_registered() and Worktree(linked, "calm-river").is_registered(), "one folder, registered, whichever spelling of the project's path made or found it"
+    assert [path.name for path in (root / ".claude" / "worktrees").iterdir() if path.is_dir()] == ["calm-river"], "and no second folder or moved-aside sibling beside it"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
