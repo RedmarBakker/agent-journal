@@ -207,6 +207,8 @@ agent environment create --help
 agent environment rename --help
 agent environment branch --help
 agent environment delete --help
+agent environment share --help
+agent environment unshare --help
 agent voice list
 agent voice show
 user voice choose butler

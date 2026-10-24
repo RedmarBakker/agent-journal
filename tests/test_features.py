@@ -6721,6 +6721,11 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     assert "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout
     assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == git("rev-parse", "worktree-calm-river").stdout.strip(), "its branch and its last commit stay, so a launch of its name makes it again"
     assert "Team chat" in console.run(["worktree", "remove", "team"], USER).error, "the Team chat's worktree is never removed this way"
+    from journal.launcher.launch import Launch
+    from journal.support.choice import Choice
+    refusal = Launch.parse(["claude", "--worktree", "team"], root).start_refusal(Choice("team"))
+    assert "the Team chat's own" in refusal, "and no launch takes it with --worktree team"
+    assert Launch.parse(["claude", "--worktree", "calm-river"], root).start_refusal(Choice("calm-river")) == "", "while any other worktree name launches"
 
 
 def test_a_session_in_a_worktree_is_marked_with_its_branch_once(app: App):

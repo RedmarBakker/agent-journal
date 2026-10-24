@@ -1260,6 +1260,26 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal environment share --help
+exit 0
+usage: journal environment share [-h] name
+
+positional arguments:
+  name
+
+options:
+  -h, --help  show this help message and exit
+
+$ agent: journal environment unshare --help
+exit 0
+usage: journal environment unshare [-h] name
+
+positional arguments:
+  name
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal voice list
 exit 0
 * butler     The fix is in, Sir Jesse, and all 214 tests pass. I took the liberty of updating the changelog while I was there.

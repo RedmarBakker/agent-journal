@@ -18,6 +18,7 @@ from journal.support.project_command import ProjectCommand
 from journal.providers.support.status_line import StatusLine
 from journal.support.worktree import Worktree
 from journal.support.worktree_names import WorktreeNames
+from journal.sync.team_chat_branch import TEAM_CHAT
 from journal.providers.provider import HOOK_SCRIPT
 from journal.launcher.support.update_prompt import UpdatePrompt
 from journal.features.updates.support.release_source import ReleaseSource
@@ -29,6 +30,7 @@ from journal.support.private_folder import PrivateFolder
 ENVIRONMENT = "--env"
 SWITCHES = {"--new": "new", "--aside": "stashed", "--skip": "bypass", "--yes": "confirmed", "--no-open": "browser_off", "--no-journal": "journal_off"}
 WORKTREE = ("--worktree", "-w")
+TEAM_WORKTREE_REFUSAL = "the worktree team is the Team chat's own, so no launch takes it: give --worktree another name, or open the Team chat from the menu"
 RESUMING = ("--resume", "-r")
 # the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row
 JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
@@ -121,6 +123,8 @@ class Launch:
         return "main"
 
     def start_refusal(self, choice: Choice) -> str:
+        if self.worktree == TEAM_CHAT:
+            return TEAM_WORKTREE_REFUSAL
         return next((row.refusal for row in Menu(self.root, self.package / "journal.sh").environments() if row.name == choice.environment), "")
 
     def is_skipping(self) -> bool:
