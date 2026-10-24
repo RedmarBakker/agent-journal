@@ -45,7 +45,7 @@ class Worktree:
         with (self.path.parent / f".{self.name}.lock").open("w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if self.path.exists() and not self.is_registered():
-                self.archived()
+                raise WorktreeFailure(self.name, f"{self.path} is there but git does not hold it as a worktree, so it is left as it is: move it away, or add it back with git worktree add")
             if not self.path.is_dir():
                 self.added()
             self.shared()
@@ -78,24 +78,15 @@ class Worktree:
                 self.archived()
             raise WorktreeFailure(self.name, added.stderr.strip())
 
-    def dropped(self) -> str:
+    # a worktree outlives its environment: deleting the environment keeps it, and only the person removes it
+    def kept_line(self) -> str:
         if not self.path.is_dir():
             return ""
-        remaining = [line[3:] for line in self.run_git("status", "--porcelain").stdout.splitlines() if line.strip()]
-        if remaining:
-            return f"its worktree {self.path} stays, since {len(remaining)} files in it are not committed: {', '.join(remaining[:10])}"
-        tip = self.run_git("rev-parse", "HEAD").stdout.strip()
-        if self.git("merge-base", "--is-ancestor", tip, "HEAD").returncode != 0:
-            return f"its worktree {self.path} stays, since its branch has commits not yet in {self.git('rev-parse', '--abbrev-ref', 'HEAD').stdout.strip()}"
-        self.git("update-ref", f"{TIPS_REF}/{self.name}", tip)
-        branch = self.run_git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-        self.git("worktree", "remove", "--force", str(self.path))
-        self.git("branch", "-D", branch)
-        return f"its worktree and branch are removed, its work already merged; its last commit is kept as {TIPS_REF}/{self.name}"
+        return f"its worktree {self.path} stays, as a worktree is never removed with its environment; git worktree remove {self.path} removes it once its work is done"
 
     def is_registered(self) -> bool:
         listed = self.git("worktree", "list", "--porcelain").stdout.splitlines()
-        return f"worktree {self.path.resolve()}" in listed or f"worktree {self.path}" in listed
+        return self.path.resolve() in {Path(line.removeprefix("worktree ")).resolve() for line in listed if line.startswith("worktree ")}
 
     def archived(self) -> Path:
         stashed = self.path.with_name(f"{self.name}.moved-aside-{int(time.time())}")

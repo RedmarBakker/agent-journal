@@ -6605,7 +6605,7 @@ def test_a_done_workers_worktree_goes_with_its_branch_its_last_commit_kept_and_n
     assert git("branch", "--list", "worker/1-Lady-Lovelace").stdout.strip() == "" and git("worktree", "list").stdout.count("\n") == 1, "its branch and worktree go after the reply"
 
 
-def test_deleting_an_environment_keeps_its_worktree_while_it_holds_work_and_takes_a_merged_one_with_it(app: App):
+def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
     root = app.config.root
@@ -6615,20 +6615,14 @@ def test_deleting_an_environment_keeps_its_worktree_while_it_holds_work_and_take
     git("config", "user.name", "T")
     git("commit", "-q", "--allow-empty", "-m", "start")
     tree = Worktree(root, "calm-river").created()
-    (tree / "page.py").write_text("PAGE = 1\n")
     console = app.console()
     console.run(["environment", "create", "calm-river"], USER)
     line_text = console.run(["environment", "delete", "calm-river"], USER).text
-    assert "stays, since 1 files in it are not committed: page.py" in line_text and tree.is_dir(), "uncommitted work keeps the worktree"
-    git("add", "page.py", cwd=tree)
-    git("commit", "-qm", "the page", cwd=tree)
-    console.run(["environment", "create", "calm-river"], USER)
-    line_text = console.run(["environment", "delete", "calm-river"], USER).text
-    assert "stays, since its branch has commits not yet in main" in line_text and tree.is_dir(), "unmerged commits keep it"
+    assert "its worktree" in line_text and "stays" in line_text and tree.is_dir(), "a clean worktree stays when its environment is deleted"
     git("merge", "-q", "worktree-calm-river")
     console.run(["environment", "create", "calm-river"], USER)
     line_text = console.run(["environment", "delete", "calm-river"], USER).text
-    assert "its worktree and branch are removed, its work already merged" in line_text and not tree.exists(), "a merged, clean one goes with its environment"
+    assert "stays" in line_text and tree.is_dir() and "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout, "a merged one stays too, with its branch: only the person removes a worktree"
 
 
 def test_a_session_in_a_worktree_is_marked_with_its_branch_once(app: App):

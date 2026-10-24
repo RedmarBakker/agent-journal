@@ -66,4 +66,4 @@ class EnvironmentController(Controller[Environment]):
     def remove(self, request: Request) -> Response:
         environment = self.repository.find(request.number("id"))
         self.repository.wipe(environment, request.actor)
-        return Response.json({"worktree": Worktree(self.config.root, environment.name).dropped()})
+        return Response.json({"worktree": Worktree(self.config.root, environment.name).kept_line()})

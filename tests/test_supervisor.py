@@ -432,7 +432,7 @@ def test_a_worktree_whose_folder_and_branch_went_is_made_again_from_its_kept_tip
     assert (repeat / "page.py").read_text() == "PAGE = 1\n", "the committed work comes back from the kept tip though the folder and the branch were removed"
 
 
-def test_a_folder_no_worktree_owns_is_moved_aside_never_deleted_and_a_failed_make_leaves_nothing_half_made(tmp_path: Path):
+def test_a_folder_no_worktree_owns_is_refused_and_left_as_it_is_and_a_failed_make_leaves_nothing_half_made(tmp_path: Path):
     import subprocess
     from journal.support.worktree import Worktree
     from journal.support.worktree_failure import WorktreeFailure
@@ -442,9 +442,12 @@ def test_a_folder_no_worktree_owns_is_moved_aside_never_deleted_and_a_failed_mak
     stray = tmp_path / ".claude" / "worktrees" / "calm-river"
     stray.mkdir(parents=True)
     (stray / "mine.txt").write_text("not a worktree's\n")
-    produced = Worktree(tmp_path, "calm-river").created()
-    stashed = [p for p in produced.parent.iterdir() if p.name.startswith("calm-river.moved-aside-")]
-    assert (produced / ".git").exists() and len(stashed) == 1 and (stashed[0] / "mine.txt").read_text() == "not a worktree's\n", "the stray folder is kept aside and the worktree made"
+    try:
+        Worktree(tmp_path, "calm-river").created()
+        raise AssertionError("a folder git does not hold is never taken over")
+    except WorktreeFailure as refused:
+        assert "git does not hold it as a worktree" in str(refused)
+    assert (stray / "mine.txt").read_text() == "not a worktree's\n" and not (stray / ".git").exists() and [p.name for p in stray.parent.iterdir() if not p.name.startswith(".")] == ["calm-river"], "it is refused and left exactly where and as it was, never moved aside"
     git("branch", "worktree-taken")
     git("worktree", "add", str(tmp_path / "elsewhere"), "worktree-taken")
     try:
