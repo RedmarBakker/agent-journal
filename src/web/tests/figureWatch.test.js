@@ -78,7 +78,9 @@ test("once eager for a run's end nothing calls it off but that end: the roll, a 
     const near = (share) => ({bar: {}, share, ended: "", began: 100});
     // kept through every roll until the run ends
     for (const roll of [0, 0.5, 0.999]) expect(eagerFor(near(0.98), eager, () => roll, 150).eager, `${roll}`).toEqual(eager);
-    expect(eagerFor({...near(1), ended: "good"}, eager, () => 0, 151).eager.on).toBe(false);
+    // the end kept until the anticipation has played through its hold, then over
+    expect(eagerFor({...near(1), ended: "good"}, eager, () => 0, 151).eager.on).toBe(true);
+    expect(eagerFor({...near(1), ended: "good"}, eager, () => 0, 151, true).eager.on).toBe(false);
     // the eager wait is drawn over a beat waiting to play and over the UFO or the crane it would watch
     const scene = {place: {posture: "stand"}, eager: true, watching: "watch", beat: {clip: "joy", facing: 0}, state: "running", doing: "think"};
     expect(clipFor(scene, () => true).clip).toBe("eager");

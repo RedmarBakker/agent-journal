@@ -106,7 +106,7 @@ import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
-import {MESSAGE_SECONDS, glanceAfter, glancePoint, headBlend, holdsHead, leadingLook} from "../figure/looks.js";
+import {MESSAGE_SECONDS, WALKING, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -965,7 +965,11 @@ function look() {
     stay = target.stay;
     // while the UFO or the crane is here the figure stands watching it, and goes nowhere
     // eager for a docked bar to end, it hurries onto the bar and stays there until the bar has ended; for a long run it drops what it does
-    const going = eager?.on ? eagerSpot(body.place, figureSize()) : (waitingSeat(stage, pushing) ?? target.spot);
+    // the user's new message halts a walk: the figure stands looking at it a while, then goes over to it or on its way
+    const said = newMessage("user");
+    if (haltsWalk(said) && said.card !== haltedFor && !halt && walkingNow()) haltWalk(said);
+    haltAfter();
+    const going = halt ? null : eager?.on ? eagerSpot(body.place, figureSize()) : (waitingSeat(stage, pushing) ?? target.spot);
     // a trip that waits to set off gives way to one that drops everything
     if (eager?.urgent && going && body.trip && !body.trip.urgent && !body.trip.moves) body.trip = null;
     if (!body.trip && !body.arriving && !body.airborne && !taking.value && !flight && going && mayLeave(perched, performance.now() / 1000, Boolean(eager?.urgent))) {
@@ -1276,7 +1280,8 @@ function lookCandidates(shown) {
         ["carrier", "carrier", saucer.value ?? crane.value?.look],
         [`reading:${reading?.card}`, "reading", readingNow()],
         ["glass", "reading", scanned && scanningAt(scanned)],
-        ["message", "message", newMessage()],
+        ["said", "said", newMessage("user")?.point],
+        ["message", "message", newMessage("agent")?.point],
         ["work", "work", work?.at],
         ["picture", "picture", admiring.picture && {...middleOf(admiring.picture.getBoundingClientRect()), mood: "admiring"}],
         ["bar", "bar", barLook(shown)],
@@ -1294,14 +1299,40 @@ function barLook(shown) {
     return edge && watchLook(edge, {x: feetX(), y: body.place.y}, docks.element.getBoundingClientRect(), figureSize());
 }
 
-// the bubble of the newest message said in the chat, the user's or the agent's, for its first seconds there (looks.js MESSAGE_SECONDS), or
-// null
-function newMessage() {
-    const said = rows("messages").filter((message) => ["user", "agent"].includes(message.author) && !message.data?.kind && createdAt(message) > watchedSince);
+// the newest message `author` said in the chat, for its first seconds there (looks.js MESSAGE_SECONDS), as a look: of the kind said for the
+// user's, message for the agent's, its chat mark, its bubble's box and the middle of it; null with none
+function newMessage(author) {
+    const said = rows("messages").filter((message) => message.author === author && !message.data?.kind && createdAt(message) > watchedSince);
     const newest = said.reduce((last, message) => (!last || createdAt(message) > createdAt(last) ? message : last), null);
     if (!newest || now.value - createdAt(newest) > MESSAGE_SECONDS) return null;
-    const bubble = document.querySelector(`[data-figure-mark="${CSS.escape(refOf(newest))}"]`);
-    return bubble && middleOf(bubble.getBoundingClientRect());
+    const bubble = document.querySelector(`[data-figure-mark="${CSS.escape(refOf(newest))}"]`)?.getBoundingClientRect();
+    return bubble ? {key: refOf(newest), kind: author === "user" ? "said" : "message", card: refOf(newest), box: bubble, point: middleOf(bubble)} : null;
+}
+
+// The walk the user's new message halted (looks.js haltsWalk), {card, box, until}, while the figure stands turned to it looking, or null;
+// and the message that last halted it, which halts it no more
+let halt = null;
+let haltedFor = "";
+
+// whether the figure is on its feet on a walk now, not hopping
+const walkingNow = () => Boolean(body.trip?.moves && !body.trip.hopping);
+
+// The figure halts where it walks for the user's new message `said`: it stands there on the floor it walks on, its trip given up, until
+// its halt is over (looks.js WALKING halt)
+function haltWalk(said) {
+    const feet = feetOf(body.at);
+    const floor = latestFloors().floors.find((each) => each.id === body.walk.on);
+    halt = {card: said.card, box: said.box, until: now.value + WALKING.halt};
+    haltedFor = said.card;
+    body.trip = null;
+    settle({x: feet.x, y: feet.y, face: 0, posture: "stand", on: floor?.element ?? groundEdge().element});
+}
+
+// The halt at `now`: kept while it lasts; over, the figure goes over to the message or on its way, by the roll (looks.js visitsAfterHalt)
+function haltAfter() {
+    if (!halt || now.value < halt.until) return;
+    if (visitsAfterHalt(Math.random) && markSpot(halt.card, figureSize())) stay = {where: "mark", card: halt.card, until: now.value + MARK_STAY};
+    halt = null;
 }
 
 // the figure's own idle glance, now and then to one side of its head (looks.js glanceAfter), while it lasts, or null
@@ -1340,7 +1371,7 @@ function readingNow() {
 // the way the figure turns to the bubble it reads, its message's or the one it holds its glass up to (reactions.js readingFacing), or null
 // while it reads none
 function readingTurn() {
-    const bubble = readBubble() ?? (heldClip() === "glass_bubble" ? nearBubble() : null);
+    const bubble = halt?.box ?? readBubble() ?? (heldClip() === "glass_bubble" ? nearBubble() : null);
     return bubble && readingFacing(bubble, body.at.x + SIZE / 2, SIZE);
 }
 
@@ -1374,15 +1405,20 @@ let gaze = {point: null, toward: null, amount: 0, at: 0};
 let lookHead = null;
 let lookPivot = HEAD_HEIGHT;
 
-// the look the head is on (looks.js leadingLook) and how far it turns from the act's own head toward it (looks.js headBlend)
+// the look the head is on (looks.js leadingLook) and how far it turns from the act's own head toward it (looks.js headBlend), and the glance
+// it is in while it walks (looks.js walkingGlance)
 let leading = null;
+let glancing = null;
 let lookBlend = 0;
 
 // where in its picture the figure looks this frame, and how far into the look (figure.js lookToward), or null to look as its clip does
 function lookingAt(shown) {
     leading = leadingLook(leading, lookCandidates(shown), performance.now() / 1000);
-    lookBlend = headBlend(leading.look, shown.clip);
-    gaze = gazeAfter(gaze, leading.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead, lookBlend);
+    // walking, the head only glances, briefly, at what lies within a quarter turn of the way it walks (looks.js walkingGlance)
+    const walk = walkingNow() ? walkingGlance(glancing, leading.look, body.trip.way ?? body.way, headCenter(), performance.now() / 1000) : {look: leading.look, glancing: null};
+    glancing = walk.glancing;
+    lookBlend = headBlend(walk.look, shown.clip);
+    gaze = gazeAfter(gaze, walk.look?.point ?? null, {x: body.at.x + SIZE / 2, y: body.at.y + SIZE * lookPivot}, performance.now(), lookHead, lookBlend);
     if (!gaze.amount || !gaze.point) return null;
     return {x: (gaze.point.x - body.at.x) / SIZE, y: (gaze.point.y - body.at.y) / SIZE, amount: gaze.amount, behind: Boolean(gaze.point.behind), mood: gaze.point.mood ?? ""};
 }

@@ -4686,6 +4686,10 @@ function place(figure, pose, facing, blend) {
     return moves;
 }
 
+// How many degrees the body turns for a look `further` round than its head goes (lookToward), in `posture`: none while it walks, its body
+// facing the way it walks whatever its head glances at, else all of it
+export const bodyTurnFor = (posture, further) => (posture === "walk" ? 0 : further);
+
 // A look the eyes take on over whatever the body does, `seconds` into a look that lasts `lasts` seconds: taken on at once and let go at the
 // end, the head turned to the viewer meanwhile so the eyes are seen. Hearts beat as a heart does, a strong swell and a weaker one.
 const BEAT_SECONDS = 0.8;
@@ -4801,7 +4805,7 @@ export class Stage {
         if (tilt) trunk(pose, {tilt});
         if (!clip.legs) LEGS[posture]?.over(pose);
         const sideOn = !turnsToViewer(posture);
-        const turned = facing + (at && !sideOn ? lookToward(pose, at, facing) : 0);
+        const turned = facing + (at && !sideOn ? bodyTurnFor(posture, lookToward(pose, at, facing)) : 0);
         if (open < 1) pose.shutEyes(Math.min(pose.eyes, open));
         // the eyes go out as a lit visor comes on, closing to a line
         if (screen) pose.shutEyes(Math.min(pose.eyes, screen.eyes));
