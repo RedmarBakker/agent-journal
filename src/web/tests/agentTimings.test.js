@@ -2,6 +2,11 @@ import {createApp, h, nextTick} from "vue";
 import {expect, test} from "vitest";
 import AgentTimings from "../src/chat/AgentTimings.vue";
 
+globalThis.ResizeObserver ??= class {
+    observe() {}
+    disconnect() {}
+};
+
 const parts = [
     {name: "HOOK /hooks/PreToolUse", average_ms: 40, count: 250},
     {name: "HOOK /hooks/Stop", average_ms: 12, count: 8},
