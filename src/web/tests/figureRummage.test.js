@@ -100,20 +100,33 @@ test("each thing it pulls out is thrown along the arc gravity gives it, up over 
     expect(flying).toMatchObject({bone: "root", size: 1});
 });
 
-test("it rummages at the chat window's edge: its body inside the window, its hands reaching past the edge into the hidden space beyond", async () => {
+test("it rummages at the chat window's edge, its hands reaching past it while its body stays inside, and never past the end of its ground", async () => {
     const {RUMMAGE_INSET, rummageSpot} = await import("../src/figure/perches.js");
-    const {BODY, inWorld} = await import("../src/figure/places.js");
+    const {BODY, FEET_INBOARD, inWorld} = await import("../src/figure/places.js");
     const {CHAT, boxed, page} = await import("./support/figurePage.js");
-    page(boxed({left: 400, right: 600, top: 300, bottom: 340}));
     const figure = {size: 112, below: 0.05};
+    // the compose box runs from 300 to 700 in a window from 200 to 900: the window's edge is past the ground's end, so it stops at that end
+    page(boxed({left: 400, right: 600, top: 300, bottom: 340}));
+    expect(rummageSpot(figure, -1).x).toBeCloseTo(300 + FEET_INBOARD * figure.size, 5);
+    expect(rummageSpot(figure, 1).x).toBeCloseTo(700 - FEET_INBOARD * figure.size, 5);
+    // a window whose edges the ground reaches: it stands at the edge, its body inside, its hands past it
+    const wide = {left: 300, top: 100, right: 700, bottom: 800};
+    globalThis.document.querySelector("[data-figure-home]").closest = () => ({...boxed(wide), querySelector: () => null});
     for (const way of [-1, 1]) {
         const spot = rummageSpot(figure, way);
-        const edge = way > 0 ? CHAT.right : CHAT.left;
-        expect(Math.abs(spot.x - edge), `${way}: at the edge`).toBeCloseTo(RUMMAGE_INSET * figure.size, 5);
-        expect(inWorld(spot, figure), `${way}: its body inside the window, so it keeps its footing there`).toBe(true);
-        // the hands reach out to the side further than the spot is from the edge
-        const reach = Math.max(...[0.2, 0.5, 0.8].map((u) => Math.abs(rummagingAt("butler", u).out)));
-        expect(reach * figure.size, `${way}: its hands past the edge`).toBeGreaterThan(Math.abs(spot.x - edge));
-        expect((0.5 - BODY.left) * figure.size, `${way}: its body short of it`).toBeLessThan(Math.abs(spot.x - edge));
+        const edge = way > 0 ? wide.right : wide.left;
+        expect(Math.abs(spot.x - edge), `${way}: at the edge`).toBeCloseTo(Math.max(RUMMAGE_INSET, FEET_INBOARD) * figure.size, 5);
+        expect(inWorld(spot, figure, wide), `${way}: its body inside the window, so it keeps its footing there`).toBe(true);
+        expect((0.5 - BODY.left) * figure.size, `${way}: its body short of the edge`).toBeLessThan(Math.abs(spot.x - edge));
+    }
+    expect(CHAT.left).toBeLessThan(300);
+});
+
+test("it leans out toward its free hand's side of the picture, the side whose window edge it goes to", async () => {
+    for (const voice of Object.keys(stances)) {
+        const free = stanceOf(voice).busy.has("r") ? "l" : "r";
+        // leaning in, its eyes move out to the free hand's side, SIDES[free], in the picture as handAt's out names it
+        const {eyes} = rummagingAt(voice, (act.leans[1] + act.pops[0]) / 2);
+        expect(Math.sign(eyes.x), voice).toBe(SIDES[free]);
     }
 });

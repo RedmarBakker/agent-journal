@@ -2,7 +2,7 @@ import {RESTS, clipOf} from "../domain/figureState.js";
 import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
-import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
+import {besidePile, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, loungeFacing, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {FREE, letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
 
@@ -224,11 +224,15 @@ export function nextStay(now, figure, hands, random, {tally = null, free = false
 // enough that its hands, reaching out to its side, go past the edge into the space beyond, which the window hides
 export const RUMMAGE_INSET = 0.18;
 
-// The spot on the ground at home at the chat window's edge on the side `way` (-1 the left, 1 the right) where the figure rummages past it
+// The spot on the ground at home at the chat window's edge on the side `way` (-1 the left, 1 the right) where the figure rummages past it,
+// never past the end of the ground it stands on, so it never walks off it
 export function rummageSpot(figure, way) {
     const world = worldBox();
+    const {edge} = groundEdge();
     const spot = spotOf(null, figure, {x: way > 0 ? world.right : world.left, y: 0});
-    return {...spot, x: way > 0 ? world.right - RUMMAGE_INSET * figure.size : world.left + RUMMAGE_INSET * figure.size};
+    const inboard = FEET_INBOARD * figure.size;
+    const x = way > 0 ? Math.min(world.right - RUMMAGE_INSET * figure.size, edge.left + edge.width - inboard) : Math.max(world.left + RUMMAGE_INSET * figure.size, edge.left + inboard);
+    return {...spot, x};
 }
 
 // The spot of a stay now for a figure at `near`, or null when its bubble or tab is gone or its perch is no longer free; a tab it only

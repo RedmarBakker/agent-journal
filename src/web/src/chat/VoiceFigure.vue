@@ -276,7 +276,8 @@ function heldClip() {
     const {state} = held.value;
     if (variant.state !== state) {
         variant = {state, clip: variantOf(clipOf(state), Math.random, drawnHere, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
-        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: handAt.value.x >= 0.5 ? 1 : -1};
+        // the rummage leans the figure out toward its free hand's side, so it goes to the window's edge on that side (figure.js handAt out)
+        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: handAt.value.out};
     }
     if (body.place.swings) return "rope_swing";
     // the rummage waits until the figure stands at the window's edge, its stay there, and the glass search until it stands

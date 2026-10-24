@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swingAngle, torchAim} from "./acts.js";
+import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {VISOR, glowTurn} from "./visor.js";
@@ -2234,7 +2234,7 @@ function castle(pose, stance, t) {
 export const ACTED = {
     high: [1.0, -0.25, 2.92],
     sign: [0.5, -0.25, 3.0], signWaggle: 0.1,
-    drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, torch: [1.0, -0.62, 2.4], nozzle: [1.1, -0.55, 1.88], torchSweep: 0.16,
+    drawer: [1.16, -0.4, 1.66], drop: 0.12, binoculars: [0.24, -0.8, 2.36], sweep: 30, nozzle: [1.1, -0.55, 1.88], torchSweep: 0.16,
     corner: [1.0, -0.42, 1.36], lift: 0.3, crouch: 0.6, peekLean: 34,
 }
 
@@ -2768,42 +2768,31 @@ function chute(pose, stance, t) {
 
 // The figure looks all about through binoculars held up to its eyes, sweeping slowly from one side to the other, the hand keeping them
 // before the eyes as the head turns
-// how far the binoculars rise for each degree the head tips up, in the figure's units, as far as the arm reaches
-const BINOCULAR_RISE = 0.006;
+// The binoculars before the visor as the figure scans the chat (BINOCULARS): their eyepieces `ahead` before the eyes and `below` under
+// them, tipped up with the head; both hands up under the barrels, as far as the arms reach; the figure turned `turn` degrees so the barrels
+// show their length
+export const BINOCULAR_HOLD = {ahead: 0.45, below: 0.06, hands: 0.22, turn: 35};
 
 // scans up and down the chat through binoculars from the compose box (acts.js binoculars): head and binoculars tipped up the chat and
-// swept slowly up and down it, the body turning a little left and right, the hand holding them to the eyes as the head moves
+// swept slowly up and down it, the body turning a little left and right, both hands holding them up before the visor
 function binoculars(pose, stance, t) {
     const act = ACTS.binoculars;
     const turn = 0.4 * ACTED.sweep * waveOf(t, act.sweep);
     const up = act.up + act.scan * waveOf(t, 2);
     trunk(pose, {twist: turn, nod: -up});
-    const side = freeSide(stance);
-    const [x, y, z] = ACTED.binoculars;
-    const at = new THREE.Vector3(SIDES[side] * x, y, z + BINOCULAR_RISE * up).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
-    actHand(pose, stance, 1, [SIDES[side] * at.x, at.y, at.z], {x: -60 - up});
+    armsAtRest(pose, stance, ["l", "r"]);
+    const eyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length).applyMatrix4(pose.matrix("head"));
+    const tipped = new THREE.Vector3(0, -Math.cos(radians(up)), Math.sin(radians(up)));
+    const held = eyes.clone().addScaledVector(tipped, BINOCULAR_HOLD.ahead).add(new THREE.Vector3(0, 0, -BINOCULAR_HOLD.below));
+    pose.standProp("binoculars", held.toArray(), {x: -up, z: turn});
+    for (const side of ["l", "r"]) {
+        const under = pose.carried(held.clone().add(new THREE.Vector3(SIDES[side] * BINOCULAR_HOLD.hands, 0.1, -0.16)));
+        handTo(pose, side, 1, pose.withinReach(side, under, 0.97), new THREE.Vector3(...ACTING.elbow));
+    }
+    emptyHand(pose);
+    if (pose.posture === "stand") pose.revolve(SIDES[freeSide(stance)] * BINOCULAR_HOLD.turn);
 }
 
-// The look along the torch's beam: the head turned `turn` degrees toward the free side for each unit across the beam lands, and tipped up
-// from the eyes, `eyes` up from the feet, toward where it lands
-export const TORCH_LOOK = {turn: 24, eyes: 3.3};
-
-// searches with a torch held up and forward to its free side, the hand turned to point it at where its beam lands (acts.js torchAim), at
-// about head height, sweeping it slowly about there as its head follows the light
-function flashlight(pose, stance, t) {
-    const side = freeSide(stance);
-    const sign = SIDES[side];
-    const [across, forward, up] = torchAim(t);
-    const [x, y, z] = ACTED.torch;
-    breathe(pose, 0);
-    const lifted = THREE.MathUtils.radToDeg(Math.atan2(up - TORCH_LOOK.eyes, Math.hypot(across, forward)));
-    trunk(pose, {lean: -2, nod: -lifted, turn: sign * TORCH_LOOK.turn * across});
-    actHand(pose, stance, 1, [x, y, z], {x: -10});
-    const wrist = pose.head(`hand_${side}`, pose.matrix(`hand_${side}`));
-    pose.aim(`hand_${side}`, pose.carried(new THREE.Vector3(sign * across, forward, up)).sub(wrist));
-    pose.holdProp("flashlight", side, [0, 0, 0], {z: sign > 0 ? 0 : 180});
-    eyesAs(pose, "reading");
-}
 
 // Rummaging (acts.js rummage): how deep it crouches and how far it leans in, in the figure's units and degrees; where its hands dig past
 // the window's edge, across, forward and up, each `dig` up and down as it digs, the elbows the way `elbow` says; and how far it turns
@@ -2989,7 +2978,6 @@ export const CLIPS = [
     {name: "rope_swing", frames: ACTS.rope_swing.intro + ACTS.rope_swing.hold + ACTS.rope_swing.outro, intro: ACTS.rope_swing.intro, outro: ACTS.rope_swing.outro, leaves: ACTS.rope_swing.hold, fps: ACTS.rope_swing.fps, loops: true, postures: ON_A_LAP, pose: rope_swing},
     {name: "chute", frames: ACTS.chute.frames, fps: ACTS.chute.fps, loops: true, interruptible: true, cuts: true, postures: MOVE, pose: chute},
     {name: "binoculars", frames: ACTS.binoculars.frames, fps: ACTS.binoculars.fps, loops: true, postures: HANDS_UP, pose: binoculars},
-    {name: "flashlight", frames: ACTS.flashlight.frames, fps: ACTS.flashlight.fps, loops: true, ownLook: true, postures: MOVE, pose: flashlight},
     {name: "rummage", frames: ACTS.rummage.frames, fps: ACTS.rummage.fps, loops: true, postures: MOVE, ownLook: true, pose: rummage},
     {name: "type_ponder", frames: ACTS.type_ponder.frames, fps: ACTS.type_ponder.fps, loops: true, leaves: 8, least: TYPING_SECONDS, aside: true, ownLook: true, postures: ON_A_LAP, pose: type_ponder},
     {name: "wipe_brow", frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: wipe_brow},
@@ -3556,7 +3544,7 @@ function propsOf() {
     telephoneOf(group("telephone"), group("telephone_handset"), group("telephone_cord"), group("telephone_poof"));
     lightBulbOf(group("light_bulb"));
     reportScrollOf(group("report_scroll"));
-    torchOf(group("flashlight"));
+    binocularsOf(group("binoculars"));
     rummagedOf(group);
     return props;
 }
@@ -3608,36 +3596,34 @@ function rummagedOf(group) {
     shadedPart(tome, "pages", new THREE.BoxGeometry(...book.pages), colours.pages, [(book.cover[0] - book.pages[0]) / 2 + 0.03, 0, 0]);
 }
 
-// The torch the figure searches with (flashlight), in the figure's own style and drawn a size too large, as the magnifying glass is, so it
-// reads at the figure's size: a metal barrel `barrel` round and `length` long, across the hand where it grips it, its tail cap darker, a
-// switch on its top; at its front a wider head `head` round flaring out from the barrel, a rim round its lens, and the lens itself, which
-// glows warm as the torch shines, its middle at `lens` from the grip (acts.js flashlight), where the page draws its beam from
-export const TORCH = {
-    barrel: 0.13, length: 0.85, head: [0.21, 0.24], rim: 0.035, cap: 0.12, switch: [0.12, 0.05, 0.07],
-    colours: {metal: 0x9aa1ad, cap: 0x3a3d47, head: 0xb7bcc6, rim: 0x2b2e38, switch: 0xd9413b, lens: 0xfff3c4},
+
+// The binoculars the figure scans the chat through (binoculars), in its own shaded style, in the figure's units: two barrels `barrel`
+// round and `length` long, `apart` between their middles, pointing toward the viewer, each with a rim `rim` thick and a glinting lens at
+// its far end and an eyepiece `eyepiece` (round, long) at the near one, joined by a `bridge` (across, up, deep). Drawn standing in the
+// figure's frame, its own up the figure's.
+export const BINOCULARS = {
+    barrel: 0.24, length: 0.6, apart: 0.54, rim: 0.045, eyepiece: [0.15, 0.14], bridge: [0.28, 0.13, 0.22],
+    colours: {body: 0x2a2c36, rim: 0x9aa0ad, eyepiece: 0x1b1c22, lens: 0x8ec5ff},
 };
 
-// the torch's parts in its own axes, along +x from where the hand grips it, the lens at the +x end
-export function torchOf(root) {
-    const {barrel, length, head, rim, cap, colours} = TORCH;
-    const lens = ACTS.flashlight.lens;
-    const along = (mesh) => {
-        mesh.rotation.z = -Math.PI / 2;
+export function binocularsOf(root) {
+    const {barrel, length, apart, rim, eyepiece, bridge, colours} = BINOCULARS;
+    const toward = (mesh) => {
+        mesh.rotation.x = Math.PI / 2;
         return mesh;
     };
-    along(shadedPart(root, "barrel", new THREE.CylinderGeometry(barrel, barrel, length, 18), colours.metal, [lens - head[1] - length / 2, 0, 0]));
-    along(shadedPart(root, "cap", new THREE.CylinderGeometry(barrel * 1.08, barrel * 1.08, cap, 18), colours.cap, [lens - head[1] - length - cap / 2 + 0.01, 0, 0]));
-    along(shadedPart(root, "head", new THREE.CylinderGeometry(head[0], barrel, head[1], 20), colours.head, [lens - head[1] / 2, 0, 0]));
-    const ring = shadedPart(root, "rim", new THREE.TorusGeometry(head[0], rim, 10, 28), colours.rim, [lens, 0, 0]);
-    ring.rotation.y = Math.PI / 2;
-    const [wide, high, deep] = TORCH.switch;
-    shadedPart(root, "switch", new THREE.BoxGeometry(wide, high, deep), colours.switch, [lens - head[1] - length * 0.3, barrel + high / 2 - 0.005, 0]);
-    const glass = new THREE.Mesh(new THREE.CircleGeometry(head[0] * 0.92, 24), new THREE.MeshBasicMaterial({color: colours.lens, side: THREE.DoubleSide}));
-    glass.name = `${root.name}_lens`;
-    glass.position.set(lens + 0.003, 0, 0);
-    glass.rotation.y = Math.PI / 2;
-    glass.frustumCulled = false;
-    root.add(glass);
+    for (const [index, side] of [-1, 1].entries()) {
+        const x = (side * apart) / 2;
+        toward(shadedPart(root, `barrel_${index}`, new THREE.CylinderGeometry(barrel, barrel * 0.9, length, 20), colours.body, [x, 0, length / 2]));
+        shadedPart(root, `rim_${index}`, new THREE.TorusGeometry(barrel, rim, 10, 28), colours.rim, [x, 0, length]);
+        toward(shadedPart(root, `eyepiece_${index}`, new THREE.CylinderGeometry(eyepiece[0], eyepiece[0], eyepiece[1], 16), colours.eyepiece, [x, 0, -eyepiece[1] / 2]));
+        const lens = new THREE.Mesh(new THREE.CircleGeometry(barrel * 0.85, 24), new THREE.MeshBasicMaterial({color: colours.lens, side: THREE.DoubleSide}));
+        lens.name = `${root.name}_lens_${index}`;
+        lens.position.set(x, 0, length + 0.004);
+        lens.frustumCulled = false;
+        root.add(lens);
+    }
+    shadedPart(root, "bridge", new THREE.BoxGeometry(...bridge), colours.body, [0, 0, length * 0.45]);
 }
 
 // The report scroll the figure reads (scroll), in the figure's own style: two wooden rollers `roller` round and `length` long, across, a

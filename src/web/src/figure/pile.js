@@ -152,8 +152,8 @@ export const PILE = [
         showpiece(clip("disco", 2, {ball: "bubble"})),
         nothing(560),
     ]),
-    // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars, a flashlight in a dark corner,
-    // under a lifted corner of the floor or, now and then, rummaging in an opening and flinging things over its shoulder; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
+    // how a held clip is played for one stretch of it: searching with the magnifying glass, binoculars or, now and then, rummaging past
+    // the window's edge and flinging things over its shoulder; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
     // waving up at it; and while the context compacts, packed into a box that shrinks, squashed under a press, vacuuming up words, or
     // squaring a stack of papers
     // the magnifying glass and the binoculars each at most once in five minutes, so neither is in hand at every search; the binoculars only

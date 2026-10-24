@@ -38,11 +38,6 @@ export const ACTS = {
     // searching from the compose box: binoculars at its eyes, tipped `up` degrees up the chat and scanning slowly up and down it `scan`
     // degrees either way, twice, with a little turn left and right
     binoculars: {frames: 100, fps: 10, sweep: 1, up: 9, scan: 6},
-    // searching with a torch (figure.js flashlight, torchOf): held up and forward, its beam aimed at `aim` (across to the free hand's side,
-    // forward and up from the feet, in the figure's units), at about the height of its head, where a chat bubble beside it is, never at its
-    // own feet, and swept slowly about there, `sweep` across and up and down (torchAim); its lens `lens` from where the hand grips it, which
-    // the beam spreads from (chat/FigureAct.vue)
-    flashlight: {frames: 80, fps: 10, aim: [2.4, -0.9, 3.5], sweep: [0.5, 0.35], lens: 0.72},
     // searching, now and then: at the edge of the chat window the figure reaches past it into the space beyond, where nothing is seen, and
     // rummages there like a cartoon character hunting through a closet: it turns side-on to the edge and leans in, head and shoulders past
     // it, over `leans`, digging about `digs` times, and flings what it pulls out back over its shoulder, one thing at each of `throws`, each
@@ -201,9 +196,3 @@ export function swingAngle(u) {
     return held === null ? 0 : ACTS.rope_swing.sway * Math.sin(2 * Math.PI * ACTS.rope_swing.swings * held);
 }
 
-// Where the torch's beam lands `u` of the way through the search, across to the free hand's side, forward and up from the feet, in the
-// figure's units (ACTS flashlight): swept once across and back, and twice up and down, as one looks about in the dark
-export function torchAim(u) {
-    const {aim: [across, forward, up], sweep: [wide, high]} = ACTS.flashlight;
-    return [across + wide * Math.sin(2 * Math.PI * u), forward, up + high * Math.sin(4 * Math.PI * u)];
-}

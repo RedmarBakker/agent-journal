@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {ACTS, heldPhases, partOf, ropeDown, standingAt, torchAim} from "../figure/acts.js";
+import {ACTS, heldPhases, partOf, ropeDown, standingAt} from "../figure/acts.js";
 import {FRAMED} from "../figure/frame.js";
 import {POSTURES} from "../figure/places.js";
 
@@ -153,23 +153,6 @@ const cloud = computed(() => {
 const drawer = computed(() => partOf(props.u, act.value.opens) * (1 - partOf(props.u, act.value.shuts)));
 const filed = computed(() => partOf(props.u, act.value.filed));
 
-// The torch's beam (figure.js torchOf): from its lens, out from the hand toward where it lands (acts.js torchAim), spreading `spread` of
-// the way it goes to each side, and the warm pool of light it throws where it lands, `pool` of the picture wide, lighting the bubble or
-// the floor under it as it sweeps
-const BEAM = {spread: 0.22, pool: 0.24, start: 0.04};
-const beam = computed(() => {
-    const [across, , up] = torchAim(props.u);
-    const lit = {x: middle.value + out.value * px(across / FRAMED.height), y: px(0.5 - (up - FRAMED.middle) / FRAMED.height)};
-    const reach = Math.hypot(lit.x - hand.value.x, lit.y - hand.value.y) || 1;
-    const way = {x: (lit.x - hand.value.x) / reach, y: (lit.y - hand.value.y) / reach};
-    const lens = px(ACTS.flashlight.lens / FRAMED.height);
-    const from = {x: hand.value.x + way.x * lens, y: hand.value.y + way.y * lens};
-    const [near, far] = [px(BEAM.start), reach * BEAM.spread];
-    const side = (point, half) => [{x: point.x - way.y * half, y: point.y + way.x * half}, {x: point.x + way.y * half, y: point.y - way.x * half}];
-    const [a, b] = side(from, near);
-    const [c, d] = side(lit, far);
-    return {from, lit, pool: px(BEAM.pool), path: `M${a.x} ${a.y}L${c.x} ${c.y}L${d.x} ${d.y}L${b.x} ${b.y}Z`};
-});
 
 // where an act of an intro, a held stretch and an outro is
 const phases = computed(() => (act.value.intro ? heldPhases(act.value, props.u) : null));
@@ -269,24 +252,7 @@ const steam = computed(() => {
                 </g>
             </template>
 
-            <template v-if="name === 'binoculars'">
-                <g :transform="`translate(${head.x} ${head.y + 1})`">
-                    <rect x="-1.5" y="-1.6" width="3" height="3.2" :fill="COLOURS.ink" />
-                    <circle cx="-4.6" cy="0" r="3.8" :fill="COLOURS.ink" stroke="#a9adb8" stroke-width="0.8" />
-                    <circle cx="4.6" cy="0" r="3.8" :fill="COLOURS.ink" stroke="#a9adb8" stroke-width="0.8" />
-                </g>
-            </template>
 
-            <template v-if="name === 'flashlight'">
-                <defs>
-                    <linearGradient id="figure-act-beam" gradientUnits="userSpaceOnUse" :x1="beam.from.x" :y1="beam.from.y" :x2="beam.lit.x" :y2="beam.lit.y">
-                        <stop offset="0" stop-color="#ffe9a3" stop-opacity="0.8" />
-                        <stop offset="1" stop-color="#ffe07a" stop-opacity="0.3" />
-                    </linearGradient>
-                </defs>
-                <path :d="beam.path" fill="url(#figure-act-beam)" stroke="none" data-torch-beam />
-                <ellipse :cx="beam.lit.x" :cy="beam.lit.y" :rx="beam.pool" :ry="beam.pool * 0.55" fill="url(#figure-act-pool)" stroke="none" data-torch-light />
-            </template>
 
             <template v-if="name === 'hand_rub' && rub">
                 <g class="figure-act-rub" :transform="`translate(${rub.x} ${rub.y})`">
