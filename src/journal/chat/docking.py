@@ -20,6 +20,9 @@ from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.chat.process_cards import AUTO_DOCKED, DOCKED
 from journal.chat.row_process_card import RowProcessCard
+from journal.events.announcer import Announcer
+from journal.events.moments.row_docked import RowDocked
+from journal.models.support.ref import Ref
 from journal.support.rejection import Rejection
 from journal.models.support.row_card import RowCard
 from journal.repositories.scope import Scope
@@ -30,8 +33,8 @@ class Docking:
     """The rows pinned above the chat: each is a keyed system message whose data records that it is docked and the row's card, the card already made for the row if there is one, else a card written for it; undocking leaves the message in place with docked set to false."""
 
     def __init__(self, tasks: Tasks, plans: Plans, docs: Docs, reports: Reports, facts: Facts, rules: Rules, reminders: Reminders, questions: Questions, sequences: Sequences,
-                 templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, row_card: RowProcessCard, scope: Scope) -> None:
-        self.messages, self.row_card, self.scope = messages, row_card, scope
+                 templates: Templates, workers: Workers, triggers: Triggers, checks: Checks, dumps: Dumps, notices: Notices, messages: Messages, announcer: Announcer, scope: Scope) -> None:
+        self.messages, self.announcer, self.scope = messages, announcer, scope
         self.kinds: dict[str, Repository] = {kind.model.noun(): kind for kind in (tasks, plans, docs, reports, facts, rules, reminders, questions, sequences, templates, workers, triggers, checks, dumps, notices)}
         self.tables: dict[str, Repository] = {kind.model.table(): kind for kind in self.kinds.values()}
 
@@ -75,4 +78,5 @@ class Docking:
         return cards[0] if cards else None
 
     def new_card(self, row: Model, actor: Actor) -> Message:
-        return self.row_card.show_docked(self.scope.id, row, actor)
+        self.announcer.announce(RowDocked(environment_id=self.scope.id, row=Ref.build(row), actor=actor))
+        return self.card(row)

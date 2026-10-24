@@ -8,5 +8,5 @@ class Announcer:
     def __init__(self, bus: Bus) -> None:
         self.bus = bus
 
-    def announce(self, event: Event) -> None:
-        self.bus.dispatch(event)
+    def announce(self, event: Event) -> list[object]:
+        return self.bus.dispatch(event)

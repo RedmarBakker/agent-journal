@@ -12,7 +12,6 @@ from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.script_reader import ScriptReader
 from journal.config import Config
 from journal.features.aliases.support.alias_lines import AliasLines
-from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.watch_suggestions import WatchSuggestions
 from journal.features.shell.support.time_limit_wrapper import TimeLimitWrapper
 from journal.models.alias import Alias
@@ -43,9 +42,9 @@ VARIED_RUNS = 3
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, card: OutputProcessCard, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests) -> None:
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
-        self.aliases, self.outputs, self.card, self.readers, self.supervisor, self.entries = aliases, outputs, card, readers, supervisor, entries
+        self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
         self.stages, self.slow = stages, slow
         self.wrappers_told: set[str] = set()
 
@@ -149,14 +148,14 @@ class ShellRunner:
         return [ShellNudges.LINE_TIME_LIMIT.create(command=shape).rendered()]
 
     def reader_watched(self, number: int, part: str, reader: Reader | ScriptReader, caller: Caller) -> list[str]:
-        self.card.show(self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor))
+        self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor)
         shape = CommandShape.build(part)
         watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name).rendered()]
         varied = self.entries.shape_commands(caller.session, shape) if caller.session and not reader.topic_pattern else set()
         return [*watched, ShellNudges.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name).rendered()] if len(varied) >= VARIED_RUNS else watched
 
     def watched(self, number: int, alias: Alias, caller: Caller) -> list[str]:
-        self.card.show(self.outputs.watch(self.outputs.find(number), alias.reader, "", caller.actor))
+        self.outputs.watch(self.outputs.find(number), alias.reader, "", caller.actor)
         return [ShellNudges.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "").rendered()]
 
     def closed(self, folder: OutputFiles, request: ShellRequest, caller: Caller, cap: Cap) -> None:

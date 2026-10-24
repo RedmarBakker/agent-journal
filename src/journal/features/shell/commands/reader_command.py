@@ -2,7 +2,8 @@ import re
 from argparse import Namespace
 from pathlib import Path
 
-from journal.features.shell.support.output_process_card import OutputProcessCard
+from journal.events.announcer import Announcer
+from journal.events.moments.reader_added import ReaderAdded
 from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
@@ -21,8 +22,8 @@ class ReaderCommand(Command):
     noun = "reader"
     callers = {"list": WORKER_KINDS}
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, card: OutputProcessCard) -> None:
-        self.readers, self.outputs, self.card = readers, outputs, card
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer) -> None:
+        self.readers, self.outputs, self.announcer = readers, outputs, announcer
 
     def arguments(self, verbs) -> None:
         addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
@@ -53,8 +54,7 @@ class ReaderCommand(Command):
             for pattern in (reader.pattern, reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):
                 re.compile(pattern)
             self.readers.add(reader)
-        for output in self.outputs.reader_outputs(args.name):
-            self.card.show(output)
+        self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
         return 0
 

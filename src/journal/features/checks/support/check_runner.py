@@ -6,21 +6,16 @@ import threading
 import time as timing
 from datetime import datetime, timezone
 from pathlib import Path
-from journal.models.support.ref import Ref
 
 from journal.config import Config
-from journal.chat.moment_cards import MomentCards
 from journal.features.checks.support.check_output import CheckOutput
 from journal.features.checks.support.finished_run import FinishedRun
 from journal.support.actor import Actor
 from journal.models.check import Check
 from journal.support.check_report import CheckReport
-from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
-from journal.support.card_kind import CardKind
 
 TIMEOUT_SECONDS = 600
-TAIL_LINES = 20
 FAULTS = {126: "the command cannot be run", 127: "the command is not there"}
 OUTPUT_CHARACTERS = 4000
 INTERVAL_SECONDS = 1.0
@@ -29,8 +24,8 @@ INTERVAL_SECONDS = 1.0
 class CheckRunner:
     """Runs one check in the project root, with its progress on its row while it runs, and stores its result and report; the run is a row event the check carries, and what the agent is informed about a failure is the checks conduct's."""
 
-    def __init__(self, config: Config, checks: Checks, agents: Agents, cards: MomentCards) -> None:
-        self.config, self.checks, self.agents, self.cards = config, checks, agents, cards
+    def __init__(self, config: Config, checks: Checks) -> None:
+        self.config, self.checks = config, checks
 
     def run(self, check: Check, actor: Actor) -> Check:
         started = timing.time()
@@ -52,11 +47,6 @@ class CheckRunner:
         prior_failure = check.last_passed is False
         elapsed = timing.time() - started
         check_row = self.checks.save(self.checks.find(check.row_id).completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], datetime.now(timezone.utc), elapsed, self.report(report), ended.fault), actor)
-        if check_row.wait_target:
-            return check_row
-        tail = "\n".join(ended.output.strip().splitlines()[-TAIL_LINES:])
-        for agent in self.agents.active_main_agents():
-            self.cards.show(agent.environment_id, agent.session, f"Check {check_row.title} {'passed' if ended.passed else 'failed'}", "check" if ended.passed else "x", "good" if ended.passed else "bad", tail, Ref.build(check_row), shows=CardKind.CHECKS)
         return check_row
 
     def executed(self, check: Check, report: Path, started: float, actor: Actor) -> FinishedRun:

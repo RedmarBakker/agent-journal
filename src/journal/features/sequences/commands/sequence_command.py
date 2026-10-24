@@ -1,24 +1,23 @@
 from argparse import Namespace
-from journal.models.support.ref import Ref
 
 from journal.console.command import Command
 from journal.support.caller import Caller
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.sequence_abandoned import SequenceAbandoned
 from journal.features.sequences.support.run_tracker import RunTracker
 from journal.models.sequence import Sequence
 from journal.repositories.scope import Scope
 from journal.support.sequence_run import SequenceRun
 from journal.support.rejection import Rejection
 from journal.repositories.sequences import Sequences
-from journal.support.card_kind import CardKind
 from journal.features.sequences.sequences_nudges import SequencesNudges
 
 
 class SequenceCommand(Command):
     noun = "sequence"
 
-    def __init__(self, sequences: Sequences, active: RunTracker, scope: Scope, cards: MomentCards) -> None:
-        self.sequences, self.running, self.scope, self.cards = sequences, active, scope, cards
+    def __init__(self, sequences: Sequences, active: RunTracker, scope: Scope, announcer: Announcer) -> None:
+        self.sequences, self.running, self.scope, self.announcer = sequences, active, scope, announcer
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a sequence of steps")
@@ -72,7 +71,7 @@ class SequenceCommand(Command):
         if not args.sure:
             raise Rejection(f"abandoning sequence {run.sequence_id}, {run.title}, leaves undone: {skipped}. again with --sure to go through")
         run, line = self.running.abandon(caller.agent_session, self.scope.id)
-        self.cards.show(self.scope.id, caller.agent_session, f"Sequence {run.sequence_id}, {run.title}, abandoned at step {run.step + 1}: {args.why}", "bolt", "bad", f"left undone: {skipped}", Ref("sequences", run.sequence_id), shows=CardKind.SEQUENCES)
+        self.announcer.announce(SequenceAbandoned(environment_id=self.scope.id, session=caller.agent_session, sequence_id=run.sequence_id, title=run.title, step=run.step, why=args.why, skipped=skipped))
         print(line)
         return 0
 

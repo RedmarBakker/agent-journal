@@ -11,9 +11,7 @@ from journal.repositories.phone_codes import PhoneCodes
 from journal.repositories.phones import Phones
 from journal.support.actor import Actor
 from journal.support.actor_kind import ActorKind
-from journal.chat.moment_cards import MomentCards
 from journal.support.rejection import Rejection
-from journal.support.card_kind import CardKind
 
 CODE_MINUTES = 10
 DAYS = (1, 7, 30)
@@ -25,8 +23,8 @@ DEVICE_CHARACTERS = 60
 class PhoneConnector:
     """How a phone pairs, as version 3 did: the user asks for a code on the desk, the phone hands it back once within minutes and is given a key it keeps; one phone at a time, a newer code replacing an older one, too many wrong codes voiding it."""
 
-    def __init__(self, phones: Phones, codes: PhoneCodes, tunnel: Tunnel, cards: MomentCards) -> None:
-        self.phones, self.codes, self.tunnel, self.cards = phones, codes, tunnel, cards
+    def __init__(self, phones: Phones, codes: PhoneCodes, tunnel: Tunnel) -> None:
+        self.phones, self.codes, self.tunnel = phones, codes, tunnel
 
     def proposal(self, days: int, actor: Actor, time: datetime) -> ConnectionProposal:
         if actor.kind != ActorKind.USER:
@@ -55,7 +53,6 @@ class PhoneConnector:
         self.codes.save(rows.closed(time), Actor.system())
         name = " ".join(device.split())[:DEVICE_CHARACTERS] or "A phone"
         phone = self.phones.save(Phone(environment_id=rows.environment_id, name=name, key=self.hashed(key), expires_at=time + timedelta(days=rows.days), last_visited_at=time), Actor.system())
-        self.cards.show(rows.environment_id, "", f"A phone paired: {name}", "phone", shows=CardKind.PHONES)
         self.tunnel.reconcile()
         return PairedPhone(phone, key)
 

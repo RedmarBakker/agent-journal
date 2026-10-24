@@ -1,7 +1,8 @@
 import time
 
-from journal.chat.moment_cards import MomentCards
 from journal.engine.job import Job
+from journal.events.announcer import Announcer
+from journal.events.moments.menu_answered import MenuAnswered
 from journal.models.agent import Agent
 from journal.providers.support.menu import ESCAPE, Menu
 from journal.repositories.agents import Agents
@@ -9,7 +10,6 @@ from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
 from journal.engine.support.launch_files import LaunchFiles
 from journal.engine.support.menu_answers import MenuAnswers
-from journal.support.card_kind import CardKind
 from journal.support.timeout import Timeout
 
 STILLNESS_SECONDS = 1.5
@@ -22,8 +22,8 @@ class MenuWatcher(Job):
 
     interval_seconds = 0.5
 
-    def __init__(self, agents: Agents, supervisor: SupervisorLink, cards: MomentCards, scope: Scope, answers: MenuAnswers, launches: LaunchFiles) -> None:
-        self.agents, self.supervisor, self.cards, self.scope = agents, supervisor, cards, scope
+    def __init__(self, agents: Agents, supervisor: SupervisorLink, announcer: Announcer, scope: Scope, answers: MenuAnswers, launches: LaunchFiles) -> None:
+        self.agents, self.supervisor, self.announcer, self.scope = agents, supervisor, announcer, scope
         self.answers, self.launches = answers, launches
         self._menu_signatures: dict[int, tuple] = {}
         self._menu_changed_at: dict[int, float] = {}
@@ -57,7 +57,7 @@ class MenuWatcher(Job):
         if triggered:
             self.supervisor.confirmed(environment)
         self._answered[environment] = menu.signature()
-        self.cards.show(environment, agent.session, f'A menu in the agent\'s terminal was answered: "{menu.question[-160:]}" The journal {line_text}.', "bolt", shows=CardKind.MENUS)
+        self.announcer.announce(MenuAnswered(environment_id=environment, session=agent.session, question=menu.question, done=line_text))
         return keys
 
     def answers_permission(self, menu: Menu, environment: int) -> bool:

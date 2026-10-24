@@ -3,10 +3,9 @@ import time
 from journal.engine.agent_launcher import AgentLauncher
 from journal.models.environment import Environment
 from journal.repositories.environments import Environments
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.team_chat_claimed import TeamChatClaimed
 from journal.supervisor_link import SupervisorLink
-from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_chat_branch import TEAM_CHAT, TeamChatBranch
 from journal.sync.team_server_link import TeamServerLink
@@ -19,16 +18,16 @@ RENEW_SECONDS = 30
 class TeamChat:
     """Who runs the Team chat's agent: the one machine holding the team server's team-chat lease, which claims it, renews it while it runs the agent, and alone may start an agent in the Team chat. It lets the lease go by a release, which stops its agent here and commits and pushes the Team chat's files first, or loses it when it stops renewing it for the server's 90 seconds and another person claims it, whose claim says in the Team chat that what the last holder had not pushed stayed on their machine. A claim starts from the files of the last push."""
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, launcher: AgentLauncher, supervisor: SupervisorLink, environments: Environments, branch: TeamChatBranch, cards: MomentCards) -> None:
+    def __init__(self, account: TeamAccount, link: TeamServerLink, launcher: AgentLauncher, supervisor: SupervisorLink, environments: Environments, branch: TeamChatBranch, announcer: Announcer) -> None:
         self.account, self.link, self.launcher, self.supervisor, self.environments = account, link, launcher, supervisor, environments
-        self.branch, self.cards = branch, cards
+        self.branch, self.announcer = branch, announcer
         self.renewed_at = 0.0
 
     def claim(self, agent: str) -> Lease:
         former = self.holder()
         lease = self.link.acquire_lease(CHAT_LEASE)
         if former.holder and former.device_id != lease.device_id:
-            self.cards.show(self.team_chat_id(), None, f"{lease.holder} claimed the Team chat while {former.holder} was offline: what {former.holder} had not pushed stayed on their machine", "warn", actor=Actor.system(), shows=CardKind.WORKTREES)
+            self.announcer.announce(TeamChatClaimed(environment_id=self.team_chat_id(), holder=lease.holder, former=former.holder))
         self.branch.pull()
         self.account.write({**self.account.contents(), "holds_chat": True, "chat_device": lease.device_id})
         self.renewed_at = time.monotonic()

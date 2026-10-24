@@ -1,4 +1,6 @@
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.edit_dropped import EditDropped
+from journal.events.moments.edit_kept import EditKept
 from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -6,17 +8,14 @@ from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.repositories.scope import PROJECT
 from journal.repositories.shared_tables import SharedTables
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
 from sync_server.rejected_field import RejectedField
-
-DETAIL_CHARACTERS = 120
 
 
 class RejectedEdits:
     """The edits the team server rejected, put right on this machine: a field takes the value that stands, unless this machine has edited it again since, and a row deleted in the meantime is deleted here too; a card in the chat of the row's environment says whose edit was stored."""
 
-    def __init__(self, tables: SharedTables, outgoing: OutgoingChanges, links: Links, cards: MomentCards) -> None:
-        self.tables, self.outgoing, self.links, self.cards = tables, outgoing, links, cards
+    def __init__(self, tables: SharedTables, outgoing: OutgoingChanges, links: Links, announcer: Announcer) -> None:
+        self.tables, self.outgoing, self.links, self.announcer = tables, outgoing, links, announcer
 
     def apply(self, rejections: tuple[RejectedField, ...]) -> None:
         for rejection in rejections:
@@ -28,13 +27,13 @@ class RejectedEdits:
             self.deleted(rejection)
         elif rejection.field not in self.outgoing.queued_fields(rejection.row_table, rejection.row):
             for row in self.tables.rows(rejection.row_table).pulled_update(rejection.row, {rejection.field: rejection.value}, Actor.system()):
-                self.cards.show(self.environment(row), None, f"{rejection.writer}'s edit of {row.noun()} {row.row_id}'s {rejection.field} was kept over yours", "warn", detail=f"kept: {str(rejection.value)[:DETAIL_CHARACTERS]}", row=Ref.build(row), shows=CardKind.CONFLICTS)
+                self.announcer.announce(EditKept(environment_id=self.environment(row), writer=rejection.writer, noun=row.noun(), row_id=row.row_id, field=rejection.field, kept=str(rejection.value), ref=Ref.build(row)))
 
     def deleted(self, rejection: RejectedField) -> None:
         self.outgoing.dropped(rejection.row_table, rejection.row, Actor.system())
         for row in self.tables.rows(rejection.row_table).pulled_deletion(rejection.row, Actor.system()):
             self.links.remove_links(row, Actor.system())
-            self.cards.show(self.environment(row), None, f"{row.noun().capitalize()} {row.row_id} was deleted by a colleague, so your edit of it was dropped", "warn", shows=CardKind.CONFLICTS)
+            self.announcer.announce(EditDropped(environment_id=self.environment(row), noun=row.noun(), row_id=row.row_id))
 
     @staticmethod
     def environment(row: Model) -> int:

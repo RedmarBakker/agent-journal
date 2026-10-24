@@ -53,5 +53,5 @@ class TranscriptChat:
         if not self.tools:
             return
         line = "Tool calls: " + ", ".join(f"{name} {count}" for name, count in self.tools.most_common())
-        self.rows.append(ChatRow(Message(author=Author.SYSTEM, session=self.session, text=line, data={"kind": Message.TOOL_SUMMARY}), self.tools_at))
+        self.rows.append(ChatRow(Message.tool_summary(self.session, line), self.tools_at))
         self.tools = Counter()

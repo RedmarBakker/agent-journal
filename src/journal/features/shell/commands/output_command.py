@@ -125,7 +125,7 @@ class OutputCommand(Command):
             raise Rejection(f"output {output.id} {output.ending()}; read it with journal output read {output.id} --summary")
         if args.reader:
             self.readers.reading_output(args.reader, output)
-        self.card.show(self.outputs.watch(output, args.reader, ActivityTitle.checked(args.title), caller.actor))
+        self.outputs.watch(output, args.reader, ActivityTitle.checked(args.title), caller.actor)
         print(f"watching output {output.id}: you see its view after every tool use until its command ends")
         return 0
 

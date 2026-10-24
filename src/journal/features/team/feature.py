@@ -7,6 +7,7 @@ from journal.features.team.jobs.team_chat_files import TeamChatFiles
 from journal.features.team.seeds.single_team_chat import SingleTeamChat
 from journal.features.team.listeners.colleague_write_guard import ColleagueWriteGuard
 from journal.features.team.listeners.environment_owner_record import EnvironmentOwnerRecord
+from journal.features.team.listeners.sync_moment_cards import SyncMomentCards
 from journal.features.team.team_part import TeamPart
 from journal.features.team.team_nudges import TeamNudges
 
@@ -16,7 +17,7 @@ class TeamFeature(Feature[TeamData]):
     title = "Team"
     help = "A journal shared with a team through its server: joining it, inviting people, the team's devices and how the sync stands."
     commands = (TeamCommand,)
-    listeners = (EnvironmentOwnerRecord, ColleagueWriteGuard)
+    listeners = (EnvironmentOwnerRecord, ColleagueWriteGuard, SyncMomentCards)
     jobs = (TeamChatFiles,)
     seeds = (SingleTeamChat,)
     data = (TeamDataReader,)

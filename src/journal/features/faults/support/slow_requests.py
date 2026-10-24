@@ -6,7 +6,8 @@ from journal.features.faults.support.request_timer import RequestTimer
 from journal.features.faults.support.test_run_files import TestRunFiles
 
 from journal.config import Config
-from journal.features.faults.support.slow_request_process_card import SlowRequestProcessCard
+from journal.events.announcer import Announcer
+from journal.events.moments.slow_requests_reported import SlowRequestsReported
 from journal.features.faults.support.slow_request_tally import SlowRequestTally
 from journal.support.listener_queue import ListenerQueue
 from journal.engine.clock import Clock
@@ -38,8 +39,8 @@ OUTWARD_COMMANDS = ("/cli/plugin install", "/cli/plugin upgrade", "/cli/plugin p
 class SlowRequests:
     """Measures each request against its budget, on its whole time from the moment its sender sent it, by the stamp every sender puts on it, to its answer, every wait included but a wait for the journal's boot, and never while it boots, where the journal develops itself, every one but a route's first since the boot, which loads its code and a cold cache once, with the rows it loaded while load counting is on, and counts one over it in memory, each route's worst time and count; once ten have gathered or thirty seconds passed without another, asked at most every five seconds as requests come, and again only once the set minutes have passed since the agent was last informed, it tells the agent in one line how many gathered and the worst, and writes the chat mark with the counts then, never at each slow request."""
 
-    def __init__(self, config: Config, settings: SettingRows, card: SlowRequestProcessCard, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, test_runs: TestRunFiles, lifecycle: Lifecycle) -> None:
-        self.config, self.settings, self.card, self.agents, self.environments, self.scope, self.nudges, self.clock, self.deferred = config, settings, card, agents, environments, scope, nudges, clock, deferred
+    def __init__(self, config: Config, settings: SettingRows, announcer: Announcer, agents: Agents, environments: Environments, scope: Scope, nudges: NudgeLog, clock: Clock, deferred: ListenerQueue, tally: DeveloperTally, test_runs: TestRunFiles, lifecycle: Lifecycle) -> None:
+        self.config, self.settings, self.announcer, self.agents, self.environments, self.scope, self.nudges, self.clock, self.deferred = config, settings, announcer, agents, environments, scope, nudges, clock, deferred
         self.tally = tally
         self.test_runs, self.lifecycle = test_runs, lifecycle
         self.measured_routes: set[str] = set()
@@ -115,7 +116,7 @@ class SlowRequests:
             self.show(tally, self.budget("GET"), moment)
 
     def show(self, tally: SlowRequestTally, budget: int, moment: float) -> None:
-        self.card.show(tally.total(), {"kind": "card", "icon": "gauge", "tone": "bad", "row": "", **tally.serialized()}, tally.detail(budget), moment)
+        self.announcer.announce(SlowRequestsReported(environment_id=self.scope.id, total=tally.total(), data={"kind": "card", "icon": "gauge", "tone": "bad", "row": "", **tally.serialized()}, detail=tally.detail(budget), moment=moment))
 
     def is_reportable(self, reported_at: float, moment: float) -> bool:
         if not reported_at:

@@ -2,6 +2,9 @@ from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.features.feature import Feature
 from journal.features.shell.listeners.output_notice import OutputNotice
 from journal.features.shell.listeners.watch_update import WatchUpdate
+from journal.features.shell.listeners.output_card import OutputCard
+from journal.features.shell.listeners.changed_output_card import ChangedOutputCard
+from journal.features.shell.listeners.reader_output_cards import ReaderOutputCards
 from journal.features.shell.states.fixing_reader import FixingReader
 from journal.features.shell.shell_conduct import ShellConduct
 from journal.features.shell.support.shell_data_reader import ShellDataReader
@@ -26,7 +29,7 @@ class Shell(Feature[ShellData]):
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past thirty seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
     options = (FOREGROUND_OPTION, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
-    listeners = (OutputNotice, WatchUpdate)
+    listeners = (OutputNotice, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards)
     seeds = (CutOffOutputs, DefaultReaders)
     jobs = (WatchRefresh, RestartWait)
     process_cards = (OutputProcessCard,)

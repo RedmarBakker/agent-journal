@@ -1,4 +1,6 @@
 from journal.engine.job import Job
+from journal.events.announcer import Announcer
+from journal.events.moments.output_view_changed import OutputViewChanged
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.output_views import OutputViews
 from journal.repositories.command_outputs import CommandOutputs
@@ -10,11 +12,11 @@ class WatchRefresh(Job):
 
     interval_seconds = 1.0
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, card: OutputProcessCard, scope: Scope) -> None:
-        self.outputs, self.views, self.card, self.scope = outputs, views, card, scope
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, card: OutputProcessCard, announcer: Announcer, scope: Scope) -> None:
+        self.outputs, self.views, self.card, self.announcer, self.scope = outputs, views, card, announcer, scope
 
     def tick(self, time: float) -> None:
         for output in self.outputs.all_carded():
             with self.scope.environment(output.environment_id):
                 if self.views.view(output) != self.card.card_view(output):
-                    self.card.show(output)
+                    self.announcer.announce(OutputViewChanged(environment_id=output.environment_id, output=output.row_id))

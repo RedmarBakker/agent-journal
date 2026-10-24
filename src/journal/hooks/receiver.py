@@ -3,7 +3,8 @@ import time
 
 from journal.support.stage_times import StageTimes
 
-from journal.chat.moment_cards import MomentCards
+from journal.events.moments.guard_failed import GuardFailed
+from journal.events.moments.session_unbound import SessionUnbound
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.stop import Stop
 from journal.events.agent.session_ended import SessionEnded
@@ -22,7 +23,6 @@ from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.scope import Scope
 from journal.features.faults.support.slow_requests import HOOK, SlowRequests
-from journal.support.card_kind import CardKind
 from journal.support.hook_kind import HookKind
 from journal.engine.support.launch_files import LaunchFiles
 from journal.models.environment import Environment
@@ -36,11 +36,11 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id is recorded and reported, and reaches no listener; a verified worker's hook is recorded and answered by the listeners that receive workers' events, the state machine alone, under the worker's own conduct, so none of the main agent's conduct blocks a worker and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, cards: MomentCards, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes) -> None:
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes) -> None:
         self.names, self.stages = names, stages
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
-        self.transcript, self.cards, self.slow = transcript, cards, slow
+        self.transcript, self.slow = transcript, slow
         self.worker_hooks = worker_hooks
 
     def receive(self, hook: Hook) -> Decision:
@@ -80,7 +80,7 @@ class Receiver:
     def unbound(self, hook: Hook, environment: Environment) -> Decision:
         self.entries.save(Entry(environment_id=environment.row_id, kind=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}), Actor.agent(hook.session))
         if hook.kind == HookKind.SESSION_START:
-            self.cards.show(environment.row_id, hook.session, f"Session {hook.session} started without the launch id of {environment.name}: the journal records its hooks and does not take it as this environment's agent", "bolt", tone="bad", shows=CardKind.FAULTS)
+            self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()
 
     def recorded_outcome(self, hook: Hook, decision: Decision) -> dict:
@@ -120,7 +120,7 @@ class Receiver:
         except Exception as fault:
             text = f"{type(listener).__name__} raised {type(fault).__name__}: {fault}"
             self.entries.save(Entry(environment_id=event.environment_id, kind=GUARD_FAILED, actor=Actor.system(), data={"session": event.session, "event": type(event).__name__, "listener": type(listener).__name__, "fault": f"{type(fault).__name__}: {fault}"}), Actor.system())
-            self.cards.show(event.environment_id, event.session, f"A guard failed and let the event through: {text}", "bolt", tone="bad", shows=CardKind.FAULTS)
+            self.bus.dispatch(GuardFailed(environment_id=event.environment_id, session=event.session, text=text))
             return Decision.allowed_with(f"[journal] a guard failed and let this through: {text}. the journal recorded it; tell the user if it happens again")
 
     def _defer(self, event: AgentEvent) -> None:

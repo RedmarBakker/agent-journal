@@ -1,5 +1,6 @@
 from journal.features.feature import Feature
 from journal.features.sharing.commands.share_command import ShareCommand
+from journal.features.sharing.listeners.shared_comment_card import SharedCommentCard
 from journal.features.sharing.seeds.tunnel_seed import TunnelSeed
 from journal.features.sharing.sharing_options import SharingOptions
 
@@ -11,3 +12,4 @@ class Sharing(Feature):
     options = (SharingOptions.HOST,)
     seeds = (TunnelSeed,)
     commands = (ShareCommand,)
+    listeners = (SharedCommentCard,)

@@ -20,7 +20,9 @@
                     {
                         "of": "child:value",
                         "nameIn": [
-                            "cards"
+                            "cards",
+                            "processes",
+                            "moments"
                         ]
                     }
                 ]

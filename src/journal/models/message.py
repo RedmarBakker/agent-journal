@@ -63,6 +63,10 @@ class Message(Scoped):
         return self.with_(text=f"{labels[0]}, and {len(labels) - 1} more like it").with_merged("data", {"covers": labels, "detail": f"{len(labels)} in all", "lines": labels})
 
     @classmethod
+    def tool_summary(cls, session: str, text: str) -> "Message":
+        return cls(author=Author.SYSTEM, session=session, text=text, data={"kind": cls.TOOL_SUMMARY})
+
+    @classmethod
     def hydration(cls, provider: str, session: str, text: str) -> "Message":
         return cls(author=Author.SYSTEM, text=text, data={"kind": cls.HYDRATION, "provider": provider, "session": session, "reading_request": False})
 

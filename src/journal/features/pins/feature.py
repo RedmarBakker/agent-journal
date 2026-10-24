@@ -1,6 +1,7 @@
 from journal.features.feature import Feature
 from journal.features.pins.commands.notice_command import NoticeCommand
 from journal.features.pins.listeners.dock_new_writing import DockNewWriting
+from journal.features.pins.listeners.docked_row_card import DockedRowCard
 from journal.features.pins.pins_conduct import PinsConduct
 from journal.features.pins.support.pins_data_reader import PinsDataReader
 from journal.features.pins.support.pins_data import PinsData
@@ -15,7 +16,7 @@ class Pins(Feature[PinsData]):
     title = "Pinned links"
     help = "A link the agent gives the user is pinned above the chat, so it is not lost as the chat scrolls; the user closes it when done."
     commands = (NoticeCommand,)
-    listeners = (DockNewWriting,)
+    listeners = (DockNewWriting, DockedRowCard)
     options = (PinsOptions.PIN_SUGGESTION_INTERVAL,)
     data = (PinsDataReader,)
     conduct = (PinsConduct,)

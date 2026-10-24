@@ -2,6 +2,7 @@ from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.questions.commands.question_command import QuestionCommand
 from journal.features.questions.listeners.question_card import QuestionCard
+from journal.features.questions.listeners.answer_card import AnswerCard
 from journal.features.questions.support.question_process_card import QuestionProcessCard
 from journal.features.questions.questions_conduct import QuestionsConduct
 from journal.features.questions.support.questions_data_reader import QuestionsDataReader
@@ -17,7 +18,7 @@ class Questions(Feature[QuestionsData]):
     help = "The agent asks you a question and waits; your answer sends it back to work."
     states = (Waiting,)
     commands = (QuestionCommand,)
-    listeners = (QuestionCard,)
+    listeners = (QuestionCard, AnswerCard)
     process_cards = (QuestionProcessCard,)
     conduct = (QuestionsConduct,)
     data = (QuestionsDataReader,)

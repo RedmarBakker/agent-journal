@@ -1,19 +1,19 @@
+from journal.chat.moment_cards import MomentCards
 from journal.models.fact import Fact
 from journal.models.model import Model
 from journal.models.reminder import Reminder
 from journal.models.rule import Rule
-from journal.support.actor import Actor
-from journal.support.actor_kind import ActorKind
-from journal.chat.moment_cards import MomentCards
-from journal.support.card_kind import CardKind
 from journal.models.support.ref import Ref
 from journal.repositories.scope import Scope
+from journal.support.actor import Actor
+from journal.support.actor_kind import ActorKind
+from journal.support.card_kind import CardKind
 
 MEMORY_KINDS = {Fact: ("Fact", CardKind.FACTS), Rule: ("Rule", CardKind.RULES), Reminder: ("Reminder", CardKind.REMINDERS)}
 
 
-class MemoryCards:
-    """A card in the chat for what happened to a fact, a rule or a reminder: its noun, number and the verb, and the row it opens; a rule, which is the project's, is shown in the environment of the act."""
+class MemoryCard:
+    """What a listener of a fact, a rule or a reminder writes in the chat: its noun, number and the verb, and the row it opens; a rule, which is the project's, is shown in the environment of the act."""
 
     def __init__(self, cards: MomentCards, scope: Scope) -> None:
         self.cards, self.scope = cards, scope

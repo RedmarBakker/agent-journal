@@ -8,7 +8,6 @@ from journal.hooks.command_events import CommandEvents
 from journal.features.shell.support.changed_file import ChangedFile
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.output_log import OutputLog
-from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.output_views import OutputViews
 from journal.models.entry import Entry
 from journal.repositories.agents import Agents
@@ -31,9 +30,9 @@ PART_START, PART_END, MOVED, ENDED = "running", "ran", "background", "ended"
 class ShellRecord:
     """What the runner records as a chain runs: each of the agent's own parts as it starts and ends with its status, time, output tail and the files it changed (the edits feature stores the changed lines from the tool's end), the move to the background with its card and event, the end of a moved chain, and whether an ended output is stored under its number or discarded."""
 
-    def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, card: OutputProcessCard, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue) -> None:
+    def __init__(self, entries: Entries, log: OutputLog, outputs: CommandOutputs, views: OutputViews, events: CommandEvents, agents: Agents, settings: SettingRows, scope: Scope, states: StatesCatalogue) -> None:
         self.entries, self.log, self.outputs, self.views = entries, log, outputs, views
-        self.card, self.events, self.agents, self.settings, self.scope, self.states = card, events, agents, settings, scope, states
+        self.events, self.agents, self.settings, self.scope, self.states = events, agents, settings, scope, states
 
     def start(self, chain: str, command: str, folder: Path, caller: Caller) -> int:
         return self.log.start(chain, command, folder, caller).row_id
@@ -49,7 +48,6 @@ class ShellRecord:
         output = self.outputs.save(self.outputs.chain_output(chain).backgrounded(), caller.actor)
         if caller.session is not None:
             self.events.moved(output, caller.session)
-        self.card.show(output)
         return output.row_id
 
     def ended(self, chain: str, status: int, folder: Path, last: str, caller: Caller) -> None:
@@ -59,7 +57,6 @@ class ShellRecord:
         summary = self.views.ended_summary(output.with_(ended=True, status=status))
         finish = output.wait_end(status, moment, summary) if agent is not None and self.wait_covers(output, agent) else output.ended_with(status, moment, summary)
         saved = self.outputs.save(finish, caller.actor)
-        self.card.show(saved)
         if agent is not None:
             self.events.ended(saved, agent)
 

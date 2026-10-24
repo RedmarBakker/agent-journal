@@ -1,22 +1,22 @@
 from dataclasses import replace
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.trigger_fired import TriggerFired
 from journal.features.sequences.support.run_tracker import RunTracker
 from journal.models.trigger import Trigger
 from journal.models.trigger_action import TriggerAction
 from journal.repositories.sequences import Sequences
-from journal.support.card_kind import CardKind
 from journal.models.support.ref import Ref
 
 
 class TriggerFire:
     """What matched triggers record, wherever the words appeared: a card for each, and a sequence started at its first step, whose line is returned; what is reported about the rest is the triggers conduct's."""
 
-    def __init__(self, cards: MomentCards, runs: RunTracker, sequences: Sequences) -> None:
-        self.cards, self.runs, self.sequences = cards, runs, sequences
+    def __init__(self, announcer: Announcer, runs: RunTracker, sequences: Sequences) -> None:
+        self.announcer, self.runs, self.sequences = announcer, runs, sequences
 
     def fired(self, matched: list[Trigger], session: str, environment_id: int, user_origin: bool) -> None:
         for trigger in matched:
-            self.cards.show(environment_id, session, f"Trigger {trigger.text}", "bolt", "", ", ".join(trigger.phrases), Ref.build(trigger), shows=CardKind.TRIGGERS)
+            self.announcer.announce(TriggerFired(environment_id=environment_id, session=session, text=trigger.text, phrases=tuple(trigger.phrases), ref=Ref.build(trigger)))
             if trigger.action == TriggerAction.SEQUENCE and user_origin:
                 self.started(trigger, session, environment_id)
 

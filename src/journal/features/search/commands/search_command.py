@@ -2,10 +2,10 @@ from argparse import Namespace
 
 from journal.console.command import HELPER_KINDS, Command
 from journal.support.caller import Caller
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.search_made import SearchMade
 from journal.features.search.support.search import CONVERSATION, Search
 from journal.repositories.scope import Scope
-from journal.support.card_kind import CardKind
 
 
 class SearchCommand(Command):
@@ -15,8 +15,8 @@ class SearchCommand(Command):
     callers = {"find": HELPER_KINDS}
     default_verb = "find"
 
-    def __init__(self, search: Search, cards: MomentCards, scope: Scope) -> None:
-        self.search, self.cards, self.scope = search, cards, scope
+    def __init__(self, search: Search, announcer: Announcer, scope: Scope) -> None:
+        self.search, self.announcer, self.scope = search, announcer, scope
 
     def arguments(self, verbs) -> None:
         search_verb = self.verb(verbs, "find", "find the rows and conversations here that hold every one of the words")
@@ -29,5 +29,5 @@ class SearchCommand(Command):
         lines = [row.line() for row in rows]
         answer = "\n".join(lines) if lines else f"nothing here holds all of: {' '.join(terms)}"
         print(answer)
-        self.cards.show(self.scope.id, caller.session, f"Searched for \"{' '.join(terms)}\"", "search", detail=answer, kind="search", shows=CardKind.SEARCHES)
+        self.announcer.announce(SearchMade(environment_id=self.scope.id, session=caller.session, terms=" ".join(terms), answer=answer))
         return 0

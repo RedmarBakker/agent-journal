@@ -1,8 +1,7 @@
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.team_chat_files_diverged import TeamChatFilesDiverged
 from journal.config import Config
 from journal.repositories.environments import Environments
-from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
 from journal.support.worktree import Worktree
 from journal.sync.sync_status import SyncStatus
 from journal.sync.team_account import TeamAccount
@@ -16,8 +15,8 @@ COMMIT_DELAY_SECONDS = 15
 class TeamChatBranch:
     """The Team chat's files, the same on every machine: the holder commits its worktree of the Team chat once its files have not changed for 15 seconds and pushes it to the branch journal/team-chat on origin, which every member fetches from; every other machine moves its own worktree of the Team chat to that branch's last commit when the worktree has no changes of its own, and says in the Team chat when it has. Files git ignores, the journal's folder and secrets among them, are never committed; repositories inside the project are not part of an environment's worktree, so they are not shared."""
 
-    def __init__(self, config: Config, account: TeamAccount, environments: Environments, cards: MomentCards, status: SyncStatus) -> None:
-        self.account, self.environments, self.cards, self.status = account, environments, cards, status
+    def __init__(self, config: Config, account: TeamAccount, environments: Environments, announcer: Announcer, status: SyncStatus) -> None:
+        self.account, self.environments, self.announcer, self.status = account, environments, announcer, status
         self.worktree = Worktree(config.root, TEAM_CHAT)
         self.files_hash, self.files_hash_at, self.remote_head, self.warning_tip = "", 0.0, "", ""
 
@@ -74,5 +73,4 @@ class TeamChatBranch:
             return
         self.warning_tip = tip
         device = self.account.device_name()
-        label = f"The Team chat's files on {device} have changes of their own, so they stay at {self.worktree.local_branch()[:8]} and not at the holder's {tip[:8]}"
-        self.cards.show(self.environments.existing(TEAM_CHAT).id, None, label, "warn", key=f"team-chat-files:{device}", actor=Actor.system(), shows=CardKind.WORKTREES)
+        self.announcer.announce(TeamChatFilesDiverged(environment_id=self.environments.existing(TEAM_CHAT).id, device=device, local=self.worktree.local_branch(), tip=tip))

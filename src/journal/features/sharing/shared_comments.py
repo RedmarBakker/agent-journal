@@ -1,26 +1,23 @@
 from journal.features.sharing.support.comment_rate import CommentRate
 from journal.features.sharing.share_targets import ShareTargets
-from journal.support.actor import Actor
-from journal.models.author import Author
-from journal.models.link import Link
+from journal.events.announcer import Announcer
+from journal.events.moments.shared_comment_left import SharedCommentLeft
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.models.share import Share
 from journal.support.rejection import Rejection
-from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 
 NAME_CHARACTERS = 40
 TEXT_CHARACTERS = 2000
-VISITOR = "visitor"
 
 
 class SharedComments:
     """What visitors write under what a link opens: a card of the journal's in the chat, linked to the row as its comment. It is someone else's words, so it never reaches the agent as the user's."""
 
-    def __init__(self, messages: Messages, links: Links, targets: ShareTargets, scope: Scope, transmitted: CommentRate) -> None:
-        self.messages, self.links, self.targets, self.scope, self.sent = messages, links, targets, scope, transmitted
+    def __init__(self, messages: Messages, announcer: Announcer, targets: ShareTargets, scope: Scope, transmitted: CommentRate) -> None:
+        self.messages, self.announcer, self.targets, self.scope, self.sent = messages, announcer, targets, scope, transmitted
 
     def leave(self, share: Share, enabled: str, name: str, text: str) -> Message:
         if not share.comments:
@@ -36,10 +33,7 @@ class SharedComments:
             return self.stored(share, row, name, text)
 
     def stored(self, share: Share, row: Ref, name: str, text: str) -> Message:
-        message = self.messages.save(Message(author=Author.SYSTEM, text=f"{name} commented on {row} through a shared link",
-                                             data={"kind": "card", "icon": "chat", "tone": "", "detail": text, "row": str(row), VISITOR: name, "share": share.id}), Actor.system())
-        self.links.save(Link(source=Ref.build(message), target=row, kind=Messages.COMMENT_LINK), Actor.system())
-        return message
+        return next(answer for answer in self.announcer.announce(SharedCommentLeft(environment_id=share.environment_id, share=share.id, row=row, name=name, text=text)) if isinstance(answer, Message))
 
     def comments(self, share: Share) -> list[Message]:
         with self.scope.environment(share.environment_id):

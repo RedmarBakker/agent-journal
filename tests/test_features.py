@@ -532,9 +532,10 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
 def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
+    from journal.chat.process_mark import ProcessMark
     from journal.support.card_kind import CardKind
     with app.container.get(Scope).environment(MAIN):
-        tests_mark = app.container.get(ProcessCards).show("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True)
+        tests_mark = app.container.get(ProcessCards).show(ProcessMark("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
         build_mark = app.container.get(MomentCards).show(MAIN, None, "Build the viewer", "terminal", shows=CardKind.COMMANDS)
         upload_mark = app.container.get(MomentCards).show(MAIN, None, "Upload the files", "terminal", shows=CardKind.COMMANDS)
     guesses = lambda mark: (mark.data["is_test"], mark.data["is_build"], mark.data["is_upload"])
@@ -7096,7 +7097,7 @@ def test_a_reader_whose_card_line_reads_as_code_is_pointed_out_and_a_wrapped_com
     outputs.save(outputs.find(2).ended_with(0, 1.0), Actor.system())
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.repositories.messages import Messages
-    app.container.get(OutputProcessCard).show(outputs.find(2))
+    app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).mark(outputs.find(2)))
     with app.container.get(Scope).environment(1):
         assert app.container.get(Messages).with_key("watch:2")[0].data["detail"] == "finished", "a finished card with nothing picked still says how it ended"
     told = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
@@ -8547,7 +8548,7 @@ def test_a_live_outputs_card_docks_itself_and_comes_down_at_its_end_unless_the_u
 
     def end(n):
         with app.container.get(Scope).environment(MAIN):
-            app.container.get(OutputProcessCard).show(outputs.find(n))
+            app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).mark(outputs.find(n)))
         outputs.save(outputs.find(n).ended_with(0, 0.0), Actor.system())
         app.runtime().deferred.drain()
         hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
@@ -11043,6 +11044,7 @@ def test_the_writing_sequences_open_in_plain_words_and_every_fiftieth_code_edit_
 
 
 def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it_prints_no_summary(app: App):
+    from journal.chat.process_cards import ProcessCards
     from journal.features.shell.support.output_log import OutputLog
     from journal.features.shell.support.output_process_card import OutputProcessCard
     from journal.repositories.command_outputs import CommandOutputs
@@ -11062,8 +11064,8 @@ def test_a_test_runs_card_counts_its_dots_while_it_runs_and_ends_on_them_when_it
         return output.id, folder
 
     def shown(n):
-        card.show(outputs.find(n))
         with app.container.get(Scope).environment(MAIN):
+            app.container.get(ProcessCards).show(card.mark(outputs.find(n)))
             return app.container.get(Messages).with_key(f"watch:{n}")[0].data
 
     dots, folder = run("dots", "....F...                [ 45%]\n")
@@ -12049,6 +12051,7 @@ def test_a_kept_sessions_first_prompt_is_its_users_own_words_past_the_injected_l
 def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_once(app: App):
     import threading
     from journal.chat.process_cards import ProcessCards
+    from journal.chat.process_mark import ProcessMark
     from journal.features.shell.support.activity_label import ActivityLabel
     from journal.repositories.messages import Messages
     from journal.support.card_kind import CardKind
@@ -12058,7 +12061,7 @@ def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_o
 
     def show():
         with scope.environment(MAIN):
-            cards.show("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True)
+            cards.show(ProcessMark("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
 
     shows = [threading.Thread(target=show) for _ in range(8)]
     for each in shows:
