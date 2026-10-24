@@ -11,7 +11,7 @@ test("the chat's file edits pane keeps the view options the user picks, so lines
 
 test("the status line above the compose box never goes: when the agent is not working it reads idle or waiting in its place, and it fades while the reader has scrolled up", () => {
     const thread = readFileSync(resolve(__dirname, "../src/chat/Thread.vue"), "utf8");
-    const line = `<div :class="\\['thread-turn', 'busy', \\{faded: away\\}\\]"`;
+    const line = `<div :class="\\['thread-turn', 'busy', \\{faded: offFoot\\}\\]"`;
     expect(thread).toMatch(new RegExp(`<template v-if="busy && !waitingNow">\\s*${line}`));
     expect(thread).toMatch(new RegExp(`<template v-else>\\s*${line}[^>]*>[\\s\\S]*?@click="toggleWaiting">waiting<\\/button>[\\s\\S]*?<span>idle<\\/span>`));
     expect(thread).toMatch(/\.thread-turn\.busy\.faded \{[^}]*opacity: 0;/);

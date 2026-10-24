@@ -312,6 +312,8 @@ function leftTheBottom(s) {
 // follows again only once the pane has rested there for RESTED_MS with no scroll of theirs; their own scroll to the foot follows at once
 const RESTED_MS = 5000;
 let restTimer = 0;
+// the status line keeps its row at the foot and slides out only while the pane is scrolled up from it, wherever the following stands
+const offFoot = ref(false);
 
 function restAtFoot() {
     clearTimeout(restTimer);
@@ -321,10 +323,35 @@ function restAtFoot() {
     }, RESTED_MS);
 }
 
+// a turn that arrives while the reader follows the foot grows from nothing to its height over GROW_MS, the pane held at its foot every
+// frame, so the chat slides up under it instead of jumping; one that arrives while the reader is away, or before the chat settled, just
+// appears
+const GROW_MS = 280;
+
+function growIn(el, done) {
+    const s = scroller.value;
+    if (!s || !settledOnce.value || away.value) return done();
+    const height = el.offsetHeight;
+    el.style.height = "0px";
+    el.style.overflow = "hidden";
+    void el.offsetHeight;
+    el.style.transition = `height ${GROW_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.26s ease-out, transform 0.26s cubic-bezier(0.2, 0.8, 0.2, 1)`;
+    el.style.height = `${height}px`;
+    const began = performance.now();
+    const hold = () => {
+        if (!away.value) s.scrollTop = s.scrollHeight;
+        if (performance.now() - began < GROW_MS) return requestAnimationFrame(hold);
+        el.style.height = el.style.overflow = el.style.transition = "";
+        done();
+    };
+    requestAnimationFrame(hold);
+}
+
 function watchScroll() {
     const s = scroller.value;
     if (!s) return;
     const gap = followPlan(s);
+    offFoot.value = gap > FAR;
     leftTheBottom(s);
     if (Date.now() - glidedAt < GLIDE) return;
     const far = gap > FAR;
@@ -499,7 +526,7 @@ const {colleague, me} = useColleague();
                                 <p class="thread-empty">Nothing has been said here yet.</p>
                             </template>
                         </template>
-                        <TransitionGroup :name="settledOnce ? 'turn' : ''">
+                        <TransitionGroup :name="settledOnce ? 'turn' : ''" @enter="growIn">
                             <Turn
                                 v-for="t in turns"
                                 :key="keyOf(t)"
@@ -524,7 +551,7 @@ const {colleague, me} = useColleague();
                                 </Transition>
                             </div>
                             <template v-if="busy && !waitingNow">
-                                <div :class="['thread-turn', 'busy', {faded: away}]" :aria-label="`The agent is ${line.doing}`">
+                                <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${line.doing}`">
                                     <div class="thread-meta">
                                         <Dot kind="started" solid :size="6" />
                                         <RunningCommand :idle="line.doing" />
@@ -532,7 +559,7 @@ const {colleague, me} = useColleague();
                                 </div>
                             </template>
                             <template v-else>
-                                <div :class="['thread-turn', 'busy', {faded: away}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
+                                <div :class="['thread-turn', 'busy', {faded: offFoot}]" :aria-label="`The agent is ${waitingNow ? 'waiting' : 'idle'}`">
                                     <div class="thread-meta">
                                         <Dot kind="queued" solid :size="6" />
                                         <template v-if="waitingNow">
