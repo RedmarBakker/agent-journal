@@ -85,6 +85,7 @@ supervisor. `v3.bak/` is the old tree and is the guide, never imported.
 - **Settings, not states**: auto mode and the work mode (hands-on, orchestrator, solo). They
   change what a state allows or says. Liveness (alive, compacting now) is not a state either;
   the viewer derives it from the last event's time.
+- **How workers test** (`workers.testing`, settings Workers tab and the workers list): Hand the tests over, the default, or Run the tests it wrote. With hand-over the profile text and the dispatch template say a worker runs no test, its proofs name the tests and their commands, and a worker's test command is refused.
 - **The runtime is the server process.** `runtime.py` keeps three threads: HTTP, the
   `Deferred` worker and the `JobRunner`. Every background poller is a `Job` with a
   `tick(time)` and its own `interval_seconds`, registered with the runner, never a thread or
