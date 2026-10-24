@@ -5,6 +5,7 @@ from journal.config import Config
 from journal.features.voices.support.builtin_catalogue import BuiltinCatalogue
 from journal.features.voices.support.voice import Voice
 from journal.repositories.setting_rows import SettingRows
+from journal.features.voices.voices_options import VoicesOptions
 
 
 RECENCY_SECONDS = 60.0
@@ -19,16 +20,13 @@ class VoiceChoice:
         self.last_git_name = ""
 
     def voice(self) -> Voice:
-        from journal.features.voices.feature import Voices
-        return BuiltinCatalogue.lookup(str(self.settings.option(Voices.PROFILE)))
+        return BuiltinCatalogue.lookup(str(self.settings.option(VoicesOptions.PROFILE)))
 
     def title(self) -> str:
-        from journal.features.voices.feature import Voices
-        return str(self.settings.option(Voices.TITLE))
+        return str(self.settings.option(VoicesOptions.TITLE))
 
     def first_name(self) -> str:
-        from journal.features.voices.feature import Voices
-        return str(self.settings.option(Voices.NAME) or self.git_name())
+        return str(self.settings.option(VoicesOptions.NAME) or self.git_name())
 
     def instruction(self) -> str:
         return self.voice().instruction(self.title(), self.first_name())

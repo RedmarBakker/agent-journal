@@ -34,6 +34,8 @@ from journal.hooks.command_events import CommandEvents
 from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.workers_options import WorkersOptions
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
@@ -121,11 +123,10 @@ class WorkerCommand(Command):
             raise Rejection(self.starts.hosted_refusal())
         if self.profiles.kind(args.profile) != ProfileKind.WORKER:
             raise Rejection(f"{args.profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
-        from journal.features.workers.feature import Workers as Feature
         output = self.workers.running_locally()
-        maximum = self.settings.integer(Feature.WORKER_LIMIT)
+        maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
-            raise Rejection(Feature.WORKER_OVERFLOW.create(out=len(output)).rendered())
+            raise Rejection(WorkersNudges.WORKER_OVERFLOW.create(out=len(output)).rendered())
         if args.pool and self.pool_refusal(args):
             raise Rejection(self.pool_refusal(args))
         task = self.assignment(args.task, caller)
@@ -165,8 +166,7 @@ class WorkerCommand(Command):
         return 0
 
     def pool_refusal(self, args: Namespace) -> str:
-        from journal.features.workers.feature import Workers as Feature
-        allowed = self.settings.texts(Feature.POOL_PROFILES)
+        allowed = self.settings.texts(WorkersOptions.POOL_PROFILES)
         refusals = (
             (not self.account.is_joined(), "the pool is the team's: this journal has joined no team, so dispatch without --pool"),
             (not args.worktree, "a pool worker works in a worktree cut from your environment's head: add --worktree with its library folders"),

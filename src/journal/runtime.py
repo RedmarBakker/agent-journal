@@ -6,6 +6,9 @@ from journal.engine.job_runner import JobRunner
 from journal.engine.lifecycle import Lifecycle
 from journal.engine.menu_watcher import MenuWatcher
 from journal.features.plugins.support.service_start import ServiceStart
+from journal.features.skills.support.skill_files import SkillFiles
+from journal.features.profiles.support.profile_files import ProfileFiles
+from journal.features.plugins.support.plugin_skills import PluginSkills
 from journal.engine.delivery import Delivery
 from journal.engine.hook_answer import HookAnswer
 from journal.engine.state_machine import StateMachine
@@ -95,9 +98,6 @@ class Runtime:
     def loaded(self) -> None:
         self.share_server.start()
         self.boot()
-        from journal.features.skills.support.skill_files import SkillFiles
-        from journal.features.profiles.support.profile_files import ProfileFiles
-        from journal.features.plugins.support.plugin_skills import PluginSkills
         self.container.get(SkillFiles).write_all()
         self.container.get(PluginSkills).refresh_all()
         self.container.get(ProfileFiles).write_all()

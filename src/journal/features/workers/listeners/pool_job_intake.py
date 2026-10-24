@@ -19,6 +19,7 @@ from journal.support.actor import Actor
 from journal.support.worktree_failure import WorktreeFailure
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
+from journal.features.workers.workers_options import WorkersOptions
 
 
 FREE_DISK_BYTES = 5 * 2**30
@@ -45,10 +46,9 @@ class PoolJobIntake(Listener[PoolJobArrived]):
             self.claimed(job, self.workers.find(job.worker_id))
 
     def machine_refusal(self) -> str:
-        from journal.features.workers.feature import Workers as Feature
-        cap, moment = self.settings.integer(Feature.POOL_MINUTES), time.time()
+        cap, moment = self.settings.integer(WorkersOptions.POOL_MINUTES), time.time()
         refusals = (
-            (self.jobs.started_count() >= self.settings.integer(Feature.POOL_SLOTS), "every worker slot this machine gives the pool is taken"),
+            (self.jobs.started_count() >= self.settings.integer(WorkersOptions.POOL_SLOTS), "every worker slot this machine gives the pool is taken"),
             (bool(cap) and self.jobs.today_minutes(moment) >= cap, f"this machine has run its {cap} minutes of pool work for today"),
             (shutil.disk_usage(self.config.root).free < FREE_DISK_BYTES, f"this machine has less than {FREE_DISK_BYTES // 2**30} GB of disk free for a worktree"),
         )

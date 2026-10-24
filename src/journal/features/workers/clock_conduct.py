@@ -12,41 +12,38 @@ from journal.features.tasks.states.working import Working
 from journal.features.workers.listeners.worker_task_changes import RELEASING
 from journal.models.worker_state import WorkerState
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.workers_part import WorkersPart
 
 
 class ClockConduct(Conduct):
     """A worker's own conduct in every state: its writes wait until it clocks in, with that as the only message; clocking in puts it to work on the task it owns, a stop is blocked while an output of its own runs and the worker is informed the end of one that ended, and informed the to-do items still open, the user closing its task ends its work and the user rewriting its brief names the points to prove again, and clocking out ends that work, so it may stop."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        from journal.features.workers.feature import Workers
-        rows = event.data.part(Workers).session_workers
+        rows = event.data.part(WorkersPart).session_workers
         if event.call.writes and rows and rows[0].state == WorkerState.DISPATCHED:
-            return self.refuse(Workers.READINESS.create())
+            return self.refuse(WorkersNudges.READINESS.create())
         return self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        from journal.features.workers.feature import Workers
-        unfinished = event.data.part(Workers).unfinished_outputs
+        unfinished = event.data.part(WorkersPart).unfinished_outputs
         if unfinished:
-            return self.refuse(Workers.OUTPUT_UNFINISHED.create(n=unfinished[0]))
-        items = [item for item in event.data.part(Workers).todos if not item.complete]
-        return self.none(Workers.OPEN_TODOS.create(count=len(items), items="; ".join(f"{item.position}. {item.text}" for item in items))) if items else self.none()
+            return self.refuse(WorkersNudges.OUTPUT_UNFINISHED.create(n=unfinished[0]))
+        items = [item for item in event.data.part(WorkersPart).todos if not item.complete]
+        return self.none(WorkersNudges.OPEN_TODOS.create(count=len(items), items="; ".join(f"{item.position}. {item.text}" for item in items))) if items else self.none()
 
     def on_command_ended(self, event: CommandEnded, settings: Settings) -> Transition:
-        from journal.features.workers.feature import Workers
-        return self.none(Workers.OUTPUT_END.create(n=event.output, status=event.status))
+        return self.none(WorkersNudges.OUTPUT_END.create(n=event.output, status=event.status))
 
     def on_task_closed(self, event: TaskClosed, settings: Settings) -> Transition:
-        from journal.features.workers.feature import Workers
         if event.task_id not in event.data.part(TasksPart).agent_tasks or event.outcome not in RELEASING:
             return self.none()
-        return self.pop(Workers.USER_CLOSURE.create(task=event.task_id))
+        return self.pop(WorkersNudges.USER_CLOSURE.create(task=event.task_id))
 
     def on_task_briefed(self, event: TaskBriefed, settings: Settings) -> Transition:
-        from journal.features.workers.feature import Workers
         if event.task_id not in event.data.part(TasksPart).agent_tasks or not event.points:
             return self.none()
-        return self.none(Workers.BRIEF_CHANGED.create(task=event.task_id, points=", ".join(map(str, event.points))))
+        return self.none(WorkersNudges.BRIEF_CHANGED.create(task=event.task_id, points=", ".join(map(str, event.points))))
 
     def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
         holdings = event.data.part(TasksPart).agent_tasks

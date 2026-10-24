@@ -1,11 +1,11 @@
 from journal.features.voices.support.address_form import AddressForm
 from journal.features.voices.support.voice_choice import VoiceChoice
-from journal.features.voices.feature import Voices
 from journal.features.voices.support.builtin_catalogue import HISTORICAL, KNIGHTLY, PLAIN, SPORTING, STREET, BuiltinCatalogue
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.support.rejection import Rejection
 from journal.repositories.setting_rows import SettingRows
+from journal.features.voices.voices_options import VoicesOptions
 
 NAMINGS = (("Historical figures", HISTORICAL), ("Street nicknames", STREET), ("First name and role", PLAIN), ("Sporting names", SPORTING), ("Knights of the realm", KNIGHTLY))
 
@@ -27,5 +27,5 @@ class VoiceController:
         name = str(request.body.get("name", ""))
         if name not in {v.name for v in BuiltinCatalogue.ALL}:
             raise Rejection(f"no voice is named {name!r}; the voices are {', '.join(v.name for v in BuiltinCatalogue.ALL)}")
-        self.settings.set(Voices.PROFILE.key, name, request.actor)
+        self.settings.set(VoicesOptions.PROFILE.key, name, request.actor)
         return self.index(request)

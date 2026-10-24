@@ -4,11 +4,16 @@ from journal.engine.base_state import BaseState
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.feature_data import FeatureData
 from journal.events.rows.worker_reported import WorkerReported
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.tasks.support.tasks_data import TasksData
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.states.delegating import Delegating
+from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
+from journal.features.workers.support.orchestration import orchestrate
+from journal.features.workers.workers_nudges import WorkersNudges
 
 
 @dataclass(frozen=True)
@@ -19,15 +24,12 @@ class Orchestrating(PlansReady):
     title = "Orchestrating"
 
     def mode_lines(self) -> tuple[Nudge, ...]:
-        from journal.features.workers.feature import Workers
-        return (Workers.ORCHESTRATOR_MODE.create(),)
+            return (WorkersNudges.ORCHESTRATOR_MODE.create(),)
 
     def plan_state(self, **fields) -> BaseState:
-        from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
         return OrchestratingPlan(**fields)
 
     def working_state(self, **fields) -> BaseState:
-        from journal.features.workers.states.delegating import Delegating
         return Delegating(**fields)
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
@@ -41,15 +43,9 @@ class Orchestrating(PlansReady):
         return self.none(*self.silent_nudges(event.data.part(TasksPart)))
 
 
-def orchestrate(tasks: TasksData) -> Nudge:
-    from journal.features.workers.feature import Workers
-    return Workers.ORCHESTRATE.create(count=len(tasks.open_ids), tasks=tasks.open_summary)
-
-
 def blocked_check(tasks: TasksData) -> tuple[Nudge, ...]:
-    from journal.features.workers.feature import Workers
     queue = (*tasks.paused, *tasks.blocked)
-    return (Workers.BLOCKED_CHECK.create(count=len(queue), tasks=numbers(queue)),) if queue else ()
+    return (WorkersNudges.BLOCKED_CHECK.create(count=len(queue), tasks=numbers(queue)),) if queue else ()
 
 
 def open_lines(tasks: TasksData) -> tuple[Nudge, ...]:

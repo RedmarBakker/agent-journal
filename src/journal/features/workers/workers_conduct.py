@@ -27,6 +27,10 @@ from journal.models.worker import Worker
 from journal.features.workers.support.workers_data import WorkersData
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_part import WorkersPart
+from journal.features.tasks.states.external_wait import ExternalWait
 
 INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 
@@ -42,39 +46,38 @@ class WorkersConduct(Conduct):
         return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        workers = event.data.part(workers_feature())
-        silent = [workers_feature().SILENT_WORKER.create(n=w.id, name=w.name, minutes=w.silence.minutes()) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
+        workers = event.data.part(WorkersPart)
+        silent = [WorkersNudges.SILENT_WORKER.create(n=w.id, name=w.name, minutes=w.silence.minutes()) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
         return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent)
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
-        from journal.features.tasks.states.external_wait import ExternalWait
         return self.push(ExternalWait.opened(*event.wait_terms())) if event.awaiter == event.session else self.none()
 
     def on_worker_unfinished(self, event: WorkerUnfinished, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(workers_feature().RUN_UNFINISHED.create(n=event.worker.id, name=event.worker.name))
+        return self.none(WorkersNudges.RUN_UNFINISHED.create(n=event.worker.id, name=event.worker.name))
 
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        ready = [work for work in event.data.part(workers_feature()).ready_work if work.worker == event.worker.id]
-        return self.none(*(workers_feature().WORK_READY.create(n=work.worker, name=work.name, task=work.task) for work in ready))
+        ready = [work for work in event.data.part(WorkersPart).ready_work if work.worker == event.worker.id]
+        return self.none(*(WorkersNudges.WORK_READY.create(n=work.worker, name=work.name, task=work.task) for work in ready))
 
     def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(workers_feature().WORKER_ARRIVAL.create(n=event.worker.id, name=event.worker.name))
+        return self.none(WorkersNudges.WORKER_ARRIVAL.create(n=event.worker.id, name=event.worker.name))
 
     def on_worker_reported(self, event: WorkerReported, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(workers_feature().WORKER_REPORTED.create(n=event.worker.id, name=event.worker.name))
+        return self.none(WorkersNudges.WORKER_REPORTED.create(n=event.worker.id, name=event.worker.name))
 
     def on_worker_stopped(self, event: WorkerStopped, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(workers_feature().WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, name=event.worker.name), *free_place(event.worker, event.data, settings))
+        return self.none(WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, name=event.worker.name), *free_place(event.worker, event.data, settings))
 
     def on_worker_merged(self, event: WorkerMerged, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
@@ -84,14 +87,14 @@ class WorkersConduct(Conduct):
 
 
 def report_mentions(data: FeatureData) -> list[Nudge]:
-    workers = data.part(workers_feature())
+    workers = data.part(WorkersPart)
     summary = ", ".join(f"worker {w.id} ({w.name})" for w in workers.idle_workers)
-    return [workers_feature().UNREAD_WORKER_REPORTS.create(reports_waiting=summary)] if summary else []
+    return [WorkersNudges.UNREAD_WORKER_REPORTS.create(reports_waiting=summary)] if summary else []
 
 
 def check_reminders(data: FeatureData, time: float) -> list[Nudge]:
-    reminder = workers_feature().CHECK_REMINDER
-    ready = data.part(workers_feature()).ready_work
+    reminder = WorkersNudges.CHECK_REMINDER
+    ready = data.part(WorkersPart).ready_work
     return [reminder.create(n=work.worker, name=work.name, task=work.task) for work in ready if work.is_waiting(time, reminder.repeat_interval)]
 
 
@@ -102,10 +105,6 @@ def worker_lines(event: ToolStarting, *verbs: str) -> list[WorkerLine]:
 def idle_list(workers: tuple[Worker, ...]) -> str:
     return "\n".join(f"worker {w.id}, {w.name}, last on {w.files_line()}: `journal worker send {w.id} \"<job>\"`" for w in workers)
 
-
-def workers_feature():
-    from journal.features.workers.feature import Workers
-    return Workers
 
 
 def profile_workers(workers: WorkersData, profile: str) -> list[Worker]:
@@ -140,78 +139,71 @@ def worktree_edits(workers: WorkersData, edited_paths: tuple[str, ...]):
 
 
 def limit_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.workers.feature import Workers
     if not isinstance(event.call.operation, SubagentDispatch) or event.subagent:
         return state.none()
-    maximum, active = settings.integer(Workers.SUBAGENT_LIMIT), event.data.part(Workers).active_subagents
-    return state.refuse(Workers.SUBAGENT_OVERFLOW.create(running=active)) if maximum and active >= maximum else state.none()
+    maximum, active = settings.integer(WorkersOptions.SUBAGENT_LIMIT), event.data.part(WorkersPart).active_subagents
+    return state.refuse(WorkersNudges.SUBAGENT_OVERFLOW.create(running=active)) if maximum and active >= maximum else state.none()
 
 
 def worktrees_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.workers.feature import Workers
     if event.subagent or not event.call.writes:
         return state.none()
-    owner = worktree_edits(event.data.part(Workers), event.call.edited_paths)
-    return state.refuse(Workers.WORKER_FILE.create(n=owner.worker_id, name=owner.worker_name)) if owner else state.none()
+    owner = worktree_edits(event.data.part(WorkersPart), event.call.edited_paths)
+    return state.refuse(WorkersNudges.WORKER_FILE.create(n=owner.worker_id, name=owner.worker_name)) if owner else state.none()
 
 
 def subagent_reuse_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.workers.feature import Workers
     dispatch = event.call.operation
     if not isinstance(dispatch, SubagentDispatch):
         return state.none()
     matched = PathMentions.build(f"{dispatch.title} {dispatch.brief or ''}")
     if not matched or dispatch.role in INDEPENDENT_ROLES:
         return state.none()
-    knowing = [s for s in reversed(event.data.part(Workers).subagents) if s.is_idle() and s.agent_type == dispatch.role and PathOverlap.exists(PathMentions.build(s.brief), matched)]
-    return state.refuse(Workers.SUBAGENT_REUSE.create(count=len(knowing), subagents=idle_subagent_list(knowing))) if knowing else state.none()
+    knowing = [s for s in reversed(event.data.part(WorkersPart).subagents) if s.is_idle() and s.agent_type == dispatch.role and PathOverlap.exists(PathMentions.build(s.brief), matched)]
+    return state.refuse(WorkersNudges.SUBAGENT_REUSE.create(count=len(knowing), subagents=idle_subagent_list(knowing))) if knowing else state.none()
 
 
 def files_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.workers.feature import Workers
-    knowing = [w for line in worker_lines(event, "dispatch") if not line.is_new_worker for w in overlapping_workers(event.data.part(Workers), line.brief)]
-    return state.refuse(Workers.WORKER_KNOWS_FILES.create(count=len(knowing), workers=idle_list(tuple(knowing)))) if knowing else state.none()
+    knowing = [w for line in worker_lines(event, "dispatch") if not line.is_new_worker for w in overlapping_workers(event.data.part(WorkersPart), line.brief)]
+    return state.refuse(WorkersNudges.WORKER_KNOWS_FILES.create(count=len(knowing), workers=idle_list(tuple(knowing)))) if knowing else state.none()
 
 
 def idle_cap_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.workers.feature import Workers
     lines = [line for line in worker_lines(event, "dispatch") if not is_reviewer(line.profile)]
-    cap, workers = settings.integer(Workers.PROFILE_LIMIT) if lines else 0, event.data.part(Workers)
+    cap, workers = settings.integer(WorkersOptions.PROFILE_LIMIT) if lines else 0, event.data.part(WorkersPart)
     for line in lines if cap else []:
         members, offers = profile_workers(workers, line.profile), idle_offers(workers, line)
         if len(members) >= cap and offers:
-            return state.refuse(Workers.IDLE_CAP.create(kept=len(members), profile=line.profile, count=len(offers), workers=idle_list(offers)))
+            return state.refuse(WorkersNudges.IDLE_CAP.create(kept=len(members), profile=line.profile, count=len(offers), workers=idle_list(offers)))
     return state.none()
 
 
 def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    from journal.features.workers.feature import Workers
-    idle = {w.id: w for w in event.data.part(Workers).idle_workers}
+    idle = {w.id: w for w in event.data.part(WorkersPart).idle_workers}
     retirements = [line for line in worker_lines(event, "complete", "stop") if line.number in idle and not line.reason]
-    return state.refuse(Workers.REUSE_QUESTION.create(n=retirements[0].number, name=idle[retirements[0].number].name)) if retirements else state.none()
+    return state.refuse(WorkersNudges.REUSE_QUESTION.create(n=retirements[0].number, name=idle[retirements[0].number].name)) if retirements else state.none()
 
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    tasks, workers = event.data.part(TasksPart), event.data.part(workers_feature())
-    if not tasks.open_ids or settings.value(workers_feature().MODE) != "orchestrator" or workers.is_full(settings.integer(workers_feature().WORKER_LIMIT)):
+    tasks, workers = event.data.part(TasksPart), event.data.part(WorkersPart)
+    if not tasks.open_ids or settings.value(WorkersOptions.MODE) != "orchestrator" or workers.is_full(settings.integer(WorkersOptions.WORKER_LIMIT)):
         return state.none()
-    return state.none(workers_feature().CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_summary))
+    return state.none(WorkersNudges.CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_summary))
 
 
 def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    feature = workers_feature()
-    span = Timeout.tool_uses(settings.integer(feature.CHECK_REMINDER_USES))
+    span = Timeout.tool_uses(settings.integer(WorkersOptions.CHECK_REMINDER_USES))
     if event.subagent or not span.amount or not span.started(0).is_period_start(event.tool_use):
         return state.none()
-    ready = event.data.part(feature).ready_work
-    return state.none(*(feature.CHECK_REMINDER.create(n=work.worker, name=work.name, task=work.task) for work in ready))
+    ready = event.data.part(WorkersPart).ready_work
+    return state.none(*(WorkersNudges.CHECK_REMINDER.create(n=work.worker, name=work.name, task=work.task) for work in ready))
 
 
 def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
     tasks = data.part(TasksPart)
-    if not tasks.open_ids or settings.value(workers_feature().MODE) != "orchestrator":
+    if not tasks.open_ids or settings.value(WorkersOptions.MODE) != "orchestrator":
         return ()
-    return (workers_feature().PLACE_FREE.create(n=worker.id, name=worker.name, tasks=tasks.open_summary),)
+    return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, tasks=tasks.open_summary),)
 
 
 def place_answer(state: BaseState, event: WorkerMerged | WorkerRetired, settings: Settings) -> Transition:

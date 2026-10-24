@@ -13,6 +13,7 @@ from journal.support.worktree import Worktree
 from journal.repositories.environments import Environments
 from journal.repositories.setting_rows import SettingRows
 from journal.sync.team_account import TeamAccount
+from journal.features.workers.workers_options import WorkersOptions
 
 GIT_TIMEOUT_SECONDS = 30
 CHECKOUT_TIMEOUT_SECONDS = 600
@@ -223,8 +224,7 @@ class WorkerBranch:
         return ", ".join(repository.path(path) for path in clashing.split(", ")) if clashing else f"the files of {repository.label()}"
 
     def built_paths(self) -> tuple[str, ...]:
-        from journal.features.workers.feature import Workers
-        lines = self.settings.texts(Workers.BUILT_PATHS)
+        lines = self.settings.texts(WorkersOptions.BUILT_PATHS)
         return tuple(path.strip().rstrip("/") + "/" for path in lines if path.strip())
 
     def is_built_clash(self, folder: Path) -> bool:
@@ -239,8 +239,7 @@ class WorkerBranch:
         return self.git("-c", "core.editor=true", "rebase", "--continue", cwd=folder)
 
     def rebuild(self, folder: Path) -> str:
-        from journal.features.workers.feature import Workers
-        command = str(self.settings.option(Workers.BUILD_COMMAND)).strip()
+        command = str(self.settings.option(WorkersOptions.BUILD_COMMAND)).strip()
         if command and subprocess.run(command, shell=True, cwd=folder, capture_output=True, text=True, timeout=BUILD_SECONDS).returncode != 0:
             return f"the build that makes {', '.join(self.built_paths())} again failed after the merge took the project's side of them"
         self.git("add", "-A", "--", *self.built_paths(), cwd=folder)

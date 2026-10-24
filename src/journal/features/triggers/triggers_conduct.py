@@ -7,25 +7,24 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.message_arrived import MessageArrived
 from journal.models.trigger import Trigger
 from journal.models.trigger_action import TriggerAction
+from journal.features.triggers.triggers_nudges import TriggersNudges
+from journal.features.triggers.triggers_part import TriggersPart
 
 
 class TriggersConduct(Conduct):
     """The triggers feature's conduct in every state: the triggers a prompt, a message or a tool call's input matches are reported as their action names, a nudge or an instruction, and a tool a trigger denies is blocked; a sequence a trigger starts is the listener's, with its first step."""
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
-        from journal.features.triggers.feature import Triggers
-        return self.none(*trigger_lines(matching_triggers(event.data.part(Triggers).triggers, event.prompt)))
+        return self.none(*trigger_lines(matching_triggers(event.data.part(TriggersPart).triggers, event.prompt)))
 
     def on_message_arrived(self, event: MessageArrived, settings: Settings) -> Transition:
-        from journal.features.triggers.feature import Triggers
-        return self.none(*trigger_lines(matching_triggers(event.data.part(Triggers).triggers, event.text)))
+        return self.none(*trigger_lines(matching_triggers(event.data.part(TriggersPart).triggers, event.text)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        from journal.features.triggers.feature import Triggers
-        rows = matching_triggers(event.data.part(Triggers).triggers, event.call.input_text)
+        rows = matching_triggers(event.data.part(TriggersPart).triggers, event.call.input_text)
         denied = [t for t in rows if t.action == TriggerAction.DENY]
         if denied:
-            return self.refuse(Triggers.DENIED.create(title=denied[0].text))
+            return self.refuse(TriggersNudges.DENIED.create(title=denied[0].text))
         return self.none(*trigger_lines(rows))
 
 
@@ -34,5 +33,4 @@ def matching_triggers(triggers: tuple[Trigger, ...], text: str) -> list[Trigger]
 
 
 def trigger_lines(triggers: list[Trigger]) -> list[Nudge]:
-    from journal.features.triggers.feature import Triggers
-    return [(Triggers.INSTRUCT if trigger.action == TriggerAction.INSTRUCT else Triggers.NUDGE).create(title=trigger.text) for trigger in triggers if trigger.action != TriggerAction.SEQUENCE]
+    return [(TriggersNudges.INSTRUCT if trigger.action == TriggerAction.INSTRUCT else TriggersNudges.NUDGE).create(title=trigger.text) for trigger in triggers if trigger.action != TriggerAction.SEQUENCE]

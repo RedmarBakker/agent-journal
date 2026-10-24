@@ -38,6 +38,8 @@ from journal.repositories.checks import Checks
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
 from journal.support.scope_missing import ScopeMissing
+from journal.features.voices.voices_options import VoicesOptions
+from journal.features.workers.workers_options import WorkersOptions
 
 USER = Actor.user(1)
 AGENT = Actor.agent("abc")
@@ -657,28 +659,26 @@ def test_a_shipped_template_is_written_once_for_the_team_by_the_machine_that_hol
 
 
 def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_persons(tmp_path):
-    from journal.features.voices.feature import Voices
-    from journal.features.workers.feature import Workers as WorkersFeature
     from journal.repositories.setting_rows import SettingRows
 
     _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
     _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
     settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a), SettingRows(tasks_b.connection, tasks_b.bus, scope_b)
-    settings_a.set(WorkersFeature.WORKER_LIMIT.key, 3, USER)
-    settings_a.set(WorkersFeature.PREPARATION_COMMANDS.key, ["make env"], USER)
-    settings_a.set(Voices.NAME.key, "Ada", USER)
+    settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
+    settings_a.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make env"], USER)
+    settings_a.set(VoicesOptions.NAME.key, "Ada", USER)
     incoming_b.apply(team_changes(outgoing_a))
-    assert settings_b.project_values() == {WorkersFeature.WORKER_LIMIT.key: 3}, "the team's setting arrives; the machine's commands and the person's name stay where they were set"
+    assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3}, "the team's setting arrives; the machine's commands and the person's name stay where they were set"
     from journal.repositories.shared_tables import SharedTables
     from journal.sync.journal_copy import JournalCopy
     from sync_server.copied_row import CopiedRow
     copied = JournalCopy(SharedTables(tasks_a.connection, tasks_a.bus), team_scopes(tasks_a.connection, tasks_a.bus, scope_a)).rows()
-    assert sorted(row.fields["key"] for row in copied if row.row_table == "settings") == [WorkersFeature.WORKER_LIMIT.key], "the first upload carries the team's settings alone"
-    settings_b.set(WorkersFeature.PREPARATION_COMMANDS.key, ["make mine"], USER)
+    assert sorted(row.fields["key"] for row in copied if row.row_table == "settings") == [WorkersOptions.WORKER_LIMIT.key], "the first upload carries the team's settings alone"
+    settings_b.set(WorkersOptions.PREPARATION_COMMANDS.key, ["make mine"], USER)
     copy_b = JournalCopy(SharedTables(tasks_b.connection, tasks_b.bus), team_scopes(tasks_b.connection, tasks_b.bus, scope_b))
-    stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersFeature.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
+    stray = [CopiedRow("settings", 900, {"environment_id": 0, "key": WorkersOptions.PREPARATION_COMMANDS.key, "value": "[\"make theirs\"]"}, {})]
     copy_b.replace_whole(tuple(copied) + tuple(stray))
-    assert settings_b.project(WorkersFeature.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersFeature.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
+    assert settings_b.project(WorkersOptions.PREPARATION_COMMANDS.key) == ["make mine"] and settings_b.project(WorkersOptions.WORKER_LIMIT.key) == 3, "a download keeps this machine's own settings and takes the team's"
 
 
 def test_an_environment_deleted_on_one_journal_is_gone_from_the_other_with_everything_in_it(tmp_path):

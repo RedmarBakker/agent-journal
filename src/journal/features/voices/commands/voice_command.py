@@ -5,6 +5,7 @@ from journal.support.caller import Caller
 from journal.features.voices.support.voice_choice import VoiceChoice
 from journal.features.voices.support.builtin_catalogue import BuiltinCatalogue
 from journal.repositories.setting_rows import SettingRows
+from journal.features.voices.voices_options import VoicesOptions
 
 
 class VoiceCommand(Command):
@@ -28,17 +29,15 @@ class VoiceCommand(Command):
         return 0
 
     def choose(self, args: Namespace, caller: Caller) -> int:
-        from journal.features.voices.feature import Voices
-        self._set(Voices.PROFILE.key, args.name, caller)
+        self._set(VoicesOptions.PROFILE.key, args.name, caller)
         print(f"voice: {args.name}")
         return 0
 
     def address(self, args: Namespace, caller: Caller) -> int:
-        from journal.features.voices.feature import Voices
         if args.title is not None:
-            self._set(Voices.TITLE.key, args.title, caller)
+            self._set(VoicesOptions.TITLE.key, args.title, caller)
         if args.name is not None:
-            self._set(Voices.NAME.key, args.name, caller)
+            self._set(VoicesOptions.NAME.key, args.name, caller)
         print(f"the agent calls you {self.chosen.voice().address_form.called(self.chosen.title(), self.chosen.first_name(), self.chosen.voice().address) or 'nothing'}")
         return 0
 

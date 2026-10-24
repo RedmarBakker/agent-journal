@@ -32,6 +32,7 @@ from journal.features.workers.support.worktree_commands import WorktreeCommands
 from journal.support.worktree_failure import WorktreeFailure
 from journal.support.process_check import ProcessCheck
 from journal.sync.team_account import TeamAccount
+from journal.features.workers.workers_options import WorkersOptions
 
 REPORT_CHARACTERS = 12000
 REPORT_END_CHARACTERS = 3000
@@ -200,8 +201,7 @@ class WorkerRunner:
         return max(0.0, limit - (time.time() - worker.began)) if limit else None
 
     def minutes(self) -> float:
-        from journal.features.workers.feature import Workers
-        return self.settings.decimal(Workers.TIMEOUT)
+        return self.settings.decimal(WorkersOptions.TIMEOUT)
 
     def outputs(self, worker: Worker) -> tuple[Path, Path]:
         folder = self.config.home / "runtime" / "workers"
@@ -231,33 +231,30 @@ class WorkerRunner:
             raise
 
     def renewed(self, worker: Worker, brief: str) -> tuple[str, ...]:
-        from journal.features.workers.feature import Workers as Feature
         if not worker.worktree:
             return worker.repositories
         names = tuple(dict.fromkeys((*worker.repositories, *self.branch.brief_folders(brief))))
         if not self.branch.folder(worker).is_dir():
             return self.prepared(worker, names, self.worktree_restoration)
-        if not self.settings.option(Feature.WORKTREE_STEP):
+        if not self.settings.option(WorkersOptions.WORKTREE_STEP):
             return worker.repositories
         return self.inner_worktrees(worker, names)
 
     def prepared(self, worker: Worker, names: tuple[str, ...], maker: Callable[[Worker, tuple[str, ...]], tuple[str, ...]]) -> tuple[str, ...]:
         if worker.pool_request:
             return self.pool_prepared(worker, maker)
-        from journal.features.workers.feature import Workers as Feature
         folder = self.branch.folder(worker)
-        self.commands.run(worker, Feature.PREPARATION_COMMANDS.texts(self.settings.option(Feature.PREPARATION_COMMANDS)), self.config.root, names)
-        repositories = maker(worker, names) if self.settings.option(Feature.WORKTREE_STEP) else ()
-        self.commands.run(worker, Feature.COMPLETION_COMMANDS.texts(self.settings.option(Feature.COMPLETION_COMMANDS)), folder if folder.is_dir() else self.config.root, names)
+        self.commands.run(worker, WorkersOptions.PREPARATION_COMMANDS.texts(self.settings.option(WorkersOptions.PREPARATION_COMMANDS)), self.config.root, names)
+        repositories = maker(worker, names) if self.settings.option(WorkersOptions.WORKTREE_STEP) else ()
+        self.commands.run(worker, WorkersOptions.COMPLETION_COMMANDS.texts(self.settings.option(WorkersOptions.COMPLETION_COMMANDS)), folder if folder.is_dir() else self.config.root, names)
         if not folder.is_dir():
             raise WorktreeFailure(worker.name, f"the worktree commands made no worktree at {folder}; with the journal's own step off, they make it there on the branch {self.branch.name(worker)}")
         return repositories or tuple(name for name in names if (folder / name / ".git").exists())
 
     def pool_prepared(self, worker: Worker, maker: Callable[[Worker, tuple[str, ...]], tuple[str, ...]]) -> tuple[str, ...]:
-        from journal.features.workers.feature import Workers as Feature
         repositories = maker(worker, ())
         folder = self.branch.folder(worker)
-        for option in (Feature.PREPARATION_COMMANDS, Feature.COMPLETION_COMMANDS):
+        for option in (WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS):
             self.commands.run(worker, option.texts(self.settings.option(option)), folder, ())
         return repositories
 

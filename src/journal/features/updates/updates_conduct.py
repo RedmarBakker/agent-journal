@@ -6,6 +6,8 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.ticked import Ticked
 from journal.events.feature_data import FeatureData
+from journal.features.updates.updates_nudges import UpdatesNudges
+from journal.features.updates.updates_part import UpdatesPart
 
 
 class UpdatesConduct(Conduct):
@@ -19,6 +21,5 @@ class UpdatesConduct(Conduct):
 
 
 def release_lines(data: FeatureData) -> list[Nudge]:
-    from journal.features.updates.feature import Updates
-    notes = data.part(Updates)
-    return [Updates.RELEASE_MESSAGES.create(count=notes.unread_count)] if notes.unread_count and not notes.is_announced else []
+    notes = data.part(UpdatesPart)
+    return [UpdatesNudges.RELEASE_MESSAGES.create(count=notes.unread_count)] if notes.unread_count and not notes.is_announced else []

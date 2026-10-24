@@ -2,6 +2,7 @@ from journal.events.agent.line_delivered import LineDelivered
 from journal.events.agent_listener import AgentListener
 from journal.support.card_kind import CardKind
 from journal.chat.moment_cards import MomentCards
+from journal.features.workers.workers_nudges import WorkersNudges
 
 
 class DispatchRefusalCards(AgentListener[LineDelivered]):
@@ -11,8 +12,7 @@ class DispatchRefusalCards(AgentListener[LineDelivered]):
         self.cards = cards
 
     def handle(self, event: LineDelivered) -> None:
-        from journal.features.workers.feature import Workers
-        if event.nudge not in (Workers.WORKER_KNOWS_FILES.key, Workers.IDLE_CAP.key):
+        if event.nudge not in (WorkersNudges.WORKER_KNOWS_FILES.key, WorkersNudges.IDLE_CAP.key):
             return
         count = int(event.values["count"])
         self.cards.show(event.environment_id, event.session, f"Dispatch refused, {count} idle {'worker' if count == 1 else 'workers'} could take it", "agents", tone="bad", detail=f"idle workers:\n{event.values['workers']}", shows=CardKind.WORKERS)

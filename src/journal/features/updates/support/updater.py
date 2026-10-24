@@ -24,6 +24,7 @@ from journal.sync.sync_client import SyncClient
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
+from journal.features.updates.updates_options import UpdatesOptions
 
 PLUGIN = "code-commandments"
 FIRST_CHECK_DELAY_SECONDS = 60
@@ -47,16 +48,13 @@ class Updater:
         return Release(VERSION)
 
     def branch(self) -> str:
-        from journal.features.updates.feature import Updates
-        return str(self.settings.option(Updates.BRANCH)).strip()
+        return str(self.settings.option(UpdatesOptions.BRANCH)).strip()
 
     def repository(self) -> str:
-        from journal.features.updates.feature import Updates
-        return str(self.settings.option(Updates.REPOSITORY)).strip()
+        return str(self.settings.option(UpdatesOptions.REPOSITORY)).strip()
 
     def follow(self, branch: str, actor: Actor) -> None:
-        from journal.features.updates.feature import Updates
-        self.settings.set(Updates.BRANCH.key, branch.strip(), actor)
+        self.settings.set(UpdatesOptions.BRANCH.key, branch.strip(), actor)
         self.head = ""
 
     def installed_commit(self) -> str:
@@ -83,19 +81,16 @@ class Updater:
         return UpdateTarget(newest.tag, newest.version)
 
     def automatic(self) -> bool:
-        from journal.features.updates.feature import Updates
-        return (bool(self.settings.option(Updates.AUTO)) or self.is_hosted()) and self.is_published()
+        return (bool(self.settings.option(UpdatesOptions.AUTO)) or self.is_hosted()) and self.is_published()
 
     def is_hosted(self) -> bool:
         return self.hosting.is_hosted()
 
     def leads_team(self) -> bool:
-        from journal.features.updates.feature import Updates
-        return self.is_hosted() and bool(self.settings.option(Updates.AUTO)) and not self.branch()
+        return self.is_hosted() and bool(self.settings.option(UpdatesOptions.AUTO)) and not self.branch()
 
     def check_interval_seconds(self) -> int:
-        from journal.features.updates.feature import Updates
-        return self.settings.integer(Updates.CHECK_INTERVAL) * 60
+        return self.settings.integer(UpdatesOptions.CHECK_INTERVAL) * 60
 
     def latest(self) -> str:
         if self.branch():

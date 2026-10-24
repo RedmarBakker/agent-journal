@@ -7,27 +7,24 @@ from journal.features.updates.listeners.session_restart_close import SessionRest
 from journal.features.updates.support.release_source import REPOSITORY
 from journal.support.option import USER, Option
 from journal.support.option_scope import OptionScope
-from journal.engine.nudge import Nudge
 from journal.features.updates.support.release_notes import ReleaseNotes
 from journal.features.updates.support.release_notes_reader import ReleaseNotesReader
 from journal.features.updates.updates_conduct import UpdatesConduct
 from journal.features.updates.seeds.version_change import VersionChange
 from journal.features.updates.seeds.supervisor_check import SupervisorCheck
+from journal.features.updates.updates_part import UpdatesPart
+from journal.features.updates.updates_nudges import UpdatesNudges
+from journal.features.updates.updates_options import UpdatesOptions
 
 
 class Updates(Feature[ReleaseNotes]):
-    REPOSITORY = Option("updates.repository", "Install from this repository", "The git address the journal installs itself from", REPOSITORY, kind="text", scope=OptionScope.MACHINE, setter=USER)
-    BRANCH = Option("updates.branch", "Follow this branch", "Empty follows the releases of this major version; a branch name installs that branch's newest commit instead, with Install update, journal update and the check for a new release", "", kind="text", scope=OptionScope.MACHINE, setter=USER)
-    AUTO = Option("updates.auto", "Install new releases on its own", "When a newer release of this major version is out, or a newer commit of the followed branch, install it and restart the journal; a new major version is never installed on its own; once a new version runs, every plugin installed from a release moves to its newest release that runs on it", False, kind="switch", scope=OptionScope.MACHINE, setter=USER)
-    CHECK_INTERVAL = Option("updates.check_minutes", "Check for a new release every", "Minutes between two looks at GitHub for a newer release or a newer commit of the followed branch", 60, unit="minutes", scope=OptionScope.MACHINE)
-    name = "updates"
-    RELEASE_MESSAGES = Nudge(name, "release_messages", "{{count}} unread release messages", "`journal update messages`, and do what they ask", repeat_interval=0)
+    name = UpdatesPart.name
     title = "Updates"
     help = "Finds the newest release of this version of the journal on GitHub, as often as you set, and installs it when you say so or, if you switch that on, by itself."
-    options = (REPOSITORY, BRANCH, AUTO, CHECK_INTERVAL)
+    options = (UpdatesOptions.REPOSITORY, UpdatesOptions.BRANCH, UpdatesOptions.AUTO, UpdatesOptions.CHECK_INTERVAL)
     listeners = (ReleaseCheck, SupervisorUpgrade, SessionRestartClose)
     seeds = (VersionChange, SupervisorCheck)
-    nudges = (RELEASE_MESSAGES,)
+    nudges = (UpdatesNudges.RELEASE_MESSAGES,)
     data = (ReleaseNotesReader,)
     conduct = (UpdatesConduct,)
     jobs = (RestartCheck,)

@@ -16,7 +16,6 @@ from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.seeds.subagents_seed import SubagentsSeed
 from journal.features.workers.seeds.workers_seed import WorkersSeed
 from journal.features.workers.jobs.worker_watch import WorkerWatch
-from journal.engine.nudge import Nudge
 from journal.support.option import USER, Option
 from journal.support.option_scope import OptionScope
 from journal.support.skill import Skill
@@ -41,30 +40,19 @@ from journal.features.workers.states.delegating import Delegating
 from journal.features.workers.states.orchestrating import Orchestrating
 from journal.features.workers.states.orchestrating_plan import OrchestratingPlan
 from journal.features.workers.states.soloing import Soloing
+from journal.features.workers.workers_part import WorkersPart
+from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.workers_options import WorkersOptions
 
 
 class Workers(Feature[WorkersData]):
     """A worker is an agent sent to write: code in a worktree of its own, a document, a change. A subagent only reads; a worker is the one that writes."""
-    TIMEOUT = Option("workers.timeout_minutes", "Time limit of a worker run", "Minutes a worker may run before it is stopped and its report says so; 0 sets no limit", 60, unit="min")
-    MODE = Option("workers.mode", "Work mode", "Builder: the agent builds it itself and sends workers when a job is better done beside it. Orchestrator: it plans, hands the work to workers, then reviews and merges it. Solo: it does everything itself, with no workers", "builder", kind="choice", choices=("builder", "orchestrator", "solo"), scope=OptionScope.PERSON, setter=USER)
-    CHECK_REMINDER_USES = Option("workers.check_reminder_uses", "Name work to check every", "Tool uses between the reminders, while the agent works on, of a worker's work that waits to be checked and merged", 25, unit="tool uses")
-    WORKER_LIMIT = Option("workers.most_out", "Workers out at once", "The most workers out at a time; a dispatch past it is refused until one reports. 0 is no limit", 3, unit="workers")
-    SUBAGENT_LIMIT = Option("workers.most_subagents", "Subagents running at once", "The most subagents running at a time; one more is held until one finishes. 0 is no limit", 5, unit="subagents")
-    PROFILE_LIMIT = Option("workers.idle_kept", "Workers kept for reuse per profile", "The most workers of one profile kept out or idle for reuse; past it a dispatch of that profile is refused while one of them is idle, so the job goes to that one. Reviewers always start fresh. 0 is no limit", 8, unit="workers")
-    WORKTREE_STEP = Option("workers.worktree_step", "Make worker worktrees the journal's way", "The journal makes a worker's worktree, a worktree of each inner repository it needs and its library folders; off, your own commands below make them, told where in JOURNAL_WORKTREE and on which branch in JOURNAL_BRANCH", True, kind="switch", scope=OptionScope.MACHINE)
-    PREPARATION_COMMANDS = Option("workers.preparation_commands", "Commands before a worker's worktree is made", "Your own shell commands, one per line, run in the project folder just before a worker's worktree is made; each is told JOURNAL_WORKTREE, JOURNAL_BRANCH, JOURNAL_PROJECT, JOURNAL_REPOSITORIES, JOURNAL_LIBRARIES and JOURNAL_COPIES", [], kind="lines", scope=OptionScope.MACHINE)
-    BUILT_PATHS = Option("workers.built_paths", "Folders built from the sources", "Folders, one per line, that a build makes from the sources, such as a built viewer; a worker's merge that clashes only in them takes the project's side and builds them again with the command below", [], kind="lines")
-    BUILD_COMMAND = Option("workers.build_command", "Command that builds them", "The shell command, run in the worker's worktree, that builds the folders above again after a merge clashed only in them", "", kind="text")
-    POOL_SLOTS = Option("workers.pool_slots", "Worker slots given to the team's pool", "How many workers this machine runs at once for teammates who dispatch to the team's pool; 0 gives none", 0, unit="workers", scope=OptionScope.MACHINE, setter=USER)
-    POOL_MINUTES = Option("workers.pool_daily_minutes", "Minutes a day of pool work on this machine", "How many minutes a day this machine runs workers for teammates, counted from midnight; past it a pool worker is turned down until the next day. 0 sets no limit", 0, unit="min", scope=OptionScope.MACHINE, setter=USER)
-    POOL_PROFILES = Option("workers.pool_profiles", "Profiles a pool worker may use", "The worker profiles, one per line, a teammate may dispatch to the team's pool; a pool request naming another is refused", ["journal-medior"], kind="lines", setter=USER)
-    COMPLETION_COMMANDS = Option("workers.completion_commands", "Commands after a worker's worktree is made", "Your own shell commands, one per line, run inside a worker's worktree once it is made, such as installing its dependencies; told the same as the commands before", [], kind="lines", scope=OptionScope.MACHINE)
 
-    name = "workers"
+    name = WorkersPart.name
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports."
-    modes = Modes(MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
-    options = (TIMEOUT, MODE, CHECK_REMINDER_USES, WORKER_LIMIT, SUBAGENT_LIMIT, PROFILE_LIMIT, WORKTREE_STEP, PREPARATION_COMMANDS, COMPLETION_COMMANDS, BUILT_PATHS, BUILD_COMMAND, POOL_SLOTS, POOL_MINUTES, POOL_PROFILES)
+    modes = Modes(WorkersOptions.MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
+    options = (WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.CHECK_REMINDER_USES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.POOL_SLOTS, WorkersOptions.POOL_MINUTES, WorkersOptions.POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
     seeds = (WorkersSeed, SubagentsSeed)
@@ -76,36 +64,7 @@ class Workers(Feature[WorkersData]):
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)
 
-    READINESS = Nudge(name, "clock_in_first", "your writes wait until you clock in", "journal task show <n>, then journal clock-in", repeat_interval=0)
-    OUTPUT_UNFINISHED = Nudge(name, "own_output_running", "your output {{n}} still runs, and your run ends when you stop", "wait for it, then stop again", repeat_interval=0)
-    OUTPUT_END = Nudge(name, "own_output_ended", "output {{n}} ended with code {{status}}", "read it with journal output read {{n}} --summary", repeat_interval=0)
-    USER_CLOSURE = Nudge(name, "task_closed_by_user", "the user closed your task {{task}}", "stop now", repeat_interval=0)
-    BRIEF_CHANGED = Nudge(name, "brief_changed", "the user rewrote point {{points}} of task {{task}}'s brief", "read it again with journal task show {{task}} and prove those points again", repeat_interval=0)
-    OPEN_TODOS = Nudge(name, "open_todos", "your to-do list has {{count}} open items: {{items}}", "finish them, or say why with journal clock-out", repeat_interval=0)
-    WORK_READY = Nudge(name, "work_ready", "worker {{n}}, {{name}}, clocked out: task {{task}} is ready to check", "journal task show {{task}}, then journal worker check {{n}} <point>, or --short \"<what is missing>\"", repeat_interval=0)
-    CHECK_REMINDER = Nudge(name, "check_reminder", "worker {{n}}, {{name}}: task {{task}} still waits to be checked", "journal task show {{task}}, then journal worker check {{n}} <point>, or --short \"<what is missing>\"", repeat_interval=180)
-    RUN_UNFINISHED = Nudge(name, "run_unfinished", "worker {{n}}, {{name}}, ended its run without clocking out and still holds its task", "journal worker send {{n}} \"<job>\", or journal worker release {{n}}", repeat_interval=0)
-    WORKER_ARRIVAL = Nudge(name, "worker_clocked_in", "worker {{n}}, {{name}}, clocked in and is at work on its task", repeat_interval=0)
-    WORKER_REPORTED = Nudge(name, "worker_reported", "worker {{n}}, {{name}}, reported in the chat", repeat_interval=0)
-    ORCHESTRATE = Nudge(name, "orchestrate", "{{count}} tasks are open across the plans: {{tasks}}", "dispatch a worker on each you can, journal worker dispatch \"<Name>\" --task <n>; block a task that waits and go on with the rest", repeat_interval=0)
-    TASK_DELEGATION = Nudge(name, "delegate_the_task", "{{name}} is in hand and you orchestrate; {{logged}}", "hand it to a worker with journal worker dispatch \"<Name>\" --task <n>, and review its report", repeat_interval=0)
-    BLOCKED_CHECK = Nudge(name, "check_blocked_tasks", "tasks {{tasks}} are paused or blocked", "resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided", repeat_interval=300)
-    CREW_REMINDER = Nudge(name, "dispatch_while_busy", "{{count}} tasks are open and no worker has them: {{tasks}}", "dispatch workers on them, or send each to the worker that knows its files", repeat_interval=120)
-    PLACE_FREE = Nudge(name, "worker_place_free", "worker {{n}}, {{name}}, is done; open: {{tasks}}", "send it its next job with journal worker send {{n}}, or dispatch another worker", repeat_interval=0)
-    ORCHESTRATOR_MODE = Nudge(name, "now_orchestrating", "you now work as the orchestrator", "hand every task you can to a worker with journal worker dispatch, review and merge what comes back, and run the full suite yourself; decide without waiting for the user except before a step that cannot be undone or reaches outside the project", repeat_interval=0)
-    SOLO_MODE = Nudge(name, "now_solo", "you now work solo", "do every job yourself: no worker is dispatched", repeat_interval=0)
-    SOLO_DISPATCH = Nudge(name, "no_workers_when_solo", "you work solo: no worker is dispatched", repeat_interval=0)
-    WORKER_STOPPED_UNREPORTED = Nudge(name, "worker_stopped_unreported", "worker {{n}}, {{name}}, stopped before it reported", repeat_interval=0)
-    SUBAGENT_OVERFLOW = Nudge(name, "too_many_subagents", "{{running}} subagents are running, the most at once", "wait for one, or do it yourself", repeat_interval=0)
-    WORKER_OVERFLOW = Nudge(name, "too_many_workers", "{{out}} workers are out, the most at once", "`journal worker wait`, or send the job to one that reported", repeat_interval=0)
-    WORKER_FILE = Nudge(name, "file_is_the_workers", "that file is in worker {{n}}'s worktree", "`journal worker send {{n}} \"<job>\"`, or wait for its report and merge", repeat_interval=0)
-    UNREAD_WORKER_REPORTS = Nudge(name, "act_on_the_reports", "{{reports_waiting}} reported and you have not acted on it", "give it its next job, stop it, or mark it done", repeat_interval=180, blocks_regardless=True)
-    WORKER_KNOWS_FILES = Nudge(name, "send_it_to_the_worker_that_knows", "{{count}} idle workers already worked on files this job names:\n{{workers}}", "send the job to one of them, or add --fresh to the dispatch", repeat_interval=0)
-    IDLE_CAP = Nudge(name, "send_it_to_an_idle_worker", "{{count}} of the {{kept}} {{profile}} workers kept are idle:\n{{workers}}", "send the job to one of them, or retire one with `journal worker complete <n> --why \"<reason>\"`", repeat_interval=0)
-    REUSE_QUESTION = Nudge(name, "could_it_be_reused", "can worker {{n}}, {{name}}, be reused?", "if so, `journal worker send {{n}} \"<job>\"`; if not, repeat the command with --why \"<why>\"", repeat_interval=0)
-    SILENT_WORKER = Nudge(name, "worker_quiet", "worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes", "look at its transcript, notify it with `journal worker notify {{n}} \"<text>\"`, or stop it", repeat_interval=0)
-    SUBAGENT_REUSE = Nudge(name, "send_the_job_to_the_subagent", "{{count}} idle subagents already worked on files this job names:\n{{subagents}}", "send the job to one with its SendMessage line, or retire one with `journal subagent retire <n>`", repeat_interval=0)
-    nudges = (READINESS, WORK_READY, RUN_UNFINISHED, USER_CLOSURE, BRIEF_CHANGED, OUTPUT_UNFINISHED, OUTPUT_END, OPEN_TODOS, WORKER_ARRIVAL, WORKER_REPORTED, WORKER_STOPPED_UNREPORTED, UNREAD_WORKER_REPORTS, SUBAGENT_OVERFLOW, WORKER_OVERFLOW, WORKER_FILE, SUBAGENT_REUSE, WORKER_KNOWS_FILES, IDLE_CAP, REUSE_QUESTION, SILENT_WORKER, ORCHESTRATE, TASK_DELEGATION, SOLO_DISPATCH, ORCHESTRATOR_MODE, SOLO_MODE, BLOCKED_CHECK, CREW_REMINDER, PLACE_FREE, CHECK_REMINDER)
+    nudges = (WorkersNudges.READINESS, WorkersNudges.WORK_READY, WorkersNudges.RUN_UNFINISHED, WorkersNudges.USER_CLOSURE, WorkersNudges.BRIEF_CHANGED, WorkersNudges.OUTPUT_UNFINISHED, WorkersNudges.OUTPUT_END, WorkersNudges.OPEN_TODOS, WorkersNudges.WORKER_ARRIVAL, WorkersNudges.WORKER_REPORTED, WorkersNudges.WORKER_STOPPED_UNREPORTED, WorkersNudges.UNREAD_WORKER_REPORTS, WorkersNudges.SUBAGENT_OVERFLOW, WorkersNudges.WORKER_OVERFLOW, WorkersNudges.WORKER_FILE, WorkersNudges.SUBAGENT_REUSE, WorkersNudges.WORKER_KNOWS_FILES, WorkersNudges.IDLE_CAP, WorkersNudges.REUSE_QUESTION, WorkersNudges.SILENT_WORKER, WorkersNudges.ORCHESTRATE, WorkersNudges.TASK_DELEGATION, WorkersNudges.SOLO_DISPATCH, WorkersNudges.ORCHESTRATOR_MODE, WorkersNudges.SOLO_MODE, WorkersNudges.BLOCKED_CHECK, WorkersNudges.CREW_REMINDER, WorkersNudges.PLACE_FREE, WorkersNudges.CHECK_REMINDER)
 
     skill = Skill("workers", 'Send a worker to write a bounded job and wait for its report; load it before dispatching one', """
 # Workers

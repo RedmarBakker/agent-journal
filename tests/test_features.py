@@ -52,6 +52,7 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.briefing.briefing_options import BriefingOptions
 from journal.features.messages.messages_nudges import MessagesNudges
+from journal.features.workers.workers_options import WorkersOptions
 
 AGENT = Caller.agent("main", "s1", "claude")
 USER = Caller.user("main")
@@ -4921,7 +4922,7 @@ def test_a_worker_past_its_time_limit_is_stopped_and_the_end_of_its_run_kept(app
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     dispatched(app.console(), ["Lady Lovelace", "say hello", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
-    app.container.get(SettingRows).set(WorkersFeature.TIMEOUT.key, 0.005, USER.actor)
+    app.container.get(SettingRows).set(WorkersOptions.TIMEOUT.key, 0.005, USER.actor)
     worker = app.container.get(Workers).find(1)
     app.container.get(WorkerRunner).run(worker, ["sh", "-c", "echo half done; sleep 30"], A.agent("s1"))
     ended = app.container.get(Workers).find(1)
@@ -8820,7 +8821,7 @@ def test_a_resumed_run_starts_its_clock_again_and_is_given_the_job_alone(app: Ap
     console.run(["worker", "send", "1", "the escapement"], AGENT)
     resumed = workers.find(1)
     assert (resumed.began, resumed.pid) == (0.0, 0) and runner.instructed(resumed) == "the escapement", "the old run's clock and process go with it, and the resumed prompt is the job alone"
-    app.container.get(SettingRows).set(WorkersFeature.TIMEOUT.key, 0.05, USER.actor)
+    app.container.get(SettingRows).set(WorkersOptions.TIMEOUT.key, 0.05, USER.actor)
     runner.run(resumed, ["sh", "-c", "echo the escapement ticks"], Actor.agent("s1"))
     assert workers.find(1).run_end == "the escapement ticks", "the time limit counts from the new run, not the first"
 
@@ -8990,7 +8991,7 @@ def test_a_dispatch_past_its_profiles_kept_workers_is_refused_naming_the_idle_on
     from journal.repositories.workers import Workers
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
-    app.container.get(SettingRows).set(WorkersFeature.PROFILE_LIMIT.key, 3, USER.actor)
+    app.container.get(SettingRows).set(WorkersOptions.PROFILE_LIMIT.key, 3, USER.actor)
     workers = app.container.get(Workers)
     for name, state, paths in (("Mr. Out", WorkerState.DISPATCHED, None), ("Mr. Idle", WorkerState.REPORTED, ("docs/a.md",)), ("Mr. Knows", WorkerState.REPORTED, ("src/lexer.py",))):
         workers.save(Worker(name=name, state=state, profile="journal-medior", touched_paths=paths), Actor.system())
@@ -9002,7 +9003,7 @@ def test_a_dispatch_past_its_profiles_kept_workers_is_refused_naming_the_idle_on
     assert text.index("worker 3, Mr. Knows") < text.index("worker 2, Mr. Idle") and "journal worker send 3" in text and "Mr. Out" not in text.split("idle:")[1], "the idle ones are named with their send lines, the one that knows the files first"
     assert said("journal-senior")[0] == 200, "another profile has places of its own"
     assert said("journal-plan-reviewer")[0] == 200, "a reviewer always starts fresh"
-    app.container.get(SettingRows).set(WorkersFeature.PROFILE_LIMIT.key, 0, USER.actor)
+    app.container.get(SettingRows).set(WorkersOptions.PROFILE_LIMIT.key, 0, USER.actor)
     assert said("journal-medior")[0] == 200, "0 is no limit"
     assert any(m.text == "Dispatch refused, 2 idle workers could take it" for m in app.container.get(Messages).scoped()), "the refusal is a mark in the chat"
 
@@ -9634,18 +9635,18 @@ def test_the_users_worktree_commands_run_before_and_after_the_journals_step_whic
     from journal.features.workers.feature import Workers as WorkersFeature
     root = repository_made(app.config.root, {".gitignore": ".journal/\nlog.txt\n", "README.md": "one\n"})
     settings = app.container.get(SettingRows)
-    settings.set(WorkersFeature.PREPARATION_COMMANDS.key, ['echo "before $JOURNAL_BRANCH" >> "$JOURNAL_PROJECT/log.txt"'], Actor.system())
-    settings.set(WorkersFeature.COMPLETION_COMMANDS.key, ['echo "after $(pwd -P)" >> "$JOURNAL_PROJECT/log.txt"'], Actor.system())
+    settings.set(WorkersOptions.PREPARATION_COMMANDS.key, ['echo "before $JOURNAL_BRANCH" >> "$JOURNAL_PROJECT/log.txt"'], Actor.system())
+    settings.set(WorkersOptions.COMPLETION_COMMANDS.key, ['echo "after $(pwd -P)" >> "$JOURNAL_PROJECT/log.txt"'], Actor.system())
     worker, folder, _ = worktree_worker(app, monkeypatch, "the readme")
     assert (root / "log.txt").read_text().splitlines() == ["before worker/1-Worker-1", f"after {folder.resolve()}"], "the commands before run in the project, the ones after inside the worktree, each told the branch and the paths"
-    settings.set(WorkersFeature.WORKTREE_STEP.key, False, Actor.system())
-    settings.set(WorkersFeature.PREPARATION_COMMANDS.key, ['git -C "$JOURNAL_PROJECT" worktree add -q -b "$JOURNAL_BRANCH" "$JOURNAL_WORKTREE" HEAD'], Actor.system())
-    settings.set(WorkersFeature.COMPLETION_COMMANDS.key, [], Actor.system())
+    settings.set(WorkersOptions.WORKTREE_STEP.key, False, Actor.system())
+    settings.set(WorkersOptions.PREPARATION_COMMANDS.key, ['git -C "$JOURNAL_PROJECT" worktree add -q -b "$JOURNAL_BRANCH" "$JOURNAL_WORKTREE" HEAD'], Actor.system())
+    settings.set(WorkersOptions.COMPLETION_COMMANDS.key, [], Actor.system())
     second, second_folder, _ = worktree_worker(app, monkeypatch, "the readme again", n=2)
     assert (second_folder / "README.md").is_file() and git_run(second_folder, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip() == "worker/2-Worker-2", "with the journal's step off, the user's command makes the worktree"
-    settings.set(WorkersFeature.WORKTREE_STEP.key, True, Actor.system())
-    settings.set(WorkersFeature.PREPARATION_COMMANDS.key, [], Actor.system())
-    settings.set(WorkersFeature.COMPLETION_COMMANDS.key, ['echo "the install broke" && exit 3'], Actor.system())
+    settings.set(WorkersOptions.WORKTREE_STEP.key, True, Actor.system())
+    settings.set(WorkersOptions.PREPARATION_COMMANDS.key, [], Actor.system())
+    settings.set(WorkersOptions.COMPLETION_COMMANDS.key, ['echo "the install broke" && exit 3'], Actor.system())
     console = app.console()
     console.run(["task", "create", "the third", "--brief", "the readme a third time"], AGENT)
     refused = console.run(["worker", "dispatch", "Worker 3", "--task", "3", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
@@ -10495,8 +10496,6 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
     import json
     from urllib.error import HTTPError
     from urllib.request import HTTPRedirectHandler, Request as HttpRequest, build_opener
-
-    from journal.features.team.feature import TeamFeature
     from journal.repositories.id_blocks import IdBlocks
     from journal.repositories.messages import Messages
     from journal.repositories.setting_rows import SettingRows
@@ -10645,8 +10644,6 @@ def test_a_message_posted_where_its_environment_is_hosted_elsewhere_is_made_by_t
 
 def test_a_hosted_journal_starts_no_agent_by_any_door(app: App):
     import json
-
-    from journal.features.team.feature import TeamFeature
     from journal.features.team.support.start_rule import HOSTED_REFUSAL
     from journal.repositories.id_blocks import IdBlocks
     from journal.repositories.setting_rows import SettingRows
@@ -10708,7 +10705,6 @@ def test_a_members_journal_behind_its_team_installs_the_teams_version_without_se
 
 
 def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_installs_each_release_and_pins_the_team_to_it(app: App, monkeypatch):
-    from journal.features.team.feature import TeamFeature
     from journal.features.updates.support.release_installer import ReleaseInstaller
     from journal.features.updates.support.release_source import ReleaseSource
     from journal.features.updates.support.updater import Updater

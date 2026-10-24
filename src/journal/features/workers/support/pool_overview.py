@@ -14,6 +14,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.features.workers.workers_options import WorkersOptions
 
 STOP_REASON = "stopped from the Team page by the member whose machine runs it"
 
@@ -26,12 +27,10 @@ class PoolOverview:
         self.owners, self.moves, self.actions = owners, moves, actions
 
     def slots(self) -> int:
-        from journal.features.workers.feature import Workers as Feature
-        return self.settings.integer(Feature.POOL_SLOTS)
+        return self.settings.integer(WorkersOptions.POOL_SLOTS)
 
     def minute_cap(self) -> int:
-        from journal.features.workers.feature import Workers as Feature
-        return self.settings.integer(Feature.POOL_MINUTES)
+        return self.settings.integer(WorkersOptions.POOL_MINUTES)
 
     def minutes_today(self) -> int:
         return round(self.jobs.today_minutes(time.time()))

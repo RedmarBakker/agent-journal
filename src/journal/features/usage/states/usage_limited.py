@@ -10,6 +10,8 @@ from journal.events.agent.turn_failed import TurnFailed
 from journal.events.rows.message_arrived import MessageArrived
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_part import MessagesPart
+from journal.features.usage.usage_nudges import UsageNudges
+from journal.features.usage.usage_options import UsageOptions
 
 
 @dataclass(frozen=True)
@@ -33,10 +35,9 @@ class UsageLimited(Wait):
         return self.message or "the usage limit to reset", ""
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
-        from journal.features.usage.feature import Usage
-        if not Timeout.minutes(settings.integer(Usage.CHECK_MINUTES)).started(self.limited_at).is_elapsed(event.time):
+        if not Timeout.minutes(settings.integer(UsageOptions.CHECK_MINUTES)).started(self.limited_at).is_elapsed(event.time):
             return self.none()
-        return self.pop(Usage.LIMIT_CHECK.create())
+        return self.pop(UsageNudges.LIMIT_CHECK.create())
 
     def on_message_arrived(self, event: MessageArrived, settings: Settings) -> Transition:
         unread = event.data.part(MessagesPart).unread
