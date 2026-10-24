@@ -7,7 +7,6 @@ from journal.features.workers.support.worker_worktree import WorkerWorktree
 from journal.features.workers.support.workers_data import WorkersData
 from journal.features.workers.support.ready_work import ReadyWork
 from journal.models.agent import Agent
-from journal.models.agent_role import AgentRole
 from journal.models.support.ref import Ref
 from journal.models.worker_state import WorkerState
 from journal.repositories.command_outputs import CommandOutputs
@@ -35,7 +34,7 @@ class WorkersDataReader:
 
     def read(self, agent: Agent) -> WorkersData:
         rows, subagents = self.workers.scoped(), self.subagents.session_subagents(agent.session)
-        agent_rows = [w for w in rows if agent.session in (w.session, w.resume)] if agent.role == AgentRole.WORKER else []
+        agent_rows = [w for w in rows if agent.session in (w.session, w.resume)] if agent.role.is_sent() else []
         tool_uses = ToolUseCounts.counted(self.entries.tool_starts(agent.session, NEWEST_TOOL_USES))
         return WorkersData(
             dispatched_workers=tuple(w for w in rows if w.is_running()),

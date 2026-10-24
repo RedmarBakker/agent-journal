@@ -32,8 +32,14 @@ class Readers:
             self.loaded = (stamp, [Reader.loaded(path) for path in paths])
         return self.loaded[1]
 
+    def files(self, name: str) -> list[Path]:
+        return [path for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()]
+
+    def definition(self, name: str) -> str:
+        return "\n".join(path.read_text() for path in self.files(name))
+
     def lookup(self, name: str) -> Reader:
-        rows = [path for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()]
+        rows = self.files(name)
         if not rows:
             raise Rejection(f"no reader named {name}: `journal reader list` names them")
         return Reader.loaded(rows[0])
@@ -42,7 +48,7 @@ class Readers:
         return {reader.name: datetime.fromtimestamp(self.file_stamp(reader.name), timezone.utc) for reader in self.all()}
 
     def file_stamp(self, name: str) -> float:
-        return max((path.stat().st_mtime for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()), default=0.0)
+        return max((path.stat().st_mtime for path in self.files(name)), default=0.0)
 
     def reading_output(self, name: str, output: CommandOutput) -> Reader:
         reader = self.lookup(name)
@@ -82,7 +88,7 @@ class Readers:
         return min((getattr(stat, "st_birthtime", stat.st_mtime) for stat in stats), default=0.0)
 
     def named(self, name: str) -> Reader | None:
-        rows = [path for suffix in KINDS if (path := self.config.readers / f"{name}{suffix}").is_file()]
+        rows = self.files(name)
         return Reader.loaded(rows[0]) if rows else None
 
     def add(self, reader: Reader) -> None:

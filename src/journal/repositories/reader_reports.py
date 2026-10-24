@@ -17,5 +17,12 @@ class ReaderReports(ScopedRepository[ReaderReport]):
         unchanged = [self.query().filter(reader=reader).filter_greater_equal("read_at", revision) for reader, revision in revisions.items()]
         if not unchanged:
             return []
-        query = self.query().filter(session=session, dismissal="").filter_present("read_at").filter_alternatives(*unchanged)
+        query = self.query().filter(session=session, dismissal="", is_refuted=False).filter_present("read_at").filter_alternatives(*unchanged)
+        return self.selected(query.order_descending("id").limit(RECENT_REPORTS))
+
+    def refuted(self, session: str, revisions: dict[str, datetime]) -> list[ReaderReport]:
+        unchanged = [self.query().filter(reader=reader).filter_greater_equal("judged_at", revision) for reader, revision in revisions.items()]
+        if not unchanged:
+            return []
+        query = self.query().filter(session=session, is_refuted=True).filter_alternatives(*unchanged)
         return self.selected(query.order_descending("id").limit(RECENT_REPORTS))

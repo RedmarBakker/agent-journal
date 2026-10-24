@@ -4,7 +4,6 @@ from journal.engine.support.session_agents import SessionAgents
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.agent_listener import AgentListener
-from journal.models.agent_role import AgentRole
 from journal.support.decision import Decision
 
 
@@ -26,6 +25,6 @@ class HookAnswer(AgentListener[AgentEvent]):
         self.delivery.silence(event)
         reply = self.machine.reply(agent, event)
         self.delivery.applied(reply, event.typing_delay)
-        if agent.role == AgentRole.WORKER:
+        if agent.role.is_sent():
             return self.machine.worker_decision(agent.row_id, reply.decision, event)
         return self.delivery.hook_decision(event, reply.decision)

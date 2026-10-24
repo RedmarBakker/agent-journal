@@ -1,7 +1,6 @@
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.models.agent import Agent
-from journal.models.agent_role import AgentRole
 from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
@@ -45,7 +44,7 @@ class Workers(ScopedRepository[Worker]):
         return {task: rows[worker] for task, worker in holdings.items() if worker in rows}
 
     def agent_holder(self, agent: Agent) -> Ref:
-        rows = self.session_worker(agent.session) if agent.role == AgentRole.WORKER else []
+        rows = self.session_worker(agent.session) if agent.role.is_sent() else []
         return Ref.build(rows[0]) if rows else Ref.build(agent)
 
     def session_worker(self, session: str) -> list[Worker]:

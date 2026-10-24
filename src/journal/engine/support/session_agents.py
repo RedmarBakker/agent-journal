@@ -24,12 +24,12 @@ class SessionAgents:
             first = self.states.first()
             return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider or self.providers.default().name, state=first.name, data=first.serialized()), Actor.system())
 
-    def worker_agent(self, session: str, environment_id: int, provider: str) -> Agent:
+    def worker_agent(self, session: str, environment_id: int, provider: str, role: AgentRole) -> Agent:
         try:
             return self.agents.session_agent(session)
         except MissingRow:
             bottom = self.states.worker_first()
-            return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider, state=bottom.name, data=bottom.serialized(), role=AgentRole.WORKER), Actor.system())
+            return self.agents.save(Agent(environment_id=environment_id, session=session, provider=provider, state=bottom.name, data=bottom.serialized(), role=role), Actor.system())
 
     def top(self, session: str) -> BaseState:
         agent = self.agents.session_agent(session)

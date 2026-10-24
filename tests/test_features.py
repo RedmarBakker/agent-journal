@@ -13593,3 +13593,73 @@ def test_a_reader_is_tried_on_a_stored_output_of_its_command_and_a_run_with_no_r
     assert readers.reading("make all").name == guessed.name, "it is kept as a reader of the project, so doing nothing keeps it"
     blank = ran("blank", "cat notes", "just words\nand more words\n")
     assert guess.reader_for(blank, "cat notes") is None, "a run with nothing to pick is given none"
+
+
+def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_whose_no_holds_the_agents_next_write(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.models.agent_role import AgentRole
+    from journal.models.reader_report import ReaderReport
+    from journal.repositories.agents import Agents
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    console, outputs, reports, workers, sessions = app.console(), app.container.get(CommandOutputs), app.container.get(ReaderReports), app.container.get(Workers), app.container.get(SessionAgents)
+    console.run(["environment", "overview"], AGENT)
+    assert console.run(["reader", "add", "builds", "--commands", "make", "--pattern", "^(built|failed)", "--about", "each build's end"], AGENT).code == 0
+    folder = app.config.root / "build"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("make all")
+    (folder / "0.out").write_text("cc -O2 -Wall -Wextra -o build/app src/main.c src/util.c src/net.c src/parse.c src/render.c src/store.c\nbuilt app\n")
+    app.container.get(OutputLog).start("build", "make all", folder, Caller.agent("main", "s1", "claude"))
+    output = max(row.id for row in outputs.all())
+    write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
+
+    def dismissed(why: str) -> tuple[ReaderReport, object]:
+        with app.container.get(Scope).environment(MAIN):
+            report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=output, command="make all", session="s1", findings=("the card showed lines too long or too much like code to read at a glance: \"cc -O2 -Wall\"",), fixes=("narrow the pattern to the short lines a person reads",)), Actor.system())
+            sent = {worker.id for worker in workers.scoped()}
+        console.run(["reader", "report", str(report.id)], AGENT)
+        assert console.run(["reader", "dismiss", str(report.id), "--why", why], AGENT).code == 0
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            [verifier] = [worker for worker in workers.scoped() if worker.id not in sent]
+            session = f"v-{verifier.id}"
+            workers.save(workers.find(verifier.id).with_(session=session), Actor.system())
+        return report, verifier
+
+    def verifier_hook(session: str, kind: str, **body):
+        return posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": session, **body}, {"X-Journal-Env": "main"})
+
+    report, verifier = dismissed("the card shows only the short built line")
+    assert (verifier.name, verifier.dispatcher) == ("Diogenes, lamp-bearer of the honest reason", None), "the journal sends the verifier itself, never the agent"
+    assert all(part in verifier.brief for part in ("lines too long", "the card shows only the short built line", "built|failed", "cc -O2 -Wall -Wextra")), "it is handed the report, the agent's reason, the reader and the run's output"
+    session = f"v-{verifier.id}"
+    verifier_hook(session, "SessionStart")
+    assert sessions.top(session).name == "verifying" and app.container.get(Agents).session_agent(session).role == AgentRole.VERIFIER, "a verifier is pushed into Verifying at its start"
+    for tool, tool_input in (("Write", {"file_path": "a.py", "content": "x"}), ("Edit", {"file_path": "a.py", "old_string": "a", "new_string": "b"}), ("Read", {"file_path": "a.py"}), ("Bash", {"command": "journal task list"})):
+        status, body = verifier_hook(session, "PreToolUse", tool_name=tool, tool_input=tool_input, tool_use_id=f"t-{tool}")
+        assert status == 409 and "you only give your verdict" in body["error"], (tool, status, body)
+    assert verifier_hook(session, "PreToolUse", tool_name="Bash", tool_input={"command": "journal verdict no 'the card shows the long compiler line'"}, tool_use_id="t-verdict")[0] == 200, "its verdict is the one tool it may use"
+    assert write()[0] == 200, "the main agent goes on working while the verifier judges"
+    verdict = console.run(["verdict", "no", "the first line the card shows is a 120-character compiler command"], Caller.worker("main", verifier.id, session, "claude"))
+    assert verdict.code == 0, verdict.error
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        refuted, retired = reports.find(report.id), workers.find(verifier.id)
+    assert refuted.dismissal == "" and refuted.is_refuted and retired.retire_reason.startswith("gave its verdict"), "a no opens the report again, and the verdict ends the verifier's run"
+    assert sessions.top(session).name == "ended", "and its session"
+    status, body = write()
+    assert status == 409 and "the verifier found your dismissal unsound" in body["error"] and "120-character compiler command" in body["error"], "the next write is held at once, with the verdict"
+    assert console.run(["reader", "dismiss", str(report.id), "--why", "it is still wrong"], AGENT).code != 0, "a refuted report is never dismissed again"
+    timing.sleep(0.01)
+    assert console.run(["reader", "add", "builds", "--pattern", "^(built|failed)\\b"], AGENT).code == 0
+    assert write()[0] == 200, "only the reader written anew releases the hold"
+    sound, kept_verifier = dismissed("the reader now picks only the line that starts with built")
+    console.run(["verdict", "yes", "the pattern picks the built line alone"], Caller.worker("main", kept_verifier.id, f"v-{kept_verifier.id}", "claude"))
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        kept = reports.find(sound.id)
+    assert kept.dismissal == "the reader now picks only the line that starts with built" and not kept.is_refuted and kept.verdict == "the pattern picks the built line alone", "a sound dismissal stays closed"
+    assert write()[0] == 200, "and holds nothing"

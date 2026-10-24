@@ -50,6 +50,7 @@ class ShellDataReader:
             "watch_command": lambda: self.watch_command(agent),
             "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session)),
             "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions())),
+            "refuted_reports": lambda: tuple(self.reports.refuted(agent.session, self.readers.revisions())),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 

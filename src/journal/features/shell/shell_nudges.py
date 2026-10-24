@@ -1,4 +1,5 @@
 from journal.engine.nudge import Nudge
+from journal.models.reader_report import ReaderReport
 from journal.support.timeout import Timeout
 
 
@@ -14,6 +15,8 @@ class ShellNudges:
     REPORT_FIX_COUNTDOWN = Nudge("shell", "reader_report_to_act_on", "fix due for reader report {{reports}}: {{count}}", "write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why \"<why the report is wrong>\"`", repeat=Timeout.seconds(0))
     REPORT_FIX_LAST_USE = Nudge("shell", "reader_report_acted_on_next", "fix due for reader report {{reports}}: 0", "your next write waits until the reader is written anew or the report dismissed", repeat=Timeout.seconds(0))
     REPORT_FIX_REFUSAL = Nudge("shell", "write_held_until_reader_report_acted_on", "reader report {{reports}} is read but not acted on", "write the reader anew with `journal reader add`, or `journal reader dismiss <n> --why \"<why>\"`, before any other write", repeat=Timeout.seconds(0))
+    REPORT_REFUTED = Nudge("shell", "reader_report_dismissal_refuted", "the verifier found your dismissal unsound, {{verdicts}}", "write the reader anew with `journal reader add`: a refuted report is never dismissed again", repeat=Timeout.seconds(0))
+    REPORT_REFUTED_REFUSAL = Nudge("shell", "write_held_until_refuted_reader_written_anew", "writes held: the verifier found your dismissal unsound, {{verdicts}}", "write the reader anew with `journal reader add` before any other write; a refuted report is never dismissed again", repeat=Timeout.seconds(0))
     OUTPUT_STORED = Nudge("shell", "output_kept", "output {{n}}: {{counts}}{{part}}", repeat=Timeout.seconds(0))
     OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also holds part {{part}}: {{counts}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
@@ -49,6 +52,10 @@ class ShellNudges:
     def report_read_countdown(cls, reports: tuple[int, ...], remaining_uses: int) -> Nudge:
         listing = ", ".join(map(str, reports))
         return cls.REPORT_READ_COUNTDOWN.create(count=remaining_uses, reports=listing) if remaining_uses else cls.REPORT_READ_LAST_USE.create(reports=listing)
+
+    @staticmethod
+    def report_refutations(reports: tuple[ReaderReport, ...]) -> str:
+        return "; ".join(f"reader report {report.id}: {report.verdict}" for report in reports)
 
     @classmethod
     def report_fix_countdown(cls, reports: tuple[int, ...], remaining_uses: int) -> Nudge:

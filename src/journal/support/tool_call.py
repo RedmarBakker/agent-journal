@@ -41,6 +41,9 @@ class ToolCall:
     def journal_text(self, noun: str) -> str:
         return " ".join(part.text for part in self.parts if part.journal_noun == noun)
 
+    def is_journal_noun(self, noun: str) -> bool:
+        return bool(self.parts) and all(part.journal_noun == noun for part in self.parts)
+
     def skill_folders(self, homes: tuple[str, ...], file_name: str) -> list[str]:
         folders = [Path(path).parent.name for path in self.read_paths if Path(path).name == file_name and any(f"{home}/" in path for home in homes)]
         return [name for name in dict.fromkeys([*folders, self.skill_loaded]) if name]

@@ -1,6 +1,5 @@
 from journal.engine.delivery import Delivery
 from journal.engine.state_machine import StateMachine
-from journal.models.agent_role import AgentRole
 from journal.events.listener import Listener
 from journal.events.rows.row_event import RowEvent
 
@@ -19,7 +18,7 @@ class RowEventDelivery(Listener[RowEvent]):
         self.delivery.applied(reply, 0.0)
         if not reply.decision.context:
             return
-        if reply.agent.role == AgentRole.WORKER:
+        if reply.agent.role.is_sent():
             self.machine.queue_lines(reply.agent, reply.decision.context)
             return
         self.delivery.lines(reply.agent.environment_id, reply.decision.context, 0.0)

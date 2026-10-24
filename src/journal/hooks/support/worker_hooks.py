@@ -3,14 +3,15 @@ from journal.models.environment import Environment
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.hook import Hook
+from journal.features.verification.support.verifier_dispatch import VerifierDispatch
 from journal.features.workers.support.worker_identity import WorkerIdentity
 
 
 class WorkerHooks:
-    """A hook from a worker's run: named a worker's by its session when it carries no worker header, taken in by the worker's token or its own session in place of the launch id, its session bound to the worker's row when the row names none yet, and its agent row made in the worker role."""
+    """A hook from a worker's run: named a worker's by its session when it carries no worker header, taken in by the worker's token or its own session in place of the launch id, its session bound to the worker's row when the row names none yet, and its agent row made in the worker's role, a verifier's when the journal sent it to judge a dismissal."""
 
-    def __init__(self, identity: WorkerIdentity, workers: Workers, agents: SessionAgents) -> None:
-        self.identity, self.workers, self.agents = identity, workers, agents
+    def __init__(self, identity: WorkerIdentity, workers: Workers, agents: SessionAgents, verifiers: VerifierDispatch) -> None:
+        self.identity, self.workers, self.agents, self.verifiers = identity, workers, agents, verifiers
 
     def named(self, hook: Hook) -> Hook:
         owners = self.workers.global_matching(session=hook.session) if hook.worker is None and hook.session else []
@@ -28,4 +29,4 @@ class WorkerHooks:
         worker = self.workers.find(hook.worker)
         if not worker.session:
             self.workers.save(worker.with_(session=hook.session), Actor.system())
-        self.agents.worker_agent(hook.session, environment.row_id, hook.provider)
+        self.agents.worker_agent(hook.session, environment.row_id, hook.provider, self.verifiers.role(worker))

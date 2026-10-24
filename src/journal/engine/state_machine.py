@@ -55,7 +55,7 @@ class StateMachine:
         return Decision(decision.allowed, decision.reason)
 
     def index_listeners(self) -> None:
-        conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER)]
+        conduct_sets = [self.features.conducts(role) for role in (AgentRole.MAIN, AgentRole.WORKER, AgentRole.VERIFIER)]
         self.listener_index = ListenerIndex.built(list(self.states.classes()), conduct_sets, self.event_kinds(Event))
 
     @classmethod
@@ -64,7 +64,7 @@ class StateMachine:
 
     @staticmethod
     def is_queued_remark(agent: Agent, nudge: Nudge, event: AgentEvent | RowEvent) -> bool:
-        return nudge.is_remark and not event.has_hook_lines() and agent.role != AgentRole.WORKER
+        return nudge.is_remark and not event.has_hook_lines() and not agent.role.is_sent()
 
     def row_replies(self, event: RowEvent) -> list[MachineReply]:
         replies = []
