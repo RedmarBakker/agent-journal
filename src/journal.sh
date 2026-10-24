@@ -41,4 +41,6 @@ fi
 # No server answered (none up, or a port file left by one that died): the package runs the command itself, unless a sub-agent
 # or a worker runs it, whose commands only the server can check.
 case "${JOURNAL_ACTOR:-agent}" in sub-agent|worker-agent) echo "the journal is restarting: run the command again in a moment" >&2; exit 1 ;; esac
+# With no journal running, journal update installs the release here at once: an apply hands the install to a server, and there is none.
+case "$#:$1:$2" in 1:update:|2:update:apply) set -- update install ;; esac
 cd "$root" && exec "$py" "$here/journal.py" "$@"

@@ -12042,3 +12042,15 @@ def test_a_workers_conversation_resumed_as_the_main_agent_is_read_no_more_and_a_
     bus.listen(Ticked, Hearing())
     bus.dispatch_guarded(Ticked(session="s", environment_id=1, time=1.0, silence_seconds=0.0))
     assert len(heard) == 1, "one listener failing on a tick stops no other"
+
+
+def test_a_bare_journal_update_applies_and_with_no_journal_running_installs_the_release_at_once(app: App):
+    from journal.console.console import Console
+    console = app.container.get(Console)
+    assert console.with_verb(["update"]) == ["update", "apply"], "a bare journal update applies"
+    shim = (Path(__file__).parents[1] / "src" / "journal.sh").read_text()
+    assert 'case "$#:$1:$2" in 1:update:|2:update:apply) set -- update install ;; esac' in shim, "with no server answering, the shim runs the update here"
+    installer = Installer()
+    updating_with(app, Source("v4.0.0", "v4.99.0"), installer, auto=False)
+    out = app.console().run(["update", "install"], AGENT).text
+    assert installer.ran == ["v4.99.0"] and "to 4.99.0" in out and "installed here" in out, "the release is installed before the command returns, naming the version"

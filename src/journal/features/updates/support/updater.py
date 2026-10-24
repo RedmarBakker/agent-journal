@@ -136,6 +136,12 @@ class Updater:
         if not self.separate(lambda: self.install_newest(actor)):
             raise Rejection("an update is under way already")
 
+    def install(self, actor: Actor) -> None:
+        self.card.claim(self.label(), self.target().label)
+        self.install_newest(actor)
+        if self.problem:
+            raise Rejection(self.problem)
+
     def separate(self, work: Callable[[], None]) -> bool:
         if not self._working.acquire(blocking=False):
             return False

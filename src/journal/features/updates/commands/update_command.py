@@ -17,6 +17,7 @@ class UpdateCommand(Command):
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "apply", "install the newest release of this major version and restart the journal on it")
+        self.verb(verbs, "install", "install the newest release of this major version at once, in this process: what journal update does in a project whose journal is not running")
         self.verb(verbs, "check", "say whether a newer release of this major version is out")
         follow = self.verb(verbs, "follow", "follow a branch: install its newest commit instead of the releases")
         follow.add_argument("branch", help="the branch's name")
@@ -28,6 +29,13 @@ class UpdateCommand(Command):
         target = self.updating.target()
         self.updating.update_immediately(caller.actor)
         print(f"updating from {self.updating.label()} to {target.label}: the journal restarts on it once the install is done, within a few minutes")
+        return 0
+
+    def install(self, args: Namespace, caller: Caller) -> int:
+        self.updating.read()
+        previous, target = self.updating.label(), self.updating.target()
+        self.updating.install(caller.actor)
+        print(f"updated from {previous} to {target.label}: no journal was running, so it was installed here; the next journal command runs on it")
         return 0
 
     def messages(self, args: Namespace, caller: Caller) -> int:
