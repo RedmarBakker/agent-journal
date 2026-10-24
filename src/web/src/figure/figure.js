@@ -4,6 +4,7 @@ import * as THREE from "three";
 import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
+import {POSTURES} from "./places.js";
 import {VISOR, glowTurn} from "./visor.js";
 import {FRAMES_PER_SECOND, GRID, litPixels} from "./visorPixels.js";
 import {HEAD, holdsHead} from "./looks.js";
@@ -3079,11 +3080,13 @@ function pogo(pose, stance, t) {
 export const SWING_HOLD = {arm: 0.29, up: 2.6, forward: -0.1, above: 0.35};
 const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2 - SWING_HOLD.arm, SWING_HOLD.forward, SWING_HOLD.up];
 
-// sits down onto the rope swing's seat, holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
+// sits down onto the rope swing's seat (ropeSwingOf), drawn whole where it hangs all the act long while the body lifted onto it moves,
+// holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
 // swingAngle), and rises off it at the end (acts.js offSwing)
 function rope_swing(pose, stance, t) {
     const pump = swingAngle(t) / ACTS.rope_swing.sway;
     pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
+    pose.standProp("rope_swing", new THREE.Vector3(0, 0, POSTURES.sit.drop * FRAMED_HEIGHT).sub(pose.carried(new THREE.Vector3())).toArray());
     breathe(pose, t);
     trunk(pose, {lean: -5 * pump, nod: -4});
     pose.putAway(...IN_HAND);
@@ -4040,6 +4043,7 @@ export function propsOf() {
     haloOf(group("halo"));
     crucifixOf(group("crucifix"));
     pocketWatchOf(group("pocket_watch"));
+    ropeSwingOf(group("rope_swing"));
     rummagedOf(group);
     return props;
 }
@@ -4203,6 +4207,27 @@ export function pocketWatchOf(prop) {
     shadedPart(root, "hour_hand", new THREE.BoxGeometry(radius * 0.08, depth * 0.2, radius * 0.45), colours.hands, [radius * 0.1, -depth * 0.62, radius * 0.18]);
     shadedPart(root, "minute_hand", new THREE.BoxGeometry(radius * 0.6, depth * 0.2, radius * 0.06), colours.hands, [radius * 0.28, -depth * 0.62, 0]);
     shadedPart(root, "bow", new THREE.TorusGeometry(bow, bow * 0.3, 8, 16).applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(round)), colours.gold, [0, 0, radius + bow * 0.8]);
+}
+
+// The rope swing the figure sits on, in its own scene, in the figure's units about the middle of the line the figure sits on (places.js
+// POSTURES sit), its sizes as acts.js rope_swing gives them in shares of the 5.4 units the picture frames: a wooden seat `seat` wide and
+// `thick` thick, its top `under` below that line, where the thighs rest, running from `front` back to `back` (forward is -y), so the
+// shins and the feet hang down before its front and never through it; and a rope `cord` thick up from near either end, `ties` apart,
+// through the seat's middle from front to back, beside the figure and behind its hands, to a knot `knot` round on the bubble's bottom
+// edge, `rope` above that line
+export const SWING = {thick: 0.14, front: -0.22, back: 0.4, cord: 0.035, knot: 0.08, colours: {wood: 0x8a5a2b, rope: 0xc9a56a}};
+
+export function ropeSwingOf(prop) {
+    const root = poseSpace(prop);
+    const [seat, ties, rope, under] = ["seat", "ties", "rope", "under"].map((key) => ACTS.rope_swing[key] * FRAMED_HEIGHT);
+    const {thick, front, back, cord, knot, colours} = SWING;
+    const middle = (front + back) / 2;
+    shadedPart(root, "seat", new THREE.BoxGeometry(seat, back - front, thick), colours.wood, [0, middle, -under - thick / 2]);
+    for (const [side, sign] of Object.entries(SIDES)) {
+        const upright = new THREE.CylinderGeometry(cord, cord, rope + under, 8).rotateX(Math.PI / 2);
+        shadedPart(root, `rope_${side}`, upright, colours.rope, [(sign * ties) / 2, middle, (rope - under) / 2]);
+        shadedPart(root, `knot_${side}`, new THREE.IcosahedronGeometry(knot, 1), colours.rope, [(sign * ties) / 2, middle, rope]);
+    }
 }
 
 // The bug of a fixed test run, shaded and outlined as the figure's props are: a beetle `long` of the picture's pixels long walking toward
@@ -4642,7 +4667,7 @@ export function lightFromBulb(figure, pose) {
 }
 
 // every prop placed where the pose holds it, and one whose shape moves, as the papers squared or the confetti flying, shaped as it says
-function moveProps(figure, pose, moves) {
+export function moveProps(figure, pose, moves) {
     for (const [name, prop] of figure.propByName) {
         const held = pose.props.get(name);
         prop.visible = Boolean(held);

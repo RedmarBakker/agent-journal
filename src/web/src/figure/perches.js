@@ -127,18 +127,38 @@ export function composedSpot(figure, near) {
 }
 
 // The seat of a rope swing under the bubble `floor`, the figure sitting on it facing the viewer: the rope's length (acts.js rope_swing)
-// below the middle of the bubble's bottom edge, riding the bubble; null when there is no such bubble, its middle is too near a side of
-// the chat for the swing to swing clear, or the figure there would hide words or hang its legs below the ground at home
+// below the place along the bubble's bottom edge nearest its middle where the swing hangs free (hangsFree), riding the bubble; null when
+// there is no such bubble, no place on it hangs free far enough from the sides of the chat for the swing to swing clear, or the figure
+// there would hide words or hang its legs below the ground at home
 export function swingSpot(floor, figure, floors = readFloors()) {
     if (!floor) return null;
-    const {rope, room} = ACTS.rope_swing;
+    const {rope, ties, room} = ACTS.rope_swing;
     const world = worldBox();
-    const x = (floor.left + floor.right) / 2;
-    if (x - world.left < room * figure.size || world.right - x < room * figure.size) return null;
-    const spot = {x, y: floor.bottom + rope * figure.size, posture: "sit", face: 0, swings: true, view: null, on: floor.element};
+    const y = floor.bottom + rope * figure.size;
+    const tied = (ties * figure.size) / 2;
+    const along = [Math.max(floor.left + tied, world.left + room * figure.size), Math.min(floor.right - tied, world.right - room * figure.size)];
+    const x = hangsFree(floor, figure, floors, y, along);
+    if (x === null) return null;
+    const spot = {x, y, posture: "sit", face: 0, swings: true, view: null, on: floor.element};
     const home = floors.floors.find((each) => each.id === "home");
     if (home && boxAt(spot, figure).bottom > home.top) return null;
     return holds(spot, figure, floors.floors) && !hiddenAt(spot, figure) ? spot : null;
+}
+
+// The point across, from `from` to `to`, nearest the middle of the bubble `floor`'s bottom edge, where a rope swing tied to it with its seat
+// at `y` hangs free over the overhang: no other bubble below it from that edge down to the foot of the figure's picture on the seat, within
+// half the seat's width and the reach of its swing either way; null when there is none
+function hangsFree(floor, figure, floors, y, [from, to]) {
+    if (from > to) return null;
+    const {seat, sway} = ACTS.rope_swing;
+    const bottom = boxAt({x: 0, y, posture: "sit"}, figure).bottom;
+    const reach = (seat * figure.size) / 2 + (bottom - floor.bottom) * Math.sin((sway * Math.PI) / 180);
+    const below = floors.floors.filter((each) => each.kind === "bubble" && each.bottom > floor.bottom && each.top < bottom);
+    const taken = below.map((each) => [each.left - reach, each.right + reach]);
+    const middle = (floor.left + floor.right) / 2;
+    const free = (x) => !taken.some(([left, right]) => x > left && x < right);
+    const near = [middle, ...taken.flat()].map((x) => Math.min(Math.max(x, from), to)).filter(free);
+    return near.sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle))[0] ?? null;
 }
 
 // Where a disco ball hangs over a figure standing at `spot`, as {kind, above, hangs}: "bubble" when it stands on a bubble with another above
@@ -155,7 +175,7 @@ export function discoBall(spot, figure, floors = readFloors()) {
     return onBubble && tied && hat - tied.bottom <= far * heightOf(figure) ? {kind: "bubble", above: spot.y - tied.bottom, hangs} : null;
 }
 
-// the bubbles in the thread's view a rope swing can hang under (swingSpot)
+// the bubbles in the thread's view a rope swing can hang free under (swingSpot)
 export const swingFloors = (floors, figure) => floors.floors.filter((floor) => floor.kind === "bubble" && swingSpot(floor, figure, floors));
 
 // how long the figure keeps to the chat mark it went to celebrate on, in seconds

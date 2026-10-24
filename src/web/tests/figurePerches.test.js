@@ -1,7 +1,7 @@
 // @vitest-environment node
 import {beforeEach, expect, test} from "vitest";
 
-const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_SLANT, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
+const {CLEARED_SECONDS, HANGS, LEDGE_ALONG, LEDGE_SLANT, LEDGE_WIDTH, STANDS, climbOf, discoBall, ledgeSpot, perchOn, swingFloors, swingSpot, wayUp, perchSpot, roamNext, stayAtHome, stayForLook, stepAside, targetFor} =
     await import("../src/figure/perches.js");
 const {HANG: HANG_COOLDOWN, PILE, SHOWPIECES, choicesFor} = await import("../src/figure/pile.js");
 const {ACTS} = await import("../src/figure/acts.js");
@@ -355,11 +355,17 @@ test("now and then the figure swings on a rope tied under a bubble near the midd
     const middle = bubble({left: 500, right: 780, top: 300, bottom: 360});
     const spot = swingSpot(middle, FIGURE, floorsOf(middle));
     expect(spot).toMatchObject({x: 640, y: 360 + ACTS.rope_swing.rope * FIGURE.size, posture: "sit", face: 0, swings: true, on: middle.element});
-    // one whose bottom edge's middle sits too near the chat's left or right side has no room to swing
+    // its knots stand at least `room` of the figure's height in from the chat's sides and on the bubble's edge: under a bubble near a side
+    // it hangs as far in along the edge as that takes, and under one that ends before that, not at all
+    const {room, ties} = ACTS.rope_swing;
     for (const side of [bubble({left: 10, right: 150, top: 300, bottom: 360}), bubble({left: 1150, right: 1270, top: 300, bottom: 360})]) {
-        expect((side.left + side.right) / 2 < ACTS.rope_swing.room * FIGURE.size || 1280 - (side.left + side.right) / 2 < ACTS.rope_swing.room * FIGURE.size).toBe(true);
-        expect(swingSpot(side, FIGURE, floorsOf(side))).toBe(null);
+        const near = swingSpot(side, FIGURE, floorsOf(side));
+        expect(Math.min(near.x, 1280 - near.x)).toBeCloseTo(room * FIGURE.size, 6);
+        expect(near.x - (ties * FIGURE.size) / 2).toBeGreaterThanOrEqual(side.left);
+        expect(near.x + (ties * FIGURE.size) / 2).toBeLessThanOrEqual(side.right);
     }
+    const narrow = bubble({left: 10, right: 100, top: 300, bottom: 360});
+    expect(swingSpot(narrow, FIGURE, floorsOf(narrow))).toBe(null);
     // nor one so low that the figure's legs would hang below the ground at home
     const home = {id: "home", kind: "compose", left: 260, right: 1000, top: 440};
     expect(swingSpot(middle, FIGURE, floorsOf(middle, home))).toBe(null);
@@ -372,6 +378,31 @@ test("now and then the figure swings on a rope tied under a bubble near the midd
     const memory = new Map([["roam/rope_swing", 0]]);
     expect(offers({swings: true, memory, now: 600})).toBe(false);
     expect(offers({swings: true, memory, now: 900})).toBe(true);
+});
+
+test("the swing hangs only where a bubble's edge overhangs no bubble below it, so it swings free, never under one with a bubble below", () => {
+    const {seat, sway, rope} = ACTS.rope_swing;
+    // the chat's last bubble has nothing below it: the swing hangs from the middle of its edge
+    const above = bubble({left: 300, right: 900, top: 200, bottom: 260});
+    const last = bubble({left: 300, right: 900, top: 272, bottom: 340});
+    expect(swingSpot(last, FIGURE, floorsOf(above, last))).toMatchObject({x: 600, y: 340 + rope * FIGURE.size});
+    // one with a bubble below it as wide as it has no overhang, and is offered no swing
+    expect(swingSpot(above, FIGURE, floorsOf(above, last))).toBe(null);
+    expect(swingFloors(floorsOf(above, last), FIGURE).map((floor) => floor.id)).toEqual([last.id]);
+    // one whose edge overhangs a narrower bubble below hangs it on the overhang, as near the middle as clears that bubble by the seat's
+    // half width and its swing's reach
+    const wide = bubble({left: 260, right: 900, top: 200, bottom: 260});
+    const reply = bubble({left: 560, right: 1000, top: 272, bottom: 340});
+    const spot = swingSpot(wide, FIGURE, floorsOf(wide, reply));
+    const box = boxAt(spot, FIGURE);
+    const reach = (seat * FIGURE.size) / 2 + (box.bottom - wide.bottom) * Math.sin((sway * Math.PI) / 180);
+    expect(spot.x).toBeCloseTo(reply.left - reach, 6);
+    expect(spot.x).toBeLessThan((wide.left + wide.right) / 2);
+    // a bubble below beside the swing's reach leaves it at the middle, as a bubble below further than the figure hangs
+    const beside = bubble({left: 700, right: 1000, top: 272, bottom: 340});
+    expect(swingSpot(wide, FIGURE, floorsOf(wide, beside)).x).toBe((wide.left + wide.right) / 2);
+    const far = bubble({left: 260, right: 900, top: box.bottom + 1, bottom: box.bottom + 60});
+    expect(swingSpot(wide, FIGURE, floorsOf(wide, far)).x).toBe((wide.left + wide.right) / 2);
 });
 
 test("one limit of two and a half of its heights holds every plain jump: no hop or hang from a bubble's side is chosen higher above the feet, and one just under it still is", () => {

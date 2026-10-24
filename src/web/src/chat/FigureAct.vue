@@ -11,7 +11,6 @@ import PackBox from "./act/PackBox.vue";
 import Parachute from "./act/Parachute.vue";
 import PogoStick from "./act/PogoStick.vue";
 import PressPlate from "./act/PressPlate.vue";
-import RopeSwing from "./act/RopeSwing.vue";
 import ThoughtCloud from "./act/ThoughtCloud.vue";
 import VacuumCleaner from "./act/VacuumCleaner.vue";
 import WallBugs from "./act/WallBugs.vue";
@@ -74,9 +73,6 @@ const thinking = computed(() => Boolean(ACTS[props.name].pulse));
             </template>
             <template v-if="name === 'pogo'">
                 <PogoStick :u="u" :middle="middle" :floor="floor" :size="size" />
-            </template>
-            <template v-if="name === 'rope_swing'">
-                <RopeSwing :middle="middle" :feet="feet" :size="size" />
             </template>
             <template v-if="name === 'chute' && canopy">
                 <Parachute :u="u" :head="head" :hand="hand" :other="other" :size="size" :canopy="canopy" />
