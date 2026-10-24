@@ -6,8 +6,8 @@
 
 // The weight of each kind of look: the user's new message, the strongest of all, the pointer tickling it, a finished run's mark or its docked
 // bar it waits to light the visor for, the UFO or the crane carrying a box, the bubble it reads or holds its glass to, the agent's new
-// message in the chat, the box it builds or pushes, a picture it admires, a progress bar it chose to watch, and its own idle glances
-export const LOOKS = {said: 9, pointer: 8, run: 7, carrier: 6, reading: 5, message: 4, work: 3, picture: 2, bar: 2, glance: 1};
+// message in the chat, the sin's mark it kneels to, the box it builds or pushes, a picture it admires, a progress bar it chose to watch, and its own idle glances
+export const LOOKS = {said: 9, pointer: 8, run: 7, carrier: 6, confession: 6, reading: 5, message: 4, work: 3, picture: 2, bar: 2, glance: 1};
 
 // How strongly an act keeps its own head: hardly at all walking or standing, somewhat through a gesture that moves it, almost wholly
 // where the act's head is part of what it does, as climbing the ladder, under the parachute, rummaging or thinking, and `alone` wholly,

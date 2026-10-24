@@ -121,7 +121,8 @@ export const PILE = [
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [clip("nod", 2), nothing(2)]),
     // a sin the commandments plugin found repented: now and then a halo over the head and a serene, holy look
     ...at("sin_fixed", {cooldown: 300}, [clip("halo", 1), nothing(2)]),
-    // a sin it found in the agent's change: now and then down on its knees, holding up a little crucifix to ask forgiveness
+    // a sin it found in the agent's change: now and then it stands, kneels down toward the sin's mark and holds up a big cross in both hands
+    // to ask forgiveness
     ...at("sin_committed", {cooldown: 300}, [clip("repent", 1), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
     // a worker given work: a call on the telephone, at most one in two minutes, gathering any other worker given work while it waits or

@@ -3083,13 +3083,13 @@ function halo(pose, stance, t) {
     eyesAs(pose, "serene", shown);
 }
 
-// The crucifix held up to ask forgiveness (acts.js repent), in the figure's units: the right hand bringing it out from `pocket` to `low`
-// before the chest, then up beside the head to `high`, where the big head never hides it, the left hand pressed to the chest at `chest`,
-// trembling `tremble` while it is held up and the head turned up toward it by `look` degrees
-export const CRUCIFIX_HOLD = {pocket: [-0.55, -0.1, 1.4], low: [-0.3, -0.7, 1.9], high: [-1.1, -0.45, 2.75], chest: [0.15, -0.72, 1.95], tremble: 0.025, look: 16};
+// The big cross held up to ask forgiveness (acts.js repent), in the figure's units: both hands on its upright, the right one at `low` before
+// the chest and the left one `apart` above it, rising from `pocket`, down by the knees, to `front`, where the cross stands up before the
+// figure; trembling `tremble` while it is held up
+export const CRUCIFIX_HOLD = {pocket: [-0.1, -0.7, 0.45], front: [-0.1, -0.85, 1.25], apart: 0.55, tremble: 0.025};
 
-// drops to its knees, brings out a crucifix and holds it up beside its head, looking up at it, the other hand to its chest, as if asking
-// forgiveness, trembling a little, then puts it away and gets up (acts.js repent)
+// stands, kneels down onto both knees, brings a big cross up before it and holds it up in both hands, as if asking forgiveness, trembling a
+// little, then lowers it and gets up (acts.js repent); the head turns to the sin's mark with the look at what it admires
 function repent(pose, stance, t) {
     const act = ACTS.repent;
     const kneel = partOf(t, act.kneel) * (1 - partOf(t, act.rise));
@@ -3099,13 +3099,12 @@ function repent(pose, stance, t) {
     breathe(pose, t);
     pose.lift("root", {z: -TUMBLE.drop * kneel});
     if (pose.posture === "stand") for (const side of Object.keys(SIDES)) pose.turn(`shin_${side}`, {x: 90 * kneel});
-    trunk(pose, {lean: 6 * kneel, nod: -CRUCIFIX_HOLD.look * up + 8 * (kneel - up), turn: CRUCIFIX_HOLD.look * up});
+    trunk(pose, {lean: 4 * kneel, nod: 6 * (kneel - up)});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
-    const held = new THREE.Vector3(...CRUCIFIX_HOLD.low).lerp(new THREE.Vector3(...CRUCIFIX_HOLD.high), up).add(new THREE.Vector3(0, 0, shake));
-    const hand = new THREE.Vector3(...CRUCIFIX_HOLD.pocket).lerp(held, out);
-    handTo(pose, "r", Math.max(out, 0.001), pose.withinReach("r", hand, 0.97), new THREE.Vector3(-0.6, -0.5, -0.6));
-    handTo(pose, "l", up, pose.withinReach("l", new THREE.Vector3(...CRUCIFIX_HOLD.chest), 0.97), new THREE.Vector3(0.6, -0.5, -0.6));
+    const held = new THREE.Vector3(...CRUCIFIX_HOLD.pocket).lerp(new THREE.Vector3(...CRUCIFIX_HOLD.front), out).add(new THREE.Vector3(0, 0, shake));
+    handTo(pose, "r", Math.max(out, 0.001), pose.withinReach("r", held, 0.97), new THREE.Vector3(-0.6, -0.5, -0.6));
+    handTo(pose, "l", Math.max(out, 0.001), pose.withinReach("l", held.clone().add(new THREE.Vector3(0.1, 0, CRUCIFIX_HOLD.apart * up)), 0.97), new THREE.Vector3(0.6, -0.5, -0.6));
     if (out > 0.2) pose.holdUpright("crucifix", "r", [0, 0, 0], {});
     eyesAs(pose, "worried", Math.max(kneel, up));
 }
@@ -3360,7 +3359,7 @@ export const CLIPS = [
     {name: "bug_shot", head: HEAD.holds, frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: MOVE, pose: bug_shot},
     {name: "bug_smash", head: HEAD.holds, frames: ACTS.bug_smash.frames, fps: ACTS.bug_smash.fps, loops: false, postures: MOVE, pose: bug_smash},
     {name: "halo", head: HEAD.gestures, frames: ACTS.halo.frames, fps: ACTS.halo.fps, loops: false, postures: MOVE, pose: halo},
-    {name: "repent", head: HEAD.gestures, frames: ACTS.repent.frames, fps: ACTS.repent.fps, loops: false, postures: MOVE, pose: repent},
+    {name: "repent", head: HEAD.gestures, frames: ACTS.repent.frames, fps: ACTS.repent.fps, loops: false, postures: MOVE, rises: true, pose: repent},
     {name: "pogo", head: HEAD.holds, frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", head: HEAD.gestures, frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", head: HEAD.holds, frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
@@ -4296,9 +4295,9 @@ export function haloOf(prop) {
     prop.userData.shape = ({size}) => ring.scale.setScalar(size ?? 1);
 }
 
-// The crucifix held up to ask forgiveness, shaded and outlined in brass, in the figure's units: its upright `long` and its crossbar
-// `across` `bar` thick, the crossbar `at` up the upright, held at the upright's lower part in the right hand
-export const CRUCIFIX = {long: 0.86, across: 0.5, bar: 0.09, at: 0.24, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
+// The big cross held up to ask forgiveness, shaded and outlined in brass, in the figure's units: its upright `long` and its crossbar
+// `across` `bar` thick, the crossbar `at` up the upright, held at the upright's lower part in both hands
+export const CRUCIFIX = {long: 2.3, across: 1.3, bar: 0.2, at: 0.85, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
 
 export function crucifixOf(prop) {
     const root = poseSpace(prop);

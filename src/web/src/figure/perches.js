@@ -470,7 +470,7 @@ export function seatStay(perched, seated, wasSeated, now, random) {
 
 // whether the clip `clip` may play now at a place of `posture` while `perched` holds the figure at `now`: any but one that would stand it up
 // from a seat it keeps
-export const playsSeated = (clip, posture, perched, now) => !perched?.seated || now >= perched.until || clip.postures.includes(posture);
+export const playsSeated = (clip, posture, perched, now) => !perched?.seated || now >= perched.until || clip.postures.includes(posture) || Boolean(clip.rises);
 
 // how long the box a figure stepped aside from stays clear of it, in seconds
 export const CLEARED_SECONDS = 30;

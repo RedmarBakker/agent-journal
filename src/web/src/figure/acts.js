@@ -95,9 +95,10 @@ export const ACTS = {
     // a sin repented: a halo grows over the head over `grows` and fades over `fades`, the figure floating up `float` of its units and down
     // with its hands folded and a serene, holy look
     halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.06},
-    // a sin found: the figure drops to its knees over `kneel`, brings out a small crucifix over `out`, holds it up over `up` and keeps it
-    // up, trembling a little, until `hold` ends, puts it away over `down` and gets up over `rise`
-    repent: {frames: 72, fps: 12, kneel: [0, 0.18], out: [0.16, 0.28], up: [0.26, 0.36], hold: [0.36, 0.78], down: [0.78, 0.86], rise: [0.84, 1]},
+    // a sin found: the figure, standing up first from wherever it was, holds `stand` and turns to the sin's mark, drops down onto both knees
+    // over `kneel`, brings a big cross up before it over `out`, takes it in both hands and holds it up over `up` and keeps it up, trembling
+    // a little, until `hold` ends, lowers it over `down` and gets up over `rise`
+    repent: {frames: 84, fps: 12, stand: [0, 0.12], kneel: [0.12, 0.28], out: [0.26, 0.4], up: [0.38, 0.48], hold: [0.48, 0.8], down: [0.8, 0.88], rise: [0.86, 1]},
     // a disco dance under a disco ball: the classic move, one arm pointing up and the other down, switching sides `beats` times, the hips
     // swaying and the knees bouncing, the visor flashing through the colours; the ball `ball` of the picture across, turning, hung `clear`
     // of it over the hat, on a string at least `tie` of it long from the bottom of a bubble no further than `far` of the figure's height

@@ -1465,11 +1465,21 @@ function lookCandidates(shown) {
         ["said", "said", newMessage("user")?.point],
         ["message", "message", newMessage("agent")?.point],
         ["work", "work", work?.at],
+        ["confession", "confession", confessionLook(shown)],
         ["picture", "picture", admiring.picture && admiringLook(admiring.picture.getBoundingClientRect())],
         ["bar", "bar", barLook(shown)],
         ["glance", "glance", glanceLook()],
     ];
     return looksFor(shown.clip, looks.filter(([, , point]) => point).map(([key, kind, point]) => ({key, kind, point})));
+}
+
+// the chat's sin mark the figure confesses to, looked at as anything it admires is, its body turned round to it (figure/admire.js
+// admiringLook), while the confession plays; null with none or once the mark is gone from the page
+function confessionLook(shown) {
+    const beat = beats.value[0];
+    if (shown.clip.name !== "repent" || beat?.clip !== "repent" || !beat.mark) return null;
+    const box = document.querySelector(`[data-figure-mark="${CSS.escape(beat.mark)}"]`)?.getBoundingClientRect();
+    return box ? admiringLook(box) : null;
 }
 
 // the leading edge of a progress bar on the docks the figure stands by, in a stretch it chose to watch it and with no act played once on

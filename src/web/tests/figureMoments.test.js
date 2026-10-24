@@ -130,10 +130,10 @@ test("a sin repented brings the halo now and then, and a sin found the crucifix 
         // the halo over the head while it shows
         const {pose: holy} = posed("halo", 0.5, voice);
         expect(holy.props.get("halo"), voice).toMatchObject({bone: "head", size: 1});
-        // on its knees with the crucifix held up in the right hand above its shoulder
+        // on its knees with the big cross held up before it, in both hands
         const {pose, at} = posed("repent", 0.6, voice);
         expect(pose.props.get("crucifix"), voice).toMatchObject({bone: "hand_r"});
-        expect(at("hand_r").z, voice).toBeGreaterThan(at("upper_arm_r").z + 0.3);
+        expect(at("hand_l").distanceTo(at("hand_r")), voice).toBeLessThan(1);
         expect(at("root").z, voice).toBeLessThan(-0.5);
     }
     expect(sizeOf(crucifixOf).z).toBeGreaterThan(0.05);
