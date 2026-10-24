@@ -119,7 +119,7 @@ class TeamJoin:
     def trusted(self, url: TeamUrl) -> None:
         if url.fingerprint:
             self.trust(url.address, url.fingerprint)
-        elif url.is_https_ip():
+        elif url.has_own_certificate():
             self.account.root_path().write_text(self.link.root_certificate(url.address))
 
     def login(self, url: TeamUrl, summary: TeamSummary, email: str, name: str, password: str) -> LoginAnswer:

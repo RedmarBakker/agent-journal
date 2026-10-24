@@ -23,8 +23,8 @@ class RemoteInstall:
         parser.add_argument("target", help="the machine, as ssh names it: user@host")
         parser.add_argument("--version", default=VERSION, help="the release to install; this journal's own by default")
         parser.add_argument("--address", default="", help="the address the team reaches the server at, a domain or an IP; the target's host by default")
-        parser.add_argument("--https-port", default="", help="the port for HTTPS, when 443 belongs to another service; give an IP as --address, since the server then makes its own certificate")
-        parser.add_argument("--http-port", default="", help="the port for HTTP, when 80 belongs to another service")
+        parser.add_argument("--https-port", default="", help="the port for HTTPS, 8443 by default; 443 with a domain gets a public certificate, any other port the server's own")
+        parser.add_argument("--http-port", default="", help="the port for HTTP, 8080 by default; 80 with a domain on 443")
         args = parser.parse_args(argv)
         flags = {"TEAM_ADDRESS": args.address, "TEAM_HTTPS_PORT": args.https_port, "TEAM_HTTP_PORT": args.http_port}
         return cls(args.target, args.version, {name: value for name, value in flags.items() if value})

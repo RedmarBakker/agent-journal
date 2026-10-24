@@ -4,7 +4,7 @@
 # prints its URL: the first journal to claim it there becomes its admin.
 # Run it on the server with the copy each release carries, which pulls that release's team image:
 #   curl -fsSL https://github.com/jessegall/agent-journal/releases/latest/download/install.sh | sh
-# A second project on the same host needs ports of its own: TEAM_HTTPS_PORT and TEAM_HTTP_PORT, with the server's own
+# It listens on 8443 and 8080 unless TEAM_HTTPS_PORT and TEAM_HTTP_PORT say otherwise; a second project on the same host needs ports of its own, with the server's own
 # certificate (give an IP address), since only one container can hold 80 and 443.
 # Back up a running server with: docker exec agent-journal-<project> python -m sync_server backup --data /data/team
 set -eu
@@ -17,8 +17,9 @@ main() {
 version="${TEAM_VERSION:-latest}"
 case "$version" in latest|v*) ;; *) version="v$version" ;; esac
 IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
-    HTTPS_PORT="${TEAM_HTTPS_PORT:-443}"
-    HTTP_PORT="${TEAM_HTTP_PORT:-80}"
+    # ports of its own by default, so a web server already on 80 and 443 keeps them; 443 is asked for by name
+    HTTPS_PORT="${TEAM_HTTPS_PORT:-8443}"
+    HTTP_PORT="${TEAM_HTTP_PORT:-8080}"
 
     # Prompts are read from the terminal, never by switching the script's own input, which may still be arriving through
     # the pipe it was run from; with no terminal, or TEAM_SETUP_STDIN set, they are read from standard input. Given the
@@ -85,15 +86,16 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
         exit 1
     fi
 
-    case "$address" in
-        *[!0-9.]*) certificate="" ;;
+    # a public certificate is got only for a domain on port 443; on any other port, or for an IP, the server makes its own
+    case "$address:$HTTPS_PORT" in
+        *[!0-9.]*:443) certificate="" ;;
         *) certificate="internal" ;;
     esac
 
     for port in "$HTTPS_PORT" "$HTTP_PORT"; do
         if port_taken "$port"; then
             echo "Port $port is taken on this machine by another service. Choose free ports for the team server: from your journal," >&2
-            echo "journal remote install <target> --address <this machine's IP> --https-port 8443 --http-port 8081, or set TEAM_HTTPS_PORT and TEAM_HTTP_PORT when you run this yourself." >&2
+            echo "journal remote install <target> --https-port 8444 --http-port 8081, or set TEAM_HTTPS_PORT and TEAM_HTTP_PORT when you run this yourself." >&2
             exit 1
         fi
     done

@@ -26,10 +26,14 @@ class TeamUrl:
     def is_invitation(self) -> bool:
         return bool(self.code)
 
-    def is_https_ip(self) -> bool:
+    def has_own_certificate(self) -> bool:
         parts = urlsplit(self.address)
+        if parts.scheme != "https":
+            return False
+        if parts.port not in (None, 443):
+            return True
         try:
             ipaddress.ip_address(parts.hostname)
         except ValueError:
             return False
-        return parts.scheme == "https"
+        return True

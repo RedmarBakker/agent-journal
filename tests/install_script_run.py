@@ -97,7 +97,7 @@ def test_a_piped_installer_asks_on_the_terminal_and_runs_to_its_end(tmp_path: Pa
     piped.wait(timeout=30)
     text = printed.decode(errors="replace")
     assert piped.returncode == 0, text
-    assert "Pulling the team server's image" in text and "Starting the team server in the container agent-journal-shop" in text and "Waiting for https://203.0.113.5 to answer" in text, text
+    assert "Pulling the team server's image" in text and "Starting the team server in the container agent-journal-shop" in text and "Waiting for https://203.0.113.5:8443 to answer" in text, text
     assert "Whoever claims it first becomes the team's admin" in text, "the script ran to its end after the answer"
 
 
@@ -118,9 +118,22 @@ def test_a_port_taken_by_another_service_is_named_with_how_to_choose_others(tmp_
     bin.mkdir()
     fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
     fake(bin, "curl", 'printf 200')
-    fake(bin, "ss", 'echo "LISTEN 0 4096 0.0.0.0:80 0.0.0.0:*"')
+    fake(bin, "ss", 'echo "LISTEN 0 4096 0.0.0.0:8080 0.0.0.0:*"')
     env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
-    assert ran.returncode == 1 and "Port 80 is taken on this machine by another service" in ran.stderr and "--https-port 8443 --http-port 8081" in ran.stderr, ran.stderr
-    moved = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**env, "TEAM_HTTPS_PORT": "8443", "TEAM_HTTP_PORT": "8081"}, timeout=30)
-    assert moved.returncode == 0 and "https://203.0.113.5:8443" in moved.stdout, moved.stderr
+    assert ran.returncode == 1 and "Port 8080 is taken on this machine by another service" in ran.stderr and "--https-port 8444 --http-port 8081" in ran.stderr, ran.stderr
+    moved = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**env, "TEAM_HTTPS_PORT": "8444", "TEAM_HTTP_PORT": "8081"}, timeout=30)
+    assert moved.returncode == 0 and "https://203.0.113.5:8444" in moved.stdout, moved.stderr
+
+
+def test_the_team_server_listens_on_8443_and_8080_with_its_own_certificate_unless_a_domain_asks_for_443(tmp_path: Path):
+    bin, seen = tmp_path / "bin", tmp_path / "docker-args"
+    bin.mkdir()
+    fake(bin, "docker", f'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; run) printf "%s\\n" "$@" > "{seen}" ;; esac; exit 0')
+    fake(bin, "curl", 'printf 200')
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "team.example.com"}
+    ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
+    args = seen.read_text().splitlines()
+    assert ran.returncode == 0 and "8443:443" in args and "8080:80" in args and "TEAM_CERTIFICATE=internal" in args, args
+    public = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**env, "TEAM_HTTPS_PORT": "443", "TEAM_HTTP_PORT": "80"}, timeout=30)
+    assert public.returncode == 0 and "TEAM_CERTIFICATE=" in seen.read_text().splitlines(), "a domain on 443 gets a public certificate"

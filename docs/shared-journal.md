@@ -10,9 +10,11 @@ The team server is one Docker container. On a machine with Docker, run:
 
     curl -fsSL https://github.com/jessegall/agent-journal/releases/latest/download/install.sh | sh
 
-It asks for the project's name and the address the team reaches the server at. A domain gets an HTTPS
-certificate of its own; a bare IP address gets the server's own certificate, whose fingerprint every invitation
-URL carries. Everything the server keeps lives in one Docker volume. At the end it prints the server's URL.
+It asks for the project's name and the address the team reaches the server at, and listens on ports 8443
+(HTTPS) and 8080 (HTTP), so a web server already on 80 and 443 keeps them. On those ports the server makes its own
+certificate, whose fingerprint every invitation URL carries, and a journal trusts it on first connect. A domain
+gets a public certificate only when the server is given 443 and 80 (TEAM_HTTPS_PORT, TEAM_HTTP_PORT, or
+journal remote install --https-port 443 --http-port 80). Everything the server keeps lives in one Docker volume. At the end it prints the server's URL.
 
 Connect to that URL first, before anyone else: the first journal to connect to a new team server becomes its
 admin, with no code. Give the URL, your email and a password in Settings, Team, or run
