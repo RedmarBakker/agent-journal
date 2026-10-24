@@ -44,6 +44,7 @@ class TeamCommand(Command):
         claim.add_argument("--agent", default="claude", help="the agent program to run it with")
         self.verb(verbs, "release", "let the Team chat go, so another person may claim it; its agent on this machine stops")
         self.verb(verbs, "chat", "who holds the Team chat, and whether they are online")
+        self.verb(verbs, "leave", "leave the team: the sync stops, every local row stays, and the team's settings are kept in a backup file")
 
     def join(self, args: Namespace, caller: Caller) -> int:
         if not args.password:
@@ -65,6 +66,10 @@ class TeamCommand(Command):
         self.joined()
         answer = TeamRequests.reached(lambda: self.link.invite(args.email))
         print(f"{answer.email} joins with this URL until {answer.expires_at:.0f}:\n\n    {self.account.invitation_url(answer.code)}")
+        return 0
+
+    def leave(self, args: Namespace, caller: Caller) -> int:
+        print(self.joining.leave())
         return 0
 
     def status(self, args: Namespace, caller: Caller) -> int:

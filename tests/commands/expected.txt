@@ -2062,6 +2062,13 @@ usage: journal team chat [-h]
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal team leave --help
+exit 0
+usage: journal team leave [-h]
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal team claim --help
 exit 0
 usage: journal team claim [-h] [--agent AGENT]

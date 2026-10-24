@@ -160,3 +160,11 @@ test("a person changes their team password, and an admin resets a member's from 
     const local = readFileSync(resolve(__dirname, "../src/pages/TeamLocal.vue"), "utf8");
     expect(local).toMatch(/<TeamPeople :people="people" :devices="devices" :admin="standing\.admin" \/>\s*<TeamPassword \/>/);
 });
+
+test("a joined Team page offers Disconnect and names the team server's address", () => {
+    const page = readFileSync(resolve(__dirname, "../src/pages/TeamPage.vue"), "utf8");
+    expect(page).toMatch(/<Btn small :busy="leaving" @click="leave">Disconnect<\/Btn>/);
+    expect(page).toMatch(/await api\.leaveTeam\(\)/);
+    expect(page).toMatch(/`team server \$\{standing\.value\.address\}`/);
+});
+

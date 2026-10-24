@@ -26,7 +26,7 @@ const machine = computed(() => devices.value.find((device) => device.this) || nu
 const line = computed(() => {
     if (!standing.value || !standing.value.joined) return "";
     if (hosted.value) return [`Hosted journal at ${host(standing.value.address)}`, me.value && `signed in as ${me.value.name}`].filter(Boolean).join(" · ");
-    return [project.value, machine.value && `this machine: ${machine.value.name}`].filter(Boolean).join(" · ");
+    return [project.value, `team server ${standing.value.address}`, machine.value && `this machine: ${machine.value.name}`].filter(Boolean).join(" · ");
 });
 
 async function load() {
@@ -44,6 +44,22 @@ async function load() {
 async function joined(text) {
     outcome.value = text;
     await load();
+}
+
+const leaving = ref(false);
+
+async function leave() {
+    if (!window.confirm("Leave the team? Sync stops; every task and message here stays, and the team's settings are kept in a backup file.")) return;
+    leaving.value = true;
+    failure.value = "";
+    try {
+        outcome.value = (await api.leaveTeam()).outcome;
+        await load();
+    } catch (e) {
+        failure.value = e.message;
+    } finally {
+        leaving.value = false;
+    }
 }
 
 async function openShared() {
@@ -69,6 +85,7 @@ onMounted(load);
             <span class="team-page-grow" />
             <template v-if="standing && standing.joined && !hosted">
                 <Btn small :busy="opening" @click="openShared">Open the shared journal <Icon name="open" :size="12" /></Btn>
+                <Btn small :busy="leaving" @click="leave">Disconnect</Btn>
             </template>
         </PageBar>
         <div :class="['team-page-content', {flush: standing && !standing.joined}]">

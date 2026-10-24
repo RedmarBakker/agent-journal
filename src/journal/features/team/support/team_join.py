@@ -90,6 +90,16 @@ class TeamJoin:
         self.client.start()
         return outcome
 
+    def leave(self) -> str:
+        if not self.account.is_joined():
+            raise Rejection("this journal is in no team")
+        address = self.account.address()
+        self.client.stop()
+        self.blocks.clear()
+        self.outgoing.clear()
+        backup = self.account.left(time.time())
+        return f"left the team at {address}: sync stopped, every local row kept, and the team's settings kept in {backup.name}; claim a server or connect with an account to join one again"
+
     def repository_refusal(self, summary: TeamSummary, repository: str) -> str:
         if not summary.repository or summary.repository == repository or self.hosting.is_hosted():
             return ""

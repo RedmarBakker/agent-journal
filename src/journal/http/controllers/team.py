@@ -40,6 +40,9 @@ class TeamController:
         refusal = TeamRequests.reached(lambda: self.joining.claim_refusal(url))
         return Response.json({"address": url.address, "refusal": refusal})
 
+    def leave(self, request: Request) -> Response:
+        return Response.json({"outcome": self.joining.leave()})
+
     def pool(self, request: Request) -> Response:
         lent = self.pool_overview.lent()
         slots = self.pool_overview.slots()

@@ -57,6 +57,12 @@ class TeamAccount:
     def allows(self, release: Release) -> bool:
         return not self.is_joined() or release.version == self.team_version()
 
+    def left(self, time: float) -> Path:
+        backup = self.config.home / f"{TEAM_FILE}.left-{int(time)}"
+        (self.config.home / TEAM_FILE).replace(backup)
+        (self.config.home / ROOT_FILE).unlink(missing_ok=True)
+        return backup
+
     def write(self, contents: dict) -> None:
         path = self.config.home / TEAM_FILE
         draft = path.with_suffix(".draft")

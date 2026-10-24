@@ -395,6 +395,11 @@ export class ApiClient {
         return this.post("/team/join", fields, LONG_WAIT_MS);
     }
 
+    // leaves the team: the sync stops, every local row stays, and the team's settings are kept in a backup file
+    leaveTeam() {
+        return this.post("/team/leave", {});
+    }
+
     // whether a team server's address can be claimed: its address made plain, and why not when it cannot
     checkTeam(fields) {
         return this.post("/team/check", fields, LONG_WAIT_MS);

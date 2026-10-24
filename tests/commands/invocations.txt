@@ -270,6 +270,7 @@ agent update install --help
 agent update follow --help
 agent update unfollow --help
 agent team chat --help
+agent team leave --help
 agent team claim --help
 agent team devices --help
 agent team invite --help
