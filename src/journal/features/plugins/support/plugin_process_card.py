@@ -1,9 +1,7 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_cards import ProcessCards
+from journal.chat.process_mark import ProcessMark
+from journal.events.moments.plugin_card_asked import PluginCardAsked
 from journal.models.message import Message
-from journal.features.plugins.support.plugin_card import PluginCard
-from journal.features.plugins.support.plugin_text import PluginText
-from journal.models.plugin import Plugin
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 
@@ -13,11 +11,8 @@ class PluginProcessCard(ProcessCard):
 
     name = "plugin"
 
-    def __init__(self, cards: ProcessCards, text: PluginText) -> None:
-        self.cards, self.text = cards, text
-
-    def show(self, plugin: Plugin, card: PluginCard, environment_id: int, label: str, data: dict) -> None:
-        self.cards.show_recent(self.name, environment_id, card.key, label, data, Actor.plugin(plugin.name), CardKind.PLUGINS, False, self.text.plain(card.detail))
+    def mark(self, asked: PluginCardAsked) -> ProcessMark:
+        return ProcessMark(self.name, asked.environment_id, asked.card_key, asked.label, asked.data, Actor.plugin(asked.plugin), CardKind.PLUGINS, False, asked.detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

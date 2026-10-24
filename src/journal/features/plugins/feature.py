@@ -4,6 +4,9 @@ from journal.features.plugins.commands.dashboard_command import DashboardCommand
 from journal.features.plugins.commands.plugin_command import PluginCommand
 from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
 from journal.features.plugins.listeners.plugin_merge_relay import PluginMergeRelay
+from journal.features.plugins.listeners.plugin_moment_cards import PluginMomentCards
+from journal.features.plugins.listeners.plugin_asked_cards import PluginAskedCards
+from journal.features.plugins.listeners.plugin_proposal_card import PluginProposalCard
 from journal.features.plugins.listeners.plugin_row_relay import PluginRowRelay
 from journal.features.plugins.listeners.plugin_settings_notice import PluginSettingsNotice
 from journal.features.plugins.seeds.plugin_services_seed import PluginServicesSeed
@@ -23,7 +26,7 @@ class PluginsFeature(Feature[PluginsData]):
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
     options = (PluginsOptions.PLUGIN_ANSWER_WINDOW,)
     process_cards = (PluginProcessCard,)
-    listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginSettingsNotice, ReleaseUpgrade)
+    listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginAskedCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade)
     data = (PluginsDataReader,)
     conduct = (PluginsConduct,)
     nudges = (PluginsNudges.PLUGIN_FILE_OWNERSHIP,)

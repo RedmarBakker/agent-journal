@@ -3,6 +3,7 @@ from journal.support.task_notification import TaskNotification
 import time
 
 from journal.chat.moment_cards import MomentCards
+from journal.chat.process_cards import ProcessCards
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.tool_failed import ToolFailed
 from journal.events.agent.tool_finished import ToolFinished
@@ -21,8 +22,8 @@ from journal.support.subagent_dispatch import SubagentDispatch
 class SubagentCards(AgentListener[AgentEvent]):
     """Each subagent the agent dispatches is two cards in the chat, as messages: the dispatch, a process card running until the subagent ends, and each end after it, a moment card saying it finished, stopped or failed, with the last thing it sent or the tool's error."""
 
-    def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, agents: Agents) -> None:
-        self.subagents, self.card, self.cards, self.agents = subagents, card, cards, agents
+    def __init__(self, subagents: SubagentEntries, card: SubagentProcessCard, cards: MomentCards, processes: ProcessCards, agents: Agents) -> None:
+        self.subagents, self.card, self.cards, self.processes, self.agents = subagents, card, cards, processes, agents
 
     def handle(self, event: AgentEvent) -> None:
         if not self.moves(event):
@@ -36,7 +37,9 @@ class SubagentCards(AgentListener[AgentEvent]):
         return type(event).__name__ in SUBAGENT_KINDS or (isinstance(event, (ToolStarting, ToolFinished, ToolFailed)) and isinstance(event.call.operation, SubagentDispatch)) or (isinstance(event, PromptSubmitted) and bool(TaskNotification.parsed(event.prompt)))
 
     def carded(self, event: AgentEvent, row: Subagent, agent: int, actor: Actor) -> None:
-        self.card.show(event.environment_id, event.session, agent, row, actor)
+        mark = self.card.mark(event.environment_id, event.session, agent, row, actor)
+        if mark:
+            self.processes.show(mark)
         if not row.is_running():
             self.end_card(event, row, agent, actor)
 

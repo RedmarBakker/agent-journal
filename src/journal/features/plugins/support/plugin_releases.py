@@ -1,4 +1,6 @@
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.plugin_not_upgraded import PluginNotUpgraded
+from journal.events.moments.plugin_upgraded import PluginUpgraded
 from journal.features.plugins.support.plugin_installing import PluginInstalling
 from journal.support.release import Release
 from journal.features.updates.support.release_source import ReleaseSource
@@ -6,15 +8,14 @@ from journal.models.plugin import Plugin
 from journal.repositories.environments import Environments
 from journal.repositories.plugins import Plugins
 from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
 from journal.support.rejection import Rejection
 
 
 class PluginReleases:
     """The installed plugins updated to the journal's version: each one installed from a source moves to its newest release whose manifest's journal field, the lowest journal version it runs on, the running journal satisfies, and the chat is given what moved."""
 
-    def __init__(self, plugins: Plugins, installing: PluginInstalling, source: ReleaseSource, cards: MomentCards, environments: Environments) -> None:
-        self.plugins, self.installing, self.source, self.cards, self.environments = plugins, installing, source, cards, environments
+    def __init__(self, plugins: Plugins, installing: PluginInstalling, source: ReleaseSource, announcer: Announcer, environments: Environments) -> None:
+        self.plugins, self.installing, self.source, self.announcer, self.environments = plugins, installing, source, announcer, environments
 
     def upgraded_all(self, version: str, actor: Actor) -> None:
         for plugin in self.plugins.release_plugins():
@@ -28,9 +29,9 @@ class PluginReleases:
             environment = self.environments.all()[0]
             self.installing.upgrade(plugin.name, tag, environment.name, actor)
         except (OSError, Rejection) as failed:
-            self.cards.show(self.environments.all()[0].row_id, "", f"Plugin {plugin.name} was not upgraded for journal {version}: {failed}", "plug", tone="bad", shows=CardKind.PLUGINS)
+            self.announcer.announce(PluginNotUpgraded(environment_id=self.environments.all()[0].row_id, plugin=plugin.name, version=version, reason=str(failed)))
             return
-        self.cards.show(environment.row_id, "", f"Plugin {plugin.name} upgraded from {plugin.release} to {tag} for journal {version}", "plug", tone="good", shows=CardKind.PLUGINS)
+        self.announcer.announce(PluginUpgraded(environment_id=environment.row_id, plugin=plugin.name, previous=plugin.release, tag=tag, version=version))
 
     def fitting_tag(self, plugin: Plugin, journal: Release) -> str | None:
         newer = [release for release in reversed(Release.lookup(self.source.release_tags(plugin.source))) if release.is_newer(Release(plugin.release))]

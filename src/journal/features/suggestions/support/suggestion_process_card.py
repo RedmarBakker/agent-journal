@@ -1,5 +1,5 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_cards import ProcessCards
+from journal.chat.process_mark import ProcessMark
 from journal.features.suggestions.support.suggester import Suggester
 from journal.models.message import Message
 from journal.models.suggestion import Suggestion
@@ -12,16 +12,13 @@ class SuggestionProcessCard(ProcessCard):
 
     name = "suggestion"
 
-    def __init__(self, cards: ProcessCards) -> None:
-        self.cards = cards
-
     @staticmethod
     def key(suggestion: Suggestion) -> str:
         return f"suggestion:{suggestion.id}"
 
-    def show(self, suggestion: Suggestion, suggester: Suggester, environment_id: int) -> None:
+    def mark(self, suggestion: Suggestion, suggester: Suggester, environment_id: int) -> ProcessMark:
         data = {"kind": "suggestion", "icon": "bulb", "row": f"suggestions:{suggestion.id}", "accept": suggester.accept_label, "answer": suggestion.answer or "", "description": suggester.detail()}
-        self.cards.show(self.name, environment_id, self.key(suggestion), suggestion.title, data, Actor.system(), CardKind.SUGGESTIONS, False)
+        return ProcessMark(self.name, environment_id, self.key(suggestion), suggestion.title, data, Actor.system(), CardKind.SUGGESTIONS, False)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

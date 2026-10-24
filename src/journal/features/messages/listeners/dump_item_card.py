@@ -1,3 +1,4 @@
+from journal.chat.process_cards import ProcessCards
 from journal.events.listener import Listener
 from journal.events.models.created import Created
 from journal.features.messages.support.receipt_process_card import ReceiptProcessCard
@@ -11,12 +12,14 @@ from journal.support.missing_row import MissingRow
 class DumpItemCard(Listener[Created]):
     """A row filed from one of the user's messages is a process card in the chat, ReceiptProcessCard, one per message, naming every row filed from it that no reply of the agent's to the message names; once the replies name them all, the mark goes."""
 
-    def __init__(self, messages: Messages, card: ReceiptProcessCard) -> None:
-        self.messages, self.card = messages, card
+    def __init__(self, messages: Messages, card: ReceiptProcessCard, cards: ProcessCards) -> None:
+        self.messages, self.card, self.cards = messages, card, cards
 
     def handle(self, event: Created) -> None:
         for message in self.subjects(event.model):
-            self.card.show(message)
+            mark = self.card.mark(message)
+            if mark:
+                self.cards.show(mark)
 
     def subjects(self, row) -> list[Message]:
         if isinstance(row, Link) and row.kind == Messages.SUBJECT_LINK and row.source.type == Message.table():

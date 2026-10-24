@@ -2,14 +2,14 @@ from argparse import Namespace
 
 from journal.console.command import Command
 from journal.support.caller import Caller
-from journal.chat.moment_cards import MomentCards
+from journal.events.announcer import Announcer
+from journal.events.moments.plugin_proposed import PluginProposed
 from journal.features.plugins.support.plugin_preview import PluginPreview
 from journal.features.plugins.support.plugin_aliases import PluginAliases
 from journal.features.plugins.support.plugin_installing import PluginInstalling
 from journal.features.plugins.support.plugin_settings import PluginSettings
 from journal.repositories.plugins import Plugins
 from journal.repositories.scope import Scope
-from journal.support.card_kind import CardKind
 
 STEP_DESCRIPTIONS = {"needs": "needs", "setup": "runs at install", "installed": "runs at install, its answer filling the settings", "program": "runs", "service": "runs the service", "hears": "hears", "holds": "holds", "skill": "brings the skill", "alias": "brings the alias"}
 
@@ -17,8 +17,8 @@ STEP_DESCRIPTIONS = {"needs": "needs", "setup": "runs at install", "installed": 
 class PluginCommand(Command):
     noun = "plugin"
 
-    def __init__(self, plugins: Plugins, installing: PluginInstalling, cards: MomentCards, scope: Scope, settings: PluginSettings, aliases: PluginAliases) -> None:
-        self.plugins, self.installing, self.cards, self.scope, self.schemas, self.aliases = plugins, installing, cards, scope, settings, aliases
+    def __init__(self, plugins: Plugins, installing: PluginInstalling, announcer: Announcer, scope: Scope, settings: PluginSettings, aliases: PluginAliases) -> None:
+        self.plugins, self.installing, self.announcer, self.scope, self.schemas, self.aliases = plugins, installing, announcer, scope, settings, aliases
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "list", "the plugins installed here, each on or off and how it last failed")
@@ -61,7 +61,7 @@ class PluginCommand(Command):
 
     def propose(self, args: Namespace, caller: Caller) -> int:
         preview = self.installing.preview(args.source)
-        self.cards.show(self.scope.id, "", f"The agent proposes the plugin {preview.name}" + (f": {args.why}" if args.why else ""), "plug", detail=self.description(preview), command=f"journal plugin install {args.source} --yes", actor=caller.actor, shows=CardKind.PLUGINS)
+        self.announcer.announce(PluginProposed(environment_id=self.scope.id, plugin=preview.name, why=args.why, detail=self.description(preview), command=f"journal plugin install {args.source} --yes", actor=caller.actor))
         print(f"proposed {preview.name}: the user installs it if they want it")
         return 0
 

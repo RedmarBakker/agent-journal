@@ -1,5 +1,5 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_cards import ProcessCards
+from journal.chat.process_mark import ProcessMark
 from journal.models.message import Message
 from journal.models.question import Question
 from journal.repositories.questions import Questions
@@ -11,12 +11,12 @@ class QuestionProcessCard(ProcessCard):
 
     name = "question"
 
-    def __init__(self, questions: Questions, cards: ProcessCards) -> None:
-        self.questions, self.cards = questions, cards
+    def __init__(self, questions: Questions) -> None:
+        self.questions = questions
 
-    def show(self, question: Question) -> None:
+    def mark(self, question: Question) -> ProcessMark:
         data = {"kind": "question", "row": f"questions:{question.id}", "n": question.id, "options": list(question.options), "answer": question.answer}
-        self.cards.show(self.name, question.environment_id, f"question:{question.id}", question.text, data, question.creation_actor, CardKind.QUESTIONS, not question.is_answered(), session=question.creation_actor.id)
+        return ProcessMark(self.name, question.environment_id, f"question:{question.id}", question.text, data, question.creation_actor, CardKind.QUESTIONS, not question.is_answered(), session=question.creation_actor.id)
 
     def refresh(self, message: Message) -> dict:
         question = self.questions.find(message.data["n"])

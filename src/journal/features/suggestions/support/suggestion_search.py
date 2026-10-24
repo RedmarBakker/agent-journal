@@ -23,8 +23,8 @@ MINUTE_SECONDS = 60
 class SuggestionSearch:
     """Rounds of suggestions: the first a while after the journal started, then one each interval; a round makes each suggestion that applies and was never made, as one card in the chat the user answers once."""
 
-    def __init__(self, settings: SettingRows, suggestions: Suggestions, card: SuggestionProcessCard, agents: Agents, environments: Environments, messages: Messages, scope: Scope, commandments: PackageCommandments) -> None:
-        self.settings, self.suggestions, self.card, self.agents, self.environments, self.messages, self.scope = settings, suggestions, card, agents, environments, messages, scope
+    def __init__(self, settings: SettingRows, suggestions: Suggestions, agents: Agents, environments: Environments, messages: Messages, scope: Scope, commandments: PackageCommandments) -> None:
+        self.settings, self.suggestions, self.agents, self.environments, self.messages, self.scope = settings, suggestions, agents, environments, messages, scope
         self.suggesters: tuple[Suggester, ...] = (commandments,)
         self.started_at = timing.time()
         self.last_round: float | None = None
@@ -44,24 +44,17 @@ class SuggestionSearch:
         return [self.created(suggester) for suggester in self.suggesters if not self.suggestions.is_recorded(suggester.key) and suggester.applies()]
 
     def created(self, suggester: Suggester) -> Suggestion:
-        row = self.suggestions.save(Suggestion(key=suggester.key, title=suggester.title()), Actor.system())
-        environment_id = self.target_environment().row_id
-        with self.scope.environment(environment_id):
-            self.card.show(row, suggester, environment_id)
-        return row
+        return self.suggestions.save(Suggestion(key=suggester.key, title=suggester.title()), Actor.system())
 
     def answer(self, suggestion: Suggestion, answer: SuggestionAnswer, actor: Actor) -> str:
         if suggestion.is_answered():
             raise Rejection(f"suggestion {suggestion.id} was answered already: {suggestion.answer}")
-        answered = self.suggestions.save(suggestion.answered(answer), actor)
-        suggester = self.lookup(suggestion.key)
-        environment_id = self.card_environment(answered)
-        with self.scope.environment(environment_id):
-            self.card.show(answered, suggester, environment_id)
-        return suggester.target() if answer == SuggestionAnswer.ACCEPTED else ""
+        self.suggestions.save(suggestion.answered(answer), actor)
+        return self.lookup(suggestion.key).target() if answer == SuggestionAnswer.ACCEPTED else ""
 
     def card_environment(self, suggestion: Suggestion) -> int:
-        return self.messages.keyed_all(SuggestionProcessCard.key(suggestion), Actor.system())[0].environment_id
+        cards = self.messages.keyed_all(SuggestionProcessCard.key(suggestion), Actor.system())
+        return cards[0].environment_id if cards else self.target_environment().row_id
 
     def lookup(self, key: str) -> Suggester:
         rows = [s for s in self.suggesters if s.key == key]

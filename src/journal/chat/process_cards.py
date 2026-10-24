@@ -2,13 +2,12 @@ import threading
 
 from journal.chat.card_detail import CardDetail
 from journal.chat.card_category import CardCategory
+from journal.chat.process_mark import ProcessMark
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.agent_role import AgentRole
 from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
-from journal.support.actor import Actor
-from journal.support.card_kind import CardKind
 
 PROCESS = "process"
 DOCKED = "docked"
@@ -24,24 +23,24 @@ class ProcessCards:
         self.key_locks: dict[str, threading.Lock] = {}
         self.key_locks_lock = threading.Lock()
 
-    def show(self, process: str, environment_id: int, key: str, label: str, data: dict, actor: Actor, shows: CardKind, active: bool, detail: str = "", session: str | None = None) -> Message:
-        data = {"row": "", **data, **CardDetail.parts(detail), **CardCategory.read(label).fields(), "key": key, "shows": str(shows), "card_type": PROCESS, "process": process, "active": active}
-        with self.key_lock(key):
-            older = self.messages.keyed(key, actor)
+    def show(self, mark: ProcessMark) -> Message:
+        data = {"row": "", **mark.data, **CardDetail.parts(mark.detail), **CardCategory.read(mark.label).fields(), "key": mark.key, "shows": str(mark.shows), "card_type": PROCESS, "process": mark.process, "active": mark.active}
+        with self.key_lock(mark.key):
+            older = self.messages.keyed(mark.key, mark.actor)
             if older:
-                return self.messages.save(older[0].with_(text=label, session=session or older[0].session, data=self.docked_data(older[0], data)), actor)
-            roles = self.agents.session_roles(session) if session else []
-            return self.messages.save(Message(environment_id=environment_id, author=Author.SYSTEM, session=session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=label, data=data), actor)
+                return self.messages.save(older[0].with_(text=mark.label, session=mark.session or older[0].session, data=self.docked_data(older[0], data)), mark.actor)
+            roles = self.agents.session_roles(mark.session) if mark.session else []
+            return self.messages.save(Message(environment_id=mark.environment_id, author=Author.SYSTEM, session=mark.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=mark.label, data=data), mark.actor)
 
     def key_lock(self, key: str) -> threading.Lock:
         with self.key_locks_lock:
             return self.key_locks.setdefault(key, threading.Lock())
 
-    def show_recent(self, process: str, environment_id: int, key: str, label: str, data: dict, actor: Actor, shows: CardKind, active: bool, detail: str = "", session: str | None = None) -> Message:
-        older = self.messages.keyed(key, actor)
+    def show_recent(self, mark: ProcessMark) -> Message:
+        older = self.messages.keyed(mark.key, mark.actor)
         if older and self.predates_user_message(older[0]):
-            self.messages.delete(older[0], actor)
-        return self.show(process, environment_id, key, label, data, actor, shows, active, detail, session)
+            self.messages.delete(older[0], mark.actor)
+        return self.show(mark)
 
     def predates_user_message(self, card: Message) -> bool:
         latest = self.messages.last_user_message()

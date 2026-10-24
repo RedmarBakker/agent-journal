@@ -1,5 +1,5 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_cards import ProcessCards
+from journal.chat.process_mark import ProcessMark
 from journal.chat.card_detail import CardDetail
 from journal.features.workers.support.card_standing import CardStanding
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -23,19 +23,19 @@ class WorkerProcessCard(ProcessCard):
 
     name = "worker"
 
-    def __init__(self, workers: Workers, reports: WorkerReports, cards: ProcessCards, messages: Messages) -> None:
-        self.workers, self.reports, self.cards, self.messages = workers, reports, cards, messages
+    def __init__(self, workers: Workers, reports: WorkerReports, messages: Messages) -> None:
+        self.workers, self.reports, self.messages = workers, reports, messages
 
     @staticmethod
     def key(worker: Worker) -> str:
         return f"worker:{worker.id}"
 
-    def show(self, worker: Worker, standing: CardStanding, actor: Actor) -> None:
+    def mark(self, worker: Worker, standing: CardStanding, actor: Actor) -> ProcessMark | None:
         older = self.messages.keyed(self.key(worker), actor)
         if older and older[0].data.get("tone") == standing.tone and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
-            return
+            return None
         data = {"kind": "card", "icon": "agents", "tone": standing.tone, "row": str(Ref.build(worker))}
-        self.cards.show(self.name, worker.environment_id, self.key(worker), f"Worker {worker.id}, {worker.name}: {standing.text}", data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
+        return ProcessMark(self.name, worker.environment_id, self.key(worker), f"Worker {worker.id}, {worker.name}: {standing.text}", data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
 
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)
