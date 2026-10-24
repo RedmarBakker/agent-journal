@@ -4,7 +4,6 @@ from journal.engine.base_state import BaseState
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.prompt_submitted import PromptSubmitted
-from journal.events.agent.session_ended import SessionEnded
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
 
@@ -15,6 +14,7 @@ class Ended(BaseState):
 
     name = "ended"
     title = "Ended"
+    session_over = True
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.pop()
@@ -24,6 +24,3 @@ class Ended(BaseState):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return self.pop()
-
-    def on_session_ended(self, event: SessionEnded, settings: Settings) -> Transition:
-        return self.none()

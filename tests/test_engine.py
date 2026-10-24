@@ -436,14 +436,17 @@ def test_merged_answers_say_every_nudge_in_order_hold_on_the_first_and_move_once
     assert Transition.merged(idle, []).target is idle
 
 
-def test_every_listener_whose_event_matches_runs_the_most_specific_first_and_the_base_hears_compaction_and_the_end():
-    settings, state = SettingsValue({}), Listening()
+def test_every_listener_whose_event_matches_runs_the_most_specific_first_and_the_engine_conduct_hears_compaction_and_the_end():
+    from journal.engine.safety_conduct import SafetyConduct
+    settings, state, safety = SettingsValue({}), Listening(), (SafetyConduct,)
     assert state.respond(ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))), settings).nudges == (LINE, OTHER)
     assert state.respond(SessionEnded(), settings).nudges == (OTHER,)
     assert state.respond(Event(), settings) == state.none()
-    assert state.respond(Compacting(), settings).pushed == CompactingState()
-    assert state.respond(SessionEnded(), settings).pushed == Ended()
-    assert [method.__name__ for _, method in Listening.listeners()] == ["on_tool_starting", "on_agent_event", "on_compacting", "on_session_ended", "on_session_retired"]
+    assert state.respond(Compacting(), settings, safety).pushed == CompactingState()
+    assert state.respond(SessionEnded(), settings, safety).pushed == Ended()
+    assert Ended().respond(SessionEnded(), settings, safety).pushed is None, "a session already over is not ended again"
+    assert [method.__name__ for _, method in Listening.listeners()] == ["on_tool_starting", "on_agent_event"]
+    assert [method.__name__ for _, method in Listening.listeners(safety)][-3:] == ["on_compacting", "on_session_ended", "on_session_retired"]
 
 
 def test_settings_is_a_frozen_value_of_the_options_read_by_option():
@@ -462,7 +465,7 @@ def test_a_renamed_state_answers_as_before_through_its_on_listeners_and_a_plain_
     assert Ended().respond(ToolStarting(call=ToolCall(tool="Write", input={}, operation=Claude().operation("Write", {}))), settings).popped
     assert Ended().respond(SessionEnded(), settings) == Ended().none()
     names = [method.__name__ for _, method in Ended.listeners()]
-    assert set(names[:4]) == {"on_session_started", "on_prompt_submitted", "on_tool_starting", "on_session_ended"} and names[4:] == ["on_compacting", "on_session_retired"]
+    assert set(names) == {"on_session_started", "on_prompt_submitted", "on_tool_starting"}
 
 
 def test_the_stack_is_seeded_from_the_state_and_its_pause_chain_unwound_with_idle_at_the_bottom(connection, bus, scope):

@@ -7,9 +7,6 @@ from journal.engine.nudge import Nudge
 from journal.engine.support.block import Block
 from journal.engine.support.typist import Typist
 from journal.events.feature_data import FeatureData
-from journal.events.agent.compacting import Compacting
-from journal.events.agent.session_ended import SessionEnded
-from journal.events.rows.session_retired import SessionRetired
 from journal.events.event import Event
 from journal.support.permission import Permission
 from journal.support.timeout import Timeout
@@ -24,10 +21,11 @@ LISTENER = "on_"
 
 @dataclass(frozen=True)
 class BaseState:
-    """The parent of every state. Its listeners are its on_ methods, bound to the event each hears by its annotation; its answers are unchanged, changed, push, pop, pop_through, which pops and hands the event to the state beneath, and hold, and a listener that stops the event's propagation is the last to hear it. A state coming to the top of the stack or leaving it is handed the typist and may switch it off or on. It hears what every state hears: the context about to be compacted pushes Compacting, the session's end pushes Ended."""
+    """The parent of every state. Its listeners are its on_ methods, bound to the event each hears by its annotation; its answers are unchanged, changed, push, pop, pop_through, which pops and hands the event to the state beneath, and hold, and a listener that stops the event's propagation is the last to hear it. A state coming to the top of the stack or leaving it is handed the typist and may switch it off or on. What every state hears, the compaction and the session's end, is the engine's SafetyConduct, folded in before every feature's."""
 
     name: ClassVar[str]
     title: ClassVar[str] = ""
+    session_over: ClassVar[bool] = False
     allows: ClassVar[frozenset[Permission]] = frozenset()
 
     def respond(self, event: Event, settings: Settings, conducts: tuple[type["Conduct"], ...] = ()) -> Transition:
@@ -74,18 +72,6 @@ class BaseState:
 
     def refuse(self, reason: Nudge) -> Transition:
         return Transition(self, refusal=reason)
-
-    def on_compacting(self, event: Compacting, settings: Settings) -> Transition:
-        from journal.engine.states.compacting import Compacting as CompactingState
-        return self.push(CompactingState())
-
-    def on_session_ended(self, event: SessionEnded, settings: Settings) -> Transition:
-        from journal.engine.states.ended import Ended
-        return self.push(Ended())
-
-    def on_session_retired(self, event: SessionRetired, settings: Settings) -> Transition:
-        from journal.engine.states.ended import Ended
-        return self.push(Ended()) if event.agent_session == event.session else self.none()
 
     def on_push(self, settings: Settings) -> tuple[Nudge, ...] | Block:
         return ()
