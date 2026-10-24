@@ -1136,6 +1136,7 @@ faults.jobs = False
 faults.stall_stacks = False
 faults.stage_times = False
 faults.terminal_hook_lines = False
+client_errors.report = False
 updates.repository = 'https://github.com/jessegall/agent-journal'  (the user sets it)
 updates.branch = ''  (the user sets it)
 updates.auto = False  (the user sets it)

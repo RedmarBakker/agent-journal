@@ -6638,6 +6638,12 @@ def test_a_session_in_a_worktree_is_marked_with_its_branch_once(app: App):
     app.runtime().deferred.drain()
     thresholds = [m.text for m in app.container.get(Messages).recent(20) if m.text.startswith("Working in the worktree")]
     assert thresholds == ["Working in the worktree main, on the branch worktree-main"], "one mark a session, naming the worktree and its branch"
+    tree = Worktree(root, "main")
+    subprocess.run(["git", "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "work in the worktree"], cwd=tree.path, capture_output=True, timeout=30)
+    hook(app, "SessionEnd")
+    app.runtime().deferred.drain()
+    tip = lambda ref: subprocess.run(["git", "rev-parse", ref], cwd=root, capture_output=True, text=True, timeout=30).stdout.strip()
+    assert tip("refs/journal/worktrees/main") == tip("worktree-main"), "the session's end keeps where the worktree's branch stands, so a lost folder is made again from there"
 
 
 def test_the_viewer_lists_an_environments_worktree_with_its_branch(app: App):

@@ -49,8 +49,11 @@ class Worktree:
             if not self.path.is_dir():
                 self.added()
             self.shared()
-            self.git("update-ref", f"{TIPS_REF}/{self.name}", self.local_branch())
+            self.tip_kept()
         return self.path
+
+    def tip_kept(self) -> None:
+        self.git("update-ref", f"{TIPS_REF}/{self.name}", self.local_branch())
 
     def renamed(self, name: str) -> "Worktree":
         target = Worktree(self.root, name)
