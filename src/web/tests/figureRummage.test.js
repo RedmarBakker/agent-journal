@@ -148,3 +148,23 @@ test("leaning out to rummage, the figure leans with the hand on the edge's side,
         }
     }
 });
+
+test("each thing it throws turns about its own middle, and the searches wait two minutes between them and five each", async () => {
+    const {propsOf} = await import("../src/figure/figure.js");
+    const {draw} = await import("../src/figure/pile.js");
+    const props = propsOf();
+    for (const name of RUMMAGED) {
+        const thing = props.get(name).children[0];
+        thing.updateMatrixWorld(true);
+        const middle = new THREE.Box3().setFromObject(thing).getCenter(new THREE.Vector3());
+        expect(middle.length(), name).toBeLessThan(1e-6);
+    }
+    const memory = new Map();
+    const searchAt = (now) => draw({moment: "held:search", home: true, memory, now}, () => 0.5)?.name ?? null;
+    const first = searchAt(0);
+    expect(first).toBeTruthy();
+    expect(searchAt(60), "none within two minutes").toBe(null);
+    const second = searchAt(120);
+    expect(second, "another after two minutes").toBeTruthy();
+    expect(second).not.toBe(first);
+});

@@ -1,5 +1,5 @@
 import {HELD, WORKING, eggFor} from "../domain/figureState.js";
-import {CALL_COOLDOWN, draw} from "./pile.js";
+import {CALL_COOLDOWN, draw, hasMoment} from "./pile.js";
 import {lookAngles, lookWay, upFor} from "./look.js";
 
 // What the figure does about what happens around it, and when. Which animation plays is drawn from the one pile (pile.js); here are the
@@ -9,10 +9,14 @@ import {lookAngles, lookWay, upFor} from "./look.js";
 export const carrierOf = (random) => draw({moment: "carrier"}, random).name;
 export const craneFrom = (random) => draw({moment: "crane_from"}, random).name;
 
-// the clip a held clip is played as for this stretch of it (pile.js held:), itself when it is played one way only; `scene` says what the
-// variants' conditions read: `memory` when each variant waiting a cooldown last played, at `now`, and `home` whether the figure stands on
-// the compose box
-export const variantOf = (clip, random, has, scene = {}) => draw({moment: `held:${clip}`, has, ...scene}, random)?.name ?? clip;
+// the clip a held clip is played as for this stretch of it (pile.js held:), itself when it is played one way only, and idle when it has
+// ways to be played but none may play now, as when every search waits its cooldown; `scene` says what the variants' conditions read:
+// `memory` when each variant waiting a cooldown last played, at `now`, and `home` whether the figure stands on the compose box
+export function variantOf(clip, random, has, scene = {}) {
+    const drawn = draw({moment: `held:${clip}`, has, ...scene}, random);
+    if (drawn) return drawn.name;
+    return hasMoment(`held:${clip}`) ? "idle" : clip;
+}
 
 // how long the eyes keep a look, counted only while they are shown
 export const LOOK_SECONDS = 3;

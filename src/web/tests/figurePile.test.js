@@ -325,16 +325,19 @@ test("the jump for joy is kept for the end of a run the figure anticipated; an e
     expect(choicesFor({moment: "bar_done"}).map((entry) => entry.name)).toEqual(["joy"]);
 });
 
-test("searching, the magnifying glass and the binoculars each come at most once in five minutes, the other search acts meanwhile", async () => {
+test("searching: no search within two minutes of the last, each search at most once in five, and idle while all wait", async () => {
     const {variantOf} = await import("../src/figure/reactions.js");
     const memory = new Map();
     const drawn = [];
-    for (let second = 0; second < 600; second += 10) drawn.push({second, clip: variantOf("search", Math.random, () => true, {memory, now: second, home: true})});
-    for (const prop of ["search", "binoculars"]) {
-        const times = drawn.filter((each) => each.clip === prop).map((each) => each.second);
-        for (let index = 1; index < times.length; index++) expect(times[index] - times[index - 1], prop).toBeGreaterThanOrEqual(300);
+    for (let second = 0; second < 1200; second += 10) drawn.push({second, clip: variantOf("search", Math.random, () => true, {memory, now: second, home: true})});
+    const searches = drawn.filter((each) => each.clip !== "idle");
+    for (let index = 1; index < searches.length; index++) expect(searches[index].second - searches[index - 1].second, "two minutes between searches").toBeGreaterThanOrEqual(120);
+    for (const act of ["search", "binoculars", "rummage"]) {
+        const times = searches.filter((each) => each.clip === act).map((each) => each.second);
+        for (let index = 1; index < times.length; index++) expect(times[index] - times[index - 1], act).toBeGreaterThanOrEqual(300);
     }
-    expect(drawn.every((each) => ["search", "binoculars", "rummage"].includes(each.clip))).toBe(true);
+    expect(drawn.every((each) => ["search", "binoculars", "rummage", "idle"].includes(each.clip))).toBe(true);
+    expect(drawn.some((each) => each.clip === "idle"), "idle while every search waits").toBe(true);
 });
 
 test("the binoculars are picked only while the figure stands on the compose box, to scan up the chat from there", async () => {

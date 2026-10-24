@@ -3476,7 +3476,7 @@ export const TOOLS = {
     colours: {ink: 0x272936, silver: 0xa9adb8, paper: 0xf3eedf, white: 0xf4f2ed, accent: 0x6366f1, pencil: 0xd6b06b, handle: 0x8a5a2b, straw: 0xe8c66a},
 };
 
-function propsOf() {
+export function propsOf() {
     const props = new Map();
     const group = (name) => {
         const root = new THREE.Group();
@@ -3570,12 +3570,14 @@ export const RUMMAGE_THINGS = {
 
 function rummagedOf(group) {
     const {papers, boot, bone, book, colours} = RUMMAGE_THINGS;
+    const things = [];
     const sized = (name) => {
         const root = group(name);
         const body = new THREE.Group();
         body.name = name;
         root.add(body);
         root.userData.shape = ({size = 1}) => body.scale.setScalar(Math.max(size, 0.001));
+        things.push(body);
         return body;
     };
     const sheets = sized("rummage_papers");
@@ -3602,6 +3604,12 @@ function rummagedOf(group) {
     const tome = sized("rummage_book");
     shadedPart(tome, "cover", new THREE.BoxGeometry(...book.cover), colours.cover);
     shadedPart(tome, "pages", new THREE.BoxGeometry(...book.pages), colours.pages, [(book.cover[0] - book.pages[0]) / 2 + 0.03, 0, 0]);
+    // each turns about its own middle as it flies
+    for (const thing of things) {
+        thing.updateMatrixWorld(true);
+        const middle = new THREE.Box3().setFromObject(thing).getCenter(new THREE.Vector3()).sub(thing.getWorldPosition(new THREE.Vector3()));
+        for (const piece of thing.children) piece.position.sub(middle);
+    }
 }
 
 

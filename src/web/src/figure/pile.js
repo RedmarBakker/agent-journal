@@ -62,7 +62,10 @@ const look = (name, weight, when = {}) => ({name, kind: "look", weight, when});
 const pick = (name, weight, when = {}, more = {}) => ({name, kind: "pick", weight, when, ...more});
 const nothing = (weight) => ({name: "nothing", kind: "nothing", weight, when: {}});
 
-// a search act with a prop the figure holds up, waiting PROP_COOLDOWN seconds before it is drawn again
+// the seconds after any search before the figure searches again
+const SEARCH_COOLDOWN = 120;
+
+// a search act, waiting PROP_COOLDOWN seconds before it is drawn again
 const PROP_COOLDOWN = 300;
 const prop = (name, weight) => ({...clip(name, weight), cooldown: PROP_COOLDOWN, apart: true});
 
@@ -156,9 +159,10 @@ export const PILE = [
     // the window's edge and flinging things over its shoulder; typing on or stopping to think at the laptop; watching the UFO with a hand shading the eyes or
     // waving up at it; and while the context compacts, packed into a box that shrinks, squashed under a press, vacuuming up words, or
     // squaring a stack of papers
-    // the magnifying glass and the binoculars each at most once in five minutes, so neither is in hand at every search; the binoculars only
-    // from the compose box, scanning up the chat
-    ...at("held:search", {}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, clip("rummage", 1)]),
+    // no search within two minutes of the last, and each, the magnifying glass, the binoculars and the rummage, at most once in five
+    // minutes, so the next is always another; none at all while all wait;
+    // the binoculars only from the compose box, scanning up the chat
+    ...at("held:search", {cooldown: SEARCH_COOLDOWN}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, prop("rummage", 1)]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),
@@ -225,6 +229,9 @@ const beyondLeast = (cooldown, random) => (Array.isArray(cooldown) ? random() * 
 // and, with `memory` (cooldown key to when it last played, in seconds) and `now`, only those not cooling down. With a `tally` of the acts
 // played since the last shenanigan at SHENANIGAN.after or more, only the shenanigans, where there is one; and never the tally's last act
 // again while anything else may play.
+// whether the pile holds any entry for `moment`
+export const hasMoment = (moment) => PILE.some((entry) => entry.when.moment === moment);
+
 export function choicesFor(scene) {
     const has = scene.has ?? (() => true);
     const since = (key) => scene.now - (scene.memory.get(key) ?? -Infinity);
