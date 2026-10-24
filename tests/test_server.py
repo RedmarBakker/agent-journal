@@ -1203,6 +1203,14 @@ def test_an_output_is_read_by_its_id(tmp_path: Path):
             stored = app.container.get(CommandOutputs).save(CommandOutput(chain="run", command="make test", folder=str(folder)), Actor.system())
         status, read = call(server, "GET", f"/journal/outputs/{stored.id}")
         assert status == 200 and (read["id"], read["command"], read["outcome"], read["lines"]) == (stored.id, "make test", "failed with code 2", ["one", "two", "oops"])
+        assert (read["start"], read["next"]) == (0, 3)
+        after = call(server, "GET", f"/journal/outputs/{stored.id}?after=1")[1]
+        assert (after["lines"], after["start"], after["next"]) == (["two", "oops"], 1, 3), "the lines after a position, with the next position to ask from"
+        assert call(server, "GET", f"/journal/outputs/{stored.id}?after=3")[1]["lines"] == [], "nothing after the last line"
+        newest = call(server, "GET", f"/journal/outputs/{stored.id}?limit=2")[1]
+        assert (newest["lines"], newest["start"], newest["next"]) == (["two", "oops"], 1, 3), "the newest page is the last lines"
+        older = call(server, "GET", f"/journal/outputs/{stored.id}?before=1&limit=2")[1]
+        assert (older["lines"], older["start"], older["next"]) == (["one"], 0, 1), "the page before a position"
         assert call(server, "GET", "/journal/outputs/99")[0] == 404
     finally:
         app.runtime().stop()

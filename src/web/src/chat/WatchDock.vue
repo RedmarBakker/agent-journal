@@ -7,6 +7,7 @@ import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
 import {createdAt} from "../domain/row.js";
+import {useOutputPages} from "../composables/outputPages.js";
 
 const SHOWN_LINES = 6;
 
@@ -21,12 +22,12 @@ const lines = computed(() => (card.value.lines?.length ? card.value.lines : [car
 const width = computed(() => `${Math.round((card.value.fraction || 0) * 100)}%`);
 
 const opened = ref(false);
-const output = ref(null);
+const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
 
 const takeDown = () => undock(scope, props.message);
 
 async function read() {
-    if (!colleague.value) output.value = await scope.api.readOutput(card.value.output);
+    if (!colleague.value) await pages.poll();
 }
 
 function toggle() {
@@ -61,8 +62,8 @@ watch(
         <template v-if="opened && colleague">
             <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
         </template>
-        <template v-else-if="opened && output">
-            <pre class="watch-dock-output">{{ output.lines.join("\n") || "It printed nothing yet." }}</pre>
+        <template v-else-if="opened && pages.loaded.value">
+            <pre class="watch-dock-output" @scroll="pages.older($event.target)">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
         </template>
         <template v-else-if="opened">
             <ul class="watch-dock-lines">

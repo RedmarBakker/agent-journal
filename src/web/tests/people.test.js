@@ -61,7 +61,7 @@ test("a colleague's command card is drawn from its message, and opening it says 
     expect(live).toMatch(/colleague\.value \? \[\] :/);
     const dock = readFileSync(resolve(__dirname, "../src/chat/WatchDock.vue"), "utf8");
     expect(dock).toMatch(/This output stays on \{\{ colleague \}\}'s machine/);
-    expect(dock).toMatch(/if \(!colleague\.value\) output\.value = await scope\.api\.readOutput/);
+    expect(dock).toMatch(/if \(!colleague\.value\) await pages\.poll\(\)/);
     const dialog = readFileSync(resolve(__dirname, "../src/chat/OutputDialog.vue"), "utf8");
     expect(dialog).toMatch(/This output stays on \{\{ owner \}\}'s machine/);
     const thread = readFileSync(resolve(__dirname, "../src/chat/Thread.vue"), "utf8");

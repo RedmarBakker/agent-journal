@@ -477,8 +477,10 @@ export class ApiClient {
         return this.act("environments", environment, "remove");
     }
 
-    readOutput(id) {
-        return this.get(this.here(`/outputs/${id}`));
+    // one page of an output: the newest, the lines after a position, or the page before one
+    readOutput(id, {after, before} = {}) {
+        const path = this.here(`/outputs/${id}${query({after, before})}`);
+        return this.get(path, path);
     }
 
     activeCards(ids) {

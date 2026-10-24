@@ -1,4 +1,4 @@
-import {createApp, h} from "vue";
+import {createApp, h, ref} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
 import {flush} from "./flush.js";
 
@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 test("a docked output is titled in words, names its command beneath, and opens on a click to its whole output in a box that scrolls", async () => {
-    const read = vi.spyOn(api, "readOutput").mockResolvedValue({command: "pytest -q", outcome: "running", lines: ["collecting", "FAILED test_b", "[ 40%] test_c"]});
+    const read = vi.spyOn(api, "readOutput").mockResolvedValue({command: "pytest -q", outcome: "running", lines: ["collecting", "FAILED test_b", "[ 40%] test_c"], start: 0, next: 3});
     const host = document.createElement("div");
     document.body.append(host);
     app = createApp({render: () => h(WatchDock, {message: watched})});
@@ -44,6 +44,24 @@ test("a docked output is titled in words, names its command beneath, and opens o
     host.querySelector(".watch-dock-label").click();
     await flush();
     expect(host.querySelector(".watch-dock-output")).toBeNull();
+});
+
+test("an open dock asks for the lines after the last it holds, and adds them to its output", async () => {
+    const read = vi.spyOn(api, "readOutput").mockResolvedValueOnce({lines: ["collecting", "FAILED test_b"], start: 0, next: 2}).mockResolvedValueOnce({lines: ["[ 40%] test_c"], start: 2, next: 3});
+    const host = document.createElement("div");
+    document.body.append(host);
+    const message = ref(watched);
+    app = createApp({render: () => h(WatchDock, {message: message.value})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    host.querySelector(".watch-dock-label").click();
+    await flush();
+    expect(read).toHaveBeenLastCalledWith(12);
+    message.value = {...watched, data: {...watched.data, lines: ["[ 40%] test_c"]}};
+    await flush();
+    expect(read).toHaveBeenLastCalledWith(12, {after: 2});
+    expect(host.querySelector(".watch-dock-output").textContent).toBe("collecting\nFAILED test_b\n[ 40%] test_c");
 });
 
 test("a docked run shows its state as a dot in place of its icon, pulsing while it runs, blue while running, green once passed, red once failed, and no outline", async () => {

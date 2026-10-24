@@ -7,8 +7,11 @@ from journal.support.response import Response
 from journal.repositories.command_outputs import CommandOutputs
 
 
+PAGE_LINES = 500
+
+
 class OutputController:
-    """What one stored output holds, for the viewer's dialog: its command, how it ended and what it printed."""
+    """What one stored output holds, for the viewer: its command, how it ended and one page of what it printed, the newest by default, the lines after a position (`after`) or the page before one (`before`), with the position it starts at and the next one to ask from."""
 
     def __init__(self, outputs: CommandOutputs) -> None:
         self.outputs = outputs
@@ -17,4 +20,16 @@ class OutputController:
         output = self.outputs.find(request.number("id"))
         files = OutputFiles(Path(output.folder))
         stored = files.is_stored()
-        return Response.json({**ModelFields.build(output), "outcome": files.outcome() if stored else "files gone", "lines": files.lines() if stored else []})
+        start, size = self.window(request, files.line_count() if stored else 0)
+        lines = files.page(start, size) if stored else []
+        return Response.json({**ModelFields.build(output), "outcome": files.outcome() if stored else "files gone", "lines": lines, "start": start, "next": start + len(lines)})
+
+    @staticmethod
+    def window(request: Request, total: int) -> tuple[int, int]:
+        size = int(request.queried("limit", PAGE_LINES))
+        if "after" in request.query:
+            return int(request.queried("after")), size
+        if "before" in request.query:
+            end = int(request.queried("before"))
+            return max(0, end - size), min(size, end)
+        return max(0, total - size), size

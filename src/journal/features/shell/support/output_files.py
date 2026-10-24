@@ -1,5 +1,6 @@
 import re
 import shutil
+from itertools import islice
 from pathlib import Path
 
 from journal.support.part import Part
@@ -23,6 +24,30 @@ class OutputFiles:
 
     def lines(self) -> list[str]:
         return [STYLE_CODES.sub("", line) for path in self.parts() for line in path.read_text(errors="replace").splitlines()]
+
+    def line_count(self) -> int:
+        return sum(self.counted(path) for path in self.parts())
+
+    @staticmethod
+    def counted(path: Path) -> int:
+        count, last = 0, b"\n"
+        with path.open("rb") as file:
+            while block := file.read(BLOCK_BYTES):
+                count, last = count + block.count(b"\n"), block[-1:]
+        return count + (last != b"\n")
+
+    def page(self, start: int, size: int) -> list[str]:
+        rows, skipped = [], 0
+        for path in self.parts():
+            if len(rows) >= size:
+                break
+            held = self.counted(path)
+            if skipped + held > start:
+                first = max(0, start - skipped)
+                with path.open(errors="replace", newline="\n") as file:
+                    rows += [STYLE_CODES.sub("", line.rstrip("\r\n")) for line in islice(file, first, first + size - len(rows))]
+            skipped += held
+        return rows
 
     def last(self, n: int) -> list[str]:
         rows: list[str] = []

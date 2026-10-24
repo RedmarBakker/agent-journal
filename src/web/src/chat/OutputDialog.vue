@@ -1,14 +1,16 @@
 <script setup>
 import {onMounted, ref} from "vue";
+import {useOutputPages} from "../composables/outputPages.js";
 import {api} from "../api/client.js";
 import Dialog from "../kit/Dialog.vue";
 
 const props = defineProps({n: {type: Number, required: true}, owner: {type: String, default: ""}});
 const emit = defineEmits(["close"]);
-const output = ref(null);
+const pages = useOutputPages((...page) => api.readOutput(props.n, ...page));
+const output = pages.facts;
 const failed = ref("");
 
-onMounted(() => !props.owner && api.readOutput(props.n).then((got) => (output.value = got), (e) => (failed.value = e.message)));
+onMounted(() => !props.owner && pages.poll().catch((e) => (failed.value = e.message)));
 </script>
 
 <template>
@@ -27,8 +29,8 @@ onMounted(() => !props.owner && api.readOutput(props.n).then((got) => (output.va
                 <span class="output-outcome">{{ output.outcome }}</span>
                 <span class="output-label">Output</span>
             </div>
-            <template v-if="output.lines.length">
-                <pre class="output-lines">{{ output.lines.join("\n") }}</pre>
+            <template v-if="pages.lines.value.length">
+                <pre class="output-lines" @scroll="pages.older($event.target)">{{ pages.lines.value.join("\n") }}</pre>
             </template>
             <template v-else>
                 <p class="output-note">It printed nothing.</p>
@@ -74,7 +76,9 @@ onMounted(() => !props.owner && api.readOutput(props.n).then((got) => (output.va
 }
 
 .output-lines {
+    max-height: 60vh;
     padding: 6px 16px 16px;
+    overflow: auto;
     color: var(--text-2);
 }
 
