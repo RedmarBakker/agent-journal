@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import TypeVar
@@ -50,7 +51,7 @@ class Menu:
         return ["sh", str(self.journal_sh), *argv]
 
     def command_environment(self) -> dict[str, str]:
-        return {"JOURNAL_ROOT": str(self.root), "PATH": "/usr/bin:/bin:/usr/local/bin"}
+        return {"JOURNAL_ROOT": str(self.root), "PATH": f"{Path(sys.executable).parent}:/usr/bin:/bin:/usr/local/bin"}
 
     def environment_rows(self, name: str, rows: list) -> list:
         if name in {row.name for row in rows}:
