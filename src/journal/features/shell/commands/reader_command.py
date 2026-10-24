@@ -11,9 +11,9 @@ from journal.repositories.command_outputs import CommandOutputs
 from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
-from journal.features.shell.support.reader import Reader
+from journal.features.shell.support.reader import LABEL_PREFIX, PROGRESS_PREFIX, Reader
 from journal.features.shell.support.readers import Readers
-from journal.features.shell.support.reader_commands import ReaderCommands
+from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, ReaderCommands
 from journal.support.rejection import Rejection
 
 NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
@@ -56,7 +56,10 @@ class ReaderCommand(Command):
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
         if args.script:
-            self.readers.add_script(args.name, args.about or prior.subject, args.script, self.commands(args, prior))
+            if args.progress:
+                re.compile(args.progress)
+            notes = {COMMANDS_PREFIX: self.commands(args, prior).text(), LABEL_PREFIX: ActivityTitle.checked(args.label) if args.label else "", PROGRESS_PREFIX: args.progress or ""}
+            self.readers.add_script(args.name, args.about or prior.subject, args.script, notes)
         else:
             reader = (prior or Reader(args.name, args.about, args.pattern)).revised(subject=args.about, pattern=args.pattern, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
             for pattern in (reader.pattern, reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):

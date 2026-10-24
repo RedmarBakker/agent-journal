@@ -87,7 +87,7 @@ class Readers:
         self.config.readers.mkdir(parents=True, exist_ok=True)
         (self.config.readers / f"{reader.name}.pattern").write_text(reader.text())
 
-    def add_script(self, name: str, topic: str, script: Path, commands: ReaderCommands) -> None:
+    def add_script(self, name: str, topic: str, script: Path, notes: dict[str, str]) -> None:
         self.config.readers.mkdir(parents=True, exist_ok=True)
-        commands_line = f"# {COMMANDS_PREFIX}{commands.text()}\n" if commands.programs else ""
-        (self.config.readers / f"{name}.sh").write_text(f"# {topic}\n{commands_line}{script.read_text()}")
+        lines = "".join(f"# {prefix}{value}\n" for prefix, value in notes.items() if value)
+        (self.config.readers / f"{name}.sh").write_text(f"# {topic}\n{lines}{script.read_text()}")

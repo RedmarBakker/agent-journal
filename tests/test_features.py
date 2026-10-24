@@ -12778,3 +12778,24 @@ def test_a_chain_is_read_by_the_reader_of_the_command_doing_its_work(app: App):
     assert readers.reading("cd x && tox -e py").name == "tests" and readers.reading("sleep 5").name == "naps", "the working command decides, and a lone wait is still a pause"
     line = "S=/tmp/rewrite; ( cd $S/mirror.git && git filter-repo --force 2>&1 )"
     assert readers.reading(line).name == "rewrites", "an assignment in front of a subshell is passed over, and the subshell is known by its work"
+
+
+def test_a_script_reader_set_on_a_running_output_gives_its_card_the_scripts_progress_and_label(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.repositories.command_outputs import CommandOutputs
+    hook(app, "SessionStart")
+    console, outputs = app.console(), app.container.get(CommandOutputs)
+    folder = app.config.root / "r"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("git filter-repo --force")
+    (folder / "0.out").write_text("Parsed 10 commits\nParsed 25 commits\n")
+    app.container.get(OutputLog).start("r", "git filter-repo --force", folder, Caller.agent("main", "s1", "claude"))
+    script = app.config.root / "parsed.sh"
+    script.write_text("grep -o 'Parsed [0-9]*' | tail -1 | sed 's/Parsed \\([0-9]*\\)/\\1\\/100 commits/'\n")
+    assert console.run(["reader", "add", "rewrites", "--script", str(script), "--about", "the rewrite", "--label", "Rewriting the history", "--progress", r"(\d+)/(\d+)"], AGENT).code == 0
+    assert console.run(["output", "watch", "1", "--reader", "rewrites"], AGENT).code == 0
+    contents = app.container.get(OutputProcessCard).card_contents(outputs.find(1))
+    assert contents.data["fraction"] == 0.25 and "25%" in contents.data["figure"], "the progress pattern reads what the script prints, so the bar moves"
+    assert contents.label == "Rewriting the history", "the script reader's label titles the card"

@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from journal.features.shell.support.progress import Progress
+from journal.features.shell.support.reader import LABEL_PREFIX, PREFIXES, PROGRESS_PREFIX
 from journal.features.shell.support.step_tally import StepTally
 from journal.features.shell.support.reader_commands import COMMANDS_PREFIX, ReaderCommands
 from journal.models.command_output import ACTIVE
@@ -24,6 +25,7 @@ class ScriptReader:
     label: str = ""
     topic_pattern: str = ""
     stage: str = ACTIVE
+    progress_pattern: str = ""
 
     def topic(self, line: str) -> str:
         return ""
@@ -31,9 +33,9 @@ class ScriptReader:
     @classmethod
     def loaded(cls, path: Path) -> "ScriptReader":
         notes = [line.removeprefix("#").strip() for line in path.read_text().splitlines() if line.startswith("#") and not line.startswith("#!")]
-        commands = next((note.removeprefix(COMMANDS_PREFIX) for note in notes if note.startswith(COMMANDS_PREFIX)), "")
-        topic = next((note for note in notes if not note.startswith(COMMANDS_PREFIX)), "")
-        return cls(path.stem, topic, path, ReaderCommands.parsed(commands))
+        noted = lambda prefix: next((note.removeprefix(prefix) for note in notes if note.startswith(prefix)), "")
+        topic = next((note for note in notes if not note.startswith(PREFIXES)), "")
+        return cls(path.stem, topic, path, ReaderCommands.parsed(noted(COMMANDS_PREFIX)), label=noted(LABEL_PREFIX), progress_pattern=noted(PROGRESS_PREFIX))
 
     def matches(self, command: str) -> bool:
         return False
@@ -57,7 +59,7 @@ class ScriptReader:
         return self.read(lines)
 
     def progress(self, lines: list[str]) -> Progress:
-        return Progress.empty()
+        return Progress.found(self.progress_pattern, self.label, self.read(lines), "") if self.progress_pattern else Progress.empty()
 
     def tally(self, lines: list[str]) -> StepTally:
         return StepTally(0, 0)
