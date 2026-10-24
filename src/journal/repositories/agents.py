@@ -43,6 +43,9 @@ class Agents(ScopedRepository[Agent]):
     def conversation_agents(self, count: int) -> list[Agent]:
         return [agent for agent in self.scoped() if agent.has_program() and agent.role == AgentRole.MAIN][-count:]
 
+    def ended_main_agents(self, environment_id: int) -> list[Agent]:
+        return self.global_matching(environment_id=environment_id, role=AgentRole.MAIN, state="ended")
+
     def main_scoped(self, environment_id: int) -> list[Agent]:
         return [item for item in self.global_matching(environment_id=environment_id, role=AgentRole.MAIN) if item.state != "ended"]
 

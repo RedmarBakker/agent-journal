@@ -1,5 +1,7 @@
+import sys
 import threading
 import time
+import traceback
 from typing import Callable
 
 from journal.sync.attachments import Attachments
@@ -64,9 +66,16 @@ class SyncClient:
                 loop()
                 delay = FIRST_RETRY_SECONDS
             except (OSError, TeamRefusal) as fault:
-                self.status.failed(str(fault))
-                self.stopping.wait(delay)
+                self.retried(str(fault), delay)
                 delay = min(delay * 2, LAST_RETRY_SECONDS)
+            except Exception as fault:
+                sys.stderr.write(f"the sync loop failed and tries again:\n{traceback.format_exc()}")
+                self.retried(f"{type(fault).__name__}: {fault}", delay)
+                delay = min(delay * 2, LAST_RETRY_SECONDS)
+
+    def retried(self, fault: str, delay: float) -> None:
+        self.status.failed(fault)
+        self.stopping.wait(delay)
 
     def send(self) -> None:
         if self.account.is_upgrader():

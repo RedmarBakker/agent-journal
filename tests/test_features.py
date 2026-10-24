@@ -12061,3 +12061,55 @@ def test_the_environment_overview_names_the_readers_kept_for_reading_outputs(app
     console.run(["reader", "add", "failed-lines", "--pattern", "FAILED", "--about", "the failed tests of a pytest run"], AGENT)
     text = console.run(["environment", "overview"], AGENT).text
     assert "== journal reader list ==" in text and "failed-lines: the failed tests of a pytest run" in text, "the overview after a start or a compaction lists the readers"
+
+
+def test_a_task_held_by_an_ended_session_is_paused_when_the_next_main_session_starts_and_the_new_one_resumes_it(app: App):
+    from journal.models.task_state import TaskState
+    from journal.repositories.tasks import Tasks
+    codex = Caller.agent("main", "old-codex", "codex")
+    posted(app, "/hooks/codex", {"hook_event_name": "SessionStart", "session_id": "old-codex"}, {"X-Journal-Env": "main"})
+    app.console().run(["task", "create", "Write the final design", "--brief", "b", "--start"], codex)
+    posted(app, "/hooks/codex", {"hook_event_name": "SessionEnd", "session_id": "old-codex"}, {"X-Journal-Env": "main"})
+    hook(app, "SessionStart")
+    with app.container.get(Scope).environment(1):
+        task = app.container.get(Tasks).find(1)
+    assert task.state == TaskState.PAUSED and "ended" in task.pause_reason, "the ended session's task is let go, paused, never held by nobody who works"
+    resumed = app.console().run(["task", "resume", "1"], AGENT)
+    assert resumed.code == 0, resumed.text + resumed.error
+
+
+def test_the_sync_loop_goes_on_after_any_fault_and_a_batch_taken_while_changes_fold_never_misses_a_row(app: App, monkeypatch):
+    import threading
+    import journal.sync.sync_client as client_module
+    from journal.models.outgoing_change import UPDATED, OutgoingChange
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.sync.sync_client import SyncClient
+    monkeypatch.setattr(client_module, "FIRST_RETRY_SECONDS", 0.01)
+    sync, rounds = app.container.get(SyncClient), []
+
+    def loop():
+        rounds.append(1)
+        if len(rounds) == 1:
+            raise RuntimeError("no outgoing_changes row 93604")
+        sync.stopping.set()
+
+    sync.stopping.clear()
+    sync.repeated(loop)
+    assert len(rounds) == 2 and "RuntimeError" in sync.status.fault, "a fault of any kind is shown and the loop tries again"
+    outgoing, faults = app.container.get(OutgoingChanges), []
+
+    def fold():
+        for n in range(300):
+            outgoing.queued(OutgoingChange(row_table="tasks", row=n % 5, action=UPDATED, fields={"state": str(n)}, changed_at={"state": float(n)}, writer="user:1"), Actor.system())
+
+    def take():
+        try:
+            for _ in range(100):
+                outgoing.sent(outgoing.sending_batch(3))
+        except Exception as fault:
+            faults.append(fault)
+
+    folding, taking = threading.Thread(target=fold), threading.Thread(target=take)
+    folding.start(), taking.start()
+    folding.join(30), taking.join(30)
+    assert faults == [], "a change folded away while a batch is taken is never sought again"

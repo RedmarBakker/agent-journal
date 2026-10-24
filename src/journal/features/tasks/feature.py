@@ -5,6 +5,7 @@ from journal.features.tasks.commands.wait_command import WaitCommand
 from journal.features.tasks.commands.impasse_command import ImpasseCommand
 from journal.features.tasks.commands.task_command import TaskCommand
 from journal.features.tasks.listeners.clear_waits import ClearWaits
+from journal.features.tasks.listeners.ended_agent_tasks import EndedAgentTasks
 from journal.features.tasks.listeners.wait_cycle_check import WaitCycleCheck
 from journal.features.tasks.tasks_conduct import TasksConduct
 from journal.engine.nudge import Nudge
@@ -31,7 +32,7 @@ class Tasks(Feature[TasksData]):
     states = (Ready, Working, Impasse, ExternalWait)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
     options = (AUTO, FIRST_DELAY, TASK_REMINDER_INTERVAL, LOG_LIMIT, LOG_AGE_LIMIT, BLOCK_BATCH)
-    listeners = (ClearWaits, ReleaseWaits, WaitCycleCheck, TaskMoveCards)
+    listeners = (ClearWaits, ReleaseWaits, WaitCycleCheck, TaskMoveCards, EndedAgentTasks)
     conduct = (TasksConduct,)
     data = (TasksDataReader,)
 
