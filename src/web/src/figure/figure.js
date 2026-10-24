@@ -3422,6 +3422,8 @@ export const SCREEN = {
     bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.85, soft: 0.8, reach: 2}, glare: {strength: 0.012, from: 0.5},
     // a lit pixel is drawn brighter than its colour, brightest at its middle
     shine: {lift: 0.3, core: 0.45, tightness: 7},
+    // how many times a second the pixels change, slow like a small real screen, while the figure moves at the page's frame rate
+    framesPerSecond: 6,
 };
 const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec3 glow;
@@ -4798,7 +4800,9 @@ function place(figure, pose, facing, blend) {
         material.uniforms.open.value = crt.open;
         material.uniforms.flash.value = crt.flash;
         if (pose.screen) material.uniforms.glow.value.set(...pose.screen.colour);
-        showPixels(material.uniforms.pixels.value, lit);
+        const frame = Math.floor(performance.now() * SCREEN.framesPerSecond / 1000);
+        if (material.userData.frame !== frame) showPixels(material.uniforms.pixels.value, lit);
+        material.userData.frame = frame;
     }
     // the visor's outline pokes through the middle of the curved visor, unseen on the dark screen and plain on a lit one
     for (const hull of figure.visorHulls) hull.visible = !pose.screen || Boolean(pose.screen.sign);

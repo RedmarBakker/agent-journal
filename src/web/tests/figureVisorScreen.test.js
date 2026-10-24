@@ -49,6 +49,8 @@ test("each lit pixel glows in its own colour with a soft halo on the black about
     expect(material.uniforms.shine.value.toArray()).toEqual([SCREEN.shine.lift, SCREEN.shine.core, SCREEN.shine.tightness]);
     expect(SCREEN.shine.lift).toBeGreaterThan(0);
     expect(SCREEN.shine.core).toBeGreaterThan(0);
+    // the pixels change six times a second, like a small real screen
+    expect(SCREEN.framesPerSecond).toBe(6);
     // an off pixel: a touch brighter than the glass, far fainter than any lit one
     expect(material.uniforms.off.value).toBe(SCREEN.off);
     expect(SCREEN.off).toBeGreaterThan(0);
