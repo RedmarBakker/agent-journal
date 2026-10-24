@@ -13344,12 +13344,17 @@ def test_a_pending_mcp_restart_waits_for_the_subagents_and_workers_to_end_and_th
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
-    hook(app, "SubagentStart", agent_id="a1", agent_type="Explore")
+    call = {"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "map", "model": "haiku", "run_in_background": True}
+    hook(app, "PreToolUse", tool_name="Agent", tool_input=call, tool_use_id="t-bg")
+    hook(app, "PostToolUse", tool_name="Agent", tool_input=call, tool_response={"agentId": "a1", "isAsync": True}, tool_use_id="t-bg")
+    hook(app, "SubagentStart", agent_id="a1", agent_type="journal-researcher")
+    app.runtime().deferred.drain()
     pending = app.container.get(PendingRestarts)
     pending.add("s1", 1, ("--resume", "s1"))
     hook(app, "Stop")
     app.runtime().deferred.drain()
     assert transmitted == [] and pending.sessions() == ["s1"], "the turn ended but a subagent still runs: no restart"
     hook(app, "SubagentStop", agent_id="a1")
+    app.runtime().deferred.drain()
     app.container.get(PendingRestartClaim).restarted("s1")
     assert [(t["verb"], t["name"], t["resume"]) for t in transmitted] == [("restart", "agent", ["--resume", "s1"])] and pending.sessions() == [], "the next tick that finds it idle restarts it once"
