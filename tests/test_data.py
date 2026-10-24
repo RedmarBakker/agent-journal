@@ -255,6 +255,23 @@ def test_the_time_keys_migration_renames_at_in_the_column_and_the_stored_json(co
     assert "at" not in names and connection.one("SELECT time FROM edits")["time"] == 9.0, "where the schema already added the time column, the old at column's values move into it and the column goes"
 
 
+def test_the_verifiers_once_kept_as_workers_go_with_their_links_their_role_column_and_their_chat_cards(connection):
+    from journal.db.migrations.orphan_worker_cards import OrphanWorkerCards
+    from journal.db.migrations.verifier_workers_drop import VerifierWorkersDrop
+    connection.execute("ALTER TABLE workers ADD COLUMN role TEXT DEFAULT 'worker'")
+    for name, role in (("Ada", "worker"), ("Diogenes", "verifier")):
+        connection.execute("INSERT INTO workers (environment_id, name, role, created_at, creator) VALUES (1, ?, ?, '2026-10-25', 'system')", (name, role))
+    ada, diogenes = [row["id"] for row in connection.all("SELECT id FROM workers ORDER BY id")]
+    connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES (?, 'reader_reports:1', 'verifies', '2026-10-25', 'system')", (f"workers:{diogenes}",))
+    for data in ({"row": f"workers:{ada}"}, {"row": f"workers:{diogenes}"}, {"key": f"worker:{diogenes}:stopped:1"}, {"key": "verifier:1"}):
+        connection.execute("INSERT INTO messages (environment_id, author, text, data, created_at, creator) VALUES (1, 'system', 'card', ?, '2026-10-25', 'system')", (json.dumps(data),))
+    VerifierWorkersDrop().apply(connection)
+    OrphanWorkerCards().apply(connection)
+    assert [row["name"] for row in connection.all("SELECT name FROM workers")] == ["Ada"] and not connection.all("SELECT id FROM links WHERE kind = 'verifies'")
+    assert "role" not in {row["name"] for row in connection.all("PRAGMA table_info(workers)")}, "the workers lose the column that told a verifier apart"
+    assert [json.loads(row["data"]) for row in connection.all("SELECT data FROM messages ORDER BY id")] == [{"row": f"workers:{ada}"}, {"key": "verifier:1"}], "only the cards of the removed verifiers go"
+
+
 def test_the_trigger_phrases_migration_renames_the_words_column(connection):
     """Migration 21: a trigger's words column becomes phrases, carried over when the schema already added phrases."""
     from journal.db.migrations.trigger_phrases import TriggerPhrases
