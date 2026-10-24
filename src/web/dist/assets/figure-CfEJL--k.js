@@ -1,4 +1,4 @@
-import{H as te,A as ie,p as me,a as Rp,b as Cp,h as Ql,s as Pp,o as Lp,R as Ip,f as Dp,F as Np,g as Up,c as Op,U as va,G as ws,V as Fp,l as Bp,d as kp,e as zp,P as ss,L as Hp,i as Gp}from"./main-DMhlc306.js";import{e as el}from"./tokens-CDlVDfIF.js";import"./tip-57OeDw3V.js";import"./preload-helper-Dp1pzeXC.js";/**
+import{H as te,A as ie,p as me,a as Rp,b as Cp,h as Ql,s as Pp,o as Lp,R as Ip,f as Dp,F as Np,g as Up,c as Op,U as va,G as ws,V as Fp,l as Bp,d as kp,e as zp,P as ss,L as Hp,i as Gp}from"./main-BzPZYVh7.js";import{e as el}from"./tokens-CDlVDfIF.js";import"./tip-57OeDw3V.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
@@ -3904,10 +3904,13 @@ void main() {
         float band = step(from.x, across) * step(from.y, open);
         vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
         vec2 cell = fract(place);
-        // the dark lines between the pixels, gap of each pixel wide and widened only by the softening, so a lit pixel fills most of its
-        // square however small the screen is drawn
+        // the dark lines between the pixels, gap of each pixel wide and widened only by the softening, centred on the borders between
+        // pixels, their edges blended over one drawn fragment so a screen drawn small shows no jagged steps or shimmer
         vec2 lines = clamp(vec2(gap) + soften * fwidth(place), 0.0, 0.5);
-        float pixel = step(lines.x, cell.x) * step(lines.y, cell.y);
+        vec2 border = min(cell, 1.0 - cell);
+        vec2 blend = fwidth(place) * 0.5;
+        vec2 edges = smoothstep(lines * 0.5 - blend, lines * 0.5 + blend, border);
+        float pixel = edges.x * edges.y;
         vec4 shown = pixelAt(floor(place));
         // how far inside the rounded outline this point is, in the figure's units
         vec2 corner = from - (1.0 - bezel.z);

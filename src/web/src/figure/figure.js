@@ -3447,10 +3447,13 @@ const SCREEN_FRAGMENT = /* glsl */ `
         float band = step(from.x, across) * step(from.y, open);
         vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
         vec2 cell = fract(place);
-        // the dark lines between the pixels, gap of each pixel wide and widened only by the softening, so a lit pixel fills most of its
-        // square however small the screen is drawn
+        // the dark lines between the pixels, gap of each pixel wide and widened only by the softening, centred on the borders between
+        // pixels, their edges blended over one drawn fragment so a screen drawn small shows no jagged steps or shimmer
         vec2 lines = clamp(vec2(gap) + soften * fwidth(place), 0.0, 0.5);
-        float pixel = step(lines.x, cell.x) * step(lines.y, cell.y);
+        vec2 border = min(cell, 1.0 - cell);
+        vec2 blend = fwidth(place) * 0.5;
+        vec2 edges = smoothstep(lines * 0.5 - blend, lines * 0.5 + blend, border);
+        float pixel = edges.x * edges.y;
         vec4 shown = pixelAt(floor(place));
         // how far inside the rounded outline this point is, in the figure's units
         vec2 corner = from - (1.0 - bezel.z);
