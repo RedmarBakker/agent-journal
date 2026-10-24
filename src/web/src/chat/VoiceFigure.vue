@@ -174,6 +174,8 @@ const blocks = ref(null);
 const saucerPicture = ref(null);
 // the parachute's canopy drawn in 3D as the figure is, and where its lines leave its rim (figure.js Stage.drawCanopy)
 const canopyPicture = ref(null);
+// a fixed run's bug drawn in 3D as the figure is, a picture for each step of its stride (figure.js Stage.drawBug)
+const bugPicture = ref(null);
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 // when the figure began to watch: a run that began before it is never taken for one that has just ended
@@ -885,8 +887,8 @@ function look() {
     typed = false;
     workBegan = work.began;
     [...happened, ...answeredWith(work.moments, parcels.value)].forEach(react);
-    // the visor lights at a run's end, unless the figure shoots a bug for it instead
-    visor = visorFor(asleep() || beats.value.some((beat) => beat.clip === "bug_shot") ? [] : ends, visor, performance.now() / 1000);
+    // the visor lights at a run's end, unless the figure shoots or smashes a bug for it instead
+    visor = visorFor(asleep() || beats.value.some((beat) => ["bug_shot", "bug_smash"].includes(beat.clip)) ? [] : ends, visor, performance.now() / 1000);
     const waited = {state: held.value.state, since: held.value.since, lasted: now.value - held.value.since};
     const pushing = pushWaits(parcels.value);
     // held by a sequence, pushing a box, or eager for a run's end, it takes up nothing else
@@ -1403,6 +1405,7 @@ async function load(name) {
         drawBlocks();
         drawSaucer();
         drawCanopy();
+        drawBug();
         home();
         body.here = belongs.value;
         body.arriving = body.here;
@@ -1438,6 +1441,13 @@ function drawCanopy() {
     const ratio = window.devicePixelRatio || 1;
     const drawn = player.stage.drawCanopy(SIZE, ratio);
     canopyPicture.value = {picture: drawn.canvas.toDataURL(), width: drawn.canvas.width / ratio, height: drawn.canvas.height / ratio, at: drawn.at, ends: drawn.ends};
+}
+
+// the bug's pictures, one for each step of its stride, through the player's stage
+function drawBug() {
+    const ratio = window.devicePixelRatio || 1;
+    const drawn = [0, 0.5].map((phase) => player.stage.drawBug(phase, SIZE, ratio));
+    bugPicture.value = {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, at: drawn[0].at};
 }
 
 watch(voice, load);
@@ -1590,7 +1600,7 @@ const style = computed(() => {
                 </span>
             </template>
             <template v-if="acting">
-                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" />
+                <FigureAct :name="acting.name" :u="acting.u" :hand="handAt" :head="headAt" :feet="1 - below" :size="SIZE" :room="room" :ball="ball" :canopy="canopyPicture" :bug="bugPicture" />
             </template>
             <template v-if="chasing">
                 <svg class="voice-figure-bug" :style="{animationDuration: `${chaseMs}ms`}" viewBox="0 0 16 12" width="16" height="12">

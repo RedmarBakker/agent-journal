@@ -151,6 +151,9 @@ const GIVEN_WORK = /: (started on|sent its next job)/;
 // One-off beats, each fired by a card the journal wrote on the agent's row and played once before the held state resumes;
 // the first rule a card matches names its beat
 const BEATS = [
+    // a sin the commandments plugin found in the agent's change, and one it found repented, as its cards in the chat say
+    {beat: "sin_committed", matches: (card) => card.pluginCard === "sin-found"},
+    {beat: "sin_fixed", matches: (card) => card.pluginCard === "sin-resolved"},
     {beat: "committed", matches: (card) => card.tone === "commit"},
     {beat: "failed", matches: (card) => card.icon === "check" && card.tone === "danger"},
     {beat: "refused", matches: (card) => card.tone === "danger"},
@@ -264,6 +267,7 @@ export const withSystemCards = (agent, messages) =>
                         icon: m.data.icon,
                         tone: m.data.tone,
                         kind: m.data.kind,
+                        pluginCard: m.data.card || "",
                         label: m.text,
                         process: m.data.card_type === "process",
                         sentTo: m.data.sent_to || "",

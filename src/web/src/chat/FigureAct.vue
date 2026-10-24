@@ -1,6 +1,6 @@
 <script setup>
 import {computed} from "vue";
-import {ACTS, chuteOver, heldPhases, partOf, ropeDown, standingAt} from "../figure/acts.js";
+import {ACTS, bugAt, chuteOver, heldPhases, partOf, ropeDown, splatDrops, standingAt} from "../figure/acts.js";
 import {FRAMED} from "../figure/frame.js";
 import {POSTURES} from "../figure/places.js";
 
@@ -8,7 +8,8 @@ import {POSTURES} from "../figure/places.js";
 // the act `name`, `u` of the way through it, 0 to 1; the free hand's grip, the eyes and the feet as shares of the picture (`hand.out` the
 // way across the picture the free hand's side is, 1 to the right, and `hand.other` the other hand's grip); the picture `size` pixels square; and `room`, the pixels from its left
 // and right sides to the screen's edges, which a runner runs off past; `ball`, where the disco ball hangs over the feet while it
-// dances (perches.js discoBall); and `canopy`, the parachute's canopy drawn in 3D (figure.js Stage.drawCanopy).
+// dances (perches.js discoBall); `canopy`, the parachute's canopy drawn in 3D (figure.js Stage.drawCanopy); and `bug`, a fixed run's
+// bug drawn in 3D (figure.js Stage.drawBug).
 const props = defineProps({
     name: {type: String, required: true},
     u: {type: Number, required: true},
@@ -19,6 +20,7 @@ const props = defineProps({
     room: {type: Object, required: true},
     ball: {type: Object, default: null},
     canopy: {type: Object, default: null},
+    bug: {type: Object, default: null},
 });
 
 // Where what stands beside the figure stands, as shares of the picture: across from its middle, toward the free hand, and the height of
@@ -32,32 +34,25 @@ const hand = computed(() => ({x: px(props.hand.x), y: px(props.hand.y), out: pro
 const head = computed(() => ({x: px(props.head.x), y: px(props.head.y)}));
 // the parachute over the figure, its canopy above the head and its lines down to both hands (acts.js chuteOver)
 const chute = computed(() => props.canopy && chuteOver(props.canopy, head.value, [hand.value, {x: px(props.hand.other.x), y: px(props.hand.other.y)}], props.size, props.u));
-// The bug shot: the bug crawling in along the floor to its place out on the free hand's side, its legs going, until it splatters; the rifle
-// in the free hand pointed at it, kicked back by each shot, with its flash; and the drops of the splatter on the screen, as on a camera's
-// lens, each `at` its place from the figure's middle in shares of the picture, as big as `size`, landing at the splatter and running
-// down as they fade
-const LENS_DROPS = [{at: [-1.3, -1.6], size: 0.2}, {at: [0.9, -0.9], size: 0.14}, {at: [-0.4, 0.2], size: 0.16}, {at: [1.6, -2.1], size: 0.1}];
-const bug = computed(() => {
-    const {crawl, draw, shots, count, kick, splat, drops, away} = ACTS.bug_shot;
-    const out = props.hand.out;
-    const crawled = partOf(props.u, crawl);
-    const x = middle.value + out * props.size * (away + 1.1 * (1 - crawled));
-    const y = floor.value - 3;
-    const aimed = partOf(props.u, [(draw[0] + draw[1]) / 2, draw[1]]) * (props.u < drops[0] + 0.15 ? 1 : 0);
-    const shot = ((props.u - shots[0]) / (shots[1] - shots[0])) * count;
-    const firing = props.u > shots[0] && props.u < shots[1] && shot % 1 < 0.35;
-    const angle = (Math.atan2(y - hand.value.y, x - hand.value.x) * 180) / Math.PI - (firing ? out * kick : 0);
-    const dripped = partOf(props.u, drops);
+// The bug of a fixed test run, drawn in 3D (`bug`, its pictures one for each step of its stride, figure.js Stage.drawBug): crawling in
+// along the floor to its place out on the figure's left, its legs going (acts.js bugAt); shot, it splatters, and drops of the splatter fly
+// out at the screen, growing as they come, land on it as on a camera's lens and run down as they fade (acts.js splatDrops); smashed by
+// the mallet it lies flat and fades
+const crawler = computed(() => {
+    const act = ACTS[props.name];
+    const at = bugAt(act, props.u, props.size);
+    const x = middle.value + at.out;
+    const y = floor.value;
+    const splat = act.splat !== undefined ? props.u >= act.splat : at.flat > 0;
     return {
         x,
         y,
-        alive: props.u < splat,
-        legs: Math.sin(props.u * 90) * 1.2,
-        splat: props.u >= splat ? 1 - partOf(props.u, [0.85, 1]) : 0,
-        aimed,
-        angle,
-        firing,
-        drops: props.u >= splat ? LENS_DROPS.map((drop) => ({x: middle.value + drop.at[0] * props.size, y: px(0.5) + drop.at[1] * props.size, r: drop.size * props.size, run: dripped * dripped * props.size * 1.2, fade: 1 - dripped})) : [],
+        step: Math.floor(props.u * act.frames / 2) % 2,
+        whole: at.whole,
+        flat: at.flat,
+        shows: at.shows,
+        splat: splat ? Math.max(at.shows, act.splat !== undefined ? 1 - partOf(props.u, [0.85, 1]) : 0) : 0,
+        drops: props.name === "bug_shot" ? splatDrops(props.u, props.size, {x, y: y - 4}, {x: middle.value, y: px(0.5)}) : [],
     };
 });
 
@@ -272,24 +267,23 @@ const steam = computed(() => {
                 <circle v-for="(puff, index) in steam" :key="index" :cx="puff.x" :cy="puff.y" :r="puff.r" fill="#e9e7e1" stroke="#a9adb8" stroke-width="0.6" :opacity="puff.fade" />
             </template>
 
-            <template v-if="name === 'bug_shot'">
-                <g v-if="bug.alive" :transform="`translate(${bug.x} ${bug.y - 2}) scale(${-hand.out * 1.5} 1.5)`">
-                    <path :d="`M-3 -3l-3 ${-2 + bug.legs}M-3 0h-4M-3 3l-3 ${2 - bug.legs}M3 -3l3 ${-2 - bug.legs}M3 0h4M3 3l3 ${2 + bug.legs}`" :stroke="COLOURS.ink" stroke-width="1.1" />
-                    <ellipse cx="0" cy="0" rx="5" ry="3.6" fill="#7a5232" />
-                    <circle cx="5" cy="0" r="2" fill="#7a5232" />
-                </g>
-                <path v-if="bug.splat" :transform="`translate(${bug.x} ${bug.y}) scale(${1.3 - 0.3 * bug.splat})`" :opacity="bug.splat" d="M-9 0q2-6 6-3 1-6 5-2 5-3 5 2 5 1 2 4 3 4-3 3-4 4-7 1-3 0-6-1-6-4-4-3Z" fill="#9bd34a" stroke="#5f8f24" stroke-width="0.8" />
-                <g v-if="bug.aimed" :transform="`translate(${hand.x} ${hand.y}) rotate(${bug.angle})`" :opacity="bug.aimed">
-                    <rect x="-16" y="-2.5" width="13" height="5" rx="1.5" :fill="COLOURS.wood" />
-                    <rect x="-4" y="-3" width="20" height="5" rx="1" :fill="COLOURS.ink" />
-                    <path d="M4 2q1 6 5 8l3-1q-3-3-3-7Z" :fill="COLOURS.ink" />
-                    <rect x="16" y="-1.8" width="14" height="2.2" :fill="COLOURS.ink" />
-                    <path v-if="bug.firing" d="M30 -0.7l9 -5 -3 5 5 2 -6 1 3 5Z" :fill="COLOURS.gold" />
-                </g>
-                <template v-for="(drop, index) in bug.drops" :key="index">
+            <template v-if="(name === 'bug_shot' || name === 'bug_smash') && bug">
+                <image
+                    v-if="crawler.whole || crawler.flat"
+                    :href="bug.pictures[crawler.step]"
+                    :x="-bug.at.x"
+                    :y="-bug.at.y"
+                    :width="bug.width"
+                    :height="bug.height"
+                    :opacity="crawler.shows"
+                    :transform="`translate(${crawler.x} ${crawler.y}) scale(${1 + 0.4 * crawler.flat} ${1 - 0.78 * crawler.flat})`"
+                    data-act-bug
+                />
+                <path v-if="crawler.splat" :transform="`translate(${crawler.x} ${crawler.y}) scale(${1.3 - 0.3 * crawler.splat})`" :opacity="crawler.splat" d="M-9 0q2-6 6-3 1-6 5-2 5-3 5 2 5 1 2 4 3 4-3 3-4 4-7 1-3 0-6-1-6-4-4-3Z" fill="#9bd34a" stroke="#5f8f24" stroke-width="0.8" />
+                <template v-for="(drop, index) in crawler.drops" :key="index">
                     <g class="figure-act-lens" :opacity="drop.fade">
-                        <rect :x="drop.x - drop.r * 0.25" :y="drop.y" :width="drop.r * 0.5" :height="drop.run" rx="2" fill="#9bd34a" opacity="0.8" />
-                        <circle :cx="drop.x" :cy="drop.y + drop.run" :r="drop.r * 0.4" fill="#9bd34a" />
+                        <rect v-if="drop.landed" :x="drop.x - drop.r * 0.25" :y="drop.y" :width="drop.r * 0.5" :height="drop.run" rx="2" fill="#9bd34a" opacity="0.8" />
+                        <circle v-if="drop.landed" :cx="drop.x" :cy="drop.y + drop.run" :r="drop.r * 0.4" fill="#9bd34a" />
                         <circle :cx="drop.x" :cy="drop.y" :r="drop.r" fill="#9bd34a" opacity="0.85" />
                         <circle :cx="drop.x - drop.r * 0.3" :cy="drop.y - drop.r * 0.3" :r="drop.r * 0.25" fill="#e8ffd0" opacity="0.8" />
                     </g>

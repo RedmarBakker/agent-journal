@@ -29,10 +29,11 @@ export const SHENANIGAN = {after: 3};
 export const LIFETIME = 10;
 
 // The showpiece acts and how long each waits before it may play again once it has, in seconds, so they stay special: the run up to the
-// parachute at most every 20 minutes, the disco dance at most every 2 hours and rarely then, the rope swing about every 15, the salto on a jump up, the pogo stick and the bug
-// shot about every 6; the tickle swats come as often as the user tickles. A cooldown only takes an act out of the draw while it lasts;
+// parachute at most every 20 minutes, the disco dance at most every 2 hours and rarely then, the rope swing about every 15, the salto on a
+// jump up, the pogo stick and the bug shot about every 6, the bug smashed with the mallet every 8; the tickle swats come as often as the
+// user tickles. A cooldown only takes an act out of the draw while it lasts;
 // its weight is its own.
-export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, tickle_swat: 0};
+export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, bug_smash: 8 * 60, tickle_swat: 0};
 
 // The shenanigans and the most seconds each keeps the figure from its spot, the way back included: the run up the bubbles, its time out
 // of sight and the parachute down; the disco dance; the rope swing's stay; the salto; the pogo stick's climb; a stay on a bubble
@@ -118,9 +119,18 @@ export const PILE = [
     // a test run's end: celebrated on its card, or a start at a failure; a pass soon after a failure is the bug solved, most often shot
     // as it crawls into the chat instead of the visor's glow
     ...at("tests_passed", {cooldown: 20, toward: "card", onto: true}, [clip("nod", 2), nothing(1)]),
-    ...at("tests_fixed", {cooldown: 20, toward: "card", onto: true}, [{...showpiece(clip("bug_shot", 3)), toward: "", onto: false}, clip("nod", 2)]),
+    // or the same bug smashed flat with a big wooden mallet swung over the head, each on its own cooldown, else a nod
+    ...at("tests_fixed", {cooldown: 20, toward: "card", onto: true}, [
+        {...showpiece(clip("bug_shot", 3)), toward: "", onto: false},
+        {...showpiece(clip("bug_smash", 2)), toward: "", onto: false},
+        clip("nod", 2),
+    ]),
     ...at("tests_failed", {cooldown: 20, toward: "card"}, [clip("startled", 2), clip("dismay", 1), nothing(1)]),
     ...at("committed", {cooldown: 30, toward: "card", onto: true}, [clip("nod", 2), nothing(2)]),
+    // a sin the commandments plugin found repented: now and then a halo over the head and a serene, holy look
+    ...at("sin_fixed", {cooldown: 300}, [clip("halo", 1), nothing(2)]),
+    // a sin it found in the agent's change: now and then down on its knees, holding up a little crucifix to ask forgiveness
+    ...at("sin_committed", {cooldown: 300}, [clip("repent", 1), nothing(2)]),
     // what the agent has just done in the journal, acted out now and then, never every time
     // a worker given work: a call on the telephone, at most one in two minutes, gathering any other worker given work while it waits or
     // plays (reactions.js joinedCall)

@@ -59,11 +59,25 @@ export const ACTS = {
     // onto the bubble on its own feet; every hop and the fall are timed by one gravity (pogoHop); the stick `stick` of its height long,
     // its handles where the hands hold it
     pogo: {frames: 54, fps: 12, draw: [0, 0.18], bounces: [0.18, 0.62], count: 3, bounce: 0.45, spring: [0.62, 0.82], over: 0.3, release: [0.82, 0.86], drop: [0.82, 1], stick: 0.62},
-    // a passing test run's bug: a small bug crawls in along the floor over `crawl` to `away` of the figure's height out on its free hand's
-    // side; it pulls a rifle from behind its back over `draw`, shoots `count` times over `shots`, each shot kicking the rifle back `kick`
-    // degrees, the bug splatters at `splat`, and a few drops of the splatter land on the screen, as on a camera's lens, and run down and
-    // fade over `drops`
-    bug_shot: {frames: 72, fps: 12, crawl: [0, 0.3], draw: [0.2, 0.38], shots: [0.4, 0.56], count: 3, kick: 8, splat: 0.56, drops: [0.58, 1], away: 0.85},
+    // a passing test run's bug: a small bug crawls in along the floor over `crawl` to `away` of the picture out on the figure's left, the
+    // `side` of the picture it is on; the figure pulls a rifle from behind its back over `draw` and shoulders it, shoots `count` bursts
+    // over `shots`, each kicking the rifle and the shoulder back, the bug splatters at `splat`, and drops of the splatter fly out at the
+    // screen over `fly`, growing as they come, land on it as on a camera's lens at their `lens` places (from the figure's middle, in shares
+    // of the picture, as big as `size`), and run down and fade over `drops`
+    bug_shot: {
+        frames: 72, fps: 12, side: 1, crawl: [0, 0.3], draw: [0.2, 0.38], shots: [0.4, 0.56], count: 3, splat: 0.56, fly: [0.56, 0.64], drops: [0.64, 1], away: 0.85,
+        lens: [{at: [-1.3, -1.6], size: 0.2}, {at: [0.9, -0.9], size: 0.14}, {at: [-0.4, 0.2], size: 0.16}, {at: [1.6, -2.1], size: 0.1}],
+    },
+    // the same bug smashed with a big wooden mallet instead: it crawls in over `crawl` to `away` of the picture out on the figure's left;
+    // the figure raises the mallet over its head over `raise`, swings it down over `swing` and flattens the bug at `blow`, which lies flat
+    // and fades over `gone`, and lowers the mallet over `lower`
+    bug_smash: {frames: 66, fps: 12, side: 1, crawl: [0, 0.3], raise: [0.28, 0.5], swing: [0.5, 0.58], blow: 0.58, gone: [0.75, 0.9], lower: [0.8, 0.96], away: 0.42},
+    // a sin repented: a halo grows over the head over `grows` and fades over `fades`, the figure floating up `float` of its units and down
+    // with its hands folded and a serene, holy look
+    halo: {frames: 48, fps: 12, grows: [0, 0.15], fades: [0.85, 1], float: 0.06},
+    // a sin found: the figure drops to its knees over `kneel`, brings out a small crucifix over `out`, holds it up over `up` and keeps it
+    // up, trembling a little, until `hold` ends, puts it away over `down` and gets up over `rise`
+    repent: {frames: 72, fps: 12, kneel: [0, 0.18], out: [0.16, 0.28], up: [0.26, 0.36], hold: [0.36, 0.78], down: [0.78, 0.86], rise: [0.84, 1]},
     // a disco dance under a disco ball: the classic move, one arm pointing up and the other down, switching sides `beats` times, the hips
     // swaying and the knees bouncing, the visor flashing through the colours; the ball `ball` of the picture across, turning, hung `clear`
     // of it over the hat, on a string at least `tie` of it long from the bottom of a bubble no further than `far` of the figure's height
@@ -157,6 +171,41 @@ export function pogoHop(heights, share) {
 
 // the pogo stick's bounces on the spot, in the figure's heights, each higher than the last
 export const pogoBounces = () => Array.from({length: ACTS.pogo.count}, (_, hop) => (ACTS.pogo.bounce * (hop + 1)) / ACTS.pogo.count);
+
+// Where the bug of a fixed test run is `u` of the way through `act` (ACTS bug_shot or bug_smash), in a picture `size` pixels across: how
+// far out from the figure's middle it is, in pixels toward the act's side, crawling in from further out; whether it is still whole; how
+// flat a mallet's blow has left it, 0 whole to 1 flat; and how much of it still shows as it fades
+export function bugAt(act, u, size) {
+    const crawled = partOf(u, act.crawl);
+    const flat = act.blow !== undefined && u >= act.blow ? 1 : 0;
+    return {
+        out: act.side * size * (act.away + 1.1 * (1 - crawled)),
+        whole: act.splat === undefined ? u < act.blow : u < act.splat,
+        flat,
+        shows: act.gone ? 1 - partOf(u, act.gone) : act.splat === undefined || u < act.splat ? 1 : 0,
+    };
+}
+
+// The drops of a shot bug's splatter `u` of the way through the bug shot (ACTS bug_shot), in a picture `size` pixels across, the bug at
+// `from` (x, y) and the picture's middle at `middle`: each flying out at the screen from the bug over `fly`, growing from a speck to its
+// size as it comes, then on the glass at its lens place, running down and fading; none before the splat
+export function splatDrops(u, size, from, middle) {
+    const {splat, fly, drops, lens} = ACTS.bug_shot;
+    if (u < splat) return [];
+    const flown = partOf(u, fly);
+    const dripped = partOf(u, drops);
+    return lens.map((drop) => {
+        const landed = {x: middle.x + drop.at[0] * size, y: middle.y + drop.at[1] * size};
+        return {
+            x: from.x + (landed.x - from.x) * flown,
+            y: from.y + (landed.y - from.y) * flown,
+            r: drop.size * size * (0.15 + 0.85 * flown * flown),
+            run: dripped * dripped * size * 1.2,
+            fade: 1 - dripped,
+            landed: flown >= 1,
+        };
+    });
+}
 
 // The parachute over the figure `u` of the way through its sway, in the picture's pixels: the canopy's picture `canopy` (figure.js
 // Stage.drawCanopy, its rim's middle `at` and its lines' ends `ends`, the left pair first) placed with its rim's middle ACTS.chute above of

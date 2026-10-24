@@ -19,7 +19,7 @@ const {
     roomFor,
     workMoments,
 } = await import("../src/figure/reactions.js");
-const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, readingsAfter, sayingsAfter, testResultsAfter} = await import("../src/domain/figureState.js");
+const {EGGS, HELD, beatsAfter, cardsAfter, facesAfter, readingsAfter, sayingsAfter, testResultsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 const {CLIPS, EYES} = await import("../src/figure/figure.js");
 const {FACES} = await import("../src/domain/faces.js");
 const {EVERY_VOICE_FACES, PILE, VOICE_FACES} = await import("../src/figure/pile.js");
@@ -161,6 +161,8 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
     const made = new Set(
         [
             ...beatsAfter(agent, 1),
+            // the commandments plugin's cards for a sin found and a sin repented, as the chat carries them
+            ...beatsAfter(withSystemCards({session: "s", data: {cards: []}}, ["sin-found", "sin-resolved"].map((kind, n) => ({table: "messages", id: 900 + n, author: "system", created_at: 10 + n, text: "src/a.py", data: {kind: "plugin", card: kind}}))), 1),
             ...cardsAfter(agent, new Set(), 0),
             ...testResultsAfter(agent, new Map(), 0),
             ...facesAfter(faces, 1),

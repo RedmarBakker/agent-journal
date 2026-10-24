@@ -81,6 +81,9 @@ const toBlender = (vector) => vector.clone().applyMatrix4(FROM_GLB);
 const translation = (vector) => new THREE.Matrix4().makeTranslation(vector.x, vector.y, vector.z);
 const radians = THREE.MathUtils.degToRad;
 
+// how much further than the difference of its two bones a limb reaches at the nearest, folded as far as it folds
+const FOLDED_REACH = 1.2;
+
 // Blender's Euler "XYZ" is Rz Ry Rx, which three.js names "ZYX"
 const euler = (x, y, z) => new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(radians(x), radians(y), radians(z), "ZYX"));
 
@@ -184,13 +187,17 @@ export class Posing {
         this.limbTo(side, ["upper_arm", "forearm", "hand"], target, bend);
     }
 
-    // `target` brought in toward the shoulder on `side` until the arm reaches it, `share` of its full length at most
+    // `target` brought in toward the shoulder on `side` until the arm reaches it, `share` of its full length at most, or out from it to as
+    // near as the arm folds, FOLDED_REACH beyond the difference of its two bones
     withinReach(side, target, share) {
         const [shoulder, elbow, hand] = ["upper_arm", "forearm", "hand"].map((role) => this.rig.heads.get(`${role}_${side}`));
-        const length = (elbow.distanceTo(shoulder) + hand.distanceTo(elbow)) * share;
+        const [upper, lower] = [elbow.distanceTo(shoulder), hand.distanceTo(elbow)];
+        const length = (upper + lower) * share;
+        const least = Math.abs(upper - lower) * FOLDED_REACH;
         const from = this.head(`upper_arm_${side}`, this.standing(`upper_arm_${side}`));
         const way = target.clone().sub(from);
-        return way.length() <= length ? target : from.clone().add(way.setLength(length));
+        if (way.length() > length) return from.clone().add(way.setLength(length));
+        return way.length() >= least ? target : from.clone().add(way.setLength(least));
     }
 
     // the same for a leg: the foot's head put at `target`, the knee pointing the way `bend` says
@@ -730,7 +737,17 @@ export const EYES = {
     angry: {open: 0.45, tint: [1, 0.35, 0.3]},
     reading: {open: 0.8, tint: null},
     admiring: {open: 1.2, tint: [1, 0.86, 0.5]},
+    serene: {open: 0.35, tint: [1, 0.93, 0.62]},
 };
+
+// The eyes in fight mode, taking on a fixed run's bug: narrowed to `open` and cycling through the rainbow `cycles` times over the act,
+// `strength` of the way in
+export const FIGHT_EYES = {open: 0.42, cycles: 6};
+
+function fightEyes(pose, t, strength) {
+    pose.shutEyes(mix(1, FIGHT_EYES.open, strength));
+    if (strength > 0.5) pose.tintEyes(new THREE.Color().setHSL((t * FIGHT_EYES.cycles) % 1, 1, 0.6).toArray());
+}
 
 function eyesAs(pose, mood, strength = 1) {
     const {open, tint, shape} = EYES[mood];
@@ -2774,30 +2791,132 @@ function disco(pose, stance, t) {
     eyesAs(pose, "amused", into);
 }
 
-// where the hands hold the rifle for the bug shot, across toward the free hand's side, forward (toward the viewer is less) and up in the
-// figure's units: the trigger hand at the stock, the other forward on it near the middle, and the trigger hand reaching behind the back
-const RIFLE = {trigger: [0.5, -0.4, 1.7], fore: [0.12, -0.45, 1.85], behind: [0.45, 0.45, 1.45]};
+// The rifle shouldered for the bug shot, in the figure's units across (toward its left, where the bug is), forward (toward the viewer is
+// less) and up: the right hand on its grip at `grip`, the barrel pointing out to the left and `down` degrees toward the floor, the left
+// hand forward on the handguard `fore` along it, the right hand reaching `behind` the back for it first; each burst kicks the rifle `kick`
+// back along its line and `climb` degrees up, the shoulder `shoulder` degrees back; the figure turns `turn` degrees toward the bug, its
+// cheek down to the sights by `cheek` degrees of nod and head turn
+export const RIFLE = {grip: [-0.1, -0.62, 2.0], down: 12, fore: 0.9, behind: [-0.45, 0.45, 1.45], kick: 0.13, climb: 7, shoulder: 7, turn: 22, cheek: 14};
 
-// shoots the bug a passing run brings (acts.js bug_shot): reaches behind its back for the rifle, brings it up at the bug out on its free
-// hand's side, turned toward it, each shot kicking it back, and lowers it once the bug has splattered
+// The rifle's line as it is held, kicked `kick` of the way back: where the grip is, the way the barrel points, and its pitch down, degrees
+export function rifleLine(kick) {
+    const pitch = RIFLE.down - RIFLE.climb * kick;
+    const along = new THREE.Vector3(Math.cos(radians(pitch)), 0, -Math.sin(radians(pitch)));
+    return {grip: new THREE.Vector3(...RIFLE.grip).addScaledVector(along, -RIFLE.kick * kick), along, pitch};
+}
+
+// how far into a burst of the bug shot `t` is: 1 the moment a burst fires, dying away before the next, 0 between bursts
+export const burstKick = (t) => {
+    const {shots, count} = ACTS.bug_shot;
+    if (t <= shots[0] || t >= shots[1]) return 0;
+    return Math.max(0, 1 - ((((t - shots[0]) / (shots[1] - shots[0])) * count) % 1) * 3);
+};
+
+// shoots the bug a fixed run brings (acts.js bug_shot): reaches behind its back for the rifle, shoulders it, the stock into the right
+// shoulder and the left hand forward on the handguard, its cheek down to the sights, turned toward the bug on its left, each burst kicking
+// the rifle and the shoulder back; its eyes in fight mode from the draw until the bug is gone, and the rifle lowered once it has splattered
 function bug_shot(pose, stance, t) {
     const act = ACTS.bug_shot;
     const middle = (act.draw[0] + act.draw[1]) / 2;
     const reach = partOf(t, [act.draw[0], middle]) * (1 - partOf(t, [middle, act.draw[1]]));
     const aim = partOf(t, [middle, act.draw[1]]) * (1 - partOf(t, [act.drops[0] + 0.05, act.drops[0] + 0.2]));
-    const shot = Math.min(Math.max((t - act.shots[0]) / (act.shots[1] - act.shots[0]), 0), 1) * act.count;
-    const kick = t > act.shots[0] && t < act.shots[1] ? Math.max(0, 1 - (shot % 1) * 3) : 0;
-    const side = freeSide(stance);
-    const sign = SIDES[side];
+    const kick = burstKick(t);
+    const line = rifleLine(kick);
     breathe(pose, t);
-    trunk(pose, {twist: -sign * 25 * aim, lean: 4 * aim - 5 * kick});
+    pose.turn("chest", {z: -RIFLE.shoulder * kick});
+    trunk(pose, {nod: RIFLE.cheek * aim - 4 * kick, turn: RIFLE.cheek * aim, tilt: -RIFLE.cheek * 0.4 * aim});
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
-    const at = (point, mirror = sign) => new THREE.Vector3(mirror * point[0], point[1], point[2]);
-    if (reach > aim) handTo(pose, side, reach, at(RIFLE.behind), new THREE.Vector3(1, 0.5, -0.5));
-    else handTo(pose, side, aim, at(RIFLE.trigger), new THREE.Vector3(1, -0.2, -0.4));
-    handTo(pose, side === "l" ? "r" : "l", aim, at(RIFLE.fore), new THREE.Vector3(-1, -0.4, -0.4));
-    eyesAs(pose, "amused", aim);
+    if (reach > aim) handTo(pose, "r", reach, new THREE.Vector3(...RIFLE.behind), new THREE.Vector3(-1, 0.5, -0.5));
+    else handTo(pose, "r", aim, pose.withinReach("r", line.grip, 0.97), new THREE.Vector3(-1, -0.2, -0.6));
+    handTo(pose, "l", aim, pose.withinReach("l", line.grip.clone().addScaledVector(line.along, RIFLE.fore), 0.97), new THREE.Vector3(0.6, -0.6, -0.6));
+    if (aim > 0.05 || reach > 0.3) {
+        pose.holdUpright("rifle", "r", [0, 0, 0], {y: line.pitch});
+        pose.props.get("rifle").firing = kick > 0.6;
+    }
+    fightEyes(pose, t, partOf(t, act.draw) * (1 - partOf(t, [act.splat, act.fly[1]])));
+    if (pose.posture === "stand") pose.revolve(SIDES.l * RIFLE.turn * aim);
+}
+
+// The big wooden mallet swung over the head at the bug (acts.js bug_smash), in the figure's units: both hands about `hands`, `reach` out
+// along the handle's way from there, the right at its end and the left `apart` further up it; the handle's way up from the figure's left,
+// in degrees, resting at `rest`, raised over the head to `up` and swung down to `blow`; the figure turned `turn` degrees toward the bug
+export const MALLET_SWING = {hands: [0.12, -0.38, 2.15], reach: 0.5, apart: 0.3, rest: -70, up: 125, blow: -52, turn: 30};
+
+// the mallet's handle way `t` of the way through the smash, in degrees up from the figure's left
+export function malletAngle(t) {
+    const {raise, swing, lower} = ACTS.bug_smash;
+    const {rest, up, blow} = MALLET_SWING;
+    if (t < swing[0]) return rest + (up - rest) * partOf(t, raise);
+    if (t < lower[0]) return up + (blow - up) * partOf(t, swing) ** 2;
+    return blow + (rest - blow) * partOf(t, lower);
+}
+
+// smashes the bug flat with a big wooden mallet (acts.js bug_smash): takes it up in both hands, raises it over its head, swings it down
+// onto the bug at its left and holds it there a moment, its eyes in fight mode from the raise until the bug is gone, then lowers it
+function bug_smash(pose, stance, t) {
+    const act = ACTS.bug_smash;
+    const {hands, reach, apart, turn} = MALLET_SWING;
+    const held = partOf(t, [act.raise[0] - 0.08, act.raise[0]]) * (1 - partOf(t, [act.lower[1] - 0.04, act.lower[1]]));
+    const way = radians(malletAngle(t));
+    const along = new THREE.Vector3(Math.cos(way), 0, Math.sin(way));
+    const grip = new THREE.Vector3(...hands).addScaledVector(along, reach);
+    const blow = swell(t, act.blow - 0.02, act.blow + 0.06);
+    breathe(pose, t);
+    trunk(pose, {lean: 10 * blow - 4 * partOf(t, act.raise) * (1 - partOf(t, act.swing)), nod: 10 * held});
+    crouch(pose, 0.12 * blow);
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    handTo(pose, "r", held, pose.withinReach("r", grip, 0.97), new THREE.Vector3(-0.6, -0.4, -0.6));
+    handTo(pose, "l", held, pose.withinReach("l", grip.clone().addScaledVector(along, apart), 0.97), new THREE.Vector3(0.6, -0.4, -0.6));
+    if (held > 0.3) pose.holdUpright("big_mallet", "r", [0, 0, 0], {y: -malletAngle(t)});
+    fightEyes(pose, t, held * (1 - partOf(t, act.gone)));
+    if (pose.posture === "stand") pose.revolve(SIDES.l * turn * held);
+}
+
+// The halo of a repented sin, over the head (acts.js halo): `above` the head's pivot, as wide as `radius`, its ring `ring` thick, tipped
+// `tip` degrees toward the viewer so it shows as a ring; the hands folded before the chest at `hands`, across, forward and up
+export const HALO_RING = {above: 2.42, radius: 0.42, ring: 0.07, tip: 28, hands: [0.1, -0.62, 2.05]};
+
+// a halo over the head, the hands folded, the eyes serene and holy, floating up a little and down as it breathes (acts.js halo)
+function halo(pose, stance, t) {
+    const act = ACTS.halo;
+    const shown = partOf(t, act.grows) * (1 - partOf(t, act.fades));
+    breathe(pose, t);
+    pose.lift("root", {z: act.float * shown * (1 + Math.sin(2 * Math.PI * t))});
+    trunk(pose, {nod: -8 * shown, tilt: 4 * shown});
+    pose.putAway(...IN_HAND);
+    handsTo(pose, {...stance, free: new Set(Object.keys(SIDES))}, shown, HALO_RING.hands);
+    pose.wearProp("halo", [0, 0, HALO_RING.above]);
+    pose.props.get("halo").size = Math.max(shown, 0.01);
+    eyesAs(pose, "serene", shown);
+}
+
+// The crucifix held up to ask forgiveness (acts.js repent), in the figure's units: the right hand bringing it out from `pocket` to `low`
+// before the chest, then up beside the head to `high`, where the big head never hides it, the left hand pressed to the chest at `chest`,
+// trembling `tremble` while it is held up and the head turned up toward it by `look` degrees
+export const CRUCIFIX_HOLD = {pocket: [-0.55, -0.1, 1.4], low: [-0.3, -0.7, 1.9], high: [-1.1, -0.45, 2.75], chest: [0.15, -0.72, 1.95], tremble: 0.025, look: 16};
+
+// drops to its knees, brings out a crucifix and holds it up beside its head, looking up at it, the other hand to its chest, as if asking
+// forgiveness, trembling a little, then puts it away and gets up (acts.js repent)
+function repent(pose, stance, t) {
+    const act = ACTS.repent;
+    const kneel = partOf(t, act.kneel) * (1 - partOf(t, act.rise));
+    const out = partOf(t, act.out) * (1 - partOf(t, act.down));
+    const up = partOf(t, act.up) * (1 - partOf(t, act.down));
+    const shake = CRUCIFIX_HOLD.tremble * Math.sin(2 * Math.PI * 9 * t) * swell(t, act.hold[0], act.hold[1]);
+    breathe(pose, t);
+    pose.lift("root", {z: -TUMBLE.drop * kneel});
+    if (pose.posture === "stand") for (const side of Object.keys(SIDES)) pose.turn(`shin_${side}`, {x: 90 * kneel});
+    trunk(pose, {lean: 6 * kneel, nod: -CRUCIFIX_HOLD.look * up + 8 * (kneel - up), turn: CRUCIFIX_HOLD.look * up});
+    pose.putAway(...IN_HAND);
+    armsAtRest(pose, stance, Object.keys(SIDES));
+    const held = new THREE.Vector3(...CRUCIFIX_HOLD.low).lerp(new THREE.Vector3(...CRUCIFIX_HOLD.high), up).add(new THREE.Vector3(0, 0, shake));
+    const hand = new THREE.Vector3(...CRUCIFIX_HOLD.pocket).lerp(held, out);
+    handTo(pose, "r", Math.max(out, 0.001), pose.withinReach("r", hand, 0.97), new THREE.Vector3(-0.6, -0.5, -0.6));
+    handTo(pose, "l", up, pose.withinReach("l", new THREE.Vector3(...CRUCIFIX_HOLD.chest), 0.97), new THREE.Vector3(0.6, -0.5, -0.6));
+    if (out > 0.2) pose.holdUpright("crucifix", "r", [0, 0, 0], {});
+    eyesAs(pose, "worried", Math.max(kneel, up));
 }
 
 // where the hands hold the pogo stick's handles, across, forward (toward the viewer is less) and up in the figure's units, and where the
@@ -3041,6 +3160,9 @@ export const CLIPS = [
     {name: "tickle_swat", frames: 24, fps: 16, loops: false, cuts: true, ownLook: true, postures: GESTURE, pose: tickle_swat},
     {name: "disco", frames: ACTS.disco.frames, fps: ACTS.disco.fps, loops: false, ownLook: true, postures: MOVE, pose: disco},
     {name: "bug_shot", frames: ACTS.bug_shot.frames, fps: ACTS.bug_shot.fps, loops: false, postures: MOVE, pose: bug_shot},
+    {name: "bug_smash", frames: ACTS.bug_smash.frames, fps: ACTS.bug_smash.fps, loops: false, postures: MOVE, pose: bug_smash},
+    {name: "halo", frames: ACTS.halo.frames, fps: ACTS.halo.fps, loops: false, postures: MOVE, pose: halo},
+    {name: "repent", frames: ACTS.repent.frames, fps: ACTS.repent.fps, loops: false, postures: MOVE, pose: repent},
     {name: "pogo", frames: ACTS.pogo.frames, fps: ACTS.pogo.fps, loops: false, postures: MOVE, pose: pogo},
     {name: "fall", frames: 12, fps: 12, loops: false, interruptible: true, postures: MOVE, pose: fall},
     {name: "backflip", frames: 22, fps: 20, loops: false, postures: MOVE, pose: backflip},
@@ -3733,6 +3855,10 @@ export function propsOf() {
     lightBulbOf(group("light_bulb"));
     reportScrollOf(group("report_scroll"));
     binocularsOf(group("binoculars"));
+    rifleOf(group("rifle"));
+    bigMalletOf(group("big_mallet"));
+    haloOf(group("halo"));
+    crucifixOf(group("crucifix"));
     rummagedOf(group);
     return props;
 }
@@ -3801,6 +3927,112 @@ export const BINOCULARS = {
     barrel: 0.24, length: 0.6, apart: 0.54, rim: 0.045, eyepiece: [0.15, 0.14], bridge: [0.28, 0.13, 0.22],
     colours: {body: 0x2a2c36, rim: 0x9aa0ad, eyepiece: 0x1b1c22, lens: 0x8ec5ff},
 };
+
+// The rifle of the bug shot, each part shaded and outlined as the figure's own are, in the figure's units: its grip at the origin where the
+// right hand holds it, the barrel out along +x and up along +z, so held level it points out to the figure's left; the wooden stock back to
+// the shoulder, the dark receiver with its magazine underneath, the wooden handguard, the barrel and the sights on top; and the flash at
+// the muzzle while a burst fires; every length `scale` times as given, so it reads at the figure's size
+export const RIFLE_PARTS = {
+    scale: 1.4,
+    stock: [[-0.42, 0, 0.0], [0.5, 0.09, 0.16]],
+    receiver: [[0.1, 0, 0.04], [0.46, 0.1, 0.14]],
+    grip: [[-0.03, 0, -0.1], [0.08, 0.08, 0.2]],
+    magazine: [[0.2, 0, -0.15], [0.1, 0.07, 0.26]],
+    handguard: [[0.55, 0, 0.04], [0.42, 0.1, 0.11]],
+    sight: [[0.24, 0, 0.14], [0.06, 0.04, 0.06]],
+    front: [[1.17, 0, 0.11], [0.03, 0.03, 0.07]],
+    barrel: {from: 0.76, to: 1.24, radius: 0.03, up: 0.06},
+    colours: {wood: 0x8a5a2b, metal: 0x2b2e38, barrel: 0x474a52, flash: 0xffd25a},
+};
+
+// a space inside the prop `root` laid out in the pose's own axes, up along z and toward the viewer along -y, as a prop's parts are given;
+// a prop's root is placed in the glb's (heldPropOf)
+function poseSpace(root) {
+    const space = new THREE.Group();
+    space.name = root.name;
+    space.rotation.x = -Math.PI / 2;
+    root.add(space);
+    return space;
+}
+
+export function rifleOf(prop) {
+    const root = poseSpace(prop);
+    const {colours, barrel, scale} = RIFLE_PARTS;
+    const sized = (values) => values.map((value) => value * scale);
+    for (const name of ["stock", "receiver", "grip", "magazine", "handguard", "sight", "front"]) {
+        const [at, size] = RIFLE_PARTS[name];
+        shadedPart(root, name, new THREE.BoxGeometry(...sized(size)), ["stock", "handguard"].includes(name) ? colours.wood : colours.metal, sized(at));
+    }
+    const [from, to, radius, up] = sized([barrel.from, barrel.to, barrel.radius, barrel.up]);
+    const tube = shadedPart(root, "barrel", new THREE.CylinderGeometry(radius, radius, to - from, 12), colours.barrel, [(from + to) / 2, 0, up]);
+    tube.rotation.z = Math.PI / 2;
+    const flash = shadedPart(root, "flash", new THREE.OctahedronGeometry(0.12 * scale, 0), colours.flash, [to + 0.1 * scale, 0, up]);
+    flash.scale.set(1.6, 0.6, 1);
+    prop.userData.shape = ({firing}) => (flash.visible = Boolean(firing));
+}
+
+// The big wooden mallet of the bug smash, shaded and outlined, in the figure's units: its handle from the right hand at the origin out
+// along +x, `handle` long and `grip` thick, its head a wooden drum `head` round and `width` long at the handle's end, its face down the
+// swing, with an iron band round either end
+export const BIG_MALLET = {handle: 2.0, grip: 0.06, head: 0.42, width: 0.85, band: 0.04, colours: {handle: 0xb07a45, head: 0x9b6a3a, band: 0x6b6f7c}};
+
+export function bigMalletOf(prop) {
+    const root = poseSpace(prop);
+    const {handle, grip, head, width, band, colours} = BIG_MALLET;
+    shadedPart(root, "handle", new THREE.CylinderGeometry(grip, grip * 1.2, handle, 12), colours.handle, [handle / 2, 0, 0]).rotation.z = Math.PI / 2;
+    shadedPart(root, "head", new THREE.CylinderGeometry(head, head, width, 20), colours.head, [handle, 0, 0]).rotation.x = Math.PI / 2;
+    for (const end of [-1, 1]) shadedPart(root, `band_${end}`, new THREE.CylinderGeometry(head * 1.04, head * 1.04, band, 20), colours.band, [handle, end * (width / 2 - band), 0]).rotation.x = Math.PI / 2;
+}
+
+// the halo of a repented sin (HALO_RING), a golden ring lying flat over the head, as big as the act has grown it
+export function haloOf(prop) {
+    const ring = shadedPart(poseSpace(prop), "ring", new THREE.TorusGeometry(HALO_RING.radius, HALO_RING.ring, 10, 40), 0xf2c84b);
+    ring.rotation.x = radians(HALO_RING.tip);
+    prop.userData.shape = ({size}) => ring.scale.setScalar(size ?? 1);
+}
+
+// The crucifix held up to ask forgiveness, shaded and outlined in brass, in the figure's units: its upright `long` and its crossbar
+// `across` `bar` thick, the crossbar `at` up the upright, held at the upright's lower part in the right hand
+export const CRUCIFIX = {long: 0.86, across: 0.5, bar: 0.09, at: 0.24, colours: {wood: 0xd9a441, gold: 0xf6e3a1}};
+
+export function crucifixOf(prop) {
+    const root = poseSpace(prop);
+    const {long, across, bar, at, colours} = CRUCIFIX;
+    shadedPart(root, "upright", new THREE.BoxGeometry(bar, bar, long), colours.wood, [0, 0, long * 0.2]);
+    shadedPart(root, "crossbar", new THREE.BoxGeometry(across, bar, bar), colours.wood, [0, 0, long * 0.2 + at]);
+    shadedPart(root, "centre", new THREE.SphereGeometry(bar * 0.7, 10, 8), colours.gold, [0, -bar * 0.5, long * 0.2 + at]);
+}
+
+// The bug of a fixed test run, shaded and outlined as the figure's props are: a beetle `long` of the picture's pixels long walking toward
+// -x, its round brown body, its head, six legs that step at `phase` of their stride and two feelers, tipped `tilt` degrees toward the viewer
+// so its back shows, standing on the floor at the picture's middle
+export const BUG = {long: 15, tilt: 22, colours: {body: 0x7a5232, head: 0x4a2f1c, leg: 0x2b2e38, shine: 0xb88a5c}};
+
+export function bugOf(perPixel, phase) {
+    const unit = BUG.long * perPixel;
+    const bug = new THREE.Group();
+    bug.name = "bug";
+    const body = shadedPart(bug, "body", new THREE.SphereGeometry(unit * 0.38, 18, 12), BUG.colours.body, [unit * 0.1, 0, unit * 0.3]);
+    body.scale.set(1.3, 0.85, 0.75);
+    shadedPart(bug, "head", new THREE.SphereGeometry(unit * 0.2, 14, 10), BUG.colours.head, [-unit * 0.42, 0, unit * 0.3]);
+    for (const [index, x] of [-0.18, 0.1, 0.38].entries()) {
+        for (const side of [-1, 1]) {
+            const step = Math.sin(Math.PI * (phase + index / 3 + (side > 0 ? 0.5 : 0)) * 2) * 0.12;
+            const leg = shadedPart(bug, `leg_${index}_${side}`, new THREE.CylinderGeometry(unit * 0.035, unit * 0.035, unit * 0.42, 6), BUG.colours.leg, [unit * (x + step), side * unit * 0.28, unit * 0.14]);
+            leg.rotation.x = side * 0.9;
+        }
+    }
+    for (const side of [-1, 1]) {
+        const feeler = shadedPart(bug, `feeler_${side}`, new THREE.CylinderGeometry(unit * 0.02, unit * 0.02, unit * 0.36, 5), BUG.colours.leg, [-unit * 0.64, side * unit * 0.08, unit * 0.48]);
+        feeler.rotation.set(side * 0.4, 0, 0.9);
+    }
+    bug.rotation.x = radians(BUG.tilt);
+    bug.position.y = FRAMED_MIDDLE;
+    const scene = new THREE.Scene();
+    scene.add(bug);
+    scene.updateMatrixWorld(true);
+    return {scene, foot: new THREE.Vector3(0, FRAMED_MIDDLE, 0), bounds: new THREE.Box3().setFromObject(bug)};
+}
 
 export function binocularsOf(root) {
     const {barrel, length, apart, rim, eyepiece, bridge, colours} = BINOCULARS;
@@ -4623,6 +4855,14 @@ export class Stage {
         this.saucerFor = picture;
         lightSaucer(this.saucer, phase);
         const drawn = this.propPicture(this.saucer, this.saucer.middle, picture, ratio);
+        return {canvas: drawn.canvas, at: drawn.at};
+    }
+
+    // The bug (bugOf) at step `phase` of its stride drawn through the figure's own camera at the scale of a figure whose picture is `picture`
+    // pixels high, `ratio` canvas pixels to a page pixel: a canvas just holding it, and where the point under its middle on the floor is
+    drawBug(phase, picture, ratio) {
+        const bug = bugOf(FRAMED_HEIGHT / picture, phase);
+        const drawn = this.propPicture(bug, bug.foot, picture, ratio);
         return {canvas: drawn.canvas, at: drawn.at};
     }
 
