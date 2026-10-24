@@ -10758,7 +10758,11 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         bob_url = re.search(r"(http\S+/join\?code=\S+)", invitation).group(1)
         assert "has its admin already" in b.console().run(["team", "join", address, "--name", "Bob", "--password", "correct horse battery"], USER).error, "a bare URL to a team with an admin is refused, naming the invitation URL"
         assert c.console().run(["team", "join", bob_url, "--password", "correct horse battery"], USER).error.startswith("the team's journal belongs to the repository"), "a checkout of another repository is refused"
+        from journal.models.author import Author
+        from journal.models.message import Message
+        from journal.repositories.messages import Messages
         with b.container.get(Scope).environment(MAIN):
+            b.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="the journal is ready", data={"kind": "card"}), Actor.system())
             b.container.get(Tasks).save(Task(environment_id=MAIN, title="b's own, before joining"), Actor.user(1))
         b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
         before_refusal = [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()]
@@ -10770,7 +10774,8 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
         assert [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()] == before_refusal and not b.container.get(TeamAccount).is_joined(), "a refused join leaves every environment as it was"
         kept = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert "this journal holds 1 tasks and" in kept.error and "--replace-mine" in kept.error and not b.container.get(TeamAccount).is_joined(), "a journal with its own history is never replaced by the team's unless it asks"
+        assert "this journal holds 1 tasks and 0 messages" in kept.error and not b.container.get(TeamAccount).is_joined(), "a journal with its own history is never replaced by the team's unless it asks, and the journal's own marks are no history of its own"
+        assert f"journal team join --replace-mine '{bob_url}'" in kept.error, "the refusal gives the whole command with the invitation quoted, ready to copy into zsh"
         joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
         assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
         assert [row.title for row in b.container.get(Tasks).global_matching()] == [row.title for row in a.container.get(Tasks).global_matching()], "the joining journal holds exactly the team's tasks, its own replaced"

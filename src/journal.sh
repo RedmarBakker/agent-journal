@@ -20,7 +20,7 @@ port=$(cat "$root/.journal/port" 2>/dev/null)
 # Joining a team or logging in again asks the person's password here, unseen, and hands it to the server with the words,
 # so it never stands on a command line; an agent's shell has no terminal, and the command then says to run it yourself.
 if [ "$1" = "team" ] && { [ "$2" = "join" ] || [ "$2" = "login" ]; } && [ -t 0 ]; then
-    printf 'Your team password: ' >&2
+    case "$*" in *code=*) printf 'Choose your password: ' >&2 ;; *) printf 'Your team password: ' >&2 ;; esac
     stty -echo
     IFS= read -r password
     stty echo

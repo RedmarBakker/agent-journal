@@ -136,6 +136,10 @@ class Messages(ScopedRepository[Message]):
     def recent_commits(self, start: datetime, end: datetime, last: int) -> list[Message]:
         return list(reversed(self.selected(self.query().filter_prefix("data->key", "commit:").filter_greater_equal("created_at", start).filter_less("created_at", end).order_descending("id").limit(last))))
 
+    # the messages a person or an agent wrote, in every environment, leaving out the journal's own marks and cards
+    def written_count(self) -> int:
+        return self.stored_matching_count(self.query().filter_listed("author", [Author.USER.value, Author.AGENT.value, Author.COLLEAGUE.value]))
+
     def keyed(self, key: str, actor: Actor) -> list[Message]:
         return self.selected(self.query().filter_json("data->key", key).filter(creator=actor))
 

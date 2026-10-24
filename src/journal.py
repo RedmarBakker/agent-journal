@@ -6,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from journal.app import App  # noqa: E402
 from journal.config import Config  # noqa: E402
+from journal.launcher.launch import Launch  # noqa: E402
+from journal.launcher.remote_github import RemoteGithub  # noqa: E402
+from journal.launcher.remote_install import RemoteInstall  # noqa: E402
 from journal.providers.providers import Providers  # noqa: E402
 
 AGENTS = ("claude", "codex")
@@ -14,13 +17,10 @@ AGENTS = ("claude", "codex")
 def main(argv: list[str]) -> int:
     root = Path(os.environ.get("JOURNAL_ROOT") or Path.cwd())
     if argv[:1] and argv[0] in AGENTS:
-        from journal.launcher.launch import Launch
         return Launch.parse(argv, root).run()
     if argv[:2] == ["remote", "github"]:
-        from journal.launcher.remote_github import RemoteGithub
         return RemoteGithub.parsed(argv[2:], root).run()
     if argv[:1] == ["remote"]:
-        from journal.launcher.remote_install import RemoteInstall
         return RemoteInstall.parsed(argv[1:]).run()
     app = App(Config.rooted(root))
     if argv[:1] == ["serve"]:

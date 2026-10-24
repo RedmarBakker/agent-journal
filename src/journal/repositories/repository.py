@@ -66,7 +66,10 @@ class Repository(Generic[M]):
         return self.selected(self.query().order("id"))
 
     def stored_count(self) -> int:
-        return self.connection.result(*self.query().count())["value"]
+        return self.stored_matching_count(self.query())
+
+    def stored_matching_count(self, query: Query) -> int:
+        return self.connection.result(*query.count())["value"]
 
     def grouped_counts(self, query: Query, column: str) -> dict[str, int]:
         with self.connection.unlisted():
