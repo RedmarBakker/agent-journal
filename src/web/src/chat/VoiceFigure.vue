@@ -161,7 +161,7 @@ const beats = ref([]);
 // the look the eyes wear (reactions.js eyesAt), or null
 let looking = null;
 // what the figure remembers between looks: when each reaction last played and the eggs played so far, when each pastime may next play,
-// and the state each test run's card had when last looked at; the times kept in the browser's storage for the environment, so every
+// and the state each test run's card had when last looked at; the times kept in the page's session storage for the environment, so every
 // cooldown holds through a reload (figure/keptTimes.js)
 const memory = {reacted: new KeptTimes(`journal.figure.cooldowns.${environment.value}`, Date.now() / 1000), played: [], tally: {plain: 0, last: ""}};
 const pastimesDue = new KeptTimes(`journal.figure.pastimes.${environment.value}`, Date.now() / 1000);

@@ -1,16 +1,36 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {KeptTimes} from "../src/figure/keptTimes.js";
 import {reactionTo, thinkingAct} from "../src/figure/reactions.js";
+import {SHOWPIECES} from "../src/figure/pile.js";
 
 // the figure's memory as the page builds it at load for the environment `name`, `now` wall-clock seconds
 const memoryAt = (now, name = "work") => new KeptTimes(`journal.figure.cooldowns.${name}`, now);
 
 afterEach(() => {
     vi.unstubAllGlobals();
-    localStorage.clear();
+    sessionStorage.clear();
 });
 
 describe("the figure's cooldowns", () => {
+    it("keep the bug shot back for 30 minutes after it played, through a reload that reads its last play back from the page's session storage", () => {
+        expect(SHOWPIECES.bug_shot).toBe(30 * 60);
+        const now = 1_800_000_000;
+        // the figure plays the bug shot for a fixed run (the pile's first pick), and the time is in the session storage
+        expect(reactionTo("tests_fixed", memoryAt(now), now, () => 0).clip).toBe("bug_shot");
+        const kept = JSON.parse(sessionStorage.getItem("journal.figure.cooldowns.work"));
+        expect(kept["tests_fixed/bug_shot"]).toBe(now);
+        expect(localStorage.getItem("journal.figure.cooldowns.work"), "never in the storage every tab shares").toBe(null);
+        // made anew as on a reload, every few minutes through the half hour a fixed run never brings the bug shot again
+        for (let minute = 1; minute < 30; minute += 4) {
+            const reloaded = memoryAt(now + minute * 60);
+            expect(reloaded.get("tests_fixed/bug_shot"), `read back at ${minute} minutes`).toBe(now);
+            expect(reactionTo("tests_fixed", reloaded, now + minute * 60, () => 0)?.clip, `${minute} minutes on`).not.toBe("bug_shot");
+        }
+        // half an hour on it may play again
+        const later = now + 30 * 60 + 1;
+        expect(reactionTo("tests_fixed", memoryAt(later), later, () => 0).clip).toBe("bug_shot");
+    });
+
     it("hold through a reload: an act played, the memory rebuilt as a reload does, and the act still cools down until its time", () => {
         const now = 1_800_000_000;
         const before = memoryAt(now);
@@ -39,7 +59,7 @@ describe("the figure's cooldowns", () => {
 
     it("lose only themselves when the storage throws: the figure works on, keeping its times for the page's life", () => {
         const refusing = {getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); }};
-        vi.stubGlobal("localStorage", refusing);
+        vi.stubGlobal("sessionStorage", refusing);
         const now = 1_800_000_000;
         const memory = memoryAt(now);
         expect(memory.size).toBe(0);
