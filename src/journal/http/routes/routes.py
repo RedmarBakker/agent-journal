@@ -161,6 +161,7 @@ class Routes:
         self.listed(router, "environments", environments)
         router.post(f"{API}/environments", environments.store)
         self.acts(router, "environments", environments, "launch", "stop", "remove")
+        router.post(f"{API}/environments/{{id}}/worktree-removal", environments.worktree_removal)
 
     def work(self, router: Router) -> None:
         get = self.container.get

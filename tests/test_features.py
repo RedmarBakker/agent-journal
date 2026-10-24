@@ -6623,6 +6623,23 @@ def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: A
     console.run(["environment", "create", "calm-river"], USER)
     line_text = console.run(["environment", "delete", "calm-river"], USER).text
     assert "stays" in line_text and tree.is_dir() and "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout, "a merged one stays too, with its branch: only the person removes a worktree"
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    from journal.repositories.agents import Agents
+    from journal.repositories.environments import Environments
+    environment = app.container.get(Environments).existing("calm-river")
+    working = app.container.get(Agents).save(Agent(environment_id=environment.row_id, session="s-calm", role=AgentRole.MAIN, state="working"), Actor.system())
+    refused = console.run(["worktree", "remove", "calm-river"], USER)
+    assert refused.code != 0 and "a session works in the worktree calm-river" in refused.error and tree.is_dir(), "removing is refused while a session works in it"
+    app.container.get(Agents).save(working.with_(state="ended"), Actor.system())
+    (tree / "draft.txt").write_text("unsaved\n")
+    refused = console.run(["worktree", "remove", "calm-river"], USER)
+    assert refused.code != 0 and "1 uncommitted files (draft.txt)" in refused.error and tree.is_dir(), "and while it holds uncommitted work"
+    (tree / "draft.txt").unlink()
+    removed = console.run(["worktree", "remove", "calm-river"], USER)
+    assert removed.code == 0 and not tree.exists() and "worktree-calm-river" in git("branch", "--list", "worktree-calm-river").stdout, removed.error
+    assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == git("rev-parse", "worktree-calm-river").stdout.strip(), "its branch and its last commit stay, so a launch of its name makes it again"
+    assert "Team chat" in console.run(["worktree", "remove", "team"], USER).error, "the Team chat's worktree is never removed this way"
 
 
 def test_a_session_in_a_worktree_is_marked_with_its_branch_once(app: App):

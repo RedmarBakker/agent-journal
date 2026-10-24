@@ -7,6 +7,7 @@ from journal.features.git.support.git_data_reader import GitDataReader
 from journal.features.git.support.git_data import GitData
 from journal.features.git.support.branch_environments_reader import BranchEnvironmentsReader
 from journal.features.git.git_nudges import GitNudges
+from journal.features.git.commands.worktree_command import WorktreeCommand
 
 
 class Git(Feature[GitData]):
@@ -18,5 +19,6 @@ class Git(Feature[GitData]):
     listeners = (CommitDetection, WorktreeSessionLink, WorktreeTipRecord)
     data = (GitDataReader, BranchEnvironmentsReader)
     conduct = (GitConduct,)
+    commands = (WorktreeCommand,)
 
     nudges = (GitNudges.WORKER_TASK_REFUSAL, GitNudges.BRANCH_CONFLICT)

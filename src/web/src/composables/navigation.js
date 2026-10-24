@@ -5,6 +5,8 @@ import {computed} from "vue";
 import {PAGES, RESOURCE_GROUPS, SIDEBAR, pluralTitle} from "../domain/navigation.js";
 
 const countOf = (t) => recordCount(t.name, t.needs_attention ? "unread" : "open");
+// what a link's count counts, where its number alone would mislead: the tasks counted are those outside a plan, whose own are on its bar
+const COUNT_TITLES = {tasks: "open tasks outside a plan"};
 
 const typeLink = (t) => ({
     key: t.name,
@@ -13,6 +15,7 @@ const typeLink = (t) => ({
     icon: t.icon,
     text: t.abstract,
     count: countOf(t),
+    countTitle: COUNT_TITLES[t.name] || "",
     hot: !!t.needs_attention && !!countOf(t),
 });
 

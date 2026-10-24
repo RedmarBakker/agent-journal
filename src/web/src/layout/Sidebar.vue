@@ -57,7 +57,7 @@ function point(e) {
                         >
                             <Icon :name="link.icon" />
                             <span class="label">{{ link.title }}</span>
-                            <span :class="['count', {hot: link.hot}]">{{ link.count || "" }}</span>
+                            <span :class="['count', {hot: link.hot}]" :title="link.countTitle && link.count ? `${link.count} ${link.countTitle}` : null">{{ link.count || "" }}</span>
                         </a>
                     </template>
                     <template v-if="g.key === 'project'">

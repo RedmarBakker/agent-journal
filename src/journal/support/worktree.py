@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from journal.support.worktree_refs import TIPS_REF
+from journal.support.rejection import Rejection
 from journal.support.worktree_failure import WorktreeFailure
 
 GIT_SECONDS = 60
@@ -81,11 +82,20 @@ class Worktree:
                 self.archived()
             raise WorktreeFailure(self.name, added.stderr.strip())
 
+    def uncommitted(self) -> list[str]:
+        return [line[3:] for line in self.run_git("status", "--porcelain").stdout.splitlines() if line.strip()]
+
+    def removed(self) -> None:
+        self.record_tip()
+        removal = self.git("worktree", "remove", str(self.path))
+        if removal.returncode != 0:
+            raise Rejection(f"the worktree {self.name} could not be removed: {removal.stderr.strip()}")
+
     # a worktree outlives its environment: deleting the environment keeps it, and only the person removes it
     def worktree_note(self) -> str:
         if not self.path.is_dir():
             return ""
-        return f"its worktree {self.path} stays, as a worktree is never removed with its environment; git worktree remove {self.path} removes it once its work is done"
+        return f"its worktree {self.path} stays, as a worktree is never removed with its environment; journal worktree remove {self.name} removes it once its work is done"
 
     def is_registered(self) -> bool:
         listed = self.git("worktree", "list", "--porcelain").stdout.splitlines()
