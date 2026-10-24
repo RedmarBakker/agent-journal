@@ -25,3 +25,5 @@ class ShellData:
     watch: OutputView
     aliases: tuple[Alias, ...]
     home: str
+    unwatched_commands: tuple[str, ...] = ()
+    watch_command: str = ""

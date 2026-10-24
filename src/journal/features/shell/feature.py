@@ -17,6 +17,7 @@ from journal.features.shell.jobs.restart_wait import RestartWait
 from journal.features.shell.jobs.watch_refresh import WatchRefresh
 from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.seeds.default_readers import DefaultReaders
+from journal.features.shell.shell_demands import ShellDemands
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
@@ -28,7 +29,7 @@ class Shell(Feature[ShellData]):
     title = "Shell commands"
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past thirty seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
-    options = (FOREGROUND_OPTION, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
+    options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
     listeners = (OutputNotice, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards)
     seeds = (CutOffOutputs, DefaultReaders)
     jobs = (WatchRefresh, RestartWait)
@@ -37,7 +38,8 @@ class Shell(Feature[ShellData]):
     conduct = (ShellConduct,)
     states = (FixingReader,)
 
-    nudges = (ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_FIX, ShellNudges.SUMMARY_REQUEST, ShellNudges.READER_REWRITE_REQUEST, ShellNudges.READER_REWRITE_NOTICE, ShellNudges.READER_DETAIL, ShellNudges.SILENT_CARD, ShellNudges.READER_TOPIC, ShellNudges.READER_WATCH, ShellNudges.ALIAS_WATCH, ShellNudges.ALIAS_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.WATCH_SUGGESTION, ShellNudges.COUNTING_READER_SUGGESTION, ShellNudges.PIPED_TEST_RUN, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.PARTIAL_FILE_READ)
+    demands = (ShellDemands.READER,)
+    nudges = (ShellNudges.READER_COUNTDOWN, ShellNudges.READER_LAST_USE, ShellNudges.READER_REFUSAL, ShellNudges.ALIAS_TIME_LIMIT, ShellNudges.LINE_TIME_LIMIT, ShellNudges.READER_FIX, ShellNudges.SUMMARY_REQUEST, ShellNudges.READER_REWRITE_REQUEST, ShellNudges.READER_REWRITE_NOTICE, ShellNudges.READER_DETAIL, ShellNudges.SILENT_CARD, ShellNudges.READER_TOPIC, ShellNudges.READER_WATCH, ShellNudges.ALIAS_WATCH, ShellNudges.ALIAS_HINT, ShellNudges.ALIAS_SUGGESTION, ShellNudges.WATCH_VIEW, ShellNudges.WATCH_ENDED, ShellNudges.WATCH_SUGGESTION, ShellNudges.COUNTING_READER_SUGGESTION, ShellNudges.PIPED_TEST_RUN, ShellNudges.NEW_READER_SUGGESTION, ShellNudges.BACKGROUND_MOVE, ShellNudges.OUTPUTS_ENDED, ShellNudges.UNREAD_OUTPUT, ShellNudges.JOURNAL_COMMAND_ISOLATION, ShellNudges.FOLDER_CHANGE_REFUSAL, ShellNudges.BACKGROUND_CHECK, ShellNudges.READER_HINT, ShellNudges.READER_SUGGESTION, ShellNudges.PARTIAL_FILE_READ)
 
     skill = Skill("shell", 'How the journal runs your shell commands: in parts, timed, and in the background past the limit', """
 # Shell commands

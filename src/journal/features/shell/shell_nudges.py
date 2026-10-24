@@ -4,6 +4,9 @@ from journal.engine.nudge import Nudge
 class ShellNudges:
     """The nudges of the shell feature."""
 
+    READER_COUNTDOWN = Nudge("shell", "writes_held_soon_until_read_through_a_reader", "reader due for {{commands}}: {{count}}", "`journal reader add <name> --commands \"<command>\" --about '<what it picks>' --label '<what it does>' --pattern '<the lines worth seeing: failures and summary>' --progress '<a percent or a count of a total>'`", repeat_interval=0)
+    READER_LAST_USE = Nudge("shell", "next_write_held_until_read_through_a_reader", "reader due for {{commands}}: 0", "your next write waits until a reader with a label reads it", repeat_interval=0)
+    READER_REFUSAL = Nudge("shell", "write_held_until_read_through_a_reader", "no reader reads {{commands}}, run in the background", "`journal reader add <name> --commands \"<command>\" --about '<what it picks>' --label '<what it does>' --pattern '<lines worth seeing>' --progress '<progress>'` before any other write", repeat_interval=0)
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat_interval=0)
     OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "{{outputs}}", "`journal output read {{n}} --summary` says how", repeat_interval=0)
     READER_HINT = Nudge("shell", "use_the_reader", "reader {{reader}} already reads this: {{about}}", "`journal output read N --reader {{reader}}`", repeat_interval=0)
@@ -26,9 +29,14 @@ class ShellNudges:
     READER_REWRITE_NOTICE = Nudge("shell", "reader_written_anew", "the reader {{reader}} is written anew, and your tools are free", repeat_interval=0)
     SUMMARY_REQUEST = Nudge("shell", "make_the_run_print_its_summary", "output {{n}}'s card ends on counts from its dots: the run printed no summary line", "for pytest, take a doubled -q (-qq) out of the command and the project's pytest settings", repeat_interval=0)
     READER_DETAIL = Nudge("shell", "give_the_reader_its_summary", "output {{n}}'s card showed only its title: the reader {{reader}} picked nothing", "`journal reader add {{reader}} --pattern '<failures and summary>' --progress '<percent or count>' --label '<what it is doing>'`", repeat_interval=0)
-    SILENT_CARD = Nudge("shell", "silent_card", "output {{n}}'s card has shown nothing for 30 seconds", "make the command print its steps, run it unbuffered (python -u), or give its reader a --progress pattern and a --label", repeat_interval=0)
+    SILENT_CARD = Nudge("shell", "silent_card", "output {{n}}'s card has shown nothing for 30 seconds{{reader}}", "{{advice}}", repeat_interval=0)
     READER_TOPIC = Nudge("shell", "give_the_reader_a_topic", "{{command}} has run with {{count}} different arguments", "give the reader {{reader}} a --topic pattern over the command line, such as the files or the -k it names", repeat_interval=0)
     READER_WATCH = Nudge("shell", "watched_reader_output", "output {{n}} ({{command}}) is in the background, watched through {{reader}}", repeat_interval=0)
     ALIAS_WATCH = Nudge("shell", "watched_alias_output", "output {{n}}, the run of journal {{name}}, is watched{{reader}}", repeat_interval=0)
     ALIAS_HINT = Nudge("shell", "use_the_alias", "journal {{name}} runs this line: {{line}}", "use `journal {{name}} [args]` next time", repeat_interval=0)
     ALIAS_SUGGESTION = Nudge("shell", "add_an_alias", "you ran {{shape}} three times or more", "`journal alias add <name> \"<the line without the values that change>\"{{reader}}`, then `journal <name> <values>`", repeat_interval=0)
+
+    @classmethod
+    def reader_countdown(cls, commands: tuple[str, ...], remaining_uses: int) -> Nudge:
+        listing = ", ".join(commands)
+        return cls.READER_COUNTDOWN.create(count=remaining_uses, commands=listing) if remaining_uses else cls.READER_LAST_USE.create(commands=listing)

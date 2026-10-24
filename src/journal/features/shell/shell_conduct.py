@@ -1,3 +1,4 @@
+from journal.features.shell.support.streaming_form import StreamingForm
 from journal.engine.base_state import BaseState
 from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
@@ -13,7 +14,7 @@ from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.folder_change import FolderChange
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.piped_test_run import PipedTestRun
-from journal.features.shell.support.watch_suggestions import LONG_RUNS
+from journal.features.shell.support.activity_label import LONG_RUNS
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 from journal.support.foreground_option import FOREGROUND_OPTION
@@ -45,7 +46,7 @@ class ShellConduct(Conduct):
         watch = event.data.part(ShellPart).watch
         if not watch.is_watching():
             return unread_check(self, event, settings)
-        fix_lines = reader_fix(watch, event.data.part(ShellPart).tipped)
+        fix_lines = reader_fix(watch, event.data.part(ShellPart).tipped, event.data.part(ShellPart).watch_command)
         if fix_lines and event.data.part(ShellPart).reader_requests.count(watch.reader) + 1 >= READER_REQUEST_COUNT:
             return reader_rewrite(self, event, watch)
         if watch.ending:
@@ -58,14 +59,14 @@ class ShellConduct(Conduct):
 
 def reader_rewrite(state: BaseState, event: ToolFinished, watch: OutputView) -> Transition:
     reader = next((r for r in event.data.part(ShellPart).readers if r.name == watch.reader), None)
-    return state.push(FixingReader(reader=watch.reader, reader_form=repr(reader)), *reader_fix(watch, ()), ShellNudges.READER_REWRITE_REQUEST.create(reader=watch.reader))
+    return state.push(FixingReader(reader=watch.reader, reader_form=repr(reader)), *reader_fix(watch, (), event.data.part(ShellPart).watch_command), ShellNudges.READER_REWRITE_REQUEST.create(reader=watch.reader))
 
 
-def reader_fix(watch: OutputView, tipped: tuple[str, ...]) -> tuple[Nudge, ...]:
+def reader_fix(watch: OutputView, tipped: tuple[str, ...], command: str) -> tuple[Nudge, ...]:
     if any(f"output {watch.output}'s card" in tip_text for tip_text in tipped):
         return ()
     if watch.silent:
-        return (ShellNudges.SILENT_CARD.create(n=watch.output),)
+        return (ShellNudges.SILENT_CARD.create(n=watch.output, reader=f": its reader {watch.reader} picks no line of it yet" if watch.reader else "", advice=StreamingForm.advice(command)),)
     if watch.poor_line:
         return (ShellNudges.READER_FIX.create(reader=watch.reader, n=watch.output, line=watch.poor_line[:120]),)
     if watch.summary_missing:
@@ -77,7 +78,7 @@ def reader_fix(watch: OutputView, tipped: tuple[str, ...]) -> tuple[Nudge, ...]:
 
 def silent_check(state: BaseState, event: Ticked) -> Transition:
     shell = event.data.part(ShellPart)
-    return state.none(*reader_fix(shell.watch, shell.tipped)) if shell.watch.is_watching() and shell.watch.silent else state.none()
+    return state.none(*reader_fix(shell.watch, shell.tipped, shell.watch_command)) if shell.watch.is_watching() and shell.watch.silent else state.none()
 
 
 def outcome_text(ended: tuple[EndedOutput, ...]) -> str:

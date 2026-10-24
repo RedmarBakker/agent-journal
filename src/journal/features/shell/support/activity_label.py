@@ -13,6 +13,10 @@ VERBS: dict[str, str | dict] = {"git": {"commit": "committing", "push": "pushing
 VALUED_FLAGS = frozenset({"--prefix", "-C", "--cwd"})
 
 
+# the activities long enough to be watched through a reader as they run
+LONG_RUNS = ("testing", "building")
+
+
 class ActivityLabel:
     """What one command is doing, in a word or two, as the bar and the chat show it: git commit is committing, pytest and php artisan test are testing; the words are followed as deep as the table names them."""
 

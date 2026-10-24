@@ -7,7 +7,7 @@ from journal.engine.states_catalogue import StatesCatalogue
 from journal.features.sequences.listeners.record_run_changes import RUN
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
-from journal.features.shell.support.watch_suggestions import LONG_RUNS
+from journal.features.shell.support.activity_label import LONG_RUNS
 from journal.features.tasks.states.working import Working
 from journal.support.chain import Chain
 from journal.config import Config

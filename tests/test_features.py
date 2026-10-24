@@ -15,6 +15,7 @@ import pytest
 from shell_verbs import ShellVerbs
 from worker_dispatch import dispatched, tokenless_run
 
+from journal.support.command_shape import CommandShape, LAUNCHERS, SETUP_COMMANDS
 from journal.events.announcer import Announcer
 from journal.providers.claude import Claude
 from journal.providers.support.worker_outcome import WorkerOutcome
@@ -7018,7 +7019,7 @@ def test_a_command_moved_to_the_background_is_told_to_watch_it_with_the_reader_t
     known = "\n".join(suggestions.lines(5, "perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q"))
     assert "journal output watch 5 --reader pytest" in known and "no reader" not in known, "a runner a reader reads is told its reader"
     unknown = "\n".join(suggestions.lines(6, "make test"))
-    assert "journal output watch 6 --title" in unknown and "no reader reads make test yet" in unknown, "a test run no reader reads is told to make one"
+    assert "journal output watch 6 --title" in unknown and "no reader reads" not in unknown, "a test run no reader reads is told only to watch it: its reader is the shell's reader demand"
     assert suggestions.lines(7, "sleep 100") == [suggestions.lines(7, "sleep 100")[0]] and "watch it:" in suggestions.lines(7, "sleep 100")[0], "a plain long command is told it can be watched, nothing more"
     hook(app, "SessionStart")
     folder = app.config.root / "w"
@@ -9257,6 +9258,52 @@ def test_an_alias_runs_its_line_with_the_flags_passed_on_and_its_moved_run_is_wa
     assert card.data["line"] == "sleep 2", "the card names the line the alias ran, never the alias"
 
 
+BARE_COMMANDS = {
+    "python3 -m pytest -q tests/a.py": "pytest", "npx vitest run tests/": "vitest run", "$S/calibrate5.sh --fast": "calibrate5.sh",
+    "sh install.sh": "install.sh", "(cd src/web && npx vitest run tests/)": "vitest run", "REPLAY_FREEZE=1 python3 -m pytest -q": "pytest",
+    "go test ./...": "go test", "npm run build": "npm run build", "timeout 60 cargo test": "cargo test", "uv run pytest -x": "pytest",
+    "docker compose exec app php artisan test": "php artisan test", "cd src && make -j8": "make", "pytest -k chat": "pytest",
+    "bash -c \"make test\"": "make test", "env FOO=1 node x.js": "x.js", "nohup ./server.sh &": "server.sh",
+}
+
+
+def test_a_command_is_known_by_its_bare_command_with_its_setup_launchers_variables_and_arguments_seen_through():
+    for line, bare in BARE_COMMANDS.items():
+        assert CommandShape.command_name(line) == bare, line
+    parts = [part for row in map(json.loads, (Path(__file__).parent / "shell_corpus.jsonl").read_text().splitlines()) for part in row["parts"]]
+    assert len(parts) > 10000
+    for part in parts:
+        bare = CommandShape.command_name(part)
+        first = bare.split()[0] if bare else ""
+        assert not first.startswith("(") and "=" not in first and (first not in LAUNCHERS or bare == first), (part, bare)
+        assert first not in SETUP_COMMANDS or not ("&&" in part or ";" in part) or "<<" in part, ("a chain is known by the command past its setup", part, bare)
+
+
+def test_a_command_run_in_the_background_that_no_reader_reads_is_owed_a_reader_counted_down_to_the_write_hold(app: App):
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    from journal.repositories.command_outputs import CommandOutputs
+    console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
+    link.working(MAIN)
+    request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+    moved = b"".join(runner.run(request("(cd . && sleep 2)"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    assert re.search(r"output \d+", moved), moved
+    lines = [json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]) for _ in range(5)]
+    assert all("reader due for sleep" in line for line in lines) and "reader due for sleep: 0" in lines[-1], lines
+    status, body = hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})
+    assert status == 409 and "no reader reads sleep" in body["error"], body
+    assert console.run(["reader", "add", "naps", "--commands", "sleep", "--pattern", "slept", "--about", "the naps", "--label", "Taking a nap"], AGENT).code == 0
+    assert hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "a reader with a label meets it"
+    again = b"".join(runner.run(request("sleep 2"), AGENT, MAIN)).decode() + link.pending_lines(MAIN)
+    output = app.container.get(CommandOutputs).find(int(re.search(r"output (\d+)", again).group(1)))
+    assert output.is_watched and output.watch_reader == "naps", "the next run moves at once and is watched through its reader"
+    assert "reader due" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1]), "a command a reader reads is never asked for again"
+
+
 def test_an_alias_set_to_the_background_moves_there_at_once_and_a_plain_one_waits_its_foreground_limit(app: App):
     from journal.features.shell.support.shell_request import ShellRequest
     from journal.features.shell.support.shell_runner import ShellRunner
@@ -10927,14 +10974,16 @@ def test_a_watched_run_whose_card_shows_nothing_for_30_seconds_is_named_once(app
     folder = app.config.root / "quiet"
     folder.mkdir()
     (folder / "parts").write_text("R-\n")
-    (folder / "0.part").write_text("pytest -q")
+    (folder / "0.part").write_text("go test ./...")
     (folder / "0.out").write_text("")
-    app.container.get(OutputLog).start("quiet", "pytest -q", folder, Caller.agent("main", "s1", "claude"))
+    app.container.get(OutputLog).start("quiet", "go test ./...", folder, Caller.agent("main", "s1", "claude"))
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert app.console().run(["output", "watch", "1", "--reader", "pytest"], AGENT).code == 0
+    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--about", "each package's end"], AGENT).code == 0
+    assert app.console().run(["output", "watch", "1", "--reader", "packages"], AGENT).code == 0
     told = [json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]) for _ in range(2)]
-    assert "output 1's card has shown nothing for 30 seconds" in told[0] and "run it unbuffered" in told[0], "a silent watched run is named, with what to do about it"
+    assert "output 1's card has shown nothing for 30 seconds: its reader packages picks no line of it yet" in told[0], "a silent watched run is named with the reader that picks nothing"
+    assert "go test -json or -v" in told[0], "and the streaming form of the tool it runs"
     assert "has shown nothing" not in told[1], "and named once"
 
 

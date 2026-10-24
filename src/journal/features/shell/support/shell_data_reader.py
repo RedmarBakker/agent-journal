@@ -1,3 +1,4 @@
+from journal.support.command_shape import CommandShape
 from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
@@ -18,6 +19,8 @@ from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.tasks.tasks_nudges import TasksNudges
 
 HISTORY_READS = 26
+# the newest runs moved to the background that are looked at for a command no reader reads
+RECENT_MOVES = 10
 
 
 class ShellDataReader:
@@ -41,8 +44,18 @@ class ShellDataReader:
             "tipped": lambda: self.tipped(agent),
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
+            "unwatched_commands": lambda: self.unwatched_commands(agent),
+            "watch_command": lambda: self.watch_command(agent),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
+
+    def watch_command(self, agent: Agent) -> str:
+        watched = self.outputs.watched(agent.session)
+        return CommandShape.command_name(watched[0].command) if watched else ""
+
+    def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
+        commands = [CommandShape.command_name(output.command) for output in self.outputs.recent_unwatched_moves(agent.session, RECENT_MOVES)]
+        return tuple(dict.fromkeys(command for command in commands if command and self.readers.reading(command) is None))
 
     def output_reads(self, agent: Agent) -> tuple[str, ...]:
         commands = [command for e in self.entries.output_tool_starts(agent.session) if (command := e.recorded_call().command)]
