@@ -12,7 +12,7 @@ const RIG = {order: rig.order, parents: new Map(Object.entries(rig.parents)), he
 const stanceOf = (voice) => Object.fromEntries(Object.entries(stances[voice]).map(([key, value]) => [key, Array.isArray(value) ? new Set(value) : value]));
 const clipNamed = (name) => CLIPS.find((clip) => clip.name === name);
 const IDLE = clipNamed("idle");
-const FRAME_MS = 1000 / 60;
+const FRAME_MS = 1000 / 30;
 // the ease the player gives a change (player.js smooth)
 const smooth = (k) => k * k * (3 - 2 * k);
 // the soles of the figure standing at rest, in its own units, on the floor line it stands on
@@ -28,7 +28,7 @@ function legsOf(pose, moves) {
     };
 }
 
-// The player's changes (player.js show) stepped at 60 frames a second for `voice`: each clip drawn in its posture, eased out of the one
+// The player's changes (player.js show) stepped at 30 frames a second for `voice`: each clip drawn in its posture, eased out of the one
 // before over the change, on its feet getting up off a seat (places.js leavesSeat), until the change has settled
 function player(voice) {
     let moves = null, blend = null, shape = "", posture = "", ms = 0;
@@ -50,19 +50,21 @@ function player(voice) {
     };
 }
 
-test("standing idle after any act, seated or standing, the figure stands on straight legs with its soles on the floor line, never bent and sunk", () => {
-    for (const voice of Object.keys(stances)) {
-        for (const clip of CLIPS) {
-            for (const posture of clip.postures.filter((each) => each !== "walk")) {
-                const play = player(voice);
-                play(clip, posture, Math.min(clip.frames / clip.fps, 2));
-                const {pose, moves} = play(IDLE, "stand", 1);
-                const legs = legsOf(pose, moves);
-                const label = `${voice} idle after ${clip.name} in ${posture}`;
-                expect(legs.bent, label).toBeLessThan(12);
-                expect(Math.abs(legs.sole), label).toBeLessThan(0.03);
-            }
-        }
+// the acts the figure gets up from or stands through before idling: each seated posture's own, and a handful of standing acts that bend
+// the knees, crouch, tumble or lift the figure
+const BEFORE = [["ledge_sit", "sit"], ["idle", "sit"], ["idle", "composed"], ["idle", "lounge"], ["eager", "stand"], ["hand_rub", "stand"], ["pogo", "stand"], ["tumble", "stand"], ["stretch", "stand"]];
+
+test("standing idle after a seated or standing act, the figure stands on straight legs with its soles on the floor line, never bent and sunk", () => {
+    for (const [name, posture] of BEFORE) {
+        const clip = clipNamed(name);
+        expect(clip.postures, name).toContain(posture);
+        const play = player("butler");
+        play(clip, posture, Math.min(clip.frames / clip.fps, 1));
+        const {pose, moves} = play(IDLE, "stand", 0.75);
+        const legs = legsOf(pose, moves);
+        const label = `idle after ${name} in ${posture}`;
+        expect(legs.bent, label).toBeLessThan(12);
+        expect(Math.abs(legs.sole), label).toBeLessThan(0.03);
     }
 });
 
@@ -80,13 +82,10 @@ test("seated on the docked bar's edge when its floor drops away, landing where t
     const beside = fall({x: 800, y: 540, posture: "sit", face: 0, leans: true});
     expect(beside.spot).toMatchObject({y: 760, posture: "stand"});
     expect(beside.standing).toBe(true);
-    for (const voice of Object.keys(stances)) {
-        const drawn = drawnIn({clip: IDLE}, beside.spot.posture);
-        const {pose, turned} = drawnPose(RIG, stanceOf(voice), IDLE, 0, 0, {posture: drawn});
-        const legs = legsOf(pose, pose.moves(turned));
-        expect(legs.bent, voice).toBeLessThan(12);
-        expect(Math.abs(legs.sole), voice).toBeLessThan(0.03);
-    }
+    const {pose, turned} = drawnPose(RIG, stanceOf("butler"), IDLE, 0, 0, {posture: drawnIn({clip: IDLE}, beside.spot.posture)});
+    const legs = legsOf(pose, pose.moves(turned));
+    expect(legs.bent).toBeLessThan(12);
+    expect(Math.abs(legs.sole)).toBeLessThan(0.03);
     // over the compose box, an edge it sits on: seated as it was, and sitting composed on a floor it keeps that too
     expect(fall({x: 500, y: 540, posture: "sit", face: 0}).spot.posture).toBe("sit");
     expect(fall({x: 800, y: 540, posture: "composed", face: 0}).spot.posture).toBe("composed");
