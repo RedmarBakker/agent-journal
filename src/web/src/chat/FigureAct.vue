@@ -80,7 +80,7 @@ const thinking = computed(() => Boolean(ACTS[props.name].pulse));
                 <PogoStick :u="u" :middle="middle" :floor="floor" :size="size" />
             </template>
             <template v-if="name === 'rope_swing'">
-                <RopeSwing :u="u" :middle="middle" :feet="feet" :size="size" />
+                <RopeSwing :middle="middle" :feet="feet" :size="size" />
             </template>
             <template v-if="name === 'chute' && canopy">
                 <Parachute :u="u" :head="head" :hand="hand" :other="other" :size="size" :canopy="canopy" />

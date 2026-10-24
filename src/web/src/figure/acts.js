@@ -50,11 +50,13 @@ export const ACTS = {
     },
     // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
     fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
-    // a rope swing tied under a bubble: its two ropes `rope` of the figure's height long from the middle of the bubble's bottom edge, `ties`
-    // of it apart, down to a seat `seat` of it wide. Its frames are an intro, the knots tied and the ropes let down; a held stretch looped
-    // while it swings, `swings` swings each way of `sway` degrees, the legs pumping with them; and an outro, the ropes pulled up. The knots
-    // stand at least `room` of the figure's height in from either side of the chat, so it swings clear of them.
-    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.42, seat: 0.5, sway: 9, room: 0.85},
+    // a rope swing tied under a bubble, drawn whole from the act's first frame: its two ropes `rope` of the figure's height long from the
+    // middle of the bubble's bottom edge, `ties` of it apart, just outside the figure's arms, down to a seat `seat` of it wide, a little wider
+    // than its body, whose top is `under` of it below the line the figure sits on, where its thighs' underside rests. Its frames are an
+    // intro, the figure sitting down onto the seat; a held stretch looped while it swings, `swings` swings each way of `sway` degrees, the
+    // legs pumping with them; and an outro, the figure rising off it. The knots stand at least `room` of the figure's height in from either
+    // side of the chat, so it swings clear of them.
+    rope_swing: {intro: 12, hold: 60, outro: 12, fps: 12, swings: 2, rope: 0.62, ties: 0.53, seat: 0.59, under: 0.025, sway: 9, room: 0.85},
     // a pogo stick up onto a bubble's top: it reaches behind its back and pulls the stick out over `draw`, bounces `count` times on the spot
     // over `bounces`, each higher than the last up to `bounce` of its height, and springs up over `spring` to the top of its throw, `over`
     // of its height past the bubble's edge; there it lets the stick go over `release`, the stick falling away over `drop`, and it falls
@@ -314,10 +316,11 @@ export function squeezeOf(name, u) {
 // whether the picture is hidden below the floor through the act, as the figure in the box sinks past it
 export const hidesBelowFloor = (name) => name === "pack_box";
 
-// how far the rope swing's ropes are let down at `u` of its frames, 0 to 1: let down through the intro, pulled up through the outro
-export function ropeDown(u) {
+// how far above the rope swing's seat the figure is at `u` of its frames, 0 sat on it to 1: sitting down onto it through the intro, rising off
+// it through the outro
+export function offSwing(u) {
     const {into, out} = heldPhases(ACTS.rope_swing, u);
-    return partOf(into, [0, 1]) * (1 - partOf(out, [0, 1]));
+    return 1 - partOf(into, [0, 1]) * (1 - partOf(out, [0, 1]));
 }
 
 // how far the rope swing has swung at `u` of its frames, in degrees, clockwise on the screen: still while the ropes go down or up

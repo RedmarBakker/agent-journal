@@ -1,7 +1,7 @@
 // A rigged figure drawn in the browser as Blender draws it: posed by a port of clips.py and rig.Posing, shaded as
 // toon.py shades it, one held pose for each step of a clip.
 import * as THREE from "three";
-import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
+import {ACTS, RUMMAGED, flungAt, heldPhases, offSwing, partOf, pogoBounces, pogoHop, swingAngle} from "./acts.js";
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {VISOR, glowTurn} from "./visor.js";
@@ -3020,14 +3020,17 @@ function pogo(pose, stance, t) {
     eyesAs(pose, "amused", held);
 }
 
-// where each hand holds its rope of the swing, beside the head, in the figure's units across, forward and up: the ropes' half span apart
-// (acts.js rope_swing ties, as a share of the 5.4 units the picture frames)
-const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2, -0.1, 2.6];
+// where each hand holds its rope of the swing, beside the head, in the figure's units across, forward and up: inside the ropes' half span
+// (acts.js rope_swing ties, as a share of the 5.4 units the picture frames) by the sleeve's `arm`, so the ropes run outside the arms; and
+// how far above the seat the figure is, `above`, as it sits down onto it and rises off it
+export const SWING_HOLD = {arm: 0.29, up: 2.6, forward: -0.1, above: 0.35};
+const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2 - SWING_HOLD.arm, SWING_HOLD.forward, SWING_HOLD.up];
 
-// sits on the rope swing's seat holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
-// swingAngle)
+// sits down onto the rope swing's seat, holding both ropes up beside its head, leaning back and pumping its legs with each swing (acts.js
+// swingAngle), and rises off it at the end (acts.js offSwing)
 function rope_swing(pose, stance, t) {
     const pump = swingAngle(t) / ACTS.rope_swing.sway;
+    pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
     breathe(pose, t);
     trunk(pose, {lean: -5 * pump, nod: -4});
     pose.putAway(...IN_HAND);
