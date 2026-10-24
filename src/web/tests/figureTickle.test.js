@@ -4,7 +4,7 @@ import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing} from "../src/figure/figure.js";
 import {SHOWPIECES, choicesFor, draw} from "../src/figure/pile.js";
-import {TICKLE, UNTICKLED, movedTo, tickling} from "../src/figure/tickle.js";
+import {TICKLE, UNTICKLED, movedTo, ticklish, tickling} from "../src/figure/tickle.js";
 
 // the figures' own skeleton and what each voice carries, as figure.js figureOf reads them from the voices' glbs
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -70,4 +70,36 @@ test("tickling sets the figure off only after about two seconds of it", async ()
     const long = wiggle(2500);
     expect(tickling(long.pointer, long.at)).toBe(true);
     expect(TICKLE.prolonged).toBe(2000);
+});
+
+test("once tickled, the figure stays ticklish three seconds: a pass in that time sets it off at once and starts the time again, and after three quiet seconds a tickle is a first one again", () => {
+    const xs = [400, 420, 440, 460, 440, 420, 400, 420, 440, 460, 440, 420];
+    const tickled = moved([...xs, ...xs, ...xs, ...xs, ...xs]);
+    expect(tickling(tickled, tickled.at)).toBe(true);
+    expect(tickled.ticklishUntil).toBe(tickled.at + TICKLE.ticklish);
+    // the pointer stops: the swatting ends, but the figure is still ticklish
+    const still = tickled.at + TICKLE.lingers + 1;
+    expect(tickling(tickled, still)).toBe(false);
+    expect(ticklish(tickled, still)).toBe(true);
+    // a single pass two seconds later sets it off at once, with no wind-up, and starts the three seconds again
+    const pass = movedTo(tickled, 520, tickled.at + 2000);
+    expect(tickling(pass, pass.at)).toBe(true);
+    expect(pass.ticklishUntil).toBe(pass.at + TICKLE.ticklish);
+    // so a pass two and a half seconds after that, four and a half after the tickle, still does
+    const again = movedTo(pass, 400, pass.at + 2500);
+    expect(tickling(again, again.at)).toBe(true);
+    // after three quiet seconds it has calmed: a single pass is no tickle, and only a tickle wound up again sets it off
+    const calm = again.at + TICKLE.ticklish + 1;
+    const late = movedTo(again, 520, calm);
+    expect(ticklish(late, late.at)).toBe(false);
+    expect(tickling(late, late.at)).toBe(false);
+    const rewound = (milliseconds) =>
+        [...xs, ...xs, ...xs, ...xs, ...xs]
+            .slice(0, milliseconds / 40)
+            .reduce((pointer, x, index) => movedTo(pointer, x, calm + 40 * (index + 1)), late);
+    const brief = rewound(1000);
+    expect(tickling(brief, brief.at)).toBe(false);
+    const wound = rewound(2400);
+    expect(tickling(wound, wound.at)).toBe(true);
+    expect(TICKLE.ticklish).toBe(3000);
 });

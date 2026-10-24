@@ -1616,7 +1616,8 @@ const onType = (event) => {
 // what the figure does about a moment, as reactions.js answerTo decides: a beat the body plays, or a look the eyes take on
 // The mouse pointer over the figure or near it (figure/tickle.js): moved back and forth it tickles the figure, which swats at it, aiming
 // each swat at where the pointer is, and keeps swatting for as long as the tickling goes on; a move that overshoots the figure still counts,
-// and one far from it is not heard at all, so the tickle ends only once the pointer has stopped or gone a while
+// and one far from it is not heard at all, so the tickle ends only once the pointer has stopped or gone a while; tickled, the figure stays
+// ticklish three seconds from the last move over it, and a move in that time sets it swatting at once, with no wind-up
 const bodyArea = ref(null);
 let pointer = UNTICKLED;
 let pointerAt = null;
