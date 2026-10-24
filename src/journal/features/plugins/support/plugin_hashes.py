@@ -2,7 +2,7 @@ import hashlib
 from pathlib import Path
 
 from journal.events.announcer import Announcer
-from journal.events.moments.plugin_switched_off import PluginSwitchedOff
+from journal.events.moments.plugin_disabled import PluginDisabled
 from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.models.support.plugin_manifest import PluginManifest
 from journal.support.actor import Actor
@@ -25,7 +25,7 @@ class PluginHashes:
         if not changed:
             return True
         self.plugins.save(self.plugins.lookup(plugin.name).with_(enabled=False), Actor.system())
-        self.announcer.announce(PluginSwitchedOff(environment_id=environment_id, plugin=plugin.name, changed=", ".join(changed)))
+        self.announcer.announce(PluginDisabled(environment_id=environment_id, plugin=plugin.name, changed=", ".join(changed)))
         return False
 
     def hashed(self, path: Path) -> str:

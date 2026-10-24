@@ -1,6 +1,6 @@
 from journal.events.announcer import Announcer
 from journal.events.moments.edit_dropped import EditDropped
-from journal.events.moments.edit_kept import EditKept
+from journal.events.moments.edit_overridden import EditOverridden
 from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -27,7 +27,7 @@ class RejectedEdits:
             self.deleted(rejection)
         elif rejection.field not in self.outgoing.queued_fields(rejection.row_table, rejection.row):
             for row in self.tables.rows(rejection.row_table).pulled_update(rejection.row, {rejection.field: rejection.value}, Actor.system()):
-                self.announcer.announce(EditKept(environment_id=self.environment(row), writer=rejection.writer, noun=row.noun(), row_id=row.row_id, field=rejection.field, kept=str(rejection.value), ref=Ref.build(row)))
+                self.announcer.announce(EditOverridden(environment_id=self.environment(row), writer=rejection.writer, noun=row.noun(), row_id=row.row_id, field=rejection.field, field_value=str(rejection.value), ref=Ref.build(row)))
 
     def deleted(self, rejection: RejectedField) -> None:
         self.outgoing.dropped(rejection.row_table, rejection.row, Actor.system())

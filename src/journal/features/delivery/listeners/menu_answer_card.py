@@ -11,4 +11,4 @@ class MenuAnswerCard(Listener[MenuAnswered]):
         self.cards = cards
 
     def handle(self, event: MenuAnswered) -> None:
-        self.cards.show(event.environment_id, event.session, f'A menu in the agent\'s terminal was answered: "{event.question[-160:]}" The journal {event.done}.', "bolt", shows=CardKind.MENUS)
+        self.cards.show(event.environment_id, event.session, f'A menu in the agent\'s terminal was answered: "{event.question[-160:]}" The journal {event.menu_choice}.', "bolt", shows=CardKind.MENUS)

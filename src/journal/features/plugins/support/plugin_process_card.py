@@ -1,6 +1,6 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_mark import ProcessMark
-from journal.events.moments.plugin_card_asked import PluginCardAsked
+from journal.chat.process_card_contents import ProcessCardContents
+from journal.events.moments.plugin_card_requested import PluginCardRequested
 from journal.models.message import Message
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
@@ -11,8 +11,8 @@ class PluginProcessCard(ProcessCard):
 
     name = "plugin"
 
-    def card_contents(self, question: PluginCardAsked) -> ProcessMark:
-        return ProcessMark(self.name, question.environment_id, question.card_key, question.label, question.data, Actor.plugin(question.plugin), CardKind.PLUGINS, False, question.detail)
+    def card_contents(self, question: PluginCardRequested) -> ProcessCardContents:
+        return ProcessCardContents(self.name, question.environment_id, question.card_key, question.label, question.data, Actor.plugin(question.plugin), CardKind.PLUGINS, False, question.detail)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

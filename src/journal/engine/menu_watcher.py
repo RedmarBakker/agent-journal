@@ -57,7 +57,7 @@ class MenuWatcher(Job):
         if triggered:
             self.supervisor.confirmed(environment)
         self._answered[environment] = menu.signature()
-        self.announcer.announce(MenuAnswered(environment_id=environment, session=agent.session, question=menu.question, done=line_text))
+        self.announcer.announce(MenuAnswered(environment_id=environment, session=agent.session, question=menu.question, menu_choice=line_text))
         return keys
 
     def answers_permission(self, menu: Menu, environment: int) -> bool:

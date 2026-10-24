@@ -12,5 +12,5 @@ class SequenceAbandoned(Event):
     sequence_id: int
     title: str
     step: int
-    why: str
+    explanation: str
     skipped: str

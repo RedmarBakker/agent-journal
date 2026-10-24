@@ -14,9 +14,10 @@ from journal.features.plugins.support.plugin_card import PluginCard
 ANSWERS = ("allow", "refuse", "tell")
 ANSWER_COMMANDS = 20
 PLACED = ("session", "environment_id", "provider", "context", "subagent", "time", "data", "propagation")
-EVENT_NAMES = {"stop": "idle"}
+EVENT_NAMES = {"stop": "idle", "edit_overridden": "edit_kept", "plugin_recovered": "plugin_answering", "plugin_card_requested": "plugin_card_asked", "plugin_upgrade_failed": "plugin_not_upgraded",
+               "plugin_disabled": "plugin_switched_off", "search_completed": "search_made", "shared_comment_posted": "shared_comment_left"}
 ANSWER_FIELDS = {"tell": "message"}
-FIELD_NAMES = {"prior_refusal": "held_before", "silence_seconds": "quiet_for", "edited_paths": "written_paths"}
+FIELD_NAMES = {"prior_refusal": "held_before", "silence_seconds": "quiet_for", "edited_paths": "written_paths", "field_value": "kept", "menu_choice": "done", "explanation": "why"}
 
 
 class Protocol:

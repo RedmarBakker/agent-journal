@@ -4,7 +4,7 @@ from pathlib import Path
 from journal.chat.docking import Docking
 from journal.chat.process_card import ProcessCard
 from journal.chat.process_cards import DOCK_TIME_KEY, AUTO_DOCKED, DOCKED
-from journal.chat.process_mark import ProcessMark
+from journal.chat.process_card_contents import ProcessCardContents
 from journal.chat.card_detail import CardDetail
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.card_progress import CardProgress
@@ -36,11 +36,11 @@ class OutputProcessCard(ProcessCard):
     def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking) -> None:
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking = outputs, views, readers, messages, settings, docking
 
-    def card_contents(self, output: CommandOutput) -> ProcessMark:
+    def card_contents(self, output: CommandOutput) -> ProcessCardContents:
         view = self.views.view(output)
         part = CommandText.shown(self.watched_part(output))
         data = {"kind": "card", "icon": "terminal", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.dock_state(output)}
-        return ProcessMark(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardKind.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
+        return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardKind.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
     def refresh(self, message: Message) -> dict:
         output = self.outputs.find(message.data["output"])

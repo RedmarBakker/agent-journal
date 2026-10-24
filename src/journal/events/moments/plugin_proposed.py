@@ -8,7 +8,7 @@ from journal.support.actor import Actor
 class PluginProposed(PluginMoment):
     """The agent proposed a plugin to the user, with why, what it is and the command that installs it."""
 
-    why: str
+    explanation: str
     detail: str
     command: str
     actor: Actor

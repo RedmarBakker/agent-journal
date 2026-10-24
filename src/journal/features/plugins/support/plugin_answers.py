@@ -3,7 +3,7 @@ import shlex
 from journal.console.console import Console
 from journal.support.caller import Caller
 from journal.events.announcer import Announcer
-from journal.events.moments.plugin_card_asked import PluginCardAsked
+from journal.events.moments.plugin_card_requested import PluginCardRequested
 from journal.features.plugins.support.plugin_steps import PluginSteps
 from journal.features.plugins.support.plugin_text import PluginText
 from journal.support.actor import Actor
@@ -33,7 +33,7 @@ class PluginAnswers:
         kind = plugin.manifest.card_kind(card.kind)
         label = self.text.plain(card.label or kind.label)
         data = {"kind": "plugin", "plugin": plugin.name, "card": card.kind, "icon": kind.icon, "tone": card.tone or kind.tone, "collapsed": kind.collapsed}
-        self.announcer.announce(PluginCardAsked(environment_id=environment_id, plugin=plugin.name, label=label, data=data, detail=self.text.plain(card.detail), card_key=card.key))
+        self.announcer.announce(PluginCardRequested(environment_id=environment_id, plugin=plugin.name, label=label, data=data, detail=self.text.plain(card.detail), card_key=card.key))
 
     def run(self, plugin: Plugin, line: str, environment: str, environment_id: int) -> None:
         argv = shlex.split(line)

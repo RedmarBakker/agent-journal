@@ -3,7 +3,7 @@ from argparse import Namespace
 from journal.console.command import HELPER_KINDS, Command
 from journal.support.caller import Caller
 from journal.events.announcer import Announcer
-from journal.events.moments.search_made import SearchMade
+from journal.events.moments.search_completed import SearchCompleted
 from journal.features.search.support.search import CONVERSATION, Search
 from journal.repositories.scope import Scope
 
@@ -29,5 +29,5 @@ class SearchCommand(Command):
         lines = [row.line() for row in rows]
         answer = "\n".join(lines) if lines else f"nothing here holds all of: {' '.join(terms)}"
         print(answer)
-        self.announcer.announce(SearchMade(environment_id=self.scope.id, session=caller.session, terms=" ".join(terms), answer=answer))
+        self.announcer.announce(SearchCompleted(environment_id=self.scope.id, session=caller.session, terms=" ".join(terms), answer=answer))
         return 0

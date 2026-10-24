@@ -4,7 +4,7 @@ from journal.events.event import Event
 
 
 @dataclass(frozen=True, kw_only=True)
-class SearchMade(Event):
+class SearchCompleted(Event):
     """Words were searched for in the rows here, and what was found."""
 
     environment_id: int

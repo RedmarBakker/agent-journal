@@ -1,6 +1,6 @@
 from journal.chat.card_detail import CardDetail
 from journal.chat.card_category import CardCategory
-from journal.chat.process_mark import ProcessMark
+from journal.chat.process_card_contents import ProcessCardContents
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.agent_role import AgentRole
@@ -19,20 +19,20 @@ class ProcessCards:
     def __init__(self, messages: Messages, agents: Agents) -> None:
         self.messages, self.agents = messages, agents
 
-    def show(self, mark: ProcessMark) -> Message:
-        data = {"row": "", **mark.data, **CardDetail.parts(mark.detail), **CardCategory.read(mark.label).fields(), "key": mark.key, "shows": str(mark.shows), "card_type": PROCESS, "process": mark.process, "active": mark.active}
+    def show(self, contents: ProcessCardContents) -> Message:
+        data = {"row": "", **contents.data, **CardDetail.parts(contents.detail), **CardCategory.read(contents.label).fields(), "key": contents.key, "shows": str(contents.shows), "card_type": PROCESS, "process": contents.process, "active": contents.active}
         with self.messages.writing():
-            older = self.messages.keyed(mark.key, mark.actor)
+            older = self.messages.keyed(contents.key, contents.actor)
             if older:
-                return self.messages.save(older[0].with_(text=mark.label, session=mark.session or older[0].session, data=self.docked_data(older[0], data)), mark.actor)
-            roles = self.agents.session_roles(mark.session) if mark.session else []
-            return self.messages.save(Message(environment_id=mark.environment_id, author=Author.SYSTEM, session=mark.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=mark.label, data=data), mark.actor)
+                return self.messages.save(older[0].with_(text=contents.label, session=contents.session or older[0].session, data=self.docked_data(older[0], data)), contents.actor)
+            roles = self.agents.session_roles(contents.session) if contents.session else []
+            return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data=data), contents.actor)
 
-    def show_recent(self, mark: ProcessMark) -> Message:
-        older = self.messages.keyed(mark.key, mark.actor)
+    def show_recent(self, contents: ProcessCardContents) -> Message:
+        older = self.messages.keyed(contents.key, contents.actor)
         if older and self.predates_user_message(older[0]):
-            self.messages.delete(older[0], mark.actor)
-        return self.show(mark)
+            self.messages.delete(older[0], contents.actor)
+        return self.show(contents)
 
     def predates_user_message(self, card: Message) -> bool:
         latest = self.messages.last_user_message()

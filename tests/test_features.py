@@ -538,10 +538,10 @@ def test_the_line_that_an_awaited_output_ended_carries_what_its_reader_picks(app
 def test_a_chat_mark_is_written_with_its_guesses_of_a_test_a_build_or_an_upload(app: App):
     from journal.chat.moment_cards import MomentCards
     from journal.chat.process_cards import ProcessCards
-    from journal.chat.process_mark import ProcessMark
+    from journal.chat.process_card_contents import ProcessCardContents
     from journal.support.card_kind import CardKind
     with app.container.get(Scope).environment(MAIN):
-        tests_mark = app.container.get(ProcessCards).show(ProcessMark("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
+        tests_mark = app.container.get(ProcessCards).show(ProcessCardContents("output", MAIN, "watch:1", "Run the TESTS", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
         build_mark = app.container.get(MomentCards).show(MAIN, None, "Build the viewer", "terminal", shows=CardKind.COMMANDS)
         upload_mark = app.container.get(MomentCards).show(MAIN, None, "Upload the files", "terminal", shows=CardKind.COMMANDS)
     guesses = lambda mark: (mark.data["is_test"], mark.data["is_build"], mark.data["is_upload"])
@@ -12179,7 +12179,7 @@ def test_a_kept_sessions_first_prompt_is_its_users_own_words_past_the_injected_l
 def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_once(app: App):
     import threading
     from journal.chat.process_cards import ProcessCards
-    from journal.chat.process_mark import ProcessMark
+    from journal.chat.process_card_contents import ProcessCardContents
     from journal.features.shell.support.activity_label import ActivityLabel
     from journal.repositories.messages import Messages
     from journal.support.card_kind import CardKind
@@ -12189,7 +12189,7 @@ def test_a_subshell_commands_mark_is_titled_by_its_working_command_and_written_o
 
     def show():
         with scope.environment(MAIN):
-            cards.show(ProcessMark("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
+            cards.show(ProcessCardContents("output", MAIN, "watch:77", "Running tests", {"kind": "card"}, Actor.system(), CardKind.COMMANDS, True))
 
     shows = [threading.Thread(target=show) for _ in range(8)]
     for each in shows:

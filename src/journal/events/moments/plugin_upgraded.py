@@ -10,3 +10,6 @@ class PluginUpgraded(PluginStanding):
     previous: str
     tag: str
     version: str
+
+    def card_parts(self) -> tuple[str, str, str, str]:
+        return f"Plugin {self.plugin} upgraded from {self.previous} to {self.tag} for journal {self.version}", "plug", "good", ""

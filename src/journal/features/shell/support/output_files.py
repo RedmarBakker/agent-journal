@@ -41,12 +41,12 @@ class OutputFiles:
         for path in self.parts():
             if len(rows) >= size:
                 break
-            held = self.counted(path)
-            if skipped + held > start:
+            line_count = self.counted(path)
+            if skipped + line_count > start:
                 first = max(0, start - skipped)
                 with path.open(errors="replace", newline="\n") as file:
                     rows += [STYLE_CODES.sub("", line.rstrip("\r\n")) for line in islice(file, first, first + size - len(rows))]
-            skipped += held
+            skipped += line_count
         return rows
 
     def last(self, n: int) -> list[str]:

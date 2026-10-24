@@ -1,7 +1,7 @@
 from journal.features.sharing.support.comment_rate import CommentRate
 from journal.features.sharing.share_targets import ShareTargets
 from journal.events.announcer import Announcer
-from journal.events.moments.shared_comment_left import SharedCommentLeft
+from journal.events.moments.shared_comment_posted import SharedCommentPosted
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.models.share import Share
@@ -33,7 +33,7 @@ class SharedComments:
             return self.stored(share, row, name, text)
 
     def stored(self, share: Share, row: Ref, name: str, text: str) -> Message:
-        return next(answer for answer in self.announcer.announce(SharedCommentLeft(environment_id=share.environment_id, share=share.id, row=row, name=name, text=text)) if isinstance(answer, Message))
+        return next(answer for answer in self.announcer.announce(SharedCommentPosted(environment_id=share.environment_id, share=share.id, row=row, name=name, text=text)) if isinstance(answer, Message))
 
     def comments(self, share: Share) -> list[Message]:
         with self.scope.environment(share.environment_id):

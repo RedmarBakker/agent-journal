@@ -1,5 +1,5 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_mark import ProcessMark
+from journal.chat.process_card_contents import ProcessCardContents
 from journal.chat.card_detail import CardDetail
 from journal.features.workers.support.card_standing import CardStanding
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -31,12 +31,12 @@ class WorkerProcessCard(ProcessCard):
     def key(worker: Worker) -> str:
         return f"worker:{worker.id}"
 
-    def card_contents(self, worker: Worker, standing: CardStanding, actor: Actor) -> ProcessMark | None:
+    def card_contents(self, worker: Worker, standing: CardStanding, actor: Actor) -> ProcessCardContents | None:
         older = self.messages.keyed(self.key(worker), actor)
         if older and older[0].data.get("tone") == standing.tone and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
         data = {"kind": "card", "icon": "agents", "tone": standing.tone, "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
-        return ProcessMark(self.name, worker.environment_id, self.key(worker), f"Worker {worker.id}, {worker.name}: {standing.text}", data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
+        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), f"Worker {worker.id}, {worker.name}: {standing.text}", data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
 
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)

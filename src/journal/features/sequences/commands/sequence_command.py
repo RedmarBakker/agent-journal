@@ -71,7 +71,7 @@ class SequenceCommand(Command):
         if not args.sure:
             raise Rejection(f"abandoning sequence {run.sequence_id}, {run.title}, leaves undone: {skipped}. again with --sure to go through")
         run, line = self.running.abandon(caller.agent_session, self.scope.id)
-        self.announcer.announce(SequenceAbandoned(environment_id=self.scope.id, session=caller.agent_session, sequence_id=run.sequence_id, title=run.title, step=run.step, why=args.why, skipped=skipped))
+        self.announcer.announce(SequenceAbandoned(environment_id=self.scope.id, session=caller.agent_session, sequence_id=run.sequence_id, title=run.title, step=run.step, explanation=args.why, skipped=skipped))
         print(line)
         return 0
 

@@ -5,7 +5,7 @@ from journal.support.card_kind import CardKind
 
 
 @dataclass(frozen=True)
-class ProcessMark:
+class ProcessCardContents:
     """What a process card is to show now: its process, its key, its label and data, whom it is written as, and whether its process still runs; written by a listener through ProcessCards."""
 
     process: str

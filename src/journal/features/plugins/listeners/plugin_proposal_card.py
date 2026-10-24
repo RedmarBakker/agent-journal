@@ -11,5 +11,5 @@ class PluginProposalCard(Listener[PluginProposed]):
         self.cards = cards
 
     def handle(self, event: PluginProposed) -> None:
-        label = f"The agent proposes the plugin {event.plugin}" + (f": {event.why}" if event.why else "")
+        label = f"The agent proposes the plugin {event.plugin}" + (f": {event.explanation}" if event.explanation else "")
         self.cards.show(event.environment_id, "", label, "plug", detail=event.detail, command=event.command, actor=event.actor, shows=CardKind.PLUGINS)

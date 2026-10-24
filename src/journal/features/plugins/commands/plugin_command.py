@@ -61,7 +61,7 @@ class PluginCommand(Command):
 
     def propose(self, args: Namespace, caller: Caller) -> int:
         preview = self.installing.preview(args.source)
-        self.announcer.announce(PluginProposed(environment_id=self.scope.id, plugin=preview.name, why=args.why, detail=self.description(preview), command=f"journal plugin install {args.source} --yes", actor=caller.actor))
+        self.announcer.announce(PluginProposed(environment_id=self.scope.id, plugin=preview.name, explanation=args.why, detail=self.description(preview), command=f"journal plugin install {args.source} --yes", actor=caller.actor))
         print(f"proposed {preview.name}: the user installs it if they want it")
         return 0
 

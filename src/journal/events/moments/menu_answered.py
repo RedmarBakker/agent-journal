@@ -10,4 +10,4 @@ class MenuAnswered(Event):
     environment_id: int
     session: str
     question: str
-    done: str
+    menu_choice: str

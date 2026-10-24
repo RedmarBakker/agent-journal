@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from journal.events.announcer import Announcer
-from journal.events.moments.plugin_answering import PluginAnswering
+from journal.events.moments.plugin_recovered import PluginRecovered
 from journal.events.moments.plugin_failing import PluginFailing
 from journal.support.actor import Actor
 from journal.models.entry import Entry
@@ -25,7 +25,7 @@ class PluginFaults:
         failing = row.fault_streak + 1 >= FAILURE_COUNT and row.failed_at is None
         self.plugins.save(row.with_(last_fault=text, fault_streak=row.fault_streak + 1, failed_at=datetime.now(timezone.utc) if failing else row.failed_at), Actor.system())
         if failing:
-            self.announcer.announce(PluginFailing(environment_id=environment_id, plugin=plugin.name, fault=text))
+            self.announcer.announce(PluginFailing(environment_id=environment_id, plugin=plugin.name, fault=text, failures=FAILURE_COUNT))
 
     def answered(self, plugin: Plugin, environment_id: int) -> None:
         row = self.plugins.lookup(plugin.name)
@@ -33,4 +33,4 @@ class PluginFaults:
             return
         self.plugins.save(row.with_(fault_streak=0, failed_at=None), Actor.system())
         if row.failed_at is not None:
-            self.announcer.announce(PluginAnswering(environment_id=environment_id, plugin=plugin.name))
+            self.announcer.announce(PluginRecovered(environment_id=environment_id, plugin=plugin.name))

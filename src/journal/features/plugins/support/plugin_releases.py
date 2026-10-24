@@ -1,5 +1,5 @@
 from journal.events.announcer import Announcer
-from journal.events.moments.plugin_not_upgraded import PluginNotUpgraded
+from journal.events.moments.plugin_upgrade_failed import PluginUpgradeFailed
 from journal.events.moments.plugin_upgraded import PluginUpgraded
 from journal.features.plugins.support.plugin_installing import PluginInstalling
 from journal.support.release import Release
@@ -29,7 +29,7 @@ class PluginReleases:
             environment = self.environments.all()[0]
             self.installing.upgrade(plugin.name, tag, environment.name, actor)
         except (OSError, Rejection) as failed:
-            self.announcer.announce(PluginNotUpgraded(environment_id=self.environments.all()[0].row_id, plugin=plugin.name, version=version, reason=str(failed)))
+            self.announcer.announce(PluginUpgradeFailed(environment_id=self.environments.all()[0].row_id, plugin=plugin.name, version=version, reason=str(failed)))
             return
         self.announcer.announce(PluginUpgraded(environment_id=environment.row_id, plugin=plugin.name, previous=plugin.release, tag=tag, version=version))
 

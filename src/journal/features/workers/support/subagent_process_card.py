@@ -1,5 +1,5 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_mark import ProcessMark
+from journal.chat.process_card_contents import ProcessCardContents
 from journal.features.workers.support.subagent_card import SubagentCard
 from journal.features.workers.support.subagent_card_state import SubagentCardState
 from journal.features.workers.support.subagent_entries import SubagentEntries
@@ -23,12 +23,12 @@ class SubagentProcessCard(ProcessCard):
     def key(row: Subagent) -> str:
         return f"subagent:{row.dispatch}"
 
-    def card_contents(self, environment_id: int, session: str, agent: int, row: Subagent, actor: Actor) -> ProcessMark | None:
+    def card_contents(self, environment_id: int, session: str, agent: int, row: Subagent, actor: Actor) -> ProcessCardContents | None:
         data = {**SubagentCard.built(session, agent, row, SubagentState.ACTIVE, "").as_data(), "dispatch": row.dispatch, "active": row.is_running()}
         older = self.messages.keyed(self.key(row), actor)
         if older and all(older[0].data.get(k) == v for k, v in data.items()):
             return None
-        return ProcessMark(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.task}", data, actor, CardKind.SUBAGENTS, row.is_running(), row.task)
+        return ProcessCardContents(self.name, environment_id, self.key(row), f"Subagent {row.agent_type}: {row.task}", data, actor, CardKind.SUBAGENTS, row.is_running(), row.task)
 
     def refresh(self, message: Message) -> SubagentCardState:
         row = self.subagents.dispatched(message.data["session"], message.data["dispatch"])

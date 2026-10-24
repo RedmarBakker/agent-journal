@@ -1,7 +1,7 @@
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.edit_dropped import EditDropped
-from journal.events.moments.edit_kept import EditKept
+from journal.events.moments.edit_overridden import EditOverridden
 from journal.events.moments.sync_moment import SyncMoment
 from journal.events.moments.team_chat_claimed import TeamChatClaimed
 from journal.events.moments.team_chat_files_diverged import TeamChatFilesDiverged
@@ -23,7 +23,7 @@ class SyncMomentCards(Listener[SyncMoment]):
         if isinstance(event, TeamChatFilesDiverged):
             label = f"The Team chat's files on {event.device} have changes of their own, so they stay at {event.local[:8]} and not at the holder's {event.tip[:8]}"
             self.cards.show(event.environment_id, None, label, "warn", key=f"team-chat-files:{event.device}", actor=Actor.system(), shows=CardKind.WORKTREES)
-        if isinstance(event, EditKept):
-            self.cards.show(event.environment_id, None, f"{event.writer}'s edit of {event.noun} {event.row_id}'s {event.field} was kept over yours", "warn", detail=f"kept: {event.kept[:DETAIL_CHARACTERS]}", row=event.ref, shows=CardKind.CONFLICTS)
+        if isinstance(event, EditOverridden):
+            self.cards.show(event.environment_id, None, f"{event.writer}'s edit of {event.noun} {event.row_id}'s {event.field} was kept over yours", "warn", detail=f"kept: {event.field_value[:DETAIL_CHARACTERS]}", row=event.ref, shows=CardKind.CONFLICTS)
         if isinstance(event, EditDropped):
             self.cards.show(event.environment_id, None, f"{event.noun.capitalize()} {event.row_id} was deleted by a colleague, so your edit of it was dropped", "warn", shows=CardKind.CONFLICTS)

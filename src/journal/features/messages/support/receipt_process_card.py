@@ -1,5 +1,5 @@
 from journal.chat.process_card import ProcessCard
-from journal.chat.process_mark import ProcessMark
+from journal.chat.process_card_contents import ProcessCardContents
 from journal.features.messages.support.mentions import Mentions
 from journal.models.author import Author
 from journal.models.message import Message
@@ -17,7 +17,7 @@ class ReceiptProcessCard(ProcessCard):
     def __init__(self, messages: Messages, links: Links) -> None:
         self.messages, self.links = messages, links
 
-    def card_contents(self, message: Message) -> ProcessMark | None:
+    def card_contents(self, message: Message) -> ProcessCardContents | None:
         if message.author != Author.USER:
             return None
         reply_refs = {ref for reply in self.messages.replies(message) for ref in Mentions.found(reply.text)}
@@ -28,7 +28,7 @@ class ReceiptProcessCard(ProcessCard):
                 self.messages.delete(card, Actor.system())
             return None
         receipt_text = ", ".join(f"{ref.type.rstrip('s')} {ref.id}" for ref in receipt_refs)
-        return ProcessMark(self.name, message.environment_id, key, f"Filed {receipt_text} from your message", {"kind": "card", "icon": "inbox", "row": f"messages:{message.id}"}, Actor.system(), CardKind.FILED, False)
+        return ProcessCardContents(self.name, message.environment_id, key, f"Filed {receipt_text} from your message", {"kind": "card", "icon": "inbox", "row": f"messages:{message.id}"}, Actor.system(), CardKind.FILED, False)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}
