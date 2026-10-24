@@ -430,4 +430,11 @@ function zoneAt(box, x, y, filled) {
     return gap < EDGE_BAND ? side : "center";
 }
 
+export const WORKER_VIEWS = ["points", "transcript", "todos"];
+
+// the worker inspector's three columns, points, transcript and to-dos, a quarter of the room more for the points than the transcript
+export const WORKER_SHAPE = split("row", 0.44, shaped(["points"]), split("row", 0.62, shaped(["transcript"]), shaped(["todos"])));
+
+export const freshWorker = () => arranged({tree: leaf(1), panes: {1: {tabs: [], active: ""}}, next: 2}, WORKER_SHAPE).layout;
+
 export const freshInspector = () => arranged({tree: leaf(1), panes: {1: {tabs: [], active: ""}}, next: 2}, INSPECTOR_SHAPE).layout;

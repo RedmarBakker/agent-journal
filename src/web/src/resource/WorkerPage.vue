@@ -1,6 +1,7 @@
 <script setup>
 import {computed, ref, watch} from "vue";
 import Btn from "../kit/Btn.vue";
+import PaneGrid from "../kit/PaneGrid.vue";
 import Segmented from "../kit/Segmented.vue";
 import SwitchCase from "../kit/SwitchCase.vue";
 import TextInput from "../kit/TextInput.vue";
@@ -12,11 +13,12 @@ import TranscriptTurns from "../agents/TranscriptTurns.vue";
 import WorkerPoints from "../agents/WorkerPoints.vue";
 import WorkerTodos from "../agents/WorkerTodos.vue";
 import {useInspectorActions} from "../composables/inspectorActions.js";
+import {useWorkerLayout} from "../composables/paneLayout.js";
 import {useScope} from "../composables/scope.js";
 import {useTranscript} from "../composables/transcript.js";
 import {checkedCount, doneCount} from "../domain/workerShift.js";
 import {stateAt, WORKER_WORDS, workerActions, workerEnding, workerIcon, workerLine, workerMoves, workerName, workerReport, workerReusesLine, workerState} from "../domain/workers.js";
-import {ago} from "../format/time.js";
+import {ago, clock} from "../format/time.js";
 import {narrow} from "../platform/view.js";
 import {peek} from "../route.js";
 import {store} from "../state/store.js";
@@ -39,20 +41,15 @@ const state = computed(() => ({
     word: finished.value ? workerEnding(props.resource) : WORKER_WORDS[workerState(props.resource)],
     since: `since ${ago(stateAt(props.resource)) || "just now"}`,
 }));
+const worktree = (row) => (row.worktree ? (row.branch ? `Own worktree, branch ${row.branch}` : "Own worktree") : "The project's checkout");
+const pool = (row) => (row.pool_request ? (row.device ? `Runs on machine ${row.device}, from request ${row.pool_request}` : `Waiting for a machine to take request ${row.pool_request}`) : "");
 const facts = computed(() => {
     const row = props.resource;
-    return [
-        {label: "Model", value: workerLine(row) || "Its profile's model"},
-        {label: "Worktree", value: row.worktree ? "Its own" : "The project's checkout"},
-        {label: "Team's pool", value: row.pool_request ? (row.device ? `Runs on machine ${row.device}, from request ${row.pool_request}` : `Waiting for a machine to take request ${row.pool_request}`) : ""},
-        {label: "Branch", value: row.branch, mono: true},
-        {label: "Reuses", value: workerReusesLine(row)},
-        {label: "Why it was retired", value: row.retire_reason},
-    ].filter((fact) => fact.value);
+    return [workerLine(row) || "Its profile's model", worktree(row), pool(row), workerReusesLine(row), row.retire_reason ? `Retired: ${row.retire_reason}` : ""].filter(Boolean);
 });
 const parts = computed(() => [
-    {title: "Brief", text: props.resource.brief, none: "No brief."},
-    {title: "Report", text: workerReport(props.resource), none: "Not written yet. The worker writes it when it clocks out."},
+    {key: "brief", title: "Brief", text: props.resource.brief, sub: `sent at ${clock(props.resource.created_at)}`, none: "No brief"},
+    {key: "report", title: "Report", text: workerReport(props.resource), sub: "written when it clocked out", none: "Report not written yet"},
 ]);
 
 const checked = computed(() => checkedCount(task.value));
@@ -83,11 +80,9 @@ const turnsView = ref(null);
 const scroller = computed(() => turnsView.value && turnsView.value.scroller);
 const transcript = useTranscript(() => "worker", "", scroller, transcripts);
 const speakers = computed(() => ({agent: name.value, human: "The agent"}));
-const shown = ref("all");
-const SHOWN = [
-    {key: "all", label: "All"},
-    {key: "messages", label: "Messages"},
-];
+const {measured, panes, resize} = useWorkerLayout();
+const TITLES = {points: "Points", transcript: "Transcript", todos: "To-dos"};
+const counts = computed(() => ({points: `${checked.value} of ${task.value.points.length} checked`, todos: `${done.value} of ${task.value.todos.length} done`, transcript: ""}));
 
 const tab = ref("points");
 const tabs = computed(() => [
@@ -109,11 +104,9 @@ async function send() {
 <template>
     <div :class="['worker-page', {narrow}]">
         <InspectorTop @close="emit('close')">Workers › Worker {{ resource.id }}</InspectorTop>
-        <InspectorSummary :name="name" :state="state" :moves="workerMoves(resource)" :facts="facts" :parts="parts">
+        <InspectorSummary :name="name" :state="state" :moves="workerMoves(resource)" :facts="facts" :parts="parts" :env="env">
             <template #stamp>
-                Worker {{ resource.id }}
                 <template v-if="hasTask">
-                    ·
                     <a href="#" class="task-link" @click.prevent="peek('tasks', task.task_id)">
                         Task {{ task.task_id }}<template v-if="held">: {{ held.title }}</template>
                     </a>
@@ -145,26 +138,44 @@ async function send() {
                 <Segmented :options="tabs" :value="tab" @pick="tab = $event" />
             </div>
         </template>
-        <div :class="['cols', {tasked: hasTask && !narrow}]">
-            <template v-if="hasTask && (!narrow || tab === 'points')">
-                <InspectorColumn :title="narrow ? '' : 'Points'" :count="`${checked} of ${task.points.length} checked`">
-                    <WorkerPoints :task="task" :worker="resource.id" :api="api" :checking="resource.state === 'clocked out'" />
-                </InspectorColumn>
-            </template>
-            <template v-if="!hasTask || !narrow || tab === 'transcript'">
-                <InspectorColumn :title="narrow ? '' : 'Transcript'">
-                    <template #end>
-                        <Segmented :options="SHOWN" :value="shown" @pick="shown = $event" />
-                    </template>
-                    <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :messages="shown === 'messages'" :env="env" />
-                </InspectorColumn>
-            </template>
-            <template v-if="hasTask && (!narrow || tab === 'todos')">
-                <InspectorColumn :title="narrow ? '' : 'To-dos'" :count="`${done} of ${task.todos.length} done`">
-                    <WorkerTodos :todos="task.todos" />
-                </InspectorColumn>
-            </template>
-        </div>
+        <template v-if="hasTask && !narrow">
+            <PaneGrid class="cols" :panes="panes" :splits="measured.splits" @resize="resize">
+                <template #pane="p">
+                    <InspectorColumn :title="TITLES[p.pane.active]" :count="counts[p.pane.active]">
+                        <SwitchCase :value="p.pane.active">
+                            <template #points>
+                                <WorkerPoints :task="task" :worker="resource.id" :api="api" :checking="resource.state === 'clocked out'" />
+                            </template>
+                            <template #transcript>
+                                <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
+                            </template>
+                            <template #todos>
+                                <WorkerTodos :todos="task.todos" />
+                            </template>
+                        </SwitchCase>
+                    </InspectorColumn>
+                </template>
+            </PaneGrid>
+        </template>
+        <template v-else>
+            <div class="cols">
+                <template v-if="hasTask && tab === 'points'">
+                    <InspectorColumn title="" :count="counts.points">
+                        <WorkerPoints :task="task" :worker="resource.id" :api="api" :checking="resource.state === 'clocked out'" />
+                    </InspectorColumn>
+                </template>
+                <template v-if="!hasTask || tab === 'transcript'">
+                    <InspectorColumn :title="narrow ? '' : 'Transcript'">
+                        <TranscriptTurns ref="turnsView" :transcript="transcript" :speakers="speakers" :env="env" />
+                    </InspectorColumn>
+                </template>
+                <template v-if="hasTask && tab === 'todos'">
+                    <InspectorColumn title="" :count="counts.todos">
+                        <WorkerTodos :todos="task.todos" />
+                    </InspectorColumn>
+                </template>
+            </div>
+        </template>
         <AgentInspectorBands :confirm="question && question.confirm" :refusal="refusal" @cancel="asking = ''" @confirmed="(answer) => perform(question.key, answer)" />
         <template v-if="actions.length || writable">
             <div :class="['bottom', {tasked: hasTask && !narrow}]">
@@ -246,9 +257,13 @@ async function send() {
     flex: 1;
     grid-template-columns: minmax(0, 1fr);
     min-height: 0;
+    border-top: 1px solid var(--border);
 }
 
-.cols.tasked,
+.cols :deep(.pane) {
+    background: var(--raised);
+}
+
 .bottom.tasked {
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 260px;
 }

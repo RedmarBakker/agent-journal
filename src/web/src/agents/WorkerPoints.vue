@@ -2,6 +2,7 @@
 import {computed, ref} from "vue";
 import Btn from "../kit/Btn.vue";
 import ProofIcon from "./ProofIcon.vue";
+import {useOpenSet} from "../composables/openSet.js";
 import {isCheckable, pointRows, PROOF_WORDS, proofState} from "../domain/workerShift.js";
 
 const props = defineProps({task: {type: Object, required: true}, worker: {type: Number, required: true}, api: {type: Object, required: true}, checking: Boolean});
@@ -21,6 +22,11 @@ async function act(name, body) {
     }
 }
 
+// the points whose proof is shown: the ones opened, and on their own the ones a check waits on
+const {opened, flip} = useOpenSet();
+const waits = (row) => props.checking && isCheckable(row.proof);
+const shown = (row) => opened.value.has(row.point) || waits(row);
+
 const check = (point) => act("check", {point});
 const sendBack = (point) => act("short_check", {point, shortfall: shortfall.value});
 </script>
@@ -28,21 +34,21 @@ const sendBack = (point) => act("short_check", {point, shortfall: shortfall.valu
 <template>
     <div class="points">
         <template v-for="row in points" :key="row.point">
-            <div class="point">
+            <div :class="['point', {open: shown(row)}]" @click="$event.target.closest('button, form') || flip(row.point)">
                 <ProofIcon :state="proofState(row.proof)" />
                 <span class="num">{{ row.point }}</span>
                 <span class="wording">{{ row.wording }}</span>
                 <span class="word">{{ PROOF_WORDS[proofState(row.proof)] }}</span>
-                <template v-if="row.proof">
+                <template v-if="row.proof && shown(row)">
                     <div class="under">Proof: {{ row.proof.text }}</div>
-                    <template v-if="row.proof.shortfall">
-                        <div class="reason">
-                            <span class="label">Reason</span>
-                            <p class="text">{{ row.proof.shortfall }}</p>
-                        </div>
-                    </template>
                 </template>
-                <template v-if="checking && isCheckable(row.proof)">
+                <template v-if="row.proof && row.proof.shortfall">
+                    <div class="reason">
+                        <span class="label">Reason</span>
+                        <p class="text">{{ row.proof.shortfall }}</p>
+                    </div>
+                </template>
+                <template v-if="waits(row)">
                     <div class="acts">
                         <Btn small @click="check(row.point)">Check</Btn>
                         <Btn small @click="writing = row.point">Send back</Btn>
@@ -75,6 +81,8 @@ const sendBack = (point) => act("short_check", {point, shortfall: shortfall.valu
     column-gap: 10px;
     align-items: start;
     padding: 9px 16px;
+    border-radius: 8px;
+    cursor: pointer;
     transition: background-color 0.12s ease;
 }
 
@@ -96,7 +104,7 @@ const sendBack = (point) => act("short_check", {point, shortfall: shortfall.valu
 
 .word {
     padding-top: 1px;
-    color: var(--text-3);
+    color: var(--text-4);
     font-size: 12px;
     white-space: nowrap;
 }

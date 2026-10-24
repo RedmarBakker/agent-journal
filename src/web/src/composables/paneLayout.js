@@ -1,6 +1,6 @@
 import {saveViewerSetting, settingsLoaded, viewerSetting} from "./settings.js";
 import {computed, effectScope, ref, watch} from "vue";
-import {INSPECTOR_VIEWS, VIEWS, fresh, freshInspector, leaves, measure, opened, resized, valid} from "../domain/panes.js";
+import {INSPECTOR_VIEWS, VIEWS, WORKER_VIEWS, fresh, freshInspector, freshWorker, leaves, measure, opened, resized, valid} from "../domain/panes.js";
 import {route} from "../route.js";
 
 const SAVE_AFTER = 500;
@@ -13,6 +13,7 @@ const INSPECTOR = {
     whole: true,
     fresh: freshInspector,
 };
+const WORKER = {key: "worker_layout", tab: () => "journal.worker-layout", views: WORKER_VIEWS, whole: true, fresh: freshWorker};
 
 function tabLayout(kind) {
     try {
@@ -114,3 +115,5 @@ const madeFor = (kind) => (made[kind.key] = made[kind.key] || effectScope(true).
 export const usePaneLayout = () => madeFor(HOME);
 
 export const useInspectorLayout = () => madeFor(INSPECTOR);
+
+export const useWorkerLayout = () => madeFor(WORKER);

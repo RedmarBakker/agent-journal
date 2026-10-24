@@ -5,6 +5,10 @@ import {saidTurns} from "../src/domain/transcript.js";
 import {workerActions, workerMoves, workerReusesLine, workerState} from "../src/domain/workers.js";
 import {checkedCount, doneCount, pointRows} from "../src/domain/workerShift.js";
 
+globalThis.ResizeObserver = globalThis.ResizeObserver || class {
+    observe() {}
+    disconnect() {}
+};
 window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
 
 const {default: WorkerPoints} = await import("../src/agents/WorkerPoints.vue");
@@ -84,9 +88,9 @@ test("a worker sent back once shows every move of its current job with its time,
 });
 
 test("a worker's reuses count the new jobs it took, never a point sent back, and name the task it worked on before", () => {
-    expect([workerReusesLine({reuse_count: 1, earlier_task: 1402}), workerReusesLine({reuse_count: 2}), workerReusesLine({reuse_count: 0})]).toEqual(["1, on task 1402", "2", ""]);
+    expect([workerReusesLine({reuse_count: 1, earlier_task: 1402}), workerReusesLine({reuse_count: 2}), workerReusesLine({reuse_count: 0})]).toEqual(["Reused once, on task 1402", "Reused twice", ""]);
     const resumed = {reuse_count: 2, earlier_task: 1402, moves: {steps: [["dispatched", 1], ["merged", 2], ["sent a job", 3], ["sent back", 4]]}};
-    expect(workerReusesLine(resumed)).toBe("1, on task 1402");
+    expect(workerReusesLine(resumed)).toBe("Reused once, on task 1402");
 });
 
 test("each point is a row with its proof, a sent-back point shows its reason, and a clocked-out worker's proved point offers check and send back", async () => {
@@ -107,9 +111,12 @@ test("a worker still at work has no check to offer, and its tasks mark what is d
     expect(host.querySelectorAll("button").length).toBe(0);
     app.unmount();
     const list = mount(WorkerTodos, {todos: task.todos});
+    expect([...list.querySelectorAll(".todo")].map((item) => [item.textContent.trim(), item.classList.contains("done")])).toEqual([["run it", false]]);
+    list.querySelector(".more").click();
+    await flush();
     expect([...list.querySelectorAll(".todo")].map((item) => [item.textContent.trim(), item.classList.contains("done")])).toEqual([
-        ["write the grammar", true],
         ["run it", false],
+        ["write the grammar", true],
     ]);
 });
 
@@ -142,18 +149,59 @@ test("the worker page shows its points, its readable transcript and its to-dos s
     expect([...host.querySelectorAll(".head")].map((head) => head.firstChild.textContent.trim())).toEqual(["Points", "Transcript", "To-dos"]);
     expect(host.textContent).toContain("1 of 4 checked");
     expect(host.textContent).toContain("1 of 2 done");
-    expect(host.querySelector(".tx").textContent).toContain("pytest -k parser");
-    expect(host.textContent).toContain("Not written yet.");
+    expect(host.querySelector(".tx").textContent).toContain("Show 3 steps");
+    expect(host.querySelector(".quiet").textContent).toContain("Report not written yet");
     app.unmount();
-    const branched = mount(WorkerPage, {resource: {...worker("clocked in"), branch: "worker/3-Lady-Lovelace", reuse_count: 1, earlier_task: 1402}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    const branched = mount(WorkerPage, {resource: {...worker("clocked in"), worktree: true, branch: "worker/3-Lady-Lovelace", reuse_count: 1, earlier_task: 1402}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await flush();
-    const facts = Object.fromEntries([...branched.querySelectorAll(".fact")].map((fact) => [fact.querySelector(".label").textContent, fact.querySelector(".value").textContent.trim()]));
-    expect([facts.Branch, facts.Reuses]).toEqual(["worker/3-Lady-Lovelace", "1, on task 1402"]);
+    const facts = [...branched.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim());
+    expect(facts).toContain("Own worktree, branch worker/3-Lady-Lovelace");
+    expect(facts).toContain("Reused once, on task 1402");
     app.unmount();
     const pooled = mount(WorkerPage, {resource: {...worker("clocked in"), pool_request: 7, device: "2"}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await flush();
-    const pool = [...pooled.querySelectorAll(".fact")].find((fact) => fact.querySelector(".label").textContent === "Team's pool");
-    expect(pool.querySelector(".value").textContent.trim()).toBe("Runs on machine 2, from request 7");
+    expect(pooled.querySelector(".quiet").textContent).toContain("Runs on machine 2, from request 7");
+});
+
+test("the facts are one plain line ending in Brief and Report, each opening its panel that Esc closes, and History lists the moves", async () => {
+    const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: turns.length, first: 1, turns}))};
+    const host = mount(WorkerPage, {resource: {...worker("clocked out"), report: "The parser is written."}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    await flush();
+    const words = [...host.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim());
+    expect(words.slice(-2)).toEqual(["Brief", "Report"]);
+    host.querySelector('[data-open="brief"]').click();
+    await flush();
+    expect(document.body.querySelector(".inspector-pop").textContent).toContain("Write the parser.");
+    window.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape"}));
+    await flush();
+    expect(document.body.querySelector(".inspector-pop")).toBe(null);
+    host.querySelector('[data-open="history"]').click();
+    await flush();
+    expect([...document.body.querySelectorAll(".inspector-pop .move")].map((move) => move.textContent.trim()).some((line) => line.includes("Dispatched"))).toBe(true);
+});
+
+test("each message folds its steps under a Show N steps link, and the to-do list shows what is left with the done behind a link", async () => {
+    const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: turns.length, first: 1, turns}))};
+    const host = mount(WorkerPage, {resource: worker("clocked in")}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await flush();
+    const fold = [...host.querySelectorAll(".tx .fold")].find((button) => button.textContent.includes("Show 3 steps"));
+    expect(host.querySelector(".tx .steps")).toBe(null);
+    fold.click();
+    await flush();
+    expect(host.querySelector(".tx .steps").textContent).toContain("pytest -k parser");
+    const todos = [...host.querySelectorAll(".todo")].map((todo) => todo.textContent.trim());
+    expect(todos).toEqual(["run it"]);
+    expect(host.textContent).toContain("Show the 1 done");
+});
+
+test("the worker inspector's columns are a pane grid whose dividers resize them, the sizes kept for the viewer", async () => {
+    const {useWorkerLayout} = await import("../src/composables/paneLayout.js");
+    const layout = useWorkerLayout();
+    expect(layout.measured.value.splits.length).toBe(2);
+    layout.resize("", 0.3);
+    expect(layout.measured.value.splits[0].r).toBe(0.3);
+    expect(JSON.parse(sessionStorage.getItem("journal.worker-layout")).tree.r).toBe(0.3);
 });
 
 test("the worker page names the task it works on and the tasks queued for it, in order, so what was delegated shows", async () => {

@@ -2,6 +2,7 @@
 import {computed, ref} from "vue";
 import Icon from "../kit/Icon.vue";
 import Skeleton from "../kit/Skeleton.vue";
+import {useOpenSet} from "../composables/openSet.js";
 import {saidTurns} from "../domain/transcript.js";
 import {clock} from "../format/time.js";
 import {render} from "../text/index.js";
@@ -11,14 +12,13 @@ import {route} from "../route.js";
 const props = defineProps({
     transcript: {type: Object, required: true},
     speakers: {type: Object, required: true},
-    messages: Boolean,
     env: {type: String, default: ""},
 });
 const {turns, folded, bodies, opening, loading, atStart, toggle, earlier, scrolled} = props.transcript;
-const said = computed(() => {
-    const all = saidTurns(turns.value, props.speakers);
-    return props.messages ? all.filter((turn) => turn.text) : all;
-});
+const said = computed(() => saidTurns(turns.value, props.speakers));
+// the turns whose steps are shown, each folded under its message until opened
+const {opened: unfolded, flip} = useOpenSet();
+const stepsWord = (n) => `Show ${n} ${n === 1 ? "step" : "steps"}`;
 const scroller = ref(null);
 defineExpose({scroller});
 </script>
@@ -43,7 +43,10 @@ defineExpose({scroller});
                 <template v-if="turn.text">
                     <div class="text" v-html="render(turn.text, {types: [], env: env || route.env})" />
                 </template>
-                <template v-if="!messages && turn.steps.length">
+                <template v-if="turn.steps.length">
+                    <button type="button" class="fold" @click="flip(turn.key)">{{ unfolded.has(turn.key) ? "Hide the steps" : stepsWord(turn.steps.length) }}</button>
+                </template>
+                <template v-if="unfolded.has(turn.key)">
                     <div class="steps">
                         <template v-for="(step, i) in turn.steps" :key="i">
                             <div class="step">
@@ -77,7 +80,7 @@ defineExpose({scroller});
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 14px;
+    gap: 18px;
     min-height: 0;
     overflow-y: auto;
     padding: 4px 16px 16px;
@@ -94,6 +97,20 @@ defineExpose({scroller});
     cursor: pointer;
 }
 
+.fold {
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-3);
+    font: 11.5px var(--font);
+    text-decoration: underline;
+    text-decoration-color: var(--border-3);
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.fold:hover,
 .earlier:hover {
     color: var(--text);
 }

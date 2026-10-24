@@ -61,7 +61,8 @@ export function workerMoves(row) {
 
 // How often a worker took a new job, a point sent back being the same job; a worker from before moves were kept counts each resume.
 const reuses = (row) => (row.moves && row.moves.steps.length ? row.moves.steps.filter(([move]) => move === "sent a job").length : row.reuse_count || 0);
-export const workerReusesLine = (row) => (reuses(row) ? `${reuses(row)}${row.earlier_task ? `, on task ${row.earlier_task}` : ""}` : "");
+const TIMES = {1: "once", 2: "twice"};
+export const workerReusesLine = (row) => (reuses(row) ? `Reused ${TIMES[reuses(row)] || `${reuses(row)} times`}${row.earlier_task ? `, on task ${row.earlier_task}` : ""}` : "");
 
 export const workerTag = (row) => ({state: workerState(row), word: WORKER_WORDS[workerState(row)]});
 

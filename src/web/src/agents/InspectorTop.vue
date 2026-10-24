@@ -18,8 +18,7 @@ const emit = defineEmits(["close"]);
     align-items: center;
     gap: 4px;
     height: 44px;
-    padding: 0 8px 0 20px;
-    border-bottom: 1px solid var(--border);
+    padding: 0 8px 0 24px;
     color: var(--text-3);
     font-size: 12px;
 }
