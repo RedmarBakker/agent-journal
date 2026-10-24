@@ -12054,3 +12054,10 @@ def test_a_bare_journal_update_applies_and_with_no_journal_running_installs_the_
     updating_with(app, Source("v4.0.0", "v4.99.0"), installer, auto=False)
     out = app.console().run(["update", "install"], AGENT).text
     assert installer.ran == ["v4.99.0"] and "to 4.99.0" in out and "installed here" in out, "the release is installed before the command returns, naming the version"
+
+
+def test_the_environment_overview_names_the_readers_kept_for_reading_outputs(app: App):
+    console = app.console()
+    console.run(["reader", "add", "failed-lines", "--pattern", "FAILED", "--about", "the failed tests of a pytest run"], AGENT)
+    text = console.run(["environment", "overview"], AGENT).text
+    assert "== journal reader list ==" in text and "failed-lines: the failed tests of a pytest run" in text, "the overview after a start or a compaction lists the readers"

@@ -65,6 +65,9 @@ class ReaderCommand(Command):
         return prior.commands if prior else ReaderCommands()
 
     def list(self, args: Namespace, caller: Caller) -> int:
-        for reader in self.readers.all():
+        readers = self.readers.all()
+        if not readers:
+            print("no reader is kept: journal reader add <name> keeps one")
+        for reader in readers:
             print(f"{reader.name}: {reader.subject}")
         return 0
