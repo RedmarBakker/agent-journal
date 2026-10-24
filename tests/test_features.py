@@ -12129,3 +12129,15 @@ def test_a_paused_task_can_be_blocked_so_an_agent_held_by_the_user_may_say_it_is
     blocked = console.run(["task", "block", "1", "waits on the user's go"], AGENT)
     assert blocked.code == 0, blocked.error
     assert stuck()[0] == 200, "the paused task blocked, every task waits, and the agent may say it is stuck"
+
+
+def test_a_worker_sent_a_job_while_its_branch_clashes_with_the_project_is_sent_it_with_the_conflict_to_resolve(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
+    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    sent = app.console().run(["worker", "send", "1", "finish the job"], AGENT)
+    assert sent.code == 0, sent.error
+    brief = worker_row(app).brief
+    assert "conflict in platform/app.php" in brief and "rebase your branch onto it" in brief and brief.endswith("finish the job"), brief

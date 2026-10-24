@@ -35,6 +35,7 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 
 
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
+REBASE_NOTE = "Your worktree could not be moved up to the project's branch: {clashing}. First rebase your branch onto it in your worktree, resolve each conflict keeping both sides' changes, and commit. Then: "
 JOB_MOVE = "sent a job"
 REDO_MOVE = "sent back"
 
@@ -178,6 +179,7 @@ class WorkerActions:
         if self.runner.is_ended(worker):
             worker = self.runner.recorded_end(worker, actor)
         self.resumable(worker)
+        brief = self.rebase_note(worker) + brief
         repositories = self.renewal(worker, brief)
         moved, time = worker.with_(dispatcher=worker.dispatcher if dispatcher is None else dispatcher, repositories=repositories), datetime.now(timezone.utc).timestamp()
         worker = self.workers.save(moved.resumed(brief, time, WorkerRevived if revival else WorkerReused, move), actor)
@@ -191,6 +193,10 @@ class WorkerActions:
             raise Rejection(f"worker {worker.id}, {worker.name}, left no session to resume: dispatch the job again")
         if self.providers.lookup(worker.provider).transcript(self.branch.place(worker), worker.resume) is None:
             raise Rejection(f"worker {worker.id}, {worker.name}: the conversation of its session {worker.resume} is gone, so it cannot go on with its memory; dispatch the job again")
+
+    def rebase_note(self, worker: Worker) -> str:
+        clashing = self.branch.rebased_onto_branch(worker)
+        return REBASE_NOTE.format(clashing=clashing) if clashing else ""
 
     def renewal(self, worker: Worker, brief: str) -> tuple[str, ...]:
         try:
