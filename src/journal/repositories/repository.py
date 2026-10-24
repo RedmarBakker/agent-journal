@@ -85,6 +85,7 @@ class Repository(Generic[M]):
         return rows
 
     def _purged(self, query: Query) -> None:
+        LoadTally.count_write(self.table)
         self.connection.execute(*query.delete())
         self.stored()
 
@@ -169,6 +170,7 @@ class Repository(Generic[M]):
         with self.connection.transaction():
             prior_row = self.find(row.row_id)
             stamped = prior_row.with_(**fields, updated_at=self._time(), updater=actor)
+            LoadTally.count_write(self.table)
             self.connection.execute(*self.query().filter(id=stamped.id).update(**{name: getattr(stamped, name) for name in (*fields, "updated_at", "updater")}))
             self.stored()
             self.bus.dispatch(Updated(model=stamped, actor=actor, previous=prior_row))
@@ -245,6 +247,7 @@ class Repository(Generic[M]):
         self.bus.dispatch(Creating(model=stamped, actor=actor))
         number = self._number(stamped)
         values = {"id": number, **self._column_values(stamped)} if number else self._column_values(stamped)
+        LoadTally.count_write(self.table)
         cursor = self.connection.execute(*self.query().insert(**values))
         created = stamped.with_(id=cursor.lastrowid)
         self.stored()
@@ -259,6 +262,7 @@ class Repository(Generic[M]):
         prior_row = self.find(row.row_id)
         Title.check_target(row, prior_row)
         self.bus.dispatch(Updating(model=stamped, actor=actor))
+        LoadTally.count_write(self.table)
         self.connection.execute(*self.query().filter(id=stamped.id).update(**self._column_values(stamped)))
         self.stored()
         self.bus.dispatch(Updated(model=stamped, actor=actor, previous=prior_row))
@@ -279,7 +283,7 @@ class Repository(Generic[M]):
         return {column.name: getattr(row, column.name) for column in self.columns if column.name != "id"}
 
     def _load(self, row) -> M:
-        LoadTally.counted(self.table)
+        LoadTally.counted(self.table, row)
         return self.model(**{column.name: value for column in self.columns if (value := column.parsed(row[column.name])) is not None})
 
     @staticmethod

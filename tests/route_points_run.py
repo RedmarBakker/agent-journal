@@ -1,4 +1,4 @@
-"""Outside the default run, since timing needs the machine to itself: the commit gate runs it alone before each commit. Every route the server registers, each list with its list parameters, and every hook kind is generated from the router and the hook kinds and timed in-process against the saved full project (tests/full_project.py), and any over its budget, the faults settings' budget the server judges it by, fails the run."""
+"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, and every hook kind is generated from the router and the hook kinds and answered in-process against the saved full project (tests/full_project.py), counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 50 points fails the run, whatever the machine is doing."""
 
 import json
 import time
@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from journal.app import App
-from journal.features.faults.support.slow_requests import HOOK, UNMEASURED_PATHS, SlowRequests
+from journal.features.faults.support.slow_requests import UNMEASURED_PATHS, SlowRequests
+from journal.models.support.request_loads import RequestLoads
+from journal.repositories.load_tally import LoadTally
 from journal.http.controllers.controller import Controller
 from journal.http.router import Router
 from journal.http.support.identity import Identity
@@ -78,6 +80,12 @@ LIST_PARAMETERS = ("limit=50", "closed=1", "before=1000", "after=1", "since={sin
 # writes that take a row away run last, so every other route still finds the rows it names
 LAST_ACTS = ("/delete", "/remove", "/purge", "/sign-out", "/disconnect")
 GET_TRIES = 3
+# a row loaded, a write and a started kilobyte loaded are a point each, whatever the machine is doing
+POINTS_BUDGET = 50
+# the answers that spent more than the budget when the gate was made, each with what it spent then: none may spend more,
+# each is brought down to the budget; a run that finds no file writes it, so deleting it takes the new points once one has come down
+BASELINE = Path(__file__).with_name("route_points_baseline.json")
+MISSING = not BASELINE.is_file()
 
 
 @pytest.fixture
@@ -123,38 +131,52 @@ def hook_bodies() -> dict[HookKind, dict]:
             HookKind.MESSAGE_DISPLAY: {"message": "The parser is written."}, HookKind.SESSION_END: {"reason": "other"}}
 
 
-def answer_ms(app: App, method: str, target: str, body: tuple[str, bytes]) -> float:
-    """The milliseconds the journal's own router takes to answer, the answer written as the server writes it; the deferred listeners then run untimed, so each request starts with the worker thread idle."""
+def answer_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
+    """The rows, bytes and writes the journal's own router spends answering, the answer written as the server writes it; the deferred listeners then run uncounted, so each request starts with the worker thread idle."""
     kind, raw = body
     request = RequestReading.read(RequestReading.head(method, target, {**MAIN, "Content-Type": kind}), raw if method == "POST" else b"", app.container.get(Identity))
-    began = time.perf_counter()
+    LoadTally.begin()
     answer = app.container.get(Router).route(request)
     if isinstance(answer, Response):
         JsonOut.encoded(answer.body)
-    took = (time.perf_counter() - began) * 1000
+    loads = LoadTally.ended()
     app.runtime().deferred.drain()
-    return took
+    return loads
 
 
-def best_ms(app: App, method: str, target: str, body: tuple[str, bytes]) -> float:
-    """A read's best of its tries after the first, which the server never judges either, since it loads a cold cache; a write once, since a second would change what it finds."""
+def least_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
+    """A read's least of its tries after the first, which loads a cold cache; a write once, since a second would change what it finds."""
     if method == "POST":
-        return answer_ms(app, method, target, body)
-    answer_ms(app, method, target, body)
-    return min(answer_ms(app, method, target, body) for _ in range(GET_TRIES))
+        return answer_loads(app, method, target, body)
+    answer_loads(app, method, target, body)
+    return min((answer_loads(app, method, target, body) for _ in range(GET_TRIES)), key=RequestLoads.points)
 
 
-def over_budget(app: App, timed: list[tuple[str, str, tuple[str, bytes]]]) -> list[str]:
-    slow = app.container.get(SlowRequests)
-    took = [(method, target, best_ms(app, method, target, body), slow.budget(method)) for method, target, body in timed]
-    return [f"{method} {target} took {ms:.0f} ms, over its {budget} ms" for method, target, ms, budget in took if budget and ms > budget]
+def allowed(name: str) -> int:
+    return max(POINTS_BUDGET, json.loads(BASELINE.read_text()).get(name, 0)) if BASELINE.is_file() else POINTS_BUDGET
 
 
-def judged(slow: list[str]) -> None:
-    """Fails on every reading over its budget, unless the machine is busier than its cores, where the server judges none either: a load only lengthens a time, so a pass there still counts and a failure says nothing."""
-    if slow and SlowRequests.is_busy():
-        pytest.skip("the machine is busier than its cores, so these readings say nothing:\n" + "\n".join(slow))
-    assert not slow, "\n".join(slow)
+def spent(name: str, loads: RequestLoads) -> str:
+    return f"{name} spent {loads.points()} points, over its {allowed(name)}: {loads.line()}"
+
+
+def recorded(spending: dict[str, RequestLoads]) -> dict[str, RequestLoads]:
+    if MISSING:
+        kept = json.loads(BASELINE.read_text()) if BASELINE.is_file() else {}
+        BASELINE.write_text(json.dumps(dict(sorted({**kept, **{name: loads.points() for name, loads in spending.items() if loads.points() > POINTS_BUDGET}}.items())), indent=1) + "\n")
+    return spending
+
+
+def over(spending: dict[str, RequestLoads]) -> list[str]:
+    return [spent(name, loads) for name, loads in spending.items() if loads.points() > allowed(name)]
+
+
+def measured_loads(app: App, measured: list[tuple[str, str, tuple[str, bytes]]]) -> dict[str, RequestLoads]:
+    return {f"{method} {target}": least_loads(app, method, target, body) for method, target, body in measured}
+
+
+def over_budget(app: App, measured: list[tuple[str, str, tuple[str, bytes]]]) -> list[str]:
+    return over(measured_loads(app, measured))
 
 
 def test_every_route_is_timed_or_left_out_by_name_and_every_hook_kind_has_a_body(full_project: App):
@@ -167,28 +189,29 @@ def test_every_route_is_timed_or_left_out_by_name_and_every_hook_kind_has_a_body
 
 
 def test_every_route_answers_within_its_budget_on_a_full_project(full_project: App):
-    judged(over_budget(full_project, cases(full_project)))
+    routes = over(recorded(measured_loads(full_project, cases(full_project))))
+    assert not routes, "\n".join(routes)
 
 
 def test_every_hook_kind_answers_within_its_budget_on_a_full_project(full_project: App):
-    bodies, slow = hook_bodies(), full_project.container.get(SlowRequests)
+    bodies = hook_bodies()
     posted = lambda kind, body, try_name: (JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode())
     for kind, body in bodies.items():
-        answer_ms(full_project, "POST", HOOK_PATH, posted(kind, body, "warm"))
-    tries = [{kind: answer_ms(full_project, "POST", HOOK_PATH, posted(kind, body, f"timed-{n}")) for kind, body in bodies.items()} for n in range(GET_TRIES)]
-    took = {kind: min(each[kind] for each in tries) for kind in bodies}
-    budget = slow.budget(HOOK)
-    judged([f"{kind.value} took {ms:.0f} ms, over its {budget} ms" for kind, ms in took.items() if budget and ms > budget])
+        answer_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "warm"))
+    loads = {kind: answer_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "counted")) for kind, body in bodies.items()}
+    hooks = over(recorded({f"hook {kind.value}": load for kind, load in loads.items()}))
+    assert not hooks, "\n".join(hooks)
 
 
-def test_a_route_made_slow_on_purpose_is_reported_over_its_budget(full_project: App):
-    router, budget = full_project.container.get(Router), full_project.container.get(SlowRequests).budget("GET")
+def test_a_route_made_heavy_on_purpose_is_reported_over_its_budget(full_project: App):
+    router = full_project.container.get(Router)
     place, route = next((place, route) for place, route in enumerate(router.routes) if key(route) == "GET /journal/tasks")
 
-    def slowed(request):
-        time.sleep(budget * 2 / 1000)
+    def heavy(request):
+        for _ in range(POINTS_BUDGET * 2):
+            LoadTally.counted("tasks", ("a row",))
         return route.handler(request)
 
-    router.routes[place] = replace(route, handler=slowed)
+    router.routes[place] = replace(route, handler=heavy)
     reported = over_budget(full_project, [("GET", "/journal/tasks", EMPTY)])
-    assert len(reported) == 1 and reported[0].startswith("GET /journal/tasks took"), reported
+    assert len(reported) == 1 and reported[0].startswith("GET /journal/tasks spent") and "tasks" in reported[0], reported

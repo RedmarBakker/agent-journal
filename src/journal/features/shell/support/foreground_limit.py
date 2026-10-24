@@ -15,5 +15,5 @@ class ForegroundLimit:
     def build(self, line: str, environment: str, session: str | None) -> int:
         if Chain.is_journal_line(line) or self.announced.is_announced(environment, session, tuple(Chain.self_parts(line))):
             return 0
-        waiting = bool(self.messages.unread())
+        waiting = self.messages.unread_count() > 0
         return self.settings.integer(ShellOptions.MESSAGE_FOREGROUND_LIMIT if waiting else FOREGROUND_OPTION)

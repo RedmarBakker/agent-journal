@@ -77,7 +77,7 @@ class JournalController:
             work = self.current.work(agent) if agent else None
             task = TaskBlock(work.task.row_id, work.task.title, work.wait_text) if work else None
             silent = activity is not None and activity["status"] in ("busy", "working") and timing.time() - activity["heard_at"].timestamp() > SILENCE_LIMIT_SECONDS
-            return EnvironmentData(environment, activity, task, len(self.questions.open()), len(self.messages.unread()), self.tasks.unfinished_count(), silent, self.owners.owner_name(environment.row_id))
+            return EnvironmentData(environment, activity, task, len(self.questions.open()), self.messages.unread_count(), self.tasks.unfinished_count(), silent, self.owners.owner_name(environment.row_id))
 
     def bar(self, request: Request) -> Response:
         agent = self.agents.current()

@@ -1,26 +1,42 @@
-from collections import Counter
 from contextvars import ContextVar
 
 from journal.models.support.request_loads import RequestLoads
+from journal.repositories.load_counters import LoadCounters
 
-TALLY: ContextVar[Counter | None] = ContextVar("loads", default=None)
+
+TALLY: ContextVar[LoadCounters | None] = ContextVar("loads", default=None)
 
 
 class LoadTally:
-    """The rows the current request or hook turns into models, by table, while load counting is on: the measurement starts and ends it, and the repository's one load funnel adds each row; outside a started tally a load costs one lookup and counts nothing."""
+    """The rows the current request or hook turns into models, with their bytes, and the writes it makes, by table, while load counting is on: the measurement starts and ends it, one started inside another counting into the outer one, and the repository's load and write funnels add to it; outside a started tally each costs one lookup and counts nothing."""
 
     @staticmethod
     def begin() -> None:
-        TALLY.set(Counter())
+        tally = TALLY.get()
+        if tally is None:
+            TALLY.set(LoadCounters())
+            return
+        tally.depth += 1
 
     @staticmethod
-    def counted(table: str) -> None:
+    def counted(table: str, row) -> None:
         tally = TALLY.get()
         if tally is not None:
-            tally[table] += 1
+            tally.rows[table] += 1
+            tally.sizes[table] += sum(len(value) if isinstance(value, (str, bytes)) else 8 for value in row)
+
+    @staticmethod
+    def count_write(table: str) -> None:
+        tally = TALLY.get()
+        if tally is not None:
+            tally.writes[table] += 1
 
     @staticmethod
     def ended() -> RequestLoads:
         tally = TALLY.get()
-        TALLY.set(None)
-        return RequestLoads.tallied(tally) if tally else RequestLoads()
+        if tally is None:
+            return RequestLoads()
+        tally.depth -= 1
+        if tally.depth == 0:
+            TALLY.set(None)
+        return RequestLoads.measured(tally.rows, tally.sizes, tally.writes)

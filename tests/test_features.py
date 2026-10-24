@@ -2201,7 +2201,7 @@ def test_journal_developer_prints_the_slowest_the_loads_the_models_and_the_avera
     run = lambda *argv: app.console().run(["developer", *argv], USER).text
     groups = run("slowest").splitlines()
     assert [line.split()[0] for line in groups[:3]] == ["90", "41", "7"] and groups[0].endswith("HOOK /hooks/Stop"), "each route a group, the slowest first, with its worst time"
-    assert run("loads").splitlines()[0].endswith("PreToolUse: 60 tasks, 12 links, 3 plans, 41 ms"), "a request with the records it read, by kind"
+    assert run("loads").splitlines()[0].endswith("PreToolUse: tasks 60 points: 60 rows, 0 bytes, 0 writes, links 12 points: 12 rows, 0 bytes, 0 writes, plans 3 points: 3 rows, 0 bytes, 0 writes, 41 ms"), "a request with the records it read, by kind"
     assert run("models").splitlines() == ["      60  tasks", "      12  links", "       3  plans"], "the totals per kind, the most first"
     averages = run("averages")
     assert "hooks" in averages and "2 measured" in averages and "hook Stop" in averages and "90 ms slowest" in averages

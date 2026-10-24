@@ -12,6 +12,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
+from journal.repositories.repository import PAGE_ROWS
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.environment_owners import EnvironmentOwners
 
@@ -68,7 +69,13 @@ class Messages(ScopedRepository[Message]):
         return [*self.search_rows(self.main_chat(), terms), *self.search_rows(self.query().filter_unlisted("agent_role", (AgentRole.MAIN,)), terms)]
 
     def unread(self) -> list[Message]:
-        return self.selected(self.main_chat().filter(author=Author.USER).filter_null("read_at").order("id"))
+        return self.selected(self.unread_query().order("id").limit(PAGE_ROWS))
+
+    def unread_count(self) -> int:
+        return self.counted(self.unread_query())
+
+    def unread_query(self) -> Query:
+        return self.main_chat().filter(author=Author.USER).filter_null("read_at")
 
     def last_user_message(self) -> Message | None:
         return next((m for m in self.selected(self.main_chat().filter(author=Author.USER).order_descending("id").limit(20)) if not m.is_terminal_line), None)
