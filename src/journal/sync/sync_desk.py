@@ -74,6 +74,9 @@ class SyncDesk:
         self.rejected.apply(answer.settlement.rejected)
         return self.answered(answer.delivery)
 
+    def pushed_rows(self, ids: list[int], answer: SyncAnswer) -> int:
+        return self.pushed(self.outgoing.sending_rows(ids), answer)
+
     def answered(self, answer: PullAnswer) -> int:
         count = self.applied(answer)
         self.host.handle(answer.requests)

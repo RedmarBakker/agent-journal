@@ -40,6 +40,9 @@ class OutgoingChanges(Repository[OutgoingChange]):
                 self.save(change.with_(is_sending=True), Actor.system())
         return self.all_matching(is_sending=True)[:limit]
 
+    def sending_rows(self, ids: list[int]) -> list[OutgoingChange]:
+        return [change for change in self.all_matching(is_sending=True) if change.id in set(ids)]
+
     def sent(self, changes: list[OutgoingChange]) -> None:
         for change in changes:
             self.delete(change, Actor.system())

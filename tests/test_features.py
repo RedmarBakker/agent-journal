@@ -12705,3 +12705,38 @@ def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_t
     assert app.container.get(IdBlocks).all() == [] and app.container.get(OutgoingChanges).waiting() == [], "the blocks and the queue only the old team could take are gone"
     assert "kept after leaving" in app.console().run(["task", "list"], USER).text, "every local row stays"
     assert app.console().run(["team", "leave"], USER).code != 0, "a journal in no team has nothing to leave"
+
+
+def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_local_doors(app: App):
+    from journal.events.bus import Bus
+    from journal.events.models.synced_creation import SyncedCreation
+    from journal.models.outgoing_change import CREATED, UPDATED, OutgoingChange
+    from journal.models.task import Task
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.tasks import Tasks
+    from journal.sync.team_account import TeamAccount
+    account = app.container.get(TeamAccount)
+    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
+    heard = []
+
+    class TaskCreations:
+        def handle(self, event: SyncedCreation) -> None:
+            if isinstance(event.model, Task):
+                heard.append(event.model)
+
+    app.container.get(Bus).listen(SyncedCreation, TaskCreations())
+    port = app.server().port
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    change = {"sequence": 5, "row_table": "tasks", "row": 7001, "action": CREATED, "actor": "user:2", "account_id": 2, "device_id": 2, "fields": {"environment_id": 1, "title": "made on another machine", "state": "open", "created_at": "2026-10-24T10:00:00+00:00", "creator": "user:2", "updated_at": "2026-10-24T10:00:00+00:00", "updater": "user:2"}, "changed_at": {"title": 1.0}}
+    assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(Tasks).find(7001).title == "made on another machine", "the answer's row is written in the server"
+    assert [task.id for task in heard] == [7001] and account.sequence() == 5, "its event is dispatched in the server and the sequence moves"
+    outgoing = app.container.get(OutgoingChanges)
+    outgoing.clear()
+    outgoing.queued(OutgoingChange(row_table="tasks", row=7001, action=UPDATED, fields={"state": "started"}, changed_at={"state": 2.0}, writer="user:1"), Actor.system())
+    batch = door("GET", "batch")
+    assert len(batch["ids"]) == 1 and batch["changes"][0]["fields"] == {"state": "started"} and batch["query"]["sequence"] == 5
+    door("POST", "pushed", {"ids": batch["ids"], "answer": {"settlement": {"sequences": [6], "rejected": [], "server_time": 2.0}, "delivery": {"changes": [], "head": 6, "server_time": 2.0}}})
+    assert outgoing.waiting() == [] and outgoing.sending_rows(batch["ids"]) == [] and account.sequence() == 6, "the pushed batch leaves the queue and the answer it carried is applied"
+    account.left(0)

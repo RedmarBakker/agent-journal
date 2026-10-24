@@ -16,6 +16,7 @@ from journal.http.controllers.messages import MessageController
 from journal.http.controllers.migration import MigrationController
 from journal.http.controllers.mode import ModeController
 from journal.http.controllers.sync import SyncController
+from journal.http.controllers.sync_desk import SyncDeskController
 from journal.http.controllers.team import TeamController
 from journal.http.controllers.people import PeopleController
 from journal.http.controllers.login_controller import LoginController
@@ -99,6 +100,11 @@ class Routes:
         router.get_outward(f"{API}/updates/fresh", get(UpdateController).is_recent)
         router.post(f"{API}/updates", get(UpdateController).update)
         router.get(f"{API}/sync", get(SyncController).show)
+        router.post(f"{API}/sync/answer", get(SyncDeskController).answer)
+        router.get(f"{API}/sync/batch", get(SyncDeskController).batch)
+        router.post(f"{API}/sync/pushed", get(SyncDeskController).pushed)
+        router.post(f"{API}/sync/pause", get(SyncDeskController).pause)
+        router.post(f"{API}/sync/resume", get(SyncDeskController).resume)
         router.get(f"{API}/team", get(TeamController).show)
         router.post(f"{API}/team/join", get(TeamController).join)
         router.post(f"{API}/team/check", get(TeamController).check)
