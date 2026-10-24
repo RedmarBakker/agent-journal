@@ -1,13 +1,12 @@
 <script setup>
 import {onPhone} from "../platform/phone.js";
-import {fieldBusy, reloadWhenFree} from "../platform/busyField.js";
 import {remember, remembered} from "../platform/storage.js";
 import {saveSettings} from "../actions/settings.js";
-import {computed, onMounted, ref, watch} from "vue";
+import {computed, onMounted, ref} from "vue";
 import {api} from "../api/client.js";
 import Btn from "../kit/Btn.vue";
 import {store} from "../state/store.js";
-import {useNow} from "../composables/now.js";
+import {RELOAD_AFTER, useStaleReload} from "../composables/staleReload.js";
 import {runUpdate} from "../composables/updates.js";
 import {clear, updating} from "../state/updating.js";
 
@@ -23,18 +22,7 @@ const stale = computed(() => {
     return !onPhone && !!serving && !!mine && !mine.endsWith(serving);
 });
 
-const RELOAD_AFTER = 60;
-const now = useNow();
-const remaining = ref(0);
-const waiting = computed(() => store.drafting > 0 || fieldBusy());
-const left = computed(() => Math.ceil(remaining.value));
-
-watch(stale, (is) => (remaining.value = is ? RELOAD_AFTER : 0), {immediate: true});
-watch(now, (at, before) => {
-    if (!remaining.value || waiting.value) return;
-    remaining.value = Math.max(0, remaining.value - (at - before));
-    if (!remaining.value) reload();
-});
+const {remaining: left, waiting, reload} = useStaleReload(stale, () => store.drafting > 0);
 
 // the phone shows no band, so it never asks
 onMounted(async () => {
@@ -43,10 +31,6 @@ onMounted(async () => {
         upstream.value = await api.releases();
     } catch (e) {}
 });
-
-function reload() {
-    reloadWhenFree(window);
-}
 
 function dismiss() {
     dismissed.value = upstream.value.latest;
@@ -88,10 +72,10 @@ async function retry() {
         <div class="band reloading">
             <span class="text">
                 A newer version of the viewer is running.
-                {{ waiting ? `The reload waits while you write a message (${left}s left).` : `This page reloads in ${left}s.` }}
+                {{ waiting ? "The reload waits while you write a message." : `This page reloads when you switch away from it, or after ${left}s untouched.` }}
             </span>
             <Btn kind="primary" small @click="reload">Reload now</Btn>
-            <span class="drain" :style="{animationDuration: `${RELOAD_AFTER}s`, animationPlayState: waiting ? 'paused' : 'running'}" />
+            <span class="drain" :style="{width: `${(100 * left) / RELOAD_AFTER}%`}" />
         </div>
     </template>
     <template v-if="updating.failure">
@@ -157,22 +141,10 @@ async function retry() {
 .drain {
     position: absolute;
     left: 0;
-    right: 0;
     bottom: -1px;
     height: 2px;
     background: var(--accent);
-    transform-origin: left center;
-    animation: drain linear forwards;
-}
-
-@keyframes drain {
-    from {
-        transform: scaleX(1);
-    }
-
-    to {
-        transform: scaleX(0);
-    }
+    transition: width 1s linear;
 }
 
 .text {
