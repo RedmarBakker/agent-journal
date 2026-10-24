@@ -17,6 +17,10 @@ DISPATCHES = ENTRIES.filter_alternatives(
 NUDGE = "nudge"
 
 
+# the events of an agent's turn that end a run of held stops, the stop among them
+TURN_EVENTS = ("Stop", "ToolStarting", "PromptSubmitted")
+
+
 class Entries(ScopedRepository[Entry]):
     model = Entry
 
@@ -89,6 +93,12 @@ class Entries(ScopedRepository[Entry]):
     def last_line_entry(self, session: str, keys: tuple[str, ...]) -> Entry | None:
         rows = self.selected(self.lines(session).filter_listed("data->key", keys).order_descending("id").limit(1))
         return rows[0] if rows else None
+
+    def refused_stops(self, session: str, count: int) -> list[str]:
+        return [entry.data["refused"] for entry in self.selected(self.query().filter(actor=Actor.agent(session), kind="Stop").filter_present("data->refused").order_descending("id").limit(count))]
+
+    def turn_events(self, session: str, count: int) -> list[Entry]:
+        return self.selected(self.query().filter(actor=Actor.agent(session)).filter_listed("kind", TURN_EVENTS).order_descending("id").limit(count))
 
     def line_entries(self, session: str, keys: tuple[str, ...], last: int = 100) -> list[Entry]:
         return self.selected(self.lines(session).filter_listed("data->key", keys).order_descending("id").limit(last))

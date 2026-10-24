@@ -1,6 +1,7 @@
 import gc
 import os
 import time
+from journal.engine.engine_nudges import EngineNudges
 from journal.engine.clock import Clock
 from journal.engine.job_runner import JobRunner
 from journal.engine.lifecycle import Lifecycle
@@ -61,6 +62,8 @@ class Runtime:
 
     def register_nudges(self) -> None:
         nudges = self.container.get(NudgeRegistry)
+        for nudge in EngineNudges.ALL:
+            nudges.register(nudge)
         for feature in self.registry.features:
             for nudge in feature.nudges:
                 nudges.register(nudge)

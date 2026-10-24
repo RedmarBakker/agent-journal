@@ -1,9 +1,11 @@
 """Phase five: the machine. A write in Idle is refused with how to declare work; after task start a stop says carry on, once; done makes the agent idle again; stuck pauses and a tool use lifts it; the state survives a new server."""
 
+import re
 import json
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request as HttpRequest, urlopen
+from journal.repositories.reports import Reports
 from journal.events.rows.worker_mention import WorkerMention
 
 import pytest
@@ -281,6 +283,7 @@ def test_every_stop_with_a_task_in_hand_says_carry_on_and_stuck_is_the_way_out(a
     app.console().run(["task", "create", "t", "--start"], AGENT)
     answers = [hook(app, "Stop", stop_hook_active=i > 0) for i in range(4)]
     assert all(item[1].get("decision") == "block" and "task 1 is in hand, last logged just now: carry on" in item[1]["reason"] for item in answers), "there is no repeated-stop escape"
+    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal stuck 'I cannot reach the service'"})
     app.console().run(["stuck", "I cannot reach the service"], AGENT)
     assert hook(app, "Stop")[1] == {}, "stuck lets the agent stop"
 def test_a_blocked_task_waits_on_something_outside_and_is_neither_offered_nor_nudged(app: App):
@@ -450,7 +453,7 @@ def test_every_listener_whose_event_matches_runs_the_most_specific_first_and_the
     assert state.respond(SessionEnded(), settings, safety).pushed == Ended()
     assert Ended().respond(SessionEnded(), settings, safety).pushed is None, "a session already over is not ended again"
     assert [method.__name__ for _, method in Listening.listeners()] == ["on_tool_starting", "on_agent_event"]
-    assert [method.__name__ for _, method in Listening.listeners(safety)][-3:] == ["on_compacting", "on_session_ended", "on_session_retired"]
+    assert [method.__name__ for _, method in Listening.listeners(safety)][-4:] == ["on_compacting", "on_session_ended", "on_session_retired", "on_stop"]
 
 
 def test_settings_is_a_frozen_value_of_the_options_read_by_option():
@@ -1637,6 +1640,7 @@ def orchestrated(app: App) -> None:
     assert tasks.find(5).state == "started" and stack()[-1] == "orchestrating_plan", "the plan goes on to the next open piece"
     for n in range(5, 21):
         assert stop().get("decision") == "block", f"a stop with piece {n} in hand and pieces open is refused, never allowed"
+        hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal task complete {n} --how done"})
         assert console.run(["task", "complete", str(n), "--how", "done"], AGENT).code == 0
         app.runtime().deferred.drain()
     assert app.container.get(Plans).find(1).state == "done" and stack() == ["orchestrating"], "the plan is done and the orchestrator is back in its mode state"
@@ -1909,3 +1913,23 @@ def test_a_demand_never_counts_or_blocks_a_journal_command_whatever_its_feature_
     settings = SettingsValue({})
     assert Ready().respond(ToolStarting(call=shell("journal task list")).with_data(data), settings, (DemandConduct,)).refusal is None, "a journal command passes a demand that exempts nothing"
     assert Ready().respond(ToolStarting(call=shell("ls")).with_data(data), settings, (DemandConduct,)).refusal is not None
+
+
+def test_five_stops_held_in_a_row_let_the_next_through_in_a_state_that_asks_for_journal_panic_and_a_report(app: App, monkeypatch, tmp_path):
+    hook(app, "SessionStart")
+    held = [hook(app, "Stop")[1] for _ in range(5)]
+    assert all(body.get("decision") == "block" for body in held), "the overview not read holds each stop"
+    assert "journal panic report" in held[-1]["reason"], "the fifth held stop says the journal is likely stuck and how to get out"
+    assert app.container.get(SessionAgents).top("s1").name == "panicking"
+    assert hook(app, "Stop")[1].get("decision") != "block", "the sixth stop goes through"
+    console = app.console()
+    written = console.run(["panic", "report"], AGENT)
+    report = int(re.search(r"report (\d+) written", written.text).group(1))
+    body = app.container.get(Reports).find(report).body
+    assert "environment overview" in body and "panicking" in body and "## Version" in body, body
+    monkeypatch.setenv("PATH", str(tmp_path))
+    printed = console.run(["panic", "issue", str(report)], AGENT)
+    assert "gh is not installed: open https://github.com/jessegall/agent-journal/issues/new" in printed.text and "## What held the stops" in printed.text
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    assert app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use pops the state"
+    assert [hook(app, "Stop")[1].get("decision") for _ in range(4)] == ["block"] * 4 and app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use between stops starts the count again"

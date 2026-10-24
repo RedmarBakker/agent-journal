@@ -23,6 +23,8 @@ class BaseState:
     name: ClassVar[str]
     title: ClassVar[str] = ""
     final: ClassVar[bool] = False
+    conduct_free: ClassVar[bool] = False
+    essential: ClassVar[bool] = False
     allows: ClassVar[frozenset[Permission]] = frozenset()
 
     def respond(self, event: Event, settings: Settings, conducts: tuple[type[BaseState], ...] = ()) -> Transition:
@@ -40,7 +42,8 @@ class BaseState:
     @classmethod
     def listeners(cls, conducts: tuple[type[BaseState], ...] = ()) -> tuple[tuple[type, Callable], ...]:
         owned = [(get_type_hints(method)["event"], method, method.__name__ not in cls.__dict__) for name, method in getmembers(cls, isfunction) if cls.is_listener(name, method)]
-        folded = [(get_type_hints(method)["event"], method, 2) for conduct in conducts for name, method in getmembers(conduct, isfunction) if cls.is_listener(name, method) and getattr(BaseState, name, None) is not method]
+        active_conducts = [conduct for conduct in conducts if not cls.conduct_free or conduct.essential]
+        folded = [(get_type_hints(method)["event"], method, 2) for conduct in active_conducts for name, method in getmembers(conduct, isfunction) if cls.is_listener(name, method) and getattr(BaseState, name, None) is not method]
         ranked = sorted([*owned, *folded], key=lambda entry: (int(entry[2]), -len(entry[0].__mro__)))
         return tuple((event_kind, method) for event_kind, method, rank in ranked)
 
