@@ -11,6 +11,7 @@ from journal.support.release import Release
 from journal.features.updates.support.commit_ancestry import CommitAncestry
 from journal.features.updates.support.release_installer import ReleaseInstaller
 from journal.features.updates.support.official_install import OfficialInstall
+from journal.sync.sync_status import SyncStatus
 from journal.features.updates.support.release_source import ReleaseSource
 from journal.features.updates.support.update_card import UpdateCard
 from journal.features.updates.support.update_data import UpdateData
@@ -32,14 +33,16 @@ from journal.features.updates.updates_options import UpdatesOptions
 PLUGIN = "code-commandments"
 FIRST_CHECK_DELAY_SECONDS = 60
 # the longest the sync service may take to send this journal's changes and pull the team's before an install
-DRAIN_SECONDS = 600
+DRAIN_SECONDS = 60
+# the sync state of a team that does not take this journal's changes now, so an update keeps them here instead of waiting to send them
+UNREACHABLE = "not_connected"
 
 
 class Updater:
     """The newest release of the installed major version, or the head of the branch the settings name, asked of GitHub as often as the settings say on a thread of its own, on a shared journal only the version the team is pinned to, and its install: on its own when the user has switched that on, when they say so, or on a hosted journal as soon as the team is pinned to another version; a hosted journal with the auto-update on is the team's own and installs each newer release, pinning the team to it; a member's journal asks the team server for its pin before it leads an upgrade, since the hosted journal may have pinned a newer release since the last pull; a hosted journal restarts by ending its process, which the team image starts again."""
 
-    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall) -> None:
-        self.official = official
+    def __init__(self, settings: SettingRows, source: ReleaseSource, installer: ReleaseInstaller, card: UpdateCard, supervisor: SupervisorLink, config: Config, queue: RestartQueue, account: TeamAccount, hosting: Hosting, link: TeamServerLink, hooks: ServiceHooks, ancestry: CommitAncestry, official: OfficialInstall, sync: SyncStatus) -> None:
+        self.official, self.sync = official, sync
         self.ancestry = ancestry
         self.account, self.hosting, self.link, self.hooks = account, hosting, link, hooks
         self.settings, self.source, self.installer = settings, source, installer
@@ -195,7 +198,7 @@ class Updater:
             self.problem = f"The releases could not be read from {self.repository()}: {error}"
 
     def leads_upgrade(self) -> bool:
-        return self.account.is_joined() and not self.is_hosted() and not self.has_newer_pin()
+        return self.account.is_joined() and not self.is_hosted() and self.sync.state() != UNREACHABLE and not self.has_newer_pin()
 
     def has_newer_pin(self) -> bool:
         team_pin = self.link.summary(self.account.address()).version

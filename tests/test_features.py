@@ -6104,6 +6104,30 @@ def test_an_update_whose_installer_fails_for_whatever_reason_runs_the_official_i
     assert official == ["v4.99.0"] and updating.problem == "", "a broken installer falls back to the README's official install command for the same release, and the update goes on"
 
 
+def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and_the_shell_stood_in(app: App, monkeypatch):
+    import io
+    from types import SimpleNamespace
+    from journal.features.updates.support import release_installer
+    from journal.features.updates.support.release_installer import ReleaseInstaller
+    from journal.features.updates.support.updater import Updater
+    fetched, ran = [], []
+    monkeypatch.setattr(release_installer, "urlopen", lambda address, timeout: fetched.append(address) or io.BytesIO(b"echo installed\n"))
+    monkeypatch.setattr(release_installer.subprocess, "run", lambda command, **options: ran.append((command[0], options["env"]["AGENT_JOURNAL_REF"])) or SimpleNamespace(returncode=0))
+    monkeypatch.setattr(Updater, "restart", lambda self: None)
+    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), app.container.get(ReleaseInstaller), auto=False)
+    updating.read()
+    updating.install(Actor.user(1))
+    assert fetched == ["https://raw.githubusercontent.com/jessegall/agent-journal/v4.99.0/install.sh"] and ran == [("sh", "v4.99.0")] and updating.problem == "", "the updater calls the real installer with every argument it asks for, which fetches the release's install script and runs it"
+    monkeypatch.setattr(release_installer.subprocess, "run", lambda command, **options: SimpleNamespace(returncode=1))
+    monkeypatch.setattr("journal.features.updates.support.official_install.OfficialInstall.ran", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="offline"))
+    updating.card.clear()
+    source = updating.source
+    source.rows.append("v4.100.0")
+    updating.read()
+    updating.install_newest(Actor.user(1))
+    assert updating.card.paused() is None and "nor could the official install command" in updating.problem, "an install that fails, the official command too, leaves no marker a launch would wait on, and says why"
+
+
 def test_releases_compare_by_number_and_pre_releases_are_left_out():
     matched = Release.lookup(["v4.10.0", "v4.9.2", "v4.1.0-rc1", "nightly", "v4.9.10"])
     assert [release.version for release in matched] == ["4.9.2", "4.9.10", "4.10.0"]
@@ -13237,6 +13261,8 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
 
 
 def test_the_sync_service_drains_the_queue_before_an_upgrade_and_carries_on_after_a_refused_install(app: App, monkeypatch):
+    from journal.sync.sync_status import SyncStatus
+    app.container.get(SyncStatus).connected()
     from types import SimpleNamespace
     from journal.features.updates.support.official_install import OfficialInstall
     monkeypatch.setattr(OfficialInstall, "ran", lambda self, ref: SimpleNamespace(returncode=1, stdout="", stderr="no network in the tests"))
