@@ -12308,3 +12308,8 @@ def test_a_claude_tool_call_refused_carries_its_own_quiet_deny_answer_beside_the
     assert status == 409 and body["answer"]["hookSpecificOutput"]["permissionDecision"] == "deny", body
     assert body["answer"]["hookSpecificOutput"]["permissionDecisionReason"] == body["error"], "Claude Code shows the journal's line alone, with no red hook error and no command"
     assert list(body)[0] == "answer", "the answer comes first, as the hook script reads it"
+
+
+def test_a_commands_mark_names_the_command_without_its_folder_change_brackets_variables_or_time_limit():
+    from journal.support.command_text import CommandText
+    assert [CommandText.shown(line) for line in ("(cd src/web && npx vitest run tests/)", "cd app && make build", "FOO=1 timeout 60 pytest -q", "pytest -q tests/a.py", "cd a; export X=1; npm test && ls")] == ["npx vitest run tests/", "make build", "pytest -q", "pytest -q tests/a.py", "npm test && ls"]

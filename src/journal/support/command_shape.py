@@ -10,10 +10,26 @@ CONTAINER_PATTERN = re.compile(r"^\s*docker(?:\s+compose|-compose)?\s+exec\s+(?:
 VARIABLE_PATTERN = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|\S*)(?:\s+|$))+")
 # commands that only set the scene for the one that does the work: a line's shape is the first part past them
 SETUP_COMMANDS = {"cd", "export", "unset", "set", "source", ".", "pushd", "popd", "true"}
+CHAIN_SEPARATOR = re.compile(r"&&|\|\||;|\|")
+SETUP_PREFIX = re.compile(r"^(?:(?:cd|export|unset|set|source|\.|pushd|popd|true)(?:\s[^&;|]*)?\s*(?:&&|;)\s*)+")
 
 
 class CommandShape:
     """A command as its program and subcommands name it, with the values passed to it removed: pytest -k chat and pytest tests/a.py are both pytest, python3 -m pytest -q is python3 -m pytest, npm run test stays npm run test; a wrapper that only limits its time, perl -e 'alarm N; exec @ARGV' or timeout N, variables set before the command, such as REPLAY_FREEZE=1, and a run inside a container, docker compose exec or docker exec with its flags and its service, are seen through. A line's shape is that of its first part that does the work, after a cd, a variable assignment or an export."""
+
+    @staticmethod
+    def unwrapped(part: str) -> str:
+        text = part.strip()
+        return text[1:-1].strip() if text.startswith("(") and text.endswith(")") else text
+
+    @classmethod
+    def working(cls, part: str) -> str:
+        commands = [command.strip() for command in CHAIN_SEPARATOR.split(cls.unwrapped(part)) if command.strip()]
+        return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else part)
+
+    @classmethod
+    def shown(cls, part: str) -> str:
+        return cls.inner(SETUP_PREFIX.sub("", cls.unwrapped(part))).strip()
 
     @staticmethod
     def inner(part: str) -> str:
