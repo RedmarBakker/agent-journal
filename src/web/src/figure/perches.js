@@ -3,7 +3,7 @@ import {climbStops, heightOf, jumpMost, pogoClimb} from "./climbs.js";
 import {holds, readFloors} from "./floors.js";
 import {ACTS} from "./acts.js";
 import {FRAMED} from "./frame.js";
-import {LADDER, besidePile, bodyBoxAt, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
+import {LADDER, LEDGES, besidePile, bodyBoxAt, boxAt, buildSpot, clearOf, clearOfPile, cornerAt, FEET_INBOARD, groundEdge, hiddenAt, homeCloses, offWalls, openTabs, overlaps, pointedView, restOf, seatOf, spotOf, standRise, watchSpot, worldBox} from "./places.js";
 import {letsGoFor} from "./reactions.js";
 import {PILE, choicesFor, draw, taken} from "./pile.js";
 
@@ -87,7 +87,6 @@ function spotOn(perch, floor, figure) {
 }
 
 // The floors a figure sits on the edge of, and how wide one must be, in the figure's heights, to have a place along it away from its ends
-const LEDGES = new Set(["bubble", "dock", "compose"]);
 export const LEDGE_WIDTH = 1.6;
 
 // the places along a floor a figure sits on its edge, as shares of the way across, as the pile has them (pile.js ledge_at)

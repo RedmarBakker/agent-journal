@@ -1,5 +1,6 @@
 import {ACTS, pogoBounces, pogoHop} from "../figure/acts.js";
 import {fallStep} from "./falls.js";
+import {landsIn} from "../figure/places.js";
 
 // How far, in pixels, a figure's feet may be from a floor's top and still stand on it: a floor that moves away under the figure must move
 // further than this before it falls, so a pixel or two of the page moving never drops it
@@ -184,13 +185,15 @@ export const launchFrom = (spot, speed, now) => ({x: spot.x, y: spot.y, posture:
 // while it rises, so a parachute coming down from above the top is never sent off again
 export const goneUp = (airborne, top) => airborne.speed < 0 && airborne.y <= top;
 
-// One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on in the posture it
-// fell in and turned as it was, where it goes on to and whether it landed on its feet
+// One frame of a fall at `now` (fallFrame): the fall stepped on, or, once it lands, null with the spot it settles on, turned as it was, in
+// the posture it fell in where the floor it lands on lets it keep that (places.js landsIn), else on its feet, where it goes on to and
+// whether it landed on its feet
 export function airborneFrame(airborne, floors, now, still = false) {
     const fell = fallFrame(airborne, fallFloors(floors), (now - airborne.at) / 1000, still);
     if (!fell.landed) return {airborne: {...airborne, ...fell, at: now}, landed: null};
-    const spot = {x: fell.x, y: fell.landed.top, posture: airborne.posture, face: airborne.face, view: null, on: fell.landed.element ?? null};
-    return {airborne: null, landed: {spot, to: airborne.to, standing: airborne.posture === "stand"}};
+    const posture = landsIn(airborne.posture, fell.landed.kind);
+    const spot = {x: fell.x, y: fell.landed.top, posture, face: airborne.face, view: null, on: fell.landed.element ?? null};
+    return {airborne: null, landed: {spot, to: airborne.to, standing: posture === "stand"}};
 }
 
 // the ease a change of posture slides the picture by, as CSS's ease-in-out
