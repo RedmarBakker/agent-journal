@@ -320,6 +320,10 @@ export class ApiClient {
         return this.act("agents", id, "shell", {command});
     }
 
+    stopJob(agent, job) {
+        return this.post(this.here(`/agents/${agent}/jobs/${encoded(job)}/stop`), {});
+    }
+
     skipSequenceStep(id) {
         return this.act("agents", id, "skip-step");
     }

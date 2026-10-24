@@ -3,9 +3,10 @@ import time as timing
 
 from journal.config import Config
 from journal.features.pausing.agent_pause import AgentPause
+from journal.features.schedules.job_stop import JobStop
 from journal.features.sequences.support.run_tracker import RunTracker
 from journal.http.agents.agent_activity import AgentActivity
-from journal.http.agents.agent_bar_writes import AGENT_CONTROL, AGENT_PAUSE, AGENT_RESUME, AGENT_SHELL, AgentBarWrites
+from journal.http.agents.agent_bar_writes import AGENT_CONTROL, AGENT_JOB_STOP, AGENT_PAUSE, AGENT_RESUME, AGENT_SHELL, AgentBarWrites
 from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.controllers.controller import Controller
 from journal.features.edits.support.image_files import ImageFiles
@@ -39,9 +40,9 @@ class AgentController(Controller[Agent]):
     repository: Agents
 
     def __init__(self, agents: Agents, activity: AgentActivity, supervisor: SupervisorLink, terminal_lines: TerminalLines, edits: Edits, scope: Scope, environments: Environments,
-                 providers: Providers, active: RunTracker, config: Config, pausing: AgentPause, writes: AgentBarWrites, hosts: Hosts, owners: EnvironmentOwners, remote: RemoteAgents) -> None:
+                 providers: Providers, active: RunTracker, config: Config, pausing: AgentPause, job_stop: JobStop, writes: AgentBarWrites, hosts: Hosts, owners: EnvironmentOwners, remote: RemoteAgents) -> None:
         self.repository, self.activity, self.supervisor, self.terminal_lines, self.file_edits, self.scope = agents, activity, supervisor, terminal_lines, edits, scope
-        self.environments, self.providers, self.running, self.config, self.pausing = environments, providers, active, config, pausing
+        self.environments, self.providers, self.running, self.config, self.pausing, self.job_stop = environments, providers, active, config, pausing, job_stop
         self.writes, self.hosts, self.owners, self.remote = writes, hosts, owners, remote
 
     def rows(self) -> list[Agent]:
@@ -142,6 +143,12 @@ class AgentController(Controller[Agent]):
         if not self.hosts.is_host(self.environment()):
             return self.host_request(request, AGENT_RESUME, {})
         return Response.json(self.shown(self.pausing.resume(self.repository.find(request.number("id")), request.actor)))
+
+    def stop_job(self, request: Request) -> Response:
+        if not self.hosts.is_host(self.environment()):
+            return self.host_request(request, AGENT_JOB_STOP, {"job_id": request.params["job"]})
+        self.job_stop.stop(self.repository.find(request.number("id")), request.params["job"], request.actor)
+        return Response.json({"asked": True})
 
     def environment(self) -> Environment:
         return self.environments.find(self.scope.id)

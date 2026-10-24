@@ -11735,6 +11735,40 @@ def test_a_job_the_agent_schedules_is_listed_on_its_row_until_it_cancels_it(app:
     assert jobs() == [], "a cancelled job is no longer listed"
 
 
+def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_to_delete_it(app: App, monkeypatch):
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    catch_typed(app, monkeypatch, transmitted)
+
+    def api(method: str, path: str):
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/{path}", data=b"{}" if method == "POST" else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
+        try:
+            with urlopen(request, timeout=5) as reply:
+                return reply.status, json.loads(reply.read())
+        except HTTPError as error:
+            return error.code, json.loads(error.read())
+
+    def jobs():
+        return [job["id"] for row in api("GET", "agents")[1]["rows"] if row["session"] == "s1" for job in row["jobs"]]
+
+    hook(app, "SessionStart")
+    created = {"cron": "7,22,37,52 * * * *", "prompt": "Journal health check", "recurring": True}
+    hook(app, "PreToolUse", tool_name="CronCreate", tool_input=created, tool_use_id="c1")
+    hook(app, "PostToolUse", tool_name="CronCreate", tool_input=created, tool_response="Scheduled recurring job 200ed8b1 (7,22,37,52 * * * *). Session-only.", tool_use_id="c1")
+    app.runtime().deferred.drain()
+    assert jobs() == ["200ed8b1"]
+    assert api("POST", "agents/1/jobs/ffffffff/stop")[0] != 200, "a job the agent does not have is refused"
+    assert api("POST", "agents/1/jobs/200ed8b1/stop")[0] == 200
+    app.runtime().deferred.drain()
+    told = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, tool_use_id="r1")[1])
+    assert "CronDelete" in told and "200ed8b1" in told, "the stop types the agent a line to delete the job, which reaches it at its next hook while it works"
+    assert jobs() == ["200ed8b1"], "the job stays listed until its deletion is seen"
+    hook(app, "PreToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_use_id="c2")
+    hook(app, "PostToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_response="Cancelled job 200ed8b1.", tool_use_id="c2")
+    app.runtime().deferred.drain()
+    assert jobs() == [], "the job is gone once its CronDelete is seen"
+
+
 def test_a_task_carries_a_priority_by_name_or_number_and_the_list_and_the_next_task_follow_it(app: App):
     from journal.repositories.plans import Plans
     from journal.repositories.tasks import Tasks

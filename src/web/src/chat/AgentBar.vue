@@ -112,7 +112,7 @@ const {colleague, teamChat} = useColleague();
                             <AgentUsage :usage="usage" />
                         </template>
                         <template #jobs>
-                            <AgentJobs :jobs="data.jobs || []" />
+                            <AgentJobs :agent="data.id" :jobs="data.jobs || []" />
                         </template>
                         <template #default>
                             <CrewList heading="Subagents" :rows="subagentsOf(agent)" started="dispatched" @open="openSession" />

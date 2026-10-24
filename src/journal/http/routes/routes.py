@@ -233,6 +233,7 @@ class Routes:
         router.get(f"{API}/agents/{{id}}/transcript", transcripts.agent_transcript)
         router.get(f"{API}/agents/{{id}}/subagents/{{session}}/transcript", transcripts.subagent_transcript)
         self.acts(router, "agents", agents, "shell", "control", "pause", "resume")
+        router.post(f"{API}/agents/{{id}}/jobs/{{job}}/stop", agents.stop_job)
         router.post(f"{API}/agents/{{id}}/skip-step", agents.skip_step)
         router.post(f"{API}/agents/{{id}}/end-sequence", agents.end_sequence)
         router.get(f"{API}/skills", skills.index)

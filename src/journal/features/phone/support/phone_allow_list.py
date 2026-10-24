@@ -20,7 +20,7 @@ WRITES = frozenset((
     "/journal/comments", "/journal/comments/{id}",
     "/journal/notices/{id}/close",
     "/journal/dumps", "/journal/dumps/{id}/choose", "/journal/dumps/{id}/decline", "/journal/dumps/{id}/direct", "/journal/dumps/{id}/answer", "/journal/dumps/{id}/dismiss",
-    "/journal/agents/{id}/pause", "/journal/agents/{id}/resume",
+    "/journal/agents/{id}/pause", "/journal/agents/{id}/resume", "/journal/agents/{id}/jobs/{job}/stop",
     "/journal/shares", "/journal/shares/{id}/approve", "/journal/shares/{id}/stop",
     "/journal/phones/{id}/disconnect",
 ))

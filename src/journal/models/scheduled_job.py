@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
+from journal.events.rows.job_stop_requested import JobStopRequested
 from journal.models.scoped import Scoped
 
 RECURRING_LIFETIME_SECONDS = 7 * 24 * 3600
@@ -22,6 +23,9 @@ class ScheduledJob(Scoped):
 
     def ending(self) -> "ScheduledJob":
         return self.with_(ended=True)
+
+    def stop_requested(self, time: float) -> "ScheduledJob":
+        return self.with_event(JobStopRequested(environment_id=self.environment_id, time=time, agent_session=self.session, job_id=self.job_id))
 
     def is_running(self, moment: float) -> bool:
         return not self.ended and (not self.recurring or moment - self.creation_time.timestamp() < RECURRING_LIFETIME_SECONDS)
