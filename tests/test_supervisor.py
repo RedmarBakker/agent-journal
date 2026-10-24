@@ -642,3 +642,20 @@ def test_a_supervisor_started_again_ends_the_services_a_supervisor_killed_outrig
     finally:
         left.stop()
         stranger.stop()
+
+
+def test_the_left_arrow_in_the_boot_menu_asks_the_question_before_again(tmp_path: Path):
+    from journal.launcher.support.keys import Keys
+    left, enter, down = Keys.BACK[0], Keys.ENTER[0], Keys.DOWN[0]
+    printed = io.StringIO()
+    # main, then left at "carry on" back to the environments, main again, no carry on, prompts skipped, hooks kept; left on the first question stays on it
+    screen = Screen(printed, PressedKeys(left, enter, left, enter, down, enter, enter, enter, enter, enter))
+    screen.interactive = True
+    screen._pick_with_keys = screen.key_choice
+    menu = Menu(tmp_path, tmp_path / "journal.py", screen)
+    menu.environments = lambda: ROWS
+    choice = menu.choose("claude")
+    assert choice.environment == "main" and choice.resume == "" and choice.prompt_flags, choice
+    assert printed.getvalue().count("Which environment") == 3, "the environments were asked again after the left arrow, and a left arrow on them asked them again"
+    assert printed.getvalue().count("Carry on from the last session") == 3, "asked twice, the second drawn again as the down arrow moved"
+    assert "← to go back" in printed.getvalue()

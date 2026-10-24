@@ -6,11 +6,12 @@ import tty
 from typing import NoReturn
 
 from journal.launcher.support.keys import Keys
+from journal.launcher.support.menu_back import MenuBack
 from journal.launcher.support.option import Option
 
 BOLD, DIM, ACCENT, GOOD, BADGE, RESET = "\x1b[1m", "\x1b[2m", "\x1b[38;5;111m", "\x1b[38;5;114m", "\x1b[38;5;176m", "\x1b[0m"
 STORE_CURSOR, RESTORE_CURSOR, HIDE_CURSOR, VISIBLE_CURSOR = "\x1b7", "\x1b8\x1b[J", "\x1b[?25l", "\x1b[?25h"
-HINT = "↑ ↓ to move · Enter to pick · a number to jump · Esc to leave"
+HINT = "↑ ↓ to move · Enter to pick · ← to go back · a number to jump · Esc to leave"
 ACTION_HINTS = {"x": "x to delete"}
 
 
@@ -112,6 +113,8 @@ class Screen:
                         return time, key
                     if key == Keys.ESCAPE:
                         self.leave(0)
+                    if key in Keys.BACK:
+                        raise MenuBack()
                     time = self._moved(time, key, len(options))
         except KeyboardInterrupt:
             self.leave(INTERRUPTED)

@@ -13,6 +13,7 @@ from journal.support.past_session_row import PastSessionRow
 from journal.launcher.support.option import Option
 from journal.launcher.support.foreign_hooks import ForeignHooks
 from journal.launcher.support.launcher_memory import LauncherMemory
+from journal.launcher.support.menu_back import MenuBack
 from journal.launcher.screen import Screen
 from journal.providers.providers import Providers
 
@@ -58,22 +59,67 @@ class Menu:
 
     def choose(self, agent: str, environment: str = "", new: bool = False, stashed: bool = False, omit: bool = False, confirmed: bool = False) -> Choice:
         self.screen.banner(agent, str(self.root))
-        rows, previous = self.environments(), self.remembered.read()
-        asking = not confirmed
-        selection = environment or (self._environment(agent, rows) if asking else "main")
-        session_choice = self._session_question(agent, selection) if asking and selection not in {row.name for row in rows} else ""
-        rows = self.environment_rows(selection, rows)
-        last = next((row.last_session(agent) for row in rows if row.name == selection), "")
-        resume = session_choice or ("" if new or not last else self._continuation(agent, selection, last, asking))
-        prompt_flags = omit or confirmed or self._prompts(agent)
-        asking = asking and not resume
-        stashed_hooks = stashed or (self._hooks(ForeignHooks(self.root, Providers().lookup(agent)).foreign(), previous.stashed_hooks) if asking else previous.stashed_hooks)
-        self.remembered.write(Answers(prompt_flags, stashed_hooks))
-        choice = Choice(selection, resume, stashed_hooks, prompt_flags)
-        if not confirmed:
-            self._trust_question(agent)
+        choice = self.confirmed(agent, environment, new, stashed) if confirmed else self.asked(agent, environment, new, stashed, omit)
+        self.remembered.write(Answers(choice.prompt_flags, choice.stashed_hooks))
         self._summary(choice)
         return choice
+
+    def confirmed(self, agent: str, environment: str, new: bool, stashed: bool) -> Choice:
+        selection = environment or "main"
+        rows = self.environment_rows(selection, self.environments())
+        last = next((row.last_session(agent) for row in rows if row.name == selection), "")
+        return Choice(selection, "" if new else last, stashed or self.remembered.read().stashed_hooks, True)
+
+    # the questions in order, each skipped where it does not apply; the left arrow asks again the last one that was asked before it
+    def asked(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
+        answers = {"agent": agent, "environment": environment, "new": new, "stashed": stashed, "omit": omit, "rows": self.environments(), "previous": self.remembered.read()}
+        steps = (self._environment_step, self._session_step, self._continuation_step, self._prompts_step, self._hooks_step, self._trust_step)
+        shown: list[int] = []
+        index = 0
+        while index < len(steps):
+            try:
+                was_asked = steps[index](answers)
+            except MenuBack:
+                index = shown.pop() if shown else index
+                continue
+            shown += [index] if was_asked else []
+            index += 1
+        return Choice(answers["selection"], answers["resume"], answers["stashed_hooks"], answers["prompt_flags"])
+
+    def _environment_step(self, answers: dict) -> bool:
+        answers["selection"] = answers["environment"] or self._environment(answers["agent"], answers["rows"])
+        return not answers["environment"]
+
+    def _session_step(self, answers: dict) -> bool:
+        answers["session"] = ""
+        if answers["selection"] in {row.name for row in answers["rows"]}:
+            return False
+        sessions = self.free_sessions(answers["agent"])
+        answers["session"] = self._session_question(answers["selection"], sessions) if sessions else ""
+        return bool(sessions)
+
+    def _continuation_step(self, answers: dict) -> bool:
+        rows = self.environment_rows(answers["selection"], answers["rows"])
+        last = next((row.last_session(answers["agent"]) for row in rows if row.name == answers["selection"]), "")
+        answers["resume"] = answers["session"]
+        if answers["session"] or answers["new"] or not last:
+            return False
+        answers["resume"] = self._resume(answers["agent"], answers["selection"], last)
+        return True
+
+    def _prompts_step(self, answers: dict) -> bool:
+        answers["prompt_flags"] = answers["omit"] or self._prompts(answers["agent"])
+        return not answers["omit"]
+
+    def _hooks_step(self, answers: dict) -> bool:
+        answers["stashed_hooks"] = answers["stashed"] or answers["previous"].stashed_hooks
+        if answers["stashed"] or answers["resume"]:
+            return False
+        answers["stashed_hooks"] = self._hooks(ForeignHooks(self.root, Providers().lookup(answers["agent"])).foreign(), answers["previous"].stashed_hooks)
+        return True
+
+    def _trust_step(self, answers: dict) -> bool:
+        return self._trust_question(answers["agent"])
 
     def _environment(self, agent: str, rows: list[EnvironmentRow]) -> str:
         options = [Option(row.name, (*row.badges(), *Worktree(self.root, row.name).badges())) for row in rows] + [Option("A new environment", separate=True)]
@@ -88,10 +134,10 @@ class Menu:
     def past_sessions(self) -> list[PastSessionRow]:
         return self.listed(PastSessionRow, "environment", "sessions")
 
-    def _session_question(self, agent: str, name: str) -> str:
-        sessions = [session for session in self.past_sessions() if session.is_free() and session.provider == agent][:SESSIONS_SHOWN]
-        if not sessions:
-            return ""
+    def free_sessions(self, agent: str) -> list[PastSessionRow]:
+        return [session for session in self.past_sessions() if session.is_free() and session.provider == agent][:SESSIONS_SHOWN]
+
+    def _session_question(self, name: str, sessions: list[PastSessionRow]) -> str:
         options = [Option("Start fresh"), *(Option(session.label(), session.badges(), separate=index == 0) for index, session in enumerate(sessions))]
         notes = ["Its chat is filled from the conversation you pick, and the agent carries it on.", "Conversations already in an environment are not listed."]
         index = self.screen.pick(f"Carry on from a past conversation in {name}?", notes, options, 0)
@@ -120,9 +166,6 @@ class Menu:
         if self.screen.pick(f"Delete {row.name}?", notes, [Option("No, keep it"), Option("Yes, delete it")], 0) == 1:
             self.journal("environment", "delete", row.name)
 
-    def _continuation(self, agent: str, environment: str, last: str, asking: bool) -> str:
-        return self._resume(agent, environment, last) if asking else last
-
     def _resume(self, agent: str, environment: str, last: str) -> str:
         notes = [f"An earlier {agent.capitalize()} session worked {environment}. Carrying on opens that conversation again,", "without asking the other questions."]
         selected = self.screen.pick("Carry on from the last session", notes, [Option("Yes, carry on", (last[:8],)), Option("No, start a new one")], 0)
@@ -138,11 +181,12 @@ class Menu:
         notes = ["They might conflict with the journal's. Set aside, a copy is kept and they are put back when the journal ends.", *rows]
         return self.screen.pick("Set aside your existing hooks?", notes, [Option("Yes, set them aside"), Option("No, keep them")], 0 if stashed_prior else 1) == 0
 
-    def _trust_question(self, agent: str) -> None:
+    def _trust_question(self, agent: str) -> bool:
         if not Providers().lookup(agent).hooks_ready(self.root).needs_trust():
-            return
+            return False
         notes = [f"{agent.capitalize()} asks once to trust the hooks the journal wrote into this project. Choose Trust all and continue", f"when {agent.capitalize()} asks, or the journal cannot follow what {agent.capitalize()} does."]
         self.screen.pick(f"Trust the journal's hooks in {agent.capitalize()}", notes, [Option("Understood")], 0)
+        return True
 
     def _summary(self, choice: Choice) -> None:
         self.screen.summary([("environment", choice.environment), ("conversation", f"continued from {choice.resume[:8]}" if choice.resume else "new"),
