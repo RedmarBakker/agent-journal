@@ -144,9 +144,11 @@ function legClip(trip, doing, canDraw) {
 
 export {frameIn, closeAt, canSwitch, goesOnFacing, stretchedFrame} from "../figure/timeline.js";
 
-// a worker's chat mark of the agent giving it work: its dispatch on a task, or its next job; a message to it, its start again and the
-// mark's updates give it none (features/workers worker_process_card and worker_moment_cards)
-const GIVEN_WORK = /: (started on|sent its next job)/;
+// A worker's chat mark of the agent giving it work: its dispatch, the worker's process card, unless the dispatch failed; or its next job,
+// a mark known by its words alone; a message to it, its start again and the mark's updates give it none (features/workers
+// worker_process_card and worker_moment_cards)
+const NEXT_JOB = /: sent its next job/;
+const givenWork = (card) => (card.processName === "worker" && card.tone !== "bad") || (card.icon === "agents" && NEXT_JOB.test(card.label));
 
 // One-off beats, each fired by a card the journal wrote on the agent's row and played once before the held state resumes;
 // the first rule a card matches names its beat
@@ -160,7 +162,7 @@ const BEATS = [
     {beat: "answered", matches: (card) => card.icon === "question"},
     {beat: "task_finished", matches: (card) => card.icon === "todos" && card.tone === "good"},
     {beat: "question_asked", matches: (card) => card.kind === "question"},
-    {beat: "messaged", matches: (card) => card.icon === "agents" && GIVEN_WORK.test(card.label)},
+    {beat: "messaged", matches: givenWork},
     {beat: "fact_filed", matches: (card) => card.icon === "check" && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
     {beat: "check_passed", matches: (card) => card.icon === "check" && card.tone === "good"},
 ];
@@ -270,6 +272,7 @@ export const withSystemCards = (agent, messages) =>
                         pluginCard: m.data.card || "",
                         label: m.text,
                         process: m.data.card_type === "process",
+                        processName: m.data.process || "",
                         sentTo: m.data.sent_to || "",
                         row: m.data.row || "",
                         active: Boolean(m.data.active),

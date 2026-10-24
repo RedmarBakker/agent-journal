@@ -37,7 +37,7 @@ test("the dove act is gone, and so is the whistle and runner of a dispatch: a se
 test("only an agent given work starts the call: a worker's dispatch and its next job, never its start again, a message sent it or a message to another session", () => {
     const card = (id, text, data) => ({table: "messages", id, author: "system", text, data, session: null, created_at: new Date((10 + id) * 1000).toISOString()});
     const messages = [
-        card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: ""}),
+        card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", card_type: "process", process: "worker", active: true}),
         card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: ""}),
         card(3, "Worker 57, Mr. Muybridge, motion photographer: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
         card(4, "Worker 57, Mr. Muybridge, motion photographer: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
@@ -358,4 +358,32 @@ test("the telephone rings at most once in two minutes, gathering every worker gi
     expect(heldCall(["workers:57:dispatched"], [], memory.reacted, 1000 + CALL_COOLDOWN + 60)).toBeNull();
     expect(answerTo(given(57, 1000 + CALL_COOLDOWN + 60), "butler", memory, 1000 + CALL_COOLDOWN + 60, () => 0, () => true)).toBeNull();
     expect(heldCall([], [], memory.reacted, 2000)).toBeNull();
+});
+
+test("a worker's dispatch sets off the call by what its mark is, the worker's process card, whatever it says; a failed one does not; and the dispatches gather into one call", async () => {
+    const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
+    const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
+    const dispatch = (id, worker, text, tone = "", process = "worker") => ({
+        table: "messages",
+        id,
+        author: "system",
+        text: `Worker ${worker}, Mr. Muybridge, motion photographer: ${text}`,
+        data: {kind: "card", icon: "agents", tone, row: `workers:${worker}`, card_type: "process", process, active: true},
+        session: "s",
+        created_at: new Date((1000 + id) * 1000).toISOString(),
+    });
+    // the last, another process's card with a worker's row, is no dispatch
+    const messages = [dispatch(1, 57, "started on claude opus"), dispatch(2, 58, "started"), dispatch(3, 59, "failed", "bad"), dispatch(4, 60, "started on codex"), dispatch(5, 61, "started on claude sonnet"), dispatch(6, 62, "started on claude opus", "", "output")];
+    const beats = beatsAfter(withSystemCards({session: "s", data: {}}, messages), 0);
+    expect(beats.map((fire) => [fire.beat, fire.card])).toEqual([1, 2, 4, 5].map((id) => ["messaged", `messages:${id}`]));
+    // the first dispatch rings, the next while its call waits joins it, and one inside the two minutes with no call waiting is held
+    const memory = {reacted: new Map(), played: []};
+    const first = answerTo(beats[0], "butler", memory, beats[0].time, () => 0, () => true);
+    expect(first.beat).toMatchObject({clip: "phone_call", mark: "messages:1"});
+    const queue = joinedCall([first.beat], beats[1].card);
+    expect(queue[0].marks).toEqual(["messages:1", "messages:2"]);
+    expect(answerTo(beats[2], "butler", memory, beats[2].time + 60, () => 0, () => true)).toBeNull();
+    const held = [beats[2].card, beats[3].card];
+    expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN - 1)).toBeNull();
+    expect(heldCall(held, [], memory.reacted, beats[0].time + CALL_COOLDOWN)).toMatchObject({clip: "phone_call", mark: "messages:4", marks: held});
 });
