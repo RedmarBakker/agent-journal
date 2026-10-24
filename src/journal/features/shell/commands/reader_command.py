@@ -77,7 +77,7 @@ class ReaderCommand(Command):
         return 0
 
     def tried(self, reader: Reader) -> None:
-        stored = next((output for output in self.outputs.newest(NEWEST_RUNS) if reader.commands.is_shown_run(output.command) and OutputFiles(Path(output.folder)).is_stored()), None)
+        stored = next((output for output in self.outputs.latest(NEWEST_RUNS) if reader.commands.is_shown_run(output.command) and OutputFiles(Path(output.folder)).is_stored()), None)
         misses = self.judge.tried(reader, OutputFiles(Path(stored.folder)).lines()) if stored is not None else []
         if misses:
             raise Rejection(f"reader {reader.name} is refused, tried on output {stored.id}: {'; '.join(misses)}")
