@@ -422,11 +422,15 @@ function insideWorld(spot, {size, below}) {
 const homeCorners = (edge, figure) => Object.keys(CORNER_SIDES).map((side) => insideWorld(cornerAt(edge, side, figure), figure));
 const homeStands = (edge, figure) => alongTop(edge, HOME_ALONG).map((spot) => insideWorld(spot, figure));
 
+// the spot at home of `spots`, each moved inside the world: the free one (freeSpot), else, while none of them is inside it, as while the chat
+// is laid out smaller than the figure, the first, at the foot of the world; never a spot without its place and posture
+const homeSpot = (spots, figure, near) => freeSpot(spots, figure, near) ?? spots[0];
+
 // Where the figure rests at home: on a corner of the edge it stands on, beside the pile (freeEdge), on its feet; with nothing there, on the
 // foot of its world
 export function restOf(figure, near) {
     const {element, edge} = freeEdge();
-    return {...freeSpot(homeCorners(edge, figure), figure, near), view: null, on: element};
+    return {...homeSpot(homeCorners(edge, figure), figure, near), view: null, on: element};
 }
 
 // Where a figure that steps out of the way goes at home, its picture clear of `box`, the one it stepped aside from: a corner while it
@@ -643,5 +647,5 @@ export function spotOf(view, figure, near) {
         return spot ? {...spot, view, on: tab} : null;
     }
     const {element, edge} = freeEdge();
-    return {...freeSpot(homeStands(edge, figure), figure, near), view: null, on: element};
+    return {...homeSpot(homeStands(edge, figure), figure, near), view: null, on: element};
 }
