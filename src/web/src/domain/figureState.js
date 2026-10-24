@@ -150,7 +150,10 @@ export {actOver, frameIn, closeAt, canSwitch, goesOnFacing, stretchedAs, stretch
 // or its next job, a mark known by its words alone, a queue's next task among them; a mark that names no task, a message to it, its start
 // again and the mark's updates give it none (features/workers worker_process_card and worker_moment_cards)
 const NEXT_JOB = /: sent its next job/;
-const givenWork = (card) => Boolean(card.task) && ((card.processName === "worker" && card.tone !== "bad") || (card.icon === "agents" && NEXT_JOB.test(card.label)));
+// the dispatch mark of a worker is the main agent's own act of giving work; the marks of what the worker later became (reported, finished,
+// merged) are the worker's and ring nothing
+const STARTED = /: started on /;
+const givenWork = (card) => Boolean(card.task) && ((card.processName === "worker" && card.tone !== "bad" && STARTED.test(card.label)) || (card.icon === "agents" && NEXT_JOB.test(card.label)));
 
 // One-off beats, each fired by a card the journal wrote on the agent's row and played once before the held state resumes;
 // the first rule a card matches names its beat

@@ -1,4 +1,5 @@
 import {expect, test} from "vitest";
+import {EVERY_VOICE_FACES} from "../src/figure/pile.js";
 import {facesAfter, readingsAfter, sayingsAfter, testResultsAfter, withSystemCards, writtenFacesAfter} from "../src/domain/figureState.js";
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();
@@ -6,6 +7,7 @@ const row = (id, role, fields = {}) => ({table: "messages", id, agent_role: role
 const run = (id, role, ending) =>
     row(id, role, {author: "system", text: "Running tests", data: {kind: "card", icon: "agents", tone: ending === "failed" ? "bad" : "good", is_test: true, output: 1, figure: "", ending}});
 
+const FACE = Object.keys(EVERY_VOICE_FACES)[0];
 const lead = (messages) => withSystemCards({session: "s1", data: {}}, messages);
 
 test("a worker's failed test run is not the main agent's: only the main agent's own run moves its avatar", () => {
@@ -16,7 +18,7 @@ test("a worker's failed test run is not the main agent's: only the main agent's 
 
 test("a worker's or a subagent's report and written face leave the main agent's avatar still, and its own are heard", () => {
     const report = (id, role) => row(id, role, {author: "agent", data: {kind: "report"}});
-    const said = (id, role) => row(id, role, {author: "agent", text: "that was a 😅"});
+    const said = (id, role) => row(id, role, {author: "agent", text: `that was a ${FACE}`});
     const messages = [report(1, "main"), report(2, "worker"), report(3, "subagent"), said(4, "main"), said(5, "worker")];
     expect(sayingsAfter({session: "s1"}, messages, 0).map((beat) => beat.card)).toEqual(["messages:1"]);
     expect(writtenFacesAfter({session: "s1"}, messages, 0).map((beat) => beat.card)).toEqual(["messages:4"]);
@@ -28,4 +30,11 @@ test("a message a worker's user read and a face put on a worker's message do not
     const messages = [row(1, "main"), row(2, "worker")];
     const faces = [{message_id: 1, author: "user", emoji: "👍", created_at: at(500)}, {message_id: 2, author: "user", emoji: "👍", created_at: at(500)}];
     expect(facesAfter(faces, 0, messages).map((beat) => beat.card)).toEqual(["messages:1"]);
+});
+
+test("only a worker's dispatch mark, the main agent's own giving of work, rings the telephone; the marks of its report and merge do not", async () => {
+    const {beatsAfter} = await import("../src/domain/figureState.js");
+    const worker = (key, label) => ({key, time: 10, label, processName: "worker", task: 7, tone: "", icon: "agents"});
+    const cards = [worker("a", "Worker 1, Mr. Babbage: started on claude opus"), worker("b", "Worker 1, Mr. Babbage: reported"), worker("c", "Worker 1, Mr. Babbage: merged")];
+    expect(beatsAfter({data: {cards}}, 0).map((beat) => [beat.beat, beat.card])).toEqual([["messaged", "a"]]);
 });
