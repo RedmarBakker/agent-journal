@@ -27,12 +27,12 @@ class MessagesNudges:
     PEER_QUESTION = Nudge("messages", "answer_the_other_agent", "agent {{sender}} asked you a question in message {{n}}", "answer with SendMessage to {{sender}}", repeat=Timeout.seconds(300))
 
     @classmethod
-    def inbox(cls, unread: tuple[int, ...]) -> Nudge:
-        if len(unread) == 1:
+    def inbox(cls, unread: tuple[int, ...], count: int) -> Nudge:
+        if count == 1:
             return cls.NEW_MESSAGE.create(n=unread[0])
-        if len(unread) <= 3:
+        if count <= 3:
             return cls.NEW_MESSAGES.create(ns=", ".join(str(n) for n in unread))
-        return cls.UNREAD_MESSAGES.create(count=len(unread))
+        return cls.UNREAD_MESSAGES.create(count=count)
 
     @classmethod
     def read_messages(cls, numbers: tuple[int, ...]) -> list[Nudge]:

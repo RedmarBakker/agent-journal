@@ -7,6 +7,9 @@ from journal.repositories.messages import Messages
 from journal.features.messages.support.peer_question import PeerQuestion
 from journal.models.message import Message
 
+# how many unread messages an inbox line gives by number; past these it gives their count
+INBOX_LINE_IDS = 4
+
 
 class MessagesDataReader:
     """Reads the messages feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields MessagesData names."""
@@ -16,7 +19,8 @@ class MessagesDataReader:
 
     def read(self, agent: Agent) -> LazyFacts:
         facts = LazyFacts("messages", {
-            "unread_rows": self.messages.unread,
+            "unread_rows": lambda: self.messages.unread_page(INBOX_LINE_IDS),
+            "unread_count": self.messages.unread_count,
             "unanswered_rows": self.messages.unanswered,
             "unread": lambda: tuple(m.row_id for m in facts.unread_rows),
             "unanswered": lambda: tuple(m.row_id for m in facts.unanswered_rows),

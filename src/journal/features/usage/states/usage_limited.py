@@ -40,8 +40,8 @@ class UsageLimited(Wait):
         return self.pop(UsageNudges.LIMIT_CHECK.create())
 
     def on_message_arrived(self, event: MessageArrived, settings: Settings) -> Transition:
-        unread = event.data.part(MessagesPart).unread
-        return self.pop(MessagesNudges.inbox(unread)) if unread else self.pop()
+        messages = event.data.part(MessagesPart)
+        return self.pop(MessagesNudges.inbox(messages.unread, messages.unread_count)) if messages.unread else self.pop()
 
     def on_turn_failed(self, event: TurnFailed, settings: Settings) -> Transition:
         event.stop_propagation()

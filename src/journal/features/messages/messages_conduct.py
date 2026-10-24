@@ -16,6 +16,7 @@ from journal.events.rows.colleague_commented import ColleagueCommented
 from journal.support.chain import Chain
 from journal.features.messages.messages_nudges import MessagesNudges
 from journal.features.messages.messages_part import MessagesPart
+from journal.features.messages.support.messages_data import MessagesData
 
 TRUNCATED = re.compile(r"(?:^|[;&|(]\s*)\S*journal\s+(?:message\s+(?:read|unread|recent)|question\s+(?:show|list))\b[^|;&\"']*\|")
 
@@ -28,18 +29,18 @@ class MessagesConduct(Conduct):
         return self.none(MessagesNudges.UNREAD_COMMENTS.create(ns=", ".join(map(str, comments)))) if comments else self.none()
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
-        return self.none(*inbox_line(event.data.part(MessagesPart).unread))
+        return self.none(*inbox_line(event.data.part(MessagesPart)))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         if self.blocks_tools():
             return self.none()
         messages = event.data.part(MessagesPart)
-        return self.none(*inbox_line(messages.unread), *[MessagesNudges.PEER_QUESTION.create(sender=q.sender, n=q.message) for q in messages.peer_questions])
+        return self.none(*inbox_line(messages), *[MessagesNudges.PEER_QUESTION.create(sender=q.sender, n=q.message) for q in messages.peer_questions])
 
     def on_user_resumed(self, event: UserResumed, settings: Settings) -> Transition:
         if event.agent_session != event.session:
             return self.none()
-        return self.none(*inbox_line(event.data.part(MessagesPart).unread))
+        return self.none(*inbox_line(event.data.part(MessagesPart)))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         return truncated_read_check(self, event, settings)
@@ -57,8 +58,8 @@ class MessagesConduct(Conduct):
 
 
 
-def inbox_line(unread: tuple[int, ...]) -> list[Nudge]:
-    return [MessagesNudges.inbox(unread)] if unread else []
+def inbox_line(messages: MessagesData) -> list[Nudge]:
+    return [MessagesNudges.inbox(messages.unread, messages.unread_count)] if messages.unread else []
 
 
 def truncated_read_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
