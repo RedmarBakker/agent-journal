@@ -5,12 +5,13 @@ from journal.support.response import Response
 from journal.sync.sync_client import BATCH_ROWS, SyncClient
 from journal.sync.sync_desk import SyncDesk
 from journal.sync.sync_secret import SyncSecret
+from sync_server.full_copy import FullCopy
 from sync_server.pull_answer import PullAnswer
 from sync_server.sync_answer import SyncAnswer
 
 
 class SyncDeskController:
-    """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, and, around an upgrade, the queue drained and the carrier paused, then resumed."""
+    """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, the team's full copy laid in when it is past this journal's sequence, and, around an upgrade, the queue drained and the carrier paused, then resumed."""
 
     def __init__(self, desk: SyncDesk, client: SyncClient, secret: SyncSecret) -> None:
         self.desk, self.client, self.secret = desk, client, secret
@@ -36,6 +37,9 @@ class SyncDeskController:
         if "answer" not in request.body:
             return Response.json({"applied": 0})
         return Response.json({"applied": self.desk.pushed_rows(list(request.body.get("ids", ())), SyncAnswer.parsed(**request.body["answer"]))})
+
+    def copy(self, request: Request) -> Response:
+        return Response.json({"laid_in": self.desk.copy_laid_in(FullCopy.parsed(**request.body))})
 
     def drain(self, request: Request) -> Response:
         self.client.prepare_upgrade()

@@ -104,6 +104,7 @@ class Routes:
         router.post(f"{API}/sync/answer", get(SyncDeskController).guarded(get(SyncDeskController).answer))
         router.get(f"{API}/sync/batch", get(SyncDeskController).guarded(get(SyncDeskController).batch))
         router.post(f"{API}/sync/pushed", get(SyncDeskController).guarded(get(SyncDeskController).pushed))
+        router.post(f"{API}/sync/copy", get(SyncDeskController).guarded(get(SyncDeskController).copy))
         router.post(f"{API}/sync/drain", get(SyncDeskController).guarded(get(SyncDeskController).drain))
         router.post(f"{API}/sync/pause", get(SyncDeskController).guarded(get(SyncDeskController).pause))
         router.post(f"{API}/sync/resume", get(SyncDeskController).guarded(get(SyncDeskController).resume))

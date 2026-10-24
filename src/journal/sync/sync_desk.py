@@ -109,6 +109,13 @@ class SyncDesk:
         with self.held(self.sending, "lay in the team's copy"), self.held(self.applying, "lay in the team's copy"):
             yield
 
+    def copy_laid_in(self, copy: FullCopy) -> bool:
+        if copy.head <= self.account.sequence():
+            return False
+        with self.laying_in():
+            self.copied(copy)
+        return True
+
     def copied(self, copy: FullCopy) -> None:
         self.copy.replace(copy.rows, self.outgoing.rows())
         self.account.record_sequence(copy.head)

@@ -12911,3 +12911,36 @@ def test_the_queue_is_drained_through_the_sync_desk_before_an_upgrade_and_a_refu
     client.stop()
     account.left(0)
     server.shutdown()
+
+
+def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_the_waiting_writes_on_top(app: App):
+    import sqlite3
+    from journal.models.outgoing_change import UPDATED, OutgoingChange
+    from journal.repositories.outgoing_changes import OutgoingChanges
+    from journal.repositories.tasks import Tasks
+    server, account = joined_team(app)
+    port = app.server().port
+    for i in range(3):
+        app.console().run(["task", "create", f"task {i}"], USER)
+    from journal.repositories.shared_tables import SharedTables
+    with sqlite3.connect(app.config.database) as database:
+        database.row_factory = sqlite3.Row
+        local = [dict(row) for row in database.execute("select * from tasks")]
+        others = [{"row_table": table, "row": row["id"], "fields": dict(row), "changed_at": {}} for table in app.container.get(SharedTables).names() if table != "tasks" for row in database.execute(f"select * from {table}")]
+    rows = others + [{"row_table": "tasks", "row": row["id"], "fields": {**row, "brief": "x" * 4_000_000 if n == 0 else row["brief"]}, "changed_at": {}} for n, row in enumerate(local)]
+    edited = local[1]["id"]
+    outgoing = app.container.get(OutgoingChanges)
+    outgoing.clear()
+    outgoing.queued(OutgoingChange(row_table="tasks", row=edited, action=UPDATED, fields={"title": "edited here meanwhile"}, changed_at={"title": 9e9}, writer="user:1"), Actor.system())
+    body = json.dumps({"rows": rows, "head": 50, "server_time": 1.0}).encode()
+    assert len(body) > 4_000_000
+    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=60).read())
+    tasks = app.container.get(Tasks)
+    with app.container.get(Scope).environment(local[0]["environment_id"]):
+        assert answer == {"laid_in": True} and len(tasks.find(local[0]["id"]).brief) == 4_000_000, "the copy is laid in, many megabytes as it is"
+        assert tasks.find(edited).title == "edited here meanwhile", "the write waiting to go stays on top of the team's copy"
+    assert account.sequence() == 50
+    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=60).read())
+    assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
+    account.left(0)
+    server.shutdown()
