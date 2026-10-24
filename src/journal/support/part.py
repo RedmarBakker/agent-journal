@@ -84,7 +84,7 @@ class Part:
         tokens = self.tokens()
         if not self.is_read() or self.program() == "sqlite3" or WRITING.search(self.unquoted()) or self.edits_files() or self.tails_forever():
             return False
-        paths = [word for word in tokens[1:] if CODE.search(word) or self.is_project_path(word)]
+        paths = [word for word in tokens[1:] if CODE.search(word) or self.is_project_path(word) or self.is_journal_owned(word)]
         return all(self.is_project_file(word) for word in paths) and (bool(paths) or self.is_search() and not self.touches_foreign_folder())
 
     def touches_foreign_folder(self) -> bool:
