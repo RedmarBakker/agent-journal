@@ -171,7 +171,7 @@ test("every act in the pile and every sequence, one line each: its weight, its c
         "clip polish ×4 when moment=pastime free=true lasted=45 voices=butler, plays out, cools 60s",
         "clip whistle ×4 when moment=pastime free=true lasted=45 voices=coach, plays out, cools 60s",
         "clip sip ×4 when moment=pastime free=true lasted=45 voices=colleague, plays out, cools 60s",
-        "clip headphones ×4 when moment=pastime free=true lasted=45 voices=homie, plays out, cools 60s",
+        "clip groove ×4 when moment=pastime free=true lasted=45 voices=homie, plays out, cools 60s",
         "clip shield_polish ×4 when moment=pastime free=true lasted=45 voices=squire, plays out, cools 60s",
         "shenanigan of 20s clip hop_up ×2 when moment=pastime, plays out, cools 1200s",
         "shenanigan of 12s clip disco ×2 when moment=pastime ball=bubble, plays out, cools 7200s",

@@ -1369,7 +1369,7 @@ export const ACTING = {
     gestureIn: 0.2, gestureOut: 0.8,
     yawnEyes: 0.94, yawnSpan: [0.08, 0.92],
     pastimeSpan: [0.3, 0.7], whistleEyes: 0.65, sipEyes: 0.5, sipTip: 12,
-    headphoneEyes: 0.4, beats: 4, sways: 2, wipes: 3, wipeLift: 0.035,
+    grooveEyes: 0.4, beats: 4, sways: 2, wipes: 3, wipeLift: 0.035,
     wipeAcross: 0.04, bowLean: 18, bowNod: 10,
     leapSpan: [0.18, 0.78], catchSpan: [0.15, 0.45], recoverSpan: [0.45, 0.85], recover: 0.3,
 };
@@ -1598,13 +1598,13 @@ function sip(pose, stance, t) {
     pose.shutEyes(1 - ACTING.sipEyes * swell(u, ...ACTING.pastimeSpan));
 }
 
-function headphones(pose, stance, t) {
+function groove(pose, stance, t) {
     const {u, ready} = gestureTime(t, ACTING.pastimeFrames);
     breathe(pose, 0);
     trunk(pose, {nod: ACTING.nod * waveOf(u, ACTING.beats) * ready, tilt: ACTING.rock * waveOf(u, ACTING.sways) * ready});
     armsAtRest(pose, stance);
     pose.swing(waveOf(u, ACTING.sways) * ready);
-    pose.shutEyes(1 - ACTING.headphoneEyes * ready);
+    pose.shutEyes(1 - ACTING.grooveEyes * ready);
 }
 
 function shieldPolish(pose, stance, t) {
@@ -3285,7 +3285,7 @@ export const CLIPS = [
     {name: "whistle", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["coach"], pose: whistle},
     {name: "phone_call", head: HEAD.gestures, frames: ACTS.phone_call.frames, fps: ACTS.phone_call.fps, loops: false, postures: MOVE, pose: phone_call},
     {name: "sip", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["colleague"], pose: sip},
-    {name: "headphones", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: headphones},
+    {name: "groove", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: groove},
     {name: "shield_polish", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: shieldPolish},
     {name: "bow", head: HEAD.gestures, frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["butler"], pose: bow},
     {name: "salute", head: HEAD.gestures, frames: ACTING.greetingFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: salute},
@@ -3417,6 +3417,9 @@ const FLAT = /* glsl */ `
 // (Stage.draw), nor over half a pixel, so each pixel reads on its own, and lit pixels are `dark` as bright there under a dance's band;
 // and a faint glare `glare.strength` lies across the top of the glass from `glare.from` of the way up. It is lit whole by a dance (visor.js discoScreen): a band about its middle reaching
 // `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
+// parts of a voice's model the figure never shows: the homie's headphones, until they are modelled again
+export const HIDDEN_PARTS = ["headphones"];
+
 export const SCREEN = {
     gap: 0.16, line: 1, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
     bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.85, soft: 0.8, reach: 2}, glare: {strength: 0.012, from: 0.5},
@@ -3668,6 +3671,7 @@ export async function figureOf(bytes, voice, decoder, shows = () => true) {
         hull.scale.copy(mesh.scale);
         // the eyes are drawn in the visor's pixels, never as the model's own eye parts
         if (mesh.name.startsWith("eye_")) mesh.visible = hull.visible = false;
+        if (HIDDEN_PARTS.some((part) => mesh.name.startsWith(part))) mesh.visible = hull.visible = false;
     }
     const carried = meshes.filter((mesh) => mesh.visible);
     const busy = handsHolding(carried, BUSY_ITEMS);

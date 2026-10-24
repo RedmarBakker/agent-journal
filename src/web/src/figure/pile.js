@@ -177,7 +177,7 @@ export const PILE = [
         pastime("polish", 4, 45, 60, {when: {voices: ["butler"]}}),
         pastime("whistle", 4, 45, 60, {when: {voices: ["coach"]}}),
         pastime("sip", 4, 45, 60, {when: {voices: ["colleague"]}}),
-        pastime("headphones", 4, 45, 60, {when: {voices: ["homie"]}}),
+        pastime("groove", 4, 45, 60, {when: {voices: ["homie"]}}),
         pastime("shield_polish", 4, 45, 60, {when: {voices: ["squire"]}}),
         // the shenanigan: it hops up the bubbles off the top of the chat and comes back down on a parachute (figure/skyward.js); it turns
         // a salto only now and then on a high jump up onto a bubble (the jump moment), never where it stands
