@@ -9490,7 +9490,7 @@ def test_a_dispatch_whose_inner_worktree_cannot_be_made_is_refused_and_leaves_no
     assert not (app.config.home / "worktrees" / "1-Worker-1").exists() and not git_run(root, "branch", "--list", "worker/1-Worker-1").stdout.strip()
 
 
-def test_after_a_merge_every_repository_keeps_the_tip_and_loses_the_branch_and_worktree(app: App, monkeypatch):
+def test_after_a_merge_every_repository_keeps_the_worker_branch_and_worktree_moved_up_to_the_merged_tip(app: App, monkeypatch):
     root = workspace_made(app, ("platform", "mobile"))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform and mobile totals")
     committed(folder / "platform", "totals.php", "<?php\n")
@@ -9498,10 +9498,10 @@ def test_after_a_merge_every_repository_keeps_the_tip_and_loses_the_branch_and_w
     assert checked_and_merged(app).code == 0
     app.runtime().deferred.drain()
     for checkout in (root, root / "platform", root / "mobile"):
-        assert not git_run(checkout, "branch", "--list", "worker/1-Worker-1").stdout.strip(), f"no worker branch in {checkout.name}"
-        assert "1-Worker-1" not in git_run(checkout, "worktree", "list").stdout
-        assert git_run(checkout, "rev-parse", "--verify", "-q", "refs/journal/worktrees/1-Worker-1").returncode == 0, f"the tip is kept in {checkout.name}"
-    assert not folder.exists() and not list((app.config.home / "removed-worktrees").iterdir())
+        assert git_run(checkout, "branch", "--list", "worker/1-Worker-1").stdout.strip(), f"the worker branch stays in {checkout.name}"
+        assert "1-Worker-1" in git_run(checkout, "worktree", "list").stdout, f"the worktree stays in {checkout.name}"
+        assert git_run(checkout, "merge-base", "--is-ancestor", "HEAD", "worker/1-Worker-1").returncode == 0, f"moved up to the merged tip in {checkout.name}"
+    assert (folder / "platform" / "totals.php").is_file()
 
 
 def test_a_single_repository_worker_knows_no_files_once_its_branch_is_gone(app: App, monkeypatch):
