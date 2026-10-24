@@ -2,6 +2,7 @@ import traceback
 
 from journal.http.support.json_out import JsonOut
 from journal.http.support.file_response import FileResponse
+from journal.engine.lifecycle import Lifecycle
 from journal.http.support.identity import Identity
 from journal.http.support.login_gate import LoginGate
 from journal.http.support.pooled_handler import PooledHandler
@@ -13,13 +14,18 @@ from journal.http.static_files import StaticFiles
 from journal.http.support.stream_response import StreamResponse
 
 
+# the one question answered while the journal boots: which phase it is in
+UNHELD_PATHS = ("/journal/health",)
+
+
 class Handler(PooledHandler):
-    """Turns one HTTP exchange into a Request for the router and writes its Response back; nothing else lives here."""
+    """Turns one HTTP exchange into a Request for the router and writes its Response back, holding it while the journal boots; nothing else lives here."""
 
     router: Router
     identity: Identity
     static: StaticFiles
     gate: LoginGate
+    lifecycle: Lifecycle
 
     def do_GET(self) -> None:
         request = self._request()
@@ -53,7 +59,11 @@ class Handler(PooledHandler):
     def _request(self) -> Request:
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
-        return RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity)
+        request = RequestReading.read(RequestReading.head(self.command, self.path, dict(self.headers.items())), raw, self.identity)
+        if request.path in UNHELD_PATHS:
+            return request
+        boot_wait = self.lifecycle.boot_wait_seconds()
+        return request.boot_delayed(boot_wait) if boot_wait else request
 
     def _file(self, file: FileResponse) -> None:
         self.send_response(file.status)

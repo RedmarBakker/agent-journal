@@ -30,9 +30,9 @@ test("rummaging is one of the searches, picked now and then: the other ways to s
     const rummage = searches.find((each) => each.name === "rummage");
     expect(rummage).toBeTruthy();
     const others = searches.filter((each) => each !== rummage);
-    expect(others.map((each) => each.name)).toEqual(["search", "binoculars", "flashlight"]);
+    expect(others.map((each) => each.name)).toEqual(["search", "binoculars"]);
     for (const other of others) expect(other.weight, other.name).toBeGreaterThanOrEqual(rummage.weight);
-    expect(rummage.weight / searches.reduce((sum, each) => sum + each.weight, 0)).toBeLessThan(0.15);
+    expect(rummage.weight / searches.reduce((sum, each) => sum + each.weight, 0)).toBeLessThan(0.2);
     expect(CLIPS.find((clip) => clip.name === "rummage")).toMatchObject({ownLook: true, postures: ["stand"]});
 });
 

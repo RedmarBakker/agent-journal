@@ -20,9 +20,10 @@ class RequestReading:
         query = {k: v[-1] for k, v in parse_qs(url.query).items()}
         person = identity.build(head.headers, head.cookie)
         request_at = Request.request_time(head.headers)
+        waited = Request.boot_wait(head.headers)
         if head.content_type == "application/octet-stream":
-            return Request(head.method, url.path, query, {"raw": raw}, {}, head.headers, person, request_at=request_at)
+            return Request(head.method, url.path, query, {"raw": raw}, {}, head.headers, person, request_at=request_at, boot_wait_seconds=waited)
         if head.content_type.startswith("multipart/form-data"):
             form = Multipart(head.content_type, raw)
-            return Request(head.method, url.path, query, form.fields(), {}, head.headers, person, form.files(), request_at)
-        return Request(head.method, url.path, query, json.loads(raw) if raw else {}, {}, head.headers, person, request_at=request_at)
+            return Request(head.method, url.path, query, form.fields(), {}, head.headers, person, form.files(), request_at, waited)
+        return Request(head.method, url.path, query, json.loads(raw) if raw else {}, {}, head.headers, person, request_at=request_at, boot_wait_seconds=waited)

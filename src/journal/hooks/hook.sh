@@ -24,15 +24,32 @@ if grep -q '"hook_event_name": *"SessionStart"' "$sent"; then
     version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$root/.journal/src/journal/version.py" 2>/dev/null)
     mkdir -p "$root/.journal/runtime" && printf 'SessionStart %s\n' "$version" > "$root/.journal/runtime/session-version"
 fi
+# A journal booting or restarting is waited for, and the hook sent once it is up, its time measured from then and its wait sent along;
+# a hook that finds no server listening while one boots waits and is sent again.
+post() {
+    curl -sS --max-time 10 -o "$body" -w '%{http_code}' -X POST "http://127.0.0.1:$port/hooks/$agent" \
+        -H "Content-Type: application/json" \
+        -H "X-Journal-Env: $(journal_environment)" \
+        -H "X-Journal-Launch: ${JOURNAL_LAUNCH:-}" \
+        -H "X-Journal-Worker: ${JOURNAL_WORKER:-}" \
+        -H "X-Journal-Worker-Token: ${JOURNAL_WORKER_TOKEN:-}" \
+        -H "X-Journal-Request-At: $started" \
+        -H "X-Journal-Boot-Wait-Ms: $waited" \
+        --data-binary @"$sent"
+}
+waited=$(journal_boot_wait "$root/.journal")
+[ "$waited" = 0 ] || { port=$(cat "$root/.journal/port" 2>/dev/null); started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null); }
 [ -n "$port" ] || { rm -f "$body" "$sent"; exit 0; }
-status=$(curl -sS --max-time 10 -o "$body" -w '%{http_code}' -X POST "http://127.0.0.1:$port/hooks/$agent" \
-    -H "Content-Type: application/json" \
-    -H "X-Journal-Env: $(journal_environment)" \
-    -H "X-Journal-Launch: ${JOURNAL_LAUNCH:-}" \
-    -H "X-Journal-Worker: ${JOURNAL_WORKER:-}" \
-    -H "X-Journal-Worker-Token: ${JOURNAL_WORKER_TOKEN:-}" \
-    -H "X-Journal-Request-At: $started" \
-    --data-binary @"$sent") || status=0
+status=$(post) || status=0
+if [ "$status" = 000 ] || [ "$status" = 0 ]; then
+    if [ -f "$root/.journal/runtime/journal.booting" ]; then
+        more=$(journal_boot_wait "$root/.journal")
+        waited=$((waited + more))
+        port=$(cat "$root/.journal/port" 2>/dev/null)
+        started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
+        status=$(post) || status=0
+    fi
+fi
 rm -f "$sent"
 case "$status" in
     200) cat "$body" ;;

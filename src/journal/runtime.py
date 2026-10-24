@@ -3,6 +3,7 @@ import os
 import time
 from journal.engine.clock import Clock
 from journal.engine.job_runner import JobRunner
+from journal.engine.lifecycle import Lifecycle
 from journal.engine.menu_watcher import MenuWatcher
 from journal.features.plugins.support.service_start import ServiceStart
 from journal.engine.delivery import Delivery
@@ -48,11 +49,11 @@ INSTANCE_CHECK_SECONDS = 2.0
 
 
 class Runtime:
-    """What the server process keeps running: the HTTP server and the share server beside it, the deferred worker and the job runner with the clock, the menu watcher and every feature's jobs, with the machine on the bus. State itself is in the database, so a restart loses nothing."""
+    """What the server process keeps running: the HTTP server and the share server beside it, the deferred worker and the job runner with the clock, the menu watcher and every feature's jobs, with the machine on the bus. It boots in phases: the server listens first and holds every request while everything loads, and only once booted do the requests go through and the workers, jobs and services start. State itself is in the database, so a restart loses nothing."""
 
-    def __init__(self, container: Container, server: Server, deferred: ListenerQueue, clock: Clock, machine: StateMachine, bus: Bus, registry: Registry, scope: Scope, watcher: MenuWatcher, share_server: ShareServer, reserve: InstanceGuard, jobs: JobRunner) -> None:
+    def __init__(self, container: Container, server: Server, deferred: ListenerQueue, clock: Clock, machine: StateMachine, bus: Bus, registry: Registry, scope: Scope, watcher: MenuWatcher, share_server: ShareServer, reserve: InstanceGuard, jobs: JobRunner, lifecycle: Lifecycle) -> None:
         self.container, self.server, self.deferred, self.clock, self.machine, self.bus, self.registry, self.scope = container, server, deferred, clock, machine, bus, registry, scope
-        self.watcher, self.share_server, self.standby, self.jobs = watcher, share_server, reserve, jobs
+        self.watcher, self.share_server, self.standby, self.jobs, self.lifecycle = watcher, share_server, reserve, jobs, lifecycle
 
     def register_nudges(self) -> None:
         nudges = self.container.get(NudgeRegistry)
@@ -85,16 +86,13 @@ class Runtime:
             self.container.get(Delivery).applied(reply, 0.0)
 
     def start(self) -> None:
-        from journal.features.faults.support.slow_requests import STARTING
-        starting = self.container.get(Config).home / "runtime" / STARTING
-        starting.parent.mkdir(parents=True, exist_ok=True)
-        starting.touch()
-        try:
-            self.startup()
-        finally:
-            starting.unlink(missing_ok=True)
+        self.lifecycle.booting()
+        self.server.start()
+        self.loaded()
+        self.lifecycle.booted()
+        self.started()
 
-    def startup(self) -> None:
+    def loaded(self) -> None:
         self.share_server.start()
         self.boot()
         from journal.features.skills.support.skill_files import SkillFiles
@@ -103,10 +101,11 @@ class Runtime:
         self.container.get(SkillFiles).write_all()
         self.container.get(PluginSkills).refresh_all()
         self.container.get(ProfileFiles).write_all()
-        self.deferred.start()
         self.register_jobs()
+
+    def started(self) -> None:
+        self.deferred.start()
         self.jobs.start()
-        self.server.start()
         self.container.get(SyncClient).start()
         self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()

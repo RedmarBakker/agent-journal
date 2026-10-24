@@ -158,7 +158,7 @@ export const PILE = [
     // squaring a stack of papers
     // the magnifying glass and the binoculars each at most once in five minutes, so neither is in hand at every search; the binoculars only
     // from the compose box, scanning up the chat
-    ...at("held:search", {}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, clip("flashlight", 2), clip("rummage", 1)]),
+    ...at("held:search", {}, [prop("search", 3), {...prop("binoculars", 2), when: {home: true}}, clip("rummage", 1)]),
     ...at("held:type", {}, [clip("type", 3), clip("type_ponder", 1)]),
     ...at("held:watch", {}, [clip("watch", 2), clip("wave_up", 1)]),
     ...at("held:compacting", {}, [clip("pack_box", 3), clip("press", 2), clip("vacuum", 2), clip("compacting", 1)]),

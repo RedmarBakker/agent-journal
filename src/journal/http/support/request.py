@@ -8,6 +8,7 @@ from journal.support.missing_row import MissingRow
 
 ENVIRONMENT_HEADER = "X-Journal-Env"
 REQUEST_TIME_HEADER = "x-journal-request-at"
+BOOT_WAIT_HEADER = "x-journal-boot-wait-ms"
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class Request:
     actor: Actor
     files: dict = field(default_factory=dict)
     request_at: float = field(default_factory=time.time)
+    boot_wait_seconds: float = 0.0
 
     @staticmethod
     def request_time(headers: dict) -> float:
@@ -33,6 +35,17 @@ class Request:
         if self.path == "/cli/run":
             return "/cli/" + " ".join(CliPost.parsed(self.body["raw"]).argv[:2])
         return self.path
+
+    @staticmethod
+    def boot_wait(headers: dict) -> float:
+        waited = headers.get(BOOT_WAIT_HEADER, "")
+        return int(waited) / 1000 if waited.isdigit() else 0.0
+
+    def boot_delayed(self, seconds: float) -> "Request":
+        return replace(self, boot_wait_seconds=self.boot_wait_seconds + seconds, request_at=self.request_at + seconds)
+
+    def is_boot_delayed(self) -> bool:
+        return self.boot_wait_seconds > 0
 
     def with_params(self, params: dict) -> "Request":
         return replace(self, params=params)

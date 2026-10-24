@@ -178,7 +178,6 @@ test("every animation in the pile, with its weight and the condition it plays un
         "nothing nothing ×560 when moment=pastime",
         "clip search ×3 when moment=held:search, plays out",
         "clip binoculars ×2 when moment=held:search home=true, plays out",
-        "clip flashlight ×2 when moment=held:search, plays out",
         "clip rummage ×1 when moment=held:search, plays out",
         "clip type ×3 when moment=held:type, plays out",
         "clip type_ponder ×1 when moment=held:type, plays out",
@@ -335,7 +334,7 @@ test("searching, the magnifying glass and the binoculars each come at most once 
         const times = drawn.filter((each) => each.clip === prop).map((each) => each.second);
         for (let index = 1; index < times.length; index++) expect(times[index] - times[index - 1], prop).toBeGreaterThanOrEqual(300);
     }
-    expect(drawn.every((each) => ["search", "binoculars", "flashlight", "rummage"].includes(each.clip))).toBe(true);
+    expect(drawn.every((each) => ["search", "binoculars", "rummage"].includes(each.clip))).toBe(true);
 });
 
 test("the binoculars are picked only while the figure stands on the compose box, to scan up the chat from there", async () => {

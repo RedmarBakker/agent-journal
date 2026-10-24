@@ -22,6 +22,7 @@ class AgentEvent(Event):
     time: float = 0.0
     data: FeatureData = field(default_factory=lambda: FeatureData({}), compare=False)
     subagent: str = ""
+    boot_wait_seconds: float = 0.0
     tool_use: int = 0
 
     @property
@@ -45,6 +46,12 @@ class AgentEvent(Event):
 
     def counted(self, tool_use: int) -> Self:
         return replace(self, tool_use=tool_use)
+
+    def boot_delayed(self, seconds: float) -> Self:
+        return replace(self, boot_wait_seconds=seconds)
+
+    def is_boot_delayed(self) -> bool:
+        return self.boot_wait_seconds > 0
 
     def placed(self, session: str, environment_id: int, provider: str, context: float | None, time: float, subagent: str = "") -> Self:
         return replace(self, session=session, environment_id=environment_id, provider=provider, context=context, time=time, subagent=subagent)

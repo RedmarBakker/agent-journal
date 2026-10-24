@@ -2,6 +2,7 @@ import os
 import time as timing
 
 from journal.config import Config
+from journal.engine.lifecycle import Lifecycle
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.features.updates.support.update_card import UpdateCard
 from journal.http.agents.agent_activity import AgentActivity
@@ -33,8 +34,8 @@ class JournalController:
     """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
-                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners) -> None:
-        self.numbers, self.owners = numbers, owners
+                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle) -> None:
+        self.numbers, self.owners, self.lifecycle = numbers, owners, lifecycle
         self.config, self.boot, self.environments, self.agents, self.activity, self.current = config, manifest, environments, agents, activity, current
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
@@ -46,7 +47,7 @@ class JournalController:
                               "environments": [e.name for e in self.environments.all()] or ["main"]})
 
     def health(self, request: Request) -> Response:
-        return Response.json({"answering": True})
+        return Response.json({"answering": True, "phase": self.lifecycle.phase.value})
 
     def journals(self, request: Request) -> Response:
         return Response.json([{"port": self.config.port, "project": self.config.root.name, "version": VERSION, "root": str(self.config.home), "current": True}])

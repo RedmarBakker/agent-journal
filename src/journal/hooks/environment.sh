@@ -19,3 +19,24 @@ journal_local_environment() {
     fi
     printf main
 }
+
+# While the journal at $1 (its .journal folder) boots or restarts, as its runtime/journal.booting file says, waits for it, at most
+# BOOT_WAIT_TENTHS tenths of a second, and prints how many milliseconds it waited, 0 when it was up. The file holds the booting
+# server's process id, and the wait ends once that process is gone, so a boot that died leaves nothing waiting. A restart writes
+# "restart" and the old server's id: while the old server still answers nothing waits, and once it is gone the wait for the next one
+# lasts RESTART_WAIT_TENTHS at most.
+BOOT_WAIT_TENTHS=600
+RESTART_WAIT_TENTHS=100
+journal_boot_wait() {
+    tenths=0
+    while [ -f "$1/runtime/journal.booting" ] && [ "$tenths" -lt "$BOOT_WAIT_TENTHS" ]; do
+        booting=$(cat "$1/runtime/journal.booting" 2>/dev/null)
+        case "$booting" in
+            restart\ *) ! kill -0 "${booting#restart }" 2>/dev/null && [ "$tenths" -lt "$RESTART_WAIT_TENTHS" ] || break ;;
+            *) kill -0 "$booting" 2>/dev/null || break ;;
+        esac
+        sleep 0.1
+        tenths=$((tenths + 1))
+    done
+    printf '%s' "$((tenths * 100))"
+}

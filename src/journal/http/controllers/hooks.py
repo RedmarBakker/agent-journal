@@ -20,7 +20,7 @@ class HookController:
     def receive(self, request: Request) -> Response:
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
-        stamped = parsed.stamped(int(stamp)) if stamp else parsed
+        stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds)
         worker = request.headers.get(WORKER_HEADER)
         hook = stamped.worker_hook(int(worker), request.headers.get(WORKER_TOKEN_HEADER)) if worker else stamped
         if hook.subagent and hook.kind == HookKind.PRE_TOOL_USE:

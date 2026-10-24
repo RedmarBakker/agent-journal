@@ -89,7 +89,8 @@ class Receiver:
             return recorded
         elapsed = int(time.time() * 1000) - hook.started_ms
         self.slow.measured(HOOK, f"/hooks/{hook.kind.value}", elapsed)
-        return {**recorded, "hook_ms": elapsed}
+        boot_wait = {"boot_wait_ms": round(hook.boot_wait_seconds * 1000)} if hook.boot_wait_seconds else {}
+        return {**recorded, "hook_ms": elapsed, **boot_wait}
 
     def is_unknown_session_end(self, event: AgentEvent) -> bool:
         return isinstance(event, SessionEnded) and not self.agents.matching(session=event.session)

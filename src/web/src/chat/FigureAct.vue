@@ -329,7 +329,7 @@ const flap = computed(() => {
                     <ellipse cx="0" cy="0" rx="5" ry="3.6" fill="#7a5232" />
                     <circle cx="5" cy="0" r="2" fill="#7a5232" />
                 </g>
-                <path v-if="bug.splat" :transform="`translate(${bug.x} ${bug.y}) scale(${1.3 - 0.3 * bug.splat})`" :opacity="bug.splat" d="M-9 0q2-6 6-3 1-6 5-2 5-3 5 2 5 1 2 4 3 4-3 3-4 4-7 1-3 0-6-1-6-4-4-3 0-3Z" fill="#9bd34a" stroke="#5f8f24" stroke-width="0.8" />
+                <path v-if="bug.splat" :transform="`translate(${bug.x} ${bug.y}) scale(${1.3 - 0.3 * bug.splat})`" :opacity="bug.splat" d="M-9 0q2-6 6-3 1-6 5-2 5-3 5 2 5 1 2 4 3 4-3 3-4 4-7 1-3 0-6-1-6-4-4-3Z" fill="#9bd34a" stroke="#5f8f24" stroke-width="0.8" />
                 <g v-if="bug.aimed" :transform="`translate(${hand.x} ${hand.y}) rotate(${bug.angle})`" :opacity="bug.aimed">
                     <rect x="-16" y="-2.5" width="13" height="5" rx="1.5" :fill="COLOURS.wood" />
                     <rect x="-4" y="-3" width="20" height="5" rx="1" :fill="COLOURS.ink" />
