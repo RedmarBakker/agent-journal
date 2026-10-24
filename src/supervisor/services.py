@@ -32,6 +32,9 @@ class Services:
         for service in self._table.values():
             service.start()
 
+    def health_restarts(self) -> list[str]:
+        return [line for service in list(self._table.values()) if (line := service.health_restart())]
+
     def revive_stopped(self) -> None:
         for service in list(self._table.values()):
             service.revive()

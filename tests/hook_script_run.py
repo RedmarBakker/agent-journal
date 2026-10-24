@@ -48,3 +48,15 @@ def test_a_refusal_with_the_agents_own_answer_is_printed_as_it_is_and_exits_zero
 def test_a_refusal_without_an_answer_goes_to_stderr_with_exit_two(tmp_path: Path):
     ran = hooked(tmp_path, {"error": "a plain refusal"})
     assert ran.returncode == 2 and "a plain refusal" in ran.stderr
+
+
+def test_the_hook_script_writes_the_time_of_every_hook_it_sends_whether_or_not_the_server_takes_it(tmp_path: Path):
+    import time
+    sent = json.dumps({"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "ls"}})
+    environ = {**os.environ, "AGENT_JOURNAL_ACTIVE": "1", "JOURNAL_ACTOR": "agent", "JOURNAL_ENV": "spike"}
+    (tmp_path / ".journal").mkdir()
+    (tmp_path / ".journal" / "port").write_text("9")
+    before = int(time.time())
+    subprocess.run(["sh", str(SCRIPT), "claude", str(tmp_path)], input=sent, capture_output=True, text=True, env=environ, timeout=30)
+    fired = tmp_path / ".journal" / "runtime" / "hooks" / "spike.fired"
+    assert fired.is_file() and before <= int(fired.read_text()) <= int(time.time()), "a hook the server never took, with nothing listening on its port, is still written down with its time, under its environment's name"

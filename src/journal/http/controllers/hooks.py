@@ -2,6 +2,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.support.announced_commands import AnnouncedCommands
 from journal.support.hook import Hook
 from journal.support.hook_kind import HookKind
+from journal.hooks.hook_arrivals import HookArrivals
 from journal.hooks.receiver import Receiver
 from journal.hooks.support.tool_calls import ToolCalls
 from journal.http.support.request import REQUEST_TIME_HEADER, Request
@@ -15,10 +16,11 @@ WORKER_TOKEN_HEADER = "x-journal-worker-token"
 
 
 class HookController:
-    def __init__(self, receiver: Receiver, providers: Providers, announced: AnnouncedCommands, calls: ToolCalls, settings: SettingRows) -> None:
-        self.receiver, self.providers, self.announced, self.calls, self.settings = receiver, providers, announced, calls, settings
+    def __init__(self, receiver: Receiver, providers: Providers, announced: AnnouncedCommands, calls: ToolCalls, settings: SettingRows, arrivals: HookArrivals) -> None:
+        self.receiver, self.providers, self.announced, self.calls, self.settings, self.arrivals = receiver, providers, announced, calls, settings, arrivals
 
     def receive(self, request: Request) -> Response:
+        self.arrivals.took(request.environment)
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
         stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds)

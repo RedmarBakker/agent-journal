@@ -20,6 +20,9 @@ sent=$(mktemp)
 cat > "$sent"
 started=$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)
 if grep -q '"agent_id"' "$sent" && ! grep -q '"hook_event_name": *"\(Subagent\|PreToolUse\)' "$sent"; then rm -f "$body" "$sent"; exit 0; fi
+# Every hook that goes to the server first writes its time, whether or not the server takes it: the server's health compares it with
+# the last hook it took, and the supervisor warns an agent whose terminal moves while this file stands still.
+mkdir -p "$root/.journal/runtime/hooks" && date +%s > "$root/.journal/runtime/hooks/$(journal_environment).fired"
 # The agent's own session start writes the version it started on, read by the journal to close the restart notice.
 if grep -q '"hook_event_name": *"SessionStart"' "$sent"; then
     version=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' "$root/.journal/src/journal/version.py" 2>/dev/null)

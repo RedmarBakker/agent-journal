@@ -5,6 +5,8 @@ import threading
 import time
 from pathlib import Path
 
+from supervisor.health_check import HealthCheck
+
 BACKOFF = 2.0
 LONGEST_WAIT_SECONDS = 30.0
 WINDOW_SECONDS = 120.0
@@ -12,10 +14,13 @@ STOP_GRACE = 5.0
 
 
 class Service:
-    """A named process beside the agent, with no terminal: what is sent to it goes to its input, its output goes to its log, and it is started again when it dies"""
+    """A named process beside the agent, with no terminal: what is sent to it goes to its input, its output goes to its log, and it is started again when it dies or, when it names a health check, when it fails that check too many times in a row."""
 
-    def __init__(self, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, persistent: bool = True) -> None:
+    def __init__(self, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, persistent: bool = True, health: HealthCheck | None = None) -> None:
         self.name, self.command, self.folder, self.environ, self.log, self.persistent = name, command, folder, environ, log, persistent
+        self.health = health
+        self._failures = 0
+        self._checked_at = 0.0
         self._process: subprocess.Popen | None = None
         self._last_start = 0.0
         self._deaths: list[float] = []
@@ -36,6 +41,21 @@ class Service:
         with self._moving:
             self.stop()
             self.start()
+
+    # the line that says why the service was started again when it failed its health check too many times in a row, else none
+    def health_restart(self) -> str:
+        moment = time.time()
+        if self.health is None or not self.is_active() or moment - self._last_start < self.health.grace_seconds or moment - self._checked_at < self.health.every_seconds:
+            return ""
+        self._checked_at = moment
+        fault = self.health.fault()
+        self._failures = self._failures + 1 if fault else 0
+        if self._failures < self.health.failures:
+            return ""
+        self._failures = 0
+        self._restarts += 1
+        self.restart()
+        return f"{self.name} failed its health check {self.health.failures} times in a row ({fault}): started again"
 
     def is_active(self) -> bool:
         return self._process is not None and self._process.poll() is None

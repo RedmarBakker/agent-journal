@@ -5,6 +5,7 @@ from journal.config import Config
 from journal.engine.lifecycle import Lifecycle
 from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.features.updates.support.update_card import UpdateCard
+from journal.hooks.hook_arrivals import HookArrivals
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.agents.bar_row import BarRow
 from journal.http.agents.current_work import CurrentWork
@@ -34,8 +35,8 @@ class JournalController:
     """The journal as a whole: what the viewer starts from, who and where it is, the state of each environment, and what the current agent is doing now."""
 
     def __init__(self, config: Config, manifest: Manifest, environments: Environments, agents: Agents, activity: AgentActivity, current: CurrentWork,
-                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle) -> None:
-        self.numbers, self.owners, self.lifecycle = numbers, owners, lifecycle
+                 entries: Entries, messages: Messages, questions: Questions, tasks: Tasks, scope: Scope, threshold: UpdateCard, numbers: DeveloperNumbers, owners: EnvironmentOwners, lifecycle: Lifecycle, arrivals: HookArrivals) -> None:
+        self.numbers, self.owners, self.lifecycle, self.arrivals = numbers, owners, lifecycle, arrivals
         self.config, self.boot, self.environments, self.agents, self.activity, self.current = config, manifest, environments, agents, activity, current
         self.entries, self.messages, self.questions, self.tasks, self.scope, self.mark = entries, messages, questions, tasks, scope, threshold
 
@@ -46,8 +47,10 @@ class JournalController:
         return Response.json({"project": self.config.root.name, "color": COLOR, "root": str(self.config.home), "version": VERSION, "pid": os.getpid(), "parent": os.getppid(),
                               "environments": [e.name for e in self.environments.all()] or ["main"]})
 
+    # the server answers, and answers unwell while an environment's hooks fire without reaching it, so its supervisor starts it again
     def health(self, request: Request) -> Response:
-        return Response.json({"answering": True, "phase": self.lifecycle.phase.value})
+        lost = self.arrivals.lost()
+        return Response.json({"answering": True, "phase": self.lifecycle.phase.value, "hooks_lost": lost}, 503 if lost else 200)
 
     def journals(self, request: Request) -> Response:
         return Response.json([{"port": self.config.port, "project": self.config.root.name, "version": VERSION, "root": str(self.config.home), "current": True}])

@@ -107,7 +107,7 @@ class Tunnel:
         self.link.stop_service(host, SERVICE)
         self.tunler.stop_subdomain(subdomain)
         self.place.store(tunnel=(port, subdomain), inspector=inspector)
-        self.link.start(host, SERVICE, [command, str(port), f"--domain={subdomain}", f"--inspect={inspector}"], self.config.root, dict(os.environ), self.log)
+        self.link.start(host, SERVICE, [command, str(port), f"--domain={subdomain}", f"--inspect={inspector}"], self.config.root, dict(os.environ), self.log, {})
 
     def stop(self) -> None:
         host = self.link.hosting()

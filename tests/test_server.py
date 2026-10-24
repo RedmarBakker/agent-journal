@@ -1777,3 +1777,23 @@ def test_a_message_of_attachments_alone_is_accepted_without_words(tmp_path):
         assert [m["id"] for m in call(server, "GET", "/journal/messages?limit=20")[1]["rows"]] == [message["id"]]
     finally:
         app.runtime().stop()
+
+
+def test_the_health_url_answers_unwell_while_an_environments_hooks_fire_without_reaching_the_server_and_well_once_one_does(app: App, server):
+    from journal.hooks.hook_arrivals import HookArrivals
+    arrivals = app.container.get(HookArrivals)
+    fired = app.config.home / "runtime" / "hooks" / "main.fired"
+    fired.parent.mkdir(parents=True, exist_ok=True)
+    taken = dict(arrivals.taken)
+    try:
+        assert call(server, "GET", "/journal/health")[0] == 200, "a server whose hooks reach it is well"
+        arrivals.taken["main"] = time.time() - 120
+        fired.write_text(str(int(time.time())))
+        status, body = call(server, "GET", "/journal/health")
+        assert status == 503 and body["hooks_lost"] == ["main"], "hooks the script fired for over a minute past the last the server took are lost, and the server answers unwell, naming the environment"
+        assert call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "health-1"})[0] == 200
+        assert call(server, "GET", "/journal/health")[0] == 200, "a hook that reaches the server makes it well again"
+    finally:
+        fired.unlink(missing_ok=True)
+        arrivals.taken.clear()
+        arrivals.taken.update(taken)

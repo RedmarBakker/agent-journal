@@ -11,6 +11,7 @@ from pathlib import Path
 
 from supervisor.band import Band
 from supervisor.band_labels import BandLabels
+from supervisor.front_health import FrontHealth
 from supervisor.inbox import Inbox
 from supervisor.launch_resume import LaunchResume
 from supervisor.screen_copy import ScreenCopy
@@ -29,12 +30,14 @@ REVIVE_WINDOW_SECONDS = 120.0
 REVIVE_DEATHS = 3
 FAULT_PAUSE = 0.5
 OWNER_CHECK_SECONDS = 3.0
+HEALTH_TURN_SECONDS = 1.0
+FRONT_CHECK_SECONDS = 5.0
 
 
 class Supervisor:
-    """One loop: stdin to the agent, the agent to stdout under the band, the inbox's requests answered, the services running; a fault in a turn is written to the faults log and never ends it. It exits ENDED when its agent is done, which ends the launcher's loop, and RESTART, or any other code, to be started again."""
+    """One loop: stdin to the agent, the agent to stdout under the band, the inbox's requests answered, the services running and started again when they fail their health checks, and the agent warned once when its hooks stand still while it works; a fault in a turn is written to the faults log and never ends it. It exits ENDED when its agent is done, which ends the launcher's loop, and RESTART, or any other code, to be started again."""
 
-    def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull), owner: int = 0, record: Path = Path(os.devnull)) -> None:
+    def __init__(self, terminal: Terminal, inbox: Inbox, services: Services, stdin: int | None = 0, stdout: int = 1, band: Band | None = None, screen_copy: ScreenCopy | None = None, faults: Path = Path(os.devnull), launch: Path = Path(os.devnull), owner: int = 0, record: Path = Path(os.devnull), front_health: FrontHealth | None = None) -> None:
         self.terminal, self.inbox, self.services, self.stdin, self.stdout, self.faults, self.launch = terminal, inbox, services, stdin, stdout, faults, launch
         self.source = SourceHash.current()
         self.owner, self.record = owner, ServiceRecord(record)
@@ -45,6 +48,11 @@ class Supervisor:
         self.band = band
         """The line kept at the top of the screen; none when the output is not a terminal."""
         self.verbs = Verbs(self)
+        self.front_health = front_health
+        self._output_at = 0.0
+        self._front_started_at = time.time()
+        self._front_checked_at = 0.0
+        self._front_warned = False
         self._stopping = False
         self._code: int | None = None
         self._deaths: list[float] = []
@@ -58,6 +66,7 @@ class Supervisor:
             self.inbox.open()
         self.record.ended()
         self.services.start_all()
+        threading.Thread(target=self.watched_health, name="service health", daemon=True).start()
         self.terminal.start()
         self.fit()
         signal.signal(signal.SIGWINCH, lambda *_: self.fit())
@@ -82,9 +91,36 @@ class Supervisor:
             self.services.revive_stopped()
             self.record.write(self.services.running())
             self.check_owner()
+            self.check_front()
         except Exception:
             self.noted(traceback.format_exc())
             time.sleep(FAULT_PAUSE)
+
+    def watched_health(self) -> None:
+        while self._code is None:
+            try:
+                for line in self.services.health_restarts():
+                    self.logged(line)
+            except Exception:
+                self.noted(traceback.format_exc())
+            time.sleep(HEALTH_TURN_SECONDS)
+
+    def check_front(self) -> None:
+        moment = time.time()
+        if self.front_health is None or moment - self._front_checked_at < FRONT_CHECK_SECONDS:
+            return
+        self._front_checked_at = moment
+        if not self.front_health.is_dead(self._output_at, self._front_started_at):
+            self._front_warned = False
+            return
+        if not self._front_warned:
+            self._front_warned = True
+            self.terminal.type(self.front_health.warning)
+            self.logged(f"the agent's hooks have not written {self.front_health.file} for over {self.front_health.stale_seconds:.0f} seconds while it works: warned it")
+
+    def logged(self, line: str) -> None:
+        with self.faults.open("a") as log_file:
+            log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
 
     def noted(self, fault: str) -> None:
         with self.faults.open("a") as log_file:
@@ -111,6 +147,7 @@ class Supervisor:
             if not data:
                 self._ended()
                 return
+            self._output_at = time.time()
             os.write(self.stdout, self.band.shield(data) if self.band else data)
             if self.screen_copy:
                 self.screen_copy.add(data)
@@ -219,6 +256,7 @@ class Supervisor:
             return
         self._deaths.append(moment)
         self._revivals += 1
+        self._front_started_at = time.time()
         self.terminal.restart(self.terminal.resume)
         self.fit()
 

@@ -1502,7 +1502,9 @@ def test_the_journals_boot_starts_the_sync_service_its_installed_version_names_w
     monkeypatch.setenv("JOURNAL_ENV", "main")
     app.container.get(ServiceStart).run()
     [sync] = [request for request in transmitted if request["name"] == "sync"]
-    assert sync["verb"] == "start" and sync["command"][1:] == ["-m", "sync_service", str(app.config.root)] and sync["folder"] == str(app.config.root) and sync["log"].endswith("runtime/sync.log"), "a supervisor whose launch file, written before an upgrade, names the journal alone is asked at the journal's boot for the sync service the installed version needs, given the project's folder"
+    port = sync["command"][-1]
+    assert sync["health"] == {"url": f"http://127.0.0.1:{port}/health"} and port.isdigit(), "it is given a free loopback port, where the supervisor checks its health"
+    assert sync["verb"] == "start" and sync["command"][1:-1] == ["-m", "sync_service", str(app.config.root)] and sync["folder"] == str(app.config.root) and sync["log"].endswith("runtime/sync.log"), "a supervisor whose launch file, written before an upgrade, names the journal alone is asked at the journal's boot for the sync service the installed version needs, given the project's folder"
     assert (Path(sync["env"]["PYTHONPATH"]) / "sync_service" / "__main__.py").is_file(), "with the folder its package is installed in importable, so it starts wherever the journal is installed"
 
 

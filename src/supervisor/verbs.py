@@ -4,6 +4,7 @@ import os
 import traceback
 from pathlib import Path
 
+from supervisor.health_check import HealthCheck
 from supervisor.inbox import PROTOCOL
 from supervisor.reply import Reply
 from supervisor.request import Request
@@ -39,7 +40,7 @@ class Verbs:
         request.needs("name", "command")
         existing = self.supervisor.services.runs(request.name)
         inherited = os.environ if request.inherit else {}
-        self.supervisor.services.add(Service(request.name, list(request.command), Path(request.folder), {**inherited, **request.environ}, Path(request.log), request.persistent))
+        self.supervisor.services.add(Service(request.name, list(request.command), Path(request.folder), {**inherited, **request.environ}, Path(request.log), request.persistent, HealthCheck(**request.health) if request.health else None))
         return Reply.success(started=not existing)
 
     def list(self, request: Request) -> Reply:

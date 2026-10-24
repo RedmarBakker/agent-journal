@@ -147,8 +147,8 @@ class SupervisorLink:
         path = Path(announced.screen).with_suffix(f".{kind}") if announced and announced.screen else None
         return path if path and path.exists() else None
 
-    def start(self, environment_id: int, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path) -> SupervisorReply:
-        return self._send(environment_id, "start", {"name": name, "command": command, "folder": str(folder), "env": environ, "log": str(log)})
+    def start(self, environment_id: int, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, health: dict) -> SupervisorReply:
+        return self._send(environment_id, "start", {"name": name, "command": command, "folder": str(folder), "env": environ, "log": str(log), "health": health})
 
     def start_clean(self, environment_id: int, name: str, command: list[str], folder: Path, environ: dict[str, str], log: Path, retain: bool) -> SupervisorReply:
         return self._send(environment_id, "start", {"name": name, "command": command, "folder": str(folder), "env": environ, "log": str(log), "inherit": False, "keep": retain})

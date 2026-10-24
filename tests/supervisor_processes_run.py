@@ -350,3 +350,76 @@ def test_a_supervisor_and_a_chain_shell_end_within_ten_seconds_of_their_owner_ki
         inbox.close()
         if shell.poll() is None:
             os.killpg(shell.pid, signal.SIGKILL)
+
+
+def test_a_service_that_fails_its_health_url_or_lets_its_health_file_go_stale_is_started_again_and_why_is_logged(tmp_path: Path):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from supervisor.health_check import HealthCheck
+
+    class Unwell(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(503)
+            self.end_headers()
+
+        def log_message(self, *args):
+            return
+
+    stand_in = HTTPServer(("127.0.0.1", 0), Unwell)
+    threading.Thread(target=stand_in.serve_forever, daemon=True).start()
+    environ = {"PATH": os.environ["PATH"]}
+    web = Service("web", ["sleep", "30"], tmp_path, environ, tmp_path / "web.log", health=HealthCheck(url=f"http://127.0.0.1:{stand_in.server_address[1]}/health", grace_seconds=0, every_seconds=0, timeout_seconds=1, failures=2))
+    beat = Service("beat", ["sleep", "30"], tmp_path, environ, tmp_path / "beat.log", health=HealthCheck(file=str(tmp_path / "beat.fresh"), fresh_seconds=1, grace_seconds=0, every_seconds=0, failures=1))
+    faults = tmp_path / "supervisor.log"
+    supervisor = Supervisor(Terminal(["true"], str(tmp_path), environ), Inbox(tmp_path / "s.sock", tmp_path / "announce"), Services(web, beat), stdin=None, faults=faults)
+    web.start(), beat.start()
+    web_pid, beat_pid = web.described()["pid"], beat.described()["pid"]
+    watching = threading.Thread(target=supervisor.watched_health, daemon=True)
+    watching.start()
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and (web.described()["pid"] in (0, web_pid) or beat.described()["pid"] in (0, beat_pid)):
+            time.sleep(0.1)
+        assert web.described()["pid"] not in (0, web_pid) and web.described()["restarts"] >= 1, "a service whose health URL keeps answering unwell is started again"
+        assert beat.described()["pid"] not in (0, beat_pid), "and so is one whose health file was never written"
+        logged = faults.read_text()
+        assert "web failed its health check 2 times in a row" in logged and "answered 503" in logged and "beat failed its health check 1 times in a row" in logged, logged
+    finally:
+        supervisor._code = 0
+        watching.join(5)
+        web.stop(), beat.stop()
+        stand_in.shutdown()
+
+
+def test_an_agent_whose_terminal_moves_while_its_hooks_file_stands_still_is_warned_once_until_the_file_moves(tmp_path: Path, monkeypatch):
+    import supervisor.supervisor as supervisor_module
+    from supervisor.front_health import FrontHealth
+    monkeypatch.setattr(supervisor_module, "FRONT_CHECK_SECONDS", 0.2)
+    out_r, out_w = os.pipe()
+    in_r, _ = os.pipe()
+    hooks = tmp_path / "hooks" / "main.fired"
+    terminal = Terminal(["sh", "-c", "while true; do echo tick; sleep 0.2; done"], str(tmp_path), {"PATH": os.environ["PATH"]})
+    inbox = Inbox(Path(f"/tmp/journal-{os.getuid()}") / f"test-{os.getpid()}-front.sock", tmp_path / "inboxes" / "main")
+    supervisor = Supervisor(terminal, inbox, Services(), stdin=in_r, stdout=out_w, front_health=FrontHealth(str(hooks), 1.0, "WARNED-DEAD-HOOKS", 5.0))
+    inbox.open()
+    terminal.start()
+    shown = bytearray()
+
+    def run(seconds: float) -> str:
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            supervisor.turn()
+            while select.select([out_r], [], [], 0)[0]:
+                shown.extend(os.read(out_r, 65536))
+        return shown.decode(errors="replace")
+
+    try:
+        assert run(4).count("WARNED-DEAD-HOOKS") == 1, "an agent whose output keeps moving while its hooks file stands still past the limit is warned, once"
+        assert run(2).count("WARNED-DEAD-HOOKS") == 1, "and not again while the episode lasts"
+        hooks.parent.mkdir(parents=True)
+        hooks.write_text("1")
+        run(0.5)
+        assert run(3).count("WARNED-DEAD-HOOKS") == 2, "a hook written ends the episode, and the next one is warned again"
+    finally:
+        supervisor.stop()
+        inbox.close()

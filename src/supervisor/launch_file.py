@@ -5,6 +5,8 @@ from pathlib import Path
 from supervisor.bad_launch_file import BadLaunchFile
 from supervisor.band import Band
 from supervisor.band_labels import BandLabels
+from supervisor.front_health import FrontHealth
+from supervisor.health_check import HealthCheck
 from supervisor.inbox import Inbox
 from supervisor.screen_copy import ScreenCopy
 from supervisor.service import Service
@@ -16,7 +18,7 @@ PROCESS = ("command", "folder", "env")
 
 
 class LaunchFile:
-    """What a supervisor starts from, as the journal wrote it: the agent in front, the services beside it, where its socket, announce file and mirror go, the band's words, and the process that owns it, whose end ends it."""
+    """What a supervisor starts from, as the journal wrote it: the agent in front and how to tell its hooks went silent, the services beside it each with its health check, where its socket, announce file and mirror go, the band's words, and the process that owns it, whose end ends it."""
 
     def __init__(self, data: dict, path: Path) -> None:
         self.data, self.path = data, path
@@ -41,7 +43,8 @@ class LaunchFile:
 
     def supervisor(self) -> Supervisor:
         front = self.data["front"]
-        services = Services(*(Service(s["name"], s["command"], Path(s["folder"]), s["env"], Path(s["log"]), s.get("keep", True)) for s in self.data.get("services", [])))
+        services = Services(*(Service(s["name"], s["command"], Path(s["folder"]), s["env"], Path(s["log"]), s.get("keep", True), HealthCheck(**s["health"]) if s.get("health") else None) for s in self.data.get("services", [])))
+        front_health = FrontHealth(**front["health"]) if front.get("health") else None
         band = Band(BandLabels.parsed(self.data["band"])) if self.data.get("band") and os.isatty(1) else None
         screen_copy = ScreenCopy(Path(self.data["screen"])) if self.data.get("screen") else None
-        return Supervisor(Terminal(front["command"], front["folder"], front["env"], tuple(front.get("resume", ()))), Inbox(Path(self.data["socket"]), Path(self.data["announce"])), services, stdin=0 if os.isatty(0) else None, band=band, screen_copy=screen_copy, faults=Path(self.data["announce"]).parents[1] / "supervisor.log", launch=self.path, owner=int(self.data.get("owner", 0)), record=self.record_path())
+        return Supervisor(Terminal(front["command"], front["folder"], front["env"], tuple(front.get("resume", ()))), Inbox(Path(self.data["socket"]), Path(self.data["announce"])), services, stdin=0 if os.isatty(0) else None, band=band, screen_copy=screen_copy, faults=Path(self.data["announce"]).parents[1] / "supervisor.log", launch=self.path, owner=int(self.data.get("owner", 0)), front_health=front_health, record=self.record_path())

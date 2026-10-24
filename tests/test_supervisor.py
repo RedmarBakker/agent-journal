@@ -659,3 +659,54 @@ def test_the_left_arrow_in_the_boot_menu_asks_the_question_before_again(tmp_path
     assert printed.getvalue().count("Which environment") == 3, "the environments were asked again after the left arrow, and a left arrow on them asked them again"
     assert printed.getvalue().count("Carry on from the last session") == 3, "asked twice, the second drawn again as the down arrow moved"
     assert "← to go back" in printed.getvalue()
+
+
+def test_a_health_url_must_answer_200_in_time_a_health_file_must_be_fresh_and_the_launch_file_carries_both_checks(tmp_path: Path):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from supervisor.front_health import FrontHealth
+    from supervisor.health_check import HealthCheck
+    from supervisor.launch_file import LaunchFile
+
+    answers = {"/well": 200, "/unwell": 503}
+
+    class StandIn(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(answers[self.path])
+            self.end_headers()
+
+        def log_message(self, *args):
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), StandIn)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    port = server.server_address[1]
+    try:
+        assert HealthCheck(url=f"http://127.0.0.1:{port}/well").fault() == "", "a URL that answers 200 is well"
+        assert "answered 503" in HealthCheck(url=f"http://127.0.0.1:{port}/unwell").fault(), "one that answers anything else is not, and says what it answered"
+        (tmp_path / "port").write_text(str(port))
+        assert HealthCheck(url="http://127.0.0.1:{port}/well", port_file=str(tmp_path / "port")).fault() == "", "a URL's port is read from the file it names, which a server started again rewrites"
+        assert "names no port" in HealthCheck(url="http://127.0.0.1:{port}/well", port_file=str(tmp_path / "none")).fault()
+    finally:
+        server.shutdown()
+    assert "did not answer" in HealthCheck(url=f"http://127.0.0.1:{port}/well", timeout_seconds=1).fault(), "a URL nothing answers is not well"
+    beat = tmp_path / "beat"
+    assert "never written" in HealthCheck(file=str(beat), fresh_seconds=5).fault()
+    beat.write_text("1")
+    assert HealthCheck(file=str(beat), fresh_seconds=5).fault() == "", "a file written within its seconds is well"
+    os.utime(beat, (timing.time() - 60, timing.time() - 60))
+    assert "last written 60 seconds ago" in HealthCheck(file=str(beat), fresh_seconds=5).fault(), "and one older is not"
+    hooks = FrontHealth(str(beat), 30.0, "warned")
+    assert hooks.is_dead(timing.time(), timing.time() - 120), "an agent whose output moves while its hooks file stands still past the limit has dead hooks"
+    assert not hooks.is_dead(timing.time() - 120, timing.time() - 120), "one whose output stands still too is only idle"
+    assert not hooks.is_dead(timing.time(), timing.time() - 5), "and one started within the limit is given the time to fire its first hook"
+    beat.write_text("2")
+    assert not hooks.is_dead(timing.time(), timing.time() - 120), "a hook written again ends it"
+    launch = Launch.parse(["claude", "--env", "spike"], tmp_path).launch_file(Choice("spike", ""), StatusLine(tmp_path))
+    journal_health = launch["services"][0]["health"]
+    assert journal_health["url"] == "http://127.0.0.1:{port}/journal/health" and journal_health["port_file"] == str(tmp_path / ".journal" / "port") and journal_health["failures"] == 3, "the journal service is checked at its health URL, its port read from the project's port file"
+    assert launch["front"]["health"]["file"] == str(tmp_path / ".journal" / "runtime" / "hooks" / "spike.fired") and "start it again from the project's root with journal" in launch["front"]["health"]["warning"], "the agent's hooks are watched through the file the hook script writes, and the warning names the fix"
+    path = tmp_path / "launch.json"
+    path.write_text(json.dumps(launch))
+    supervisor = LaunchFile.read(path).supervisor()
+    assert supervisor.services.service("journal").health == HealthCheck(**journal_health) and supervisor.front_health == FrontHealth(**launch["front"]["health"]), "the supervisor takes both checks as the launch file says them, knowing nothing of what they check"

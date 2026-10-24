@@ -28,6 +28,11 @@ ENVIRONMENT = "--env"
 SWITCHES = {"--new": "new", "--aside": "stashed", "--skip": "bypass", "--yes": "confirmed", "--no-open": "browser_off", "--no-journal": "journal_off"}
 WORKTREE = ("--worktree", "-w")
 RESUMING = ("--resume", "-r")
+# the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row
+JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "every_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
+# the agent's hooks count as dead when its terminal keeps moving and its hooks file has stood still this long, longer than a long tool use
+FRONT_STALE_SECONDS = 600.0
+DEAD_HOOKS_WARNING = "[journal] This session's hooks have stopped reaching the journal, so it holds your lines and the user's messages: quit this session and start it again from the project's root with journal."
 
 
 @dataclass(frozen=True)
@@ -187,10 +192,11 @@ class Launch:
         folder = worktree.created() if self.is_worktree_launch(worktree) else self.root
         if folder != self.root:
             Menu(self.root, self.package / "journal.py").journal("environment", "branch", choice.environment, worktree.branch)
-        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log")}
+        journal = {"name": "journal", "command": self.journal_command(), "folder": str(self.root), "env": environ, "log": str(self.runtime / "server.log"), "health": {**JOURNAL_HEALTH, "port_file": str(self.runtime.parent / "port")}}
+        front_health = {"file": str(self.runtime / "hooks" / f"{choice.environment}.fired"), "stale_seconds": FRONT_STALE_SECONDS, "warning": DEAD_HOOKS_WARNING}
         return {
             "launch": launch,
-            "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ},
+            "front": {"command": self.agent_command(choice, status), "resume": list(self.provider.resume(choice.resume)) if self.is_resumable(choice, folder) else [], "folder": str(folder), "env": environ, "health": front_health},
             "services": [] if self.journal_off else [journal],
             "socket": str(self.socket(choice.environment)),
             "owner": os.getpid(),

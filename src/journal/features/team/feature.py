@@ -23,6 +23,6 @@ class TeamFeature(Feature[TeamData]):
     seeds = (SingleTeamChat,)
     data = (TeamDataReader,)
     conduct = (TeamConduct,)
-    services = (Service("sync", "sync_service"),)
+    services = (Service("sync", "sync_service", "/health"),)
 
     nudges = (TeamNudges.UPGRADE_NEEDED,)
