@@ -177,10 +177,19 @@ export const pushStand = (parcel, to, feet) => (behind(parcel, feet) ? to - PUSH
 export const pushedTo = (parcel, feet, to, way) =>
     way > 0 && feet < parcel && feet + PUSH.reach >= parcel - 2 ? Math.min(to, Math.max(parcel, feet + PUSH.reach)) : parcel;
 
-// The UFO: the most its beam spans, so parcels further apart than that are taken one stop at a time; how far above the floor it hovers;
-// and how long each part of its flight takes: flying in from far off, moving between stops, at each stop the beam coming on, the parcels
-// rising up it and the beam going off, and flying away
-export const UFO = {beamMost: 90, beamLeast: 34, hover: 150, enter: 1800, move: 900, beamOn: 300, lift: 1500, beamOff: 300, leave: 1800};
+// The UFO: the most its beam spans, so parcels further apart than that are taken one stop at a time; how far above the floor its middle
+// hovers; and how long each part of its flight takes: flying in from far off, moving between stops, at each stop the beam coming on, the
+// parcels rising up it and the beam going off, and flying away. Its saucer, drawn in 3D as the figure is (figure.js saucerOf), is `width`
+// pixels across, three quarters of the figure's picture; its beam leaves the lamp under its belly `belly` pixels below its middle, `lamp`
+// pixels wide; and the lights round its rim blink in turn over `blink` steps of `blinkMs` each.
+export const UFO = {
+    beamMost: 90, beamLeast: 34, hover: 150, enter: 1800, move: 900, beamOn: 300, lift: 1500, beamOff: 300, leave: 1800,
+    width: 84, belly: 13, lamp: 22, blink: 4, blinkMs: 160,
+};
+
+// the UFO's beam with its middle at `at` over the floor at `floor`, on the page: where it leaves the lamp under the belly, and how far down
+// it reaches, to the floor the boxes stand on
+export const beamOf = (at, floor) => ({top: at.y + UFO.belly, reach: Math.max(floor - at.y - UFO.belly, 0)});
 
 // The stops of a UFO taking `parcels` (each {id, x}): the parcels within one beam of each other taken together, left to right, each stop
 // at their middle with a beam as wide as they lie
@@ -242,28 +251,34 @@ export function boxRisen(risen, rank, count) {
 export const BEAM_SWAY = 4;
 export const boxSway = (k, id) => (k > 0 ? Math.sin(k * 12 + id * 1.7) * BEAM_SWAY * (1 - k) : 0);
 
-// The claw crane, as an arcade's claw machine: it rolls in along the chat window's top edge, stops over each stack, lowers its claw on a
-// chain, slowing to a stop just over the stack, hovers there a moment, closes it on the stack and lifts it up out of the window, the cable
-// first tugging it `tug` pixels up and holding as it takes the weight over `tugShare` of the lift, then rolls out at the far side. How long
-// each part takes, in milliseconds; how short the chain is when it is wound up, in pixels; and how far past the window's top a stack is lifted
-export const CRANE = {enter: 1700, move: 900, lower: 1100, hover: 400, grab: 400, lift: 1600, leave: 1500, wound: 10, clear: 30, tug: 4, tugShare: 0.2};
+// The crane: grabbers sent out on its rail along the chat window's top, each taking one box away. Every grabber is the same reel, a trolley
+// that zips along the rail from one side and lets its cable down; only its grabbing end differs: the claw, a suction cup like a plunger's
+// that drops onto the box's top, or a magnet. The arm is the same reel on the window's right edge instead: it moves up or down to the box's
+// height, shoots its rod across, grips the box's side in its tongs and pulls it out sideways, quicker than the others. Each part of a visit,
+// in milliseconds, or in pixels a millisecond for a move: the reel's zip along the rail; letting the cable down, slowing to a stop just
+// over the box; a moment's hover; the grip; the lift, a tug up and a hold as the cable takes the weight over `tugShare` of it, then up past
+// the window's top `clear` pixels; how short the cable is wound up. The arm's reel moves `shift` up or down and its rod shoots `zip`,
+// each of its moves taking `least` at the least, so a box near the edge is still seen to go.
+// `gap` is the least and most time between one grabber setting off and the next, `room` the pixels kept between two grabbers along the
+// window, more than any moves in a step of the check (grabsClash), `pace` how much quicker or slower each goes than the rest, at most, and
+// `kinds` the weight each kind is drawn by when several boxes wait.
+export const GRAB = {
+    zip: 1.1, lower: 800, hover: 280, grip: 340, lift: 1100, tug: 4, tugShare: 0.2, clear: 30, wound: 10,
+    arm: {shift: 0.5, zip: 0.6, grip: 200, least: 260},
+    gap: [250, 900], room: 30, pace: 0.15,
+    kinds: {claw: 3, cup: 2, magnet: 2, arm: 2},
+};
 
-const CRANE_STOP_MS = CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift;
+// The suction cup (chat/ClawCrane.vue), in pixels: its rod and its rubber cup, wide and high, squashed by `squash` of its height once it
+// is pressed on the box; and the magnet: its block on the cable and the horseshoe under it, wide and high, its legs `leg` thick
+export const CUP = {rod: 5, width: 18, height: 7, squash: 0.3};
+export const MAGNET = {block: 3, width: 16, height: 9, leg: 4.5};
 
-// a move `k` of the way that slows to a stop at its end, never past it
-const easeOut = (k) => 1 - (1 - k) ** 3;
+// Each grabbing end hanging under its cable, in pixels: how far over the box's top the cable's end stops when the end meets the box, and
+// half the width it takes along the rail with its reel; the arm's tongs, how far out from the box's side their tip stops
+export const ENDS = {claw: {clear: 9, half: 24}, cup: {clear: CUP.rod + CUP.height, half: 16}, magnet: {clear: MAGNET.block + MAGNET.height, half: 16}, arm: {clear: 3, half: 6}};
 
-// the chain's length `k` of the way through the lift from `reach` to `out`: a quick tug up and a hold as the cable takes the weight, then
-// the rest of the way up
-function liftedChain(reach, out, k) {
-    if (k < CRANE.tugShare) return reach - CRANE.tug * clamp(k / (CRANE.tugShare / 3));
-    return reach - CRANE.tug + (out - reach + CRANE.tug) * ease((k - CRANE.tugShare) / (1 - CRANE.tugShare));
-}
-
-// how long a crane's visit to `stops` stops lasts
-export const craneMs = (stops) => CRANE.enter + (stops - 1) * CRANE.move + stops * CRANE_STOP_MS + CRANE.leave;
-
-// The crane's claw (chat/ClawCrane.vue), in pixels from its hub, which comes down onto the top of the stack: its two prongs come out to
+// The crane's claw (chat/ClawCrane.vue), in pixels from its hub, which comes down onto the top of the box: its two prongs come out to
 // `side` beside the box's sides and down `reach` of them, their tips `spread` further out while the claw is wide open, so they come down
 // around the box, and shut on its sides, each tip turned in under a `hook`
 export const CLAW = {hub: 5, side: PARCEL.width / 2 + 1.5, reach: Math.round((PARCEL.height - PARCEL.top) * 0.75), spread: 9, hook: 3};
@@ -273,49 +288,165 @@ export const CLAW = {hub: 5, side: PARCEL.width / 2 + 1.5, reach: Math.round((PA
 export const prongsOf = (open) =>
     [-1, 1].map((way) => ({way, top: way * (CLAW.side + CLAW.spread * open * 0.3), tip: way * (CLAW.side + CLAW.spread * open), reach: CLAW.reach}));
 
-// how far above the stack's top the claw's hub stops, in pixels, so the hub stays clear of the box and only the prongs come down round it
-export const CLAW_CLEARANCE = 9;
-
-// the chain a claw at the window's `top` needs to reach down to just over `stop`'s stack, standing on the floor at `floor`, in pixels
-const reachOf = (stop, floor, top) => floor - top - stop.high - CLAW_CLEARANCE;
-
-// Where the crane is `ms` into its visit to `stops` (stopsOf, each with `high`, its stack's height), its rail along the window's top at
-// `top` over a floor at `floor`, rolling in at `from` and out at `away`, all page x: its trolley's x; its chain's length down from the rail,
-// below the window's top when it is less than nothing; how open its claw is, 1 wide open and 0 shut on a stack; the stop it is at and how
-// far its stack has been lifted from the floor, in pixels; how many stops it has taken; and whether it is still coming in, or gone
-export function craneAt(stops, ms, floor, top, from, away) {
-    const still = {chain: CRANE.wound, open: 1, stop: 0, lifted: 0, taken: 0, coming: false, gone: false};
-    if (ms < CRANE.enter) return {...still, x: from + (stops[0].x - from) * ease(ms / CRANE.enter), coming: true};
-    let at = ms - CRANE.enter;
-    for (const [index, stop] of stops.entries()) {
-        if (index > 0) {
-            if (at < CRANE.move) {
-                const k = ease(at / CRANE.move);
-                return {...still, x: stops[index - 1].x + (stop.x - stops[index - 1].x) * k, chain: windingIn(stops[index - 1], k), stop: index, taken: index};
-            }
-            at -= CRANE.move;
-        }
-        if (at < CRANE_STOP_MS) {
-            const reach = reachOf(stop, floor, top);
-            const lowered = easeOut(clamp(at / CRANE.lower));
-            const shut = clamp((at - CRANE.lower - CRANE.hover) / CRANE.grab);
-            const lift = clamp((at - CRANE.lower - CRANE.hover - CRANE.grab) / CRANE.lift);
-            const out = -(stop.high + CRANE.clear);
-            const chain = lift > 0 ? liftedChain(reach, out, lift) : CRANE.wound + (reach - CRANE.wound) * lowered;
-            return {...still, x: stop.x, chain, open: 1 - shut, stop: index, lifted: reach - chain > 0 && lift > 0 ? reach - chain : 0, taken: index};
-        }
-        at -= CRANE_STOP_MS;
+// The kinds of the grabbers for `count` boxes, drawn with `random`: the claw for a single box, else each drawn by weight (GRAB kinds), the
+// arm taking no more than half of them, and never the very sequence of the visit before, `last`
+export function kindsOf(count, random, last = []) {
+    if (count === 1) return ["claw"];
+    const drawn = (weights) => {
+        let roll = random() * Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+        return Object.keys(weights).find((kind) => (roll -= weights[kind]) < 0) ?? Object.keys(weights).at(-1);
+    };
+    const {arm, ...others} = GRAB.kinds;
+    for (let tries = 0; ; tries++) {
+        const kinds = [];
+        for (let index = 0; index < count; index++) kinds.push(drawn(kinds.filter((kind) => kind === "arm").length < Math.floor(count / 2) ? {...others, arm} : others));
+        if (tries >= 8 || kinds.join() !== last.join()) return kinds;
     }
-    const k = clamp(at / CRANE.leave);
-    return {...still, x: stops.at(-1).x + (away - stops.at(-1).x) * k * k, chain: windingIn(stops.at(-1), ease(k)), stop: stops.length - 1, taken: stops.length, gone: k >= 1};
 }
 
-// the chain wound back in, `k` of the way, from up past the window's top where it lifted `stop`'s stack out to its wound length
-const windingIn = (stop, k) => -(stop.high + CRANE.clear) + (CRANE.wound + stop.high + CRANE.clear) * k;
+const STEP_MS = 25;
 
-// The stacks the crane takes from `parcels` (each {id, x, up}): the stops of stopsOf, each with `high`, its stack's height in pixels
-export const stacksOf = (parcels) =>
-    stopsOf(parcels).map((stop) => ({...stop, high: Math.max(...parcels.filter((each) => stop.ids.includes(each.id)).map((each) => each.up)) + PARCEL.height}));
+// the box's top on the page, standing `up` pixels up the pile on the floor at `floor`
+export const boxTop = (box, floor) => floor - box.up - PARCEL.height;
+
+// The grabbers that take `items` (each {id, x, up}) away, one a box, drawn with `random` and kinds unlike `last`'s (kindsOf), the reels
+// rolling in at page x `from` and out at `away` along the rail at the window's `top`, the arm on its `right` edge, over the floor at
+// `floor`: each {id, kind, x, from, away, pace, start, ...}, and the arm's `y`, the height its reel sets off at. The box farthest along
+// goes first, so the next can follow it in; a box with another on it waits for that one, and one the arm takes waits for every box to
+// its right in the way of its rod. Each sets off a moment after the one before, `gap`, and no sooner than its way along the rail is clear
+// of every grabber already out (grabsClash) and the boxes in its way are gone.
+export function grabsOf(items, scene, random, last = []) {
+    const kinds = kindsOf(items.length, random, last);
+    const along = [...items].sort((one, other) => Math.abs(other.x - scene.from) - Math.abs(one.x - scene.from) || other.up - one.up);
+    const planned = along.map((box, index) => ({id: box.id, kind: kinds[index], x: box.x, up: box.up, from: scene.from, away: scene.away, pace: 1 + (random() * 2 - 1) * GRAB.pace, y: between([scene.top + 40, scene.floor - 20], random)}));
+    const scheduled = [];
+    for (const grab of inTurn(planned)) {
+        const blocking = blockersOf(grab, planned).map((other) => scheduled.find((each) => each.id === other.id));
+        let start = Math.max(scheduled.length ? scheduled.at(-1).start + between(GRAB.gap, random) : 0, ...blocking.map((each) => each.start + clearMs(each, scene)));
+        while (scheduled.some((each) => grabsClash({...grab, start}, each, scene))) start += STEP_MS;
+        scheduled.push({...grab, start});
+    }
+    return scheduled;
+}
+
+// the boxes in the way of `grab`'s box among `planned`: one on top of it, and for the arm, any to its right its rod would pass through
+const blockersOf = (grab, planned) =>
+    planned.filter((other) => other.id !== grab.id && (onTop(other, grab) || (grab.kind === "arm" && other.x > grab.x && Math.abs(other.up - grab.up) < PARCEL.height)));
+const onTop = (other, grab) => Math.abs(other.x - grab.x) < PARCEL.width && other.up > grab.up;
+
+// the grabbers of `planned` in the order they set off: as planned, each put off until the boxes in its way have gone ahead of it
+function inTurn(planned) {
+    const turn = [];
+    const waiting = [...planned];
+    while (waiting.length) {
+        const next = waiting.find((grab) => blockersOf(grab, planned).every((other) => turn.includes(other)));
+        turn.push(next);
+        waiting.splice(waiting.indexOf(next), 1);
+    }
+    return turn;
+}
+
+// how long each part of `grab`'s visit takes, in milliseconds, its box's top at `top` (boxTop), its parts in order
+function partsOf(grab, scene, top) {
+    if (grab.kind === "arm") {
+        const move = (pixels, speed) => Math.max(pixels / (speed * grab.pace), GRAB.arm.least);
+        const tip = grab.x + PARCEL.width / 2 + ENDS.arm.clear;
+        return {
+            shift: move(Math.abs(top + PARCEL.height / 2 - grab.y), GRAB.arm.shift),
+            shoot: move(scene.right - tip, GRAB.arm.zip),
+            grip: GRAB.arm.grip,
+            pull: move(scene.right - tip + PARCEL.width + 2 * ENDS.arm.clear, GRAB.arm.zip),
+        };
+    }
+    const zip = (from, to) => Math.abs(to - from) / (GRAB.zip * grab.pace);
+    return {enter: zip(grab.from, grab.x), lower: GRAB.lower, hover: GRAB.hover, grip: GRAB.grip, lift: GRAB.lift, leave: zip(grab.x, grab.away)};
+}
+
+const sum = (parts) => Object.values(parts).reduce((total, ms) => total + ms, 0);
+
+// how long `grab`'s visit lasts, and how long after it sets off its box is out of the way of the others, out past the window's top or edge
+export const grabMs = (grab, scene) => sum(partsOf(grab, scene, boxTop(grab, scene.floor)));
+function clearMs(grab, scene) {
+    const {leave = 0, ...rest} = partsOf(grab, scene, boxTop(grab, scene.floor));
+    return sum(rest);
+}
+
+// the span along the window's width `grab` takes at `ms` into the crane's visit, [left, right] in page x, or null while it is not out:
+// a reel on the rail its end's half width either side of it; the arm from its tongs, with the box they pull, to the window's right edge
+export function grabSpan(grab, ms, scene) {
+    const at = grabberAt(grab, ms, {...scene, box: {x: grab.x, top: boxTop(grab, scene.floor)}});
+    if (!at.out) return null;
+    if (grab.kind === "arm") return [at.tip - (at.carried ? PARCEL.width + ENDS.arm.clear : 0), scene.right];
+    return [at.x - ENDS[grab.kind].half, at.x + ENDS[grab.kind].half];
+}
+
+// whether grabbers `one` and `other` ever come within GRAB room of each other along the window at the same moment of the visit
+export function grabsClash(one, other, scene) {
+    const from = Math.max(one.start, other.start);
+    const to = Math.min(one.start + grabMs(one, scene), other.start + grabMs(other, scene));
+    for (let ms = from; ms <= to; ms += STEP_MS) {
+        const [a, b] = [grabSpan(one, ms, scene), grabSpan(other, ms, scene)];
+        if (a && b && a[0] < b[1] + GRAB.room && b[0] < a[1] + GRAB.room) return true;
+    }
+    return false;
+}
+
+// a move `k` of the way that slows to a stop at its end, never past it
+const easeOut = (k) => 1 - (1 - k) ** 3;
+
+// the cable's length `k` of the way through the lift from `reach` to `out`: a quick tug up and a hold as the cable takes the weight, then
+// the rest of the way up
+function liftedChain(reach, out, k) {
+    if (k < GRAB.tugShare) return reach - GRAB.tug * clamp(k / (GRAB.tugShare / 3));
+    return reach - GRAB.tug + (out - reach + GRAB.tug) * ease((k - GRAB.tugShare) / (1 - GRAB.tugShare));
+}
+
+// Where the grabber `grab` (grabsOf) is `ms` into the crane's visit, its rail along the window's `top`, the arm on its `right` edge, and its
+// own box where `box` says it is now, {x, top} on the page, so its cable lets out, or its rod shoots, as far as that box is: whether it is
+// `out`, set off and not yet done; and whether it is `done`. A reel on the rail: its trolley's page x; its cable's length down from the
+// rail, below the window's top when less than nothing; how open its end is, 1 wide open and 0 shut on the box; and how far it has lifted its
+// box, in pixels. The arm: the height of its reel on the edge, y; where its tongs' tip is, page x; how open they are; and how far right it
+// has pulled its box, `carried`, in pixels.
+export function grabberAt(grab, ms, scene) {
+    const at = ms - grab.start;
+    if (at < 0) return {kind: grab.kind, out: false, done: false, ...(grab.kind === "arm" ? {y: grab.y, tip: scene.right, open: 1, carried: 0} : {x: grab.from, chain: GRAB.wound, open: 1, lifted: 0})};
+    return grab.kind === "arm" ? armAt(grab, at, scene) : reelAt(grab, at, scene);
+}
+
+function reelAt(grab, at, scene) {
+    const parts = partsOf(grab, scene, scene.box.top);
+    const reach = scene.box.top - scene.top - ENDS[grab.kind].clear;
+    const out = -(PARCEL.height + GRAB.clear);
+    const still = {kind: grab.kind, out: true, done: false, x: scene.box.x, chain: GRAB.wound, open: 1, lifted: 0};
+    if (at < parts.enter) return {...still, x: grab.from + (scene.box.x - grab.from) * ease(at / parts.enter)};
+    at -= parts.enter;
+    if (at < parts.lower + parts.hover + parts.grip + parts.lift) {
+        const lowered = easeOut(clamp(at / parts.lower));
+        const shut = clamp((at - parts.lower - parts.hover) / parts.grip);
+        const lift = clamp((at - parts.lower - parts.hover - parts.grip) / parts.lift);
+        const chain = lift > 0 ? liftedChain(reach, out, lift) : GRAB.wound + (reach - GRAB.wound) * lowered;
+        return {...still, chain, open: 1 - shut, lifted: lift > 0 ? Math.max(reach - chain, 0) : 0};
+    }
+    at -= parts.lower + parts.hover + parts.grip + parts.lift;
+    const k = clamp(at / parts.leave);
+    return {...still, x: scene.box.x + (grab.away - scene.box.x) * k * k, chain: out + (GRAB.wound - out) * ease(k), open: 0, lifted: reach - out, out: k < 1, done: k >= 1};
+}
+
+function armAt(grab, at, scene) {
+    const parts = partsOf(grab, scene, scene.box.top);
+    const height = scene.box.top + PARCEL.height / 2;
+    const tip = scene.box.x + PARCEL.width / 2 + ENDS.arm.clear;
+    const still = {kind: "arm", out: true, done: false, y: height, tip: scene.right, open: 1, carried: 0};
+    if (at < parts.shift) return {...still, y: grab.y + (height - grab.y) * ease(at / parts.shift)};
+    at -= parts.shift;
+    if (at < parts.shoot) return {...still, tip: scene.right + (tip - scene.right) * easeOut(at / parts.shoot)};
+    at -= parts.shoot;
+    if (at < parts.grip) return {...still, tip, open: 1 - at / parts.grip};
+    at -= parts.grip;
+    const k = clamp(at / parts.pull);
+    const pulled = (scene.right + PARCEL.width + 2 * ENDS.arm.clear - tip) * k * k;
+    return {...still, tip: tip + pulled, open: 0, carried: pulled, out: k < 1, done: k >= 1};
+}
 
 // The pause after a box is piled before the next is begun, in seconds: mostly short, now and then a longer wait of a couple of seconds
 export const BOX_GAP = {short: [0.4, 1.6], long: [2, 4], longShare: 0.25};

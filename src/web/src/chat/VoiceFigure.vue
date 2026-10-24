@@ -47,7 +47,7 @@ import {loadVoiceFigure} from "../figure/assets.js";
 import {MARK_STAY, builds, climbOf, climbs, discoBall, eagerSpot, keptClear, markSpot, mayLeave, perchedAfter, stayAtHome, stepAside, stayForLook, stayingAt, targetFor, wayUp} from "../figure/perches.js";
 import {SKYWARD, goneMs, skywardAt, skywardHops} from "../figure/skyward.js";
 import {BLINK, blinkOpenness, nextBlinkMs} from "../figure/blink.js";
-import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, buildAim, buildRunAt, isPileLeft, craneAt, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stacksOf, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
+import {IDLE_CLIPS, LAYER, PARCEL, PILE, PUSH, UFO, answeredWith, beamOf, behind, blowsLanded, boxGapSeconds, boxRisen, boxSway, boxTop, buildAim, buildRunAt, isPileLeft, grabberAt, grabsOf, hammering, inspecting, LIGHT_KINDS, litAfter, phasesOf, pileSlot, pushStand, pushedTo, pushWaits, stopsOf, ufoAt, unitsAfter, workLook} from "../figure/parcels.js";
 import CodeParcel from "./CodeParcel.vue";
 import FigureAct from "./FigureAct.vue";
 import {KeptTimes} from "../figure/keptTimes.js";
@@ -167,6 +167,8 @@ const halo = ref(null);
 // the pictures of a parcel's block for each kind of its lights (parcels.js LIGHT_KINDS), one for each step of their blink, drawn by the
 // figure's own renderer; each parcel shows the kind its own run lit (parcels.js litAfter)
 const blocks = ref(null);
+// the UFO's saucer drawn in 3D as the figure is, its pictures one for each step of its rim lights' blink (figure.js Stage.drawSaucer)
+const saucerPicture = ref(null);
 const knownCards = new Set();
 let seenAt = Date.now() / 1000;
 // when the figure began to watch: a run that began before it is never taken for one that has just ended
@@ -1081,12 +1083,15 @@ function sendAway() {
     }
     const by = carrierOf(Math.random);
     watching = variantOf("watch", Math.random, hasClip);
-    taking.value = {by, began: performance.now(), ...CARRY[by].start(taken.map((each) => ({id: each.id, x: parcelX(each), up: each.up})), worldBox())};
+    taking.value = {by, began: performance.now(), ids: taken.map((each) => each.id), ...CARRY[by].start(taken.map((each) => ({id: each.id, x: parcelX(each), up: each.up})), worldBox())};
 }
 
+// the kinds of the crane's grabbers on its last visit, so the next is never the same sequence (parcels.js kindsOf)
+let lastGrabs = [];
+
 // How each carrier sets off for the parcels `items` (each {id, x, up}) in the chat window `world`, and its frame `ms` into its visit: the
-// UFO flies in from far off to the right and away to the left, its stops the groups one beam takes; the claw crane rolls in along the
-// window's top from one side, the left or the right, and out at the other, its stops the stacks one claw takes
+// UFO flies in from far off to the right and away to the left, its stops the groups one beam takes; the crane sends a grabber for each box
+// along the window's top from one side, the left or the right, and out at the other, or its arm in from the right edge (parcels.js grabsOf)
 const CARRY = {
     ufo: {
         start: (items, world) => ({
@@ -1099,7 +1104,9 @@ const CARRY = {
     crane: {
         start: (items, world) => {
             const [from, away] = craneFrom(Math.random) === "left" ? [world.left - CRANE_OFF, world.right + CRANE_OFF] : [world.right + CRANE_OFF, world.left - CRANE_OFF];
-            return {stops: stacksOf(items), from, away};
+            const grabs = grabsOf(items, {from, away, top: world.top, floor: composeEdge().edge.top, right: world.right}, Math.random, lastGrabs);
+            lastGrabs = grabs.map((grab) => grab.kind);
+            return {grabs};
         },
         frame: runCrane,
     },
@@ -1114,16 +1121,17 @@ function carry() {
     if (!taking.value) return stepForward();
     const done = CARRY[taking.value.by].frame(performance.now() - taking.value.began);
     if (!done) return;
-    parcels.value = parcels.value.filter((each) => !taking.value.stops.some((stop) => stop.ids.includes(each.id)));
+    parcels.value = parcels.value.filter((each) => !taking.value.ids.includes(each.id));
     taking.value = null;
     saucer.value = null;
     crane.value = null;
     sky = {shade: 0, back: sky.back, at: performance.now()};
 }
 
-// A frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn, the parcels of the stop it is at drawn up the beam
-// to its middle one by one, the top one first, swaying and shrinking, those of the stops it has made gone, and what the figure watches: the UFO, with a hand shading its eyes while
-// it is still coming in, and stepped back once it first lifts; true once it is gone
+// A frame of the UFO's flight (parcels.js ufoAt): where it and its beam are drawn (parcels.js beamOf), the parcels of the stop it is at
+// drawn up the beam into the lamp under its belly one by one, the top one first, swaying and shrinking, those of the stops it has made gone,
+// and what the figure watches: the UFO, with a hand shading its eyes while it is still coming in, and stepped back once it first lifts;
+// true once it is gone
 function flyUfo(ms) {
     const {edge} = composeEdge();
     const at = ufoAt(taking.value.stops, ms, edge.top, taking.value.from, taking.value.away);
@@ -1133,11 +1141,11 @@ function flyUfo(ms) {
         const rank = rising.indexOf(each);
         const k = rank >= 0 ? boxRisen(at.risen, rank, rising.length) : 0;
         const x = parcelX(each);
-        const y = edge.top + (at.y + PARCEL.height / 2 + each.up - edge.top) * k;
+        const y = edge.top + (beamOf(at, edge.top).top + PARCEL.height / 2 + each.up - edge.top) * k;
         return {id: each.id, x: x + (at.x - x) * k + boxSway(k, each.id), y, up: each.up, scale: 1 - 0.65 * k, opacity: k > 0.85 ? (1 - k) / 0.15 : 1, lit: each.lit};
     };
     drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
-    saucer.value = {x: at.x, y: at.y, beam: at.beam, width: at.width, reach: Math.max(edge.top - at.y, 0)};
+    saucer.value = {x: at.x, y: at.y, beam: at.beam, width: at.width, reach: beamOf(at, edge.top).reach};
     const lifting = ms - UFO.enter - UFO.beamOn;
     sky = {
         shade: at.coming ? Math.min(ms / STEP_BACK_MS, 1 - ms / UFO.enter) : 0,
@@ -1146,25 +1154,35 @@ function flyUfo(ms) {
     return at.gone;
 }
 
-// A frame of the claw crane's visit (parcels.js craneAt): the crane drawn on its rail along the chat window's top, the stack it has shut
-// its claw on lifted with it, fading as it goes out past the window's top, those of the stops it has made gone, and the figure watching
-// the claw; true once it is gone
+// A frame of the crane's visit (parcels.js grabberAt): its grabbers drawn on the rail along the chat window's top and its arm on the right
+// edge, each reaching its own box where it is now; a box lifted with its grabber fading as it goes out past the window's top, one pulled
+// out sideways fading past its right edge, those taken gone; and the figure watching the first grabber out; true once all are done
 function runCrane(ms) {
     const {edge} = composeEdge();
     const world = worldBox();
-    const at = craneAt(taking.value.stops, ms, edge.top, world.top, taking.value.from, taking.value.away);
-    const gone = new Set(taking.value.stops.slice(0, at.taken).flatMap((stop) => stop.ids));
-    const rising = new Set(taking.value.stops[at.stop].ids);
-    const lifted = (each) => {
-        const y = edge.top - (rising.has(each.id) ? at.lifted : 0);
-        const shown = Math.min(Math.max((y - each.up - PARCEL.height - world.top) / PARCEL.height + 1, 0), 1);
-        return {id: each.id, x: parcelX(each), y, up: each.up, scale: 1, opacity: shown, lit: each.lit};
+    const boxes = new Map(parcels.value.map((each) => [each.id, each]));
+    const grabbers = taking.value.grabs.map((grab) => {
+        const box = boxes.get(grab.id);
+        return {id: grab.id, ...grabberAt(grab, ms, {top: world.top, right: world.right, box: {x: parcelX(box), top: boxTop(box, edge.top)}})};
+    });
+    const of = new Map(grabbers.map((grabber) => [grabber.id, grabber]));
+    const moved = (each) => {
+        const grabber = of.get(each.id);
+        const y = edge.top - (grabber.lifted ?? 0);
+        const x = parcelX(each) + (grabber.carried ?? 0);
+        const above = (y - each.up - PARCEL.height - world.top) / PARCEL.height + 1;
+        const beside = (world.right - x + PARCEL.width / 2) / PARCEL.width;
+        return {id: each.id, x, y, up: each.up, scale: 1, opacity: Math.min(Math.max(Math.min(above, beside), 0), 1), lit: each.lit};
     };
-    drawnParcels.value = parcels.value.filter((each) => !gone.has(each.id)).map(lifted);
-    crane.value = {box: world, x: at.x, chain: at.chain, open: at.open, look: {x: at.x, y: world.top + Math.max(at.chain, 0)}};
+    drawnParcels.value = parcels.value.filter((each) => of.has(each.id) && !of.get(each.id).done).map(moved);
+    const out = grabbers.filter((grabber) => grabber.out);
+    crane.value = {box: world, grabbers: out, look: out[0] && lookOfGrabber(out[0], world)};
     sky = {shade: 0, back: 0};
-    return at.gone;
+    return grabbers.every((grabber) => grabber.done);
 }
+
+// where the figure looks at a grabber that is out: the end of its cable, or the arm's tongs
+const lookOfGrabber = (grabber, world) => (grabber.kind === "arm" ? {x: grabber.tip, y: grabber.y} : {x: grabber.x, y: world.top + Math.max(grabber.chain, 0)});
 
 function stepForward() {
     if (!sky) return;
@@ -1341,6 +1359,7 @@ async function load(name) {
         canvas.value.width = canvas.value.height = Math.round(SIZE * (window.devicePixelRatio || 1));
         player = new FigurePlayer(loaded, canvas.value);
         drawBlocks();
+        drawSaucer();
         home();
         body.here = belongs.value;
         body.arriving = body.here;
@@ -1362,6 +1381,13 @@ function drawBlocks() {
         return {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, below: drawn[0].below};
     };
     blocks.value = Object.fromEntries(LIGHT_KINDS.map((lit) => [lit, blockOf(lit)]));
+}
+
+// the saucer's pictures for each step of its lights' blink, through the player's stage
+function drawSaucer() {
+    const ratio = window.devicePixelRatio || 1;
+    const drawn = Array.from({length: UFO.blink}, (_, phase) => player.stage.drawSaucer(phase, SIZE, ratio));
+    saucerPicture.value = {pictures: drawn.map((each) => each.canvas.toDataURL()), width: drawn[0].canvas.width / ratio, height: drawn[0].canvas.height / ratio, at: drawn[0].at};
 }
 
 watch(voice, load);
@@ -1540,13 +1566,13 @@ const style = computed(() => {
         </template>
     </template>
     <template v-if="crane">
-        <ClawCrane :box="crane.box" :x="crane.x" :chain="crane.chain" :open="crane.open" />
+        <ClawCrane :box="crane.box" :grabbers="crane.grabbers" />
     </template>
     <template v-if="callBubble">
         <ComicBubble :phrases="callBubble.phrases" :seconds="callBubble.seconds" :left="callBubble.left" :top="callBubble.top" :tip="callBubble.tip" :frame="shownFrame" />
     </template>
-    <template v-if="saucer">
-        <FlyingSaucer :x="saucer.x" :y="saucer.y" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
+    <template v-if="saucer && saucerPicture">
+        <FlyingSaucer :x="saucer.x" :y="saucer.y" :saucer="saucerPicture" :beam="saucer.beam" :reach="saucer.reach" :width="saucer.width" />
     </template>
 </template>
 

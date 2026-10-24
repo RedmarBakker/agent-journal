@@ -5,7 +5,7 @@ import {ACTS, RUMMAGED, flungAt, heldPhases, partOf, pogoBounces, pogoHop, swing
 import {lookAngles} from "./look.js";
 import {FRAMED} from "./frame.js";
 import {VISOR, glowTurn} from "./visor.js";
-import {LIGHT_COLOURS, PARCEL, brightness} from "./parcels.js";
+import {LIGHT_COLOURS, PARCEL, UFO, brightness} from "./parcels.js";
 import {blendMoves} from "./blend.js";
 import {BUTLER, dressButler, topHatBandGeometry, topHatGeometry} from "./butler.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
@@ -3384,6 +3384,52 @@ function lightBlock(block, lit, phase) {
     });
 }
 
+// The UFO that takes the work away (parcels.js UFO), each part shaded and outlined as the figure's own are: a saucer UFO width pixels
+// across, its hull turned from the profile `hull` (shares of its radius across and up from its middle), a band round its rim, a glass dome
+// `dome` of the radius on top with a short antenna and its ball, lights round the rim, `lights` of them `light` of the radius each, and the
+// lamp under its belly the beam shines from, `lamp` of the radius, UFO belly pixels below its middle as the page sees it. It is tipped
+// `tilt` degrees toward the viewer, so its top and dome show, its middle at the picture's middle.
+export const SAUCER = {
+    hull: [[0, -0.27], [0.32, -0.29], [0.64, -0.2], [0.92, -0.06], [1, 0], [0.93, 0.07], [0.62, 0.15], [0.38, 0.19], [0, 0.2]],
+    band: 0.04, dome: 0.4, antenna: [0.16, 0.05], lights: 10, light: 0.075, lamp: 0.26, tilt: 16,
+    colours: {hull: 0xb9bdc8, band: 0x5d6170, dome: 0xcfe6ff, antenna: 0x5d6170, dark: 0x3a3d4a, lamp: 0xfff3a8, lit: [0xe8b84a, 0x6366f1]},
+};
+
+export function saucerOf(perPixel) {
+    const radius = (UFO.width / 2) * perPixel;
+    const saucer = new THREE.Group();
+    saucer.name = "saucer";
+    const hull = new THREE.LatheGeometry(SAUCER.hull.map(([across, up]) => new THREE.Vector2(across * radius, up * radius)), 48);
+    shadedPart(saucer, "hull", hull, SAUCER.colours.hull);
+    shadedPart(saucer, "band", new THREE.TorusGeometry(radius * 0.985, radius * SAUCER.band, 8, 64), SAUCER.colours.band).rotation.x = Math.PI / 2;
+    const domeAt = SAUCER.hull.at(-1)[1] * radius * 0.9;
+    shadedPart(saucer, "dome", new THREE.SphereGeometry(radius * SAUCER.dome, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), SAUCER.colours.dome, [0, domeAt, 0]);
+    const [stalk, ball] = SAUCER.antenna.map((share) => share * radius);
+    shadedPart(saucer, "antenna", new THREE.CylinderGeometry(ball * 0.25, ball * 0.25, stalk, 8), SAUCER.colours.antenna, [0, domeAt + radius * SAUCER.dome + stalk / 2, 0]);
+    shadedPart(saucer, "ball", new THREE.SphereGeometry(ball, 12, 8), SAUCER.colours.lit[0], [0, domeAt + radius * SAUCER.dome + stalk, 0]);
+    const lights = Array.from({length: SAUCER.lights}, (_, index) => {
+        const turn = (index / SAUCER.lights) * Math.PI * 2;
+        return shadedPart(saucer, `light_${index}`, new THREE.SphereGeometry(radius * SAUCER.light, 12, 8), SAUCER.colours.dark, [Math.sin(turn) * radius, 0, Math.cos(turn) * radius]);
+    });
+    const lampAt = -(UFO.belly * perPixel) / Math.cos(radians(SAUCER.tilt));
+    shadedPart(saucer, "lamp", new THREE.CylinderGeometry(radius * SAUCER.lamp, radius * SAUCER.lamp * 1.15, radius * 0.07, 24), SAUCER.colours.lamp, [0, lampAt, 0]);
+    saucer.rotation.x = radians(SAUCER.tilt);
+    saucer.position.y = FRAMED_MIDDLE;
+    const scene = new THREE.Scene();
+    scene.add(saucer);
+    scene.updateMatrixWorld(true);
+    return {scene, lights, middle: new THREE.Vector3(0, FRAMED_MIDDLE, 0), bounds: new THREE.Box3().setFromObject(saucer)};
+}
+
+// the saucer's rim lights at step `phase` of their blink (parcels.js UFO blink): every UFO blink-th one lit, amber and indigo by turns, the
+// rest dark, so the light runs round the rim step by step
+export function lightSaucer(saucer, phase) {
+    saucer.lights.forEach((light, index) => {
+        const colour = new THREE.Color(index % UFO.blink === phase ? SAUCER.colours.lit[Math.floor(index / UFO.blink) % 2] : SAUCER.colours.dark);
+        light.material.uniforms.colour.value.set(colour.r, colour.g, colour.b);
+    });
+}
+
 // A magnifying glass in the same flat colours, comically large as the figure is drawn small: its handle up its y axis with the handle's
 // middle, where the hand closes on it, at the origin, its lens in the plane of x and y above the handle
 export const GLASS = {radius: 0.52, rim: 0.08, handle: 0.5, grip: 0.07};
@@ -4426,10 +4472,28 @@ export class Stage {
         if (this.blockFor !== picture) this.block = serverBlockOf(FRAMED_HEIGHT / picture);
         this.blockFor = picture;
         lightBlock(this.block, lit, phase);
+        const drawn = this.propPicture(this.block, new THREE.Vector3(0, 0, 0), picture, ratio);
+        return {canvas: drawn.canvas, below: drawn.height - drawn.at.y};
+    }
+
+    // The UFO's saucer (saucerOf) with its rim lights at step `phase` of their blink, drawn through the figure's own camera at the scale of
+    // a figure whose picture is `picture` pixels high on the page, `ratio` canvas pixels to a page pixel: a canvas just holding it, and
+    // where its middle is on it, in page pixels from its top left
+    drawSaucer(phase, picture, ratio) {
+        if (this.saucerFor !== picture) this.saucer = saucerOf(FRAMED_HEIGHT / picture);
+        this.saucerFor = picture;
+        lightSaucer(this.saucer, phase);
+        const drawn = this.propPicture(this.saucer, this.saucer.middle, picture, ratio);
+        return {canvas: drawn.canvas, at: drawn.at};
+    }
+
+    // A prop's `scene` rendered through the figure's camera at the scale of a figure whose picture is `picture` pixels high, cut to a canvas
+    // just holding its `bounds`: the canvas, how high it is in page pixels, and where the point `origin` falls on it, from its top left
+    propPicture({scene, bounds}, origin, picture, ratio) {
         const size = Math.round(picture * ratio) * SUPERSAMPLE;
         if (this.renderer.domElement.width !== size) this.renderer.setSize(size, size, false);
-        this.renderer.render(this.block.scene, this.camera);
-        const {min, max} = this.block.bounds;
+        this.renderer.render(scene, this.camera);
+        const {min, max} = bounds;
         const corners = [min.x, max.x].flatMap((x) => [min.y, max.y].flatMap((y) => [min.z, max.z].map((z) => new THREE.Vector3(x, y, z).project(this.camera))));
         const across = (k) => ((k + 1) / 2) * size;
         const left = Math.floor(Math.min(...corners.map((at) => across(at.x)))) - SUPERSAMPLE;
@@ -4442,7 +4506,8 @@ export class Stage {
         const context = canvas.getContext("2d");
         context.imageSmoothingQuality = "high";
         context.drawImage(this.renderer.domElement, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
-        const floor = size - across(new THREE.Vector3(0, 0, 0).project(this.camera).y);
-        return {canvas, below: (bottom - floor) / SUPERSAMPLE / ratio};
+        const point = origin.clone().project(this.camera);
+        const page = (pixels) => pixels / SUPERSAMPLE / ratio;
+        return {canvas, height: page(bottom - top), at: {x: page(across(point.x) - left), y: page(size - across(point.y) - top)}};
     }
 }

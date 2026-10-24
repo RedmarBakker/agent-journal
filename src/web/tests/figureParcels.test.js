@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, HEAD_TURN, Posing, SHOVE, blowsLandAt, leanOf, lookToward} from "../src/figure/figure.js";
-import {BLINK, BUILD, CLAW, CLAW_CLEARANCE, CRANE, DIGITS, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, craneAt, craneMs, digitsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stacksOf, stopsOf, testRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
+import {BLINK, BUILD, CLAW, DIGITS, ENDS, GRAB, HAMMER, IDLE_CLIPS, LAYER, PARCEL, PILE, answeredWith, pushWaits, PUSH, UFO, behind, blowsLanded, brightness, digitsOf, grabberAt, grabsOf, flightMs, hammerMs, litAfter, phasesOf, pileSlot, prongsOf, pushStand, pushedTo, stopsOf, testRuns, ufoAt, unitsAfter, buildRunAt} from "../src/figure/parcels.js";
 import {GROUNDED, clipFor} from "../src/domain/figureState.js";
 import {CHANGE_SECONDS, tripTo} from "../src/figure/places.js";
 import {carrierOf} from "../src/figure/reactions.js";
@@ -267,33 +267,40 @@ test("the UFO takes the work away three times in four and the claw crane the fou
     expect([carrierOf(() => 0), carrierOf(() => 0.7499), carrierOf(() => 0.75), carrierOf(() => 0.9999)]).toEqual(["ufo", "ufo", "crane", "crane"]);
 });
 
-test("the claw crane rolls in along the window's top, lowers its claw onto the stack, shuts it, lifts the stack out of the window and rolls away", () => {
+// one claw sent for the one box `box` on the floor at `floor`, rolling in from the left along the rail at the window's `top`, and where it is
+// `ms` into the visit, its box where it rests
+const CRANE_AT = {from: -40, away: 1300, right: 1280};
+const oneClaw = (box, floor, top) => grabsOf([box], {...CRANE_AT, top, floor}, () => 0.5)[0];
+const clawAt = (grab, ms, floor, top) => grabberAt(grab, ms, {...CRANE_AT, top, box: {x: grab.x, top: floor - grab.up - PARCEL.height}});
+const enterMs = (grab) => Math.abs(grab.x - grab.from) / GRAB.zip;
+
+test("a single box is taken by the claw: it rolls in along the window's top, lowers onto the box, shuts, lifts it out of the window and rolls away", () => {
     const top = 100;
     const floor = 700;
-    const stops = stacksOf([0, 1, 2].map((index) => ({id: index + 1, x: 600, up: pileSlot(index).up})));
-    expect(stops).toHaveLength(1);
-    expect(stops[0].high).toBe(pileSlot(2).up + PARCEL.height);
-    const visit = (ms) => craneAt(stops, ms, floor, top, -40, 1300);
+    const grab = oneClaw({id: 1, x: 600, up: pileSlot(2).up}, floor, top);
+    expect([grab.kind, grab.start, grab.pace]).toEqual(["claw", 0, 1]);
+    const visit = (ms) => clawAt(grab, ms, floor, top);
+    const gripped = enterMs(grab) + GRAB.lower + GRAB.hover + GRAB.grip;
     // rolling in from the left along the rail, the claw wound up and open
-    expect(visit(0)).toMatchObject({x: -40, chain: CRANE.wound, open: 1, coming: true, lifted: 0});
-    expect(visit(CRANE.enter / 2).x).toBeGreaterThan(-40);
-    // over the stack the claw goes down on its chain until it meets the stack's top, then shuts
-    const lowered = visit(CRANE.enter + CRANE.lower);
+    expect(visit(0)).toMatchObject({x: -40, chain: GRAB.wound, open: 1, lifted: 0, out: true});
+    expect(visit(enterMs(grab) / 2).x).toBeGreaterThan(-40);
+    // over its box the claw goes down on its cable until it meets the box's top, then shuts
+    const lowered = visit(enterMs(grab) + GRAB.lower);
     expect(lowered.x).toBe(600);
-    expect(top + lowered.chain).toBeCloseTo(floor - stops[0].high - CLAW_CLEARANCE, 6);
+    expect(top + lowered.chain).toBeCloseTo(floor - pileSlot(2).up - PARCEL.height - ENDS.claw.clear, 6);
     expect(lowered.open).toBe(1);
-    expect(visit(CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab).open).toBe(0);
-    // it lifts the stack, ever higher, until the stack is out past the window's top
+    expect(visit(gripped).open).toBe(0);
+    // it lifts the box, ever higher, until the box is out past the window's top
     let previous = 0;
-    for (let ms = CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + 50; ms < CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift; ms += 50) {
+    for (let ms = gripped + 50; ms < gripped + GRAB.lift; ms += 50) {
         const now = visit(ms);
         expect(now.lifted).toBeGreaterThanOrEqual(previous);
         expect(now.x).toBe(600);
         previous = now.lifted;
     }
-    expect(floor - previous - stops[0].high).toBeLessThan(top);
-    // and it rolls on out at the far side, gone once its visit is over
-    expect(visit(craneMs(1))).toMatchObject({x: 1300, taken: 1, gone: true});
+    expect(floor - previous - pileSlot(2).up - PARCEL.height).toBeLessThan(top);
+    // and it rolls on out at the far side, done once its visit is over
+    expect(visit(gripped + GRAB.lift + Math.abs(1300 - 600) / GRAB.zip + 1)).toMatchObject({x: 1300, done: true, out: false});
 });
 
 test("about to push, the figure first turns to face the parcel, upright, and only then leans in", () => {
@@ -310,7 +317,7 @@ test("about to push, the figure first turns to face the parcel, upright, and onl
     expect(clipFor({...scene, doingFacing: 270}, () => true)).toMatchObject({clip: "push", facing: 270});
 });
 
-test("the crane's claw comes down around the box, its hub on the stack's top, and shuts its prongs on the box's sides, the box hanging from it as it lifts", () => {
+test("the crane's claw comes down around the box, its hub on the box's top, and shuts its prongs on the box's sides, the box hanging from it as it lifts", () => {
     const half = PARCEL.width / 2;
     // wide open, the tips stand clear outside the box's sides; shut, they lie on them, a pixel or two out, down past half the box's front
     for (const prong of prongsOf(1)) expect(Math.abs(prong.tip) - half).toBeGreaterThan(5);
@@ -321,14 +328,15 @@ test("the crane's claw comes down around the box, its hub on the stack's top, an
         expect(prong.reach).toBeGreaterThan((PARCEL.height - PARCEL.top) / 2);
     }
     expect(prongsOf(0).map((prong) => prong.way)).toEqual([-1, 1]);
-    // at the stop the chain lowers the hub onto the stack's top, the claw shuts there, and the stack lifts with the chain
-    const stops = [{x: 600, high: 2 * (PARCEL.height - PARCEL.top) + PARCEL.top, ids: [1, 2]}];
+    // over its box the cable lowers the hub onto the box's top, the claw shuts there, and the box lifts with the cable
     const floor = 700;
     const top = 100;
-    const shut = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab, floor, top, 300, 900);
+    const grab = oneClaw({id: 1, x: 600, up: PARCEL.height - PARCEL.top}, floor, top);
+    const gripped = enterMs(grab) + GRAB.lower + GRAB.hover + GRAB.grip;
+    const shut = clawAt(grab, gripped, floor, top);
     expect(shut.open).toBe(0);
-    expect(top + shut.chain).toBeCloseTo(floor - stops[0].high - CLAW_CLEARANCE, 5);
-    const lifting = craneAt(stops, CRANE.enter + CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift / 2, floor, top, 300, 900);
+    expect(top + shut.chain).toBeCloseTo(floor - grab.up - PARCEL.height - ENDS.claw.clear, 5);
+    const lifting = clawAt(grab, gripped + GRAB.lift / 2, floor, top);
     expect(lifting.open).toBe(0);
     expect(lifting.lifted).toBeCloseTo(shut.chain - lifting.chain, 5);
     expect(CLAW.reach).toBeLessThan(PARCEL.height);
@@ -463,26 +471,25 @@ test("a build command is timed from its own start, so one that ends within five 
     expect(buildRunAt([], {card: "", since: held.since}, 1066)).not.toBe(null);
 });
 
-test("the claw slows to a stop just over the stack with no overshoot, hovers, grips only then, and lifts after a tug", async () => {
-    const {craneAt} = await import("../src/figure/parcels.js");
-    const stops = [{x: 300, high: 20, ids: [1]}];
+test("the claw slows to a stop just over its box with no overshoot, hovers, grips only then, and lifts after a tug", () => {
     const floor = 600;
     const top = 0;
-    const reach = floor - top - stops[0].high - CLAW_CLEARANCE;
-    expect(CLAW_CLEARANCE, "the hub stops clear of the box's top").toBeGreaterThan(8);
-    const at = (ms) => craneAt(stops, CRANE.enter + ms, floor, top, 0, 900);
-    const lowering = Array.from({length: 23}, (_, step) => at((CRANE.lower * step) / 22).chain);
+    const grab = oneClaw({id: 1, x: 300, up: 0}, floor, top);
+    const reach = floor - top - PARCEL.height - ENDS.claw.clear;
+    expect(ENDS.claw.clear, "the hub stops clear of the box's top").toBeGreaterThan(8);
+    const at = (ms) => clawAt(grab, enterMs(grab) + ms, floor, top);
+    const lowering = Array.from({length: 23}, (_, step) => at((GRAB.lower * step) / 22).chain);
     expect(Math.max(...lowering)).toBeLessThanOrEqual(reach + 1e-9);
     const lastSteps = lowering.slice(-3);
     expect(lastSteps[2] - lastSteps[1], "slowing as it nears the stop").toBeLessThan(lastSteps[1] - lastSteps[0] + 1e-9);
-    const hovering = [at(CRANE.lower + 10), at(CRANE.lower + CRANE.hover - 10)];
+    const hovering = [at(GRAB.lower + 10), at(GRAB.lower + GRAB.hover - 10)];
     expect(hovering.map((frame) => frame.chain)).toEqual([reach, reach]);
     expect(hovering.map((frame) => frame.open), "the prongs stay open while it hovers").toEqual([1, 1]);
-    const gripped = at(CRANE.lower + CRANE.hover + CRANE.grab);
+    const gripped = at(GRAB.lower + GRAB.hover + GRAB.grip);
     expect(gripped.open).toBe(0);
-    const tugged = at(CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift * CRANE.tugShare * 0.9);
-    expect(tugged.chain).toBeCloseTo(reach - CRANE.tug);
-    expect(at(CRANE.lower + CRANE.hover + CRANE.grab + CRANE.lift * 0.8).chain).toBeLessThan(tugged.chain);
+    const tugged = at(GRAB.lower + GRAB.hover + GRAB.grip + GRAB.lift * GRAB.tugShare * 0.9);
+    expect(tugged.chain).toBeCloseTo(reach - GRAB.tug);
+    expect(at(GRAB.lower + GRAB.hover + GRAB.grip + GRAB.lift * 0.8).chain).toBeLessThan(tugged.chain);
 });
 
 test("the UFO draws the boxes up one by one, the top box first, each faster as it nears, swaying on its own path", async () => {
