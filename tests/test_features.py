@@ -13012,3 +13012,24 @@ def test_a_script_reader_takes_every_setting_a_pattern_reader_takes(app: App):
     assert reader.progress(["done 3/12"]).fraction() == 0.25, "its progress is read on what the script prints"
     assert reader.variant("finished").card_lines(["done 12/12"]) == ["done 12/12", "stage finished"], "its script is told the stage"
     assert app.container.get(Readers).reading("make check --suite fast").name == "counts", "it reads the commands it names"
+
+
+def test_a_script_run_by_its_path_from_outside_the_project_is_owed_a_reader_at_once_and_known_by_its_file_name(app: App):
+    from journal.features.shell.support.readers import Readers
+    from journal.features.shell.support.shell_request import ShellRequest
+    from journal.features.shell.support.shell_runner import ShellRunner
+    console, runner, link = app.console(), app.container.get(ShellRunner), app.container.get(SupervisorLink)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "t", "--start"], AGENT)
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="shell.foreground", value=1), Actor.system())
+    elsewhere = app.config.root.parent / f"{app.config.root.name}-scratch"
+    elsewhere.mkdir(exist_ok=True)
+    (elsewhere / "scan.sh").write_text("sleep 2\necho scanned\n")
+    link.working(MAIN)
+    request = lambda line: ShellRequest(line=wrapped_line(line), cwd=str(app.config.root), shell="/bin/sh", environment=dict(os.environ))
+    b"".join(runner.run(request(f"sh {elsewhere / 'scan.sh'} {app.config.root}"), AGENT, MAIN))
+    said = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={})[1])
+    assert "reader due for scan.sh" in said, "owed a reader on its first run in the background"
+    console.run(["reader", "add", "scans", "--commands", "scan.py", "--pattern", "scanned", "--about", "the scans"], AGENT)
+    assert app.container.get(Readers).reading(f"python3 {elsewhere / 'scan.py'} {app.config.root}").name == "scans", "a script run through python3 is known by its file name"

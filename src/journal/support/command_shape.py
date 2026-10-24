@@ -11,6 +11,8 @@ LAUNCHER_SUBCOMMANDS = {"uv": "run", "poetry": "run", "pipenv": "run", "bundle":
 TOKEN_PATTERN = re.compile(r"[^\s|<>&;]+")
 WORD_PATTERN = re.compile(r"[A-Za-z][\w.-]*")
 MODULE_FLAG = "-m"
+# a script handed to a runner by its path, which a run is known by: python3 /tmp/scan.py is python3 scan.py
+SCRIPT_FILE = re.compile(r"\.(py|js|mjs|cjs|ts|sh|bash|zsh|rb|pl)$")
 SHAPE_TOKEN_COUNT = 3
 WRAPPER_PATTERN = re.compile(r"^\s*(?:perl -e '[^']*exec @ARGV[^']*'|timeout \d+[smh]?)\s+")
 # the shell's own words around the commands of a loop or a branch, which a run is never known by: while, do and done,
@@ -147,6 +149,8 @@ class CommandShape:
         tokens = TOKEN_PATTERN.findall(cls.inner(part).split("<<", 1)[0])
         if not tokens:
             return ""
+        if len(tokens) > 1 and tokens[0].rsplit("/", 1)[-1] in RUNNERS and SCRIPT_FILE.search(tokens[1]):
+            return f"{tokens[0]} {tokens[1].rsplit('/', 1)[-1]}"
         shape_parts = [tokens[0]]
         for token in tokens[1:SHAPE_TOKEN_COUNT]:
             is_module = token == MODULE_FLAG and shape_parts[-1].rsplit("/", 1)[-1] in RUNNERS
