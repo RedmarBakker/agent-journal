@@ -73,24 +73,24 @@ class Menu:
     # the questions in order, each skipped where it does not apply; the left arrow asks again the last one that was asked before it
     def menu_choice(self, agent: str, environment: str, new: bool, stashed: bool, omit: bool) -> Choice:
         answers = MenuAnswers(agent, environment, new, stashed, omit, self.environments(), self.remembered.read())
-        steps = (self._environment_step, self._session_step, self._continuation_step, self._prompts_step, self._hooks_step, self._trust_step)
+        steps = (self._environment_stage, self._session_stage, self._continuation_stage, self._prompts_stage, self._hooks_step, self._trust_step)
         shown: list[int] = []
         index = 0
         while index < len(steps):
             try:
-                was_asked = steps[index](answers)
+                is_shown = steps[index](answers)
             except MenuReturn:
                 index = shown.pop() if shown else index
                 continue
-            shown += [index] if was_asked else []
+            shown += [index] if is_shown else []
             index += 1
         return Choice(answers.selection, answers.resume, answers.stashed_hooks, answers.prompt_flags)
 
-    def _environment_step(self, answers: MenuAnswers) -> bool:
+    def _environment_stage(self, answers: MenuAnswers) -> bool:
         answers.selection = answers.environment or self._environment(answers.agent, answers.rows)
         return not answers.environment
 
-    def _session_step(self, answers: MenuAnswers) -> bool:
+    def _session_stage(self, answers: MenuAnswers) -> bool:
         answers.session = ""
         if answers.new or answers.selection in {row.name for row in answers.rows}:
             return False
@@ -100,7 +100,7 @@ class Menu:
         answers.session = self._session_question(answers.selection, sessions)
         return True
 
-    def _continuation_step(self, answers: MenuAnswers) -> bool:
+    def _continuation_stage(self, answers: MenuAnswers) -> bool:
         rows = self.environment_rows(answers.selection, answers.rows)
         last = next((row.last_session(answers.agent) for row in rows if row.name == answers.selection), "")
         answers.resume = answers.session
@@ -109,7 +109,7 @@ class Menu:
         answers.resume = self._resume(answers.agent, answers.selection, last)
         return True
 
-    def _prompts_step(self, answers: MenuAnswers) -> bool:
+    def _prompts_stage(self, answers: MenuAnswers) -> bool:
         answers.prompt_flags = answers.omit or self._prompts(answers.agent)
         return not answers.omit
 

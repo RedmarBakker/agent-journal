@@ -117,7 +117,7 @@ class TeamJoin:
         return f"the team runs journal version {summary.version} and this journal {VERSION}: install {summary.version} first with curl -fsSL {ReleaseInstaller.script_path(REPOSITORY, tag)} | AGENT_JOURNAL_REF={tag} sh, then join again"
 
     def history_refusal(self, summary: TeamSummary, url: TeamUrl) -> str:
-        tasks, messages = self.tables.rows(Task.table()).stored_count(), self.messages.written_count()
+        tasks, messages = self.tables.rows(Task.table()).stored_count(), self.messages.message_count()
         if not summary.has_rows or not tasks + messages:
             return ""
         return (f"this journal holds {tasks} tasks and {messages} messages of its own, and the team at {url.address} holds a journal already, which a join would put in place of this one: "

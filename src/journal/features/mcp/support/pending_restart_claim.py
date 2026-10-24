@@ -13,7 +13,7 @@ class PendingRestartClaim:
     def restarted(self, session: str) -> None:
         if session not in self.pending.sessions():
             return
-        agent = next((main for main in self.agents.active_main_agents() if main.session == session), None)
+        agent = self.agents.active_main_agent(session)
         if agent is None or not self.idle.is_idle(agent):
             return
         claimed = self.pending.claim(session)

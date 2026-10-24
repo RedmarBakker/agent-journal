@@ -44,7 +44,7 @@ class MessageController(Controller[Message]):
             return listing.listed(self.repository.numbered(listing.ids), lambda m: True, timeline=True)
         if listing.cutoff_at:
             return listing.listed(self.repository.changes(chat, datetime.fromtimestamp(listing.cutoff_at, timezone.utc), listing.lower_id, listing.limit + 1), lambda m: True, timeline=True)
-        rows, has_older = self.repository.written_page(chat, listing.limit, listing.upper_id, listing.lower_id)
+        rows, has_older = self.repository.message_page(chat, listing.limit, listing.upper_id, listing.lower_id)
         return RowListPage(rows=rows, is_last_page=not has_older)
 
     def agent_chat(self, request: Request) -> Response:

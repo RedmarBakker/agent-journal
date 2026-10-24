@@ -1,5 +1,4 @@
 import os
-import socket
 from dataclasses import asdict
 from datetime import datetime, timezone
 from urllib.error import HTTPError
@@ -194,9 +193,3 @@ class Tunnel:
             return True
         except (OSError, ValueError):
             return False
-
-    @staticmethod
-    def free_port() -> int:
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", 0))
-            return probe.getsockname()[1]

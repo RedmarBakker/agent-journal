@@ -83,10 +83,12 @@ class ReaderJudge:
         files = OutputFiles(Path(output.folder))
         lines = files.lines()
         fixes = []
-        if any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines):
+        progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines)
+        if progress_unshown:
             fixes.append(self.progress_fix(output.command, lines))
         summary = next((line for line in lines if SUMMARY_PATTERN.search(line)), "")
-        if any(SUMMARY_MISSING in finding for finding in report.findings) and summary and not reader.variant(output.stage()).card_lines(lines):
+        summary_unpicked = any(SUMMARY_MISSING in finding for finding in report.findings) and bool(summary) and not reader.variant(output.stage()).card_lines(lines)
+        if summary_unpicked:
             fixes.append(f"the run printed a summary, \"{summary[:120]}\": give the reader a --finished pattern that picks it, such as '{re.escape(summary.split()[0]) if summary.split() else summary}'")
         return fixes
 

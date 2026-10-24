@@ -5,7 +5,7 @@ from journal.repositories.environments import Environments
 from journal.support.worktree import Worktree
 
 
-class WorktreeTipKeep(AgentListener[SessionEnded]):
+class WorktreeTipRecord(AgentListener[SessionEnded]):
     """A session's end in an environment with a worktree keeps where its branch stands, so a worktree whose folder is lost is made again from there."""
 
     def __init__(self, config: Config, environments: Environments) -> None:
@@ -14,4 +14,4 @@ class WorktreeTipKeep(AgentListener[SessionEnded]):
     def handle(self, event: SessionEnded) -> None:
         tree = Worktree(self.config.root, self.environments.find(event.environment_id).name)
         if tree.path.is_dir():
-            tree.tip_kept()
+            tree.record_tip()

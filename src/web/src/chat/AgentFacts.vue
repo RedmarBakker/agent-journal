@@ -140,7 +140,7 @@ const toggle = (key, e) => emit("toggle", key, e);
                 </AgentFact>
             </template>
             <template v-if="data.hook_average_ms !== undefined">
-                <AgentTimings icon="hook" title="Average time of each kind of hook, its last 250 runs" heading="Hooks" :average="data.hook_average_ms" :parts="data.hook_parts || []" />
+                <AgentTimings icon="hook" title="Average time the journal takes to answer each kind of agent action, its last 250" heading="Agent actions" :average="data.hook_average_ms" :parts="data.hook_parts || []" />
                 <AgentTimings icon="request" title="Average time of each route, its last 250 runs" heading="Requests" :average="data.request_average_ms" :parts="data.request_parts || []" />
                 <template v-if="data.points_average !== undefined">
                     <AgentTimings icon="points" title="Average points an answer spends, each kind its last 250 answers" heading="Points per answer" unit="points" :average="data.points_average" :parts="data.point_parts || []" />

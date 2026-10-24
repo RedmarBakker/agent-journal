@@ -18,7 +18,7 @@ from journal.repositories.environment_owners import EnvironmentOwners
 
 
 # the most rows one page of the chat holds, its written messages and the marks between them together
-PAGE_ROWS_MOST = 400
+PAGE_ROW_LIMIT = 400
 
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
@@ -121,13 +121,13 @@ class Messages(ScopedRepository[Message]):
 
     # a page of the chat: its newest messages down to the count-th a person or an agent wrote, every mark between them with them, and
     # whether a written message older than those is left
-    def written_page(self, chat: Query, count: int, previous: int = 0, following: int = 0) -> tuple[list[Message], bool]:
+    def message_page(self, chat: Query, count: int, previous: int = 0, following: int = 0) -> tuple[list[Message], bool]:
         query = self.bounded(chat, previous, following)
-        written = self.latest_rows(query.filter_unequal("author", Author.SYSTEM.value), count + 1)
-        if len(written) <= count:
-            return self.latest_rows(query, PAGE_ROWS_MOST), False
-        oldest = written[1]
-        return self.latest_rows(query.filter_greater_equal("created_at", oldest.created_at.isoformat()), PAGE_ROWS_MOST), True
+        person_messages = self.latest_rows(query.filter_unequal("author", Author.SYSTEM.value), count + 1)
+        if len(person_messages) <= count:
+            return self.latest_rows(query, PAGE_ROW_LIMIT), False
+        oldest = person_messages[1]
+        return self.latest_rows(query.filter_greater_equal("created_at", oldest.created_at.isoformat()), PAGE_ROW_LIMIT), True
 
     def bounded(self, chat: Query, previous: int, following: int) -> Query:
         query = chat
@@ -156,7 +156,7 @@ class Messages(ScopedRepository[Message]):
         return list(reversed(self.selected(self.query().filter_prefix("data->key", "commit:").filter_greater_equal("created_at", start).filter_less("created_at", end).order_descending("id").limit(last))))
 
     # the messages a person or an agent wrote, in every environment, leaving out the journal's own marks and cards
-    def written_count(self) -> int:
+    def message_count(self) -> int:
         return self.stored_matching_count(self.query().filter_listed("author", [Author.USER.value, Author.AGENT.value, Author.COLLEAGUE.value]))
 
     def keyed(self, key: str, actor: Actor) -> list[Message]:

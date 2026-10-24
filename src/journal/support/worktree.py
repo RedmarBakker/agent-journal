@@ -49,10 +49,10 @@ class Worktree:
             if not self.path.is_dir():
                 self.added()
             self.shared()
-            self.tip_kept()
+            self.record_tip()
         return self.path
 
-    def tip_kept(self) -> None:
+    def record_tip(self) -> None:
         self.git("update-ref", f"{TIPS_REF}/{self.name}", self.local_branch())
 
     def renamed(self, name: str) -> "Worktree":
@@ -82,7 +82,7 @@ class Worktree:
             raise WorktreeFailure(self.name, added.stderr.strip())
 
     # a worktree outlives its environment: deleting the environment keeps it, and only the person removes it
-    def kept_line(self) -> str:
+    def worktree_note(self) -> str:
         if not self.path.is_dir():
             return ""
         return f"its worktree {self.path} stays, as a worktree is never removed with its environment; git worktree remove {self.path} removes it once its work is done"

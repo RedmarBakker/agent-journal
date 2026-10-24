@@ -158,8 +158,8 @@ class EnvironmentCommand(Command):
             print(f"no environment named {args.name}")
             return 1
         self.environments.wipe(rows[0], caller.actor)
-        kept = Worktree(self.config.root, rows[0].name).kept_line()
-        print(f"deleted environment {rows[0].id}: {rows[0].name}, with everything recorded in it" + (f"; {kept}" if kept else ""))
+        worktree_line = Worktree(self.config.root, rows[0].name).worktree_note()
+        print(f"deleted environment {rows[0].id}: {rows[0].name}, with everything recorded in it" + (f"; {worktree_line}" if worktree_line else ""))
         return 0
 
     def rename(self, args: Namespace, caller: Caller) -> int:

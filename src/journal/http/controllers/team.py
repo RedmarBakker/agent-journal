@@ -32,13 +32,17 @@ class TeamController:
 
     def join(self, request: Request) -> Response:
         body = request.body
-        outcome = TeamRequests.reached(lambda: self.joining.join(TeamUrl.parse(str(body.get("url", ""))), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
+        outcome = TeamRequests.reached(lambda: self.joining.join(self.team_url(request), str(body.get("email", "")).strip(), str(body.get("password", "")), str(body.get("name", "")).strip()))
         return Response.json({"outcome": outcome, "environment": request.environment}, 201)
 
     def check(self, request: Request) -> Response:
-        url = TeamUrl.parse(str(request.body.get("url", "")))
+        url = self.team_url(request)
         refusal = TeamRequests.reached(lambda: self.joining.claim_refusal(url))
         return Response.json({"address": url.address, "refusal": refusal})
+
+    @staticmethod
+    def team_url(request: Request) -> TeamUrl:
+        return TeamUrl.parse(str(request.body.get("url", "")))
 
     def leave(self, request: Request) -> Response:
         return Response.json({"outcome": self.joining.leave()})

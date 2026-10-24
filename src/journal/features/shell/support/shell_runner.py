@@ -127,10 +127,15 @@ class ShellRunner:
 
     # a run whose reader is known shows its card in the chat as it starts, before any move to the background
     def start_card(self, folder: OutputFiles, line: str, reader: Reader | None, caller: Caller) -> None:
-        alias = self.aliases.line_alias(line)
-        reader_name = alias.reader if alias is not None else reader.name if reader is not None else ""
+        reader_name = self.known_reader(self.aliases.line_alias(line), reader)
         if reader_name:
             self.outputs.watch(self.outputs.chain_output(folder.folder.name), reader_name, "", caller.actor)
+
+    @staticmethod
+    def known_reader(alias: Alias | None, reader: Reader | None) -> str:
+        if alias is not None:
+            return alias.reader
+        return reader.name if reader is not None else ""
 
     # a run known to take long moves to the background at once: a test run or a build, or a command whose last run went past the limit;
     # any other runs in the foreground until it passes the limit

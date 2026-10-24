@@ -33,8 +33,8 @@ class Chain:
 
     @classmethod
     def choosing_parts(cls, line: str) -> list[str]:
-        pieces = [piece for part in cls.parts(line) if part.recorded for piece in cls.commands(part.text)]
-        shaped = [(piece, shape.split()[0]) for piece in pieces if (shape := CommandShape.build(piece))]
+        pieces = [segment for part in cls.parts(line) if part.recorded for segment in cls.commands(part.text)]
+        shaped = [(segment, shape.split()[0]) for segment in pieces if (shape := CommandShape.build(segment))]
         working = [text for text, program in shaped if program not in SETUP_COMMANDS and program not in IDLE_COMMANDS]
         return working or [text for text, _ in shaped]
 
@@ -46,7 +46,7 @@ class Chain:
         if LOOP_START.match(bare) or "$(" in bare or "`" in bare:
             return [bare]
         if GROUP_START.match(bare) and not bare.strip().startswith("(("):
-            return [piece for command in CommandShape.commands(CommandShape.unwrapped(bare)) for piece in cls.commands(CommandShape.unbracketed(command))]
+            return [segment for command in CommandShape.commands(CommandShape.unwrapped(bare)) for segment in cls.commands(CommandShape.unbracketed(command))]
         return CommandShape.commands(bare.split("\n", 1)[0] if "<<" in bare else bare)
 
     @classmethod

@@ -1,7 +1,7 @@
 from journal.features.feature import Feature
 from journal.features.git.listeners.commit_detection import CommitDetection
 from journal.features.git.listeners.worktree_session_link import WorktreeSessionLink
-from journal.features.git.listeners.worktree_tip_keep import WorktreeTipKeep
+from journal.features.git.listeners.worktree_tip_record import WorktreeTipRecord
 from journal.features.git.git_conduct import GitConduct
 from journal.features.git.support.git_data_reader import GitDataReader
 from journal.features.git.support.git_data import GitData
@@ -15,7 +15,7 @@ class Git(Feature[GitData]):
     name = "git"
     title = "Git"
     help = "Every commit the agent makes is a badge in the chat."
-    listeners = (CommitDetection, WorktreeSessionLink, WorktreeTipKeep)
+    listeners = (CommitDetection, WorktreeSessionLink, WorktreeTipRecord)
     data = (GitDataReader, BranchEnvironmentsReader)
     conduct = (GitConduct,)
 

@@ -35,15 +35,21 @@ class ReaderGuess:
 
     def similar(self, name: str, lines: list[str]) -> Reader | None:
         program = name.split()[0]
-        return next((reader for reader in self.readers.all() if any(own.split()[0] == program for own in reader.commands.programs) and not self.judge.misses(reader, lines)), None)
+        return next((reader for reader in self.readers.all() if any(program_text.split()[0] == program for program_text in reader.commands.programs) and not self.judge.misses(reader, lines)), None)
+
+    @staticmethod
+    def progress_pattern(lines: list[str]) -> str:
+        if any(PERCENT_PATTERN.search(line) for line in lines):
+            return PERCENT_PROGRESS
+        return COUNT_PROGRESS if any(COUNT_PATTERN.search(line) for line in lines) else ""
 
     def built(self, name: str, lines: list[str]) -> Reader | None:
-        progress = PERCENT_PROGRESS if any(PERCENT_PATTERN.search(line) for line in lines) else COUNT_PROGRESS if any(COUNT_PATTERN.search(line) for line in lines) else ""
+        progress = self.progress_pattern(lines)
         summary = f"(?i:{SUMMARY_PATTERN.pattern})" if any(SUMMARY_PATTERN.search(line) for line in lines) else ""
         failures = f"(?i:{FAILURE_PATTERN.pattern})" if any(FAILURE_PATTERN.search(line) for line in lines) else ""
         patterns = [pattern for pattern in (failures, summary) if pattern]
         if not patterns:
             return None
-        subject = " and ".join(word for word, found in (("progress", progress), ("failure lines", failures), ("summary", summary)) if found)
+        subject = " and ".join(word for word, present in (("progress", progress), ("failure lines", failures), ("summary", summary)) if present)
         return Reader(re.sub(r"[^a-z0-9]+", "-", f"{name} output".lower()).strip("-"), f"the {subject} of {name} runs, written from a run's own output", "|".join(f"(?:{pattern})" for pattern in patterns),
                       progress_pattern=progress, commands=ReaderCommands((name,)), finished_pattern=summary, failed_pattern=failures)

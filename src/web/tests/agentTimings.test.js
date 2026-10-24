@@ -17,7 +17,7 @@ afterEach(() => (document.body.innerHTML = ""));
 async function mounted() {
     const root = document.createElement("div");
     document.body.append(root);
-    createApp({render: () => h(AgentTimings, {icon: "hook", title: "t", heading: "Hooks", average: 26, parts})}).mount(root);
+    createApp({render: () => h(AgentTimings, {icon: "hook", title: "t", heading: "Agent actions", average: 26, parts})}).mount(root);
     await nextTick();
     return root;
 }

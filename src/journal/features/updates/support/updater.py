@@ -241,8 +241,8 @@ class Updater:
         if target.reason:
             log = self.config.home / "runtime" / "update.log"
             log.parent.mkdir(parents=True, exist_ok=True)
-            with log.open("a") as written:
-                written.write(f"installing {target.label}: {target.reason}\n")
+            with log.open("a") as log_file:
+                log_file.write(f"installing {target.label}: {target.reason}\n")
 
     # the sync service has sent the whole queue and pulled the team to its head, under the team's upgrade lease
     def is_drained(self) -> bool:

@@ -34,6 +34,10 @@ class Agents(ScopedRepository[Agent]):
     def active_main_agents(self) -> list[Agent]:
         return [agent for agent in self.main_agents() if agent.state != "ended"]
 
+    def active_main_agent(self, session: str) -> Agent | None:
+        rows = self.selected_globally(self.query().filter(role=AgentRole.MAIN, session=session).filter_unequal("state", "ended").order("id"))
+        return rows[0] if rows else None
+
     def program_main_agents(self) -> list[Agent]:
         return [agent for agent in self.active_main_agents() if agent.has_program()]
 
