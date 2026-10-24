@@ -11,13 +11,13 @@ from journal.support.actor import Actor
 
 
 class WorkerChat:
-    """A worker's own chat: what it is informed, and each block of text it writes, read from its transcript from where the last read stopped, as messages of its session in a worker's chat; nothing is read of a conversation another agent now holds, as when a worker's session was resumed as the main agent."""
+    """A worker's own chat: what it is informed, and each block of text it writes, read from its transcript from where the last read stopped, as messages of its session in the chat of its own role, a worker's or a verifier's; nothing is read of a conversation another agent now holds, as when a worker's session was resumed as the main agent."""
 
     def __init__(self, messages: Messages, workers: Workers, providers: Providers, branch: WorkerBranch, agents: Agents) -> None:
         self.messages, self.workers, self.providers, self.branch, self.agents = messages, workers, providers, branch, agents
 
     def instruction(self, worker: Worker, text: str, actor: Actor) -> Message:
-        return self.messages.save(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, agent_role=AgentRole.WORKER), actor)
+        return self.messages.save(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, agent_role=self.chat_role(worker)), actor)
 
     def read(self, worker: Worker) -> Worker:
         if not worker.conversation() or self.is_agent_session(worker):
@@ -33,4 +33,7 @@ class WorkerChat:
     def turn(self, worker: Worker, text: str, key: str) -> None:
         if self.messages.sent_with(key):
             return
-        self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=AgentRole.WORKER, idempotency=key), Actor.agent(worker.conversation()))
+        self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=self.chat_role(worker), idempotency=key), Actor.agent(worker.conversation()))
+
+    def chat_role(self, worker: Worker) -> AgentRole:
+        return next((role for role in self.agents.session_roles(worker.conversation()) if role.is_sent()), AgentRole.WORKER) if worker.conversation() else AgentRole.WORKER

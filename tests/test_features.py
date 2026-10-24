@@ -4339,6 +4339,26 @@ def test_a_plugin_hears_the_events_it_names_and_holds_what_it_may(app: App):
     assert status == 200 and "echo refuses a forbidden tool" in body["hookSpecificOutput"]["additionalContext"], "a journal command goes through a plugin's refusal, its words told"
 
 
+def test_a_plugin_is_never_switched_off_by_the_journal_and_never_holds_the_agent_in_a_loop(app: App):
+    from journal.repositories.plugins import Plugins
+    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    plugins = app.container.get(Plugins)
+    plugin = echo(app, hears=["tool_starting"])
+    plugins.save(plugin.with_(hashes={path: "a file as it was before" for path in plugin.manifest.programs}), Actor.user(1))
+    hook(app, "SessionStart")
+    forbidden = lambda: hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})
+    for _ in range(5):
+        assert forbidden()[0] == 409, "a plugin whose files changed since they were hashed is still on and heard"
+    assert plugins.lookup("echo").enabled, "the journal never switches a plugin off by itself"
+    status, body = forbidden()
+    assert status == 200 and "held the agent 5 times in a row, so its holds are passed over for 3 minutes" in body["hookSpecificOutput"]["additionalContext"], "past five holds in a row the next goes through, said once"
+    status, body = forbidden()
+    assert status == 200 and "passed over" not in json.dumps(body), "while it is passed over its holds go through unsaid"
+    app.container.get(SettingRows).set("plugins.passed_over_minutes", 0, Actor.user(1))
+    status, body = forbidden()
+    assert status == 200, "the pause set when it was passed over still runs"
+
+
 def test_a_plugins_answer_shows_cards_runs_commands_and_never_loops(app: App):
     from journal.features.plugins.listeners.plugin_agent_relay import PluginAgentRelay
     from journal.features.plugins.support.plugin_answers import PluginAnswers
@@ -4590,9 +4610,9 @@ def test_only_the_user_installs_or_switches_on_a_plugin(app: App, tmp_path):
         status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
         assert (status == 409 and "plugin's files" in body.get("error", "")) == blocked, f"{line} held {status == 409}, should be {blocked}: running a plugin's program is no write to it"
     (folder / "run.py").write_text((folder / "run.py").read_text() + "\n# changed\n")
-    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})[0] == 200, "a changed program is not run"
+    assert hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "forbidden.py"})[0] == 409, "a changed program still runs"
     app.runtime().deferred.drain()
-    assert not plugins.lookup("echo").enabled and any("run.py changed since you installed it" in m.text for m in app.container.get(Messages).recent(5)), "the plugin is switched off and the card says why, once the hearings after the reply have run"
+    assert plugins.lookup("echo").enabled, "and the journal never switches the plugin off for it"
 
 
 def test_a_plugins_settings_follow_its_schema_and_its_secret_comes_from_the_user(app: App):
@@ -13752,6 +13772,13 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     session = f"v-{verifier.id}"
     verifier_hook(session, "SessionStart")
     assert sessions.top(session).name == "verifying" and app.container.get(Agents).session_agent(session).role == AgentRole.VERIFIER, "a verifier is pushed into Verifying at its start"
+    from journal.features.workers.support.worker_chat import WorkerChat
+    from journal.repositories.messages import Messages
+    chat = app.container.get(WorkerChat)
+    with app.container.get(Scope).environment(MAIN):
+        chat.turn(workers.find(verifier.id), "I read the run's output", f"transcript:{session}:0:0")
+        told = chat.instruction(workers.find(verifier.id), "judge the dismissal", Actor.system())
+        assert [message.agent_role for message in app.container.get(Messages).sent_with(f"transcript:{session}:0:0")] == [AgentRole.VERIFIER] and told.agent_role == AgentRole.VERIFIER, "a verifier's transcript and what it is told are written to the verifier's own chat, never refused as a worker's"
     for tool, tool_input in (("Write", {"file_path": "a.py", "content": "x"}), ("Edit", {"file_path": "a.py", "old_string": "a", "new_string": "b"}), ("Read", {"file_path": "a.py"}), ("Bash", {"command": "journal task list"})):
         status, body = verifier_hook(session, "PreToolUse", tool_name=tool, tool_input=tool_input, tool_use_id=f"t-{tool}")
         assert status == 409 and "you only give your verdict" in body["error"], (tool, status, body)

@@ -6,7 +6,6 @@ from journal.features.plugins.support.plugin_answers import PluginAnswers
 from journal.features.plugins.support.plugin_fault import PluginFault
 from journal.features.plugins.support.plugin_faults import PluginFaults
 from journal.features.plugins.support.window_missed import WindowMissed
-from journal.features.plugins.support.plugin_hashes import PluginHashes
 from journal.features.plugins.support.plugin_runner import PluginRunner
 from journal.features.plugins.support.plugin_steps import PluginSteps
 from journal.features.plugins.support.plugin_text import PluginText
@@ -33,9 +32,9 @@ WARNING = "plugin_warning"
 class PluginRelay:
     """Which plugins receive an event, and one plugin asked about it: the line built where the event happened, and a fault recorded, never raised."""
 
-    def __init__(self, plugins: Plugins, runner: PluginRunner, protocol: Protocol, faults: PluginFaults, environments: Environments, agents: Agents, entries: Entries, answers: PluginAnswers, steps: PluginSteps, deferred: ListenerQueue, hashes: PluginHashes, linked: LinkedManifests, text: PluginText, scope: Scope) -> None:
+    def __init__(self, plugins: Plugins, runner: PluginRunner, protocol: Protocol, faults: PluginFaults, environments: Environments, agents: Agents, entries: Entries, answers: PluginAnswers, steps: PluginSteps, deferred: ListenerQueue, linked: LinkedManifests, text: PluginText, scope: Scope) -> None:
         self.plugins, self.runner, self.protocol, self.faults, self.answers, self.steps = plugins, runner, protocol, faults, answers, steps
-        self.environments, self.agents, self.entries, self.deferred, self.hashes, self.linked = environments, agents, entries, deferred, hashes, linked
+        self.environments, self.agents, self.entries, self.deferred, self.linked = environments, agents, entries, deferred, linked
         self.text, self.scope = text, scope
         self.warnings: set[tuple[str, str]] = set()
 
@@ -50,8 +49,6 @@ class PluginRelay:
         return hearers
 
     def ask(self, plugin: Plugin, event: Event, environment_id: int, window: float) -> PluginAnswer:
-        if not self.hashes.intact(plugin, environment_id):
-            return PluginAnswer()
         self.linked.notice(plugin, environment_id)
         environment = self.environments.find(environment_id).name if environment_id else ""
         try:

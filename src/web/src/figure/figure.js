@@ -25,9 +25,10 @@ const DECODER = "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/dr
 // the share of the picture below the ground the figure stands on, where the chat box's top edge runs
 export const GROUND = (FRAMED_HEIGHT / 2 - FRAMED_MIDDLE) / FRAMED_HEIGHT;
 
-// the figure is drawn three times as wide as its canvas, each of those pixels multisampled, and scaled down with the browser's best
-// smoothing and no blur, so its edges and its screen's pixel grid are smooth without going soft
-const SUPERSAMPLE = 3;
+// the figure is drawn four times as wide as its canvas, each of those pixels multisampled, and halved twice, each halving averaging
+// every two by two pixels into one, so its edges and its screen's pixel grid are smooth without going soft in any browser; a single
+// shrink by more than two lets a browser that samples bilinearly skip pixels and leave stair steps
+const SUPERSAMPLE = 4;
 
 // toon.py; the step is on N.L, worked out from its ramp: a 0.8 grey Diffuse BSDF under a sun of strength pi and the
 // render's 0.05 grey world reads 0.8 N.L + 0.04, which crosses LIT_FROM = 0.52 at N.L = 0.6 (measured on a sphere: 0.600)
@@ -3492,6 +3493,15 @@ const FLAT = /* glsl */ `
 // lit whole by a dance (visor.js discoScreen): a band about its middle reaching `across` and `open` of the way to its sides and its top
 // and bottom, white with `flash` and else `glow`, as strong as `lit`.
 // parts of a voice's model the figure never shows: the homie's headphones, until they are modelled again
+// `source`'s part at (x, y), `width` by `height`, drawn over the whole of `canvas`, cleared first, smoothed and never blurred
+const drawSmoothed = (canvas, source, x, y, width, height) => {
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.filter = "none";
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(source, x, y, width, height, 0, 0, canvas.width, canvas.height);
+};
 export const HIDDEN_PARTS = ["headphones"];
 
 export const SCREEN = {
@@ -5132,13 +5142,18 @@ export class Stage {
         for (const hull of figure.visorHulls) hull.visible = false;
         this.renderer.render(figure.scene, this.camera);
         figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
-        const context = canvas.getContext("2d");
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.filter = "none";
-        context.imageSmoothingEnabled = true;
-        context.imageSmoothingQuality = "high";
-        context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
+        this.halvedOnto(this.renderer.domElement, 0, 0, size, size, canvas);
         return moves;
+    }
+
+    // The part of `source` at (x, y), `width` by `height`, drawn onto `canvas` halved twice through a canvas between, each halving
+    // averaging every two by two pixels into one
+    halvedOnto(source, x, y, width, height, canvas) {
+        this.half ??= document.createElement("canvas");
+        this.half.width = canvas.width * 2;
+        this.half.height = canvas.height * 2;
+        drawSmoothed(this.half, source, x, y, width, height);
+        drawSmoothed(canvas, this.half, 0, 0, this.half.width, this.half.height);
     }
 
     // A parcel's block of server units (serverBlockOf) with its lights `lit` at step `phase` of their blink, drawn through the figure's own
@@ -5202,9 +5217,7 @@ export class Stage {
         const canvas = document.createElement("canvas");
         canvas.width = Math.round((right - left) / SUPERSAMPLE);
         canvas.height = Math.round((bottom - top) / SUPERSAMPLE);
-        const context = canvas.getContext("2d");
-        context.imageSmoothingQuality = "high";
-        context.drawImage(this.renderer.domElement, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
+        this.halvedOnto(this.renderer.domElement, left, top, right - left, bottom - top, canvas);
         const point = origin.clone().project(this.camera);
         const page = (pixels) => pixels / SUPERSAMPLE / ratio;
         return {canvas, height: page(bottom - top), at: {x: page(across(point.x) - left), y: page(size - across(point.y) - top)}};

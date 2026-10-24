@@ -1,32 +1,19 @@
 import hashlib
 from pathlib import Path
 
-from journal.events.announcer import Announcer
-from journal.events.moments.plugin_disabled import PluginDisabled
 from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.models.support.plugin_manifest import PluginManifest
-from journal.support.actor import Actor
-from journal.models.plugin import Plugin
-from journal.repositories.plugins import Plugins
 
 
 class PluginHashes:
-    """The hash of each file a plugin runs, taken when you install, upgrade or switch it on and checked before each run; a plugin whose files changed is switched off with a card, until you switch it on again."""
+    """The hash of each file a plugin runs, taken when you install, upgrade or switch it on, so an upgrade can show what changed; the journal never switches a plugin off by itself."""
 
-    def __init__(self, folders: PluginFolders, plugins: Plugins, announcer: Announcer) -> None:
-        self.folders, self.plugins, self.announcer = folders, plugins, announcer
+    def __init__(self, folders: PluginFolders) -> None:
+        self.folders = folders
         self.checked: dict[Path, tuple[int, int, str]] = {}
 
     def digest(self, folder: Path, manifest: PluginManifest) -> dict[str, str]:
         return {path: self.hashed(folder / path) for path in manifest.programs}
-
-    def intact(self, plugin: Plugin, environment_id: int) -> bool:
-        changed = [path for path, prior_row in plugin.hashes.items() if self.hashed(self.folders.folder(plugin) / path) != prior_row]
-        if not changed:
-            return True
-        self.plugins.save(self.plugins.lookup(plugin.name).with_(enabled=False), Actor.system())
-        self.announcer.announce(PluginDisabled(environment_id=environment_id, plugin=plugin.name, changed=", ".join(changed)))
-        return False
 
     def hashed(self, path: Path) -> str:
         if not path.is_file():
