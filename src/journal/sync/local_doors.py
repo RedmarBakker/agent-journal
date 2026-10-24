@@ -4,6 +4,7 @@ import urllib.request
 from dataclasses import asdict
 
 from journal.config import Config
+from journal.http.support.request import ENVIRONMENT_HEADER
 from journal.sync.desk_answer import DeskAnswer
 from journal.sync.desk_busy import DeskBusy
 from journal.sync.sync_batch import SyncBatch
@@ -22,10 +23,10 @@ SYNC_PATH = "/journal/sync"
 
 
 class LocalDoors:
-    """The sync desk reached over the journal server's local doors, from a carrier in a process of its own: each call reads the port file and the sync secret anew, since a journal can move port and takes a new secret when it starts again, and a server that is down or starting answers DeskBusy."""
+    """The sync desk reached over the journal server's local doors, from a carrier in a process of its own: each call names the environment of the journal that started it, reads the port file and the sync secret anew, since a journal can move port and takes a new secret when it starts again, and a server that is down or starting answers DeskBusy."""
 
-    def __init__(self, config: Config) -> None:
-        self.config = config
+    def __init__(self, config: Config, environment: str) -> None:
+        self.config, self.environment = config, environment
 
     def query(self, wait_seconds: float) -> PullQuery:
         answer = self.called("GET", f"/query?wait_seconds={wait_seconds}", None, CALL_SECONDS)
@@ -61,7 +62,7 @@ class LocalDoors:
         port, secret = self.config.stored_port(), self.config.home / "runtime" / SECRET_FILE
         if not port or not secret.is_file():
             raise DeskBusy("the journal server is not running")
-        request = urllib.request.Request(f"http://127.0.0.1:{port[0]}{SYNC_PATH}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret.read_text()})
+        request = urllib.request.Request(f"http://127.0.0.1:{port[0]}{SYNC_PATH}{path}", data=None if body is None else json.dumps(body).encode(), method=method, headers={"Content-Type": "application/json", SECRET_HEADER: secret.read_text(), ENVIRONMENT_HEADER: self.environment})
         try:
             with urllib.request.urlopen(request, timeout=seconds) as answer:
                 return json.loads(answer.read())

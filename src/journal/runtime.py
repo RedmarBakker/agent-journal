@@ -39,7 +39,7 @@ from journal.events.models.synced import Synced
 from journal.sync.pulled_settings import PulledSettings
 from journal.sync.pulled_files import PulledFiles
 from journal.sync.record_purge import RecordPurge
-from journal.sync.sync_client import SyncClient
+from journal.sync.sync_start import SyncStart
 from journal.sync.host_desk import HostDesk
 from journal.http.agents.agent_view_sender import AgentViewSender
 from journal.http.agents.agent_bar_writes import AgentBarWrites
@@ -108,7 +108,7 @@ class Runtime:
     def started(self) -> None:
         self.deferred.start()
         self.jobs.start()
-        self.container.get(SyncClient).start()
+        self.container.get(SyncStart).run()
         self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()
         gc.freeze()
@@ -140,7 +140,7 @@ class Runtime:
             self.container.get(HostDesk).register(kind, writer)
 
     def stop(self) -> None:
-        self.container.get(SyncClient).stop()
+        self.container.get(SyncStart).stopped()
         self.container.get(AgentViewSender).stop()
         self.server.stop()
         self.share_server.stop()

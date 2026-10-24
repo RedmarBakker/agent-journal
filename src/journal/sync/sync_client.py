@@ -33,6 +33,7 @@ class SyncClient:
     def __init__(self, account: TeamAccount, link: TeamServerLink, doors: DeskDoors, status: SyncStatus) -> None:
         self.account, self.link, self.doors, self.status = account, link, doors, status
         self.carrying = threading.Lock()
+        self.busy = ""
         self.stopping = threading.Event()
         self.clock_offset = 0.0
         self.sending_loop = SyncLoop("send", self.send, SEND_SILENCE_SECONDS)
@@ -71,8 +72,12 @@ class SyncClient:
                 loop.beat()
                 try:
                     loop.step()
+                    self.busy = ""
                     delay = FIRST_RETRY_SECONDS
-                except DeskBusy:
+                except DeskBusy as busy:
+                    if str(busy) != self.busy:
+                        sys.stderr.write(f"sync waits: {busy}\n")
+                    self.busy = str(busy)
                     self.stopping.wait(delay)
                     delay = min(delay * 2, LAST_RETRY_SECONDS)
                 except (OSError, TeamRefusal) as fault:
@@ -87,6 +92,8 @@ class SyncClient:
             raise
 
     def retried(self, fault: str, delay: float) -> None:
+        if fault != self.status.fault:
+            sys.stderr.write(f"sync: {fault}; trying again\n")
         self.status.failed(fault)
         self.stopping.wait(delay)
 

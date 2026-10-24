@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from journal.app import App  # noqa: E402
 from journal.config import Config  # noqa: E402
 from journal.providers.providers import Providers  # noqa: E402
+from journal.sync.carrier_process import CarrierProcess  # noqa: E402
 
 AGENTS = ("claude", "codex")
 
@@ -25,6 +26,9 @@ def main(argv: list[str]) -> int:
     app = App(Config.rooted(root))
     if argv[:1] == ["serve"]:
         app.runtime().run()
+        return 0
+    if argv[:1] == ["sync"]:
+        app.container.get(CarrierProcess).run()
         return 0
     outcome = app.console().run(argv, app.container.get(Providers).caller(os.environ))
     sys.stdout.write(outcome.text)
