@@ -12449,3 +12449,26 @@ def test_a_change_since_an_old_moment_reads_at_most_a_page_of_the_rows_held_and_
     assert status == 200 and len(body["rows"]) <= 26 and body["is_last_page"] is False, "a change since long ago is a page at most, and says there is more, so the viewer reads the newest page instead"
     status, body = got(app, "/journal/messages?limit=25&since=1&after=50", {"X-Journal-Env": "main"})
     assert all(row["id"] > 50 for row in body["rows"]), "only the rows the viewer holds and newer ones, never one it never loaded"
+
+
+def test_a_task_made_without_its_message_names_the_unlinked_one_and_a_linked_task_holds_the_reply_too(app: App):
+    from journal.models.task import Task
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    console, links, messages = app.console(), app.container.get(Links), app.container.get(Messages)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "an earlier task"], AGENT)
+    assert "names no message" not in console.run(["task", "create", "nothing waits"], AGENT).text, "no line while no read message waits"
+    console.run(["message", "send", "make the footer blue"], USER)
+    console.run(["message", "read", "1"], AGENT)
+    made = console.run(["task", "create", "the footer"], AGENT)
+    assert "names no message it came from, and message 1 of the user is read and linked to no task" in made.text and "--from 1" in made.text, made.text
+    assert "names no message" not in console.run(["task", "create", "the header", "--from", "1"], AGENT).text, "no line when --from names it"
+    console.run(["message", "send", "On it: task 4 makes the footer blue.", "--reply-to", "1"], AGENT)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        reply = [m for m in messages.replies(messages.find(1))][-1]
+        tasks_of = lambda message: [ref.id for ref in links.targets(message, Messages.SUBJECT_LINK) if ref.type == Task.table()]
+        assert 4 in tasks_of(reply), "the agent's reply to a task's message is linked to the task too"
+        assert tasks_of(messages.find(1)).count(4) == 1 and tasks_of(reply).count(4) == 1, "and each link is made once, the reply naming the task among them"

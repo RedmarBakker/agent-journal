@@ -85,7 +85,8 @@ class TaskCommand(Command):
         self.message_link(args.message, task, caller)
         if args.start:
             task = self.taking.start(task, caller)
-        print(f"task {task.id} {task.state}" + (f" (from message {args.message})" if args.message else ""))
+        unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
+        print("\n".join(filter(None, [f"task {task.id} {task.state}" + (f" (from message {args.message})" if args.message else ""), unfiled])))
         return 0
 
     def message_link(self, message: int, task: Task, caller: Caller) -> None:

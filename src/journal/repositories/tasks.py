@@ -210,6 +210,10 @@ class Tasks(ScopedRepository[Task]):
         work_links = sorted(self.links.all_matching(kind=WORKED_LINK), key=lambda link: link.row_id)
         return {link.source.id: link.target.id for link in work_links if link.source.type == WORKERS and worker_tasks.get(link.source.id) != link.target.id}
 
+    def previous_creation(self, task: Task) -> datetime:
+        previous = self.selected(self.query().filter_less("id", task.id).order_descending("id").limit(1))
+        return previous[0].created_at if previous else datetime.min.replace(tzinfo=timezone.utc)
+
     def unfinished_count(self) -> int:
         planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query())
         return self.counted(self.query().filter_unlisted("state", CLOSED).filter_absent(planned))
