@@ -7,6 +7,8 @@ from journal.repositories.scope import Scope
 from journal.supervisor_link import SupervisorLink
 from journal.repositories.setting_rows import SettingRows
 from journal.features.skills.skills_options import SkillsOptions
+from journal.features.skills.skills_nudges import SkillsNudges
+from journal.engine.nudger import Nudger
 
 MOMENTS = {"session_start": SkillsOptions.START_SKILLS, "after_compaction": SkillsOptions.COMPACTION_SKILLS}
 
@@ -14,8 +16,9 @@ MOMENTS = {"session_start": SkillsOptions.START_SKILLS, "after_compaction": Skil
 class SkillController:
     """The journal's skills, with whether the agent concerned has read each and whether each is required at a session start and after a compaction; one opened whole, one the running agent is instructed to read now, and either moment switched for one."""
 
-    def __init__(self, registry: Registry, agents: Agents, skill_files: SkillFiles, supervisor: SupervisorLink, scope: Scope, settings: SettingRows) -> None:
+    def __init__(self, registry: Registry, agents: Agents, skill_files: SkillFiles, supervisor: SupervisorLink, scope: Scope, settings: SettingRows, nudger: Nudger) -> None:
         self.registry, self.agents, self.skill_files, self.supervisor, self.scope, self.settings = registry, agents, skill_files, supervisor, scope, settings
+        self.nudger = nudger
 
     def index(self, request: Request) -> Response:
         agent = next(iter(self.agents.numbered(request.query.get("agent", ""))), None)
@@ -42,5 +45,8 @@ class SkillController:
         skill = self.registry.skill(request.params["name"])
         if skill is None:
             return Response.absent("no such skill")
-        self.supervisor.type(self.scope.id, f"read the {skill.name} skill now: {self.skill_files.path(skill)}")
-        return Response.json({"queued": True})
+        agent = self.agents.current()
+        line = self.nudger.deliver(agent, SkillsNudges.SKILL_VIEWER_REQUEST.create(name=skill.name, path=str(self.skill_files.path(skill)))) if agent else None
+        if line:
+            self.supervisor.type(self.scope.id, line)
+        return Response.json({"queued": bool(line)})

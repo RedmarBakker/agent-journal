@@ -1,5 +1,7 @@
 import subprocess
 
+from journal.features.shell.shell_nudges import ShellNudges
+from journal.engine.nudge import Nudge
 from journal.features.shell.support.cap import Cap
 from journal.features.shell.support.output_files import OutputFiles
 
@@ -11,7 +13,7 @@ class OutputShow:
     def __init__(self, folder: OutputFiles, cap: Cap) -> None:
         self.folder, self.cap = folder, cap
         self.named = False
-        self.notes: list[str] = []
+        self.notes: list[Nudge] = []
 
     def build(self, i: int) -> str:
         return "".join(self.shown(i, name) for name in ("out", "err"))
@@ -34,11 +36,11 @@ class OutputShow:
 
     def naming_line(self, i: int, text: str) -> str:
         if self.named:
-            self.notes.append(f"output {self.folder.number()} also holds part {i + 1}: {self.counts(text)}")
+            self.notes.append(ShellNudges.OUTPUT_PART_STORED.create(n=self.folder.number(), part=i + 1, counts=self.counts(text)))
             return ""
         self.named = True
         part = f", part {i + 1}" if len(self.folder.kinds()) > 1 else ""
-        self.notes.append(f"output {self.folder.number()}: {self.counts(text)}{part}")
+        self.notes.append(ShellNudges.OUTPUT_STORED.create(n=self.folder.number(), counts=self.counts(text), part=part))
         return ""
 
     def ends(self, text: str) -> str:

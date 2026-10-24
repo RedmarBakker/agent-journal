@@ -8,6 +8,8 @@ class ShellNudges:
     READER_COUNTDOWN = Nudge("shell", "writes_held_soon_until_read_through_a_reader", "reader due for {{commands}}: {{count}}", "`journal reader add <name> --commands \"<command>\" --about '<what it picks>' --label '<what it does>' --pattern '<the lines worth seeing: failures and summary>' --progress '<a percent or a count of a total>'`", repeat=Timeout.seconds(0))
     READER_LAST_USE = Nudge("shell", "next_write_held_until_read_through_a_reader", "reader due for {{commands}}: 0", "your next write waits until a reader with a label reads it", repeat=Timeout.seconds(0))
     READER_REFUSAL = Nudge("shell", "write_held_until_read_through_a_reader", "no reader reads {{commands}}, run in the background", "`journal reader add <name> --commands \"<command>\" --about '<what it picks>' --label '<what it does>' --pattern '<lines worth seeing>' --progress '<progress>'` before any other write", repeat=Timeout.seconds(0))
+    OUTPUT_STORED = Nudge("shell", "output_kept", "output {{n}}: {{counts}}{{part}}", repeat=Timeout.seconds(0))
+    OUTPUT_PART_STORED = Nudge("shell", "output_part_kept", "output {{n}} also holds part {{part}}: {{counts}}", repeat=Timeout.seconds(0))
     BACKGROUND_MOVE = Nudge("shell", "moved_to_the_background", "moved to the background as output {{n}}", repeat=Timeout.seconds(0))
     OUTPUTS_ENDED = Nudge("shell", "outputs_ended", "{{outputs}}", "`journal output read {{n}} --summary` says how", repeat=Timeout.seconds(0))
     READER_HINT = Nudge("shell", "use_the_reader", "reader {{reader}} already reads this: {{about}}", "`journal output read N --reader {{reader}}`", repeat=Timeout.seconds(0))

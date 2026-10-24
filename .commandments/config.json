@@ -19,6 +19,7 @@
         "HandWrittenIntervalDetector",
         "ImportInFunctionDetector",
         "UnusedPageSizeDetector",
+        "LineOutsideNudgerDetector",
         "UnpagedViewerListDetector",
         "UnpagedViewerListPageDetector",
         "EngineIndexOnUseDetector",

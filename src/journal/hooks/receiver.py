@@ -3,6 +3,9 @@ import time
 
 from journal.support.stage_times import StageTimes
 
+from journal.engine.engine_nudges import EngineNudges
+from journal.engine.nudger import Nudger
+from journal.engine.support.session_agents import SessionAgents
 from journal.events.moments.guard_failed import GuardFailed
 from journal.events.moments.session_unbound import SessionUnbound
 from journal.events.agent.agent_event import AgentEvent
@@ -36,8 +39,8 @@ UNBOUND_SESSION = "unbound_session"
 class Receiver:
     """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id is recorded and reported, and reaches no listener; a verified worker's hook is recorded and answered by the listeners that receive workers' events, the state machine alone, under the worker's own conduct, so none of the main agent's conduct blocks a worker and no recording listener posts it as the main agent's."""
 
-    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes) -> None:
-        self.names, self.stages = names, stages
+    def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents) -> None:
+        self.names, self.stages, self.nudger, self.sessions = names, stages, nudger, sessions
         self.environments, self.entries, self.translation, self.bus, self.deferred, self.scope = environments, entries, translation, bus, deferred, scope
         self.agents, self.launches = agents, launches
         self.transcript, self.slow = transcript, slow
@@ -121,7 +124,8 @@ class Receiver:
             text = f"{type(listener).__name__} raised {type(fault).__name__}: {fault}"
             self.entries.save(Entry(environment_id=event.environment_id, kind=GUARD_FAILED, actor=Actor.system(), data={"session": event.session, "event": type(event).__name__, "listener": type(listener).__name__, "fault": f"{type(fault).__name__}: {fault}"}), Actor.system())
             self.bus.dispatch(GuardFailed(environment_id=event.environment_id, session=event.session, text=text))
-            return Decision.allowed_with(f"[journal] a guard failed and let this through: {text}. the journal recorded it; tell the user if it happens again")
+            line = self.nudger.refuse_with(self.sessions.agent(event.session, event.environment_id), EngineNudges.GUARD_FAILED.create(text=text))
+            return Decision.allowed_with(line) if line else None
 
     def _defer(self, event: AgentEvent) -> None:
         for listener in self._split(self.bus.listeners(type(event)))[1]:

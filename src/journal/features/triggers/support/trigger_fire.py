@@ -1,4 +1,5 @@
 from dataclasses import replace
+from journal.models.sequence import Sequence
 from journal.events.announcer import Announcer
 from journal.events.moments.trigger_fired import TriggerFired
 from journal.features.sequences.support.run_tracker import RunTracker
@@ -22,6 +23,8 @@ class TriggerFire:
 
     def started(self, trigger: Trigger, session: str, environment_id: int) -> None:
         for sequence in self.sequences.titled(trigger.text):
-            line = self.runs.start(sequence, session, environment_id)
-            if line:
-                self.runs.changed(session, environment_id, lambda run: replace(run, announced_at=""))
+            self.silent_run_start(sequence, session, environment_id)
+
+    def silent_run_start(self, sequence: Sequence, session: str, environment_id: int) -> None:
+        if self.runs.new_run(sequence, session, environment_id) is not None:
+            self.runs.changed(session, environment_id, lambda run: replace(run, announced_at=""))

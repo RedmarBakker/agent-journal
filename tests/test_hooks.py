@@ -152,6 +152,12 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     failed = [e for e in app.container.get(Entries).scoped() if e.kind == GUARD_FAILED]
     assert len(failed) == 1 and failed[0].data["listener"] == "Raising" and failed[0].data["event"] == "ToolStarting"
     assert any("A guard failed and let the event through" in m.text for m in app.container.get(Messages).scoped()), "and the user sees a card in the chat"
+    said = [e for e in app.container.get(Entries).scoped() if e.kind == "nudge" and e.data.get("key") == "engine.guard_failed"]
+    assert said, "the line is the engine's registered nudge, said through the Nudger and recorded"
+    from journal.engine.nudge_registry import NudgeRegistry
+    from journal.support.rejection import Rejection
+    with pytest.raises(Rejection):
+        app.container.get(NudgeRegistry).lookup("nowhere.unregistered")
 
 
 def post_command(app, argv: list[str], headers: dict | None = None, session: str | None = None, body: dict | None = None) -> dict:

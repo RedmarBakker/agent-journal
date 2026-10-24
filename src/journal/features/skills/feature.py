@@ -24,7 +24,7 @@ class Skills(Feature[SkillsData]):
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)
 
-    nudges = (SkillsNudges.SKILL_READ_REQUEST, SkillsNudges.UNREAD_SKILL_STOP)
+    nudges = (SkillsNudges.SKILL_VIEWER_REQUEST, SkillsNudges.SKILL_READ_REQUEST, SkillsNudges.UNREAD_SKILL_STOP)
 
     skill = Skill("journal", 'The journal, its commands and when each applies; load it first in every session', """
 # The journal

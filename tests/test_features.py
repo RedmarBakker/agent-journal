@@ -440,7 +440,7 @@ def test_a_reply_tag_counts_only_at_the_start_of_a_line(app: App, monkeypatch):
     app.runtime().deferred.drain()
     messages = app.container.get(Messages).scoped()
     assert messages[-1].reply_target is None and "[!reply:2]" in messages[-1].text, "a tag inside a line is text"
-    assert keystrokes[-1].endswith("the [!reply:2] tag must open a line of your turn; message 2 is still unanswered")
+    assert keystrokes[-1].endswith("the [!reply:2] tag must open a line of your turn. message 2 is still unanswered")
     assert "new message 2" in hook(app, "Stop")[1]["reason"]
     notified = len(keystrokes)
     hook(app, "MessageDisplay", message="His screenshot shows a reply opening with `[!reply:8544]` that never arrived.")
@@ -7016,11 +7016,11 @@ def test_a_command_moved_to_the_background_is_told_to_watch_it_with_the_reader_t
     from journal.repositories.command_outputs import CommandOutputs
     suggestions = app.container.get(WatchSuggestions)
     assert all((app.config.readers / f"{name}.pattern").is_file() for name in ("pytest", "dotnet-test", "phpunit")), "the journal ships its readers"
-    known = "\n".join(suggestions.lines(5, "perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q"))
+    known = "\n".join(line.rendered() for line in suggestions.lines(5, "perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q"))
     assert "journal output watch 5 --reader pytest" in known and "no reader" not in known, "a runner a reader reads is told its reader"
-    unknown = "\n".join(suggestions.lines(6, "make test"))
+    unknown = "\n".join(line.rendered() for line in suggestions.lines(6, "make test"))
     assert "journal output watch 6 --title" in unknown and "no reader reads" not in unknown, "a test run no reader reads is told only to watch it: its reader is the shell's reader demand"
-    assert suggestions.lines(7, "sleep 100") == [suggestions.lines(7, "sleep 100")[0]] and "watch it:" in suggestions.lines(7, "sleep 100")[0], "a plain long command is told it can be watched, nothing more"
+    assert suggestions.lines(7, "sleep 100") == [suggestions.lines(7, "sleep 100")[0]] and "watch it:" in suggestions.lines(7, "sleep 100")[0].rendered(), "a plain long command is told it can be watched, nothing more"
     hook(app, "SessionStart")
     folder = app.config.root / "w"
     folder.mkdir()
@@ -8335,21 +8335,21 @@ def test_the_kept_output_line_says_the_lines_and_the_part_of_the_chain_the_outpu
     (chain.folder / "1.out").write_text(eighty)
     display = OutputShow(chain, Cap(HINT, 400))
     number = chain.number()
-    assert display.build(0) == "" and display.notes == [f"output {number}: 80 lines, part 1"], "one note for the agent's next hook names the output, its size and its part, and nothing is printed"
-    assert display.build(1) == "" and display.notes[-1] == f"output {number} also holds part 2: 80 lines", "a later part past the cap is named shorter"
+    assert display.build(0) == "" and [note.rendered() for note in display.notes] == [f"output {number}: 80 lines, part 1"], "one note for the agent's next hook names the output, its size and its part, and nothing is printed"
+    assert display.build(1) == "" and display.notes[-1].rendered() == f"output {number} also holds part 2: 80 lines", "a later part past the cap is named shorter"
     solitary = folder_of("alone", "make test")
     (solitary.folder / "0.out").write_text(eighty)
     alone = OutputShow(solitary, Cap(HINT, 400))
-    assert alone.build(0) == "" and alone.notes == [f"output {solitary.number()}: 80 lines"], "a line of one part names no part"
+    assert alone.build(0) == "" and [note.rendered() for note in alone.notes] == [f"output {solitary.number()}: 80 lines"], "a line of one part names no part"
     cut = folder_of("cut", "make test 2>&1 | tail -2")
     (cut.folder / "0.out").write_text(eighty)
     trimmed = OutputShow(cut, Cap(HINT, 400))
-    assert trimmed.build(0) == "line 79\nline 80\n" and trimmed.notes == [f"output {cut.number()}: 80 lines"], "the cut applied and shown, the whole kept and named by the one note"
+    assert trimmed.build(0) == "line 79\nline 80\n" and [note.rendered() for note in trimmed.notes] == [f"output {cut.number()}: 80 lines"], "the cut applied and shown, the whole kept and named by the one note"
     chained = folder_of("chained", "make test 2>&1 | tail -2 && npm run build")
     (chained.folder / "0.out").write_text(eighty)
     (chained.folder / "1.out").write_text(eighty)
     both = OutputShow(chained, Cap(HINT, 400))
-    assert both.build(0) == "line 79\nline 80\n" and both.build(1) == "" and both.notes[0] == f"output {chained.number()}: 80 lines, part 1" and both.notes[1].startswith(f"output {chained.number()} also holds part 2"), "a cut part and a long part name the one output by one note each, never two wordings"
+    assert both.build(0) == "line 79\nline 80\n" and both.build(1) == "" and both.notes[0].rendered() == f"output {chained.number()}: 80 lines, part 1" and both.notes[1].rendered().startswith(f"output {chained.number()} also holds part 2"), "a cut part and a long part name the one output by one note each, never two wordings"
     read = folder_of("read", "cat /etc/hosts")
     (read.folder / "0.out").write_text("".join(f"l{i:02d}\n" for i in range(1, 51)))
     shown = OutputShow(read, Cap(ENDS, 80)).build(0)
@@ -11292,7 +11292,7 @@ def test_a_watched_run_is_told_once_to_drop_its_time_limit_wrapper_from_its_alia
     assert TimeLimitWrapper.unwrapped("timeout 600 npm test") == "npm test" and TimeLimitWrapper.unwrapped("gtimeout --signal=KILL 10m make") == "make"
     runner = app.container.get(ShellRunner)
     suite = Alias(name="suite", line="perl -e 'alarm 590; exec @ARGV' python3 -m pytest -q")
-    told = runner.alias_wrapper_lines(suite)
+    told = [line.rendered() for line in runner.alias_wrapper_lines(suite)]
     assert len(told) == 1 and "alias suite" in told[0] and "python3 -m pytest -q" in told[0], "an alias that wraps itself is told to drop the wrapper, with its line without it"
     assert runner.alias_wrapper_lines(suite) == [], "once"
     assert len(runner.line_wrapper_lines("timeout 600 npm test")) == 1 and runner.line_wrapper_lines("timeout 300 npm test") == [], "a plain line likewise, once for its command"

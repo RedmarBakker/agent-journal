@@ -4,6 +4,9 @@ import time
 from dataclasses import replace
 from typing import Iterator
 
+from journal.engine.support.session_agents import SessionAgents
+from journal.engine.nudger import Nudger
+from journal.engine.nudge import Nudge
 from journal.repositories.entries import Entries
 from journal.supervisor_link import SupervisorLink
 from journal.support.command_shape import CommandShape
@@ -42,7 +45,8 @@ VARIED_RUNS = 3
 class ShellRunner:
     """Runs one shell line for the shim and streams back what the agent sees: the line is split into its parts, the journal's own setup of the line timed and reported like a slow request when it runs past its budget, run in the user's shell by the worker, each part shown as its status lands and the cap says, the chain moved to the background past the foreground limit with a line naming its output, and an ended output stored under its number or forgotten. A read or write of the project's code streams straight through, nothing stored. The stream is read after the request has left its scope, so the environment comes along and is named again for every read and write; the exit line starts on a line of its own."""
 
-    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests) -> None:
+    def __init__(self, config: Config, caps: OutputCap, limits: ForegroundLimit, worker: ChainWorker, record: ShellRecord, scope: Scope, suggestions: WatchSuggestions, aliases: AliasLines, outputs: CommandOutputs, readers: Readers, supervisor: SupervisorLink, entries: Entries, stages: StageTimes, slow: SlowRequests, nudger: Nudger, sessions: SessionAgents) -> None:
+        self.nudger, self.sessions = nudger, sessions
         self.config, self.caps, self.limits, self.worker, self.record, self.scope, self.suggestions = config, caps, limits, worker, record, scope, suggestions
         self.aliases, self.outputs, self.readers, self.supervisor, self.entries = aliases, outputs, readers, supervisor, entries
         self.stages, self.slow = stages, slow
@@ -109,7 +113,7 @@ class ShellRunner:
                 part = reader.commands.read_part(request.line) if reader is not None else background or folder.part_text(shown)
                 number = self.record.moved(folder.folder.name, part, folder.folder, caller)
                 alias = self.aliases.running(part)
-                notes = self.send_notes(caller, environment, [*display.notes, ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder)).rendered(), *self.watch_lines(number, part, alias, reader, caller)])
+                notes = self.send_notes(caller, environment, [*display.notes, ShellNudges.BACKGROUND_MOVE.create(n=number, file=str(folder.folder)), *self.watch_lines(number, part, alias, reader, caller)])
                 yield f"{notes}{EXIT} 0\n".encode()
                 return
             time.sleep(TICK_SECONDS)
@@ -117,14 +121,16 @@ class ShellRunner:
             if tick % LIMIT_READ_TICKS == 0:
                 limit = self.limits.build(request.line, caller.environment, caller.session)
 
-    def send_notes(self, caller: Caller, environment: int, notes: list[str]) -> str:
+    def send_notes(self, caller: Caller, environment: int, notes: list[Nudge]) -> str:
+        agent = self.sessions.agent(caller.agent_session, environment)
+        lines = [line for note in notes if (line := self.nudger.deliver(agent, note))]
         if caller.worker_number is not None or caller.subagent:
-            return "".join(f"[journal] {note}\n" for note in notes)
-        for note in notes:
-            self.supervisor.remark(environment, note)
+            return "".join(f"[journal] {line}\n" for line in lines)
+        for line in lines:
+            self.supervisor.remark(environment, line)
         return ""
 
-    def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | ScriptReader | None, caller: Caller) -> list[str]:
+    def watch_lines(self, number: int, part: str, alias: Alias | None, reader: Reader | ScriptReader | None, caller: Caller) -> list[Nudge]:
         if alias is not None:
             return [*self.watched(number, alias, caller), *self.alias_wrapper_lines(alias)]
         wrapper = self.line_wrapper_lines(part)
@@ -132,31 +138,31 @@ class ShellRunner:
             return [*self.reader_watched(number, part, reader, caller), *wrapper]
         return [*self.suggestions.lines(number, part), *wrapper]
 
-    def alias_wrapper_lines(self, alias: Alias) -> list[str]:
+    def alias_wrapper_lines(self, alias: Alias) -> list[Nudge]:
         unwrapped = TimeLimitWrapper.unwrapped(alias.line)
         if unwrapped == alias.line or alias.name in self.wrappers_told:
             return []
         self.wrappers_told.add(alias.name)
-        return [ShellNudges.ALIAS_TIME_LIMIT.create(name=alias.name, line=unwrapped).rendered()]
+        return [ShellNudges.ALIAS_TIME_LIMIT.create(name=alias.name, line=unwrapped)]
 
-    def line_wrapper_lines(self, part: str) -> list[str]:
+    def line_wrapper_lines(self, part: str) -> list[Nudge]:
         unwrapped = TimeLimitWrapper.unwrapped(part)
         shape = CommandShape.build(unwrapped)
         if unwrapped == part or shape in self.wrappers_told:
             return []
         self.wrappers_told.add(shape)
-        return [ShellNudges.LINE_TIME_LIMIT.create(command=shape).rendered()]
+        return [ShellNudges.LINE_TIME_LIMIT.create(command=shape)]
 
-    def reader_watched(self, number: int, part: str, reader: Reader | ScriptReader, caller: Caller) -> list[str]:
+    def reader_watched(self, number: int, part: str, reader: Reader | ScriptReader, caller: Caller) -> list[Nudge]:
         self.outputs.watch(self.outputs.find(number), reader.name, "", caller.actor)
         shape = CommandShape.build(part)
-        watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name).rendered()]
+        watched = [ShellNudges.READER_WATCH.create(n=number, command=shape, reader=reader.name)]
         varied = self.entries.shape_commands(caller.session, shape) if caller.session and not reader.topic_pattern else set()
-        return [*watched, ShellNudges.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name).rendered()] if len(varied) >= VARIED_RUNS else watched
+        return [*watched, ShellNudges.READER_TOPIC.create(command=shape, count=len(varied), reader=reader.name)] if len(varied) >= VARIED_RUNS else watched
 
-    def watched(self, number: int, alias: Alias, caller: Caller) -> list[str]:
+    def watched(self, number: int, alias: Alias, caller: Caller) -> list[Nudge]:
         self.outputs.watch(self.outputs.find(number), alias.reader, "", caller.actor)
-        return [ShellNudges.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "").rendered()]
+        return [ShellNudges.ALIAS_WATCH.create(n=number, name=alias.name, reader=f" through the reader {alias.reader}" if alias.reader else "")]
 
     def closed(self, folder: OutputFiles, request: ShellRequest, caller: Caller, cap: Cap) -> None:
         if cap.is_direct() or cap.is_whole():

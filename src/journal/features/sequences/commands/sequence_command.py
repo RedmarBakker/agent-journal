@@ -47,7 +47,7 @@ class SequenceCommand(Command):
     def follow(self, args: Namespace, caller: Caller) -> int:
         self.current_run(caller)
         run = self.running.follow(caller.agent_session, self.scope.id)
-        print(SequencesNudges.CURRENT_STEP.create(n=run.sequence_id, step=run.step + 1, text=run.text).rendered())
+        print(self.running.line(self.running.sessions.agent(caller.agent_session, self.scope.id), SequencesNudges.CURRENT_STEP.create(n=run.sequence_id, step=run.step + 1, text=run.text)))
         return 0
 
     def next(self, args: Namespace, caller: Caller) -> int:

@@ -1,3 +1,4 @@
+from journal.engine.engine_nudges import EngineNudges
 from journal.engine.nudge import Nudge
 from journal.support.rejection import Rejection
 
@@ -6,7 +7,7 @@ class NudgeRegistry:
     """The one place a nudge is made: a feature hands it the words at boot and gets the nudge's id back, a state answers with the id, and the nudger says only an id the registry holds, so the list is where every line of the journal is found."""
 
     def __init__(self) -> None:
-        self.nudges: dict[str, Nudge] = {}
+        self.nudges: dict[str, Nudge] = {nudge.key: nudge for nudge in EngineNudges.ALL}
 
     def register(self, nudge: Nudge) -> str:
         self.nudges[nudge.key] = nudge

@@ -1,6 +1,9 @@
 import re
 import threading
 
+from journal.engine.nudge import Nudge
+from journal.engine.nudger import Nudger
+from journal.engine.support.session_agents import SessionAgents
 from journal.events.agent.turn_displayed import TurnDisplayed
 from journal.events.agent_listener import AgentListener
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
@@ -32,18 +35,24 @@ REPEAT_OVERLAP_RATIO = 0.6
 class RecordTurn(AgentListener[TurnDisplayed]):
     """Every whole turn the agent writes for the user becomes a message in the chat, with its tags removed. A [!reply:N] tag opening a line makes it the answer to message N (N,M answers both) and marks them read; a tag elsewhere is text, and the agent is informed so. A [!log:N] turn belongs to the task's log alone. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat."""
 
-    def __init__(self, messages: Messages, entries: Entries, providers: Providers, registry: Registry, supervisor: SupervisorLink, links: Links, agents: Agents) -> None:
+    def __init__(self, messages: Messages, entries: Entries, providers: Providers, registry: Registry, supervisor: SupervisorLink, links: Links, agents: Agents, nudger: Nudger, sessions: SessionAgents) -> None:
         self.messages, self.entries, self.providers, self.registry, self.supervisor, self.links, self.agents = messages, entries, providers, registry, supervisor, links, agents
+        self.nudger, self.sessions = nudger, sessions
         self.recording = threading.Lock()  # the same block arrives at once from the transcript and from the display hook
 
     def handle(self, event: TurnDisplayed) -> None:
         if not event.final or not event.text.strip():
             return
         if ReactionEmoji.is_emoji(event.text):
-            self.supervisor.type(event.environment_id, MessagesNudges.EMOJI_REPLY.create(emoji=event.text.strip()).rendered())
+            self.typed(event, MessagesNudges.EMOJI_REPLY.create(emoji=event.text.strip()))
             return
         with self.recording:
             self._record(event)
+
+    def typed(self, event: TurnDisplayed, nudge: Nudge) -> None:
+        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), nudge)
+        if line:
+            self.supervisor.type(event.environment_id, line)
 
     def _record(self, event: TurnDisplayed) -> None:
         actor, full = Actor.agent(event.session), event.text
@@ -61,14 +70,13 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             for n in answered:
                 self._read_receipt(n, actor)
         for n in self.orphan_obligation(full)[:1]:
-            self.supervisor.type(event.environment_id, f"the [!reply:{n}] tag must open a line of your turn; message {n} is still unanswered")
+            self.typed(event, MessagesNudges.REPLY_TAG_PLACE.create(n=n))
 
     def unanswered(self, tagged: list[int], event: TurnDisplayed) -> list[int]:
         replied = [(n, reply) for n in tagged if (reply := self.earlier_reply(n)) is not None]
         recent = [n for n in tagged if n not in {m for m, _ in replied}]
         if replied and not recent:
-            line_text = MessagesNudges.DUPLICATE_REPLY.create(n=replied[0][0], reply=replied[0][1].id)
-            self.supervisor.type(event.environment_id, line_text.rendered())
+            self.typed(event, MessagesNudges.DUPLICATE_REPLY.create(n=replied[0][0], reply=replied[0][1].id))
         return recent
 
     def earlier_reply(self, n: int) -> Message | None:
@@ -83,7 +91,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             return False
         repeated = WordOverlap.repeats(text, self.messages.recent_replies(prompt.creation_time), REPEAT_OVERLAP_RATIO)
         if repeated:
-            self.supervisor.type(event.environment_id, MessagesNudges.REPEATED_CLOSING_TEXT.create(reply=repeated[0].id, n=repeated[0].reply_target).rendered())
+            self.typed(event, MessagesNudges.REPEATED_CLOSING_TEXT.create(reply=repeated[0].id, n=repeated[0].reply_target))
         return bool(repeated)
 
     def turn_prompt(self, event: TurnDisplayed) -> Entry | None:

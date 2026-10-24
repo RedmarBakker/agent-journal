@@ -1,3 +1,6 @@
+from journal.features.messages.messages_nudges import MessagesNudges
+from journal.engine.support.session_agents import SessionAgents
+from journal.engine.nudger import Nudger
 from journal.console.console import Console
 from journal.support.caller import Caller
 from journal.events.agent.turn_displayed import TurnDisplayed
@@ -19,7 +22,8 @@ RUNS = {
 class RunTags(AgentListener[TurnDisplayed]):
     """A tag opening a line of the turn runs the command it stands for, with the turn's text as its text: [!todo="the title"] files a task with the turn as its brief, [!log:N] makes the turn the log line, [!end:N] the outcome, [!fact="the claim"] the fact's reason. A refusal is typed back; the reply tag belongs to the recorder."""
 
-    def __init__(self, console: Console, environments: Environments, supervisor: SupervisorLink) -> None:
+    def __init__(self, console: Console, environments: Environments, supervisor: SupervisorLink, nudger: Nudger, sessions: SessionAgents) -> None:
+        self.nudger, self.sessions = nudger, sessions
         self.console, self.environments, self.supervisor = console, environments, supervisor
 
     def handle(self, event: TurnDisplayed) -> None:
@@ -33,4 +37,6 @@ class RunTags(AgentListener[TurnDisplayed]):
             argv = [word.format(name=argument, n=numbers, text=text) for word in RUNS[name]]
             outcome = self.console.run(argv, caller)
             if outcome.code:
-                self.supervisor.type(event.environment_id, f"the [!{name}] tag did not run: {(outcome.error or outcome.text).strip().splitlines()[-1]}")
+                line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), MessagesNudges.TAG_FAILURE.create(name=name, reason=(outcome.error or outcome.text).strip().splitlines()[-1]))
+                if line:
+                    self.supervisor.type(event.environment_id, line)

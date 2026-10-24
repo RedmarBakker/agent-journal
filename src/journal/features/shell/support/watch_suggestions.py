@@ -1,3 +1,4 @@
+from journal.engine.nudge import Nudge
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.shell_nudges import ShellNudges
 
@@ -8,6 +9,6 @@ class WatchSuggestions:
     def __init__(self, readers: Readers) -> None:
         self.readers = readers
 
-    def lines(self, number: int, part: str) -> list[str]:
+    def lines(self, number: int, part: str) -> list[Nudge]:
         reader = self.readers.reading(part)
-        return [ShellNudges.WATCH_SUGGESTION.create(n=number, reader=f" --reader {reader.name}" if reader is not None else "").rendered()]
+        return [ShellNudges.WATCH_SUGGESTION.create(n=number, reader=f" --reader {reader.name}" if reader is not None else "")]
