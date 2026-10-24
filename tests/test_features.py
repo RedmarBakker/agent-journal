@@ -6779,6 +6779,31 @@ def test_hooks_from_two_worktrees_at_once_each_land_in_their_own_environment(app
     assert homes == {name: environments.existing(name).row_id for name in folders}, "hooks posted from two worktrees at once each land in their own environment, never in main or the other"
 
 
+def test_a_lost_worktree_folder_is_made_again_at_its_last_real_tip_which_only_moves_forward(app: App):
+    import shutil
+    import subprocess
+    from journal.support.worktree import Worktree
+    root = app.config.root
+    git = lambda *argv, cwd=root: subprocess.run(["git", *argv], cwd=cwd, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    tree = Worktree(root, "calm-river")
+    folder = tree.created()
+    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "the work", cwd=folder)
+    tip = git("rev-parse", "HEAD", cwd=folder).stdout.strip()
+    tree.record_tip()
+    shutil.rmtree(folder)
+    tree.record_tip()
+    assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == tip, "an end with the folder already gone leaves the kept tip where the last real end put it"
+    git("branch", "-D", "worktree-calm-river")
+    git("worktree", "prune")
+    remade = Worktree(root, "calm-river").created()
+    assert remade == folder and git("rev-parse", "HEAD", cwd=remade).stdout.strip() == tip, "a relaunch makes the lost folder again at the last real tip"
+    git("reset", "-q", "--hard", "HEAD~1", cwd=remade)
+    Worktree(root, "calm-river").record_tip()
+    assert git("rev-parse", "refs/journal/worktrees/calm-river").stdout.strip() == tip, "and the kept tip never moves back"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree

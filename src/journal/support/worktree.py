@@ -52,8 +52,13 @@ class Worktree:
             self.record_tip()
         return self.path
 
+    # the kept tip only moves forward: a lost folder, or a branch moved back, never takes the last real tip away
     def record_tip(self) -> None:
-        self.git("update-ref", f"{TIPS_REF}/{self.name}", self.local_branch())
+        tip = self.local_branch() if self.path.is_dir() else ""
+        kept = f"{TIPS_REF}/{self.name}"
+        if not tip or (self.has(kept) and self.git("merge-base", "--is-ancestor", kept, tip).returncode != 0):
+            return
+        self.git("update-ref", kept, tip)
 
     def renamed(self, name: str) -> "Worktree":
         target = Worktree(self.root, name)
