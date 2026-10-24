@@ -83,3 +83,35 @@ def test_the_carrier_in_a_process_of_its_own_sends_the_journals_changes_once_and
         process.wait(10)
         account.left(0)
         server.shutdown()
+
+
+def test_the_carrier_ends_when_the_process_that_started_it_is_killed(app: App):
+    folder = app.config.root / "team-server"
+    folder.mkdir(exist_ok=True)
+    team = TeamServer(folder)
+    team.accounts.create("ada@example.com", "Ada", "correct horse battery", ADMIN, 1.0)
+    server = team.started("127.0.0.1", 0)
+    answer = team.logins.answer(LoginRequest("ada@example.com", "correct horse battery", "ada-laptop"), "127.0.0.1")
+    account = app.container.get(TeamAccount)
+    account.write({"address": f"http://127.0.0.1:{server.server_address[1]}", "token": answer.token, "device": answer.device_id, "sequence": 0})
+    pid_file = app.config.root / "carrier.pid"
+    environ = {**os.environ, "JOURNAL_ROOT": str(app.config.root), "PYTHONPATH": str(PACKAGE), "JOURNAL_ENV": "main", "PYTHONFAULTHANDLER": "1"}
+    log = app.config.root / "orphan.log"
+    # a stand-in for the supervisor: a parent that starts the carrier and waits on it, killed as a supervisor killed with SIGKILL would be
+    starter = f"import os, subprocess, sys; carrier = subprocess.Popen([sys.executable, {str(PACKAGE / 'journal.py')!r}, 'sync'], stderr=open({str(log)!r}, 'w'), env={{**os.environ, 'JOURNAL_PARENT_PID': str(os.getpid())}}); open({str(pid_file)!r}, 'w').write(str(carrier.pid)); carrier.wait()"
+    parent = subprocess.Popen([sys.executable, "-c", starter], env=environ)
+    try:
+        assert eventually(lambda: pid_file.is_file() and pid_file.read_text().strip(), 10)
+        carrier_pid = int(pid_file.read_text())
+        alive = lambda: subprocess.run(["kill", "-0", str(carrier_pid)], capture_output=True).returncode == 0
+        assert eventually(alive, 5)
+        parent.send_signal(signal.SIGKILL)
+        parent.wait(10)
+        gone = eventually(lambda: not alive(), 10)
+        if not gone:
+            os.kill(carrier_pid, signal.SIGABRT)
+            time.sleep(2)
+        assert gone, log.read_text()[-4000:]
+    finally:
+        account.left(0)
+        server.shutdown()

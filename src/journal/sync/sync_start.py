@@ -24,7 +24,7 @@ class SyncStart:
             self.client.start()
             return
         package = Path(__file__).resolve().parents[2]
-        environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root)}
+        environ = {**os.environ, "JOURNAL_ROOT": str(self.config.root), "JOURNAL_PARENT_PID": str(os.getpid())}
         self.link.start_child(host, CARRIER, JOURNAL, [sys.executable, str(package / "journal.py"), "sync"], self.config.root, environ, self.config.home / "runtime" / f"{CARRIER}.log")
 
     def stopped(self) -> None:

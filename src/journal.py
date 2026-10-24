@@ -13,6 +13,9 @@ AGENTS = ("claude", "codex")
 
 
 def main(argv: list[str]) -> int:
+    # the process this one lives for: the journal server that started a carrier names itself, as a framework build's python starts
+    # the real interpreter as a child of its own, which outlives a killed parent; else the parent
+    parent = int(os.environ.get("JOURNAL_PARENT_PID") or os.getppid())
     root = Path(os.environ.get("JOURNAL_ROOT") or Path.cwd())
     if argv[:1] and argv[0] in AGENTS:
         from journal.launcher.launch import Launch
@@ -28,7 +31,7 @@ def main(argv: list[str]) -> int:
         app.runtime().run()
         return 0
     if argv[:1] == ["sync"]:
-        app.container.get(CarrierProcess).run()
+        app.container.get(CarrierProcess).run(parent)
         return 0
     outcome = app.console().run(argv, app.container.get(Providers).caller(os.environ))
     sys.stdout.write(outcome.text)
