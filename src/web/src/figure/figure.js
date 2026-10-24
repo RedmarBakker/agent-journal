@@ -2837,8 +2837,8 @@ function disco(pose, stance, t) {
 // less) and up: the right hand on its grip at `grip`, the barrel pointing out to the left and `down` degrees toward the floor, the left
 // hand forward on the handguard `fore` along it, the right hand reaching `behind` the back for it first; each burst kicks the rifle `kick`
 // back along its line and `climb` degrees up, the shoulder `shoulder` degrees back; the figure turns `turn` degrees toward the bug, its
-// cheek down to the sights by `cheek` degrees of nod and head turn
-export const RIFLE = {grip: [-0.1, -0.62, 2.0], down: 12, fore: 0.9, behind: [-0.45, 0.45, 1.45], kick: 0.13, climb: 7, shoulder: 7, turn: 22, cheek: 14};
+// cheek down to the sights by `cheek` degrees of nod and head turn; a bug more than `steep` degrees up is shot with the rifle held as ever
+export const RIFLE = {grip: [-0.1, -0.62, 2.0], down: 12, fore: 0.9, behind: [-0.45, 0.45, 1.45], kick: 0.13, climb: 7, shoulder: 7, turn: 22, cheek: 14, steep: 60};
 
 // The rifle's line as it is held, kicked `kick` of the way back, aimed `aim` degrees down (RIFLE down unless it aims at a bug), out to the
 // figure's left, `way` 1, or held the other way round, out to its right, `way` -1: where the grip is, the way the barrel points, and its
@@ -2862,18 +2862,72 @@ export const burstKick = (t) => {
 // to the viewer; how many degrees the body turns round so the barrel points at it across the floor, and how many the barrel points down
 // at it from the grip; the barrel straight out to the figure's left, a little down, with no target
 export function rifleAim(target, facing) {
-    if (!target) return {turn: SIDES.l * RIFLE.turn, down: RIFLE.down, way: 1};
+    if (!target) return {turn: SIDES.l * RIFLE.turn, down: RIFLE.down, way: 1, point: null};
     const point = new THREE.Vector3((target.x - 0.5) * FRAMED_HEIGHT, LOOK_DEPTH, FRAMED_MIDDLE + (0.5 - target.y) * FRAMED_HEIGHT).applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-facing));
-    const way = point.x >= 0 ? 1 : -1;
-    const turn = THREE.MathUtils.radToDeg(Math.atan2(way * point.y, way * point.x)) * way;
+    const down = THREE.MathUtils.radToDeg(Math.atan2(-(point.z - RIFLE.grip[2]), Math.hypot(point.x, point.y)));
+    // aimed steeply up it holds the rifle as ever, the barrel rising before it, and turns the less the steeper it aims
+    const way = point.x >= 0 || down < -RIFLE.steep ? 1 : -1;
+    const turn = THREE.MathUtils.radToDeg(Math.atan2(way * point.y, way * point.x)) * way * Math.cos(radians(down));
     const grip = rifleLine(0, RIFLE.down, way).grip.applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(turn));
     const toward = point.clone().sub(grip);
-    return {turn, down: THREE.MathUtils.radToDeg(Math.atan2(-toward.z, Math.hypot(toward.x, toward.y))), way};
+    return {turn, down: THREE.MathUtils.radToDeg(Math.atan2(-toward.z, Math.hypot(toward.x, toward.y))), way, point};
 }
 
-// shoots the bugs a fixed run brings (acts.js bug_shot): reaches behind its back for the rifle, shoulders it, the stock into the right
-// shoulder and the left hand forward on the handguard, its cheek down to the sights, turned toward the bug it aims at (pose.target, one
-// bug each turn of the act, acts.js bugShotFrame), swinging onto it as each turn begins, each burst kicking the rifle and the shoulder back;
+// The rifle's own axes as held, its barrel along `along`, in the pose's own axes: its top up while it is held level, and turned away from
+// the figure the steeper it is aimed up, so the hand under it lies between it and the body, within the short arm's reach
+function rifleAxes(along) {
+    const rising = Math.max(along.z, 0);
+    const toward = new THREE.Vector3(0, -rising, 1 - rising).normalize();
+    const up = toward.sub(along.clone().multiplyScalar(toward.dot(along))).normalize();
+    return new THREE.Matrix4().makeBasis(along.clone(), up.clone().cross(along), up);
+}
+
+// The rifle's turn as held (heldPropOf), its barrel along `along` (rifleAxes), in degrees
+function rifleTurn(along) {
+    const turn = new THREE.Euler().setFromRotationMatrix(rifleAxes(along), "ZYX");
+    return {x: THREE.MathUtils.radToDeg(turn.x), y: THREE.MathUtils.radToDeg(turn.y), z: THREE.MathUtils.radToDeg(turn.z)};
+}
+
+// The way the barrel points from the grip at `grip` so its line passes through `point` (rifleAim), the body to be turned `turn` degrees
+// afterwards: a burst kicks the grip back along the line and the barrel stays on the bug; along `planned` with no point
+function barrelWay(grip, point, turn, planned) {
+    if (!point) return planned;
+    const there = point.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), radians(-turn));
+    // the barrel stands above the grip as the rifle is turned, so the way is found from the rifle aimed once, then again
+    const from = (way) => grip.clone().add(rifleUp(way).multiplyScalar(RIFLE_HOLD.barrel));
+    const first = there.clone().sub(from(there.clone().sub(grip).normalize())).normalize();
+    return there.sub(from(first)).normalize();
+}
+
+// the way up from the rifle, its barrel along `along` (rifleAxes)
+const rifleUp = (along) => new THREE.Vector3().setFromMatrixColumn(rifleAxes(along), 2);
+
+// how much lower the rifle is held aimed `down` degrees, steeply up held lower and nearer the middle (RIFLE_HOLD low), so the other hand
+// reaches under it
+const lowered = (down) => {
+    const steep = Math.max(-down, 0) / 90;
+    return new THREE.Vector3(0, 0, -RIFLE_HOLD.low * steep);
+};
+
+// The other hand under the rifle, held at `grip` with its barrel along `along`: its wrist placed so its palm lies under the handguard
+// (RIFLE_HOLD), at its middle or as far along it toward the grip as the arm needs to reach it, the palm turned up and the fingers along
+// the barrel
+function cradle(pose, side, k, grip, along) {
+    const down = rifleUp(along).negate();
+    const wristAt = (fore) => grip.clone().addScaledVector(along, fore - HAND.grip).addScaledVector(down, RIFLE_HOLD.under);
+    const reached = (fore) => pose.withinReach(side, wristAt(fore), 0.97).distanceTo(wristAt(fore)) < 0.02;
+    const fores = Array.from({length: 6}, (_, step) => RIFLE_HOLD.fore - (step * (RIFLE_HOLD.fore - RIFLE_HOLD.nearest)) / 5);
+    const wrist = wristAt(fores.find(reached) ?? fores.at(-1));
+    const fingers = SIDES[side] > 0 ? along : along.clone().negate();
+    handTo(pose, side, k, pose.withinReach(side, wrist, 0.97), new THREE.Vector3(SIDES[side] * 0.6, -0.6, -0.6));
+    const {y, z} = rifleTurn(fingers);
+    if (k > 0.5) pose.face(`hand_${side}`, {x: RIFLE_HOLD.roll, y, z});
+}
+
+// shoots the bugs a fixed run brings (acts.js bug_shot): reaches behind its back for the rifle, one hand on its grip, the stock into that
+// shoulder, the other hand under the handguard, the rifle resting in its palm; its cheek down to the sights, turned toward the bug it aims
+// at (pose.target, one bug each turn of the act, acts.js bugShotFrame), swinging onto it as each turn begins, the barrel aimed from where
+// the gripping hand holds it so its line runs through the bug, each burst kicking the rifle, both hands with it, and the shoulder back;
 // its eyes in fight mode from the draw until the last bug is gone, and the rifle lowered once it has splattered
 function bug_shot(pose, stance, t) {
     const act = ACTS.bug_shot;
@@ -2883,7 +2937,7 @@ function bug_shot(pose, stance, t) {
     const kick = burstKick(t);
     const onto = rifleAim(pose.target, pose.facing);
     const line = rifleLine(kick, onto.down, onto.way);
-    // the hand on the grip, the right one for the barrel out to the left, and the other forward on the handguard
+    // the hand on the grip, the right one for the barrel out to the left, and the other under the handguard
     const [grip, fore] = onto.way > 0 ? ["r", "l"] : ["l", "r"];
     const [bx, by, bz] = RIFLE.behind;
     breathe(pose, t);
@@ -2892,10 +2946,12 @@ function bug_shot(pose, stance, t) {
     pose.putAway(...IN_HAND);
     armsAtRest(pose, stance, Object.keys(SIDES));
     if (reach > aim) handTo(pose, grip, reach, new THREE.Vector3(onto.way * bx, by, bz), new THREE.Vector3(-onto.way, 0.5, -0.5));
-    else handTo(pose, grip, aim, pose.withinReach(grip, line.grip, 0.97), new THREE.Vector3(-onto.way, -0.2, -0.6));
-    handTo(pose, fore, aim, pose.withinReach(fore, line.grip.clone().addScaledVector(line.along, RIFLE.fore), 0.97), new THREE.Vector3(onto.way * 0.6, -0.6, -0.6));
+    else handTo(pose, grip, aim, pose.withinReach(grip, line.grip.clone().add(lowered(onto.down)), 0.97), new THREE.Vector3(-onto.way, -0.2, -0.6));
+    const held = pose.grip(grip, [0, 0, 0]).applyMatrix4(pose.matrix(`hand_${grip}`));
+    const along = barrelWay(held, onto.point, onto.turn * aim, line.along);
+    cradle(pose, fore, aim, held, along);
     if (aim > 0.05 || reach > 0.3) {
-        pose.holdUpright("rifle", grip, [0, 0, 0], {y: line.pitch, z: onto.way > 0 ? 0 : 180});
+        pose.holdUpright("rifle", grip, [0, 0, 0], rifleTurn(along));
         pose.props.get("rifle").firing = kick > 0.6;
     }
     fightEyes(pose, t, partOf(t, act.draw) * (1 - partOf(t, [act.fly[0], act.fly[1]])));
@@ -4038,6 +4094,12 @@ export const RIFLE_PARTS = {
     barrel: {from: 0.76, to: 1.24, radius: 0.03, up: 0.06},
     colours: {wood: 0x8a5a2b, metal: 0x2b2e38, barrel: 0x474a52, flash: 0xffd25a},
 };
+
+// How the rifle is held: the barrel's line `barrel` above the grip (its barrel up), and the other hand's palm under the handguard,
+// `fore` along the barrel from the grip, at the handguard's middle, or as near as `nearest`, its end toward the grip, and `under` below the
+// grip's height, its fingers along the barrel, the palm turned up by `roll`; aimed straight up, the rifle held `low` lower, so that hand
+// reaches under it
+export const RIFLE_HOLD = {barrel: RIFLE_PARTS.barrel.up * RIFLE_PARTS.scale, fore: 0.55 * RIFLE_PARTS.scale, nearest: 0.38 * RIFLE_PARTS.scale, under: 0.17, roll: 90, low: 0.5};
 
 // a space inside the prop `root` laid out in the pose's own axes, up along z and toward the viewer along -y, as a prop's parts are given;
 // a prop's root is placed in the glb's (heldPropOf)
