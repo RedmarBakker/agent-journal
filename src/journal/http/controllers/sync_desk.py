@@ -4,6 +4,7 @@ from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.sync.sync_client import BATCH_ROWS, SyncClient
 from journal.sync.sync_desk import SyncDesk
+from journal.sync.sync_secret import SyncSecret
 from sync_server.pull_answer import PullAnswer
 from sync_server.sync_answer import SyncAnswer
 
@@ -11,8 +12,11 @@ from sync_server.sync_answer import SyncAnswer
 class SyncDeskController:
     """The local doors the sync's carrier comes through to the server's SyncDesk: the query a pull asks with, a pull answer handed in as the team server sent it, the queue's next batch taken out with the files waiting and the Team chat lease and row number blocks kept up, a push's result and the files sent handed back for the batch it names, and the carrier paused and resumed around an upgrade."""
 
-    def __init__(self, desk: SyncDesk, client: SyncClient) -> None:
-        self.desk, self.client = desk, client
+    def __init__(self, desk: SyncDesk, client: SyncClient, secret: SyncSecret) -> None:
+        self.desk, self.client, self.secret = desk, client, secret
+
+    def guarded(self, door):
+        return lambda request: door(request) if self.secret.allows(request) else Response.forbidden("the sync desk answers its carrier alone: a request carries the server's sync secret and comes straight, never through a proxy")
 
     def answer(self, request: Request) -> Response:
         return Response.json({"applied": self.desk.answered(PullAnswer.parsed(**request.body))})

@@ -12744,7 +12744,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
 
     app.container.get(Bus).listen(SyncedCreation, TaskCreations())
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).read())
     change = {"sequence": 5, "row_table": "tasks", "row": 7001, "action": CREATED, "actor": "user:2", "account_id": 2, "device_id": 2, "fields": {"environment_id": 1, "title": "made on another machine", "state": "open", "created_at": "2026-10-24T10:00:00+00:00", "creator": "user:2", "updated_at": "2026-10-24T10:00:00+00:00", "updater": "user:2"}, "changed_at": {"title": 1.0}}
     assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
     with app.container.get(Scope).environment(1):
@@ -12772,7 +12772,7 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     change(1, "started")
     change(2, "started")
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).read())
     first = door("GET", "batch")
     change(3, "done")
     again = door("GET", "batch")
@@ -12826,7 +12826,7 @@ def test_the_carrier_is_handed_the_pull_query_and_the_waiting_files_and_its_poll
     from journal.sync.pull_queries import PullQueries
     server, account = joined_team(app)
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text()}), timeout=10).read())
     account.record_sequence(42)
     assert door("GET", "query?wait_seconds=25") == json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "the query is the server's own, sequence and all"
     assert door("GET", "query")["sequence"] == 42
@@ -12862,3 +12862,21 @@ def test_every_line_of_the_command_corpus_is_read_by_the_reader_its_reading_name
     assert not new, f"{len(new)} lines read otherwise than their reading names, the first: {list(new.items())[:3]}"
     fixed = [n for n in known if n not in found]
     assert not fixed, f"{len(fixed)} frozen disagreements are fixed: write the list anew with CORPUS_FREEZE=1, the first: {fixed[:5]}"
+
+
+def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boot_and_never_one_through_a_proxy(app: App):
+    import stat
+    from urllib.error import HTTPError
+    port = app.server().port
+    secret_file = app.config.home / "runtime" / "sync-secret"
+    assert stat.S_IMODE(secret_file.stat().st_mode) == 0o600 and len(secret_file.read_text()) == 64, "the secret is written at boot for its owner alone"
+    def status(headers: dict) -> int:
+        try:
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", **headers}), timeout=10).status
+        except HTTPError as refusal:
+            return refusal.code
+    secret = secret_file.read_text()
+    assert status({}) == 403 and status({"X-Journal-Sync-Secret": "0" * 64}) == 403, "no secret, or a wrong one, is refused"
+    assert status({"X-Journal-Sync-Secret": secret, "X-Forwarded-For": "203.0.113.9"}) == 403, "a request passed on by a proxy is refused even with the secret"
+    assert status({"X-Journal-Sync-Secret": secret}) == 200
+

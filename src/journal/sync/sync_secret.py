@@ -1,0 +1,27 @@
+import hmac
+import os
+import secrets
+
+from journal.config import Config
+from journal.http.support.request import Request
+
+SECRET_FILE = "sync-secret"
+SECRET_HEADER = "x-journal-sync-secret"
+
+
+class SyncSecret:
+    """The secret the journal server writes at boot for its sync carrier alone, readable by its owner only: a request to the sync desk's doors carries it, and one passed on by a proxy is refused, so no other local process and nothing from outside writes rows as the team."""
+
+    def __init__(self, config: Config) -> None:
+        self.path = config.home / "runtime" / SECRET_FILE
+        self.value = ""
+
+    def issued(self) -> None:
+        self.value = secrets.token_hex(32)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w") as file:
+            file.write(self.value)
+
+    def allows(self, request: Request) -> bool:
+        return bool(self.value) and "x-forwarded-for" not in request.headers and hmac.compare_digest(request.headers.get(SECRET_HEADER, ""), self.value)
