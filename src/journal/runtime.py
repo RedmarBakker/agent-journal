@@ -1,4 +1,5 @@
 import gc
+import time as timing
 from journal.engine.clock import Clock
 from journal.engine.job_runner import JobRunner
 from journal.engine.lifecycle import Lifecycle
@@ -29,6 +30,9 @@ from journal.container import Container
 from journal.repositories.scope import Scope
 from journal.http.server import Server
 from journal.support.instance_guard import InstanceGuard
+from journal.events.announcer import Announcer
+from journal.events.moments.server_replaced import ServerReplaced
+from journal.version import VERSION
 from journal.http.share_server import ShareServer
 from journal.sync.team_writes import TeamWrites
 from journal.events.models.synced import Synced
@@ -47,7 +51,7 @@ from journal.console.console import Console
 
 
 class Runtime:
-    """What the server process keeps running: the HTTP server and the share server beside it, the deferred worker and the job runner with the clock, the menu watcher and every feature's jobs, with the machine on the bus. It boots in phases: the server listens first and holds every request while everything loads, and only once booted do the requests go through and the workers, jobs and services start. State itself is in the database, so a restart loses nothing."""
+    """What the server process keeps running: the HTTP server and the share server beside it, the deferred worker and the job runner with the clock, the menu watcher and every feature's jobs, with the machine on the bus. It boots in phases: the server listens first and holds every request while everything loads, and only once booted do the requests go through and the workers, jobs and services start, and the launches of a server on older code it stopped are told so. State itself is in the database, so a restart loses nothing."""
 
     def __init__(self, container: Container, server: Server, deferred: ListenerQueue, clock: Clock, machine: StateMachine, bus: Bus, registry: Registry, scope: Scope, watcher: MenuWatcher, share_server: ShareServer, reserve: InstanceGuard, jobs: JobRunner, lifecycle: Lifecycle) -> None:
         self.container, self.server, self.deferred, self.clock, self.machine, self.bus, self.registry, self.scope = container, server, deferred, clock, machine, bus, registry, scope
@@ -103,7 +107,12 @@ class Runtime:
         self.jobs.start()
         self.container.get(AgentViewSender).start()
         self.container.get(ServiceStart).run()
+        self.replacement_announced()
         gc.freeze()
+
+    def replacement_announced(self) -> None:
+        if self.standby.replaced_version:
+            self.container.get(Announcer).announce(ServerReplaced(previous=self.standby.replaced_version, version=VERSION, time=timing.time()))
 
     def register_jobs(self) -> None:
         self.jobs.register(self.clock)

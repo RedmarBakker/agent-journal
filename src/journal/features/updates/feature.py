@@ -4,6 +4,7 @@ from journal.features.updates.jobs.restart_check import RestartCheck
 from journal.features.updates.listeners.release_check import ReleaseCheck
 from journal.features.updates.listeners.supervisor_upgrade import SupervisorUpgrade
 from journal.features.updates.listeners.session_restart_close import SessionRestartClose
+from journal.features.updates.listeners.carried_launch_notice import CarriedLaunchNotice
 from journal.features.updates.support.release_source import REPOSITORY
 from journal.support.option import USER, Option
 from journal.support.option_scope import OptionScope
@@ -22,9 +23,9 @@ class Updates(Feature[ReleaseNotes]):
     title = "Updates"
     help = "Finds the newest release of this version of the journal on GitHub, as often as you set, and installs it when you say so or, if you switch that on, by itself."
     options = (UpdatesOptions.REPOSITORY, UpdatesOptions.BRANCH, UpdatesOptions.AUTO, UpdatesOptions.CHECK_INTERVAL)
-    listeners = (ReleaseCheck, SupervisorUpgrade, SessionRestartClose)
+    listeners = (ReleaseCheck, SupervisorUpgrade, SessionRestartClose, CarriedLaunchNotice)
     seeds = (VersionChange, SupervisorCheck)
-    nudges = (UpdatesNudges.RELEASE_MESSAGES,)
+    nudges = (UpdatesNudges.RELEASE_MESSAGES, UpdatesNudges.LAUNCH_CARRIED_OVER)
     data = (ReleaseNotesReader,)
     conduct = (UpdatesConduct,)
     jobs = (RestartCheck,)

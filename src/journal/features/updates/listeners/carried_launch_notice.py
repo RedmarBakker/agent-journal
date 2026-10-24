@@ -1,0 +1,25 @@
+from journal.chat.moment_cards import MomentCards
+from journal.events.listener import Listener
+from journal.events.moments.server_replaced import ServerReplaced
+from journal.repositories.agents import Agents
+from journal.repositories.environments import Environments
+from journal.repositories.scope import Scope
+from journal.support.actor import Actor
+from journal.support.card_kind import CardKind
+from journal.supervisor_link import SupervisorLink
+
+
+class CarriedLaunchNotice(Listener[ServerReplaced]):
+    """Each environment whose launch still runs when a newer journal server replaced the one it had is told so: a mark in its chat, and the moment on its agent's row, which the updates conduct says in one line at the agent's next hook."""
+
+    def __init__(self, environments: Environments, supervisor: SupervisorLink, agents: Agents, scope: Scope, cards: MomentCards) -> None:
+        self.environments, self.supervisor, self.agents, self.scope, self.cards = environments, supervisor, agents, scope, cards
+
+    def handle(self, event: ServerReplaced) -> None:
+        for environment in self.supervisor.running(self.environments.all()):
+            with self.scope.environment(environment.row_id):
+                agent = self.agents.current()
+            label = f"The journal now runs version {event.version}: a newer launch replaced the journal server on {event.previous} that this launch had"
+            self.cards.show(environment.row_id, agent.session if agent else None, label, "bolt", shows=CardKind.UPDATES)
+            if agent is not None:
+                self.agents.save(agent.carried_over(event.previous, event.version, event.time), Actor.system())

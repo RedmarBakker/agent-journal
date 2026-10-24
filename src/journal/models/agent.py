@@ -6,6 +6,7 @@ from journal.events.rows.agent_thinking import AgentThinking
 from journal.events.rows.agent_thinking_ended import AgentThinkingEnded
 from journal.events.rows.user_resumed import UserResumed
 from journal.events.rows.session_retired import SessionRetired
+from journal.events.rows.launch_carried_over import LaunchCarriedOver
 from journal.events.rows.overview_read import OverviewRead
 from journal.events.rows.context_decided import ContextDecided
 from journal.events.rows.skill_read import SkillRead
@@ -66,6 +67,9 @@ class Agent(Scoped):
 
     def retired(self, time: float) -> "Agent":
         return self.with_event(SessionRetired(environment_id=self.environment_id, time=time, agent_session=self.session))
+
+    def carried_over(self, previous: str, version: str, time: float) -> "Agent":
+        return self.with_event(LaunchCarriedOver(environment_id=self.environment_id, time=time, agent_session=self.session, previous=previous, version=version))
 
     def overview_read(self, time: float) -> "Agent":
         return self.with_(is_overview_read=True).with_event(OverviewRead(environment_id=self.environment_id, time=time))

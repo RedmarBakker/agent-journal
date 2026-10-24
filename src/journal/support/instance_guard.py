@@ -15,12 +15,13 @@ LOCK_FILE = "journal.lock"
 
 
 class InstanceGuard:
-    """Whether another journal of this project answers already on the port its file names: a launch by another supervisor then stands by instead of serving beside it, since two servers would split the hooks and the typed lines between them, and the one that stopped would take the port file with it. One started by this journal's own supervisor, or left with no supervisor, is a stray and is stopped, and so is one running other code than is installed, left over from before an update, so this journal takes the port its project keeps. A journal claims the project with a lock on a file before it starts, held for as long as it runs, so two launched at the same moment never both boot and write the same files, and one standing by waits on that lock itself and serves the moment the other is gone."""
+    """Whether another journal of this project answers already on the port its file names: a launch by another supervisor then stands by instead of serving beside it, since two servers would split the hooks and the typed lines between them, and the one that stopped would take the port file with it. One started by this journal's own supervisor, or left with no supervisor, is a stray and is stopped, and so is one running other code than is installed, left over from before an update, so this journal takes the port its project keeps, and the version of one on other code it stopped is kept, for the launches it carries over to be told. A journal claims the project with a lock on a file before it starts, held for as long as it runs, so two launched at the same moment never both boot and write the same files, and one standing by waits on that lock itself and serves the moment the other is gone."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
         self.lock_file = None
         self.parent = os.getppid()
+        self.replaced_version = ""
 
     def claimed(self) -> bool:
         handle = self.lock_handle()
@@ -56,6 +57,7 @@ class InstanceGuard:
             if identity.is_replaceable(VERSION, self.parent):
                 print(f"the journal at {address}, {identity.version} started by process {identity.parent}, holds this project's port: it is stopped", flush=True)
                 self.stop(identity.pid)
+                self.replaced_version = identity.version if identity.version != VERSION else ""
             return address
         return ""
 
