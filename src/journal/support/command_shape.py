@@ -29,7 +29,7 @@ LOOP_IDLE = {"echo", "printf", "[", "[[", "test", "true", ":", "sleep"}
 # a loop that only waits for something, its body a sleep alone, which a run is known by as a wait: until ping -c1 h; do sleep 1; done
 POLL_PATTERN = re.compile(r"^\s*(?:while|until)\b.*\bdo\s+sleep\s+[\d.]+[smh]?\s*;?\s*done\b", re.S)
 # the shell's own words and tests a waiting loop may hold beside its sleep, which do no work of their own
-IDLE_WORDS = {"while", "until", "for", "true", ":", "do", "if", "then", "else", "fi", "break", "continue", "done", "[", "[[", "test", "echo", "date", "sleep"}
+IDLE_KEYWORDS = {"while", "until", "for", "true", ":", "do", "if", "then", "else", "fi", "break", "continue", "done", "[", "[[", "test", "echo", "date", "sleep"}
 # a group run as one, timed or not, which a run is known by the commands inside: time { make; } is make
 GROUP_PATTERN = re.compile(r"^\s*(?:time\s+)?[({]")
 # the shell's own words around the commands of a loop or a branch, which a run is never known by: while, do and done,
@@ -169,8 +169,8 @@ class CommandShape:
     def is_waiting_loop(cls, part: str) -> bool:
         if not LOOP_PATTERN.match(part) or part.strip().startswith(("case", "select")):
             return False
-        programs = {words[1] if words[0] in {"do", "then", "else"} and len(words) > 1 else words[0] for command in cls.commands(part) if (words := command.split())}
-        return "sleep" in programs and programs <= IDLE_WORDS
+        programs = {tokens[1] if tokens[0] in {"do", "then", "else"} and len(tokens) > 1 else tokens[0] for command in cls.commands(part) if (tokens := command.split())}
+        return "sleep" in programs and programs <= IDLE_KEYWORDS
 
     @staticmethod
     def unbracketed(command: str) -> str:

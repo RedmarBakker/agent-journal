@@ -30,7 +30,7 @@ SWITCHES = {"--new": "new", "--aside": "stashed", "--skip": "bypass", "--yes": "
 WORKTREE = ("--worktree", "-w")
 RESUMING = ("--resume", "-r")
 # the journal server is checked at its health URL once its boot has had a minute, and started again after three failures in a row
-JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "every_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
+JOURNAL_HEALTH = {"url": "http://127.0.0.1:{port}/journal/health", "grace_seconds": 60.0, "interval_seconds": 10.0, "timeout_seconds": 5.0, "failures": 3}
 # the agent's hooks count as dead when its terminal keeps moving and its hooks file has stood still this long, longer than a long tool use
 FRONT_STALE_SECONDS = 600.0
 DEAD_HOOKS_WARNING = "[journal] This session's hooks have stopped reaching the journal, so it holds your lines and the user's messages: quit this session and start it again from the project's root with journal."

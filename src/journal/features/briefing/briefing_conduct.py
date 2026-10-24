@@ -32,9 +32,9 @@ class BriefingConduct(Conduct):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         briefing = event.data.part(BriefingPart)
-        if not briefing.is_launch_folder_gone:
+        if not briefing.is_launch_folder_missing:
             return self.none()
-        return self.none(BriefingNudges.FOLDER_GONE.create(env=briefing.environment, launch_folder=briefing.launch_folder))
+        return self.none(BriefingNudges.FOLDER_MISSING.create(env=briefing.environment, launch_folder=briefing.launch_folder))
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
         return self.none() if event.data.part(BriefingPart).is_overview_read else self.refuse(BriefingNudges.OVERVIEW_STOP.create())

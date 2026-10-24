@@ -18,12 +18,12 @@ class Plugin(Model):
     release: str = ""
     linked: bool = False
     enabled: bool = True
-    off_on_purpose: bool = False
+    is_user_disabled: bool = False
     manifest: PluginManifest = field(default_factory=PluginManifest)
     settings: dict = field(default_factory=dict)
     hashes: dict = field(default_factory=dict)
     waiting: str = ""
-    waits_for: str = ""
+    wait_target: str = ""
     last_fault: str = ""
     fault_streak: int = 0
     failed_at: datetime | None = None

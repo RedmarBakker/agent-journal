@@ -17,6 +17,6 @@ class ClientErrorsDataReader:
         count = self.store.count()
         if not count:
             return ClientErrorsData()
-        since = agent.tool_uses - REMINDER_TOOL_USES
-        told = any(self.entries.use_lines(agent.session, nudge.key, since) for nudge in (ClientErrorsNudges.LOGGED, ClientErrorsNudges.UNHANDLED))
-        return ClientErrorsData(count, told)
+        first_use = agent.tool_uses - REMINDER_TOOL_USES
+        is_reported = any(self.entries.use_lines(agent.session, nudge.key, first_use) for nudge in (ClientErrorsNudges.LOGGED, ClientErrorsNudges.UNHANDLED))
+        return ClientErrorsData(count, is_reported)

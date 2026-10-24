@@ -4,7 +4,7 @@ import time
 from journal.config import Config
 
 # how long the hook script may keep firing past the last hook the server took before the server counts its hooks as lost
-LOST_AFTER_SECONDS = 60
+ARRIVAL_LIMIT_SECONDS = 60
 
 
 class HookArrivals:
@@ -21,9 +21,9 @@ class HookArrivals:
             self.taken[environment] = time.time()
 
     def lost(self) -> list[str]:
-        return [file.stem for file in sorted(self.folder.glob("*.fired")) if self.fired_at(file.read_text()) - self.last_taken(file.stem) > LOST_AFTER_SECONDS]
+        return [file.stem for file in sorted(self.folder.glob("*.fired")) if self.fired_at(file.read_text()) - self.last_arrival(file.stem) > ARRIVAL_LIMIT_SECONDS]
 
-    def last_taken(self, environment: str) -> float:
+    def last_arrival(self, environment: str) -> float:
         with self.lock:
             return self.taken.get(environment, self.started_at)
 

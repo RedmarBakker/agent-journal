@@ -98,12 +98,12 @@ class DeveloperTally:
     def table_details(answers: list[RequestLoads]) -> list[dict]:
         totals: dict[str, list[int]] = {}
         for answer in answers:
-            for load in answer.counts:
-                total = totals.setdefault(load.model, [0, 0, 0])
-                total[0], total[1], total[2] = total[0] + load.rows, total[1] + load.bytes, total[2] + load.writes
-        each = lambda amount: f"{amount / len(answers):.1f}".removesuffix(".0")
+            for table_count in answer.counts:
+                total = totals.setdefault(table_count.model, [0, 0, 0])
+                total[0], total[1], total[2] = total[0] + table_count.rows, total[1] + table_count.bytes, total[2] + table_count.writes
+        average_text = lambda amount: f"{amount / len(answers):.1f}".removesuffix(".0")
         ranked = sorted(totals.items(), key=lambda item: -(item[1][0] + item[1][2] + item[1][1] / 1024))
-        return [{"label": table, "text": f"{each(rows)} rows, {each(size / 1024)} KB, {each(writes)} writes"} for table, (rows, size, writes) in ranked]
+        return [{"label": table, "text": f"{average_text(rows)} rows, {average_text(size / 1024)} KB, {average_text(writes)} writes"} for table, (rows, size, writes) in ranked]
 
     def timings(self) -> list[Timing]:
         with self._lock:

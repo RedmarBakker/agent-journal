@@ -6,4 +6,4 @@ class ClientErrorsData:
     """How many distinct viewer errors are unhandled, and whether the agent was told of them within the last so many of its tool uses."""
 
     count: int = 0
-    is_told: bool = False
+    is_reported: bool = False

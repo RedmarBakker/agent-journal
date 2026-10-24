@@ -10,7 +10,7 @@ class Keys:
     """Keys from a terminal in cbreak mode, one at a time: an arrow comes as one key, not as its escape and letters."""
 
     UPWARD, DOWN = ("\x1b[A", "\x1bOA", "k"), ("\x1b[B", "\x1bOB", "j")
-    BACK = ("\x1b[D", "\x1bOD", "h")
+    RETURN = ("\x1b[D", "\x1bOD", "h")
     ENTER, ESCAPE = ("\r", "\n"), "\x1b"
 
     def __init__(self, fd: int) -> None:

@@ -2,7 +2,7 @@ import threading
 
 from journal.features.client_errors.support.client_error import ClientError
 
-LIMIT = 100
+ERROR_COUNT_LIMIT = 100
 
 
 class ClientErrorStore:
@@ -15,11 +15,11 @@ class ClientErrorStore:
     def add(self, message: str, stack: str) -> bool:
         key = f"{message}\n{stack}"
         with self.lock:
-            known = self.errors.get(key)
-            self.errors[key] = known.repeated() if known else ClientError(message, stack)
-            if known is None and len(self.errors) > LIMIT:
+            existing = self.errors.get(key)
+            self.errors[key] = existing.repeated() if existing else ClientError(message, stack)
+            if existing is None and len(self.errors) > ERROR_COUNT_LIMIT:
                 del self.errors[next(iter(self.errors))]
-            return known is None
+            return existing is None
 
     def all(self) -> list[ClientError]:
         with self.lock:

@@ -12,10 +12,10 @@ class HealthCheck:
     url: str = ""
     port_file: str = ""
     file: str = ""
-    fresh_seconds: float = 60.0
+    max_age_seconds: float = 60.0
     timeout_seconds: float = 5.0
     grace_seconds: float = 30.0
-    every_seconds: float = 10.0
+    interval_seconds: float = 10.0
     failures: int = 3
 
     def fault(self) -> str:
@@ -45,4 +45,4 @@ class HealthCheck:
         if not path.is_file():
             return f"{self.file} was never written"
         age_seconds = time.time() - path.stat().st_mtime
-        return f"{self.file} was last written {age_seconds:.0f} seconds ago" if age_seconds > self.fresh_seconds else ""
+        return f"{self.file} was last written {age_seconds:.0f} seconds ago" if age_seconds > self.max_age_seconds else ""

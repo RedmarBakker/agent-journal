@@ -49,8 +49,8 @@ class JournalController:
 
     # the server answers, and answers unwell while an environment's hooks fire without reaching it, so its supervisor starts it again
     def health(self, request: Request) -> Response:
-        lost = self.arrivals.lost()
-        return Response.json({"answering": True, "phase": self.lifecycle.phase.value, "hooks_lost": lost}, 503 if lost else 200)
+        missing_hooks = self.arrivals.lost()
+        return Response.json({"answering": True, "phase": self.lifecycle.phase.value, "hooks_lost": missing_hooks}, 503 if missing_hooks else 200)
 
     def journals(self, request: Request) -> Response:
         return Response.json([{"port": self.config.port, "project": self.config.root.name, "version": VERSION, "root": str(self.config.home), "current": True}])

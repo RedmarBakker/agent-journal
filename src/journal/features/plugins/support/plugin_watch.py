@@ -13,7 +13,7 @@ class PluginWatch:
 
     def fault(self, plugin: Plugin) -> str:
         if not plugin.enabled:
-            return "" if plugin.off_on_purpose else f"it is off, though nobody switched it off{self.last(plugin)}"
+            return "" if plugin.is_user_disabled else f"it is off, though nobody switched it off{self.last(plugin)}"
         return self.manifest_fault(plugin) or (plugin.last_fault if plugin.fault_streak else "")
 
     def manifest_fault(self, plugin: Plugin) -> str:

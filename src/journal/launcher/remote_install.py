@@ -12,9 +12,9 @@ INSTALLER = "https://github.com/jessegall/agent-journal/releases/download/{tag}/
 class RemoteInstall:
     """Installs the team server, with the team's hosted journal, on a machine reached over SSH with a key it already accepts: the release's installer runs there through ssh -t, so its questions are asked in this terminal and it prints the address and the line to join with. Run in a terminal, never in an agent's shell, which has none."""
 
-    def __init__(self, target: str, version: str, chosen: dict[str, str]) -> None:
+    def __init__(self, target: str, version: str, choices: dict[str, str]) -> None:
         self.target, self.version = target, version
-        self.chosen = chosen
+        self.choices = choices
 
     @classmethod
     def parsed(cls, argv: list[str]) -> "RemoteInstall":
@@ -37,7 +37,7 @@ class RemoteInstall:
 
     def installer_settings(self) -> dict[str, str]:
         host = self.target.rsplit("@", 1)[-1]
-        return {**({"TEAM_ADDRESS": host} if "." in host or ":" in host else {}), **self.chosen}
+        return {**({"TEAM_ADDRESS": host} if "." in host or ":" in host else {}), **self.choices}
 
     def run(self) -> int:
         if not sys.stdin.isatty():

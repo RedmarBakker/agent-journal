@@ -40,7 +40,7 @@ class PluginReleases:
             return
         with self.installing.staged(plugin.source, newer[0].tag) as (folder, _):
             least = self.installing.reader.least_journal(folder)
-        self.plugins.save(self.plugins.lookup(plugin.name).with_(waits_for=least), Actor.system())
+        self.plugins.save(self.plugins.lookup(plugin.name).with_(wait_target=least), Actor.system())
 
     def fitting_tag(self, plugin: Plugin, journal: Release) -> str | None:
         newer = [release for release in reversed(Release.lookup(self.source.release_tags(plugin.source))) if release.is_newer(Release(plugin.release))]

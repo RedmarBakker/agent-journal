@@ -16,15 +16,15 @@ class RequestLoads:
 
     @classmethod
     def measured(cls, rows: Counter, sizes: Counter, writes: Counter) -> "RequestLoads":
-        model_loads = [ModelLoad(table, rows[table], sizes[table], writes[table]) for table in {*rows, *writes}]
-        return cls(tuple(sorted(model_loads, key=lambda model_load: (-model_load.points(), model_load.model))))
+        tables = [ModelLoad(table, rows[table], sizes[table], writes[table]) for table in {*rows, *writes}]
+        return cls(tuple(sorted(tables, key=lambda table: (-table.points(), table.model))))
 
     @classmethod
     def parsed(cls, data: dict) -> "RequestLoads":
         return cls(tuple(ModelLoad(model=stored["model"], rows=stored["rows"], bytes=stored.get("bytes", 0), writes=stored.get("writes", 0)) for stored in data.get("counts", ())))
 
     def points(self) -> int:
-        return sum(load.points() for load in self.counts)
+        return sum(entry.points() for entry in self.counts)
 
     def line(self) -> str:
         return ", ".join(f"{count.model} {count.points()} points: {count.rows} rows, {count.bytes} bytes, {count.writes} writes" for count in self.counts)

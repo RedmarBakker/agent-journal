@@ -68,7 +68,7 @@ class PluginAgentRelay(AgentListener[AgentEvent]):
         if self.streaks.is_paused(plugin.name, event.session, event.time):
             self.relay.unanswered(plugin, event, event.environment_id, f"passed over, as it held the agent too many times in a row: {answer.reason}")
             return Decision()
-        limit, minutes = self.settings.integer(PluginsOptions.HOLD_LOOP_LIMIT), self.settings.integer(PluginsOptions.HOLD_PAUSE)
+        limit, minutes = self.settings.integer(PluginsOptions.STREAK_LIMIT), self.settings.integer(PluginsOptions.IGNORE_MINUTES)
         if self.streaks.held(plugin.name, event.session, event.time, limit, minutes * 60):
             text = f"held the agent {limit} times in a row, so its holds are passed over for {minutes} minutes; this one goes through"
             self.relay.line(plugin, event, event.environment_id, "told", text)

@@ -7,7 +7,7 @@ from journal.repositories.reader_reports import ReaderReports
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 
-YES, NO = "yes", "no"
+SOUND_VERDICT, REFUTED_VERDICT = "yes", "no"
 
 
 class VerdictCommand(Command):
@@ -22,7 +22,7 @@ class VerdictCommand(Command):
 
     def arguments(self, verbs) -> None:
         giving = self.verb(verbs, "give", "your verdict on the dismissal you judge: yes, it is sound, or no, the run's output contradicts it, with one reason")
-        giving.add_argument("verdict", choices=(YES, NO))
+        giving.add_argument("verdict", choices=(SOUND_VERDICT, REFUTED_VERDICT))
         giving.add_argument("reason")
 
     def give(self, args: Namespace, caller: Caller) -> int:
@@ -30,7 +30,7 @@ class VerdictCommand(Command):
             raise Rejection("only a verifier the journal sent gives a verdict")
         report = self.reports.find(self.dispatch.judged(caller.worker_number).id)
         moment = datetime.now(timezone.utc)
-        judged = report.judged_sound(args.reason, caller.agent_session, moment) if args.verdict == YES else report.refuted(args.reason, caller.agent_session, moment)
+        judged = report.judged_sound(args.reason, caller.agent_session, moment) if args.verdict == SOUND_VERDICT else report.refuted(args.reason, caller.agent_session, moment)
         self.reports.save(judged, caller.actor)
         print(f"verdict {args.verdict} on reader report {report.id}: {args.reason}; your session ends now")
         return 0

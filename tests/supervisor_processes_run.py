@@ -368,8 +368,8 @@ def test_a_service_that_fails_its_health_url_or_lets_its_health_file_go_stale_is
     stand_in = HTTPServer(("127.0.0.1", 0), Unwell)
     threading.Thread(target=stand_in.serve_forever, daemon=True).start()
     environ = {"PATH": os.environ["PATH"]}
-    web = Service("web", ["sleep", "30"], tmp_path, environ, tmp_path / "web.log", health=HealthCheck(url=f"http://127.0.0.1:{stand_in.server_address[1]}/health", grace_seconds=0, every_seconds=0, timeout_seconds=1, failures=2))
-    beat = Service("beat", ["sleep", "30"], tmp_path, environ, tmp_path / "beat.log", health=HealthCheck(file=str(tmp_path / "beat.fresh"), fresh_seconds=1, grace_seconds=0, every_seconds=0, failures=1))
+    web = Service("web", ["sleep", "30"], tmp_path, environ, tmp_path / "web.log", health=HealthCheck(url=f"http://127.0.0.1:{stand_in.server_address[1]}/health", grace_seconds=0, interval_seconds=0, timeout_seconds=1, failures=2))
+    beat = Service("beat", ["sleep", "30"], tmp_path, environ, tmp_path / "beat.log", health=HealthCheck(file=str(tmp_path / "beat.fresh"), max_age_seconds=1, grace_seconds=0, interval_seconds=0, failures=1))
     faults = tmp_path / "supervisor.log"
     supervisor = Supervisor(Terminal(["true"], str(tmp_path), environ), Inbox(tmp_path / "s.sock", tmp_path / "announce"), Services(web, beat), stdin=None, faults=faults)
     web.start(), beat.start()

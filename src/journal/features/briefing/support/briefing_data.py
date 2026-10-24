@@ -16,4 +16,4 @@ class BriefingData:
     team_history: str
     interrupted_runs: str = ""
     launch_folder: str = ""
-    is_launch_folder_gone: bool = False
+    is_launch_folder_missing: bool = False

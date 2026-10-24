@@ -12,8 +12,8 @@ class ServiceRecord:
         self.path = path
         self._written: dict[str, list[str]] = {}
 
-    def write(self, running: dict[int, list[str]]) -> None:
-        listed = {str(pid): command for pid, command in running.items()}
+    def write(self, processes: dict[int, list[str]]) -> None:
+        listed = {str(pid): command for pid, command in processes.items()}
         if listed == self._written or self.path == Path(os.devnull):
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)

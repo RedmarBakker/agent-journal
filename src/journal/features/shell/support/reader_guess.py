@@ -41,9 +41,9 @@ class ReaderGuess:
         progress = PERCENT_PROGRESS if any(PERCENT_PATTERN.search(line) for line in lines) else COUNT_PROGRESS if any(COUNT_PATTERN.search(line) for line in lines) else ""
         summary = f"(?i:{SUMMARY_PATTERN.pattern})" if any(SUMMARY_PATTERN.search(line) for line in lines) else ""
         failures = f"(?i:{FAILURE_PATTERN.pattern})" if any(FAILURE_PATTERN.search(line) for line in lines) else ""
-        picked = [pattern for pattern in (failures, summary) if pattern]
-        if not picked:
+        patterns = [pattern for pattern in (failures, summary) if pattern]
+        if not patterns:
             return None
-        about = " and ".join(word for word, found in (("progress", progress), ("failure lines", failures), ("summary", summary)) if found)
-        return Reader(re.sub(r"[^a-z0-9]+", "-", f"{name} output".lower()).strip("-"), f"the {about} of {name} runs, written from a run's own output", "|".join(f"(?:{pattern})" for pattern in picked),
+        subject = " and ".join(word for word, found in (("progress", progress), ("failure lines", failures), ("summary", summary)) if found)
+        return Reader(re.sub(r"[^a-z0-9]+", "-", f"{name} output".lower()).strip("-"), f"the {subject} of {name} runs, written from a run's own output", "|".join(f"(?:{pattern})" for pattern in patterns),
                       progress_pattern=progress, commands=ReaderCommands((name,)), finished_pattern=summary, failed_pattern=failures)

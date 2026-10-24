@@ -11,4 +11,4 @@ class ClientErrorsConduct(Conduct):
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         errors = event.data.part(ClientErrorsPart)
-        return self.none(ClientErrorsNudges.UNHANDLED.create(errors=ClientErrorsNudges.errors(errors.count))) if errors.count and not errors.is_told else self.none()
+        return self.none(ClientErrorsNudges.UNHANDLED.create(errors=ClientErrorsNudges.errors(errors.count))) if errors.count and not errors.is_reported else self.none()

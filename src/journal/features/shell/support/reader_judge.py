@@ -19,8 +19,8 @@ QUOTED_LINES = 3
 COUNT_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
 PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]|\b(\d+)%")
 SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
-NO_PROGRESS = "its card showed no progress"
-NO_SUMMARY = "the card ended with no line of its own"
+PROGRESS_MISSING = "its card showed no progress"
+SUMMARY_MISSING = "the card ended with no line of its own"
 
 
 class ReaderJudge:
@@ -51,21 +51,21 @@ class ReaderJudge:
         seconds = (ended_at - output.creation_time).total_seconds()
         if seconds < PROGRESS_SECONDS or reader.progress(lines).is_known():
             return []
-        return [(f"the run took {seconds:.0f} seconds and {NO_PROGRESS}", self.progress_fix(output.command, lines))]
+        return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(output.command, lines))]
 
     def missing_summary(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         if reader.variant(output.stage()).card_lines(lines) or not lines:
             return []
-        return [(f"{NO_SUMMARY}; the run's last line was \"{lines[-1][:120]}\"", "give the reader a --finished and a --failed pattern for the summary line, or make the run print one")]
+        return [(f"{SUMMARY_MISSING}; the run's last line was \"{lines[-1][:120]}\"", "give the reader a --finished and a --failed pattern for the summary line, or make the run print one")]
 
     def tried(self, reader: Reader, lines: list[str]) -> list[str]:
         """What a reader misses of a run's lines: it picks none, it shows no progress the run printed, or it does not end on the summary the run printed; each with the lines it should have matched."""
         misses = []
         if lines and not any(reader.variant(stage).card_lines(lines) for stage in (ACTIVE, FINISHED, FAILED)):
             misses.append(f"it picks no line of the run, whose last lines were {self.quoted(lines[-QUOTED_LINES:])}")
-        printed = [line for line in lines if PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line)]
-        if printed and not reader.progress(lines).is_known():
-            misses.append(f"it shows no progress, though the run printed {self.quoted(printed[-QUOTED_LINES:])}: {self.progress_fix('', lines)}")
+        progress_lines = [line for line in lines if PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line)]
+        if progress_lines and not reader.progress(lines).is_known():
+            misses.append(f"it shows no progress, though the run printed {self.quoted(progress_lines[-QUOTED_LINES:])}: {self.progress_fix('', lines)}")
         summary = next((line for line in reversed(lines) if SUMMARY_PATTERN.search(line)), "")
         if summary and summary not in reader.variant(FINISHED).card_lines(lines):
             misses.append(f"it does not end on a line of its own, though the run printed the summary {self.quoted([summary])}: give it a --finished pattern that picks it")
@@ -75,7 +75,7 @@ class ReaderJudge:
     def quoted(lines: list[str]) -> str:
         return "; ".join(f'"{line[:120]}"' for line in lines)
 
-    def borne_out(self, report: ReaderReport) -> list[str]:
+    def run_findings(self, report: ReaderReport) -> list[str]:
         """What the report's findings say the card missed that the run's own output printed, each with the fix, while the reader still misses it."""
         stored = self.outputs.matching(id=report.output)
         reader = self.readers.named(report.reader)
@@ -84,13 +84,13 @@ class ReaderJudge:
         output = stored[0]
         files = OutputFiles(Path(output.folder))
         lines = files.lines()
-        printed = []
-        if any(NO_PROGRESS in finding for finding in report.findings) and not reader.progress(lines).is_known() and any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines):
-            printed.append(self.progress_fix(output.command, lines))
+        fixes = []
+        if any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines):
+            fixes.append(self.progress_fix(output.command, lines))
         summary = next((line for line in lines if SUMMARY_PATTERN.search(line)), "")
-        if any(NO_SUMMARY in finding for finding in report.findings) and summary and not reader.variant(output.stage()).card_lines(lines):
-            printed.append(f"the run printed a summary, \"{summary[:120]}\": give the reader a --finished pattern that picks it, such as '{re.escape(summary.split()[0]) if summary.split() else summary}'")
-        return printed
+        if any(SUMMARY_MISSING in finding for finding in report.findings) and summary and not reader.variant(output.stage()).card_lines(lines):
+            fixes.append(f"the run printed a summary, \"{summary[:120]}\": give the reader a --finished pattern that picks it, such as '{re.escape(summary.split()[0]) if summary.split() else summary}'")
+        return fixes
 
     @staticmethod
     def progress_fix(command: str, lines: list[str]) -> str:

@@ -4205,7 +4205,7 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_every_five
     assert len(tick(10 + 700)) == 2, "once it is fixed it is named no more"
     plugins.save(plugins.lookup("lint").with_(enabled=False), Actor.system())
     assert len(tick(10 + 1100)) == 3 and "nobody switched it off" in keystrokes[-1], "off without the user switching it off is named too"
-    plugins.save(plugins.lookup("lint").with_(enabled=False, off_on_purpose=True), Actor.user(1))
+    plugins.save(plugins.lookup("lint").with_(enabled=False, is_user_disabled=True), Actor.user(1))
     assert len(tick(10 + 1500)) == 3, "switched off on purpose it is named no more"
 
 
@@ -4238,12 +4238,12 @@ def test_a_plugin_whose_new_version_names_a_newer_journal_is_held_at_its_install
     plugins.save(Plugin(name="held", source=str(folder), linked=True, manifest=PluginManifest.parsed(manifest)), Actor.user(1))
     (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": "2", "journal": "99.0.0"}))
     kept = installing.upgrade("held", None, "main", Actor.user(1))
-    assert kept.manifest.version == "1" and plugins.lookup("held").manifest.version == "1" and plugins.lookup("held").waits_for == "99.0.0", "the installed version stays and the row says which journal it waits for"
+    assert kept.manifest.version == "1" and plugins.lookup("held").manifest.version == "1" and plugins.lookup("held").wait_target == "99.0.0", "the installed version stays and the row says which journal it waits for"
     with pytest.raises(Rejection):
         installing.upgrade_preview("held", None)
     assert "waits for journal 99.0.0" in app.console().run(["plugin", "list"], USER).text, "journal plugin list says it"
     (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": "3", "journal": VERSION}))
-    assert installing.upgrade("held", None, "main", Actor.user(1)).manifest.version == "3" and plugins.lookup("held").waits_for == "", "a version this journal runs is taken and the wait ends"
+    assert installing.upgrade("held", None, "main", Actor.user(1)).manifest.version == "3" and plugins.lookup("held").wait_target == "", "a version this journal runs is taken and the wait ends"
 
 
 def test_a_plugin_is_a_row_and_writes_as_itself(app: App):

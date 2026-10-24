@@ -30,6 +30,6 @@ class BriefingDataReader:
             "team_history": lambda: self.start.team_history(facts.environment_row),
             "interrupted_runs": self.start.interrupted_runs,
             "launch_folder": lambda: self.launches.folder(facts.environment),
-            "is_launch_folder_gone": lambda: bool(facts.launch_folder) and not Path(facts.launch_folder).is_dir(),
+            "is_launch_folder_missing": lambda: bool(facts.launch_folder) and not Path(facts.launch_folder).is_dir(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

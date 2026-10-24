@@ -3,7 +3,7 @@ import subprocess
 from journal.config import Config
 
 GIT_SECONDS = 60
-ASKED_WRONG = 128
+GIT_USAGE_ERROR = 128
 
 
 class CommitAncestry:
@@ -16,7 +16,7 @@ class CommitAncestry:
         if not installed:
             return True
         code = self.ancestor_code(installed, head)
-        if code == ASKED_WRONG:
+        if code == GIT_USAGE_ERROR:
             subprocess.run(["git", "fetch", "--quiet", repository, branch], cwd=self.config.root, capture_output=True, timeout=GIT_SECONDS)
             code = self.ancestor_code(installed, head)
         return code == 0

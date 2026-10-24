@@ -90,14 +90,14 @@ class Screen:
     @staticmethod
     def fitted(line: str) -> str:
         """A line cut to the terminal's width, its colour codes kept, so it never wraps and a redraw moves up exactly the rows it drew."""
-        room, kept, shown = shutil.get_terminal_size().columns - 1, [], 0
+        room, output_parts, shown = shutil.get_terminal_size().columns - 1, [], 0
         for part in re.split(r"(\x1b\[[0-9;]*m)", line):
             if part.startswith("\x1b["):
-                kept.append(part)
+                output_parts.append(part)
                 continue
-            kept.append(part[:max(room - shown, 0)])
+            output_parts.append(part[:max(room - shown, 0)])
             shown += len(part)
-        return "".join(kept) + ("\x1b[0m" if shown > room else "")
+        return "".join(output_parts) + ("\x1b[0m" if shown > room else "")
 
     def _pick_with_keys(self, heading: str, notes: list[str], options: list[Option], time: int, actions: tuple[str, ...]) -> tuple[int, str]:
         fd = sys.stdin.fileno()
@@ -126,7 +126,7 @@ class Screen:
                         return time, key
                     if key == Keys.ESCAPE:
                         self.leave(0)
-                    if key in Keys.BACK:
+                    if key in Keys.RETURN:
                         raise MenuBack()
                     time = self._moved(time, key, len(options))
         except KeyboardInterrupt:

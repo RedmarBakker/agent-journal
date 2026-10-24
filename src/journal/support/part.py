@@ -180,5 +180,5 @@ class Part:
         cut = self.cut()
         if not cut:
             return self
-        at = self.text.rindex(cut)
-        return replace(self, text=self.text[:at].rstrip() + self.text[at + len(cut):].strip())
+        position = self.text.rindex(cut)
+        return replace(self, text=self.text[:position].rstrip() + self.text[position + len(cut):].strip())

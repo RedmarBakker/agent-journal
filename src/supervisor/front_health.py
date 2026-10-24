@@ -15,5 +15,5 @@ class FrontHealth:
     def is_dead(self, output_at: float, started_at: float) -> bool:
         moment = time.time()
         path = Path(self.file)
-        written_at = max(path.stat().st_mtime if path.is_file() else 0.0, started_at)
-        return moment - output_at <= self.output_seconds and moment - written_at > self.stale_seconds
+        modified_at = max(path.stat().st_mtime if path.is_file() else 0.0, started_at)
+        return moment - output_at <= self.output_seconds and moment - modified_at > self.stale_seconds

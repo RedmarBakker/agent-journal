@@ -6,8 +6,8 @@ from journal.support.command_shape import CommandShape
 
 COMMANDS_PREFIX = "commands: "
 # a part whose standard output goes to a file, or that only asks the program its version or its help, shows no run of it on a card
-OUTPUT_TO_FILE = re.compile(r"(?:^|\s)[1&]?>>?\s*\S+")
-NO_RUN_FLAGS = ("--version", "--help", "-h", "-V")
+FILE_REDIRECT = re.compile(r"(?:^|\s)[1&]?>>?\s*\S+")
+HELP_FLAGS = ("--version", "--help", "-h", "-V")
 
 
 @dataclass(frozen=True)
@@ -34,4 +34,4 @@ class ReaderCommands:
 
     def is_shown_run(self, line: str) -> bool:
         part = self.read_part(line)
-        return bool(part) and not OUTPUT_TO_FILE.search(part) and not any(flag in part.split() for flag in NO_RUN_FLAGS)
+        return bool(part) and not FILE_REDIRECT.search(part) and not any(flag in part.split() for flag in HELP_FLAGS)

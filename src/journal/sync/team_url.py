@@ -15,8 +15,8 @@ class TeamUrl:
 
     @classmethod
     def parse(cls, text: str) -> "TeamUrl":
-        written = text.strip().rstrip(".,;")
-        parts = urlsplit(written if "://" in written else f"https://{written}")
+        cleaned = text.strip().rstrip(".,;")
+        parts = urlsplit(cleaned if "://" in cleaned else f"https://{cleaned}")
         query = parse_qs(parts.query)
         return cls(f"{parts.scheme}://{parts.netloc.rstrip('.')}", query.get("code", [""])[0], query.get("fingerprint", [""])[0])
 

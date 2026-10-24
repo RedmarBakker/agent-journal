@@ -25,7 +25,7 @@ class PluginsFeature(Feature[PluginsData]):
     name = PluginsPart.name
     title = "Plugins"
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
-    options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.HOLD_LOOP_LIMIT, PluginsOptions.HOLD_PAUSE)
+    options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)
     process_cards = (PluginProcessCard,)
     listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade, PluginBrokenNotice)
     data = (PluginsDataReader,)

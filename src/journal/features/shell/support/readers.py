@@ -100,6 +100,6 @@ class Readers:
     # a reader written as one kind replaces one of the other kind by its name
     def written(self, name: str, suffix: str, text: str) -> None:
         self.config.readers.mkdir(parents=True, exist_ok=True)
-        for other in KINDS:
-            (self.config.readers / f"{name}{other}").unlink(missing_ok=True)
+        for kind in KINDS:
+            (self.config.readers / f"{name}{kind}").unlink(missing_ok=True)
         (self.config.readers / f"{name}{suffix}").write_text(text)

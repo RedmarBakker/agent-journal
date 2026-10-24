@@ -69,9 +69,9 @@ class ReaderCommand(Command):
         if args.script:
             self.readers.add_script(reader.revised(pattern=""), args.script.read_text())
         else:
-            kept = reader.revised(pattern=args.pattern)
-            self.tried(kept)
-            self.readers.add(kept)
+            revised = reader.revised(pattern=args.pattern)
+            self.tried(revised)
+            self.readers.add(revised)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
         return 0
@@ -88,11 +88,11 @@ class ReaderCommand(Command):
         return 0
 
     def dismiss(self, args: Namespace, caller: Caller) -> int:
-        found = self.reports.find(args.n)
-        printed = self.judge.borne_out(found)
-        if printed:
-            raise Rejection(f"reader report {found.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {found.reader} ...: {'; '.join(printed)}")
-        report = self.reports.save(found.dismissed(args.why), caller.actor)
+        target_report = self.reports.find(args.n)
+        findings = self.judge.run_findings(target_report)
+        if findings:
+            raise Rejection(f"reader report {target_report.id} is borne out by the run's own output and cannot be dismissed: write the reader anew with journal reader add {target_report.reader} ...: {'; '.join(findings)}")
+        report = self.reports.save(target_report.dismissed(args.why), caller.actor)
         print(f"reader report {report.id} dismissed: {args.why}")
         return 0
 

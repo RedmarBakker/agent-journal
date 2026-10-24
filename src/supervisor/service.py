@@ -45,7 +45,7 @@ class Service:
     # the line that says why the service was started again when it failed its health check too many times in a row, else none
     def health_restart(self) -> str:
         moment = time.time()
-        if self.health is None or not self.is_active() or moment - self._last_start < self.health.grace_seconds or moment - self._checked_at < self.health.every_seconds:
+        if self.health is None or not self.is_active() or moment - self._last_start < self.health.grace_seconds or moment - self._checked_at < self.health.interval_seconds:
             return ""
         self._checked_at = moment
         fault = self.health.fault()

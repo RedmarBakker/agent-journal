@@ -668,7 +668,7 @@ def test_a_supervisor_started_again_ends_the_services_a_supervisor_killed_outrig
 
 def test_the_left_arrow_in_the_boot_menu_asks_the_question_before_again(tmp_path: Path):
     from journal.launcher.support.keys import Keys
-    left, enter, down = Keys.BACK[0], Keys.ENTER[0], Keys.DOWN[0]
+    left, enter, down = Keys.RETURN[0], Keys.ENTER[0], Keys.DOWN[0]
     printed = io.StringIO()
     # main, then left at "carry on" back to the environments, main again, no carry on, prompts skipped, hooks kept; left on the first question stays on it
     screen = Screen(printed, PressedKeys(left, enter, left, enter, down, enter, enter, enter, enter, enter))
@@ -713,11 +713,11 @@ def test_a_health_url_must_answer_200_in_time_a_health_file_must_be_fresh_and_th
         server.shutdown()
     assert "did not answer" in HealthCheck(url=f"http://127.0.0.1:{port}/well", timeout_seconds=1).fault(), "a URL nothing answers is not well"
     beat = tmp_path / "beat"
-    assert "never written" in HealthCheck(file=str(beat), fresh_seconds=5).fault()
+    assert "never written" in HealthCheck(file=str(beat), max_age_seconds=5).fault()
     beat.write_text("1")
-    assert HealthCheck(file=str(beat), fresh_seconds=5).fault() == "", "a file written within its seconds is well"
+    assert HealthCheck(file=str(beat), max_age_seconds=5).fault() == "", "a file written within its seconds is well"
     os.utime(beat, (timing.time() - 60, timing.time() - 60))
-    assert "last written 60 seconds ago" in HealthCheck(file=str(beat), fresh_seconds=5).fault(), "and one older is not"
+    assert "last written 60 seconds ago" in HealthCheck(file=str(beat), max_age_seconds=5).fault(), "and one older is not"
     hooks = FrontHealth(str(beat), 30.0, "warned")
     assert hooks.is_dead(timing.time(), timing.time() - 120), "an agent whose output moves while its hooks file stands still past the limit has dead hooks"
     assert not hooks.is_dead(timing.time() - 120, timing.time() - 120), "one whose output stands still too is only idle"

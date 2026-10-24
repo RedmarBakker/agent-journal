@@ -1993,7 +1993,7 @@ def test_a_session_in_another_folder_than_its_launch_or_whose_folder_is_gone_is_
     assert "this session runs in /projects/app/.claude/worktrees/development, but development was launched in /projects/app" in lines(elsewhere) and "start development again from /projects/app with `journal`" in lines(elsewhere), "a session in another folder is told, with the commands"
     at_home = Ready().respond(SessionStarted(source="startup", folder="/projects/app/").with_data(briefing()), SettingsValue({}), (BriefingConduct,))
     assert "this session runs in" not in lines(at_home), "the launch's own folder is no warning"
-    gone = Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing(is_launch_folder_gone=True)), SettingsValue({"tasks.auto": False}), (BriefingConduct,))
+    gone = Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing(is_launch_folder_missing=True)), SettingsValue({"tasks.auto": False}), (BriefingConduct,))
     assert "the folder development was launched in, /projects/app, is gone" in lines(gone) and "`journal message unread`" in lines(gone), "a folder gone is told on the tick, since the session's hooks no longer run"
     assert not Ready().respond(Ticked(silence_seconds=5.0, time=100.0).with_data(briefing()), SettingsValue({"tasks.auto": False}), (BriefingConduct,)).nudges, "a folder still there is no warning"
 

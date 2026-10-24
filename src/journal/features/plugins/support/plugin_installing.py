@@ -117,7 +117,7 @@ class PluginInstalling:
         with self.staged(plugin.source, ref) as (folder, commit):
             if self.waiting(plugin, folder):
                 return self.plugins.lookup(name)
-            upgraded = plugin.with_(manifest=self.same(plugin, self.reader.read(folder)), commit_sha=commit, release="" if plugin.linked else self.tag(folder), waiting="", waits_for="")
+            upgraded = plugin.with_(manifest=self.same(plugin, self.reader.read(folder)), commit_sha=commit, release="" if plugin.linked else self.tag(folder), waiting="", wait_target="")
             self.services.stop(plugin)
             if not plugin.linked:
                 self.replaced(plugin, upgraded, folder, environment)
@@ -135,7 +135,7 @@ class PluginInstalling:
         least = self.reader.least_journal(folder)
         if self.reader.is_fitting(least):
             return False
-        self.plugins.save(self.plugins.lookup(plugin.name).with_(waits_for=least), Actor.system())
+        self.plugins.save(self.plugins.lookup(plugin.name).with_(wait_target=least), Actor.system())
         return True
 
     def replaced(self, plugin: Plugin, upgraded: Plugin, folder: Path, environment: str) -> None:
@@ -160,13 +160,13 @@ class PluginInstalling:
         plugin = self.plugins.lookup(name)
         self.skills.publish(plugin)
         self.services.start(plugin)
-        return self.plugins.save(plugin.with_(enabled=True, off_on_purpose=False, hashes=self.hashes.digest(self.folders.folder(plugin), plugin.manifest)), actor)
+        return self.plugins.save(plugin.with_(enabled=True, is_user_disabled=False, hashes=self.hashes.digest(self.folders.folder(plugin), plugin.manifest)), actor)
 
     def disable(self, name: str, actor: Actor) -> Plugin:
         plugin = self.plugins.lookup(name)
         self.skills.withdraw(plugin)
         self.services.stop(plugin)
-        return self.plugins.save(plugin.with_(enabled=False, off_on_purpose=True), actor)
+        return self.plugins.save(plugin.with_(enabled=False, is_user_disabled=True), actor)
 
     def remove(self, name: str, actor: Actor) -> None:
         plugin = self.plugins.lookup(name)

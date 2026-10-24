@@ -7,7 +7,7 @@ from journal.repositories.command_outputs import CommandOutputs
 
 # the last lines of the run's output a verifier is handed: every line a reader report's findings rest on, never a whole log
 OUTPUT_LINES = 400
-NO_OUTPUT = "(the run's output is not kept)"
+MISSING_OUTPUT = "(the run's output is not kept)"
 
 
 class DismissalEvidence:
@@ -31,4 +31,4 @@ class DismissalEvidence:
     def output_text(self, report: ReaderReport) -> str:
         stored = self.outputs.matching(id=report.output)
         files = OutputFiles(Path(stored[0].folder)) if stored else None
-        return "\n".join(files.lines()[-OUTPUT_LINES:]) if files and files.is_stored() else NO_OUTPUT
+        return "\n".join(files.lines()[-OUTPUT_LINES:]) if files and files.is_stored() else MISSING_OUTPUT
