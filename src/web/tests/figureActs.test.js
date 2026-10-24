@@ -42,11 +42,11 @@ const cooldownOf = (moment) => played(moment)[0].cooldown;
 const {beatsAfter, sayingsAfter, withSystemCards} = await import("../src/domain/figureState.js");
 
 const JOURNAL = {
-    task_finished: ["nod", "joy"],
+    task_finished: ["nod", "hand_rub"],
     question_asked: ["ask_sign"],
     reported: ["scroll"],
     fact_filed: ["file_card"],
-    check_passed: ["joy"],
+    check_passed: ["nod"],
 };
 
 const at = (seconds) => new Date(seconds * 1000).toISOString();

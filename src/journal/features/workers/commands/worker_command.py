@@ -252,7 +252,7 @@ class WorkerCommand(Command):
         worker = self.workers.find(args.n)
         waiting = self.tasks.queue(Ref.build(worker))
         self.tasks.unqueued(Ref.build(worker), caller.actor)
-        print(f"worker {worker.id} {worker.name}: {', '.join(f'task {task.id}' for task in waiting) or 'nothing'} given back, open again")
+        print(f"worker {worker.id} {worker.name}: {', '.join(f'task {task.id}' for task in waiting)} given back, open again" if waiting else f"worker {worker.id} {worker.name} had nothing queued")
         return 0
 
     def release(self, args: Namespace, caller: Caller) -> int:

@@ -26,10 +26,10 @@ const {EVERY_VOICE_FACES, PILE, VOICE_FACES} = await import("../src/figure/pile.
 // the pile's entries of a moment
 const of = (moment) => PILE.filter((entry) => entry.when.moment === moment);
 
-test("a test run that passed turns the figure to its card and celebrates, a jump for joy or a party horn, and one that failed gives it a startled hop", () => {
+test("a test run that passed turns the figure to its card and nods, the jump for joy being kept for an anticipated run's end, and one that failed gives it a startled hop", () => {
     const passed = of("tests_passed").filter((entry) => entry.kind === "clip" && !entry.shenanigan);
     expect(passed.every((entry) => entry.toward === "card" && entry.onto)).toBe(true);
-    expect(passed.map((entry) => entry.name)).toEqual(["joy"]);
+    expect(passed.map((entry) => entry.name)).toEqual(["nod"]);
     // the start at a failure, and the dismay that came before it, restored beside it (task 2652)
     expect(of("tests_failed").filter((entry) => entry.kind === "clip").map((entry) => [entry.name, entry.toward])).toEqual([["startled", "card"], ["dismay", "card"]]);
 });
@@ -37,9 +37,9 @@ test("a test run that passed turns the figure to its card and celebrates, a jump
 test("a reaction fires only when its roll wins, and not again before its cooldown is over", () => {
     const memory = new Map();
     expect(reactionTo("tests_passed", memory, 100, () => 0.99)).toBe(null);
-    expect(reactionTo("tests_passed", memory, 100, () => 0).clip).toBe("joy");
+    expect(reactionTo("tests_passed", memory, 100, () => 0).clip).toBe("nod");
     expect(reactionTo("tests_passed", memory, 105, () => 0)).toBe(null);
-    expect(reactionTo("tests_passed", memory, 125, () => 0).clip).toBe("joy");
+    expect(reactionTo("tests_passed", memory, 125, () => 0).clip).toBe("nod");
     expect(reactionTo("a moment nobody reacts to", memory, 200, () => 0)).toBe(null);
 });
 
@@ -222,9 +222,9 @@ test("a moment is answered by its egg first, else by its reaction, a beat for th
     const has = () => true;
     expect(answerTo({beat: "failed", time: 1}, "squire", memory(), 0, () => 0, has)).toEqual({beat: {clip: "squire_chase", card: ""}});
     expect(answerTo({beat: "reacted:\u2764\ufe0f", time: 1}, "butler", memory(), 0, () => 0, has)).toEqual({look: "hearts"});
-    // a passed run is celebrated on its own card: the figure goes onto it first
+    // a passed run is answered on its own card: the figure goes onto it first
     expect(answerTo({beat: "tests_passed", time: 1, card: "tests:1"}, "butler", memory(), 0, () => 0, has)).toEqual({
-        beat: {clip: "joy", card: "tests:1", mark: "tests:1", onto: true},
+        beat: {clip: "nod", card: "tests:1", mark: "tests:1", onto: true},
     });
     // with no clip to play, a pass is answered by nothing, as is any moment of clips alone
     expect(answerTo({beat: "tests_passed", time: 1}, "butler", memory(), 0, () => 0, () => false)).toBe(null);
