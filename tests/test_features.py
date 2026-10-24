@@ -6702,7 +6702,8 @@ def test_a_worktree_whose_environment_is_gone_is_listed_and_the_hosted_journal_r
     status, removed = posted(app, "/journal/worktrees/calm-river/removal", {}, {"X-Journal-Env": "main"})
     assert status == 200 and "removed the worktree" in removed["line"] and not (root / ".claude" / "worktrees" / "calm-river").exists(), "and removes it through the same checks"
     monkeypatch.setattr(Hosting, "is_hosted", lambda self: True)
-    assert got(app, "/journal/worktrees", {"X-Journal-Env": "main"})[1]["worktrees"] == [], "the hosted journal lists none"
+    from journal.http.controllers.worktrees import WorktreeController
+    assert app.container.get(WorktreeController).index(None).body["worktrees"] == [], "the hosted journal lists none"
     assert "hosted journal has no checkout" in console.run(["worktree", "remove", "quiet-heron"], USER).error, "and refuses to remove one with a plain line"
 
 
