@@ -5,6 +5,9 @@ from journal.support.timeout import Timeout
 class TasksNudges:
     """The nudges of the tasks feature."""
 
+    TASK_POINTS_CHANGED = Nudge("tasks", "task_points_changed", "task {{n}} changed: point {{points}} of its brief rewritten", "read it again with `journal task show {{n}}`, and prove a rewritten point again if you proved it", repeat=Timeout.seconds(0))
+    TASK_CHANGED = Nudge("tasks", "task_changed", "task {{n}} changed", "read it again with `journal task show {{n}}`", repeat=Timeout.seconds(0))
+
     TASK_CONTINUATION = Nudge("tasks", "carry_on", "{{name}} is in hand, {{logged}}: carry on", repeat=Timeout.seconds(0))
     STOP_LOG_REQUEST = Nudge("tasks", "log_first_at_stop", "{{name}}, {{logged}}: log where it stands first", "{{log_command}} \"<where it stands>\"", repeat=Timeout.seconds(0))
     OPEN_TASK = Nudge("tasks", "task_still_open", "{{name}} is still open: log where it stands or finish it", repeat=Timeout.seconds(900))

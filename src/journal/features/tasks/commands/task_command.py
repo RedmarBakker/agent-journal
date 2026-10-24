@@ -82,13 +82,13 @@ class TaskCommand(Command):
 
     def create(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(Task(title=args.title, brief=args.brief, priority=TaskPriority.parsed(args.priority)), caller.actor)
-        self.linked_from(args.message, task, caller)
+        self.message_link(args.message, task, caller)
         if args.start:
             task = self.taking.start(task, caller)
         print(f"task {task.id} {task.state}" + (f" (from message {args.message})" if args.message else ""))
         return 0
 
-    def linked_from(self, message: int, task: Task, caller: Caller) -> None:
+    def message_link(self, message: int, task: Task, caller: Caller) -> None:
         if message:
             self.links.save(Link(source=Ref.build(self.messages.find(message)), target=Ref.build(task), kind=Messages.SUBJECT_LINK), caller.actor)
 
@@ -96,15 +96,15 @@ class TaskCommand(Command):
         return self.claimed_task(args.n, caller, "started")
 
     def rename(self, args: Namespace, caller: Caller) -> int:
-        before = self.tasks.find(args.n)
-        task = self.tasks.save(before.with_(title=args.title), caller.actor)
-        print("\n".join(filter(None, [f"task {task.id} is now: {task.title}", self.reminder.line(before)])))
+        old_task = self.tasks.find(args.n)
+        task = self.tasks.save(old_task.edited(args.title, old_task.brief, self.clock.time()), caller.actor)
+        print("\n".join(filter(None, [f"task {task.id} is now: {task.title}", self.reminder.line(old_task)])))
         return 0
 
     def brief(self, args: Namespace, caller: Caller) -> int:
-        before = self.tasks.find(args.n)
-        task = self.tasks.save(before.briefed(args.brief, self.clock.time()), caller.actor)
-        print("\n".join(filter(None, [f"task {task.id} brief written anew", self.reminder.line(before)])))
+        old_task = self.tasks.find(args.n)
+        task = self.tasks.save(old_task.edited(old_task.title, args.brief, self.clock.time()), caller.actor)
+        print("\n".join(filter(None, [f"task {task.id} brief written anew", self.reminder.line(old_task)])))
         return 0
 
     def edit(self, args: Namespace, caller: Caller) -> int:
@@ -113,17 +113,16 @@ class TaskCommand(Command):
         if not args.title and not args.brief and not args.priority:
             raise Rejection("name what changes: --title \"<title>\", --brief \"<the whole brief>\", --priority <level>, --from <message>, or several")
         task = self.tasks.find(args.n)
-        retitled = task.with_(title=args.title) if args.title else task
-        ranked = retitled.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else retitled
-        saved = self.tasks.save(ranked.briefed(args.brief, self.clock.time()) if args.brief else ranked, caller.actor)
-        self.linked_from(args.message, saved, caller)
-        written = f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
-        print("\n".join(filter(None, [written + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
+        priority_task = task.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else task
+        new_task = self.tasks.save(priority_task.edited(args.title or task.title, args.brief or task.brief, self.clock.time()), caller.actor)
+        self.message_link(args.message, new_task, caller)
+        summary = f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
+        print("\n".join(filter(None, [summary + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
         return 0
 
     def message_linked(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.find(args.n)
-        self.linked_from(args.message, task, caller)
+        self.message_link(args.message, task, caller)
         print(f"message {args.message} linked to task {task.id}")
         return 0
 

@@ -4,7 +4,6 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.command_ended import CommandEnded
 from journal.events.agent.stop import Stop
 from journal.events.agent.tool_starting import ToolStarting
-from journal.events.rows.task_briefed import TaskBriefed
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_ready import WorkerReady
@@ -39,11 +38,6 @@ class ClockConduct(Conduct):
         if event.task_id not in event.data.part(TasksPart).agent_tasks or event.outcome not in RELEASING:
             return self.none()
         return self.pop(WorkersNudges.USER_CLOSURE.create(task=event.task_id))
-
-    def on_task_briefed(self, event: TaskBriefed, settings: Settings) -> Transition:
-        if event.task_id not in event.data.part(TasksPart).agent_tasks or not event.points:
-            return self.none()
-        return self.none(WorkersNudges.BRIEF_CHANGED.create(task=event.task_id, points=", ".join(map(str, event.points))))
 
     def on_worker_ready(self, event: WorkerReady, settings: Settings) -> Transition:
         holdings = event.data.part(TasksPart).agent_tasks

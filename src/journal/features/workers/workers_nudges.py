@@ -7,7 +7,6 @@ class WorkersNudges:
     OUTPUT_UNFINISHED = Nudge("workers", "own_output_running", "your output {{n}} still runs, and your run ends when you stop", "wait for it, then stop again", repeat=Timeout.seconds(0))
     OUTPUT_END = Nudge("workers", "own_output_ended", "output {{n}} ended with code {{status}}", "read it with journal output read {{n}} --summary", repeat=Timeout.seconds(0))
     USER_CLOSURE = Nudge("workers", "task_closed_by_user", "the user closed your task {{task}}", "stop now", repeat=Timeout.seconds(0))
-    BRIEF_CHANGED = Nudge("workers", "brief_changed", "the user rewrote point {{points}} of task {{task}}'s brief", "read it again with journal task show {{task}} and prove those points again", repeat=Timeout.seconds(0))
     OPEN_TODOS = Nudge("workers", "open_todos", "your to-do list has {{count}} open items: {{items}}", "finish them, or say why with journal clock-out", repeat=Timeout.seconds(0))
     WORK_READY = Nudge("workers", "work_ready", "worker {{n}}, {{name}}, clocked out: task {{task}} is ready to check", "journal task show {{task}}, then journal worker check {{n}} <point>, or --short \"<what is missing>\"", repeat=Timeout.seconds(0))
     CHECK_REMINDER = Nudge("workers", "check_reminder", "worker {{n}}, {{name}}: task {{task}} still waits to be checked", "journal task show {{task}}, then journal worker check {{n}} <point>, or --short \"<what is missing>\"", repeat=Timeout.seconds(180))

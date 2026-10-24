@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import ClassVar
 
 from journal.events.rows.row_resolved import RowResolved
-from journal.events.rows.task_briefed import TaskBriefed
+from journal.events.rows.task_edited import TaskEdited
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_opened import TaskOpened
 from journal.events.rows.task_reopened import TaskReopened
@@ -69,10 +69,13 @@ class Task(Scoped):
             return ()
         return tuple(text.strip().rstrip(";").strip() for text in texts)
 
-    def briefed(self, brief: str, time: float) -> "Task":
-        rewritten = self.with_(brief=brief)
-        changes = tuple(n for n, point in enumerate(rewritten.points(), start=1) if n > len(self.points()) or self.points()[n - 1] != point)
-        return rewritten.with_event(TaskBriefed(environment_id=self.environment_id, time=time, task_id=self.row_id, points=changes))
+    def edited(self, title: str, brief: str, time: float) -> "Task":
+        rewritten = self.with_(title=title, brief=brief)
+        changes = tuple(name for name, old_value, new_value in (("title", self.title, title), ("brief", self.brief, brief)) if old_value != new_value)
+        if not changes:
+            return rewritten
+        points = tuple(n for n, point in enumerate(rewritten.points(), start=1) if n > len(self.points()) or self.points()[n - 1] != point)
+        return rewritten.with_event(TaskEdited(environment_id=self.environment_id, time=time, task_id=self.row_id, changes=changes, points=points))
 
     def started(self, time: datetime) -> "Task":
         return self.plan_started(time, 0)

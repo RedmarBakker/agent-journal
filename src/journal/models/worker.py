@@ -59,6 +59,7 @@ class Worker(Scoped):
     branch: str = ""
     pool_request: int = 0
     base: str = ""
+    edited_task: int = 0
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session

@@ -737,7 +737,7 @@ def test_the_users_edits_and_closes_of_a_workers_task_reach_the_worker(app: App)
     app.runtime().deferred.drain()
     with scope.environment(1):
         assert [(p.point, p.state) for p in proofs.task_proofs(tasks.find(task.id))] == [(1, "shown"), (2, "stale")], "a rewritten point's proof goes stale"
-        assert "the user rewrote point 2 of task" in " ".join(agents.session_agent("w1").queued_lines), "and the worker is told which points changed"
+        assert f"task {task.id} changed: point 2 of its brief rewritten" in " ".join(agents.session_agent("w1").queued_lines), "and the worker is told which points changed"
     controller = app.container.get(TaskController)
     with scope.environment(1):
         tasks.save(tasks.find(task.id).cancelled(datetime.now(timezone.utc), "no longer wanted"), Actor.user(1))
@@ -1934,3 +1934,40 @@ def test_five_stops_held_in_a_row_let_the_next_through_in_a_state_that_asks_for_
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     assert app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use pops the state"
     assert [hook(app, "Stop")[1].get("decision") for _ in range(4)] == ["block"] * 4 and app.container.get(SessionAgents).top("s1").name != "panicking", "a tool use between stops starts the count again"
+
+
+def test_a_task_edited_names_one_event_for_each_edit_and_its_holder_is_told_to_read_it_again(app: App):
+    from journal.events.rows.task_edited import TaskEdited
+    task = Task(environment_id=1, title="the parser", brief="- reads the grammar")
+    events = lambda row: [event for event in row.events if isinstance(event, TaskEdited)]
+    assert [event.changes for event in events(task.with_(id=1).edited("the lexer", task.brief, 0.0))] == [("title",)], "a title edit names one event"
+    assert [event.changes for event in events(task.with_(id=1).edited(task.title, "- reads tokens", 0.0))] == [("brief",)], "a brief edit names one event"
+    assert events(task.with_(id=1).edited(task.title, task.brief, 0.0)) == [], "an edit changing neither names none"
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["task", "create", "the parser", "--brief", "reads the grammar", "--start"], AGENT)
+    console.run(["task", "create", "the lexer", "--brief", "reads tokens"], USER)
+    console.run(["task", "edit", "2", "--brief", "reads tokens and spaces"], USER)
+    assert "task 2 changed" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "a task the agent does not hold is not named"
+    console.run(["task", "edit", "1", "--title", "the grammar reader"], USER)
+    assert "task 1 changed" in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]), "the task in hand edited is named at the next tool use"
+
+
+def test_a_worker_not_running_hears_its_tasks_edit_once_with_its_next_job(app: App):
+    from journal.features.workers.support.worker_actions import EDITED_NOTE
+    from journal.models.worker import Worker
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.workers import Workers
+    from journal.models.support.ref import Ref
+    tasks, workers, scope = app.container.get(Tasks), app.container.get(Workers), app.container.get(Scope)
+    with scope.environment(1):
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", state=WorkerState.DELIVERED), Actor.system())
+        task = tasks.save(Task(environment_id=1, title="the engine", brief="- turns"), Actor.system())
+        tasks.handover(task, Ref.build(worker), Actor.system())
+    for brief in ("- turns twice", "- turns three times"):
+        assert app.console().run(["task", "edit", str(task.id), "--brief", brief], USER).code == 0
+    app.runtime().deferred.drain()
+    with scope.environment(1):
+        assert workers.find(worker.id).edited_task == task.id, "the edit waits on the worker's row, once however many edits came"
+    assert EDITED_NOTE.format(task=task.id).startswith(f"Task {task.id} was changed while you were away")

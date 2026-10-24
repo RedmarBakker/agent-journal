@@ -47,8 +47,8 @@ class TaskController(Controller[Task]):
 
     def update(self, request: Request) -> Response:
         row = self.repository.find(request.number("id"))
-        changed = row.with_(**{name: value for name, value in self.fields(request.body).items() if name != "brief"})
-        rewritten = changed.briefed(request.body["brief"], self.time().timestamp()) if "brief" in request.body else changed
+        changed = row.with_(**{name: value for name, value in self.fields(request.body).items() if name not in ("title", "brief")})
+        rewritten = changed.edited(request.body.get("title", row.title), request.body.get("brief", row.brief), self.time().timestamp())
         return Response.json(self.shown(self.repository.save(rewritten, request.actor)))
 
     def start(self, request: Request) -> Response:
