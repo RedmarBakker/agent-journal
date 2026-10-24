@@ -1,5 +1,6 @@
 from journal.features.feature import Feature
 from journal.features.verification.commands.verdict_command import VerdictCommand
+from journal.features.verification.listeners.verdict_card import VerdictCard
 from journal.features.verification.listeners.verifier_end import VerifierEnd
 from journal.features.verification.listeners.verifier_start import VerifierStart
 from journal.features.verification.states.verifying import Verifying
@@ -17,5 +18,5 @@ class Verification(Feature):
     states = (Verifying,)
     verifier_conduct = (VerifierConduct,)
     commands = (VerdictCommand,)
-    listeners = (VerifierStart, VerifierEnd)
+    listeners = (VerifierStart, VerdictCard, VerifierEnd)
     nudges = (VerificationNudges.VERIFIER_REFUSAL,)

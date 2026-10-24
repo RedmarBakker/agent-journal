@@ -17,6 +17,7 @@ from journal.events.rows.worker_retired import WorkerRetired
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.events.rows.worker_queue_drained import WorkerQueueDrained
+from journal.models.agent_role import AgentRole
 from journal.models.scoped import Scoped
 from journal.models.support.path_overlap import PathOverlap
 from journal.models.worker_state import WorkerState
@@ -58,6 +59,7 @@ class Worker(Scoped):
     moves: WorkerMoves = WorkerMoves()
     branch: str = ""
     pool_request: int = 0
+    role: AgentRole = AgentRole.WORKER
     base: str = ""
     edited_task: int = 0
 

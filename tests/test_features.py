@@ -13900,6 +13900,12 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     with app.container.get(Scope).environment(MAIN):
         refuted, retired = reports.find(report.id), workers.find(verifier.id)
     assert refuted.dismissal == "" and refuted.is_refuted and retired.retire_reason.startswith("gave its verdict"), "a no opens the report again, and the verdict ends the verifier's run"
+    with app.container.get(Scope).environment(MAIN):
+        sent_card, verdict_card = [app.container.get(Messages).with_key(key)[0] for key in (f"worker:{verifier.id}", f"verdict:{verifier.id}")]
+        stopped_cards = app.container.get(Messages).with_key(f"worker:{verifier.id}:stopped:{retired.silence.timeout.start}")
+    assert sent_card.text.startswith(f"Verifier {verifier.id}, Diogenes") and sent_card.data["icon"] == "verifier", "a verifier's dispatch is marked in the chat as a verifier's, with its own icon"
+    assert verdict_card.text.endswith("the dismissal is refuted") and verdict_card.data["tone"] == "bad" and "120-character compiler command" in verdict_card.text + str(verdict_card.data), "and its verdict, with its reason"
+    assert not stopped_cards, "its stop is its verdict's mark, never a second one"
     assert sessions.top(session).name == "ended", "and its session"
     status, body = write()
     assert status == 409 and "the verifier found your dismissal unsound" in body["error"] and "120-character compiler command" in body["error"], "the next write is held at once, with the verdict"

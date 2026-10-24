@@ -5,6 +5,7 @@ from journal.features.workers.support.card_standing import CardStanding
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.message import Message
 from journal.models.support.ref import Ref
+from journal.models.agent_role import AgentRole
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
 from journal.repositories.messages import Messages
@@ -15,6 +16,8 @@ from journal.support.card_kind import CardKind
 
 FAILURES = ("could not start", "failed with code", "stopped after")
 STATE_TONES = {WorkerState.STOPPED: "", WorkerState.READY: "", WorkerState.MERGED: "", WorkerState.RELEASED: ""}
+# the icon an agent's cards draw by its role: a worker's people, a verifier's lantern
+ROLE_ICONS = {AgentRole.WORKER: "agents", AgentRole.VERIFIER: "verifier"}
 STATE_NAMES = {WorkerState.STOPPED: "stopped", WorkerState.READY: "started", WorkerState.MERGED: "merged", WorkerState.RELEASED: "released", WorkerState.UNFINISHED: "stopped before it finished", WorkerState.DELIVERED: "finished, ready to check"}
 FAILED = "failed"
 
@@ -35,8 +38,16 @@ class WorkerProcessCard(ProcessCard):
         older = self.messages.keyed(self.key(worker), actor)
         if older and older[0].data.get("tone") == standing.tone and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
-        data = {"kind": "card", "icon": "agents", "tone": standing.tone, "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
-        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), f"Worker {worker.id}, {worker.name}: {standing.text}", data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
+        data = {"kind": "card", "icon": self.icon(worker), "tone": standing.tone, "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
+        return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
+
+    @staticmethod
+    def icon(worker: Worker) -> str:
+        return ROLE_ICONS[worker.role]
+
+    @staticmethod
+    def label(worker: Worker, text: str) -> str:
+        return f"{worker.role.title()} {worker.id}, {worker.name}: {text}"
 
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)

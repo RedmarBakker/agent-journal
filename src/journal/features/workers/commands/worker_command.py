@@ -13,6 +13,7 @@ from journal.support.caller import Caller
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.features.workers.support.worker_runner import WorkerRunner
+from journal.features.workers.support.worker_launch import WorkerLaunch
 from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
@@ -54,7 +55,8 @@ class WorkerCommand(Command):
     noun = "worker"
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch) -> None:
+        self.launch = launch
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
@@ -142,17 +144,16 @@ class WorkerCommand(Command):
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
-        return self.launched(worker, task, caller, moment)
+        return self.launched(worker, task, caller)
 
-    def launched(self, worker: Worker, task: Task, caller: Caller, moment: float) -> int:
+    def launched(self, worker: Worker, task: Task, caller: Caller) -> int:
         try:
             repositories = self.runner.workplace(worker)
         except WorktreeFailure as failed:
             self.workers.delete(worker, caller.actor)
             raise Rejection(f"worker {worker.name} was not dispatched: {failed}") from failed
         self.tasks.handover(task, Ref.build(worker), caller.actor)
-        self.runner.start(worker, caller.actor)
-        self.workers.save(self.workers.find(worker.row_id).with_(repositories=repositories, branch=self.branch.name(worker) if worker.worktree else "").dispatched(moment), caller.actor)
+        self.launch.launched(worker, caller.actor, repositories, self.branch.name(worker) if worker.worktree else "")
         print(f"worker {worker.id} {worker.name} dispatched on {worker.provider} {worker.model}; it reports in the chat when it ends")
         return 0
 
