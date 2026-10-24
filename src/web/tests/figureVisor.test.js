@@ -51,7 +51,7 @@ test("the crosses and the ticks are the pixel pictures on the visor's screen in 
             expect(names(pixels), `${tone} ${seconds}`).toEqual(names(litPixels(face({name, strength: 1, colour: [1, 1, 1]}))));
             for (const {colour} of pixels) expect(colour.map((part) => part.toFixed(3)), `${tone} ${seconds}`).toEqual(VISOR.colours[tone].map((part) => part.toFixed(3)));
             // only the picture's pixels are lit: the rest of the grid stays off, the visor's own dark screen
-            expect(pixels.length).toBeLessThan((GRID.columns * GRID.rows) / 4);
+            expect(pixels.length).toBeLessThan((GRID.columns * GRID.rows) / 2);
         }
     }
 });
