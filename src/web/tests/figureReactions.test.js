@@ -174,7 +174,7 @@ test("every moment a reaction waits for is one the journal makes, from cards sha
             // a slow run's docked bar ending while the figure is eager for it, passed or failed
             ...["good", "bad"].map((ended) => {
                 const bar = {};
-                const eager = eagerFor({bar, share: 0.9, ended: "", began: 0}, null, () => 0, EAGER.after * 2).eager;
+                const eager = eagerFor({bar, share: 0.97, ended: "", began: 0}, null, () => 0, EAGER.after + 30).eager;
                 return eagerFor({bar, share: 1, ended, began: 0}, eager, () => 0, EAGER.after * 3).moment;
             }),
         ].map((fire) => fire.beat)

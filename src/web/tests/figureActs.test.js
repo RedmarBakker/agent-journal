@@ -213,28 +213,29 @@ test("while the context compacts the figure is packed into a box that shrinks, s
 
 const {EAGER, eagerFor, secondsLeft} = await import("../src/figure/reactions.js");
 
-test("eager for a docked bar's end: it starts when the run looks about five seconds from done at its pace, only for a run ten seconds old by then, and is never called off before the end", () => {
+test("eager for a docked bar's end: it starts when the run looks about five seconds from done at its pace, only for a run over a minute old by then, and is never called off before the end", () => {
     const bar = {};
     const at = (share, ended = "") => ({bar, share, ended, began: 100});
-    expect(secondsLeft(20, 0.8)).toBeCloseTo(5);
-    // a run 20 seconds in at 70 percent has over 8 seconds left: not yet
-    expect(eagerFor(at(0.7), null, () => 0, 120)).toEqual({eager: null, moment: null});
-    // at 80 percent after 20 seconds it has 5 left: it rolls, once, by the odds
-    expect(eagerFor(at(0.8), null, () => oddsOf("eager"), 120).eager).toEqual({run: 100, on: false});
-    const eager = eagerFor(at(0.8), null, () => 0, 120).eager;
+    expect(EAGER.after).toBe(60);
+    expect(secondsLeft(80, 0.94)).toBeCloseTo(5.1, 1);
+    // a run 80 seconds in at 85 percent has over 14 seconds left: not yet
+    expect(eagerFor(at(0.85), null, () => 0, 180)).toEqual({eager: null, moment: null});
+    // at 95 percent after 80 seconds it has about 4 left: it rolls, once, by the odds
+    expect(eagerFor(at(0.95), null, () => oddsOf("eager"), 180).eager).toEqual({run: 100, on: false});
+    const eager = eagerFor(at(0.95), null, () => 0, 180).eager;
     expect(eager).toEqual({run: 100, on: true});
-    expect(eagerFor(at(0.95), {run: 100, on: false}, () => 0, 123).eager.on).toBe(false);
-    // a quick run, under ten seconds old when it nears its end, never makes it eager
-    expect(eagerFor(at(0.6), null, () => 0, 100 + EAGER.after - 4).eager).toEqual({run: 100, on: false});
+    expect(eagerFor(at(0.97), {run: 100, on: false}, () => 0, 183).eager.on).toBe(false);
+    // a run under a minute old when it nears its end never makes it eager
+    expect(eagerFor(at(0.95), null, () => 0, 100 + EAGER.after - 1).eager).toEqual({run: 100, on: false});
     // started, it is kept to the end whatever the figure does, and then it is cheered or fumed at
-    expect(eagerFor(at(0.97), eager, () => 0.99, 124)).toEqual({eager, moment: null});
-    expect(eagerFor(at(1, "good"), eager, () => 0, 125)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}});
-    expect(eagerFor(at(1, "bad"), eager, () => 0, 125).moment).toEqual({beat: "bar_failed"});
+    expect(eagerFor(at(0.98), eager, () => 0.99, 184)).toEqual({eager, moment: null});
+    expect(eagerFor(at(1, "good"), eager, () => 0, 185)).toEqual({eager: {run: 100, on: false}, moment: {beat: "bar_done"}});
+    expect(eagerFor(at(1, "bad"), eager, () => 0, 185).moment).toEqual({beat: "bar_failed"});
     // the dock drawn again, with a new bar for the same run, is still that run: its end is fumed at once, never again
-    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 125).eager;
+    const fumed = eagerFor(at(1, "bad"), eager, () => 0, 185).eager;
     const redrawn = (share, ended = "") => ({bar: {}, share, ended, began: 100});
-    expect(eagerFor(redrawn(0.97), fumed, () => 0, 126)).toEqual({eager: fumed, moment: null});
-    expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 127).moment).toBe(null);
+    expect(eagerFor(redrawn(0.98), fumed, () => 0, 186)).toEqual({eager: fumed, moment: null});
+    expect(eagerFor(redrawn(1, "bad"), fumed, () => 0, 187).moment).toBe(null);
     expect(reactionTo("bar_failed", new Map(), 0, () => 0.99).clip).toBe("fume");
     expect(of("bar_done").map((each) => each.name)).toEqual(["joy"]);
     // only the bar going ends it with nothing to mark

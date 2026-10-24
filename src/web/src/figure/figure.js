@@ -125,6 +125,7 @@ export class Posing {
         this.stride = stride;
         this.sky = null;
         this.throws = null;
+        this.leanWay = 0;
         this.screen = null;
     }
 
@@ -426,6 +427,13 @@ function armsAtRest(pose, stance, apart = [], swing = {}, level = stance.level) 
 }
 
 const freeSide = (stance) => (stance.busy.has("r") ? "l" : "r");
+
+// the hand the figure leans out with toward `way` (1 the picture's right, -1 its left), the one on that side, or its free hand when that
+// one is busy; with no way given, its free hand
+export const reachSide = (stance, way) => {
+    const wanted = way === SIDES.l ? "l" : way === SIDES.r ? "r" : null;
+    return wanted && !stance.busy.has(wanted) ? wanted : freeSide(stance);
+};
 
 function idle(pose, stance, t) {
     breathe(pose, t);
@@ -2801,7 +2809,7 @@ export const RUMMAGE = {crouch: 0.3, lean: 48, nod: 12, hands: [0.3, -1.45, 1.75
 
 function rummage(pose, stance, t) {
     const act = ACTS.rummage;
-    const side = freeSide(stance);
+    const side = reachSide(stance, pose.leanWay);
     const into = partOf(t, act.leans) * (1 - partOf(t, act.pops));
     const digging = waveOf(t, act.digs);
     crouch(pose, RUMMAGE.crouch * into);
@@ -4364,13 +4372,14 @@ export class Stage {
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
     // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
-// things it flings out rummaging fly this time (acts.js throwsFor), `at` is where
+// things it flings out rummaging fly this time (acts.js throwsFor), `leanWay` the way it leans out rummaging (reachSide), `at` is where
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, at = null, open = 1, screen = null, tilt = 0} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, leanWay = 0, at = null, open = 1, screen = null, tilt = 0} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
         pose.throws = throws;
+        pose.leanWay = leanWay;
         pose.screen = screen;
         pose.at = at;
         if (!clip.legs) LEGS[posture]?.under(pose);

@@ -122,11 +122,29 @@ test("it rummages at the chat window's edge, its hands reaching past it while it
     expect(CHAT.left).toBeLessThan(300);
 });
 
-test("it leans out toward its free hand's side of the picture, the side whose window edge it goes to", async () => {
+test("with no way given it leans out toward its free hand's side of the picture", async () => {
     for (const voice of Object.keys(stances)) {
         const free = stanceOf(voice).busy.has("r") ? "l" : "r";
         // leaning in, its eyes move out to the free hand's side, SIDES[free], in the picture as handAt's out names it
         const {eyes} = rummagingAt(voice, (act.leans[1] + act.pops[0]) / 2);
         expect(Math.sign(eyes.x), voice).toBe(SIDES[free]);
+    }
+});
+
+test("leaning out to rummage, the figure leans with the hand on the edge's side, or its free hand when that one is busy", async () => {
+    const {reachSide} = await import("../src/figure/figure.js");
+    for (const voice of Object.keys(stances)) {
+        const stance = stanceOf(voice);
+        for (const way of [-1, 1]) {
+            const side = reachSide(stance, way);
+            const wanted = way === SIDES.l ? "l" : "r";
+            expect(side, `${voice} ${way}`).toBe(stance.busy.has(wanted) ? (stance.busy.has("r") ? "l" : "r") : wanted);
+            const pose = new Posing(RIG, "stand", 0);
+            pose.leanWay = way;
+            CLIPS.find((clip) => clip.name === "rummage").pose(pose, stance, (act.leans[1] + act.pops[0]) / 2);
+            const moves = pose.moves(0);
+            const eyes = RIG.eyes.reduce((sum, eye) => sum.add(eye.clone().applyMatrix4(moves.get("head"))), new THREE.Vector3()).multiplyScalar(1 / RIG.eyes.length);
+            expect(Math.sign(eyes.x), `${voice} ${way}: leaning out to its hand's side`).toBe(SIDES[side]);
+        }
     }
 });

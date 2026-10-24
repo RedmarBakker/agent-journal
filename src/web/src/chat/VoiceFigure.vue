@@ -279,14 +279,20 @@ function heldClip() {
     const {state} = held.value;
     if (variant.state !== state) {
         variant = {state, clip: variantOf(clipOf(state), Math.random, drawnHere, {memory: memory.reacted, now: now.value, home: body.footing?.id === "home"})};
-        // the rummage leans the figure out toward its free hand's side, so it goes to the window's edge on that side (figure.js handAt out)
-        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: handAt.value.out};
+        // the rummage goes to the window's edge nearest the figure, leaning out that way, or to the other when it cannot lean out that way
+        if (variant.clip === "rummage") stay = {where: "rummage", until: now.value + RUMMAGE_STAY_SECONDS, way: player.reachWay(nearerEdge())};
     }
     if (body.place.swings) return "rope_swing";
     // the rummage waits until the figure stands at the window's edge, its stay there, and the glass search until it stands
     if (variant.clip === "rummage" && (stay.where !== "rummage" || body.trip)) return "idle";
     if (variant.clip === "search" && !body.trip && !drawnHere("search")) return "idle";
     return body.place.leans ? (LEANING[variant.clip] ?? variant.clip) : variant.clip;
+}
+
+// the window's edge nearest the figure, 1 the right, -1 the left
+function nearerEdge() {
+    const world = worldBox();
+    return body.place.x - world.left <= world.right - body.place.x ? -1 : 1;
 }
 
 // how long the figure keeps to the window's edge for a rummage, its walk there and the rummage itself, in seconds
@@ -430,6 +436,7 @@ function step() {
         stride,
         sky: shown.clip.name === watching ? sky : null,
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
+        leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : 0,
         at: lookingAt(shown),
         open: blinked(),
         screen: lit,

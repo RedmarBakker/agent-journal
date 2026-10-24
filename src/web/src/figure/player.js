@@ -1,4 +1,4 @@
-import {Stage} from "./figure.js";
+import {SIDES, Stage, reachSide} from "./figure.js";
 import {CHANGE_SECONDS} from "./places.js";
 
 // How many clips' drawn frames are kept; the clip on screen and the few before it, so going back to idle draws nothing again.
@@ -33,18 +33,19 @@ export class FigurePlayer {
     // the legs `stride` through a step on the move, a figure watching the sky standing as `sky` says (figure.js watch), and the head
     // looking at `at` in the picture when given (figure.js lookToward), the eyes `open` that far through a blink, and the visor lit as a
     // screen as `screen` says (figure/visor.js), the head leaning `tilt` degrees at rest (figure/headTilt.js), and the things flung out
-    // rummaging flying as `throws` says (acts.js throwsFor); nothing is drawn when that frame is already there and nothing eases
-    show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, throws = null, at = null, open = 1, screen = null, tilt = 0}) {
+    // rummaging flying as `throws` says (acts.js throwsFor), leaning out `leanWay` (figure.js reachSide); nothing is drawn when that frame is
+    // already there and nothing eases
+    show(clip, index, facing, {posture, eyes = null, stride = null, sky = null, throws = null, leanWay = 0, at = null, open = 1, screen = null, tilt = 0}) {
         const shape = `${clip.name}/${posture}/${facing}`;
         if (shape !== this.shape && this.moves) this.blend = {from: this.moves, began: performance.now()};
         this.shape = shape;
         const k = this.blend ? Math.min((performance.now() - this.blend.began) / 1000 / CHANGE_SECONDS, 1) : 1;
         const blend = this.blend ? {from: this.blend.from, previous: this.moves, k: smooth(k), settled: false} : null;
-        const key = `${clip.name}/${index}/${facing}/${posture}/${stride}/${this.canvas.width}/${eyes ? `${eyes.mood}@${eyes.seconds}` : ""}/${open}/${screen ? [screen.eyes, screen.across, screen.open, screen.flash, screen.glow].join(",") : ""}/${tilt}/${throws ? throws.map((thrown) => thrown.spin).join(",") : ""}`;
+        const key = `${clip.name}/${index}/${facing}/${posture}/${stride}/${this.canvas.width}/${eyes ? `${eyes.mood}@${eyes.seconds}` : ""}/${open}/${screen ? [screen.eyes, screen.across, screen.open, screen.flash, screen.glow].join(",") : ""}/${tilt}/${throws ? throws.map((thrown) => thrown.spin).join(",") : ""}/${leanWay}`;
         if (key === this.shown && !blend) return;
         const live = eyes || stride !== null || sky || throws || at || open < 1 || screen || tilt || blend || !Number.isInteger(index);
         const {frame, moves} = live
-            ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky, throws, at, open, screen, tilt})
+            ? this.liveOf(clip, index, facing, {posture, eyes, stride: stride ?? 0, blend, sky, throws, leanWay, at, open, screen, tilt})
             : this.frameOf(clip, index, facing, posture);
         const context = this.canvas.getContext("2d");
         context.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -53,6 +54,11 @@ export class FigurePlayer {
         if (blend?.settled) this.blend = null;
         // a frame drawn part way through a change is never the frame the clip itself draws there
         this.shown = blend ? "" : key;
+    }
+
+    // the way the figure leans out rummaging toward `way`, 1 the picture's right, -1 its left: that way, or the other when that hand is busy
+    reachWay(way) {
+        return SIDES[reachSide(this.figure.stance, way)];
     }
 
     headAt() {

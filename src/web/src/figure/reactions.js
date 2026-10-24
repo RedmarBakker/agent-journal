@@ -74,9 +74,10 @@ export const spellIn = (held, spell, now) => (spell && now < spell.until && WORK
 
 // Once a docked bar's run looks about `lead` seconds from its end at the pace it has gone, now and then, as the pile draws it (pile.js
 // eager), once a bar, the figure gets eager for it to end: it hurries onto the bar, taps its feet fast, then points down at it, bouncing,
-// until it ends, and is never called off before. Only a slow run counts, one `after` seconds old by then, so a quick run never does. A run
+// until it ends, and is never called off before. Only a long run counts, one at least `after` seconds old by then, a minute, so a shorter
+// run never does. A run
 // that has gone on `long` seconds is anticipated every time, and `urgent`ly: the figure drops whatever it does for it.
-export const EAGER = {lead: 5, after: 10, long: 120};
+export const EAGER = {lead: 5, after: 60, long: 120};
 
 // the seconds a run `elapsed` seconds old with `share` of it done has left, at the pace it has gone
 export const secondsLeft = (elapsed, share) => (share > 0 ? (elapsed / share) * (1 - share) : Infinity);
@@ -92,7 +93,8 @@ export function eagerFor(progress, eager, random, now) {
     const elapsed = now - progress.began;
     if (secondsLeft(elapsed, progress.share) > EAGER.lead) return {eager, moment: null};
     if (elapsed > EAGER.long) return {eager: {run: progress.began, on: true, urgent: true}, moment: null};
-    return {eager: {run: progress.began, on: draw({moment: "eager", slow: elapsed >= EAGER.after}, random)?.name === "eager"}, moment: null};
+    if (elapsed < EAGER.after) return {eager: {run: progress.began, on: false}, moment: null};
+    return {eager: {run: progress.began, on: draw({moment: "eager", slow: true}, random)?.name === "eager"}, moment: null};
 }
 
 // A jump of more than this many of the figure's own heights is high, and now and then turns over backwards on the way (pile.js jump)
