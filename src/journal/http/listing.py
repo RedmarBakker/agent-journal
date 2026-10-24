@@ -11,7 +11,7 @@ M = TypeVar("M", bound=Model)
 
 @dataclass(frozen=True)
 class Listing:
-    """What the viewer requests of a list: the newest `limit` rows and every open one besides, only the closed ones when requested, older than `before`, newer than `after`, changed since `since`, or only the ids given."""
+    """What the viewer requests of a list: the newest `limit` rows and every open one besides, only the closed ones when requested, older than `before`, newer than `after`, changed since `since` (newer than `after` and at most `limit` of them, so a change since an old moment never reads the whole table), or only the ids given."""
 
     limit: int = PAGE_ROWS
     closed: bool = False
@@ -36,7 +36,8 @@ class Listing:
         if self.ids:
             return RowListPage(rows=[r for r in rows if r.row_id in self.ids], is_last_page=True)
         if self.cutoff_at:
-            return RowListPage(rows=[r for r in rows if r.update_time.timestamp() > self.cutoff_at], is_last_page=True)
+            changed = [r for r in rows if r.update_time.timestamp() > self.cutoff_at and r.row_id > self.lower_id]
+            return RowListPage(rows=changed[-self.limit:], is_last_page=len(changed) <= self.limit)
         if self.closed:
             closed = [r for r in rows if not is_open(r) and (not self.upper_id or r.row_id < self.upper_id)]
             return RowListPage(rows=closed[-self.limit:], is_last_page=len(closed) <= self.limit)

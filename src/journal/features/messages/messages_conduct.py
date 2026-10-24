@@ -47,7 +47,7 @@ class MessagesConduct(Conduct):
     def on_tool_finished(self, event: ToolFinished, settings: Settings) -> Transition:
         if event.subagent:
             return self.none()
-        return self.none(*[MessagesNudges.MESSAGE_READ.create(n=n) for n in event.data.part(MessagesPart).tool_use_reads])
+        return self.none(*MessagesNudges.read_messages(event.data.part(MessagesPart).tool_use_reads))
 
     def on_colleague_commented(self, event: ColleagueCommented, settings: Settings) -> Transition:
         return self.none(MessagesNudges.COLLEAGUE_COMMENT.create(colleague=event.colleague, n=event.row_id))

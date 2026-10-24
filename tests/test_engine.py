@@ -1894,3 +1894,18 @@ def test_a_message_reaches_an_agent_waiting_on_top_of_a_compaction_that_never_st
     assert user_message_lines(app, transmitted), "only the state on top decides whether lines are typed, so the waiting agent still gets the user's message at once"
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     assert "compacting" not in [s["state"] for s in agents.session_agent("s1").stack], "and once the wait pops, the compaction beneath it pops too"
+
+
+def test_a_demand_never_counts_or_blocks_a_journal_command_whatever_its_feature_declares():
+    from journal.engine.demand import Demand
+    from journal.engine.demand_conduct import DemandConduct
+    from journal.engine.demand_progress import DemandProgress
+    from journal.engine.nudge import Nudge
+    from journal.support.timeout import Timeout
+    line = Nudge("test", "owed_line", "owed: {{left}}")
+    strict = Demand(key="test.strict", requirement=lambda data: "owed", line=lambda requirement, balance: line.create(left=balance), refusal=lambda requirement: line.create(left=0), exemption=lambda event, requirement: False, span=lambda settings: Timeout.tool_uses(0), block_scope=lambda event: True)
+    expired = DemandProgress(strict, "owed", Moment(tool_uses=0), Moment(tool_uses=5))
+    data = FeatureData({"demands": (expired,)})
+    settings = SettingsValue({})
+    assert Ready().respond(ToolStarting(call=shell("journal task list")).with_data(data), settings, (DemandConduct,)).refusal is None, "a journal command passes a demand that exempts nothing"
+    assert Ready().respond(ToolStarting(call=shell("ls")).with_data(data), settings, (DemandConduct,)).refusal is not None

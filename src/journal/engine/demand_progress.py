@@ -9,7 +9,7 @@ from journal.support.moment import Moment
 
 @dataclass(frozen=True)
 class DemandProgress:
-    """A demand as an agent stands with it: its requirement now, none once it is met, the moment it started and the moment of the tool use in hand, its span measured between the two."""
+    """A demand as an agent stands with it: its requirement now, none once it is met, the moment it started and the moment of the tool use in hand, its span measured between the two; a journal command is never counted against it or blocked by it, since the journal commands are how a demand is met."""
 
     demand: Demand
     requirement: object | None = None
@@ -30,7 +30,7 @@ class DemandProgress:
         return not self.is_expired(settings) and (self.demand.silence is None or self.demand.silence(settings).reset(self.start).has_passed(self.moment))
 
     def exempts(self, event: ToolStarting) -> bool:
-        return event.subagent or self.demand.exemption(event, self.requirement)
+        return event.subagent or event.call.is_journal or self.demand.exemption(event, self.requirement)
 
     def blocks(self, event: ToolStarting) -> bool:
         return not self.exempts(event) and self.demand.block_scope(event)

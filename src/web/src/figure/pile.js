@@ -33,11 +33,11 @@ export const LIFETIME = 10;
 // jump up, the pogo stick and the bug shot about every 6, the bug smashed with the mallet every 8; the tickle swats come as often as the
 // user tickles. A cooldown only takes an act out of the draw while it lasts;
 // its weight is its own.
-export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, pogo: 6 * 60, bug_shot: 6 * 60, bug_smash: 8 * 60, tickle_swat: 0};
+export const SHOWPIECES = {hop_up: 20 * 60, disco: 2 * 60 * 60, rope_swing: 15 * 60, backflip: 6 * 60, bug_shot: 6 * 60, bug_smash: 8 * 60, tickle_swat: 0};
 
 // The shenanigans and the most seconds each keeps the figure from its spot, the way back included: the run up the bubbles, its time out
 // of sight and the parachute down; the disco dance; the rope swing's stay; the salto; the pogo stick's climb; a stay on a bubble
-export const SHENANIGANS = {hop_up: 20, disco: 12, rope_swing: 60, backflip: 3, pogo: 8, bubble: 90};
+export const SHENANIGANS = {hop_up: 20, disco: 12, rope_swing: 60, backflip: 3, bubble: 90};
 
 // While a test run, a build or a check runs, building a server unit is drawn far above doing nothing, but no more often than the build's
 // sequence allows (SEQUENCES build)
@@ -218,9 +218,8 @@ export const PILE = [
     ...at("eager", {}, [clip("eager", 2, {slow: true}), nothing(3)]),
     // a jump up more than the figure's own height now and then turns over backwards on the way
     ...at("jump", {}, [shenanigan(showpiece(clip("backflip", 7, {high: true}))), clip("jump", 13)]),
-    // a climb of at least half the chat window's height (climbs.js POGO): now and then on the pogo stick it
-    // pulls from behind its back, else hopping up the bubbles on the way, and on the stick always when there are none to hop on
-    ...at("climb", {}, [shenanigan(showpiece(pick("pogo", 2))), pick("hops", 3, {footholds: true})]),
+    // a climb of at least half the chat window's height (climbs.js POGO) hops up the bubbles on the way; with none to hop on it is not climbed
+    ...at("climb", {}, [pick("hops", 3, {footholds: true})]),
     // while a run goes, whether the figure builds a server unit now (UNIT), the build's sequence waiting its cooldown
     ...at("unit", {cooldown: SEQUENCES.build.cooldown}, [pick("unit", UNIT.weight), nothing(1)]),
     // a run's end, as the visor shows it: now and then as a sign in the eyes, crosses or ticks, else the plain glow (visor.js SIGN)

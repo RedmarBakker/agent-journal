@@ -127,7 +127,7 @@ describe("entries", () => {
         api.list.mockResolvedValue({rows: [touched], is_last_page: true, counts: {}});
         await takeEntries([{id: 2, kind: "updated", data: {table: "tasks", id: 1}}]);
         await vi.waitFor(() => expect(store.rows.tasks).toEqual([touched]));
-        expect(api.list).toHaveBeenCalledWith("tasks", {limit: PAGE, since: 1});
+        expect(api.list).toHaveBeenCalledWith("tasks", {limit: PAGE, since: 1, after: 0});
     });
 
     test("an entry that deletes a row takes it away at once", () => {

@@ -20,10 +20,12 @@ class CommandShape:
     @staticmethod
     def unwrapped(part: str) -> str:
         text = part.strip()
-        return text[1:-1].strip() if text.startswith("(") and text.endswith(")") else text
+        return text.removeprefix("(").removesuffix(")").strip() if text.startswith("(") else text
 
     @classmethod
     def working(cls, part: str) -> str:
+        if not part.strip().startswith("("):
+            return part
         commands = [command.strip() for command in CHAIN_SEPARATOR.split(cls.unwrapped(part)) if command.strip()]
         return next((command for command in commands if command.split()[0] not in SETUP_COMMANDS), commands[0] if commands else part)
 

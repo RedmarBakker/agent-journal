@@ -178,11 +178,13 @@ export async function load(table) {
 const keptCounts = (table, counts) => (store.counts = {...store.counts, [table]: counts});
 
 async function caughtUp(table) {
-    const since = Math.max(0, ...(store.rows[table] || []).map(updatedAt));
-    const got = await api.list(table, {limit: pageOf(table), since});
+    const held = store.rows[table] || [];
+    const since = Math.max(0, ...held.map(updatedAt));
+    // only the rows it holds and newer ones are asked again, never a change to a row it never loaded
+    const after = held.length ? Math.min(...held.map((r) => r.id)) - 1 : 0;
+    const got = await api.list(table, {limit: pageOf(table), since, after});
     keptCounts(table, got.counts);
     if (!got.is_last_page) return load(table);
-    const held = store.rows[table] || [];
     const fresh = new Map(got.rows.map((r) => [r.id, r]));
     const kept = withoutAnswered(held.filter((r) => !fresh.has(r.id)), got.rows).concat(stillWhole(held, got.rows));
     store.rows[table] = kept.sort(orderOf(table));

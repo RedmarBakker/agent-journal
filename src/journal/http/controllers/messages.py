@@ -45,7 +45,7 @@ class MessageController(Controller[Message]):
 
     def chat_rows(self, chat: Query, listing: Listing) -> list[Message]:
         if listing.cutoff_at:
-            return self.repository.changes(chat, datetime.fromtimestamp(listing.cutoff_at, timezone.utc))
+            return self.repository.changes(chat, datetime.fromtimestamp(listing.cutoff_at, timezone.utc), listing.lower_id, listing.limit + 1)
         return self.repository.window(chat, listing.limit + 1, listing.upper_id, listing.lower_id)
 
     def agent_chat(self, request: Request) -> Response:

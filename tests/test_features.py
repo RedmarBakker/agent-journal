@@ -1624,7 +1624,7 @@ def test_a_message_left_while_the_agent_sits_at_its_prompt_is_typed_to_it(app: A
     shown = app.console().run(["message", "unread"], AGENT).text
     after = hook(app, "PostToolUse", **reading, tool_response={"stdout": shown})[1]["hookSpecificOutput"]["additionalContext"]
     assert "reply with [!reply:" not in shown and "are you there?" in shown and "five" in shown, "the read prints the messages alone"
-    assert all(f"reply with [!reply:{n}] in your turn" in after for n in (2, 3, 4, 5)), "how to answer each comes after the tool use, in its context"
+    assert "[!reply:2], [!reply:3], [!reply:4] and [!reply:5] in your turn" in after and after.count("reply with") == 1, "how to answer them comes after the tool use, in its context, in one line"
     assert hook(app, "Stop")[1] == {}, "nothing unread is left"
 
 
@@ -12329,3 +12329,33 @@ def test_the_edit_the_reminder_gives_links_the_message_on_its_own(app: App):
         message = app.container.get(Messages).find(1)
         assert [ref.id for ref in app.container.get(Links).targets(message, Messages.SUBJECT_LINK)] == [1]
     assert console.run(["task", "edit", "1"], AGENT).code != 0, "an edit naming nothing is still refused"
+
+
+def test_several_messages_read_at_once_get_one_line_on_how_to_reply(app: App):
+    from journal.features.messages.messages_nudges import MessagesNudges
+    [several] = MessagesNudges.read_messages((4, 5, 6))
+    assert several.rendered().startswith("reply with [!reply:4], [!reply:5] and [!reply:6] in your turn"), several.rendered()
+    [one] = MessagesNudges.read_messages((4,))
+    assert one.rendered().startswith("reply with [!reply:4] in your turn")
+    hook(app, "SessionStart")
+    console = app.console()
+    for text in ("one", "two", "three"):
+        console.run(["message", "send", text], USER)
+    status, body = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal message unread"})
+    console.run(["message", "unread"], AGENT)
+    status, body = hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "journal message unread"}, tool_response={"stdout": ""})
+    said = json.dumps(body)
+    assert said.count("reply with") == 1 and "[!reply:1], [!reply:2] and [!reply:3]" in said, said
+
+
+def test_a_change_since_an_old_moment_reads_at_most_a_page_of_the_rows_held_and_newer(app: App):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.messages import Messages
+    with app.container.get(Scope).environment(1):
+        for n in range(60):
+            app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text=f"m{n}"), Actor.user(1))
+    status, body = got(app, "/journal/messages?limit=25&since=1", {"X-Journal-Env": "main"})
+    assert status == 200 and len(body["rows"]) <= 26 and body["is_last_page"] is False, "a change since long ago is a page at most, and says there is more, so the viewer reads the newest page instead"
+    status, body = got(app, "/journal/messages?limit=25&since=1&after=50", {"X-Journal-Env": "main"})
+    assert all(row["id"] > 50 for row in body["rows"]), "only the rows the viewer holds and newer ones, never one it never loaded"

@@ -73,8 +73,9 @@ class Messages(ScopedRepository[Message]):
     def last_user_message(self) -> Message | None:
         return next((m for m in self.selected(self.main_chat().filter(author=Author.USER).order_descending("id").limit(20)) if not m.is_terminal_line), None)
 
-    def read_since(self, moment: datetime) -> list[Message]:
-        return [m for m in self.selected(self.main_chat().filter(author=Author.USER).filter_greater("read_at", moment).order("id")) if not m.is_terminal_line]
+    def unfiled_reads(self, moment: datetime) -> list[Message]:
+        read = self.selected(self.main_chat().filter(author=Author.USER).filter_greater("read_at", moment).order("id"))
+        return [m for m in read if not m.is_terminal_line and not any(ref.type == "tasks" for ref in self.links.targets(m, self.SUBJECT_LINK))]
 
     def unanswered(self) -> list[Message]:
         voiced_at = self.last_message()
@@ -110,8 +111,8 @@ class Messages(ScopedRepository[Message]):
             query = query.filter_less("created_at", self.find(previous).created_at.isoformat())
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))
 
-    def changes(self, chat: Query, time: datetime) -> list[Message]:
-        return self.selected(chat.filter_greater("updated_at", time).order("id").limit(500))
+    def changes(self, chat: Query, time: datetime, lower_id: int, limit: int) -> list[Message]:
+        return list(reversed(self.selected(chat.filter_greater("updated_at", time).filter_greater("id", lower_id).order_descending("id").limit(limit))))
 
     def unviewed(self) -> int:
         return self.counted(self.main_chat().filter(author=Author.AGENT).filter_null("read_at")) + self.counted(self.main_chat().filter(author=Author.COLLEAGUE).filter_json("data->viewed", 0))

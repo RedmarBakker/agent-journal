@@ -374,47 +374,6 @@ test("now and then the figure swings on a rope tied under a bubble near the midd
     expect(offers({swings: true, memory, now: 900})).toBe(true);
 });
 
-test("the pogo stick is for a big climb only, onto a bubble's top at least half the chat window's height up, as the thread is high now", () => {
-    const tall = heightOf(FIGURE);
-    const chat = THREAD.bottom - THREAD.top;
-    const from = {x: 400, y: 700};
-    // only a climb of half the chat's height or more is one for the stick, however high, past the jump's limit too
-    expect(POGO.share).toBe(0.5);
-    expect(pogoClimb(chat / 2 - 1, chat)).toBe(false);
-    expect(pogoClimb(chat / 2, chat)).toBe(true);
-    expect(pogoClimb(0.9 * chat, chat)).toBe(true);
-    expect(chat / 2, "half this chat is past the jump's limit").toBeGreaterThan(jumpMost(FIGURE));
-    // the bubble it climbs onto, its top `up` pixels over the feet, and the spot standing on it
-    const goal = (up) => at(700 - up, 330, 470);
-    const onTop = (floor) => ({x: 400, y: floor.top, posture: "stand", on: floor.element});
-    // a climb under half the chat's height is a hop, even with the roll for the stick
-    const low = goal(2 * tall);
-    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(low), FIGURE, from, onTop(low), {room: Infinity}, () => roll), `under half: ${roll}`).toEqual({via: [], pogo: false});
-    // one above it with no bubble on the way goes on the stick, every roll
-    const high = goal(0.6 * chat);
-    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {room: Infinity}, () => roll), `above half: ${roll}`).toEqual({via: [], pogo: true});
-    // measured from the thread's own height each time: the same climb in a chat twice as high is no climb for the stick, and too high to hop
-    const taller = {view: {...THREAD, top: THREAD.bottom - 2 * chat}, floors: [high]};
-    expect(wayUp(taller, FIGURE, from, onTop(high), {room: Infinity}, () => 0)).toBe(null);
-    // with bubbles on the way to hop up on, the stick or the hops as the roll says
-    const steps = floorsOf(goal(1.6 * tall), high);
-    expect(wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => 0)).toEqual({via: [], pogo: true});
-    expect(wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => 0.99)).toMatchObject({pogo: false, via: [{y: 700 - 1.6 * tall}]});
-    // the stick waits its cooldown: inside it, the hops
-    const memory = new Map();
-    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 0, room: Infinity}, () => 0).pogo).toBe(true);
-    expect(wayUp(steps, FIGURE, from, onTop(high), {memory, now: 60, room: Infinity}, () => 0)).toMatchObject({pogo: false, via: [{y: 700 - 1.6 * tall}]});
-    // on the stick it bounces on the spot, higher each time, then springs up the whole way in one
-    const legs = tripTo({x: 400, y: 700, posture: "stand"}, {x: 400, y: 700 - 0.6 * chat, posture: "stand"}, FIGURE, {pogo: true}).legs;
-    const leg = legs.find((each) => each.pogo);
-    expect(leg).toMatchObject({hopping: true, clip: "pogo"});
-    const start = {x: legs[0].x, y: legs[0].y};
-    const heights = Array.from({length: 61}, (_, step) => start.y - legAt(leg, start, (leg.ms * step) / 60).y);
-    expect(Math.max(...heights.slice(0, 36))).toBeGreaterThan(0);
-    expect(Math.max(...heights.slice(0, 36))).toBeLessThan(jumpMost(FIGURE));
-    expect(legAt(leg, start, leg.ms)).toEqual({x: leg.x, y: leg.y});
-});
-
 test("one limit of two and a half of its heights holds every plain jump: no hop or hang from a bubble's side is chosen higher above the feet, and one just under it still is", () => {
     const tall = heightOf(FIGURE);
     expect(JUMP.most).toBe(2.5);
@@ -438,27 +397,6 @@ test("one limit of two and a half of its heights holds every plain jump: no hop 
     const way = wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => 0.99);
     const stops = [from, ...way.via, {y: high.top}];
     stops.slice(1).forEach((stop, index) => expect(stops[index].y - stop.y, `step ${index}`).toBeLessThanOrEqual(jumpMost(FIGURE)));
-});
-
-test("the pogo stick is only ever the way up onto a bubble's top, where the figure lands standing: never to a hang from a bubble, a seat on it or a tab", () => {
-    const tall = heightOf(FIGURE);
-    const from = {x: 400, y: 700};
-    const high = at(700 - 2 * tall, 330, 470);
-    // in a chat low enough for this climb to be past half its height
-    const floors = {view: {...THREAD, top: THREAD.bottom - 3 * tall}, floors: [high]};
-    const spot = {x: 400, y: high.top, on: high.element};
-    // standing on its top, the stick as the roll says
-    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand"}, {room: Infinity}, () => 0)).toEqual({via: [], pogo: true});
-    // a hang from its side, a seat on it or the composed sit there: never the stick, every roll, the hop instead
-    for (const posture of ["hang", "lounge", "sit", "composed"]) {
-        for (const roll of [0, 0.5, 0.99]) expect(wayUp(floors, FIGURE, from, {...spot, posture}, {room: Infinity}, () => roll), posture).toEqual({via: [], pogo: false});
-    }
-    // nor standing anywhere that is not a bubble, as a tab
-    expect(wayUp(floors, FIGURE, from, {...spot, posture: "stand", on: {rect: {}}}, {room: Infinity}, () => 0)).toEqual({via: [], pogo: false});
-    // and higher up, with bubbles to hop up on, a hang goes by the hops, every roll
-    const higher = at(700 - 4 * tall, 330, 470);
-    const steps = floorsOf(at(700 - 1.6 * tall, 330, 470), at(700 - 3.2 * tall, 330, 470), higher);
-    for (const roll of [0, 0.5, 0.99]) expect(wayUp(steps, FIGURE, from, {x: 400, y: higher.top, on: higher.element, posture: "hang"}, {room: Infinity}, () => roll).pogo).toBe(false);
 });
 
 test("the disco dance plays only standing on a bubble with another above it to hang the ball from, and then only on a rare occasion", () => {
@@ -501,4 +439,16 @@ test("on a bubble the figure keeps 20 pixels inside the chat's sides, so a side 
     const corner = (bubble) => perchSpot({floor: bubble.id, kind: STANDS, side: "right", grip: ""}, floorsOf(bubble), FIGURE);
     expect(corner(against)).toBe(null);
     expect(boxAt(corner(roomy), FIGURE).right).toBeLessThanOrEqual(1280 - WALL_ROOM);
+});
+
+test("the figure never pulls a pogo stick: a big climb with bubbles on the way is hopped, and one with none is not climbed", () => {
+    const tall = heightOf(FIGURE);
+    const chat = THREAD.bottom - THREAD.top;
+    const from = {x: 400, y: 700};
+    const goal = (up) => at(700 - up, 330, 470);
+    const onTop = (floor) => ({x: 400, y: floor.top, posture: "stand", on: floor.element});
+    const high = goal(0.6 * chat);
+    for (const roll of [0, 0.5, 0.99]) expect(wayUp(floorsOf(high), FIGURE, from, onTop(high), {room: Infinity}, () => roll), `no bubbles: ${roll}`).toBe(null);
+    const steps = floorsOf(goal(1.6 * tall), high);
+    for (const roll of [0, 0.99]) expect(wayUp(steps, FIGURE, from, onTop(high), {room: Infinity}, () => roll)?.pogo, `steps: ${roll}`).not.toBe(true);
 });
