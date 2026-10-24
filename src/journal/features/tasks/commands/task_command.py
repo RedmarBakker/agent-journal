@@ -108,8 +108,10 @@ class TaskCommand(Command):
         return 0
 
     def edit(self, args: Namespace, caller: Caller) -> int:
+        if not args.title and not args.brief and not args.priority and args.message:
+            return self.message_linked(args, caller)
         if not args.title and not args.brief and not args.priority:
-            raise Rejection("name what changes: --title \"<title>\", --brief \"<the whole brief>\", --priority <level>, or several")
+            raise Rejection("name what changes: --title \"<title>\", --brief \"<the whole brief>\", --priority <level>, --from <message>, or several")
         task = self.tasks.find(args.n)
         retitled = task.with_(title=args.title) if args.title else task
         ranked = retitled.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else retitled
@@ -117,6 +119,12 @@ class TaskCommand(Command):
         self.linked_from(args.message, saved, caller)
         written = f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
         print("\n".join(filter(None, [written + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
+        return 0
+
+    def message_linked(self, args: Namespace, caller: Caller) -> int:
+        task = self.tasks.find(args.n)
+        self.linked_from(args.message, task, caller)
+        print(f"message {args.message} linked to task {task.id}")
         return 0
 
     def log(self, args: Namespace, caller: Caller) -> int:
