@@ -26,7 +26,7 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["serve"]:
         app.runtime().run()
         return 0
-    outcome = app.console().run(argv, app.container.get(Providers).caller(os.environ))
+    outcome = app.console_without_server().run(argv, app.container.get(Providers).caller(os.environ))
     sys.stdout.write(outcome.text)
     sys.stderr.write(outcome.error)
     return outcome.code

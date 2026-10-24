@@ -31,9 +31,7 @@ from journal.repositories.scope import Scope
 from journal.http.server import Server
 from journal.support.instance_guard import InstanceGuard
 from journal.http.share_server import ShareServer
-from journal.sync.record_outgoing_change import RecordOutgoingChange
-from journal.sync.block_numbers import BlockNumbers
-from journal.events.models.number_request import NumberRequest
+from journal.sync.team_writes import TeamWrites
 from journal.events.models.synced import Synced
 from journal.sync.pulled_settings import PulledSettings
 from journal.sync.pulled_files import PulledFiles
@@ -70,8 +68,7 @@ class Runtime:
         self.bus.listen(RowEvent, self.container.get(RowEventDelivery))
         self.bus.listen(Created, Creations())
         self.bus.listen(ModelEvent, self.container.get(RecordChanges))
-        self.bus.listen(ModelEvent, self.container.get(RecordOutgoingChange))
-        self.bus.listen(NumberRequest, self.container.get(BlockNumbers))
+        self.container.get(TeamWrites).listen()
         self.bus.listen(Synced, self.container.get(PulledSettings))
         self.bus.listen(Synced, self.container.get(PulledFiles))
         self.bus.listen(Purged, self.container.get(RecordPurge))

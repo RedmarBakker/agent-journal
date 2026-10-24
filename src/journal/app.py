@@ -16,6 +16,7 @@ from journal.db.schema import Schema
 from journal.engine.support.feature_registry import FeatureRegistry
 from journal.events.bus import Bus
 from journal.runtime import Runtime
+from journal.sync.team_writes import TeamWrites
 from journal.features.registry import Registry
 from journal.features.standard import Standard
 from journal.engine.support.data_readers import DataReaders
@@ -70,6 +71,10 @@ class App:
 
     def console(self) -> Console:
         return self.container.get(Console)
+
+    def console_without_server(self) -> Console:
+        self.container.get(TeamWrites).listen()
+        return self.console()
 
     def _console(self) -> Console:
         console = self.container.call(Console)
