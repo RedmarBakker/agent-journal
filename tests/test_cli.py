@@ -428,13 +428,12 @@ def test_remote_github_init_writes_the_server_workflow_once_and_says_how_to_regi
     assert "TEAM_PROJECT: ${{ inputs.project }}" in workflow and "TEAM_ADDRESS: ${{ inputs.address }}" in workflow
     assert 'curl -fsSL "https://github.com/jessegall/agent-journal/releases/download/v${TEAM_VERSION}/install.sh" | sh' in workflow
     told = capsys.readouterr().out
-    assert "--labels agent-journal" in told and "setup code" in told
+    assert "--labels agent-journal" in told and "journal team join <url>" in told
     assert RemoteGithub.parsed(["init"], root).run() == 1, "a workflow already there is not written over"
     assert RemoteGithub.parsed(["init", "--replace"], root).run() == 0
 
 
-def test_a_team_url_carries_the_setup_code_from_the_join_flag_or_its_own_query():
+def test_a_team_url_is_its_address_or_an_invitation():
     from journal.sync.team_url import TeamUrl
-    assert TeamUrl.parse("https://team.example").with_setup_code(" abcd-efgh ").setup_code == "abcd-efgh"
-    assert TeamUrl.parse("https://team.example/?setup=ABCD-EFGH").setup_code == "ABCD-EFGH"
-    assert TeamUrl.parse("https://team.example").with_setup_code("").setup_code == ""
+    assert TeamUrl.parse("https://team.example/?setup=ABCD-EFGH").address == "https://team.example", "a bare address claims a server with no code"
+    assert TeamUrl.parse("https://team.example/join?code=X&fingerprint=Y").is_invitation()

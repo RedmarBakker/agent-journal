@@ -14,7 +14,7 @@ test("the status line above the compose box never goes: when the agent is not wo
     const line = `<div :class="\\['thread-turn', 'busy', \\{faded: away\\}\\]"`;
     expect(thread).toMatch(new RegExp(`<template v-if="busy && !waitingNow">\\s*${line}`));
     expect(thread).toMatch(new RegExp(`<template v-else>\\s*${line}[^>]*>[\\s\\S]*?@click="toggleWaiting">waiting<\\/button>[\\s\\S]*?<span>idle<\\/span>`));
-    expect(thread).toMatch(/\.thread-turn\.busy\.faded \{\s*opacity: 0;/);
+    expect(thread).toMatch(/\.thread-turn\.busy\.faded \{[^}]*opacity: 0;/);
     const edge = readFileSync(resolve(__dirname, "../src/kit/WaitEdge.vue"), "utf8");
     expect(edge).not.toMatch(/Waiting\s*<WorkingDots/);
     expect(thread).not.toMatch(/<Transition name="status">/);

@@ -1,5 +1,5 @@
 # Runs host/install.sh with a fake docker and curl as processes, so it is not in the default run: python3 -m pytest -q tests/install_script_run.py
-"""host/install.sh, given the project and the address, asks nothing, starts the team server with a setup code and prints that code."""
+"""host/install.sh, given the project and the address, asks nothing, starts the team server and says how to claim it."""
 import os
 import subprocess
 from pathlib import Path
@@ -18,24 +18,12 @@ def test_the_installer_runs_without_questions_from_its_settings_and_prints_the_s
     bin.mkdir()
     fake(bin, "docker", f'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; run) printf "%s\\n" "$@" > "{seen}" ;; esac; exit 0')
     fake(bin, "curl", 'printf 200')
-    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5", "TEAM_SETUP_CODE": "ABCD-EFGH"}
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
     assert ran.returncode == 0, ran.stderr
-    assert "Its setup code is ABCD-EFGH" in ran.stdout and "--setup-code ABCD-EFGH" in ran.stdout
+    assert "Claim a server" in ran.stdout and "journal team join https://203.0.113.5" in ran.stdout and "setup code" not in ran.stdout
     args = seen.read_text().splitlines()
-    assert "TEAM_SETUP_CODE=ABCD-EFGH" in args and "TEAM_ADDRESS=203.0.113.5" in args and "agent-journal-shop" in args, args
-
-
-def test_the_installer_makes_its_own_setup_code_when_none_is_given(tmp_path: Path):
-    bin = tmp_path / "bin"
-    bin.mkdir()
-    fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1 ;; esac; exit 0')
-    fake(bin, "curl", 'printf 200')
-    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
-    env.pop("TEAM_SETUP_CODE", None)
-    ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
-    code = ran.stdout.split("Its setup code is ")[1][:9]
-    assert ran.returncode == 0 and code[4] == "-" and len(code.replace("-", "")) == 8, ran.stdout
+    assert not any(arg.startswith("TEAM_SETUP_CODE") for arg in args) and "TEAM_ADDRESS=203.0.113.5" in args and "agent-journal-shop" in args, args
 
 
 def test_the_journal_install_run_from_a_linked_worktree_installs_into_the_project_root(tmp_path: Path):
@@ -90,7 +78,7 @@ def test_a_piped_installer_asks_on_the_terminal_and_runs_to_its_end(tmp_path: Pa
     bin.mkdir()
     fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
     fake(bin, "curl", 'printf 200')
-    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_ADDRESS": "203.0.113.5", "TEAM_SETUP_CODE": "ABCD-EFGH"}
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_ADDRESS": "203.0.113.5"}
     leader, follower = pty.openpty()
     piped = subprocess.Popen(["sh", "-c", f"cat '{SCRIPT}' | sh"], stdin=follower, stdout=follower, stderr=follower, env=env, start_new_session=True, preexec_fn=lambda: os.login_tty(follower))
     os.close(follower)
@@ -110,7 +98,7 @@ def test_a_piped_installer_asks_on_the_terminal_and_runs_to_its_end(tmp_path: Pa
     text = printed.decode(errors="replace")
     assert piped.returncode == 0, text
     assert "Pulling the team server's image" in text and "Starting the team server in the container agent-journal-shop" in text and "Waiting for https://203.0.113.5 to answer" in text, text
-    assert "Its setup code is ABCD-EFGH" in text, "the script ran to its end after the answer"
+    assert "Whoever claims it first becomes the team's admin" in text, "the script ran to its end after the answer"
 
 
 def test_a_team_server_that_asks_for_a_newer_protocol_counts_as_answering(tmp_path: Path):
@@ -119,7 +107,7 @@ def test_a_team_server_that_asks_for_a_newer_protocol_counts_as_answering(tmp_pa
     bin.mkdir()
     fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
     fake(bin, "curl", 'printf 426')
-    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5", "TEAM_SETUP_CODE": "ABCD-EFGH"}
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
-    assert ran.returncode == 0 and "Its setup code is ABCD-EFGH" in ran.stdout, ran.stderr
+    assert ran.returncode == 0 and "Whoever claims it first becomes the team's admin" in ran.stdout, ran.stderr
     assert "with the server's own certificate, which an IP address gets" in ran.stderr, ran.stderr

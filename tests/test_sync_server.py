@@ -537,33 +537,24 @@ def test_a_pool_request_goes_to_one_machine_with_a_free_slot_on_its_version_and_
         team.store.close()
 
 
-def test_a_new_team_server_is_claimed_only_with_its_setup_code_which_is_gone_once_the_admin_exists(tmp_path, monkeypatch):
+def test_a_new_team_server_is_claimed_by_the_first_journal_with_no_code_and_a_second_claim_is_refused(tmp_path):
     from sync_server.install_request import InstallRequest
     from sync_server.team_server import TeamServer
-    monkeypatch.setenv("TEAM_SETUP_CODE", "abcd-efgh")
     team = TeamServer(tmp_path)
-    assert team.setup.issued() == "ABCD-EFGH", "the code the installer gave the server, as it reads"
-    claim = lambda code: team.logins.installed(InstallRequest("ada@example.com", "Ada", "correct horse battery staple", "laptop", code), "1.2.3.4")
-    with pytest.raises(Refusal, match="setup code"):
-        claim("WRONG-CODE")
-    assert team.accounts.is_empty(), "a wrong code claims nothing"
-    answer = claim("abcd-efgh")
-    assert answer.role == "admin" and not (tmp_path / "setup-code").exists(), "the right code makes the admin, and the code is forgotten"
-    assert team.setup.issued() == "", "a server with its admin has no code to give"
+    claim = lambda email: team.logins.installed(InstallRequest(email, "Ada", "correct horse battery staple", "laptop"), "1.2.3.4")
+    assert claim("ada@example.com").role == "admin", "the first journal to reach a server with no admin claims it by its address alone"
+    with pytest.raises(Refusal):
+        claim("eve@example.com")
+    assert InstallRequest("bob@example.com", "Bob", "x", "laptop", setup_code="ABCD-EFGH").email == "bob@example.com", "an older journal's setup code is still read, and ignored"
 
 
-def test_a_new_team_servers_address_shows_the_setup_page_until_it_is_claimed_and_forbids_after(tmp_path, monkeypatch):
+def test_a_new_team_servers_address_shows_the_setup_page_until_it_is_claimed_and_forbids_after(tmp_path):
     from urllib.parse import urlencode
     from sync_server.team_server import TeamServer
-    monkeypatch.delenv("TEAM_SETUP_CODE", raising=False)
     team = TeamServer(tmp_path)
-    code = team.setup.issued()
-    assert len(code) == 9 and code[4] == "-", "a code made by the server itself: four letters, a dash, four more"
     status, page = team.setup_page.shown("https://team.example")
-    assert status == 200 and "Setup code" in page and "<form" in page
+    assert status == 200 and "Setup code" not in page and "<form" in page
     form = lambda fields: urlencode(fields).encode()
-    status, page = team.setup_page.posted(form({"code": "ZZZZ-ZZZZ", "name": "Ada", "email": "ada@example.com", "password": "correct horse battery staple"}), "https://team.example")
-    assert status == 200 and "not this server" in page and team.accounts.is_empty(), "a wrong code is asked again"
-    status, page = team.setup_page.posted(form({"code": code, "name": "Ada", "email": "ada@example.com", "password": "correct horse battery staple"}), "https://team.example")
+    status, page = team.setup_page.posted(form({"name": "Ada", "email": "ada@example.com", "password": "correct horse battery staple"}), "https://team.example")
     assert status == 200 and "is yours, Ada" in page and "journal team join https://team.example --email ada@example.com" in page
     assert team.setup_page.shown("https://team.example")[0] == 403, "claimed, the address is forbidden to a stranger again"

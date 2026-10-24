@@ -13,9 +13,8 @@ from sync_server.team_server import BACKUPS, DATABASE, TeamServer
 
 def serve(arguments: argparse.Namespace) -> None:
     team = TeamServer(arguments.data)
-    code = team.setup.issued()
-    if code:
-        print(f"this team server has no admin yet: claim it at its address, or by journal team join, with the setup code {code}", flush=True)
+    if team.accounts.is_empty():
+        print("this team server has no admin yet: the first journal to claim it, at its address or by journal team join, becomes its admin", flush=True)
     team.http(arguments.host, arguments.port).serve_forever()
 
 

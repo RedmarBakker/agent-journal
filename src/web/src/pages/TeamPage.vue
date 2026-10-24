@@ -71,7 +71,7 @@ onMounted(load);
                 <Btn small :busy="opening" @click="openShared">Open the shared journal <Icon name="open" :size="12" /></Btn>
             </template>
         </PageBar>
-        <div class="team-page-content">
+        <div :class="['team-page-content', {flush: standing && !standing.joined}]">
             <template v-if="failure">
                 <p class="team-failure">{{ failure }}</p>
             </template>
@@ -82,9 +82,7 @@ onMounted(load);
                 <EmptyState loading />
             </template>
             <template v-else-if="standing && !standing.joined">
-                <div class="team-connect">
-                    <TeamConnect :email="standing.email" @joined="joined" />
-                </div>
+                <TeamConnect :email="standing.email" @joined="joined" />
             </template>
             <template v-else-if="standing && hosted">
                 <TeamHosted :standing="standing" :people="people" :devices="devices" :pool="pool" />
@@ -125,8 +123,10 @@ onMounted(load);
     padding: 24px 32px 36px;
 }
 
-.team-connect {
-    max-width: 640px;
+/* the panel that connects a journal to a team lies flush against the page's edges */
+.team-page-content.flush {
+    gap: 0;
+    padding: 0;
 }
 
 @media (max-width: 700px) {

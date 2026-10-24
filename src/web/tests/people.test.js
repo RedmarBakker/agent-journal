@@ -107,10 +107,16 @@ test("the Team page lists each person with their environments and opens a collea
     expect(admin).toMatch(/<TeamInvite \/>\s*<TeamDevices \/>/);
 });
 
-test("the join form asks only for the team URL, a new server's setup code, the email git knows and a password it can generate", async () => {
+test("connecting opens on two choices: claiming a server asks its address and then the admin account, an account connects with the form", async () => {
     const form = readFileSync(resolve(__dirname, "../src/pages/TeamConnect.vue"), "utf8");
-    expect([...form.matchAll(/<FormField label="([^"]+)"/g)].map((m) => m[1])).toEqual(["Team URL", "Setup code", "Email", "Password"]);
+    expect(form).toMatch(/const step = ref\("choice"\)/);
+    expect(form).toMatch(/<Btn kind="primary" @click="open\('claim'\)">Claim a server<\/Btn>\s*<Btn @click="open\('connect'\)">Connect with an account<\/Btn>/);
+    expect([...form.matchAll(/<FormField label="([^"]+)"/g)].map((m) => m[1])).toEqual(["Server address", "Team URL", "Email", "Password"]);
+    expect(form).not.toMatch(/[Ss]etup code|setup_code/);
     expect(form).toMatch(/<Btn @click="generate">Generate<\/Btn>/);
+    expect(form).not.toMatch(/ListBox/);
+    const page = readFileSync(resolve(__dirname, "../src/pages/TeamPage.vue"), "utf8");
+    expect(page).toMatch(/\.team-page-content\.flush \{\s*gap: 0;\s*padding: 0;/);
     const {strongPassword} = await import("../src/domain/passwords.js");
     const made = strongPassword();
     expect(made).toHaveLength(22);

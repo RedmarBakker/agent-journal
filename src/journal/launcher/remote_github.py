@@ -8,7 +8,7 @@ WORKFLOW = Path(".github") / "workflows" / "agent-journal-server.yml"
 RUNNER_LABEL = "agent-journal"
 WORKFLOW_TEXT = """# Installs this project's team server, with its hosted journal, on your own server through a self-hosted GitHub runner
 # installed there with the label {label}, so no SSH is needed. Run it from the Actions tab, Agent journal server, Run
-# workflow; its log prints the server's URL and the one-time setup code that claims it. Written by journal remote github init.
+# workflow; its log prints the server's URL, which the first journal to reach claims. Written by journal remote github init.
 name: Agent journal server
 
 on:
@@ -43,7 +43,7 @@ STEPS = """wrote {workflow}. Next:
      --labels {label} to ./config.sh, then sudo ./svc.sh install and sudo ./svc.sh start so it keeps running.
   2. Commit and push {workflow}.
   3. In the repository's Actions tab, run Agent journal server with the server's address. Its log prints the URL and
-     the setup code: claim the server at the URL with the code, or journal team join <url> --setup-code <code>."""
+     how to claim it: open the URL, or journal team join <url>."""
 
 
 class RemoteGithub:
@@ -61,7 +61,7 @@ class RemoteGithub:
         return cls(root, args.replace)
 
     def text(self) -> str:
-        installer = INSTALLER.replace("{version}", "${TEAM_VERSION}")
+        installer = INSTALLER.replace("{tag}", "v${TEAM_VERSION}")
         return WORKFLOW_TEXT.format(label=RUNNER_LABEL, project=self.root.name, version=VERSION, installer=installer)
 
     def run(self) -> int:

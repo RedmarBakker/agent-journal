@@ -118,7 +118,7 @@ class TeamJoin:
 
     def login(self, url: TeamUrl, summary: TeamSummary, email: str, name: str, password: str) -> LoginAnswer:
         if not summary.has_admin:
-            return self.link.install(url.address, email, name, password, socket.gethostname(), url.setup_code)
+            return self.link.install(url.address, email, name, password, socket.gethostname())
         if not url.is_invitation():
             return self.account_login(url, email, password)
         return self.link.accept(url.address, url.code, email, name, password, socket.gethostname())

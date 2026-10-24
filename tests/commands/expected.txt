@@ -2090,28 +2090,24 @@ options:
 $ agent: journal team join --help
 exit 0
 usage: journal team join [-h] [--email EMAIL] [--name NAME]
-                         [--password PASSWORD] [--setup-code SETUP_CODE]
-                         [--replace-mine]
+                         [--password PASSWORD] [--replace-mine]
                          url
 
 positional arguments:
-  url                   the team server's URL, or the invitation URL an admin
-                        shared
+  url                  the team server's URL, or the invitation URL an admin
+                       shared
 
 options:
-  -h, --help            show this help message and exit
-  --email EMAIL         your email, the account's user name; git's user.email
-                        when left out
-  --name NAME           the name the team sees beside your writing; git's
-                        user.name when left out
-  --password PASSWORD   filled in by the journal command's own prompt; never
-                        type it on a command line
-  --setup-code SETUP_CODE
-                        the setup code a new team server's installer printed,
-                        which claims it and makes you its admin
-  --replace-mine        take the team's journal in place of this one, which
-                        holds tasks or messages of its own; this one is kept
-                        in a backup file beside it
+  -h, --help           show this help message and exit
+  --email EMAIL        your email, the account's user name; git's user.email
+                       when left out
+  --name NAME          the name the team sees beside your writing; git's
+                       user.name when left out
+  --password PASSWORD  filled in by the journal command's own prompt; never
+                       type it on a command line
+  --replace-mine       take the team's journal in place of this one, which
+                       holds tasks or messages of its own; this one is kept in
+                       a backup file beside it
 
 $ agent: journal team login --help
 exit 0

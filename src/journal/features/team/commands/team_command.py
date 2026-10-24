@@ -30,7 +30,6 @@ class TeamCommand(Command):
         join.add_argument("--email", default="", help="your email, the account's user name; git's user.email when left out")
         join.add_argument("--name", default="", help="the name the team sees beside your writing; git's user.name when left out")
         join.add_argument("--password", default="", help="filled in by the journal command's own prompt; never type it on a command line")
-        join.add_argument("--setup-code", default="", help="the setup code a new team server's installer printed, which claims it and makes you its admin")
         join.add_argument("--replace-mine", action="store_true", help="take the team's journal in place of this one, which holds tasks or messages of its own; this one is kept in a backup file beside it")
         login = self.verb(verbs, "login", "log this machine in again, as after its device was revoked")
         login.add_argument("--email", required=True)
@@ -50,7 +49,7 @@ class TeamCommand(Command):
         if not args.password:
             raise Rejection(PASSWORD_PROMPT.format(verb="join"))
         joining = self.joining.join_replacing if args.replace_mine else self.joining.join
-        print(TeamRequests.reached(lambda: joining(TeamUrl.parse(args.url).with_setup_code(args.setup_code), args.email, args.password, args.name)))
+        print(TeamRequests.reached(lambda: joining(TeamUrl.parse(args.url), args.email, args.password, args.name)))
         return 0
 
     def login(self, args: Namespace, caller: Caller) -> int:

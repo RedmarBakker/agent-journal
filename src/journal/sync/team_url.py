@@ -1,5 +1,5 @@
 import ipaddress
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 JOIN_PATH = "/join"
@@ -7,21 +7,17 @@ JOIN_PATH = "/join"
 
 @dataclass(frozen=True)
 class TeamUrl:
-    """A team server's URL as a person pastes it: the bare address of a server to connect to first, with the setup code that claims it when it has no admin yet, or an invitation URL that also carries the invitation code and the fingerprint of the server's own certificate authority."""
+    """A team server's URL as a person pastes it: the bare address of a server to connect to first, which the first journal to reach claims, or an invitation URL that also carries the invitation code and the fingerprint of the server's own certificate authority."""
 
     address: str
     code: str = ""
     fingerprint: str = ""
-    setup_code: str = ""
 
     @classmethod
     def parse(cls, text: str) -> "TeamUrl":
         parts = urlsplit(text.strip())
         query = parse_qs(parts.query)
-        return cls(f"{parts.scheme}://{parts.netloc}", query.get("code", [""])[0], query.get("fingerprint", [""])[0], query.get("setup", [""])[0])
-
-    def with_setup_code(self, code: str) -> "TeamUrl":
-        return replace(self, setup_code=code.strip()) if code.strip() else self
+        return cls(f"{parts.scheme}://{parts.netloc}", query.get("code", [""])[0], query.get("fingerprint", [""])[0])
 
     def invitation(self, code: str, fingerprint: str) -> str:
         return f"{self.address}{JOIN_PATH}?{urlencode({'code': code, 'fingerprint': fingerprint})}"

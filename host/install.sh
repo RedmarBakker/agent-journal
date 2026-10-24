@@ -1,8 +1,7 @@
 #!/bin/sh
 # Sets up a hosted team journal on this machine with Docker: asks for the project and the address, or reads them from
 # TEAM_PROJECT and TEAM_ADDRESS without asking, as a GitHub Actions run does; starts the team server in a new volume and
-# prints its URL and the one-time setup code that claims it: the first visit to that URL, or the first journal to join it,
-# gives the code and makes the admin.
+# prints its URL: the first journal to claim it there becomes its admin.
 # Run it on the server with the copy each release carries, which pulls that release's team image:
 #   curl -fsSL https://github.com/jessegall/agent-journal/releases/latest/download/install.sh | sh
 # A second project on the same host needs ports of its own: TEAM_HTTPS_PORT and TEAM_HTTP_PORT, with the server's own
@@ -71,8 +70,6 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
     [ -n "$project" ] || project=$(ask "Project name, which names the server's volume and container")
     address="${TEAM_ADDRESS:-}"
     [ -n "$address" ] || address=$(ask "The address the team reaches this server at, a domain name or this machine's IP address")
-    # the one-time code that claims the server, in the letters the server itself uses, none that read alike
-    setup_code="${TEAM_SETUP_CODE:-$(LC_ALL=C tr -dc 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' < /dev/urandom | head -c 8 | sed 's/^\(....\)/\1-/')}"
 
     slug=$(printf '%s' "$project" | tr 'A-Z' 'a-z' | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
     [ -n "$slug" ] || { echo "The project name needs at least one letter or digit." >&2; exit 1; }
@@ -92,7 +89,7 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
     step "Starting the team server in the container $name."
     docker volume create "$name" >/dev/null
     docker run -d --name "$name" --restart unless-stopped -p "$HTTPS_PORT:443" -p "$HTTP_PORT:80" -v "$name:/data" \
-        -e TEAM_ADDRESS="$address" -e TEAM_CERTIFICATE="$certificate" -e TEAM_SETUP_CODE="$setup_code" "$IMAGE" >/dev/null
+        -e TEAM_ADDRESS="$address" -e TEAM_CERTIFICATE="$certificate" "$IMAGE" >/dev/null
 
     if [ "$HTTPS_PORT" = "443" ]; then url="https://$address"; else url="https://$address:$HTTPS_PORT"; fi
     # The team server answers /team to a client that names the journal's protocol once Caddy holds a certificate the client
@@ -117,9 +114,8 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
 
     echo
     echo "The team server for $project runs at $url."
-    echo "Its setup code is $setup_code: claim it before anyone else by opening $url and giving the code, or from your journal:"
-    echo "Settings, Team tab, with $url, the code, your email and a password, or journal team join $url --setup-code $setup_code."
-    echo "Whoever claims it becomes the team's admin, and the code is no good after that."
+    echo "Claim it now from your journal, before anyone else reaches it: Settings, Team tab, Claim a server, with $url;"
+    echo "or journal team join $url. Whoever claims it first becomes the team's admin."
     echo
     echo "Invite colleagues afterwards from the Team tab, or with journal team invite <email>: each gets a URL to join with."
 }

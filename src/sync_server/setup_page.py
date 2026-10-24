@@ -4,7 +4,6 @@ from urllib.parse import parse_qsl
 from sync_server.accounts import Accounts
 from sync_server.refusal import Refusal
 from sync_server.server_clock import ServerClock
-from sync_server.setup_code import SetupCode
 
 FORBIDDEN = "Forbidden: open the team's journal from your own journal, Settings, Team."
 STYLE = (
@@ -17,10 +16,10 @@ STYLE = (
 
 
 class SetupPage:
-    """The page a browser sees at a team server's address while it has no admin: a form asking for the setup code its installer printed, a name, an email and a password, which claims the server and makes the admin, then says how to connect a journal. Once the admin exists the page is gone and the address forbidden, as before."""
+    """The page a browser sees at a team server's address while it has no admin: a form asking for a name, an email and a password, which claims the server and makes the admin, then says how to connect a journal. Once the admin exists the page is gone and the address forbidden, as before."""
 
-    def __init__(self, accounts: Accounts, setup: SetupCode, clock: ServerClock) -> None:
-        self.accounts, self.setup, self.clock = accounts, setup, clock
+    def __init__(self, accounts: Accounts, clock: ServerClock) -> None:
+        self.accounts, self.clock = accounts, clock
 
     def shown(self, address: str) -> tuple[int, str]:
         return (200, self.form("", {})) if self.accounts.is_empty() else (403, FORBIDDEN)
@@ -29,13 +28,10 @@ class SetupPage:
         if not self.accounts.is_empty():
             return 403, FORBIDDEN
         fields = dict(parse_qsl(body.decode()))
-        if not self.setup.matches(fields.get("code", "")):
-            return 200, self.form("That setup code is not this server's: give the one its installer printed.", fields)
         try:
             account = self.accounts.first_admin(fields.get("email", ""), fields.get("name", ""), fields.get("password", ""), self.clock.time())
         except Refusal as refusal:
             return 200, self.form(str(refusal), fields)
-        self.setup.discard()
         return 200, self.claimed(account.name, account.email, address)
 
     def form(self, error: str, fields: dict) -> str:
@@ -43,9 +39,8 @@ class SetupPage:
         notice = f'<p class="error">{html.escape(error)}</p>' if error else ""
         return self.page(
             "Claim this team server",
-            '<p>Give the setup code its installer printed. Whoever claims it becomes the team\'s admin.</p>'
+            '<p>Whoever claims it first becomes the team\'s admin.</p>'
             f'{notice}<form method="post">'
-            f'<label for="code">Setup code</label><input id="code" name="code" value="{value("code")}" placeholder="ABCD-EFGH" autocomplete="off" required>'
             f'<label for="name">Your name</label><input id="name" name="name" value="{value("name")}" required>'
             f'<label for="email">Email</label><input id="email" name="email" type="email" value="{value("email")}" required>'
             '<label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" required>'
