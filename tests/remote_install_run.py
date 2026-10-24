@@ -28,7 +28,7 @@ def test_the_installer_runs_over_ssh_with_a_terminal_and_this_journals_release(t
 def test_the_remote_command_says_when_the_releases_installer_is_not_published_yet(tmp_path: Path):
     bin = tmp_path / "bin"
     bin.mkdir()
-    remote = RemoteInstall("root@203.0.113.5", "4.55.5").command()[-1]
+    remote = RemoteInstall("root@203.0.113.5", "4.55.5", {}).command()[-1]
     (bin / "curl").write_text("#!/bin/sh\nexit 22\n")
     (bin / "curl").chmod(0o755)
     missing = subprocess.run(["sh", "-c", remote], capture_output=True, text=True, env={**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}"}, timeout=20)

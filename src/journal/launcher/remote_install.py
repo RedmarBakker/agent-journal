@@ -12,8 +12,9 @@ INSTALLER = "https://github.com/jessegall/agent-journal/releases/download/{tag}/
 class RemoteInstall:
     """Installs the team server, with the team's hosted journal, on a machine reached over SSH with a key it already accepts: the release's installer runs there through ssh -t, so its questions are asked in this terminal and it prints the address and the line to join with. Run in a terminal, never in an agent's shell, which has none."""
 
-    def __init__(self, target: str, version: str) -> None:
+    def __init__(self, target: str, version: str, chosen: dict[str, str]) -> None:
         self.target, self.version = target, version
+        self.chosen = chosen
 
     @classmethod
     def parsed(cls, argv: list[str]) -> "RemoteInstall":
@@ -21,8 +22,12 @@ class RemoteInstall:
         parser.add_argument("verb", choices=["install"])
         parser.add_argument("target", help="the machine, as ssh names it: user@host")
         parser.add_argument("--version", default=VERSION, help="the release to install; this journal's own by default")
+        parser.add_argument("--address", default="", help="the address the team reaches the server at, a domain or an IP; the target's host by default")
+        parser.add_argument("--https-port", default="", help="the port for HTTPS, when 443 belongs to another service; give an IP as --address, since the server then makes its own certificate")
+        parser.add_argument("--http-port", default="", help="the port for HTTP, when 80 belongs to another service")
         args = parser.parse_args(argv)
-        return cls(args.target, args.version)
+        flags = {"TEAM_ADDRESS": args.address, "TEAM_HTTPS_PORT": args.https_port, "TEAM_HTTP_PORT": args.http_port}
+        return cls(args.target, args.version, {name: value for name, value in flags.items() if value})
 
     def command(self) -> list[str]:
         tag = Release.tagged(self.version)
@@ -32,7 +37,7 @@ class RemoteInstall:
 
     def installer_settings(self) -> dict[str, str]:
         host = self.target.rsplit("@", 1)[-1]
-        return {"TEAM_ADDRESS": host} if "." in host or ":" in host else {}
+        return {**({"TEAM_ADDRESS": host} if "." in host or ":" in host else {}), **self.chosen}
 
     def run(self) -> int:
         if not sys.stdin.isatty():

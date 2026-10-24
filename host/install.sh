@@ -33,6 +33,12 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
         echo "$1" >&2
     }
 
+    # whether something on this machine already listens on the port, as ss reports it; with no ss the port is taken as free
+    port_taken() {
+        command -v ss >/dev/null 2>&1 || return 1
+        ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$1\$"
+    }
+
     # Docker is installed first when the machine has none, by Docker's own install script, as root or through sudo.
     if ! command -v docker >/dev/null; then
         echo "Docker is not installed here: installing it with Docker's own script (get.docker.com)." >&2
@@ -84,6 +90,13 @@ IMAGE="${TEAM_IMAGE:-ghcr.io/jessegall/agent-journal-team:$version}"
         *) certificate="internal" ;;
     esac
 
+    for port in "$HTTPS_PORT" "$HTTP_PORT"; do
+        if port_taken "$port"; then
+            echo "Port $port is taken on this machine by another service. Choose free ports for the team server: from your journal," >&2
+            echo "journal remote install <target> --address <this machine's IP> --https-port 8443 --http-port 8081, or set TEAM_HTTPS_PORT and TEAM_HTTP_PORT when you run this yourself." >&2
+            exit 1
+        fi
+    done
     step "Pulling the team server's image, $IMAGE: a few hundred megabytes, which can take a minute."
     docker pull -q "$IMAGE" >/dev/null 2>&1 || docker image inspect "$IMAGE" >/dev/null || { echo "The image $IMAGE could not be found." >&2; exit 1; }
     step "Starting the team server in the container $name."

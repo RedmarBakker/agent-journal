@@ -570,9 +570,11 @@ def test_a_stop_whose_child_was_reaped_by_a_nested_stop_never_signals_pid_minus_
 
 def test_remote_install_hands_the_host_it_reaches_as_the_team_address():
     """The installer asks the address the team reaches the server at only when the ssh target names none: an ssh alias."""
-    assert "TEAM_ADDRESS=203.0.113.5 sh" in RemoteInstall("root@203.0.113.5", "4.55.0").command()[-1]
-    assert "TEAM_ADDRESS=team.example.com sh" in RemoteInstall("deploy@team.example.com", "4.55.0").command()[-1]
-    assert "TEAM_ADDRESS" not in RemoteInstall("teamserver", "4.55.0").command()[-1], "an ssh alias names no address the team can reach"
+    assert "TEAM_ADDRESS=203.0.113.5 sh" in RemoteInstall("root@203.0.113.5", "4.55.0", {}).command()[-1]
+    assert "TEAM_ADDRESS=team.example.com sh" in RemoteInstall("deploy@team.example.com", "4.55.0", {}).command()[-1]
+    assert "TEAM_ADDRESS" not in RemoteInstall("teamserver", "4.55.0", {}).command()[-1], "an ssh alias names no address the team can reach"
+    beside = RemoteInstall.parsed(["install", "app@shop.example.com", "--address", "203.0.113.22", "--https-port", "8443", "--http-port", "8081"]).command()[-1]
+    assert "TEAM_ADDRESS=203.0.113.22 TEAM_HTTPS_PORT=8443 TEAM_HTTP_PORT=8081 sh" in beside, "a server whose 80 and 443 are another service's takes the team server on ports of its own, at the address given"
 
 
 class PressedKeys:
@@ -606,7 +608,7 @@ def test_a_release_tag_is_made_in_one_place_and_a_hand_written_one_is_refused_at
     import importlib.util
     from journal.support.release import Release
     assert Release.tagged("4.55.3") == "v4.55.3" and Release.tagged("v4.55.3") == "v4.55.3", "either spelling gives the tag"
-    assert "/releases/download/v4.55.3/install.sh" in RemoteInstall("root@203.0.113.5", "4.55.3").command()[-1]
+    assert "/releases/download/v4.55.3/install.sh" in RemoteInstall("root@203.0.113.5", "4.55.3", {}).command()[-1]
     spec = importlib.util.spec_from_file_location("release_tags", Path(__file__).resolve().parents[1] / "scripts" / "checks" / "release_tags.py")
     check = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(check)

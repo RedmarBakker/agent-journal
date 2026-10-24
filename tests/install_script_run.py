@@ -111,3 +111,16 @@ def test_a_team_server_that_asks_for_a_newer_protocol_counts_as_answering(tmp_pa
     ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
     assert ran.returncode == 0 and "Whoever claims it first becomes the team's admin" in ran.stdout, ran.stderr
     assert "with the server's own certificate, which an IP address gets" in ran.stderr, ran.stderr
+
+
+def test_a_port_taken_by_another_service_is_named_with_how_to_choose_others(tmp_path: Path):
+    bin = tmp_path / "bin"
+    bin.mkdir()
+    fake(bin, "docker", 'case "$1" in volume) [ "$2" = inspect ] && exit 1; exit 0 ;; esac; exit 0')
+    fake(bin, "curl", 'printf 200')
+    fake(bin, "ss", 'echo "LISTEN 0 4096 0.0.0.0:80 0.0.0.0:*"')
+    env = {**os.environ, "PATH": f"{bin}{os.pathsep}{os.environ['PATH']}", "TEAM_PROJECT": "Shop", "TEAM_ADDRESS": "203.0.113.5"}
+    ran = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env=env, timeout=30)
+    assert ran.returncode == 1 and "Port 80 is taken on this machine by another service" in ran.stderr and "--https-port 8443 --http-port 8081" in ran.stderr, ran.stderr
+    moved = subprocess.run(["sh", str(SCRIPT)], capture_output=True, text=True, stdin=subprocess.DEVNULL, env={**env, "TEAM_HTTPS_PORT": "8443", "TEAM_HTTP_PORT": "8081"}, timeout=30)
+    assert moved.returncode == 0 and "https://203.0.113.5:8443" in moved.stdout, moved.stderr
