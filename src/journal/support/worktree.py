@@ -2,7 +2,6 @@ import fcntl
 import os
 import shutil
 import subprocess
-import time
 from pathlib import Path
 
 from journal.support.worktree_refs import TIPS_REF
@@ -69,7 +68,7 @@ class Worktree:
         return self.run_git("rev-parse", "HEAD").stdout.strip()
 
     def added(self) -> None:
-        self.git("worktree", "prune")
+        self.registration_dropped()
         if self.has(f"refs/heads/{self.branch}"):
             added = self.git("worktree", "add", str(self.path), self.branch)
         elif self.has(f"{TIPS_REF}/{self.name}"):
@@ -77,10 +76,15 @@ class Worktree:
         else:
             added = self.git("worktree", "add", "-b", self.branch, str(self.path))
         if added.returncode != 0:
-            self.git("worktree", "prune")
+            self.registration_dropped()
             if self.path.exists():
-                self.archived()
+                shutil.rmtree(self.path)
             raise WorktreeFailure(self.name, added.stderr.strip())
+
+    # git's record of this worktree alone, when its folder is gone; a prune would drop every other launch's whose folder is briefly away
+    def registration_dropped(self) -> None:
+        if self.is_registered():
+            self.git("worktree", "remove", "--force", str(self.path))
 
     def uncommitted(self) -> list[str]:
         return [line[3:] for line in self.run_git("status", "--porcelain").stdout.splitlines() if line.strip()]
@@ -100,12 +104,6 @@ class Worktree:
     def is_registered(self) -> bool:
         listed = self.git("worktree", "list", "--porcelain").stdout.splitlines()
         return self.path.resolve() in {Path(line.removeprefix("worktree ")).resolve() for line in listed if line.startswith("worktree ")}
-
-    def archived(self) -> Path:
-        stashed = self.path.with_name(f"{self.name}.moved-aside-{int(time.time())}")
-        self.path.rename(stashed)
-        self.git("worktree", "prune")
-        return stashed
 
     def shared(self) -> None:
         wanted = [Path(JOURNAL), *self.untracked(self.skills()), *self.ignored([Path(p) for p in IGNORED_COPIES if (self.root / p).exists()])]

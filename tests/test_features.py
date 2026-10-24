@@ -6654,6 +6654,31 @@ def test_a_boot_a_session_end_and_a_failed_start_leave_every_other_launch_worktr
     assert not (root / ".claude" / "worktrees" / "taken").exists(), "the failed start leaves nothing of its own behind"
 
 
+def test_a_failed_worktree_add_leaves_another_launch_worktree_registered_and_moves_nothing_aside(app: App):
+    import subprocess
+    from journal.support.worktree import Worktree
+    from journal.support.worktree_failure import WorktreeFailure
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    calm = Worktree(root, "calm-river").created()
+    away = calm.with_name("calm-river.away")
+    calm.rename(away)
+    git("branch", "worktree-taken")
+    git("worktree", "add", str(root / "elsewhere"), "worktree-taken")
+    try:
+        Worktree(root, "taken").created()
+        raise AssertionError("a start whose branch is checked out elsewhere fails")
+    except WorktreeFailure:
+        pass
+    away.rename(calm)
+    assert f"worktree {calm.resolve()}" in git("worktree", "list", "--porcelain").stdout, "the failed add pruned nothing: the launch worktree briefly away is still registered"
+    assert not [path for path in calm.parent.iterdir() if "moved-aside" in path.name] and not (calm.parent / "taken").exists(), "and nothing was moved aside or left behind"
+    (calm.parent / "calm-river").rename(away)
+    assert Worktree(root, "calm-river").created() == calm and calm.is_dir(), "a launch whose own folder is gone drops only its own record and makes it again"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
