@@ -51,8 +51,8 @@ class Workers(Feature[WorkersData]):
     name = WorkersPart.name
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports."
-    modes = Modes(WorkersOptions.MODE, WorkersOptions.TESTING, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
-    options = (WorkersOptions.BUILDER_HANDOVER_LIMIT, WorkersOptions.ORCHESTRATOR_LINE_LIMIT, WorkersOptions.SOLO_DISPATCH_LIMIT, WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.CHECK_REMINDER_USES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.POOL_SLOTS, WorkersOptions.POOL_MINUTES, WorkersOptions.POOL_PROFILES)
+    modes = Modes(WorkersOptions.MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})
+    options = (WorkersOptions.BUILDER_HANDOVER_LIMIT, WorkersOptions.ORCHESTRATOR_LINE_LIMIT, WorkersOptions.SOLO_DISPATCH_LIMIT, WorkersOptions.TIMEOUT, WorkersOptions.MODE, WorkersOptions.TESTING, WorkersOptions.CHECK_REMINDER_USES, WorkersOptions.WORKER_LIMIT, WorkersOptions.SUBAGENT_LIMIT, WorkersOptions.PROFILE_LIMIT, WorkersOptions.WORKTREE_STEP, WorkersOptions.PREPARATION_COMMANDS, WorkersOptions.COMPLETION_COMMANDS, WorkersOptions.BUILT_PATHS, WorkersOptions.BUILD_COMMAND, WorkersOptions.POOL_SLOTS, WorkersOptions.POOL_MINUTES, WorkersOptions.POOL_PROFILES)
     states = (Orchestrating, Soloing, OrchestratingPlan, Delegating)
     commands = (WorkerCommand, SubagentCommand, ArrivalCommand, TodoCommand, ProofCommand, DepartureCommand)
     seeds = (WorkersSeed, SubagentsSeed)
