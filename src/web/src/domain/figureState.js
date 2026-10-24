@@ -172,8 +172,10 @@ const BEATS = [
 // the beat for what the agent says in the chat, by the message's kind: a report
 const SAYINGS = {report: "reported"};
 
-// the messages of the agent's session, or of none, as the system's cards and a worker's reports are
-const ofSession = (agent, message) => [undefined, null, "", agent.session].includes(message.session);
+// the messages of the agent's session, or of none, as the system's cards and a worker's reports are; never those of a worker's or a
+// subagent's own session, which move their own card in the chat and not this agent's figure
+export const isMain = (message) => (message.agent_role || "main") === "main";
+const ofSession = (agent, message) => isMain(message) && [undefined, null, "", agent.session].includes(message.session);
 
 // The beats for what the agent has said in the chat since `seenAt` (seconds), oldest first, each turned to its message
 export const sayingsAfter = (agent, messages, seenAt) =>
@@ -187,7 +189,7 @@ export const sayingsAfter = (agent, messages, seenAt) =>
 // The beats for the user's messages the agent has read since `seenAt` (seconds), oldest first, each turned to its message
 export const readingsAfter = (messages, seenAt) =>
     messages
-        .filter((m) => m.author === "user" && seconds(m.read_at) > seenAt)
+        .filter((m) => m.author === "user" && isMain(m) && seconds(m.read_at) > seenAt)
         .map((m) => ({beat: "read_message", time: seconds(m.read_at), card: refOf(m)}))
         .sort((a, b) => a.time - b.time);
 
@@ -196,9 +198,10 @@ const FACE_MOMENTS = {user: "reacted", agent: "agent_reacted"};
 
 // The beats for faces the user or the agent has put on messages since `seenAt` (seconds), oldest first; `reactions` are the journal's
 // reaction rows. The card is the message the face is on.
-export function facesAfter(reactions, seenAt) {
+export function facesAfter(reactions, seenAt, messages = []) {
+    const others = new Set(messages.filter((m) => !isMain(m)).map((m) => m.id));
     return reactions
-        .filter((row) => FACE_MOMENTS[row.author] && createdAt(row) > seenAt)
+        .filter((row) => FACE_MOMENTS[row.author] && !others.has(row.message_id) && createdAt(row) > seenAt)
         .map((row) => ({beat: `${FACE_MOMENTS[row.author]}:${row.emoji}`, time: createdAt(row), card: `messages:${row.message_id}`}))
         .sort((a, b) => a.time - b.time);
 }

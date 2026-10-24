@@ -44,6 +44,7 @@ import {
     testResultsAfter,
     waitingSinceAt,
     withSystemCards,
+    isMain,
     callLines,
     stretchedFrame,
 } from "../domain/figureState.js";
@@ -999,7 +1000,7 @@ function look() {
         ...beatsAfter(lead.value, recent),
         ...cardsAfter(lead.value, knownCards, Math.max(watchedSince, recent)),
         ...testResultsAfter(lead.value, testStates, watchedSince),
-        ...facesAfter(rows("reactions"), recent),
+        ...facesAfter(rows("reactions"), recent, rows("messages")),
         ...sayingsAfter(lead.value, rows("messages"), recent),
         ...readingsAfter(rows("messages"), recent),
         ...writtenFacesAfter(lead.value, rows("messages"), recent),
@@ -1483,7 +1484,7 @@ function barLook(shown) {
 // the newest message `author` said in the chat, for its first seconds there (looks.js MESSAGE_SECONDS), as a look: of the kind said for the
 // user's, message for the agent's, its chat mark, its bubble's box and the middle of it; null with none
 function newMessage(author) {
-    const said = rows("messages").filter((message) => message.author === author && !message.data?.kind && createdAt(message) > watchedSince);
+    const said = rows("messages").filter((message) => isMain(message) && message.author === author && !message.data?.kind && createdAt(message) > watchedSince);
     const newest = said.reduce((last, message) => (!last || createdAt(message) > createdAt(last) ? message : last), null);
     if (!newest || now.value - createdAt(newest) > MESSAGE_SECONDS) return null;
     const bubble = document.querySelector(`[data-figure-mark="${CSS.escape(refOf(newest))}"]`)?.getBoundingClientRect();
