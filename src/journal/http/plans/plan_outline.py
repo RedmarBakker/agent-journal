@@ -6,14 +6,14 @@ from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.repositories.plan_reviews import PlanReviews
 from journal.repositories.plans import Plans
-from journal.repositories.workers import Workers
+from journal.repositories.tasks import Tasks
 
 
 class PlanOutline:
     """A plan with its phases, each with its task numbers in order, the tasks under no phase, the phase in hand, whether it stands at a checkpoint for the user, whether a worker holds one of its tasks, the titles of the testing template it follows, and its review rounds, newest first, each with the reports it filed; a closed plan is read from its links alone, since none of that turns on its tasks' rows."""
 
-    def __init__(self, plans: Plans, workers: Workers, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting) -> None:
-        self.plans, self.workers, self.reviews, self.rounds, self.testing = plans, workers, reviews, rounds, testing
+    def __init__(self, plans: Plans, tasks: Tasks, reviews: PlanReviews, rounds: ReviewRounds, testing: PlanTesting) -> None:
+        self.plans, self.tasks, self.reviews, self.rounds, self.testing = plans, tasks, reviews, rounds, testing
 
     def build(self, plan: Plan) -> dict:
         if plan.state.is_closed():
@@ -21,11 +21,12 @@ class PlanOutline:
         return self.open_outline(plan)
 
     def open_outline(self, plan: Plan) -> dict:
-        task_ids = self.plans.plan_task_ids(plan)
         phased = self.plans.phased(plan)
+        phased_ids = list(dict.fromkeys(t.id for phase in phased for t in phase.tasks))
+        task_ids = phased_ids + self.plans.unphased_task_ids(plan, phased_ids)
         phases = [{**ModelFields.build(phase.phase), "task_ids": [t.id for t in phase.tasks]} for phase in phased]
         checkpoint_pause = plan.state == PlanState.STARTED and plan.checkpoint_phase(phased) is not None
-        return self.outline(plan, task_ids, phases, plan.current_phase(phased), checkpoint_pause, bool(self.workers.containing(set(task_ids))))
+        return self.outline(plan, task_ids, phases, plan.current_phase(phased), checkpoint_pause, self.tasks.has_worker_holder(task_ids))
 
     def closed_outline(self, plan: Plan) -> dict:
         phases = self.plans.plan_phases(plan)

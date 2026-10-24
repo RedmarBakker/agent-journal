@@ -31,6 +31,11 @@ class Links(Repository[Link]):
             return []
         return self.selected(self.query().filter_listed(column, list(refs)).filter(kind=kind).order("id"))
 
+    def ref_count(self, column: str, refs: Sequence[Ref], kind: str, source_table: str) -> int:
+        if not refs:
+            return 0
+        return sum(self.grouped_counts(self.query().filter_listed(column, list(refs)).filter(kind=kind).filter_prefix("source", f"{source_table}:"), "kind").values())
+
     def counts_into(self, models: Sequence[Model], kind: str) -> dict[int, int]:
         if not models:
             return {}
@@ -51,6 +56,11 @@ class Links(Repository[Link]):
 
     def sources(self, model: Model, kind: str) -> list[Ref]:
         return [link.source for link in self.selected(self.query().filter(target=Ref.build(model), kind=kind).order("id"))]
+
+    def sources_except(self, model: Model, kind: str, refs: Sequence[Ref]) -> list[Ref]:
+        if not refs:
+            return self.sources(model, kind)
+        return [link.source for link in self.selected(self.query().filter(target=Ref.build(model), kind=kind).filter_unlisted("source", list(refs)).order("id"))]
 
     def connecting(self, source: Model, target: Model) -> list[Link]:
         return self.matching(source=Ref.build(source), target=Ref.build(target))

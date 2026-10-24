@@ -187,7 +187,7 @@ def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     tasks, workers = event.data.part(TasksPart), event.data.part(WorkersPart)
-    if settings.value(WorkersOptions.MODE) != "orchestrator" or workers.is_full(settings.integer(WorkersOptions.WORKER_LIMIT)) or not tasks.open_ids:
+    if settings.value(WorkersOptions.MODE) != "orchestrator" or is_full(workers.dispatched_workers, settings.integer(WorkersOptions.WORKER_LIMIT)) or not tasks.open_ids:
         return state.none()
     return state.none(WorkersNudges.CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_summary))
 
@@ -216,3 +216,7 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
         return state.none()
     mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
     return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))))
+
+
+def is_full(dispatched: tuple, limit: int) -> bool:
+    return limit > 0 and len(dispatched) >= limit

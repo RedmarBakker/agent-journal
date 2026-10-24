@@ -84,6 +84,12 @@ class Repository(Generic[M]):
             self.connection.large_reads.add(self.table, query.select()[0], ReadCaller.found(), len(rows))
         return rows
 
+    def selected_ids(self, query: Query) -> list[int]:
+        ids = [row["id"] for row in self.connection.all(*query.select_ids())]
+        for row_id in ids:
+            LoadTally.counted(self.table, (row_id,))
+        return ids
+
     def _purged(self, query: Query) -> None:
         LoadTally.count_write(self.table)
         self.connection.execute(*query.delete())
@@ -91,6 +97,8 @@ class Repository(Generic[M]):
 
     def purged_rows(self, model: type[Model], query: Query, actor: Actor) -> None:
         ids = tuple(row["id"] for row in self.connection.all(*query.select()))
+        if not ids:
+            return
         self._purged(query)
         self.bus.dispatch(Purged(model=model, ids=ids, actor=actor))
 

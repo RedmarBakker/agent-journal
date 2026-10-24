@@ -22,6 +22,9 @@ class ScopedRepository(Repository[S]):
     def selected(self, query: Query) -> list[S]:
         return super().selected(self._scoped(query))
 
+    def selected_ids(self, query: Query) -> list[int]:
+        return super().selected_ids(self._scoped(query))
+
     def with_project(self, query: Query) -> list[S]:
         return super().selected(query.filter_listed("environment_id", (self.scope.id, PROJECT)))
 

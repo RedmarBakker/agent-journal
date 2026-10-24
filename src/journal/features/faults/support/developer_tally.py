@@ -13,10 +13,12 @@ ROLLING_ROWS = 250
 POINTS_GROUP = "developer.points"
 # how far back the bar's averages reach: an answer older than this counts no more, however few came since
 WINDOW_SECONDS = 15 * 60
+# how far back the log of timings reaches; older ones are thrown away
+LOG_SECONDS = 60 * 60
 
 
 class DeveloperTally:
-    """The developer numbers since the server booted, kept in memory and written nowhere: the count, total and slowest time of each series, the rows loaded per model, and the rolling log of the newest thousand timings, and the newest 250 timings of each hook kind and each route within the last fifteen minutes, whose averages are averaged so a frequent cheap one counts as much as a rare dear one."""
+    """The developer numbers since the server booted, kept in memory and written nowhere: the count, total and slowest time of each series, the rows loaded per model, the rolling log of the newest thousand timings within the last hour, and the newest 250 timings of each hook kind and each route within the last fifteen minutes, whose averages are averaged so a frequent cheap one counts as much as a rare dear one."""
 
     def __init__(self, stages: StageTimes, settings: SettingRows) -> None:
         self.stages, self.settings = stages, settings
@@ -36,13 +38,13 @@ class DeveloperTally:
         with self._lock:
             window = self._rolling.setdefault(group, {}).setdefault(kind, [])
             window.append((time.monotonic(), ms))
-            del window[:-ROLLING_ROWS]
+            window[:] = self.trimmed(window)
 
     def loaded(self, kind: str, loads: RequestLoads) -> None:
         with self._lock:
             window = self._loads.setdefault(kind, [])
             window.append((time.monotonic(), loads))
-            del window[:-ROLLING_ROWS]
+            window[:] = self.trimmed(window)
 
     def added(self, key: str, amount: int) -> None:
         with self._lock:
@@ -51,7 +53,8 @@ class DeveloperTally:
     def logged(self, timing: Timing) -> None:
         with self._lock:
             self._log.append(timing)
-            del self._log[:-LOG_ROWS]
+            start = time.time() - LOG_SECONDS
+            self._log[:] = [row for row in self._log[-LOG_ROWS:] if row.time >= start]
 
     def series(self, prefix: str) -> dict[str, int]:
         self.stage_samples()
@@ -71,6 +74,11 @@ class DeveloperTally:
     def recent_windows(self, group: str) -> dict[str, list[int]]:
         windows = {kind: self.recent(window) for kind, window in self._rolling.get(group, {}).items()}
         return {kind: window for kind, window in windows.items() if window}
+
+    @staticmethod
+    def trimmed(window: list) -> list:
+        start = time.monotonic() - WINDOW_SECONDS
+        return [pair for pair in window[-ROLLING_ROWS:] if pair[0] >= start]
 
     @staticmethod
     def recent(window: list) -> list:

@@ -71,8 +71,8 @@ class Messages(ScopedRepository[Message]):
     def unread(self) -> list[Message]:
         return self.selected(self.unread_query().order("id").limit(PAGE_ROWS))
 
-    def unread_page(self, count: int) -> list[Message]:
-        return self.selected(self.unread_query().order("id").limit(count))
+    def unread_page_ids(self, count: int) -> list[int]:
+        return self.selected_ids(self.unread_query().order("id").limit(count))
 
     def unread_count(self) -> int:
         return self.counted(self.unread_query())

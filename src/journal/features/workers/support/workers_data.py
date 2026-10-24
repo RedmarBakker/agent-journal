@@ -25,6 +25,3 @@ class WorkersData:
     ready_work: tuple[ReadyWork, ...] = ()
     tool_uses: ToolUseCounts = ToolUseCounts()
     code_lines: int = 0
-
-    def is_full(self, limit: int) -> bool:
-        return limit > 0 and len(self.dispatched_workers) >= limit

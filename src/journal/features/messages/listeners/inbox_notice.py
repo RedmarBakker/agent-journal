@@ -21,8 +21,8 @@ class InboxNotice(AgentListener[E]):
         self.sessions, self.nudger, self.messages = sessions, nudger, messages
 
     def handle(self, event: E) -> Decision | None:
-        unread = self.messages.unread_page(INBOX_LINE_IDS)
+        unread = self.messages.unread_page_ids(INBOX_LINE_IDS)
         if not unread:
             return None
-        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), MessagesNudges.inbox(tuple(m.row_id for m in unread), self.messages.unread_count()))
+        line = self.nudger.deliver(self.sessions.agent(event.session, event.environment_id), MessagesNudges.inbox(tuple(unread), self.messages.unread_count()))
         return Decision.allowed_with(line) if line else None

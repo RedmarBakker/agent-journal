@@ -67,6 +67,9 @@ class Plans(ScopedRepository[Plan]):
     def plan_tasks(self, plan: Plan) -> list[Task]:
         return self.tasks.numbered(ref.id for ref in self.links.sources(plan, PLAN_LINK))
 
+    def unphased_task_ids(self, plan: Plan, phased_ids: list[int]) -> list[int]:
+        return [ref.id for ref in self.links.sources_except(plan, PLAN_LINK, [Ref(Task.table(), task_id) for task_id in phased_ids])]
+
     def plan_task_ids(self, plan: Plan) -> list[int]:
         return [ref.id for ref in self.links.sources(plan, PLAN_LINK)]
 

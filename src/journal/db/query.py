@@ -119,6 +119,9 @@ class Query:
     def select(self) -> tuple[str, tuple]:
         return self._read("*")
 
+    def select_ids(self) -> tuple[str, tuple]:
+        return self._read("id")
+
     def count(self) -> tuple[str, tuple]:
         return self._read("count(*) AS value")
 

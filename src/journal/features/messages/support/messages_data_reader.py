@@ -19,10 +19,10 @@ class MessagesDataReader:
 
     def read(self, agent: Agent) -> LazyFacts:
         facts = LazyFacts("messages", {
-            "unread_rows": lambda: self.messages.unread_page(INBOX_LINE_IDS),
+
             "unread_count": self.messages.unread_count,
             "unanswered_rows": self.messages.unanswered,
-            "unread": lambda: tuple(m.row_id for m in facts.unread_rows),
+            "unread": lambda: tuple(self.messages.unread_page_ids(INBOX_LINE_IDS)),
             "unanswered": lambda: tuple(m.row_id for m in facts.unanswered_rows),
             "unanswered_files": lambda: tuple(f"{self.config.files / 'message' / str(m.id)}/" for m in facts.unanswered_rows),
             "peer_questions": lambda: tuple(PeerQuestion(m.row_id, m.data[Message.PEER]) for m in self.messages.peer_questions()),

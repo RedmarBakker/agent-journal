@@ -29,7 +29,7 @@ from journal.features.tasks.support.next_open_task import NextOpenTask
 CURRENT = "current"
 
 # the open tasks a plain task list prints, highest priority first; the rest are counted
-LIST_ROWS = 25
+LIST_ROWS = 20
 
 class TaskCommand(Command):
     noun = "task"

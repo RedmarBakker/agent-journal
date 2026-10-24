@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime, timezone
 
 from journal.db.connection import Connection
@@ -218,6 +219,9 @@ class Tasks(ScopedRepository[Task]):
 
     def block_batch(self, start_at: float) -> list[Task]:
         return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]
+
+    def has_worker_holder(self, task_ids: Sequence[int]) -> bool:
+        return self.links.ref_count("target", [Ref(Task.table(), task_id) for task_id in task_ids], CURRENT_TASK_LINK, WORKERS) > 0
 
     def task_worker_holdings(self, task_ids: set[int]) -> dict[int, int]:
         refs = [Ref(Task.table(), task_id) for task_id in sorted(task_ids)]

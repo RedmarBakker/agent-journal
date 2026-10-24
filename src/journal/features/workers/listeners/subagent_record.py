@@ -1,6 +1,6 @@
 from journal.events.listener import Listener
 from journal.events.models.updated import Updated
-from journal.features.workers.support.subagent_entries import SubagentEntries
+from journal.features.workers.support.subagent_entries import ENDS, SubagentEntries
 from journal.models.entry import Entry
 from journal.models.subagent import Subagent
 from journal.repositories.subagents import Subagents
@@ -8,7 +8,7 @@ from journal.support.actor import Actor
 
 
 class SubagentRecord(Listener[Updated]):
-    """Each subagent the agent dispatched is a row, written as each entry that moves it is resolved with what the journal answered, so a dispatch the journal refused is never a row and the next hook counts the rows as they are; a retired subagent stays retired until it is sent a message; a row whose dispatch entry was trimmed is moved by the entry alone."""
+    """Each subagent the agent dispatched is a row, written as each entry that moves it is resolved with what the journal answered, so a dispatch the journal refused is never a row and the next hook counts the rows as they are; a retired subagent stays retired until it is sent a message; a row whose dispatch entry was trimmed is moved by the entry alone; a stop or a session's start or end with no subagent running moves nothing and pairs nothing."""
 
     def __init__(self, entries: SubagentEntries, subagents: Subagents) -> None:
         self.entries, self.subagents = entries, subagents
@@ -18,6 +18,8 @@ class SubagentRecord(Listener[Updated]):
             return
         session = event.model.data.get("session_id", "")
         stored = {s.dispatch: s for s in self.subagents.session_subagents(session)}
+        if event.model.kind in ENDS and not any(row.is_running() for row in stored.values()):
+            return
         paired = {row.dispatch: row for row in self.entries.rows(session)}
         for row in paired.values():
             self.recorded(stored.get(row.dispatch), row, Actor.agent(session))
