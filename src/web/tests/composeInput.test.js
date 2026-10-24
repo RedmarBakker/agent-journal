@@ -119,6 +119,6 @@ test("files attached with no words are sent, and the send button is ready for th
     await settle();
     expect(send).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[0][0]).toBe("");
-    expect(send.mock.calls[0][1].map((file) => file.name)).toEqual(["image.png"]);
+    expect(send.mock.calls[0][1].map((file) => file.name)).toEqual(["Pasted image 1.png"]);
     unmount();
 });
