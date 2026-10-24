@@ -114,6 +114,7 @@ class SyncClient:
             if not batch.ids:
                 return False
             answer = self.link.send_changes(list(batch.changes), self.clock_offset, self.doors.query(0))
+            self.status.connected()
             self.measured(answer.delivery.server_time - time.time())
             if self.doors.pushed(batch, answer).needs_copy:
                 self.laid_in()
@@ -130,6 +131,7 @@ class SyncClient:
 
     def pulled(self, wait_seconds: float) -> int:
         answer = self.link.fetch_changes(self.doors.query(wait_seconds))
+        self.status.connected()
         self.measured(answer.server_time - time.time())
         return self.taken(answer)
 

@@ -13068,3 +13068,25 @@ def test_a_journal_in_a_team_installs_the_version_its_team_pins_by_itself_and_no
             assert "the team decides its version" in str(refused) and VERSION in str(refused), str(refused)
     finally:
         account.left(0)
+
+
+def test_a_carrier_in_its_own_process_shows_on_the_status_line_by_its_beat(app: App):
+    import json as jsonlib
+    import time as clock
+    from journal.sync.carrier_beat import CarrierBeat
+    from journal.sync.sync_status import SyncStatus
+    from journal.sync.team_account import TeamAccount
+    account = app.container.get(TeamAccount)
+    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 0})
+    beat, status = app.container.get(CarrierBeat), app.container.get(SyncStatus)
+    try:
+        status.connected()
+        beat.beat("the team server refused the push: the device was revoked")
+        assert status.line() == "Not connected: the team server refused the push: the device was revoked", "the carrier's refusal shows on the line"
+        beat.beat("")
+        assert status.state() == "in_step"
+        beat.path.write_text(jsonlib.dumps({"pid": 1, "beat_at": clock.time() - 60, "fault": ""}))
+        assert status.line() == "Not connected: the sync process is not running" and status.state() == "not_connected", "a carrier gone silent shows as not connected"
+    finally:
+        beat.forget()
+        account.left(0)

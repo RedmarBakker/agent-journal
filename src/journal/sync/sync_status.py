@@ -1,5 +1,6 @@
 from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.support.release import Release
+from journal.sync.carrier_beat import CarrierBeat
 from journal.sync.team_account import TeamAccount
 from journal.version import VERSION
 
@@ -7,8 +8,8 @@ from journal.version import VERSION
 class SyncStatus:
     """How this journal's sync with its team server stands, in one line for the viewer's status bar: nothing in no team, the version to install when the team is pinned to a newer one, the fault while it cannot reach the server, that it is connecting before it first has, else how many changes wait to be sent; and which of those it is, for the Team page's dot and the top bar's Team button, nothing in no team."""
 
-    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges) -> None:
-        self.account, self.outgoing = account, outgoing
+    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, beat: CarrierBeat) -> None:
+        self.account, self.outgoing, self.beat = account, outgoing, beat
         self.fault = ""
         self.reached = False
 
@@ -18,6 +19,10 @@ class SyncStatus:
 
     def failed(self, fault: str) -> None:
         self.fault = fault
+
+    # the fault met here, or by the carrier in its own process, as its beat file says
+    def current_fault(self) -> str:
+        return self.fault or self.beat.fault()
 
     def upgrade_line(self) -> str:
         team_version = self.account.team_version()
@@ -30,7 +35,7 @@ class SyncStatus:
             return ""
         if self.upgrade_line():
             return "version"
-        if self.fault:
+        if self.current_fault():
             return "not_connected"
         if not self.reached:
             return "connecting"
@@ -44,8 +49,8 @@ class SyncStatus:
             return ""
         if self.upgrade_line():
             return self.upgrade_line()
-        if self.fault:
-            return f"Not connected: {self.fault}"
+        if self.current_fault():
+            return f"Not connected: {self.current_fault()}"
         if not self.reached:
             return "Connecting to the team server"
         waiting = self.waiting()

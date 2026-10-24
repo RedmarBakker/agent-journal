@@ -13,6 +13,7 @@ from journal.app import App
 from journal.config import Config
 from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.support.caller import Caller
+from journal.sync.sync_status import SyncStatus
 from journal.sync.team_account import TeamAccount
 from sync_server.account import ADMIN
 from sync_server.login_request import LoginRequest
@@ -73,6 +74,8 @@ def test_the_carrier_in_a_process_of_its_own_sends_the_journals_changes_once_and
         assert sent, f"alive {process.poll() is None}, waiting {len(app.container.get(OutgoingChanges).waiting())}, team {titles()}, log {(app.config.root / 'carrier.log').read_text()[:2500]}"
         process.send_signal(signal.SIGKILL)
         process.wait(10)
+        status = app.container.get(SyncStatus)
+        assert eventually(lambda: status.line() == "Not connected: the sync process is not running", 15), "a killed carrier shows as not connected within seconds"
         app.console().run(["task", "create", "made while the carrier was down"], USER)
         process = carrier(app)
         assert eventually(lambda: "made while the carrier was down" in titles(), 20), "a carrier started again sends what waited"
