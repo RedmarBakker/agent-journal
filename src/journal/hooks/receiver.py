@@ -46,8 +46,9 @@ class Receiver:
         self.transcript, self.slow = transcript, slow
         self.worker_hooks = worker_hooks
 
-    def receive(self, hook: Hook) -> Decision:
+    def receive(self, named: Hook) -> Decision:
         self.slow.begin(time.time())
+        hook = self.worker_hooks.named(named)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
             if not self.launches.is_launch(environment.name, hook.launch) and not self.worker_hooks.is_proven(hook):

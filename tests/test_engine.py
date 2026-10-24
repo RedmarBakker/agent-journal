@@ -2023,3 +2023,20 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
     with scope.environment(1):
         app.container.get(SettingRows).set("workers.testing", "Run the tests it wrote", Actor.user(1))
     assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"
+
+
+def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_held_by_the_users_unread_messages(app: App):
+    from journal.models.agent_role import AgentRole
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.worker import Worker
+    from journal.repositories.messages import Messages
+    from journal.repositories.workers import Workers
+    hook(app, "SessionStart")
+    scope = app.container.get(Scope)
+    with scope.environment(1):
+        app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w9"), Actor.system())
+        app.container.get(Messages).save(Message(environment_id=1, author=Author.USER, text="for the main agent"), Actor.user(1))
+    writes = [hook(app, "PreToolUse", session_id="w9", tool_name="Write", tool_input={"file_path": f"w{n}.py"}) for n in range(8)]
+    assert all(status == 200 for status, _ in writes), "a worker's write is allowed with the user's messages unread"
+    assert app.container.get(Agents).session_agent("w9").role == AgentRole.WORKER, "its session is a worker's, whatever its hook carried"
