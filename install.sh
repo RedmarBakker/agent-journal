@@ -74,6 +74,8 @@ fi
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
 if [ -L .journal ] && [ -n "$common" ] && [ "$common" != "$(git rev-parse --path-format=absolute --git-dir 2>/dev/null)" ]; then
   cd "$(dirname "$common")"
+  # The source is the project checkout's own, never the worktree's, which stands at whatever commit it was cut from.
+  [ -n "$TMP" ] || [ ! -d "$PWD/src/journal" ] || SRC="$PWD/src"
 fi
 # A journal from before version 4 is moved whole into .journal/version-3 before anything is written, and is never changed after;
 # should the install fail before the new journal is up, it is put back where it was.
@@ -156,6 +158,8 @@ for name in journal supervisor sync_server journal.py journal.sh; do
 done
 mkdir -p .journal/src/web && swap "$SRC/web/dist" .journal/src/web/dist
 # The commit installed, so a journal that follows a branch knows whether the branch has moved on.
-git -C "$SRC/.." rev-parse HEAD > .journal/src/commit 2>/dev/null || printf '' > .journal/src/commit
+commit=$(git -C "$SRC/.." rev-parse HEAD 2>/dev/null) || { echo "the install failed: $SRC is not a git checkout, so the commit installed cannot be known" >&2; exit 1; }
+printf '%s\n' "$commit" > .journal/src/commit
+echo "installed commit $commit from $SRC"
 [ -z "$TMP" ] || rm -rf "$TMP"
 JOURNAL_ROOT="$PWD" "$PY" .journal/src/journal.py setup
