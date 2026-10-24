@@ -1597,6 +1597,46 @@ def test_switching_the_work_mode_tells_the_agent_once_which_mode_it_now_works_in
     assert "you now work as the builder" in use("e.py")
 
 
+def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(app: App):
+    """The builder handing work out twice with no code of its own between, the orchestrator past its lines of its own code since its last handover, and the solo agent sending subagents past its own reads each hear their mode's line once, never in another mode."""
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    settings = app.container.get(SettingRows)
+    said = lambda kind, **body: json.dumps(hook(app, kind, **body)[1])
+    shell = lambda command: said("PreToolUse", tool_name="Bash", tool_input={"command": command})
+    handover = lambda: shell("journal worker send 1 'the next job'")
+
+    def edit(name: str, lines: int) -> str:
+        change = {"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"}
+        before = said("PreToolUse", tool_name="Edit", tool_input=change)
+        hook(app, "PostToolUse", tool_name="Edit", tool_input=change, tool_response={"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": [f"+line {n}" for n in range(lines)]}]})
+        app.runtime().deferred.drain()
+        return before
+
+    assert "you are the builder" not in handover()
+    edit("a.py", 1)
+    assert "you are the builder" not in handover(), "a code edit of its own between two handovers starts the count again"
+    assert "you are the builder" in handover(), "two handovers in a row with no code between tell the builder to take the next task itself"
+    assert "you are the builder" not in handover(), "and only once within its repeat span"
+
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("workers.orchestrator_lines", 5, Actor.user(1))
+    edit("b.py", 3)
+    assert "you are the orchestrator" not in shell("echo checked")
+    edit("c.py", 3)
+    assert "you are the orchestrator" in shell("echo checked"), "past the limit set on the Settings page the orchestrator is told to hand the work out"
+    handover()
+    edit("d.py", 3)
+    assert "you are the orchestrator" not in shell("echo checked"), "a handover starts its count of lines again"
+    assert "you are the builder" not in handover() + handover(), "the builder's line is never said in another mode"
+
+    settings.set("workers.mode", "solo", Actor.user(1))
+    settings.set("workers.solo_dispatches", 2, Actor.user(1))
+    dispatch = lambda: said("PreToolUse", tool_name="Agent", tool_input={"model": "haiku", "subagent_type": "journal-researcher", "description": "find the footer", "prompt": "find it"})
+    assert "you are solo" not in dispatch()
+    assert "you are solo" in dispatch() + shell("echo checked"), "subagents past its own reads by the limit tell the solo agent to research itself"
+
+
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
     """A prompt that is a journal line already says its words, so its hook adds no line it carries."""
     hook(app, "SessionStart")

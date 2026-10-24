@@ -1,3 +1,4 @@
+from journal.support.code_files import CodeFiles
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.support.actor import Actor
@@ -29,3 +30,6 @@ class Edits(ScopedRepository[Edit]):
 
     def has_older(self, session: str, first: int) -> bool:
         return bool(self.selected(self.query().filter(session=session).filter_less("id", first).limit(1)))
+
+    def code_line_count(self, session: str, start_at: float) -> int:
+        return sum(edit.added + edit.removed for edit in self.selected(self.query().filter(session=session).filter_greater("time", start_at).order("id")) if CodeFiles.has_code((edit.path,)))

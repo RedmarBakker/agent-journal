@@ -1,3 +1,6 @@
+from journal.features.workers.support.tool_use_counts import NEWEST_TOOL_USES, ToolUseCounts
+from journal.repositories.edits import Edits
+from journal.repositories.entries import Entries
 from journal.config import Config
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_worktree import WorkerWorktree
@@ -22,7 +25,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs) -> None:
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, entries: Entries, edits: Edits) -> None:
+        self.entries, self.edits = entries, edits
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
     def is_unchecked(self, task_id: int) -> bool:
@@ -32,6 +36,7 @@ class WorkersDataReader:
     def read(self, agent: Agent) -> WorkersData:
         rows, subagents = self.workers.scoped(), self.subagents.session_subagents(agent.session)
         agent_rows = [w for w in rows if agent.session in (w.session, w.resume)] if agent.role == AgentRole.WORKER else []
+        tool_uses = ToolUseCounts.counted(self.entries.tool_starts(agent.session, NEWEST_TOOL_USES))
         return WorkersData(
             dispatched_workers=tuple(w for w in rows if w.is_running()),
             idle_workers=tuple(w for w in rows if w.is_idle()),
@@ -43,4 +48,6 @@ class WorkersDataReader:
             ready_work=tuple(ReadyWork(w.id, w.name, task, w.silence.timeout.start) for w in rows if w.state == WorkerState.DELIVERED for task in self.tasks.holder_task_ids(Ref.build(w))[:1] if self.is_unchecked(task)),
             unfinished_outputs=tuple(output.row_id for worker in agent_rows for output in self.outputs.unfinished(Actor.worker(worker.id))),
             todos=tuple(item for worker in agent_rows for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
+            tool_uses=tool_uses,
+            code_lines=self.edits.code_line_count(agent.session, tool_uses.last_handover_at),
         )

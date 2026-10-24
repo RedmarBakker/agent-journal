@@ -27,6 +27,7 @@ from journal.models.worker import Worker
 from journal.features.workers.support.workers_data import WorkersData
 from journal.support.subagent_dispatch import SubagentDispatch
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.workers.workers_alignments import WorkersAlignments
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
@@ -39,7 +40,7 @@ class WorkersConduct(Conduct):
     """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, and a worker's report is informed as it comes."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check)
+        checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
@@ -208,3 +209,10 @@ def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> 
 
 def place_answer(state: BaseState, event: WorkerMerged | WorkerRetired, settings: Settings) -> Transition:
     return state.none() if event.worker.is_other_dispatcher(event.session) else state.none(*free_place(event.worker, event.data, settings))
+
+
+def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    if event.subagent:
+        return state.none()
+    mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
+    return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))))

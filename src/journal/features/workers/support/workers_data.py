@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.features.workers.support.worker_worktree import WorkerWorktree
 from journal.models.subagent import Subagent
 from journal.features.workers.support.ready_work import ReadyWork
@@ -22,6 +23,8 @@ class WorkersData:
     todos: tuple[WorkerTodo, ...] = ()
     unfinished_outputs: tuple[int, ...] = ()
     ready_work: tuple[ReadyWork, ...] = ()
+    tool_uses: ToolUseCounts = ToolUseCounts()
+    code_lines: int = 0
 
     def is_full(self, limit: int) -> bool:
         return limit > 0 and len(self.dispatched_workers) >= limit
