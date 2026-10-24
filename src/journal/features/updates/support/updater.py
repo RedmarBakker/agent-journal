@@ -201,8 +201,10 @@ class Updater:
         return self.account.is_joined() and not self.is_hosted() and self.sync.state() != UNREACHABLE and not self.has_newer_pin()
 
     def has_newer_pin(self) -> bool:
-        team_pin = self.link.summary(self.account.address()).version
-        return any(pinned.is_newer(self.running()) for pinned in Release.lookup([team_pin]))
+        return any(pinned.is_newer(self.running()) for pinned in self.team_pin())
+
+    def team_pin(self) -> list[Release]:
+        return Release.lookup([self.link.summary(self.account.address()).version])
 
     def install_newest(self, actor: Actor) -> None:
         target = self.target()
@@ -249,9 +251,9 @@ class Updater:
     def lead(self, version: str) -> None:
         if not self.leads_team() or not self.account.is_joined():
             return
-        if not any(Release(version).is_newer(pinned) for pinned in Release.lookup([self.account.team_version()])):
-            return
         try:
+            if any(not Release(version).is_newer(pinned) for pinned in self.team_pin()):
+                return
             self.link.pin_version(version)
         except (OSError, TeamRefusal) as refused:
             self.problem = f"The team could not be pinned to {version}: {refused}"

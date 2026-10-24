@@ -6128,6 +6128,26 @@ def test_an_update_runs_the_real_installer_end_to_end_with_only_the_download_and
     assert updating.card.paused() is None and "nor could the official install command" in updating.problem, "an install that fails, the official command too, leaves no marker a launch would wait on, and says why"
 
 
+def test_a_journal_with_a_stale_team_version_never_pins_the_team_back_and_an_admins_own_pin_moves_it_either_way(app: App, monkeypatch):
+    from journal.features.updates.support.updater import Updater
+    from journal.sync.team_server_link import TeamServerLink
+    updating = updating_with(app, Source("v4.0.0", "v4.99.0"), Installer(), auto=False)
+    server, account = joined_team(app)
+    try:
+        link = app.container.get(TeamServerLink)
+        link.pin_version("4.99.0")
+        account.record_pull(account.sequence(), "4.0.0")
+        monkeypatch.setattr(Updater, "leads_team", lambda self: True)
+        updating.lead("4.50.0")
+        assert link.summary(account.address()).version == "4.99.0" and updating.problem == "", "a journal whose copy of the team version is stale reads the pin live and leaves a newer one where it is"
+        updating.lead("4.100.0")
+        assert link.summary(account.address()).version == "4.100.0", "and it still leads the team onto a newer release"
+        link.pin_version("4.10.0")
+        assert link.summary(account.address()).version == "4.10.0", "an admin's own pin moves the team back as well as forward"
+    finally:
+        server.shutdown()
+
+
 def test_releases_compare_by_number_and_pre_releases_are_left_out():
     matched = Release.lookup(["v4.10.0", "v4.9.2", "v4.1.0-rc1", "nightly", "v4.9.10"])
     assert [release.version for release in matched] == ["4.9.2", "4.9.10", "4.10.0"]
@@ -11341,11 +11361,13 @@ def test_a_hosted_journal_follows_the_teams_pin_and_with_the_auto_update_on_inst
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from journal.sync.team_server_link import TeamServerLink
     from journal.version import VERSION
+    from sync_server.team_summary import TeamSummary
 
     major, minor, _ = (int(n) for n in VERSION.split("."))
     pinned, beyond = f"{major}.{minor + 1}.0", f"{major}.{minor + 2}.0"
     installed, pins = [], []
     monkeypatch.setattr(TeamServerLink, "pin_version", lambda self, version: pins.append(version))
+    monkeypatch.setattr(TeamServerLink, "summary", lambda self, address: TeamSummary("", True, app.container.get(TeamAccount).team_version()))
     ended = []
     monkeypatch.setattr(os, "kill", lambda pid, number: ended.append((pid, number)))
     monkeypatch.setattr(ReleaseSource, "tags", lambda self, prefix: [f"v{pinned}", f"v{beyond}"])
