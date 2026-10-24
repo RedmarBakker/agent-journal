@@ -13477,3 +13477,4 @@ def test_a_reader_report_whose_finding_the_runs_output_bears_out_cannot_be_dismi
     with app.container.get(Scope).environment(1):
         [other] = [r for r in app.container.get(ReaderReports).unread("s1") if r.output == silent]
     assert console.run(["reader", "dismiss", str(other.id), "--why", "the run prints no progress"], AGENT).code == 0, "a report about output the run never printed can still be dismissed"
+    assert console.run(["reader", "add", "fresh", "--about", "nothing yet"], AGENT).code != 0, "a new reader still needs its --pattern or --script, while an existing one is written anew with only the flags that change"

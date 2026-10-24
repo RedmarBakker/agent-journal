@@ -32,8 +32,8 @@ class ReaderCommand(Command):
     def arguments(self, verbs) -> None:
         addition = self.verb(verbs, "add", "a reader kept in .journal/readers/: the lines a pattern matches, or what a script handed the output prints; writing an existing one anew keeps each setting a flag leaves out, and an empty value takes one away")
         addition.add_argument("name")
-        source = addition.add_mutually_exclusive_group(required=True)
-        source.add_argument("--pattern")
+        source = addition.add_mutually_exclusive_group()
+        source.add_argument("--pattern", help="the lines it picks; a new reader needs this or --script, an existing one keeps its own")
         source.add_argument("--script", type=Path, help="a shell script given the output on its input")
         addition.add_argument("--about", help="what it picks, in a few words; a new reader needs it")
         addition.add_argument("--progress", help="a pattern whose last match says how far the command has come: one group for a percentage, two for a count of a total")
@@ -54,6 +54,10 @@ class ReaderCommand(Command):
         if not NAME.fullmatch(args.name):
             raise Rejection(f"a reader's name is lowercase words joined by -, such as failed-tests, not {args.name}")
         prior = self.readers.named(args.name)
+        if prior is None and not (args.pattern or args.script):
+            raise Rejection("a new reader says what it picks with --pattern or --script")
+        if prior is not None and prior.script and not args.script and args.pattern is None:
+            raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
         reader = (prior or Reader(args.name, args.about, "")).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
