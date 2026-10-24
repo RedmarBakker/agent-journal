@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import * as THREE from "three";
 import {expect, test} from "vitest";
 import {CLIPS, Posing, lookToward} from "../src/figure/figure.js";
-import {HEAD, LOOKS, SWITCH_SECONDS, headBlend, holdsHead, leadingLook} from "../src/figure/looks.js";
+import {HEAD, LOOKS, SWITCH_SECONDS, headBlend, holdsHead, leadingLook, looksFor} from "../src/figure/looks.js";
 import {gazeAfter} from "../src/figure/reactions.js";
 
 const {rig, stances} = JSON.parse(readFileSync(new URL("./figureRig.json", import.meta.url)));
@@ -98,4 +98,26 @@ test("in a middle case the head eases to a blend of the look and the act's own h
     const full = headTurn("wave", 1);
     expect(headTurn("wave", blend) / full).toBeGreaterThan(blend - 0.15);
     expect(headTurn("wave", blend) / full).toBeLessThan(blend + 0.15);
+});
+
+test("on the telephone the head follows nothing but the call: no look is taken up while it plays, and it looks again once the call is over", () => {
+    const phone = clipNamed("phone_call");
+    const idle = clipNamed("idle");
+    expect(phone.head).toBe(HEAD.alone);
+    expect(holdsHead(phone)).toBe(true);
+    // whatever catches its interest meanwhile: the user's new message, the pointer, the agent's message, a bar, its own glance
+    const offered = [look("said", 700, 300), look("pointer", 400, 500), look("message", 900, 200), look("bar", 500, 600), look("glance", 450, 380)];
+    for (const each of offered) expect(headBlend(each, phone), each.kind).toBe(0);
+    expect(looksFor(phone, offered)).toEqual([]);
+    // every frame of the call, a twelfth of a second apart, the head takes up none of them
+    const seconds = phone.frames / phone.fps;
+    let leading = null;
+    for (let frame = 0; frame <= seconds * 12; frame++) {
+        leading = leadingLook(leading, looksFor(phone, offered), frame / 12);
+        expect(leading.look, `${frame / 12}s into the call`).toBe(null);
+    }
+    // the handset down, the next act looks again at once, at the strongest of them
+    leading = leadingLook(leading, looksFor(idle, offered), seconds + 1 / 12);
+    expect(leading.look).toMatchObject({kind: "said"});
+    expect(headBlend(leading.look, idle)).toBeGreaterThan(0.5);
 });

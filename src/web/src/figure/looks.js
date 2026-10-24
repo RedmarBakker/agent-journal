@@ -9,15 +9,19 @@
 // message in the chat, the box it builds or pushes, a picture it admires, a progress bar it chose to watch, and its own idle glances
 export const LOOKS = {said: 9, pointer: 8, run: 7, carrier: 6, reading: 5, message: 4, work: 3, picture: 2, bar: 2, glance: 1};
 
-// How strongly an act keeps its own head: hardly at all walking or standing, somewhat through a gesture that moves it, and almost wholly
-// where the act's head is part of what it does, as climbing the ladder, under the parachute, rummaging or thinking
-export const HEAD = {free: 1, gestures: 3, holds: 30};
+// How strongly an act keeps its own head: hardly at all walking or standing, somewhat through a gesture that moves it, almost wholly
+// where the act's head is part of what it does, as climbing the ladder, under the parachute, rummaging or thinking, and `alone` wholly,
+// following nothing but the act itself, as on the telephone, taking up no look at all until it is over (looksFor)
+export const HEAD = {free: 1, gestures: 3, holds: 30, alone: Infinity};
 
 // how long a new strongest look must lead before the head takes it up, in seconds
 export const SWITCH_SECONDS = 2;
 
 // how long a new message is a look after it comes into the chat, in seconds
 export const MESSAGE_SECONDS = 4;
+
+// the looks the figure may take up this frame playing `clip`, of `looks`: all of them, but none for an act that keeps its head alone
+export const looksFor = (clip, looks) => (clip.head === HEAD.alone ? [] : looks);
 
 // whether `clip` keeps its head as its act poses it, never turned to the viewer for a look
 export const holdsHead = (clip) => clip.head >= HEAD.holds;

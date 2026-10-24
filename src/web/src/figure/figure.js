@@ -3270,7 +3270,7 @@ export const CLIPS = [
     {name: "yawn", head: HEAD.gestures, frames: ACTING.yawnFrames, fps: ACTING.fps, loops: false, postures: GESTURE, pose: yawn},
     {name: "rest", head: HEAD.free, frames: REST.frames, fps: REST.fps, loops: false, postures: MOVE, marks: {mark: "♪", frames: REST.tunes.map((tune) => tune.map((share) => share * REST.frames))}, pose: rest},
     {name: "whistle", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["coach"], pose: whistle},
-    {name: "phone_call", head: HEAD.gestures, frames: ACTS.phone_call.frames, fps: ACTS.phone_call.fps, loops: false, postures: MOVE, pose: phone_call},
+    {name: "phone_call", head: HEAD.alone, frames: ACTS.phone_call.frames, fps: ACTS.phone_call.fps, loops: false, postures: MOVE, pose: phone_call},
     {name: "sip", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["colleague"], pose: sip},
     {name: "groove", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["homie"], pose: groove},
     {name: "shield_polish", head: HEAD.gestures, frames: ACTING.pastimeFrames, fps: ACTING.fps, loops: false, postures: GESTURE, voices: ["squire"], pose: shieldPolish},

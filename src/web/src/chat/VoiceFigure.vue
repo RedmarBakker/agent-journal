@@ -107,7 +107,7 @@ import "../figure/falls.css";
 import {rows} from "../sync/rows.js";
 import {barWatchAt, progressJumped, runSeat, runStage, sittingActAt} from "../figure/runWait.js";
 import {createdAt, refOf} from "../domain/row.js";
-import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
+import {GLANCE, MESSAGE_SECONDS, SEATED_GLANCE, WALKING, glanceAfter, glancePoint, haltsWalk, headBlend, holdsHead, leadingLook, looksFor, visitsAfterHalt, walkingGlance} from "../figure/looks.js";
 import {store} from "../state/store.js";
 
 // The figure plays what the figure modules decide: what it does in figureState.js and reactions.js, where it goes in perches.js, and how
@@ -1423,7 +1423,8 @@ function stepForward() {
 // The looks the figure could take this frame (looks.js), each {key, kind, point} with its point on the page: the pointer tickling it, the
 // mark or the docked bar of the run whose end the visor waits to light, the UFO or the crane's claw, the bubble it reads or holds its glass
 // to, a new message, the box it builds, pushes or stacks while it works (parcels.js workLook), a picture it admires, the leading edge of a
-// progress bar on the docks in a stretch it chose to watch it (reactions.js barWatchAt, places.js watchLook), and its own idle glances
+// progress bar on the docks in a stretch it chose to watch it (reactions.js barWatchAt, places.js watchLook), and its own idle glances; none
+// while an act that keeps its head alone plays, as the telephone call (looks.js looksFor)
 function lookCandidates(shown) {
     const scanned = shown.clip.name === "glass_bubble" && nearBubble();
     const work = workLook(parcels.value, making, parcelX, composeEdge().edge.top, goingWay());
@@ -1440,7 +1441,7 @@ function lookCandidates(shown) {
         ["bar", "bar", barLook(shown)],
         ["glance", "glance", glanceLook()],
     ];
-    return looks.filter(([, , point]) => point).map(([key, kind, point]) => ({key, kind, point}));
+    return looksFor(shown.clip, looks.filter(([, , point]) => point).map(([key, kind, point]) => ({key, kind, point})));
 }
 
 // the leading edge of a progress bar on the docks the figure stands by, in a stretch it chose to watch it and with no act played once on
