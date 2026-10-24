@@ -3269,16 +3269,18 @@ const FLAT = /* glsl */ `
     }
 `;
 
-// The visor, shaded as any flat part, is a screen of the grid's pixels (visorPixels.js GRID), each lit in the colour `pixels` holds for
-// it, as the eyes are drawn on it, or dark; the lines between the pixels are `gap` of a pixel wide and `dark` as bright, as a big screen is
-// seen up close. It is lit whole as an old CRT powers up (figure/visor.js): a band about its middle reaching `across` and `open` of the
-// way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
-export const SCREEN = {gap: 0.16, dark: 0.35};
+// The visor reads as a screen of the grid's pixels (visorPixels.js GRID): its glass a flat `glass`, near-black and unshaded, with a thin
+// `bezel`, `width` of the figure's units, darker round its edge, whose outline is a box rounded `round` of each half of the visor; each
+// pixel lit in the colour `pixels` holds for it glows, casting a soft halo `halo.strength` as bright on the black about it, fading over
+// `halo.soft` of a pixel and reaching `halo.reach` pixels; the pixels that are off show `off` brighter than the glass, a faint grid, the
+// lines between the pixels `gap` of a pixel wide and lit pixels `dark` as bright there; and a faint glare `glare.strength` lies across the
+// top of the glass from `glare.from` of the way up. It is lit whole by a dance (visor.js discoScreen): a band about its middle reaching
+// `across` and `open` of the way to its sides and its top and bottom, white with `flash` and else `glow`, as strong as `lit`.
+export const SCREEN = {
+    gap: 0.16, dark: 0.35, glass: [0.006, 0.007, 0.01], off: 0.0025,
+    bezel: {width: 0.035, shade: 0.75, round: 0.42}, halo: {strength: 0.4, soft: 0.6, reach: 2}, glare: {strength: 0.012, from: 0.5},
+};
 const SCREEN_FRAGMENT = /* glsl */ `
-    uniform vec3 colour;
-    uniform vec3 light;
-    uniform vec3 shade;
-    uniform float litFrom;
     uniform vec3 glow;
     uniform float lit;
     uniform float across;
@@ -3291,34 +3293,55 @@ const SCREEN_FRAGMENT = /* glsl */ `
     uniform vec2 grid;
     uniform float gap;
     uniform float dark;
-    varying vec3 worldNormal;
-    varying vec3 worldPosition;
+    uniform vec3 glass;
+    uniform float off;
+    uniform vec3 bezel;
+    uniform vec3 halo;
+    uniform vec2 glare;
     varying vec3 localPosition;
 
+    // the colour and how lit a pixel of the grid is, by its column and row
+    vec4 pixelAt(vec2 cell) {
+        return texture2D(pixels, (clamp(cell, vec2(0.0), grid - 1.0) + 0.5) / grid);
+    }
+
     void main() {
-        vec3 normal = normalize(worldNormal);
-        if (!gl_FrontFacing) {
-            normal = -normal;
-        }
-        vec3 shaded = colour * mix(shade, vec3(1.0), step(litFrom, dot(normal, light)));
         vec2 from = abs(localPosition.xy - middle) / extent;
         float band = step(from.x, across) * step(from.y, open);
         vec2 place = clamp(vec2(localPosition.x - middle.x + extent.x, middle.y + extent.y - localPosition.y) / (2.0 * extent), 0.0, 0.9999) * grid;
         vec2 cell = fract(place);
         float pixel = step(gap, cell.x) * step(gap, cell.y);
-        vec4 shown = texture2D(pixels, (floor(place) + 0.5) / grid);
+        vec4 shown = pixelAt(floor(place));
+        // how far inside the rounded outline this point is, in the figure's units
+        vec2 corner = from - (1.0 - bezel.z);
+        float outside = length(max(corner, 0.0)) + min(max(corner.x, corner.y), 0.0) - bezel.z;
+        vec2 way = corner.x > 0.0 && corner.y > 0.0 ? normalize(corner) : (corner.x > corner.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
+        float inside = -outside / length(way / extent);
+        // the glow the lit pixels about it spill here
+        vec3 spill = vec3(0.0);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                vec2 other = floor(place) + vec2(float(dx), float(dy));
+                vec4 near = pixelAt(other);
+                float apart = length(place - other - 0.5);
+                spill += near.rgb * near.a * exp(-apart * apart / (2.0 * halo.y * halo.y)) * step(apart, halo.z + 0.5);
+            }
+        }
+        float rim = 1.0 - smoothstep(bezel.x * 0.5, bezel.x, inside);
+        vec3 screen = glass * (1.0 - bezel.y * rim) + off * pixel * (1.0 - rim) + halo.x * spill;
+        screen += glare.x * smoothstep(glare.y, 1.0, (localPosition.y - middle.y) / extent.y) * (1.0 - rim);
+        vec3 drawn = mix(screen, shown.rgb, shown.a * pixel);
         float centre = max(1.0 - length(from), 0.0);
         vec3 shine = glow * lit * mix(dark, 1.0, pixel);
-        vec3 screen = mix(shine + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
-        vec3 drawn = mix(shaded * (1.0 - step(0.001, lit + flash) * 0.6), shown.rgb * mix(dark, 1.0, pixel), shown.a);
-        gl_FragColor = vec4(mix(drawn, screen, band * max(lit, flash)), 1.0);
+        vec3 lighted = mix(shine + (vec3(1.0) - glow) * core * centre * centre * pixel, vec3(1.0), flash);
+        gl_FragColor = vec4(mix(drawn * (1.0 - step(0.001, lit + flash) * 0.6), lighted, band * max(lit, flash)), 1.0);
         #include <colorspace_fragment>
     }
 `;
 
-// the visor's material: a flat part's, which lights as a screen, its pixels and its band measured across the visor's own bounds; the
+// the visor's material: a flat part's, drawn as a screen, its pixels, its bezel and its band measured across the visor's own bounds; the
 // pixels it shows are the `pixels` texture's, one texel each, filled in by showPixels
-function screenMaterial(mesh) {
+export function screenMaterial(mesh) {
     const material = flatMaterial(mesh);
     material.fragmentShader = SCREEN_FRAGMENT;
     const bounds = new THREE.Box3().setFromBufferAttribute(mesh.geometry.attributes.position);
@@ -3328,6 +3351,9 @@ function screenMaterial(mesh) {
         glow: {value: new THREE.Vector3()}, lit: {value: 0}, across: {value: 0}, open: {value: 0}, flash: {value: 0}, core: {value: VISOR.core},
         middle: {value: new THREE.Vector2(middle.x, middle.y)}, extent: {value: new THREE.Vector2(extent.x, extent.y)},
         pixels: {value: pixelTexture()}, grid: {value: new THREE.Vector2(GRID.columns, GRID.rows)}, gap: {value: SCREEN.gap}, dark: {value: SCREEN.dark},
+        glass: {value: new THREE.Vector3(...SCREEN.glass)}, off: {value: SCREEN.off},
+        bezel: {value: new THREE.Vector3(SCREEN.bezel.width, SCREEN.bezel.shade, SCREEN.bezel.round)},
+        halo: {value: new THREE.Vector3(SCREEN.halo.strength, SCREEN.halo.soft, SCREEN.halo.reach)}, glare: {value: new THREE.Vector2(SCREEN.glare.strength, SCREEN.glare.from)},
     });
     return material;
 }
