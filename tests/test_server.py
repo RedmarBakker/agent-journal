@@ -1605,3 +1605,24 @@ def test_the_status_bar_reads_no_sync_line_in_a_journal_in_no_team(server):
 def test_the_viewer_learns_who_it_is_and_who_owns_each_environment(server):
     status, people = call(server, "GET", "/journal/people")
     assert status == 200 and people["me"] == 1 and people["device"] == "" and isinstance(people["people"], list) and isinstance(people["owners"], dict)
+
+
+def test_a_booted_server_builds_nothing_and_imports_nothing_more_for_its_first_hook_command_and_page(journal_root: Path):
+    import sys
+    app = App(Config(journal_root, port=0))
+    app.runtime().start()
+    try:
+        server = app.server()
+        from journal.console.console import Console
+        from journal.support.caller_kind import CallerKind
+        assert {CallerKind.MAIN_AGENT, CallerKind.WORKER, CallerKind.SUBAGENT} <= set(app.container.get(Console)._parsers), "each kind of caller's parser is built at boot"
+        built, loaded = set(app.container._instances), {name for name in sys.modules if name.startswith("journal")}
+        call(server, "POST", "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "first"})
+        call(server, "POST", "/hooks/claude", {"hook_event_name": "PreToolUse", "session_id": "first", "tool_name": "Bash", "tool_input": {"command": "ls"}})
+        app.console().run(["task", "list"], Caller.agent("main", "first", "claude"))
+        call(server, "GET", "/journal/tasks?limit=50")
+        app.runtime().deferred.drain()
+        assert sorted(kind.__name__ for kind in set(app.container._instances) - built) == [], "everything a request needs is built at boot"
+        assert sorted({name for name in sys.modules if name.startswith("journal")} - loaded) == [], "every module a request needs is imported at boot"
+    finally:
+        app.runtime().stop()

@@ -46,6 +46,7 @@ from journal.http.agents.agent_bar_writes import AgentBarWrites
 from journal.support.host_writer import HostWriter
 from journal.sync.team_account import TeamAccount
 from journal.events.models.purged import Purged
+from journal.console.console import Console
 
 
 INSTANCE_CHECK_SECONDS = 2.0
@@ -101,6 +102,7 @@ class Runtime:
         self.container.get(SkillFiles).write_all()
         self.container.get(PluginSkills).refresh_all()
         self.container.get(ProfileFiles).write_all()
+        self.container.get(Console).build_parsers()
         self.register_jobs()
 
     def started(self) -> None:

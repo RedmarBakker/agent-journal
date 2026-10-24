@@ -43,6 +43,10 @@ class Console:
         present = self.agents.current()
         return replace(caller, session=present.session, provider=present.provider) if present else caller
 
+    def build_parsers(self) -> None:
+        for kind in CallerKind:
+            self.parser(kind)
+
     def parser(self, kind: CallerKind) -> argparse.ArgumentParser:
         shown = kind if kind in HELPER_KINDS else CallerKind.MAIN_AGENT
         if shown not in self._parsers:
