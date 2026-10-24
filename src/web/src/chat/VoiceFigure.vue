@@ -57,7 +57,7 @@ import {bubbleSize, phrasesOf, phrasesSeconds} from "../figure/comicBubble.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, answerTo, carrierOf, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, isListening, pastimeFor, playedFrom, queuedFirst, queues, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, hidesBelowFloor, squeezeOf, swingAngle} from "../figure/acts.js";
+import {ACTS, hidesBelowFloor, squeezeOf, swingAngle, throwsFor} from "../figure/acts.js";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
 import {UNTICKLED, movedTo, nearBody, tickling} from "../figure/tickle.js";
@@ -416,6 +416,7 @@ function step() {
         eyes: look.eyes,
         stride,
         sky: shown.clip.name === watching ? sky : null,
+        throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
         at: lookingAt(shown),
         open: blinked(),
         screen: lit,

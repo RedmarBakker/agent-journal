@@ -93,7 +93,7 @@ describe("inspecting a box with the magnifying glass", () => {
 });
 
 describe("searching the ground with the magnifying glass", () => {
-    it("holds the glass out low before it, slanted down at the ground, the ground magnified behind its lens as it sweeps along", () => {
+    it("bows over the floor with the glass held before its eyes, on its line of sight to the floor ahead, the floor magnified behind the lens as it sweeps along", () => {
         for (const voice of Object.keys(stances)) {
             const across = [];
             for (let step = 0; step < 20; step++) {
@@ -101,14 +101,21 @@ describe("searching the ground with the magnifying glass", () => {
                 const {eyes, glass, lens, faces} = posed(searchClip, t, voice);
                 expect(glass, `${voice} ${t}`).toMatchObject({shows: "ground", size: SEARCHING.size});
                 expect(glass.magnifies, `${voice} ${t}`).toBeGreaterThan(0.5);
-                expect(lens.z, `${voice} ${t}: below the eyes, over the ground`).toBeLessThan(eyes.z - 1);
-                expect(lens.y, `${voice} ${t}: before the figure`).toBeLessThan(-0.5);
+                // the line from the eyes through the lens comes down on the floor just ahead of the figure: the lens is before its eyes
+                const sight = lens.clone().sub(eyes);
+                expect(sight.z, `${voice} ${t}: below the eyes`).toBeLessThan(-0.2);
+                expect(sight.length(), `${voice} ${t}: close before the eyes`).toBeLessThan(1.4);
+                const floor = eyes.clone().addScaledVector(sight, -eyes.z / sight.z);
+                const reach = Math.hypot(floor.x, floor.y);
+                expect(reach, `${voice} ${t}: looking at the floor ahead of its feet`).toBeGreaterThan(0.5);
+                expect(reach, `${voice} ${t}: near the figure`).toBeLessThan(3);
                 expect(faces.z, `${voice} ${t}: the lens facing down at the ground`).toBeLessThan(-0.5);
                 expect(slantOf(faces), `${voice} ${t}: skewed from the viewer`).toBeGreaterThan(40);
                 expect(slantOf(faces), `${voice} ${t}: its lens still seen`).toBeLessThan(80);
-                across.push(lens.x);
+                across.push(lens.clone().setZ(0));
             }
-            expect(Math.max(...across) - Math.min(...across), `${voice}: it sweeps along the ground`).toBeGreaterThan(SEARCHING.sweep);
+            const spread = Math.max(...across.flatMap((a) => across.map((b) => a.distanceTo(b))));
+            expect(spread, `${voice}: it sweeps the glass along the floor`).toBeGreaterThan(0.25);
         }
     });
 

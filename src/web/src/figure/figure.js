@@ -124,6 +124,7 @@ export class Posing {
         this.sway = 0;
         this.stride = stride;
         this.sky = null;
+        this.throws = null;
         this.screen = null;
     }
 
@@ -1163,10 +1164,17 @@ function exit(pose, stance, t) {
 
 // What the figure does while the agent works, and the moments it marks; each pose starts and ends on idle's first frame unless it loops
 const SEARCH_CROUCH = 0.2;
-// The magnifying glass over the ground as the figure searches: its lens's middle at `lens` (across to the free hand's side, forward and up
-// from the feet), swept `sweep` across as it looks, tipped `tip` degrees so it faces down at the ground, rolled `roll` and turned `slant`
-// so its rim is skewed from the viewer, drawn `size` times its size
-export const SEARCHING = {lens: [1.0, -1.2, 0.85], sweep: 0.35, tip: 58, roll: 15, slant: 30, size: 1.3};
+// The magnifying glass as the figure searches the floor: turned `turn` degrees side-on so the bow shows, it crouches `crouch`, leans
+// `lean`, bows `bow` degrees from the waist while it stands and nods `nod` degrees, bowing over the spot
+// `spot` (across to the free hand's side, forward and up from the feet) it looks at, swept `sweep` across, and holds the glass's lens
+// `between` of the way from its eyes to that spot, so the lens is always before its eyes, tipped `facing` of the way to face along its
+// sight, so the viewer still sees into the lens, rolled `roll`
+// and turned `slant` so its rim is skewed from the viewer, drawn `size` times its size
+export const SEARCHING = {spot: [0.45, -1.4, 0], sweep: 0.8, between: 0.42, facing: 0.75, crouch: 0.3, lean: 20, bow: 36, nod: 30, roll: 10, slant: 25, size: 1.3, turn: 70};
+
+// where the glass's lens is held as the figure looks from `eyes` at `spot`: `between` of the way along its sight, so it is before its eyes
+export const lensBefore = (eyes, spot, between) => eyes.clone().lerp(spot, between);
+
 const CHASE_REACH = 1.4;
 const TAP_LIFT = 0.13;
 
@@ -1175,20 +1183,29 @@ function glanceOf(t) {
     return rise(t, 0, 0.22) - 2 * rise(t, 0.32, 0.62) + rise(t, 0.7, 0.85);
 }
 
-// rummages about the ground ahead with the magnifying glass, crouched and leaning in, the glass held out slanted over the ground
-// (SEARCHING), sweeping it along as it looks, the ground's surface magnified behind its lens
+// bows over the floor ahead with the magnifying glass held before its eyes (SEARCHING), sweeping its look along the floor, the floor's
+// surface magnified behind the lens
 function search(pose, stance, t) {
     const side = freeSide(stance);
     const sign = SIDES[side];
     const sweep = glanceOf(t);
-    crouch(pose, SEARCH_CROUCH);
+    crouch(pose, SEARCHING.crouch);
     breathe(pose, 0);
-    trunk(pose, {lean: 26, nod: 20, turn: -sign * 28 * sweep, twist: -sign * 10 * sweep});
+    trunk(pose, {lean: SEARCHING.lean, nod: SEARCHING.nod, turn: sign * 14 * sweep});
     armsAtRest(pose, stance, [side]);
-    const [across, forward, up] = SEARCHING.lens;
-    const lens = new THREE.Vector3(sign * (across + SEARCHING.sweep * sweep), forward, up);
-    glassOver(pose, side, 1, lens, 0, {tip: SEARCHING.tip, roll: sign * SEARCHING.roll, slant: -sign * SEARCHING.slant, size: SEARCHING.size, shows: "ground"});
+    const eyes = pose.rig.eyes.reduce((sum, eye) => sum.add(eye), new THREE.Vector3()).divideScalar(pose.rig.eyes.length).applyMatrix4(pose.matrix("head"));
+    const [across, forward, up] = SEARCHING.spot;
+    // the bow from the waist is put on last, over the arm and the glass too, so the floor's spot is read as it is before the bow
+    const bowed = pose.posture === "stand" ? SEARCHING.bow : 0;
+    const bow = aboutPoint(pose.head("spine", pose.matrix("spine")), euler(bowed, 0, 0));
+    const spot = new THREE.Vector3(sign * (across + SEARCHING.sweep * sweep), forward, up).applyMatrix4(bow.clone().invert());
+    const lens = lensBefore(eyes, spot, SEARCHING.between);
+    const sight = spot.clone().sub(eyes);
+    const tip = SEARCHING.facing * THREE.MathUtils.radToDeg(Math.atan2(-sight.z, Math.hypot(sight.x, sight.y)));
+    glassOver(pose, side, 1, lens, 0, {tip, roll: sign * SEARCHING.roll, slant: -sign * SEARCHING.slant, size: SEARCHING.size, shows: "ground"});
     eyesAs(pose, "reading");
+    pose.bendAbove("spine", {x: bowed});
+    if (pose.posture === "stand") pose.revolve(sign * SEARCHING.turn);
 }
 
 const READING = {
@@ -2767,7 +2784,7 @@ function binoculars(pose, stance, t) {
 
 // The look along the torch's beam: the head turned `turn` degrees toward the free side for each unit across the beam lands, and tipped up
 // from the eyes, `eyes` up from the feet, toward where it lands
-export const TORCH_LOOK = {turn: 16, eyes: 3.3};
+export const TORCH_LOOK = {turn: 24, eyes: 3.3};
 
 // searches with a torch held up and forward to its free side, the hand turned to point it at where its beam lands (acts.js torchAim), at
 // about head height, sweeping it slowly about there as its head follows the light
@@ -2811,7 +2828,7 @@ function rummage(pose, stance, t) {
         handTo(pose, hand, into, pose.withinReach(hand, dug, 0.97), new THREE.Vector3(...RUMMAGE.elbow));
     }
     RUMMAGED.forEach((name, index) => {
-        const flung = flungAt(index, t);
+        const flung = flungAt(index, t, pose.throws ?? undefined);
         if (flung) pose.standProp(name, [flung.at[0], flung.at[1], flung.at[2] + RUMMAGE.crouch * into], {x: flung.turn, z: flung.turn / 3}, 1 - flung.landed);
     });
     if (pose.posture === "stand") pose.revolve(SIDES[side] * RUMMAGE.turn * into);
@@ -4446,12 +4463,14 @@ export class Stage {
     }
 
     // The clip's pose at this frame in `posture`, the figure turned `facing` degrees, with the look `eyes` takes on, drawn to fill the canvas;
-    // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `at` is where
+    // on the move, `stride` is how far through its step the walk is, `sky` is how a figure watching the sky stands (watch), `throws` how the
+// things it flings out rummaging fly this time (acts.js throwsFor), `at` is where
     // in its picture it looks (lookToward), with the look in its eyes as it does, `at.mood` (EYES), as when it admires a picture, `open` how open a blink leaves the eyes (blink.js), `tilt` how many degrees the head leans at rest (headTilt.js), and during a change `blend` eases from
     // the moves drawn before it. It returns the moves it drew.
-    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, at = null, open = 1, screen = null, tilt = 0} = {}) {
+    draw(figure, clip, frame, facing, canvas, {posture = "stand", eyes = null, stride = 0, blend = null, sky = null, throws = null, at = null, open = 1, screen = null, tilt = 0} = {}) {
         const pose = new Posing(figure.rig, posture, stride);
         pose.sky = sky;
+        pose.throws = throws;
         pose.screen = screen;
         pose.at = at;
         if (!clip.legs) LEGS[posture]?.under(pose);

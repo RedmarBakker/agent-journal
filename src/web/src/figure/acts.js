@@ -53,7 +53,7 @@ export const ACTS = {
     // shuts behind it over `closes`, and holds up the key it found until it lowers it over `lowers`
     rummage: {
         frames: 132, fps: 12, opens: [0, 0.07], leans: [0.05, 0.14], digs: 7, pops: [0.74, 0.8], closes: [0.78, 0.86], lowers: [0.92, 1], back: 0.06, lip: 0.2, height: 0.72,
-        throws: [[0.16, 0.32], [0.28, 0.44], [0.4, 0.56], [0.52, 0.68]], from: [0, -1.5, 1.5], over: 3.9, to: [0, 1.9, 0.2], spins: [1.5, -2, 1.25, -1.75], shrinks: 0.05,
+        throws: [0.16, 0.25, 0.34, 0.43], from: [0, -1.5, 1.5], shrinks: 0.05,
     },
     // a bar it was eager for failed: crushed at first, then plainly mad about it, stamping and fuming, steam rising off its head
     fume: {frames: 54, fps: 12, crushed: [0, 0.36], mad: [0.36, 0.96], stamps: 6, steam: [0.42, 0.96]},
@@ -98,17 +98,47 @@ export const partOf = (u, [from, to]) => ease(span(u, from, to));
 // the things the figure flings over its shoulder rummaging (rummage), in the order it pulls them out
 export const RUMMAGED = ["rummage_papers", "rummage_boot", "rummage_bone", "rummage_book"];
 
-// Where thing `index` of RUMMAGED is `u` of the way through the rummage, as {at, turn, landed}: in flight along its arc from the
-// opening up over the figure's shoulder and down behind it, `at` in the figure's units before it turns side-on, `turn` how far it has
-// tumbled in degrees, and `landed` how far it has shrunk away once down, 0 to 1; null before it is pulled out and once it is gone
-export function flungAt(index, u) {
+// How each thing flung out rummaging flies, worked out afresh for each rummage (throwsFor): thrown from the opening at `speed` units a
+// second, `angle` degrees above level back over the shoulder, drifting `spread` units a second to either side, spinning `spin` degrees a
+// second either way, and falling at `gravity` units a second squared until it reaches the floor at `floor`, where it lies and shrinks away
+export const THROW = {speed: [8, 10], angle: [66, 80], spread: [-0.8, 0.8], spin: [400, 900], gravity: 14, floor: 0.2};
+
+const within = ([least, most], random) => least + random() * (most - least);
+
+// The throws of one rummage, one for each thing of RUMMAGED, each {velocity, spin}: its velocity across, back and up in units a second,
+// and its spin in degrees a second, drawn from THROW's ranges
+export function throwsFor(random) {
+    return RUMMAGED.map(() => {
+        const speed = within(THROW.speed, random);
+        const angle = (within(THROW.angle, random) * Math.PI) / 180;
+        const spin = within(THROW.spin, random) * (random() < 0.5 ? -1 : 1);
+        return {velocity: [within(THROW.spread, random), speed * Math.cos(angle), speed * Math.sin(angle)], spin};
+    });
+}
+
+// the throws of a rummage the page drew none for: the middle of each range, the spins turning either way in turn
+export const MIDDLE_THROWS = throwsFor(() => 0.5).map((thrown, index) => ({...thrown, spin: Math.abs(thrown.spin) * (index % 2 ? -1 : 1)}));
+
+// the seconds a throw is in the air, from the opening at `from` up and down onto the floor
+export function flightSeconds(thrown, from) {
+    const up = thrown.velocity[2];
+    return (up + Math.sqrt(up * up + 2 * THROW.gravity * (from[2] - THROW.floor))) / THROW.gravity;
+}
+
+// Where thing `index` of RUMMAGED is `u` of the way through the rummage, thrown as `throws` says, as {at, turn, landed}: in flight from
+// the opening along the arc gravity gives it, `at` in the figure's units before it turns side-on, `turn` how far it has spun in degrees,
+// and `landed` how far it has shrunk away lying on the floor, 0 to 1; null before it is pulled out and once it is gone
+export function flungAt(index, u, throws = MIDDLE_THROWS) {
     const act = ACTS.rummage;
-    const [out, down] = act.throws[index];
-    if (u < out || u >= down + act.shrinks) return null;
-    const s = span(u, out, down);
-    const at = act.from.map((from, axis) => from + (act.to[axis] - from) * s);
-    at[2] += 4 * (act.over - (act.from[2] + act.to[2]) / 2) * s * (1 - s);
-    return {at, turn: 360 * act.spins[index] * s, landed: span(u, down, down + act.shrinks)};
+    const seconds = ((u - act.throws[index]) * act.frames) / act.fps;
+    const thrown = throws[index];
+    const flight = flightSeconds(thrown, act.from);
+    const lies = (act.shrinks * act.frames) / act.fps;
+    if (seconds < 0 || seconds >= flight + lies) return null;
+    const time = Math.min(seconds, flight);
+    const at = act.from.map((from, axis) => from + thrown.velocity[axis] * time);
+    at[2] -= (THROW.gravity * time * time) / 2;
+    return {at, turn: thrown.spin * time, landed: Math.max(0, seconds - flight) / lies};
 }
 
 // Where a run of hops on the pogo stick is `share` of the way through its time, as {index, s, height}: hop `index` of `heights`, `s` of

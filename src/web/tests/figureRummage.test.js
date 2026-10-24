@@ -59,34 +59,48 @@ test("it buries its head in the opening and digs about, then pops out of it hold
     }
 });
 
-test("each thing it pulls out flies along an arc from the opening up over its shoulder and down behind it, tumbling, and is gone once it lands", () => {
+test("each thing it pulls out is thrown along the arc gravity gives it, up over its shoulder and down onto the floor behind, spinning, a new throw each rummage", async () => {
+    const {THROW, flightSeconds, throwsFor} = await import("../src/figure/acts.js");
     expect(RUMMAGED).toEqual(["rummage_papers", "rummage_boot", "rummage_bone", "rummage_book"]);
-    for (const [index, [out, down]] of act.throws.entries()) {
-        const name = RUMMAGED[index];
-        expect(flungAt(index, out - 0.01), name).toBe(null);
-        const path = Array.from({length: 41}, (_, step) => flungAt(index, out + ((down - out) * step) / 40));
-        // from in front of it, in the opening, to behind it on the floor
-        expect(path[0].at[1], name).toBeLessThan(-1);
-        expect(path.at(-1).at[1], name).toBeGreaterThan(1);
-        expect(path.at(-1).at[2], name).toBeLessThan(0.5);
-        // an arc: up and then down, its top over the figure's head, and on one side of it never the other
-        const heights = path.map((each) => each.at[2]);
-        const top = heights.indexOf(Math.max(...heights));
-        expect(top, name).toBeGreaterThan(5);
-        expect(top, name).toBeLessThan(35);
-        for (let step = 1; step <= top; step++) expect(heights[step], `${name} ${step}`).toBeGreaterThanOrEqual(heights[step - 1]);
-        for (let step = top + 1; step < heights.length; step++) expect(heights[step], `${name} ${step}`).toBeLessThanOrEqual(heights[step - 1]);
-        expect(Math.max(...heights), name).toBeGreaterThan(3.4);
-        expect(Math.abs(path.at(-1).turn), name).toBeGreaterThan(360);
-        // landed, it shrinks away and is gone
-        expect(flungAt(index, down + act.shrinks / 2).landed, name).toBeCloseTo(0.5, 1);
-        expect(flungAt(index, down + act.shrinks), name).toBe(null);
-        // drawn where it flies, at the size it has left, and not at all once gone
-        const flying = rummagingAt("butler", (out + down) / 2).pose.props.get(name);
-        expect(flying, name).toMatchObject({bone: "root", size: 1});
-        expect(rummagingAt("butler", down + act.shrinks / 2).pose.props.get(name).size, name).toBeCloseTo(0.5, 1);
-        expect(rummagingAt("butler", down + act.shrinks + 0.01).pose.props.has(name), name).toBe(false);
+    let seed = 11;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const rummages = [throwsFor(random), throwsFor(random), throwsFor(random)];
+    expect(new Set(rummages.map((throws) => throws[0].velocity[2].toFixed(3))).size, "each rummage throws anew").toBe(3);
+    const seconds = (u) => (u * act.frames) / act.fps;
+    for (const throws of rummages) {
+        for (const [index, out] of act.throws.entries()) {
+            const name = RUMMAGED[index];
+            expect(flungAt(index, out - 0.01, throws), name).toBe(null);
+            const flight = flightSeconds(throws[index], act.from);
+            const down = out + (flight * act.fps) / act.frames;
+            const path = Array.from({length: 41}, (_, step) => flungAt(index, out + ((down - out) * step) / 40, throws));
+            // from the opening in front of it to the floor behind it
+            expect(path[0].at[1], name).toBeLessThan(-1);
+            expect(path.at(-1).at[1], name).toBeGreaterThan(0);
+            expect(path.at(-1).at[2], name).toBeCloseTo(THROW.floor, 5);
+            // a true throw: its height a parabola in time, its speed across and back steady, as gravity alone pulls on it
+            for (let step = 2; step < path.length; step++) {
+                const [a, b, c] = [path[step - 2], path[step - 1], path[step]].map((each) => each.at);
+                const dt = seconds((down - out) / 40);
+                expect((c[2] - 2 * b[2] + a[2]) / (dt * dt), `${name} ${step}: falling at gravity`).toBeCloseTo(-THROW.gravity, 3);
+                expect(c[1] - b[1], `${name} ${step}: steady back`).toBeCloseTo(b[1] - a[1], 6);
+            }
+            const heights = path.map((each) => each.at[2]);
+            expect(Math.max(...heights), `${name}: up over its head`).toBeGreaterThan(3.4);
+            expect(Math.abs(path.at(-1).turn), name).toBeGreaterThan(360);
+            // down, it lies on the floor and shrinks away, then is gone
+            const lies = act.shrinks;
+            expect(flungAt(index, down + lies / 2, throws).landed, name).toBeCloseTo(0.5, 1);
+            expect(flungAt(index, down + lies / 2, throws).at[2], name).toBeCloseTo(THROW.floor, 5);
+            expect(flungAt(index, down + lies + 0.001, throws), name).toBe(null);
+        }
+        // one after another, each pulled out before the last has landed
+        for (let index = 1; index < act.throws.length; index++) {
+            expect(act.throws[index]).toBeLessThan(act.throws[index - 1] + (flightSeconds(throws[index - 1], act.from) * act.fps) / act.frames);
+        }
     }
-    // one after another, each pulled out before the last has landed
-    for (let index = 1; index < act.throws.length; index++) expect(act.throws[index][0]).toBeLessThan(act.throws[index - 1][1]);
+    // drawn where it flies, at the size it has left, and not at all once gone
+    const [out] = act.throws;
+    const flying = rummagingAt("butler", out + 0.02).pose.props.get(RUMMAGED[0]);
+    expect(flying).toMatchObject({bone: "root", size: 1});
 });
