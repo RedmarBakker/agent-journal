@@ -2972,7 +2972,8 @@ function cradle(pose, side, k, grip, along) {
 // shoulder, the other hand under the handguard, the rifle resting in its palm; its cheek down to the sights, turned toward the bug it aims
 // at (pose.target, one bug each turn of the act, acts.js bugShotFrame), swinging onto it as each turn begins, the barrel aimed from where
 // the gripping hand holds it so its line runs through the bug, each burst kicking the rifle, both hands with it, and the shoulder back;
-// its eyes in fight mode from the draw until the last bug is gone, and the rifle lowered once it has splattered
+// its eyes in fight mode from the draw until the last bug is gone, and the rifle lowered once it has splattered; its legs backing
+// away while it faces a bug it is too steep to shoot (pose.walkWay)
 function bug_shot(pose, stance, t) {
     const act = ACTS.bug_shot;
     const middle = (act.draw[0] + act.draw[1]) / 2;
@@ -2984,6 +2985,10 @@ function bug_shot(pose, stance, t) {
     // the hand on the grip, the right one for the barrel out to the left, and the other under the handguard
     const [grip, fore] = onto.way > 0 ? ["r", "l"] : ["l", "r"];
     const [bx, by, bz] = RIFLE.behind;
+    // a bug too steep to shoot is first backed away from along the floor, the figure keeping its face to it (acts.js backPlan): its legs
+    // step backward, pose.walkWay naming it while it does, and its body stays turned toward the bug as it is
+    const stepping = Math.abs(pose.walkWay);
+    if (stepping) strideUnder(pose);
     breathe(pose, t);
     pose.turn("chest", {z: -onto.way * RIFLE.shoulder * kick});
     trunk(pose, {nod: RIFLE.cheek * aim - 4 * kick, turn: onto.way * RIFLE.cheek * aim, tilt: -onto.way * RIFLE.cheek * 0.4 * aim});
@@ -2999,6 +3004,7 @@ function bug_shot(pose, stance, t) {
         pose.props.get("rifle").firing = kick > 0.6;
     }
     fightEyes(pose, t, partOf(t, act.draw) * (1 - partOf(t, [act.fly[0], act.fly[1]])));
+    if (stepping) strideLegs(pose);
     if (pose.posture === "stand") pose.revolve(onto.turn * aim);
 }
 

@@ -75,9 +75,12 @@ export const ACTS = {
     // (bugShotFrame): it swings its aim onto the bug over `aim`, shoots `count` bursts over `shots`, each kicking the rifle and the shoulder
     // back, and the bug splatters on its wall at `splat`; after the last, drops of its splatter fly out at the screen over `fly`, growing
     // as they come, land on it as on a camera's lens at their `lens` places (from the figure's middle, in shares of the picture, as big as
-    // `size`), and run down and fade over `drops`, as the rifle is lowered
+    // `size`), and run down and fade over `drops`, as the rifle is lowered; a bug steeper from the figure's eyes than `back.limit` degrees is
+    // first backed away from along the floor, facing it, stepping `back.stride` of the picture at a time, to within it (backPlan), never
+    // nearer an end of its floor than `back.margin` of the picture
     bug_shot: {
         frames: 80, fps: 12, draw: [0, 0.22], turn: [0.25, 0.55], aim: [0.25, 0.32], shots: [0.33, 0.48], count: 2, splat: 0.48, fly: [0.56, 0.64], drops: [0.64, 1],
+        back: {limit: 55, margin: 0.25, stride: 0.5},
         lens: [{at: [-1.3, -1.6], size: 0.2}, {at: [0.9, -0.9], size: 0.14}, {at: [-0.4, 0.2], size: 0.16}, {at: [1.6, -2.1], size: 0.1}],
     },
     // a fixed run's bug smashed with a big wooden mallet on the floor the figure stands on (smashPlan): the bug climbs up the back of the
@@ -288,12 +291,58 @@ export function bugShotFrame(raw, count) {
 export function bugShotScene(bugs, world, raw) {
     const act = ACTS.bug_shot;
     const {frame, bug, shot} = bugShotFrame(raw, bugs.length);
-    const turnFrames = (act.turn[1] - act.turn[0]) * act.frames;
-    const shotAt = (index) => (act.turn[0] * act.frames + index * turnFrames + (act.splat - act.turn[0]) * act.frames) / act.fps;
-    const placed = bugs.map((each, index) => ({...wallBugAt(each, world, Math.min(raw / act.fps, shotAt(index))), shot: index < shot}));
+    const placed = bugs.map((each, index) => ({...wallBugAt(each, world, Math.min(raw / act.fps, bugShotTimes(index).shot)), shot: index < shot}));
     const swing = partOf(frame / act.frames, act.aim);
     const [from, to] = [placed[Math.max(bug - 1, 0)], placed[bug]];
     return {bugs: placed, frame, target: {x: from.x + (to.x - from.x) * swing, y: from.y + (to.y - from.y) * swing}};
+}
+
+// When the turn of bug number `index` of the bug shot has its beats, in the shot's raw frames, but the second its bug is shot: the frame
+// the figure may begin to back away for it (the draw's end for the first bug, the splat of the bug before for the rest), the frame its
+// aim is on it, and the second its splat comes
+export function bugShotTimes(index) {
+    const act = ACTS.bug_shot;
+    const [from, to] = act.turn.map((share) => share * act.frames);
+    const turn = from + index * (to - from);
+    return {walk: index ? turn - (to - from) + (act.splat * act.frames - from) : act.draw[1] * act.frames, aim: turn + (act.aim[1] * act.frames - from), shot: (turn + (act.splat * act.frames - from)) / act.fps};
+}
+
+// The backing away of a figure with its middle at `at.x` and its eyes at `at.y`, on a floor from `at.left` to `at.right` (all on the page),
+// its picture `size` pixels across, before each of its bugs `bugs` (wallBugs) in the chat window `world`: one leg for each, {from, to, begin,
+// end} in pixels and in the shot's raw frames. A bug steeper from the eyes than ACTS.bug_shot.back.limit is backed away from, along the
+// floor, until it is within it, the figure walking over the frames between bugShotTimes' walk and aim; one at an easy angle, or one a
+// bug before already backed far enough from, none, and the figure never walks toward a bug, nor nearer an end of its floor than the margin
+export function backPlan(bugs, world, at, size) {
+    const {limit, margin} = ACTS.bug_shot.back;
+    const [low, high] = [at.left + margin * size, at.right - margin * size];
+    let x = at.x;
+    return bugs.map((bug, index) => {
+        const times = bugShotTimes(index);
+        const spot = wallBugAt(bug, world, times.shot);
+        const needed = Math.abs(spot.y - at.y) / Math.tan((limit * Math.PI) / 180);
+        const away = spot.x === x ? (x - low >= high - x ? -1 : 1) : Math.sign(x - spot.x);
+        const wanted = Math.abs(spot.x - x) >= needed ? x : spot.x + away * needed;
+        const to = away > 0 ? Math.max(x, Math.min(wanted, high)) : Math.min(x, Math.max(wanted, low));
+        const leg = {from: x, to, begin: times.walk, end: times.aim};
+        x = to;
+        return leg;
+    });
+}
+
+// Where the figure is `raw` frames into the bug shot by its backing away `plan` (backPlan), its picture `size` pixels across: its middle
+// on the page, the steps of its stride walked so far, and the way it is walking this frame (1 the viewer's right, 0 standing)
+export function backAt(plan, raw, size) {
+    const stride = ACTS.bug_shot.back.stride * size;
+    let walked = 0;
+    for (const leg of plan) {
+        if (raw <= leg.begin) return {x: leg.from, steps: walked / stride, way: 0};
+        if (raw < leg.end) {
+            const x = leg.from + ((leg.to - leg.from) * (raw - leg.begin)) / (leg.end - leg.begin);
+            return {x, steps: (walked + Math.abs(x - leg.from)) / stride, way: Math.sign(leg.to - leg.from)};
+        }
+        walked += Math.abs(leg.to - leg.from);
+    }
+    return {x: plan.at(-1)?.to ?? 0, steps: walked / stride, way: 0};
 }
 
 // The drops of a shot bug's splatter `u` of the way through the bug shot (ACTS bug_shot), in a picture `size` pixels across, the bug at

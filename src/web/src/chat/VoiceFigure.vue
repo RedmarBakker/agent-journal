@@ -63,7 +63,7 @@ import {tickerAt, tickerSeconds} from "../figure/visorPixels.js";
 import ClawCrane from "./ClawCrane.vue";
 import FlyingSaucer from "./FlyingSaucer.vue";
 import {FRESH_SECONDS, READING, answerTo, watchesBar, carrierOf, headBeat, heldCall, joinedCall, uncut, craneFrom, eagerFor, eyesAt, faces, freshBeats, gazeAfter, lookOf, heardNow, isListening, pastimeFor, playedFrom, queuedFirst, queues, readingAt, readingFacing, roomFor, spellFor, stillGoing, spellIn, variantOf, walkingMoment, workMoments} from "../figure/reactions.js";
-import {ACTS, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
+import {ACTS, backAt, backPlan, bugShotFrame, bugShotScene, bugStep, hidesBelowFloor, smashAt, smashPlan, squeezeOf, swingAngle, throwsFor, wallBugs} from "../figure/acts.js";
 import FixedRunBug from "./act/FixedRunBug.vue";
 import {VISOR, discoScreen, lightOnce, visorAt, visorFor} from "../figure/visor.js";
 import {NOT_ADMIRING, admiringAfter} from "../figure/admire.js";
@@ -421,6 +421,7 @@ function step() {
     // seated, it faces as its seat does, whatever the clip still on screen faced, and turned aside at its laptop (places.js seatedFacing)
     poseToward({posture, facing: SEATED.has(posture) ? seatedFacing(shown.clip, body.place.face) : shown.facing});
     smashOn(shown);
+    backOn(shown);
     // the leg waiting for the clip it sets off with goes in the frame that clip goes on screen, so the walk is never drawn on the spot
     if (shown === wanted && wanted.startsLeg && !body.trip.moves) depart();
     drawn = posed.posture;
@@ -442,8 +443,8 @@ function step() {
     player.show(posed.turning ? clipNamed("idle") : shown.clip, posed.turning ? 0 : shownFrame.value, posedOnSeat(shown, seconds), {
         posture: drawn,
         eyes: look.eyes,
-        stride: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : stride,
-        walkWay: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.way : 0,
+        stride: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.steps : backing.value?.at.way ? -backing.value.at.steps : stride,
+        walkWay: shown.clip.name === "bug_smash" && smashing.value ? smashing.value.at.way : (backing.value?.at.way ?? 0),
         sky: shown.clip.name === watching ? sky : null,
         throws: shown.clip.name === "rummage" ? (shown.throws ??= throwsFor(Math.random)) : null,
         leanWay: shown.clip.name === "rummage" && stay.where === "rummage" ? stay.way : shown.clip.name === "lean" ? (body.place.lean?.way ?? 0) : drawn === "composed" ? body.place.leans : 0,
@@ -481,6 +482,30 @@ function smashOn(shown) {
     const time = performance.now() / 1000;
     smashing.value = {...smashing.value, at, bug: bugStep(bug, on, groundAt(bug.x, bug.y), time - seconds), seconds: time};
     if (playing && floor && !body.airborne) walkToBug(floor, at.figure);
+}
+
+// The bug shot's backing away (acts.js backPlan, backAt): planned on the floor the figure stands on as the shot begins, for the bugs it
+// brought; each frame the figure steps back along that floor, away from the bug too steep to shoot and facing it; null with none
+const backing = ref(null);
+
+function backOn(shown) {
+    const bugs = shown.clip.name === "bug_shot" ? beats.value[0]?.bugs : null;
+    if (!bugs?.length || !body.footing) return (backing.value = null);
+    const floor = floorNamed(latestFloors().floors, backing.value?.id ?? body.footing.id);
+    if (!floor) return (backing.value = null);
+    const raw = rawFrameOf(shown);
+    const plan = backing.value?.plan ?? backPlan(bugs, worldBox(), {x: body.place.x, y: body.at.y + headAt.value.y * SIZE, left: floor.left, right: floor.right}, SIZE);
+    const at = backAt(plan, raw, SIZE);
+    backing.value = {id: floor.id, plan, left: backing.value?.left ?? floor.left, at};
+    if (!body.airborne) walkBack(floor.left + at.x - backing.value.left);
+}
+
+// the figure's middle at `x` on its floor as it backs away from a bug
+function walkBack(x) {
+    if (Math.abs(x - body.place.x) < 0.3) return;
+    const spot = {...body.place, x};
+    body.footing = footingOn(spot) ?? body.footing;
+    body.place = spot;
 }
 
 // the mallet act planned on the floor the figure stands on, its bug where it starts, behind that floor's box
