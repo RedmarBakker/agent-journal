@@ -6627,6 +6627,33 @@ def test_a_workers_clean_up_never_drops_a_launch_worktree_or_its_branch(app: App
     assert {"worktree-calm-river", "worktree-quiet-heron"} <= {line.strip(" *+") for line in git("branch").stdout.splitlines()}, "and a worker's branch delete takes only its own branch"
 
 
+def test_a_boot_a_session_end_and_a_failed_start_leave_every_other_launch_worktree_untouched(app: App):
+    import subprocess
+    from journal.support.worktree import Worktree
+    from journal.support.worktree_failure import WorktreeFailure
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        git(*argv)
+    calm, quiet = Worktree(root, "calm-river").created(), Worktree(root, "quiet-heron").created()
+    (calm / "work.txt").write_text("in progress\n")
+    before = git("worktree", "list", "--porcelain").stdout
+    app.runtime().boot()
+    hook(app, "SessionStart")
+    hook(app, "SessionEnd")
+    app.runtime().deferred.drain()
+    git("branch", "worktree-taken")
+    git("worktree", "add", str(root / "elsewhere"), "worktree-taken")
+    try:
+        Worktree(root, "taken").created()
+        raise AssertionError("a start whose branch is checked out elsewhere fails")
+    except WorktreeFailure:
+        pass
+    assert (calm / "work.txt").read_text() == "in progress\n" and quiet.is_dir(), "a boot, a session end and a failed start leave the other launch worktrees and their work alone"
+    assert all(line in git("worktree", "list", "--porcelain").stdout for line in before.splitlines() if line.startswith("worktree ")), "and git still lists them"
+    assert not (root / ".claude" / "worktrees" / "taken").exists(), "the failed start leaves nothing of its own behind"
+
+
 def test_deleting_an_environment_never_removes_its_worktree_merged_or_not(app: App):
     import subprocess
     from journal.support.worktree import Worktree
