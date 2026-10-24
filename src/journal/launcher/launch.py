@@ -85,8 +85,6 @@ class Launch:
                 continue
             remainder.append(arg)
             i += 1
-        if worktree_launch and not worktree and not environment and not RESUME_FLAGS & set(remainder):
-            worktree = WorktreeNames(root).unused()
         return cls(agent, root, tuple(remainder), environment, "new" in switches, "stashed" in switches, "bypass" in switches, "confirmed" in switches, "browser_off" in switches, "journal_off" in switches, worktree, worktree_launch)
 
     @property
@@ -99,7 +97,7 @@ class Launch:
 
     def choice(self) -> Choice:
         menu = Menu(self.root, self.package / "journal.sh")
-        matched = self.unheld(menu, self.environment or self.worktree or self.resume_folder(menu))
+        matched = self.unheld(menu, self.environment or self.worktree or self.resume_folder(menu) or self.fresh_name(menu))
         if not sys.stdin.isatty():
             menu.environment_rows(matched or self.default_environment(), menu.environments())
             return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
@@ -108,6 +106,12 @@ class Launch:
             self.log("updated before the launch: starting again on the new version")
             os.execv(sys.executable, [sys.executable, *sys.argv])
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)
+
+    # a bare --worktree with no conversation to carry on makes up a name no worktree, branch, kept tip or environment holds
+    def fresh_name(self, menu: Menu) -> str:
+        if not self.worktree_launch or self.environment or RESUME_FLAGS & set(self.args):
+            return ""
+        return WorktreeNames(self.root).unused({row.name for row in menu.environments()})
 
     # a worktree launch never shares an environment a live session holds: it takes name-2, name-3 and so on, a worktree of its own
     def unheld(self, menu: Menu, name: str) -> str:
@@ -239,8 +243,9 @@ class Launch:
 
     def socket(self, environment: str) -> Path:
         key = hashlib.sha1(str(self.root.resolve()).encode()).hexdigest()[:12]
-        slug = re.sub(r"[^A-Za-z0-9_-]", "-", environment)[:24]
-        return Path("/tmp") / f"journal-{os.getuid()}" / f"{key}-{slug}.sock"
+        slug = re.sub(r"[^A-Za-z0-9_-]", "-", environment)[:16]
+        name_key = hashlib.sha1(environment.encode()).hexdigest()[:7]
+        return Path("/tmp") / f"journal-{os.getuid()}" / f"{key}-{slug}-{name_key}.sock"
 
     @property
     def runtime(self) -> Path:

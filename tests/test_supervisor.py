@@ -317,14 +317,23 @@ def test_a_worktree_launch_makes_its_worktree_and_never_hands_the_flag_to_the_ag
 
 def test_a_bare_worktree_flag_makes_a_fresh_name_and_a_given_environment_names_its_worktree(tmp_path: Path):
     import subprocess
+    from journal.support.worktree_names import WorktreeNames
     git = lambda *args: subprocess.run(["git", "-C", str(tmp_path), *args], capture_output=True, text=True, timeout=30)
     git("init", "-q")
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "settings.json").write_text('{"permissions": {}}\n')
     git("add", ".claude/settings.json")
     git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "start")
-    fresh = [Launch.parse(["claude", "-w"], tmp_path).worktree for _ in range(5)]
-    assert all(re.fullmatch(r"[a-z]+-[a-z]+", name) for name in fresh), "a bare --worktree makes a fresh two-word name, as version 3 did, so two launches never share one folder"
+    bare = Launch.parse(["claude", "-w"], tmp_path)
+    fresh = [WorktreeNames(tmp_path).unused(set()) for _ in range(5)]
+    assert bare.worktree_launch and bare.worktree == "" and all(re.fullmatch(r"[a-z]+-[a-z]+", name) for name in fresh), "a bare --worktree makes a fresh two-word name at its choice, as version 3 did, so two launches never share one folder"
+    for name in ("calm-river", "quiet-heron"):
+        git("branch", f"worktree-{name}")
+    git("update-ref", "refs/journal/worktrees/keen-otter", "HEAD")
+    taken = {"calm-river", "quiet-heron", "keen-otter", "brisk-maple"}
+    assert not taken & {WorktreeNames(tmp_path).unused({"brisk-maple"}) for _ in range(40)}, "a made-up name avoids a branch, a kept tip and an environment that already hold it"
+    sockets = {Launch.parse(["claude"], tmp_path).socket(name) for name in ("a-very-long-environment-name-one", "a-very-long-environment-name-two")}
+    assert len(sockets) == 2, "two names alike in their first characters get two sockets"
     resumed = Launch.parse(["claude", "--worktree", "--resume", "abc"], tmp_path)
     assert resumed.worktree_launch and resumed.worktree == "" and "--worktree" not in resumed.args, "a bare --worktree carrying a conversation on takes that conversation's environment instead"
     launch = Launch.parse(["claude", "--env", "calm-river", "-w"], tmp_path)
