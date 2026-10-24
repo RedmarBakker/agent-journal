@@ -118,3 +118,31 @@ def test_the_carrier_ends_when_the_process_that_started_it_is_killed(app: App):
     finally:
         account.left(0)
         server.shutdown()
+
+
+def test_the_journal_server_ends_when_its_supervisor_is_killed(tmp_path: Path):
+    import socket
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    root, pid_file, log = tmp_path / "project", tmp_path / "server.pid", tmp_path / "server.log"
+    root.mkdir()
+    environ = {**os.environ, "JOURNAL_ROOT": str(root), "JOURNAL_PORT": str(port), "PYTHONPATH": str(PACKAGE), "JOURNAL_ENV": "main"}
+    # a stand-in for the supervisor: it starts the journal server as the supervisor's Service does and waits, killed with SIGKILL
+    starter = f"import time; from pathlib import Path; from supervisor.service import Service; service = Service('journal', [{sys.executable!r}, {str(PACKAGE / 'journal.py')!r}, 'serve'], Path({str(root)!r}), dict(__import__('os').environ), Path({str(log)!r})); service.start(); open({str(pid_file)!r}, 'w').write(str(service._process.pid)); time.sleep(120)"
+    supervisor = subprocess.Popen([sys.executable, "-c", starter], env=environ)
+    try:
+        assert eventually(lambda: pid_file.is_file() and pid_file.read_text().strip(), 10)
+        server_pid = int(pid_file.read_text())
+        alive = lambda: subprocess.run(["kill", "-0", str(server_pid)], capture_output=True).returncode == 0
+        answering = lambda: subprocess.run(["curl", "-s", "-m", "1", "-o", "/dev/null", "-w", "%{http_code}", f"http://127.0.0.1:{port}/journal/health"], capture_output=True, text=True).stdout not in ("", "000")
+        assert eventually(answering, 30), log.read_text()[-4000:]
+        supervisor.send_signal(signal.SIGKILL)
+        supervisor.wait(10)
+        gone = eventually(lambda: not alive(), 15)
+        if not gone:
+            os.kill(server_pid, signal.SIGKILL)
+        assert gone, "the journal server lives for its supervisor's process, which a framework build's parent pid never shows gone"
+    finally:
+        if supervisor.poll() is None:
+            supervisor.kill()
