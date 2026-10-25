@@ -164,6 +164,9 @@ class WorkerBranch:
             raise MergeClash(worker.id, clashing)
         return ", ".join(self.head(repository) for repository in pending)
 
+    def base(self, worker: Worker) -> str:
+        return self.git("rev-parse", "--abbrev-ref", "HEAD", cwd=self.checkout(worker)).stdout.strip()
+
     def head(self, repository: WorkerRepository) -> str:
         head = self.git("rev-parse", "HEAD", cwd=repository.checkout).stdout.strip()[:9]
         return f"{repository.folder} {head}" if repository.is_inner else head

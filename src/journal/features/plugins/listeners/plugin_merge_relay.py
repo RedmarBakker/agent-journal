@@ -4,6 +4,9 @@ from journal.events.listener import Listener
 from journal.events.worker_merge_event import WorkerMergeEvent
 from journal.features.plugins.support.plugin_relay import PluginRelay
 from journal.features.plugins.support.protocol import Protocol
+from journal.features.plugins.support.merge_queue import MergeQueue
+from journal.features.plugins.support.plugin_answer import PluginAnswer
+from journal.models.plugin import Plugin
 from journal.repositories.setting_rows import SettingRows
 from journal.support.decision import Decision
 from journal.support.listener_queue import ListenerQueue
@@ -11,19 +14,24 @@ from journal.features.plugins.plugins_options import PluginsOptions
 
 
 class PluginMergeRelay(Listener[WorkerMergeEvent]):
-    """The plugins that receive a worker's merge: one that listens for worker_merging is asked before the branch is merged, inside its window, and its refusal blocks the merge with its reason; every other one receives it, and worker_merge_landed, after the reply."""
+    """The plugins that receive a worker's merge: one that listens for worker_merging is asked before the branch is merged, inside its window capped by the merge window setting and with at most so many merges asked about at once, and its refusal blocks the merge with its reason; every other one receives it, and worker_merge_landed, after the reply."""
 
-    def __init__(self, relay: PluginRelay, deferred: ListenerQueue, settings: SettingRows) -> None:
-        self.relay, self.deferred, self.settings = relay, deferred, settings
+    def __init__(self, relay: PluginRelay, deferred: ListenerQueue, settings: SettingRows, queue: MergeQueue) -> None:
+        self.relay, self.deferred, self.settings, self.queue = relay, deferred, settings, queue
 
     def handle(self, event: WorkerMergeEvent) -> Decision:
-        ceiling_ms = self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW)
+        ceiling_ms = event.window(self.settings.integer(PluginsOptions.PLUGIN_ANSWER_WINDOW))
         decision = Decision()
         for plugin in self.relay.listeners(event, event.environment_id):
             key = Protocol.published_name(event)
             if decision.allowed and plugin.manifest.has_window(key):
-                answer = self.relay.ask(plugin, event, event.environment_id, plugin.manifest.window_ms(key, ceiling_ms) / 1000)
+                window_ms = plugin.manifest.window_ms(key, ceiling_ms)
+                answer = self.plugin_answer(plugin, event.with_window(window_ms), window_ms)
                 decision = decision.merged(Decision.refuse(f"{plugin.name}: {answer.reason}") if answer.answer == "refuse" else Decision())
             else:
                 self.deferred.add_bounded(partial(self.relay.postponed, plugin, event, event.environment_id), f"{plugin.name} relay {key}")
         return decision
+
+    def plugin_answer(self, plugin: Plugin, event: WorkerMergeEvent, window_ms: int) -> PluginAnswer:
+        with self.queue.place():
+            return self.relay.ask(plugin, event, event.environment_id, window_ms / 1000)

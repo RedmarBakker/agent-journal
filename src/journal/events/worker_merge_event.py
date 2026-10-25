@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Self
 
 from journal.events.event import Event
 
@@ -13,3 +14,9 @@ class WorkerMergeEvent(Event):
     task: int
     branch: str
     worktree: str
+
+    def window(self, ceiling_ms: int) -> int:
+        return ceiling_ms
+
+    def with_window(self, window_ms: int) -> Self:
+        return self

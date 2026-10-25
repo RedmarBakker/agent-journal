@@ -12964,6 +12964,8 @@ def test_a_plugin_hears_a_workers_merge_before_and_after_and_its_hold_refuses_it
     heard = [json.loads(line) for line in (app.config.home / "plugin-data" / "echo" / "heard.jsonl").read_text().splitlines()]
     merging = [line for line in heard if line["event"] == "worker_merging"]
     assert merging and merging[0]["data"]["worker"] == 1 and merging[0]["data"]["task"] == 1 and merging[0]["data"]["branch"] == "worker/1-Worker-1" and merging[0]["data"]["files"] == ["forbidden.py"], merging
+    assert merging[0]["data"]["base"] == "main" and merging[0]["data"]["window_ms"] == 180000, "it is told the branch the work goes into and the window it may hold the merge for, the merge window setting"
+    assert console.run(["settings", "set", "workers.merge_window_seconds", "5"], USER).code == 0
     git_run(worktree, "rm", "-q", "forbidden.py")
     git_run(worktree, "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "not that")
     committed(worktree, "allowed.py", "y = 2\n")
@@ -12972,6 +12974,35 @@ def test_a_plugin_hears_a_workers_merge_before_and_after_and_its_hold_refuses_it
     app.runtime().deferred.drain()
     heard = [json.loads(line) for line in (app.config.home / "plugin-data" / "echo" / "heard.jsonl").read_text().splitlines()]
     assert any(line["event"] == "worker_merge_result" and line["data"]["commits"] for line in heard), "and hears the merge once it landed"
+    assert [line for line in heard if line["event"] == "worker_merging"][-1]["data"]["window_ms"] == 5000, "a plugin's window on a merge is cut to the setting"
+
+
+def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: App):
+    import threading
+    from journal.features.plugins.support.merge_queue import MergeQueue
+    console = app.console()
+    hook(app, "SessionStart")
+    assert console.run(["settings", "set", "workers.merge_limit", "2"], USER).code == 0
+    queue, inside, release, third = app.container.get(MergeQueue), [], threading.Event(), threading.Event()
+
+    def merge(name: str, done: threading.Event | None = None) -> None:
+        with app.container.get(Scope).environment(MAIN), queue.place():
+            inside.append(name)
+            if done:
+                done.set()
+            release.wait(5)
+
+    threads = [threading.Thread(target=merge, args=(name,)) for name in ("first", "second")] + [threading.Thread(target=merge, args=("third", third))]
+    for thread in threads[:2]:
+        thread.start()
+    while len(inside) < 2:
+        time.sleep(0.01)
+    threads[2].start()
+    assert not third.wait(0.3) and inside == ["first", "second"], "a third merge waits while two are being asked about"
+    release.set()
+    assert third.wait(5), "and goes on once a place is free"
+    for thread in threads:
+        thread.join(5)
 
 
 def test_a_worker_is_dispatched_only_to_change_something_and_a_read_only_job_is_sent_to_a_subagent(app: App, monkeypatch):
