@@ -655,7 +655,8 @@ def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what
     assert app.console().run(["clock-in"], babbage).code == 0 and app.container.get(SessionAgents).top("w1").task_id == task.id, "a worker sent back clocks in again"
 
 
-def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_short_line(app: App):
+def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_short_line():
+    from journal.features.workers.workers_conduct import WorkersConduct
     from pathlib import Path
     from journal.events.feature_data import FeatureData
     from journal.features.workers.support.workers_data import WorkersData
@@ -665,7 +666,7 @@ def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_sh
     from journal.events.rows.worker_unfinished import WorkerUnfinished
     settings = SettingsValue({})
     workers = lambda *resumable: FeatureData({"workers": WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=Path("."), worktrees=(), resumable=resumable)})
-    said = lambda event, *resumable: [n.rendered() for n in Ready().respond(event.with_data(workers(*resumable)), settings).nudges]
+    said = lambda event, *resumable: [n.rendered() for n in Ready().respond(event.with_data(workers(*resumable)), settings, (WorkersConduct,)).nudges]
     short = ProofShort(environment_id=1, time=1.0, task_id=5, worker_id=3, point=2, shortfall="the tests", dispatcher="s1")
     assert said(short.reaching("s1")) == ["worker 3 back on point 2"], "a worker sent back is told as one line with ids"
     assert said(short.reaching("s2")) == [], "to the agent that dispatched it alone"
