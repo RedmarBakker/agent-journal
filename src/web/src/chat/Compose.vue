@@ -519,7 +519,9 @@ async function use(tool) {
     border: 0;
     border-radius: 6px;
     color: var(--text-2);
-    background: #141518;
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     cursor: pointer;
 }
 
