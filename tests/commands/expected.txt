@@ -436,7 +436,7 @@ noted; carry on
 $ agent: journal doc create 'The cart' --file <root>/cart.md --abstract 'how the cart adds up'
 exit 0
 doc 1: The cart
-created: message 28, doc revision 1
+created: message 29, doc revision 1
 
 $ agent: journal doc list
 exit 0
@@ -491,6 +491,22 @@ $ agent: journal doc undock 1
 exit 0
 Doc 1: The cart undocked
 
+$ agent: journal doc share 1
+exit 1
+no team is joined, so there is no hub to file in
+
+$ agent: journal doc mode 1 free
+exit 1
+doc 1 is not on the hub: journal doc share 1 puts it there
+
+$ agent: journal doc copy 1
+exit 1
+doc 1 is not on the hub: journal doc share 1 puts it there
+
+$ agent: journal doc attach 1
+exit 1
+doc 1 is not on the hub: journal doc share 1 puts it there
+
 $ agent: journal doc import --help
 exit 0
 usage: journal doc import [-h] folder
@@ -504,7 +520,7 @@ options:
 $ agent: journal report create 'What the cart test found' --body 'The total adds the tax twice' --about tasks:2
 exit 0
 report 1: What the cart test found, about tasks:2
-created: message 29
+created: message 30
 
 $ agent: journal report list
 exit 0
@@ -519,7 +535,7 @@ read a section with --section <n or heading>, its bullets with --bullets, search
 $ agent: journal report recap 'the footer is done'
 exit 0
 report 2: the update, docked at the bottom of the chat; done 1, also 2
-created: message 30
+created: message 31
 
 $ agent: journal report note 1 'checked again'
 exit 0
@@ -581,7 +597,7 @@ A functional design says what is to be built, never how: anyone, the user or a c
 $ agent: journal template dock 1
 exit 0
 Template 1: Functional design docked above the chat
-created: message 31
+created: message 32
 
 $ agent: journal template undock 1
 exit 0
@@ -636,7 +652,7 @@ check 1: The cart sums its lines
 $ agent: journal check dock 1
 exit 0
 Check 1: The cart sums its lines docked above the chat
-created: message 33
+created: message 34
 
 $ agent: journal check undock 1
 exit 0
@@ -657,7 +673,7 @@ exit 0
 $ agent: journal notice dock 1
 exit 0
 Notice 1: The shop's design docked above the chat
-created: message 34
+created: message 35
 
 $ agent: journal notice undock 1
 exit 0
@@ -704,8 +720,9 @@ $ agent: journal reader list
 exit 0
 dotnet-test: the failed tests and the totals of a dotnet test run
 phpunit: the failures and the totals of a phpunit or pest run
-pytest: the summary of a pytest run, or the error that stopped it
+pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it
 totals: a test run's totals
+vitest: the failed tests of a vitest run with their assertion lines, and its totals
 
 $ agent: journal reader default totals
 exit 0
@@ -852,11 +869,12 @@ following sequence 2, step 2: Write the update with `journal report recap "<one 
 $ agent: journal sequence abandon --why 'not today' --sure
 exit 0
 sequence 2 abandoned
+sequence 4, step 1: Check the document you filed reads as you meant: `journal doc show <doc n>` lists its sections, one for each ## heading of the file. `journal sequence follow`, then `journal sequence next` when it is done
 
 $ agent: journal sequence dock 2
 exit 0
 Sequence 2: Writing an update docked above the chat
-created: message 41
+created: message 42
 
 $ agent: journal sequence undock 2
 exit 0
@@ -875,7 +893,7 @@ exit 0
 $ agent: journal trigger dock 1
 exit 0
 Trigger 1 docked above the chat
-created: message 42
+created: message 43
 
 $ agent: journal trigger undock 1
 exit 0
@@ -954,7 +972,7 @@ exit 0
 $ agent: journal dump dock 1
 exit 0
 Dump 1: The call docked above the chat
-created: message 44
+created: message 45
 
 $ agent: journal dump undock 1
 exit 0
@@ -983,7 +1001,7 @@ exit 0
 $ agent: journal secret request 'The payment key' --why 'the checkout pays through it' --kind 'api key'
 exit 0
 secret 1 asked for: the user fills it on the Secrets page
-created: message 45
+created: message 46
 
 $ agent: journal secret create 'The shop'"'"'s login' --brief 'for the admin pages'
 exit 0
@@ -1198,8 +1216,9 @@ nothing
 == journal reader list ==
 dotnet-test: the failed tests and the totals of a dotnet test run
 phpunit: the failures and the totals of a phpunit or pest run
-pytest: the summary of a pytest run, or the error that stopped it
+pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it
 totals: a test run's totals (the default for its commands)
+vitest: the failed tests of a vitest run with their assertion lines, and its totals
 
 == journal task show current ==
 no task is in hand
@@ -1850,7 +1869,7 @@ options:
 $ agent: journal panic report
 exit 0
 report 3 written: read it with journal report show 3 --all, take out anything private, then journal panic issue 3 files it on jessegall/agent-journal
-created: message 47
+created: message 48
 
 $ agent: journal panic apply --help
 exit 0
