@@ -19,6 +19,7 @@ from journal.features.workers.support.worker_launch import WorkerLaunch
 from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
+from journal.models.support.report_choice import ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.subagents import Subagents
@@ -84,6 +85,7 @@ class WorkerCommand(Command):
         dispatch.add_argument("--pool", action="store_true", help="to the team's pool: a teammate's machine with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first; with --worktree, a profile the team allows its pool, and no --model")
         dispatch.add_argument("--needs-secrets", action="store_true", help="the job uses secrets kept on this machine, so it cannot go to the pool")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
+        dispatch.add_argument("--report", nargs="+", default=["each"], help="when it reports on a queue: each (after every task, the default), queue (once its queue is empty) or every <n> (after every n tasks)")
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task").add_argument("n", type=int)
         self.verb(verbs, "merge", "take in a clocked-out worker's checked work, which closes its task").add_argument("n", type=int)
@@ -103,6 +105,7 @@ class WorkerCommand(Command):
         queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order, a started or paused one in your own hands let go to it: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
+        queue.add_argument("--report", nargs="+", help="when it reports from now: each, queue or every <n>; unnamed, its choice stays")
         queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order given, taking one from another worker's queue if it is there, so the first is the next one sent")
         self.verb(verbs, "drain", "give back every task waiting in a worker's queue, open again, in one mark; the task it works on stays its").add_argument("n", type=int)
         notify = self.verb(verbs, "notify", "give a running worker a message in its live session")
@@ -151,7 +154,7 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads, searches, researches or reviews goes to a subagent with the Agent tool")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=args.model or self.model(args.profile, provider), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session)
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=args.model or self.model(args.profile, provider), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=ReportChoice.argument(args.report))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
@@ -274,10 +277,12 @@ class WorkerCommand(Command):
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
+        if args.report:
+            worker = self.workers.save(worker.with_(report_choice=ReportChoice.argument(args.report)), caller.actor)
         for n in reversed(args.tasks) if args.first else args.tasks:
             self.tasks.let_go(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
-        print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it")
+        print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports {worker.report_choice.label()}")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
             print(self.actions.next_job(worker.id, caller.actor))
         return 0
@@ -376,7 +381,7 @@ class WorkerCommand(Command):
 
     @staticmethod
     def standing_line(worker: Worker) -> str:
-        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} spent, sent back {worker.send_backs()} times on this task"
+        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} spent, sent back {worker.send_backs()} times on this task, reports {worker.report_choice.label()}"
 
     def print_subagents(self, session: str | None) -> None:
         subagents = [] if session is None else self.subagents.session_subagents(session)

@@ -12550,6 +12550,28 @@ def test_a_merge_lets_go_of_the_merged_task_alone_and_a_worker_already_on_a_queu
         assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.find(3).state == "delegated", "and the merge hands it no second task: the next stays queued"
 
 
+def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in_the_list(app: App, monkeypatch):
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console = app.console()
+    hook(app, "SessionStart")
+    for n, report in ((1, []), (2, ["--report", "queue"]), (3, ["--report", "every", "3"])):
+        console.run(["task", "create", f"the job {n}", "--brief", f"job {n}: done when it is in"], AGENT)
+        sent = console.run(["worker", "dispatch", f"Worker {n}", "--task", str(n), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet", *report], AGENT)
+        assert sent.code == 0, sent.error
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        assert [workers.find(n).report_choice.label() for n in (1, 2, 3)] == ["each", "queue", "every 3"], "each is the default; queue and every n are kept as chosen"
+    console.run(["task", "create", "the job 4", "--brief", "job 4: done when it is in"], AGENT)
+    queued = console.run(["worker", "queue", "1", "4", "--report", "every", "2"], AGENT)
+    assert queued.code == 0 and "it reports every 2" in queued.text, queued.error
+    listed = console.run(["worker", "list"], AGENT).text
+    assert "reports every 2" in listed and "reports queue" in listed and "reports every 3" in listed
+    refused = console.run(["worker", "queue", "2", "4", "--report", "every", "1"], AGENT)
+    assert refused.code != 0 and "--report takes each, queue or every <n> of two or more" in refused.error
+
+
 def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
     from journal.features.workers.support.worker_actions import WorkerActions
     from journal.models.support.ref import Ref
