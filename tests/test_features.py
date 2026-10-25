@@ -3276,16 +3276,34 @@ def test_reading_a_message_names_its_files_links_and_captions(app: App):
     console.run(["task", "create", "crop it", "--from", "1"], AGENT)
     from journal.repositories.messages import Messages
     filed = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert filed == ["Filed task 1, task 2 from your message"], "what is filed from a message is one mark in the chat, naming each row"
+    assert filed == ["Created task 1, task 2 from your message"], "what is created from a message is one mark in the chat, naming each row"
+    [card] = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
+    assert card.data["row"] == "tasks:1", "a click opens the first row it created, not the message"
     console.run(["message", "send", "filed it as task 1, cropping next", "--reply-to", "1"], AGENT)
     filed = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]
-    assert filed == ["Filed task 2 from your message"], "a row the agent's reply names is left out of the mark"
+    assert filed == ["Created task 1, task 2 from your message"], "a row the agent's reply names stays in the mark: creating is an event"
     console.run(["message", "send", "and task 2 crops it", "--reply-to", "1", "--confirm"], AGENT)
-    assert [m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"] == [], "once the replies name every row, the mark goes"
+    assert len([m for m in app.container.get(Messages).all() if m.data.get("shows") == "filed"]) == 1, "and so does the mark once the replies name every row"
     assert console.run(["message", "tag", "1", "shot one.png", "the footer overlapping the form"], AGENT).code == 0
     assert "the footer overlapping the form" in console.run(["message", "read", "1"], AGENT).text
     console.run(["message", "react", "1", "👍"], USER)
     assert "reacts" in console.run(["message", "read", "1"], AGENT).text
+
+
+def test_a_row_the_agent_writes_right_after_replying_to_a_message_is_linked_to_it_without_from(app: App):
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    console = app.console()
+    console.run(["message", "send", "please fix the footer and the header"], USER)
+    console.run(["task", "create", "the header"], AGENT)
+    links, messages = app.container.get(Links), app.container.get(Messages)
+    assert links.targets(messages.find(1), Messages.SUBJECT_LINK) == [], "a task made before any reply is linked to nothing"
+    console.run(["message", "send", "on it", "--reply-to", "1"], AGENT)
+    console.run(["task", "create", "the footer"], AGENT)
+    assert Ref("tasks", 2) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "a task created right after the reply is linked to the message it answers"
+    console.run(["task", "edit", "1", "--title", "the header, redone"], AGENT)
+    assert Ref("tasks", 1) in links.targets(messages.find(1), Messages.SUBJECT_LINK), "and so is a task edited right after it"
 
 
 def test_a_message_read_through_a_pipe_is_refused(app: App):

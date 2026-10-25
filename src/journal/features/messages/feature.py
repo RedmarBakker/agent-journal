@@ -15,6 +15,8 @@ from journal.features.messages.commands.message_command import MessageCommand
 from journal.features.messages.listeners.deliver_message import DeliverMessage
 from journal.features.messages.listeners.start_inbox_delivery import StartInboxDelivery
 from journal.features.messages.listeners.task_mention_links import TaskMentionLinks
+from journal.features.messages.listeners.created_row_cause import CreatedRowCause
+from journal.features.messages.listeners.edited_row_cause import EditedRowCause
 from journal.features.messages.listeners.dump_item_card import DumpItemCard
 from journal.features.messages.support.receipt_process_card import ReceiptProcessCard
 from journal.features.messages.listeners.inbox_arrival_card import InboxArrivalCard
@@ -30,7 +32,7 @@ from journal.features.messages.messages_demands import MessagesDemands
 
 class Messages(Feature[MessagesData]):
     name = MessagesPart.name
-    card_families = (CardFamily("filed", "Filed from your messages", "inbox", WORK),)
+    card_families = (CardFamily("filed", "Tasks created from your messages", "inbox", WORK),)
     card_kinds = (MarkKind(CardKind.FILED, "Filed from your messages", "filed", turns=("receipt",)),)
     title = "Messages"
     help = "A new message is named to the agent by its number, at once and again at start, at a prompt and at a stop; it reads it with the CLI and answers it first."
@@ -38,7 +40,7 @@ class Messages(Feature[MessagesData]):
     demands = (MessagesDemands.REPLY, MessagesDemands.READ)
     options = (MessagesOptions.ANSWER_REQUEST_LIMIT, MessagesOptions.TOOL_BLOCK_LIMIT, MessagesOptions.EDIT_BLOCK_LIMIT, MessagesOptions.TRANSCRIPT_SCAN_DELAY, FOLD_SECONDS)
     process_cards = (ReceiptProcessCard,)
-    listeners = (InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, RunTags, TaskMentionLinks, DumpItemCard, DeliverMessage, StartInboxDelivery)
+    listeners = (InboxArrivalCard, TranscriptScan, RecordTypedPrompt, RecordPeerMessage, OutgoingMessageRecord, RecordTurn, RunTags, TaskMentionLinks, CreatedRowCause, EditedRowCause, DumpItemCard, DeliverMessage, StartInboxDelivery)
     data = (MessagesDataReader,)
     conduct = (MessagesConduct,)
 

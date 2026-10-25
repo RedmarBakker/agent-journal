@@ -105,6 +105,9 @@ class Messages(ScopedRepository[Message]):
         read = self.selected((query if voiced_at is None else query.filter_greater("read_at", voiced_at)).without("text").order("id"))
         return [m for m in read if not m.is_terminal_line and not self.answered(m) and not self.agent_reaction(m)]
 
+    def latest_voice(self) -> Message | None:
+        return next(iter(self.selected(self.main_voice().order_descending("id").limit(1))), None)
+
     def last_message(self) -> str | None:
         return self.maximum(self.main_voice().filter(acknowledgement=False).filter_unequal("data->kind", Message.THOUGHT), "created_at", None)
 
