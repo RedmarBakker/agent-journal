@@ -104,7 +104,14 @@ def wait(ready, what: str, seconds: int = 60):
     raise SystemExit(f"timed out waiting for {what}")
 
 
+def team_answers() -> bool:
+    request = urllib.request.Request(f"http://{SERVER}/team", headers={"X-Journal-Protocol": "99"})
+    with urllib.request.urlopen(request, timeout=10) as reply:
+        return reply.status == 200
+
+
 def journals() -> None:
+    wait(team_answers, "the team server to answer", 180)
     start_scratch("a")
     email, person = PEOPLE["a"]
     print(journal("a", "team", "join", f"http://{SERVER}", "--email", email, "--name", person, f"--password={PASSWORD}"))
@@ -215,7 +222,10 @@ def check_hosted_journal() -> str:
     rows = json.loads(reply.read()).get("rows", []) if reply.status == 200 else []
     hub = next((row for row in rows if row.get("kind") == "hub"), None)
     found = bool(hub) and hub.get("team_key") == hubs("a")[0]["team_key"]
-    return f"{'OK' if found else 'FAIL'}: a signed in to the hosted journal at http://{SERVER} and it shows the hub {hub.get('name') if hub else 'none'} of the team (environments {reply.status}: {[row.get('name') for row in rows]})"
+    home = hosted("GET", "/journal/tasks?limit=49", cookie=cookie)
+    tasks = [row.get("title") for row in json.loads(home.read()).get("rows", [])] if home.status == 200 else []
+    opened = f"hub task {STAMP}" in tasks
+    return f"{'OK' if found and opened else 'FAIL'}: a signed in to the hosted journal at http://{SERVER}: it shows the hub {hub.get('name') if hub else 'none'} of the team (environments {reply.status}: {[row.get('name') for row in rows]}) and its home holds the hub task filed here {opened} (tasks {home.status})"
 
 
 def check_pre_hub_copy() -> str:

@@ -10,6 +10,8 @@ from sync_server.protocol import PROTOCOL, PROTOCOL_HEADER
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE = "agent-journal-team:test"
+# the commit the image is built from, which the hosted journal's first install records
+COMMIT = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30).stdout.strip()
 NAME = "agent-journal-team-image-test"
 VOLUME = "agent-journal-team-image-test"
 PORT = 8443
@@ -38,7 +40,7 @@ def login(device_name: str) -> dict:
 
 
 def test_the_image_answers_a_login_over_https_and_keeps_its_data_across_a_restart():
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
     docker("volume", "create", VOLUME)
     try:
         docker("run", "-d", "--name", NAME, "-e", "TEAM_ADDRESS=localhost", "-p", f"{PORT}:443", "-v", f"{VOLUME}:/data", IMAGE)
@@ -56,7 +58,7 @@ def test_the_host_setup_starts_a_server_on_a_fresh_volume_whose_admin_logs_in_an
     import hashlib
     import re
 
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
     environment = {"PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin", "HOME": str(Path.home()), "TEAM_IMAGE": IMAGE, "TEAM_SETUP_STDIN": "1", "TEAM_HTTPS_PORT": str(PORT), "TEAM_HTTP_PORT": "8480"}
     answers = "\n".join(["Setup Test", "Ada", "ada@example.com", PASSWORD, PASSWORD, "127.0.0.1"]) + "\n"
     try:
@@ -79,7 +81,7 @@ def test_the_host_setup_starts_a_server_on_a_fresh_volume_whose_admin_logs_in_an
 
 
 def test_a_running_servers_backup_restores_into_a_new_container_that_answers_the_same_rows(tmp_path):
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
     restored = "agent-journal-team-restored-test"
     docker("volume", "create", VOLUME)
     docker("volume", "create", restored)
@@ -116,7 +118,7 @@ def test_the_hosted_address_signs_a_person_in_and_shows_the_teams_tasks():
     version = re.search(r'VERSION = "(.*)"', (ROOT / "src" / "journal" / "version.py").read_text()).group(1)
     migration = max(int(re.search(r"number: ClassVar\[int\] = (\d+)", path.read_text()).group(1)) for path in (ROOT / "src" / "journal" / "db" / "migrations").glob("*.py") if "number: ClassVar" in path.read_text())
     print("building the team image", flush=True)
-    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "-t", IMAGE, str(ROOT), seconds=600)
+    docker("build", "-q", "-f", "docker/team-server/Dockerfile", "--build-arg", f"COMMIT={COMMIT}", "-t", IMAGE, str(ROOT), seconds=600)
     subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, timeout=60)
     subprocess.run(["docker", "volume", "rm", VOLUME], capture_output=True, timeout=60)
     docker("volume", "create", VOLUME)
