@@ -13,6 +13,9 @@ from journal.repositories.scoped_repository import ScopedRepository
 class Docs(ScopedRepository[Doc]):
     model = Doc
 
+    def unsettled(self) -> list[Doc]:
+        return self.selected(self.query().filter(settled_reason="").order("id"))
+
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, visible: DocScope) -> None:
         super().__init__(connection, bus, scope)
         self.visible = visible

@@ -63,6 +63,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
         query = self.query()
         return self.selected(query.filter(ended=True).filter_alternatives(*(query.filter_prefix("command", prefix) for prefix in prefixes)).order_descending("id").limit(count))
 
+    def started_with(self, prefix: str) -> list[CommandOutput]:
+        return self.selected(self.query().filter_prefix("command", prefix).order("id"))
+
     def last_run(self, command: str) -> CommandOutput | None:
         rows = self.selected(self.query().filter(command=command, ended=True).order_descending("id").limit(1))
         return rows[0] if rows else None

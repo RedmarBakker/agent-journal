@@ -1293,6 +1293,48 @@ def test_a_document_the_agent_writes_is_a_message_in_its_chat(app: App, tmp_path
     produced = [(m.text, m.data["summary"]) for m in app.container.get(Messages).all() if m.data.get("kind") == "made"]
     assert produced == [("Deploys", "How a deploy goes")], "the agent's document is marked in the chat; the user's own is not"
 
+def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_spans_until_it_is_signed_off(app: App):
+    from journal.db.connection import Connection
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.reports import Reports
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    for title in ("What the login check found", "The payment notes", "The cache survey"):
+        assert console.run(["report", "create", title, "--body", "## Found\nSomething.\n"], AGENT).code == 0
+    console.run(["plan", "create", "release", "--brief", "built on report 2"], USER)
+    console.run(["task", "create", "speed it up", "--brief", "start from report 3"], USER)
+    app.runtime().deferred.drain()
+    connection, old = app.container.get(Connection), "2020-01-01T00:00:00+00:00"
+    connection.execute("UPDATE reports SET created_at = ?, updated_at = ?", (old, old))
+    connection.changed("reports")
+
+    def named():
+        with app.container.get(Scope).environment(MAIN):
+            return [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "reports.written_work_never_acted_on"]
+
+    def older_by(minutes: float) -> None:
+        with app.container.get(Scope).environment(MAIN):
+            last = named()[-1]
+            app.container.get(Entries).save(last.with_(data={**last.data, "time": last.data["time"] - minutes * 60}), Actor.system())
+
+    hook(app, "Stop")
+    lines = [entry.data["line"] for entry in named()]
+    assert len(lines) == 1 and lines[0].startswith("report 1, What the login check found, has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
+    assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere"
+    hook(app, "Stop")
+    assert len(named()) == 1, "within the span the line is not said again"
+    older_by(41)
+    hook(app, "Stop")
+    assert len(named()) == 2, "past the span, at most 40 minutes, the line comes again while the report is unsettled"
+    settled = console.run(["report", "settle", "1", "--why", "the faults it found are fixed in task 2"], AGENT)
+    assert settled.code == 0 and app.container.get(Reports).find(1).settled_reason == "the faults it found are fixed in task 2", "the reason is recorded on the report"
+    older_by(41)
+    hook(app, "Stop")
+    assert len(named()) == 2, "once signed off the report is named no more"
+
+
 def test_a_report_the_agent_writes_is_a_made_message_docked_above_the_chat(app: App):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")

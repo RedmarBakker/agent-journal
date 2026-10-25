@@ -1,0 +1,11 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class UnactedRow:
+    """A report or document never acted on: its kind as its command names it, its number, its title and when it was written."""
+
+    kind: str
+    row_id: int
+    title: str
+    written_at: float

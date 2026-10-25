@@ -18,8 +18,8 @@ class ReportsFeature(Feature[ReportsData]):
     listeners = (ReportCard,)
     data = (ReportsDataReader,)
     conduct = (ReportsConduct,)
-    options = (ReportsOptions.UPDATE_INTERVAL,)
-    nudges = (ReportsNudges.UPDATE_SUGGESTION,)
+    options = (ReportsOptions.UPDATE_INTERVAL, ReportsOptions.UNACTED_MINUTES)
+    nudges = (ReportsNudges.UPDATE_SUGGESTION, ReportsNudges.UNACTED)
 
     skill = Skill("reports", 'Put what was just checked or researched in a report linked to what it is about; load it when the user asks for a critique, a review, an update or a write-up', """
 # Reports

@@ -3,11 +3,12 @@ from typing import ClassVar
 
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.scoped import Scoped
+from journal.support.rejection import Rejection
 
 
 @dataclass(frozen=True)
 class Doc(Scoped):
-    """A document of one environment, read in every environment when it is the project's (environment 0) or a hub's: a title, a line that says what it is, and its text."""
+    """A document of one environment, read in every environment when it is the project's (environment 0) or a hub's: a title, a line that says what it is, its text, and why it needs no action once it is signed off as such."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 
@@ -16,7 +17,13 @@ class Doc(Scoped):
     body: str = ""
     edit_mode: DocEditMode = DocEditMode.LOCAL
     owner: int = 0
+    settled_reason: str = ""
     is_copy: bool = False
+
+    def settled(self, reason: str) -> "Doc":
+        if not reason.strip():
+            raise Rejection(f"doc {self.id} is signed off with the reason it needs no action: --why \"<why>\"")
+        return self.with_(settled_reason=reason.strip())
 
     def is_on_hub(self) -> bool:
         return self.edit_mode != DocEditMode.LOCAL

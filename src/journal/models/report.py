@@ -13,7 +13,7 @@ SECTION_NAMES = {"need": ("waits on you", "wait on you"), "done": ("done", "done
 
 @dataclass(frozen=True)
 class Report(Scoped):
-    """What was checked or researched now; an update report is of kind update, its abstract the agent's summary and its items the rows the journal gathered for the time it covers, each with its section, ref, title and note, and the moment the user read it."""
+    """What was checked or researched now; an update report is of kind update, its abstract the agent's summary and its items the rows the journal gathered for the time it covers, each with its section, ref, title and note, the moment the user read it, and why it needs no action once it is signed off as such."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "abstract", "body")
 
@@ -25,6 +25,7 @@ class Report(Scoped):
     start_at: datetime | None = None
     end_at: datetime | None = None
     read_at: datetime | None = None
+    settled_reason: str = ""
 
     def title_words(self) -> str:
         return self.title
@@ -43,6 +44,11 @@ class Report(Scoped):
 
     def is_update(self) -> bool:
         return self.kind == UPDATE
+
+    def settled(self, reason: str) -> "Report":
+        if not reason.strip():
+            raise Rejection(f"report {self.id} is signed off with the reason it needs no action: --why \"<why>\"")
+        return self.with_(settled_reason=reason.strip())
 
     def read(self, time: datetime) -> "Report":
         return self if self.read_at else self.with_(read_at=time)
