@@ -179,7 +179,7 @@ class Entries(ScopedRepository[Entry]):
         rows = self.selected(self.query().filter(actor=Actor.agent(session)).filter_unequal("kind", NUDGE).order_descending("id").limit(1))
         return rows[0] if rows else None
 
-    def last_words(self, session: str) -> str:
+    def final_message(self, session: str) -> str:
         stops = self.selected(self.query().filter(kind="Stop", actor=Actor.agent(session)).order_descending("id").limit(1))
         return stops[0].data.get("last_assistant_message", "") if stops else ""
 

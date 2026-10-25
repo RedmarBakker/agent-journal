@@ -18549,7 +18549,7 @@ def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorde
     console.run(["environment", "overview"], AGENT)
     assert console.run(["reader", "add", "builds", "--commands", "make", "--pattern", "^(built|failed)", "--about", "each build's end"], AGENT).code == 0
 
-    def ended_after(last_words: str) -> tuple[ReaderReport, object]:
+    def session_ended_with(final_message: str) -> tuple[ReaderReport, object]:
         with app.container.get(Scope).environment(MAIN):
             report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=0, command="make all", session="s1", findings=("a long line",), fixes=("narrow it",)), Actor.system())
         console.run(["reader", "report", str(report.id)], AGENT)
@@ -18557,7 +18557,7 @@ def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorde
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             verifier = verifiers.save([row for row in verifiers.scoped() if row.is_verifying()][-1].with_(session=f"v-{report.id}", token_hash=token.digest()), Actor.system())
-        posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": verifier.session, "last_assistant_message": last_words}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
+        posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": verifier.session, "last_assistant_message": final_message}, {"X-Journal-Env": "main", "X-Journal-Actor": f"verifier:{verifier.id}", "X-Journal-Actor-Token": token.text})
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             app.container.get(VerifierRunner).ended(verifier)
@@ -18565,10 +18565,10 @@ def test_a_verifier_that_ends_with_a_typed_verdict_line_has_that_verdict_recorde
         with app.container.get(Scope).environment(MAIN):
             return reports.find(report.id), verifiers.find(verifier.id)
 
-    typed, verifier = ended_after('journal verdict no "the output contradicts the reason"')
+    by_line, verifier = session_ended_with('journal verdict no "the output contradicts the reason"')
     assert "with the shell tool, never by writing it as text" in verifier.brief, "the brief tells the verifier to run its verdict, not write it"
-    assert typed.is_refuted and typed.verdict.startswith("the output contradicts the reason") and "typed this verdict" in typed.verdict and verifier.state == VerifierState.JUDGED, "a typed verdict line is recorded as if run, and says so"
-    talked, verifier = ended_after('I think it is sound. journal verdict yes "fine"')
+    assert by_line.is_refuted and by_line.verdict.startswith("the output contradicts the reason") and "typed this verdict" in by_line.verdict and verifier.state == VerifierState.JUDGED, "a typed verdict line is recorded as if run, and says so"
+    talked, verifier = session_ended_with('I think it is sound. journal verdict yes "fine"')
     assert not talked.is_refuted and not talked.verdict and verifier.state == VerifierState.ENDED, "words besides the one line record nothing"
 
 

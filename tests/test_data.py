@@ -1512,9 +1512,9 @@ def test_a_migration_that_raises_is_rolled_back_reported_retried_next_boot_and_t
     schema = Schema(connection, AllModels.MODELS)
     tables = lambda: {row["name"] for row in connection.all("SELECT name FROM sqlite_master WHERE type = 'table'")}
     failures = MigrationFailures()
-    ran = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made", fails=True), Makes(9003, "third_made")), failures).run()
-    assert [m.number for m in ran] == [9001, 9003] and "second_made" not in tables() and {"first_made", "third_made"} <= tables(), "the failed one is rolled back and the ones after it ran"
+    first_run = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made", fails=True), Makes(9003, "third_made")), failures).run()
+    assert [m.number for m in first_run] == [9001, 9003] and "second_made" not in tables() and {"first_made", "third_made"} <= tables(), "the failed one is rolled back and the ones after it ran"
     assert [(f.number, "the rows differ from ours" in f.error) for f in failures.rows] == [(9002, True)] and "9002" in failures.lines()[0] and "tried again at the next start" in failures.lines()[0], "it is reported with its number and its error"
     later = MigrationFailures()
-    again = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made"), Makes(9003, "third_made")), later).run()
-    assert [m.number for m in again] == [9002] and not later.rows and "second_made" in tables(), "it was left unrecorded, so the next boot runs it again"
+    second_run = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made"), Makes(9003, "third_made")), later).run()
+    assert [m.number for m in second_run] == [9002] and not later.rows and "second_made" in tables(), "it was left unrecorded, so the next boot runs it again"

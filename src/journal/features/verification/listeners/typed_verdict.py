@@ -10,8 +10,8 @@ from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.support.caller import Caller
 
-TYPED_VERDICT = re.compile(rf"""journal verdict ({SOUND_VERDICT}|{REFUTED_VERDICT}) (?:"([^"\n]+)"|'([^'\n]+)')""")
-TYPED_NOTE = " (the verifier typed this verdict instead of running it)"
+VERDICT_LINE = re.compile(rf"""journal verdict ({SOUND_VERDICT}|{REFUTED_VERDICT}) (?:"([^"\n]+)"|'([^'\n]+)')""")
+VERDICT_NOTE = " (the verifier typed this verdict instead of running it)"
 
 
 class TypedVerdict(Listener[ModelEvent]):
@@ -24,7 +24,7 @@ class TypedVerdict(Listener[ModelEvent]):
         if not isinstance(event, Updated) or not isinstance(event.model, Verifier) or not event.model.has_ended():
             return
         verifier = event.model
-        said = TYPED_VERDICT.fullmatch(self.entries.last_words(verifier.session).strip())
-        if said:
+        line = VERDICT_LINE.fullmatch(self.entries.final_message(verifier.session).strip())
+        if line:
             caller = Caller.verifier(self.environments.find(verifier.environment_id).name, verifier.id, verifier.session, verifier.provider)
-            self.console.run(["verdict", said.group(1), (said.group(2) or said.group(3)) + TYPED_NOTE], caller)
+            self.console.run(["verdict", line.group(1), (line.group(2) or line.group(3)) + VERDICT_NOTE], caller)

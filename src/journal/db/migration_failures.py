@@ -11,4 +11,4 @@ class MigrationFailures:
         self.rows.append(failure)
 
     def lines(self) -> list[str]:
-        return [f"migration {row.number} failed at {row.at:.0f} and will be tried again at the next start: {row.error}" for row in self.rows]
+        return [f"migration {row.number} failed at {row.failed_at:.0f} and will be tried again at the next start: {row.error}" for row in self.rows]

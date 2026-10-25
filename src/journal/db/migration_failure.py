@@ -7,4 +7,4 @@ class MigrationFailure:
 
     number: int
     error: str
-    at: float
+    failed_at: float
