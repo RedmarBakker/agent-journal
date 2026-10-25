@@ -12704,6 +12704,40 @@ def test_a_clock_out_is_kept_on_the_dispatchers_row_with_the_open_work_and_a_qui
         assert use.unrecovered_points == 20 and app.container.get(Entries).session_kind_newest(AGENT.session, FitnessPoint.KIND, 1), "the fitness is measured and its point kept at the report itself, with no tool use of the dispatcher after it"
 
 
+def test_the_interruption_measure_counts_only_reports_filed_while_plenty_was_open_and_waits_for_enough_of_them(app: App):
+    from journal.models.support.report_use import ReportUse
+    rates = (2.0, 8.0)
+    assert not ReportUse().recorded(100, 0).recorded(200, 0).recorded(300, 0).measured(400, 60, 3, rates, 30).is_measured, "with no tasks open at any report the measure is not counted"
+    assert not ReportUse().recorded(100, 5).measured(400, 60, 3, rates, 30).is_measured, "one report filed while plenty was open is too few to count"
+    edge = ReportUse().recorded(0, 5).recorded(10, 5).recorded(3700, 5).measured(3600 + 5, 60, 3, rates, 30)
+    assert edge.hourly_reports == 1, "a report older than the window falls out of it at its edge"
+    many = ReportUse()
+    for n in range(4):
+        many = many.recorded(1000, 5)
+    assert many.measured(1000, 60, 3, rates, 30).hourly_reports == 4, "workers reporting at once each count"
+
+
+def test_a_quick_report_line_is_said_once_in_its_cooldown_and_a_stuck_workers_clock_out_is_no_interruption(app: App, monkeypatch):
+    from journal.features.workers.workers_nudges import WorkersNudges
+    from journal.repositories.agents import Agents
+    assert WorkersNudges.QUICK_REPORT.repeat.amount == 600, "the quick report line is not said again for ten minutes, so a burst of quick reports gives one line"
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    console.run(["plan", "create", "the release", "--brief", "the release"], USER)
+    for n in range(4):
+        console.run(["plan", "add", "1", f"step {n}", "--brief", f"step {n}: done when it is in"], USER)
+    with app.container.get(Scope).environment(MAIN):
+        from journal.repositories.plans import Plans
+        app.container.get(Plans).approve(app.container.get(Plans).find(1), Actor.user(1))
+    console.run(["proof", "1", "--not-done", "the readme cannot be changed here"], caller)
+    assert console.run(["clock-out", "stuck: the readme cannot be changed here"], caller).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        use = app.container.get(Agents).session_rows(AGENT.session)[0].report_use
+        assert not use.reports and not use.drop_points, "a worker that clocks out stuck did not choose to interrupt, so its report costs nothing"
+
+
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     from journal.features.workers.support.worker_actions import WorkerActions

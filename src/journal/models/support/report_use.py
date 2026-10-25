@@ -2,6 +2,8 @@ from dataclasses import dataclass, replace
 
 # how many reports the dispatcher's row holds, the newest; older ones fall out of every window the fitness reads
 REPORT_COUNT = 40
+# the reports filed while plenty was open, within the window, before the measure counts at all
+LEAST_REPORT_COUNT = 2
 
 
 @dataclass(frozen=True)
@@ -33,4 +35,4 @@ class ReportUse:
     def measured(self, time: float, window_minutes: float, plenty: int, rates: tuple[float, float], recovery_minutes: float) -> "ReportUse":
         counted = [pair for pair in self.reports if time - pair[0] <= window_minutes * 60 and pair[1] >= plenty]
         recovered = min(1.0, (time - self.drop_at) / max(recovery_minutes * 60, 1.0)) if self.drop_points else 1.0
-        return replace(self, hourly_reports=len(counted) * 60 / max(window_minutes, 1.0), full_hourly_reports=rates[0], zero_hourly_reports=rates[1], unrecovered_points=round(self.drop_points * (1 - recovered)), is_measured=bool(self.reports))
+        return replace(self, hourly_reports=len(counted) * 60 / max(window_minutes, 1.0), full_hourly_reports=rates[0], zero_hourly_reports=rates[1], unrecovered_points=round(self.drop_points * (1 - recovered)), is_measured=len(counted) >= LEAST_REPORT_COUNT)
