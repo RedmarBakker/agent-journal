@@ -9609,7 +9609,7 @@ def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_g
     app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
     console.run(["plan", "create", "release", "--brief", "ship it"], USER)
     for title in ("write the notes", "tag it", "announce it"):
-        console.run(["plan", "add", "1", title], USER)
+        console.run(["plan", "add", "1", title, "--brief", f"{title}: done when it is in the repository"], USER)
     console.run(["plan", "approve", "1"], USER)
     started = console.run(["plan", "start", "1"], AGENT)
     tasks = app.container.get(Tasks)
