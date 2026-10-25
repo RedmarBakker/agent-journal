@@ -1,24 +1,27 @@
 from argparse import Namespace
 from pathlib import Path
 
+from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
 from journal.console.command import Command, HELPER_KINDS, WORKER_KINDS
 from journal.support.caller import Caller
 from journal.support.outline import Outline
 from journal.features.docs.support.version3_doc import Version3Doc
 from journal.models.doc import Doc
+from journal.models.doc_edit_mode import DocEditMode
 from journal.support.rejection import Rejection
 from journal.repositories.docs import Docs
 from journal.repositories.doc_revisions import DocRevisions
 from journal.engine.clock import Clock
+from journal.sync.team_account import TeamAccount
 
 
 class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows) -> None:
-        self.docs, self.doc_revisions, self.clock, self.hub_rows = docs, revisions, clock, hub_rows
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount) -> None:
+        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account = docs, revisions, clock, hub_rows, hub, account
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
@@ -40,6 +43,14 @@ class DocCommand(Command):
         closing = self.verb(verbs, "keep", "keep the open revision as it is; the next edit opens a new one")
         closing.add_argument("n", type=int)
         closing.set_defaults(verb="close_revision")
+        sharing = self.verb(verbs, "share", "put a document of this environment on the hub, where it moves, read-only for the other members or free for them to edit")
+        sharing.add_argument("n", type=int)
+        sharing.add_argument("--mode", choices=(DocEditMode.READ_ONLY.value, DocEditMode.FREE.value), default=DocEditMode.READ_ONLY.value, help="read_only: only you and an admin change it; free: any member does")
+        sharing.add_argument("--team", default="", help="the hub of the joined team of this name, which a journal of one team need not name")
+        sharing.add_argument("--keep-copy", action="store_true", help="keep a copy of the document here; the hub gets a copy of its own")
+        changing = self.verb(verbs, "mode", "change who may edit a document on the hub; only whoever put it there or an admin may")
+        changing.add_argument("n", type=int)
+        changing.add_argument("mode", choices=(DocEditMode.READ_ONLY.value, DocEditMode.FREE.value))
         imported = self.verb(verbs, "import", "bring in the documents version 3 kept, each folder's doc.md; one titled as a document here already is left")
         imported.add_argument("folder", help="version 3's project/doc folder")
 
@@ -78,6 +89,29 @@ class DocCommand(Command):
     def close_revision(self, args: Namespace, caller: Caller) -> int:
         closed = self.doc_revisions.close(self.docs.find(args.n), self.clock.time(), caller.actor)
         print(f"revision {closed.number} of doc {args.n} kept; the next edit opens revision {closed.number + 1}")
+        return 0
+
+    def share(self, args: Namespace, caller: Caller) -> int:
+        doc, hub, mode = self.docs.find(args.n), self.hub.hub(args.team), DocEditMode(args.mode)
+        if doc.is_on_hub():
+            raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
+        owner = self.account.user_number()
+        if args.keep_copy:
+            on_hub = self.docs.save(doc.copy_on_hub(hub.row_id, mode, owner), caller.actor)
+        else:
+            on_hub = self.docs.save(doc.put_on_hub(hub.row_id, mode, owner), caller.actor)
+            self.doc_revisions.moved(on_hub, caller.actor)
+        print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {doc.id} stays here" if args.keep_copy else ""))
+        return 0
+
+    def mode(self, args: Namespace, caller: Caller) -> int:
+        doc = self.docs.find(args.n)
+        if not doc.is_on_hub():
+            raise Rejection(f"doc {doc.id} is not on the hub: journal doc share {doc.id} puts it there")
+        if not doc.is_changed_by(self.account.user_number(), self.account.is_admin()):
+            raise Rejection(f"only whoever put doc {doc.id} on the hub or an admin changes who may edit it")
+        self.docs.save(doc.with_(edit_mode=DocEditMode(args.mode)), caller.actor)
+        print(f"doc {doc.id} is {args.mode.replace('_', '-')} on the hub")
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:

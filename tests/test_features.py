@@ -2318,6 +2318,40 @@ def test_a_document_is_read_and_listed_in_any_environment_when_it_is_the_project
     assert "Project guide" in app.console().run(["doc", "show", str(project.id)], AGENT).text and "Hub handbook" in app.console().run(["doc", "show", str(shared.id)], AGENT).text
 
 
+def test_a_document_put_on_the_hub_in_each_mode_is_found_there_with_that_mode_and_only_its_owner_or_an_admin_changes_it(app: App, tmp_path, monkeypatch):
+    from journal.models.doc_edit_mode import DocEditMode
+    from journal.models.environment import Environment
+    from journal.repositories.docs import Docs
+    from journal.repositories.environments import Environments
+    from journal.repositories.scope import Scope
+    from journal.sync.team_account import TeamAccount
+    hook(app, "SessionStart")
+    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
+    text = tmp_path / "doc.md"
+    text.write_text("# Notes\n\nthe body\n")
+    console, docs, scope = app.console(), app.container.get(Docs), app.container.get(Scope)
+    for title in ("Read only one", "Free one", "Kept one"):
+        console.run(["doc", "create", title, "--file", str(text)], USER)
+    assert console.run(["doc", "share", "1", "--mode", "read_only"], USER).code == 0
+    assert console.run(["doc", "share", "2", "--mode", "free"], USER).code == 0
+    assert console.run(["doc", "share", "3", "--keep-copy"], USER).code == 0
+    with scope.environment(hub.row_id):
+        on_hub = {doc.title: doc for doc in docs.all()}
+    assert on_hub["Read only one"].edit_mode == DocEditMode.READ_ONLY and on_hub["Free one"].edit_mode == DocEditMode.FREE, "each document is on the hub in its mode"
+    assert {doc.title for doc in on_hub.values() if doc.environment_id == hub.row_id} == {"Read only one", "Free one", "Kept one"}
+    with scope.environment(1):
+        assert [doc.title for doc in docs.all() if doc.environment_id == 1] == ["Kept one"], "a document moves to the hub and --keep-copy leaves a local copy"
+    monkeypatch.setattr(TeamAccount, "user_number", lambda self: 2)
+    monkeypatch.setattr(TeamAccount, "is_admin", lambda self: False)
+    refused = console.run(["doc", "mode", str(on_hub["Free one"].id), "read_only"], USER)
+    assert refused.code != 0 and "only whoever put" in refused.error, "another member does not change the mode"
+    monkeypatch.setattr(TeamAccount, "is_admin", lambda self: True)
+    assert console.run(["doc", "mode", str(on_hub["Free one"].id), "read_only"], USER).code == 0, "an admin does"
+    monkeypatch.setattr(TeamAccount, "user_number", lambda self: 1)
+    monkeypatch.setattr(TeamAccount, "is_admin", lambda self: False)
+    assert console.run(["doc", "mode", str(on_hub["Read only one"].id), "free"], USER).code == 0, "and whoever put it there does"
+
+
 def test_a_document_is_read_whole_with_all_and_by_its_outline_without(app: App, tmp_path):
     text = tmp_path / "doc.md"
     hook(app, "SessionStart")
