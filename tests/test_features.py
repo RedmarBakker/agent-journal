@@ -8765,6 +8765,29 @@ def test_a_workers_edit_reaches_the_plugin_that_asks_for_workers_and_not_the_one
     assert echo_heard(app, "silent") == ["file_edited"] and echo_heard(app, "asks") == ["file_edited", "file_edited"], "the main agent's edit reaches both, as before"
 
 
+def test_a_workers_sinful_edit_is_answered_with_the_plugins_mark_where_the_plugin_holds_the_edit_or_only_hears_it(app: App):
+    from journal.models.worker import Worker
+    from journal.repositories.workers import Workers
+    from journal.support.listener_queue import ListenerQueue
+    app.container.get(SettingRows).set("plugins.hold_window_ms", PARALLEL_HOLD_WINDOW_MS, Actor.user(1))
+    echo(app, "judge", hears=["file_edited"], holds=["file_edited"], reaches={"file_edited": ["workers"]})
+    echo(app, "watcher", hears=["file_edited"], reaches={"file_edited": ["workers"]})
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    with app.container.get(Scope).environment(1):
+        app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
+    edit = {"file_path": str(app.config.root / "sinful.py"), "old_string": "x", "new_string": "y"}
+    patch = {"structuredPatch": [{"oldStart": 1, "newStart": 1, "lines": ["-x", "+y"]}]}
+    worker = lambda kind, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "w1", **body}, {"X-Journal-Env": "main"})
+    worker("PreToolUse", tool_name="Edit", tool_input=edit)
+    _, finished = worker("PostToolUse", tool_name="Edit", tool_input=edit, tool_response=patch)
+    app.container.get(ListenerQueue).drain()
+    _, next_tool = worker("PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / "a.py")})
+    said = json.dumps([finished, next_tool])
+    assert "[plugin judge] echo found a sin in" in said, "the plugin that holds the edit has its mark in the worker's answer"
+    assert "[plugin watcher] echo found a sin in" in said, "and the one that only hears it has its mark at the worker's next tool"
+
+
 def test_a_manifest_says_who_an_event_reaches_only_for_an_event_it_hears_and_only_workers_or_subagents(app: App):
     from journal.features.plugins.support.manifest_reader import ManifestReader
     from journal.support.rejection import Rejection
