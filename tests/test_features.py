@@ -17725,8 +17725,12 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
         with app.container.get(Scope).environment(MAIN):
             n = str(max(plan.id for plan in app.container.get(Plans).scoped()))
         console.run(["plan", "phase", n, "Lay the floor", "--when", "the floor is level"], caller)
-        console.run(["plan", "add", n, "pour the slab"], caller)
-        assert console.run(["plan", "ready", n], caller).code == 0
+        added = console.run(["plan", "add", n, "pour the slab"], caller)
+        assert added.code == 0, added.error
+        task = added.text.split()[1]
+        assert console.run(["plan", "todos", n, "1", task], caller).code == 0
+        readied = console.run(["plan", "ready", n], caller)
+        assert readied.code == 0, readied.error
         return int(n)
 
     own = drafted(AGENT, "the orchestrator's plan")
