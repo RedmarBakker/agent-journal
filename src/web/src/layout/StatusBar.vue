@@ -13,6 +13,8 @@ import {barPlans, foldedPlans} from "../domain/plans.js";
 import {heldTask, lineOf, named, queued, SILENT, silentIn, stateOf, wordOf} from "../domain/agentState.js";
 import {FULLSCREEN_KEYS} from "../platform/fullscreen.js";
 import PlanMore from "./PlanMore.vue";
+import PlanStrip from "./PlanStrip.vue";
+import {stripped} from "../composables/planStrip.js";
 import PSection from "./PSection.vue";
 
 import {computed, ref, watch} from "vue";
@@ -253,6 +255,16 @@ async function runBar(p) {
                         @change="setOrchestratorApproves"
                     />
                 </template>
+                <template v-if="bars.length">
+                    <Btn
+                        kind="icon"
+                        :class="['statusbar-strip', {on: stripped}]"
+                        v-tip:strip="stripped ? {title: 'Show every plan', line: 'Gives each started plan its own row again.'} : {title: 'Fold the plans', line: 'Shows every started plan as one thin strip.'}"
+                        @click.stop="stripped = !stripped"
+                    >
+                        <Icon name="plan" />
+                    </Btn>
+                </template>
                 <template v-if="fitness">
                     <span :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip">{{ fitness.score }}</span>
                 </template>
@@ -322,7 +334,10 @@ async function runBar(p) {
     <template v-if="waitingOpen && waitingNow">
         <WaitingPanel :waiting="waitingNow" :anchor="waitingAnchor" @close="waitingOpen = false" />
     </template>
-    <TransitionGroup name="planbar">
+    <template v-if="stripped && bars.length">
+        <PlanStrip :plans="bars" />
+    </template>
+    <TransitionGroup v-else name="planbar">
         <PSection
             v-for="bar in bars"
             :key="bar.id"
@@ -370,6 +385,10 @@ async function runBar(p) {
     position: relative;
     flex: none;
     margin-right: 8px;
+}
+
+.statusbar-strip.on {
+    color: var(--accent-text);
 }
 
 .statusbar-pause.paused {
