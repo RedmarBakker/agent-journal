@@ -334,7 +334,8 @@ def test_an_admin_invites_a_person_hands_out_blocks_lists_revokes_and_removes_an
         assert call("/upload", {**upload, "repository": "abc123", "team_name": "acme"}, ada) == (200, {"rows": 1, "head": 1})
         assert call("/team") == (200, {"repository": "abc123", "has_rows": True, "version": "4.20.0", "migration": 3, "versions": "exact", "has_admin": True, **drawn, "name": "acme"}), "the first copy pins the team to its journal's version and names the team"
         assert call("/upload", upload, ada)[1]["error"].startswith("the team's journal already holds rows"), "a full copy is taken once"
-        assert call("/blocks", {"tables": ["tasks", "messages"]}, ada)[1]["blocks"] == [{"row_table": "tasks", "first": 1451, "last": 1950}, {"row_table": "messages", "first": 1, "last": 5000}], "blocks start above the copy's numbers and messages get a bigger one"
+        base = team.details.number() << 32
+        assert call("/blocks", {"tables": ["tasks", "messages"]}, ada)[1]["blocks"] == [{"row_table": "tasks", "first": base + 1, "last": base + 500}, {"row_table": "messages", "first": base + 1, "last": base + 5000}], "blocks start in the team's own number space, above the copy's numbers, and messages get a bigger one"
         invitation = call("/invite", {"email": "Bob@Example.com"}, ada)[1]
         assert invitation["email"] == "bob@example.com" and invitation["code"]
         assert call("/accept", {"code": invitation["code"], "email": "bob@example.com", "name": "Bob", "password": PASSWORD, "password_repeat": "another password", "device_name": "desktop"})[1]["error"].startswith("the two passwords differ")
