@@ -81,3 +81,23 @@ test("a hosted journal opens on the hub home with its documents, plans and board
     expect(host.querySelector("[data-column=open] .card").textContent).toContain("acme task 57");
     expect(ownEnvironments(environments, {...people, hosted: true}).map((row) => row.name)).toEqual(["docs"]);
 });
+
+test("with two teams each hub is its own group named for its team, holding the sessions of its own team key", () => {
+    const rows = [
+        {id: 1, name: "main", kind: "local"},
+        {id: 3, name: "acme-chat", kind: "local", is_team_chat: true, team_key: "k1"},
+        {id: 4, name: "acme-api", kind: "local", is_shared_with_team: true, team_key: "k1"},
+        {id: 6, name: "beta-chat", kind: "local", is_team_chat: true, team_key: "k2"},
+        {id: 7, name: "beta-web", kind: "local", is_shared_with_team: true, team_key: "k2"},
+        {id: 5, kind: "hub", name: "acme", team_name: "acme", team_key: "k1"},
+        {id: 8, kind: "hub", name: "beta", team_name: "beta", team_key: "k2"},
+    ];
+    const shared = {me: 1, device: "", people: [], owners: {1: 1, 4: 2, 7: 3}};
+    const groups = teamGroups(rows, shared);
+    expect(groups.map((group) => [group.team, group.hub.id, group.sessions.map((row) => row.name)])).toEqual([
+        ["acme", 5, ["acme-chat", "acme-api"]],
+        ["beta", 8, ["beta-chat", "beta-web"]],
+    ]);
+    expect(new Set(groups.map((group) => group.key)).size).toBe(2);
+    expect(ownEnvironments(rows, shared).map((row) => row.name)).toEqual(["main"]);
+});

@@ -3565,6 +3565,8 @@ def test_a_task_of_a_a_hub_environment_is_named_with_its_own_team_and_any_other_
     assert labels.name("task", Task(id=57, environment_id=acme.row_id)) == "acme task 57"
     assert labels.name("task", Task(id=58, environment_id=beta.row_id)) == "beta task 58"
     assert labels.name("task", Task(id=59, environment_id=acme.row_id + beta.row_id + 1000)) == "task 59"
+    from journal.models.plan import Plan
+    assert labels.name("plan", Plan(id=12, environment_id=beta.row_id)) == "beta plan 12" and labels.name("plan", Plan(id=12, environment_id=acme.row_id)) == "acme plan 12", "the same number in two teams' hubs is told apart by team"
 
 
 def test_a_server_set_up_in_claude_itself_is_removed_from_the_page_through_claudes_own_command(app: App, monkeypatch):
