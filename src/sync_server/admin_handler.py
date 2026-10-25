@@ -54,7 +54,7 @@ class AdminHandler:
 
     def remove(self, token: str, account_id: int) -> Account:
         admin = self.devices.admin(token)
-        self.departure.left(account_id, self.devices.device(token).id, f"user:{admin.id}")
+        self.departure.left(account_id, f"user:{admin.id}")
         removed = self.accounts.remove(account_id, self.clock.time())
         self.devices.revoke_person(account_id, self.clock.time())
         return removed

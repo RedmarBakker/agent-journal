@@ -100,8 +100,8 @@ class TeamRequestHandler(BaseHTTPRequestHandler):
         self.answered(routes.get(urlsplit(self.path).path))
 
     def departed(self, team) -> DepartureAnswer:
-        person, device = team.devices.person(self.token()), team.devices.device(self.token())
-        return DepartureAnswer(team.departure.left(person.id, device.id, f"user:{person.id}"))
+        person = team.devices.person(self.token())
+        return DepartureAnswer(team.departure.left(person.id, f"user:{person.id}"))
 
     def page(self, answer: tuple[int, str]) -> None:
         status, text = answer
