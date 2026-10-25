@@ -14,6 +14,7 @@ from journal.repositories.links import Links
 from journal.support.actor import Actor
 from journal.repositories.outgoing_changes import OutgoingChanges
 from journal.repositories.shared_tables import SharedTables
+from journal.sync.row_renumbering import RowRenumbering
 from journal.sync.team_account import TeamAccount
 from journal.services.service_event import CHANGE_QUEUED, ServiceEvent
 from journal.services.service_hooks import ServiceHooks
@@ -24,10 +25,10 @@ STAMP_COLUMNS = ("updated_at", "updater")
 
 
 class RecordOutgoingChange(Listener[ModelEvent]):
-    """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team and only when TeamPlacement sends it: a creation with all its columns, an update with the ones it changed, a deletion with none; a row an update moves into the team, which the server has never had, is sent whole as a creation, an environment with every row in it, its whole history, and every link that now joins one of them to a row of the team, and one an update takes out of it is withdrawn with its links, kept by whoever took it."""
+    """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team and only when TeamPlacement sends it: a creation with all its columns, an update with the ones it changed, a deletion with none; a row an update moves into the team, which the server has never had, is sent whole as a creation, an environment with every row in it, its whole history, and every link that now joins one of them to a row of the team, each first moved into the team's row numbers when the team server never handed this machine its number, as for a row made before joining, and one an update takes out of it is withdrawn with its links, kept by whoever took it."""
 
-    def __init__(self, changes: OutgoingChanges, account: TeamAccount, placement: TeamPlacement, links: Links, tables: SharedTables, hooks: ServiceHooks) -> None:
-        self.changes, self.account, self.placement, self.links, self.tables, self.hooks = changes, account, placement, links, tables, hooks
+    def __init__(self, changes: OutgoingChanges, account: TeamAccount, placement: TeamPlacement, links: Links, tables: SharedTables, renumbering: RowRenumbering, hooks: ServiceHooks) -> None:
+        self.changes, self.account, self.placement, self.links, self.tables, self.renumbering, self.hooks = changes, account, placement, links, tables, renumbering, hooks
 
     def handle(self, event: ModelEvent) -> None:
         action = ACTIONS.get(type(event))
@@ -48,7 +49,11 @@ class RecordOutgoingChange(Listener[ModelEvent]):
 
     def entered(self, event: Updated) -> None:
         rows = [event.model, *self.contents(event.model)]
-        for row in [*rows, *(link for link in self.links.touching_any(rows) if self.placement.is_sent(link))]:
+        rows = [*rows, *(link for link in self.links.touching_any(rows) if self.placement.is_sent(link))]
+        refs = self.renumbering.into_team(rows)
+        if refs:
+            rows = [self.tables.rows(row.table()).numbered([refs.get(row.table(), {}).get(row.row_id, row.row_id)])[0] for row in rows]
+        for row in rows:
             self.queued(row, CREATED, None, event.actor)
 
     def contents(self, row: Model) -> list[Model]:

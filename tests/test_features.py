@@ -12796,6 +12796,41 @@ def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in
         team.close(server)
 
 
+def test_an_environment_made_before_joining_and_shared_later_is_renumbered_into_the_team_so_no_row_is_overwritten_and_every_link_still_points_at_its_row(tmp_path, template_journal, monkeypatch):
+    from journal.db.connection import Connection
+    from journal.models.author import Author
+    from journal.models.link import Link
+    from journal.models.message import Message
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        main = a.container.get(Environments).existing("main")
+        bobs_main = b.container.get(Environments).existing("main")
+        with b.container.get(Scope).environment(bobs_main.row_id):
+            bobs = b.container.get(Tasks).save(Task(environment_id=bobs_main.row_id, title="Bob's own"), Actor.user(2))
+        with a.container.get(Scope).environment(main.row_id):
+            adas = a.container.get(Tasks).save(Task(environment_id=main.row_id, title="Ada's, before sharing"), Actor.user(1))
+            a.container.get(Connection).execute("UPDATE tasks SET id = ? WHERE id = ?", (bobs.id, adas.id))
+            a.container.get(Connection).cache.cleared()
+            note = a.container.get(Messages).save(Message(environment_id=main.row_id, author=Author.USER, text="Ada's note"), Actor.user(1))
+        mention = a.container.get(Links).save(Link(source=Ref("tasks", bobs.id), target=Ref.build(note), kind="mentions"), Actor.user(1))
+        shared = a.console().run(["environment", "share", "main"], USER)
+        assert shared.code == 0, shared.error
+        moved_main = a.container.get(Environments).keyed(main.key)[0]
+        [moved] = [task for task in a.container.get(Tasks).global_matching(environment_id=moved_main.row_id) if task.title == "Ada's, before sharing"]
+        assert moved_main.row_id != main.row_id and moved.id != bobs.id, "an environment made before joining, and a task whose number falls in Bob's block, are moved into Ada's own numbers when shared"
+        [moved_note] = [message for message in a.container.get(Messages).global_matching(environment_id=moved_main.row_id) if message.text == "Ada's note"]
+        [moved_link] = a.container.get(Links).all_matching(kind="mentions", target=Ref.build(moved_note))
+        assert moved_link.source == Ref.build(moved), "and the link on Ada's journal points at the task's new number"
+        assert synced(lambda: any(task.id == moved.id and task.title == "Ada's, before sharing" for task in b.container.get(Tasks).global_matching())), "the shared task reaches Bob under its new number"
+        assert b.container.get(Tasks).find(bobs.id).title == "Bob's own" and team.log.row("tasks", bobs.id) is None, "and no row is overwritten, on Bob's journal or on the server"
+        assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=moved_link.id)] == [(moved_link.source, moved_link.target)]), "the link reaches Bob still pointing at its task and its note"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

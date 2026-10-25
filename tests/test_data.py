@@ -547,14 +547,11 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
     from journal.models.release_message import ReleaseMessage
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.repositories.release_messages import ReleaseMessages
-    from journal.repositories.shared_tables import SharedTables
-    from journal.sync.record_outgoing_change import RecordOutgoingChange
     from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.services.service_hooks import ServiceHooks
 
     config = Config(tmp_path)
     changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_placement(connection, bus, scope, config), Links(connection, bus), SharedTables(connection, bus), ServiceHooks()))
+    bus.listen(ModelEvent, outgoing_recorder(connection, bus, scope, config, changes))
     with scope.environment(1):
         before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
         assert changes.waiting() == [], "a journal in no team queues nothing"
@@ -615,6 +612,23 @@ def test_a_new_shared_row_takes_its_number_from_the_machines_blocks_once_joined_
         with pytest.raises(NumberShortage):
             tasks.save(Task(environment_id=1, title="one too many"), actor=USER)
         assert not issubclass(NumberShortage, Rejection), "a shortage is a fault, so a hook lets its event through instead of refusing it"
+
+
+def outgoing_recorder(connection, bus, scope, config, changes):
+    from journal.db.schema import Schema
+    from journal.models.all_models import AllModels
+    from journal.repositories.id_blocks import IdBlocks
+    from journal.repositories.shared_tables import SharedTables
+    from journal.services.service_hooks import ServiceHooks
+    from journal.sync.block_supply import BlockSupply
+    from journal.sync.record_outgoing_change import RecordOutgoingChange
+    from journal.sync.row_renumbering import RowRenumbering
+    from journal.sync.team_account import TeamAccount
+    from journal.sync.team_server_link import TeamServerLink
+
+    account, blocks, tables = TeamAccount(config), IdBlocks(connection, bus), SharedTables(connection, bus)
+    renumbering = RowRenumbering(connection, blocks, BlockSupply(TeamServerLink(account, Schema(connection, AllModels.MODELS)), blocks, tables, account), config)
+    return RecordOutgoingChange(changes, account, team_placement(connection, bus, scope, config), Links(connection, bus), tables, renumbering, ServiceHooks())
 
 
 def team_placement(connection, bus, scope, config):
@@ -702,7 +716,6 @@ def team_journal(tmp_path, name: str):
     from journal.repositories.scope import Scope
     from journal.repositories.shared_tables import SharedTables
     from journal.sync.incoming_changes import IncomingChanges
-    from journal.sync.record_outgoing_change import RecordOutgoingChange
     from journal.sync.record_purge import RecordPurge
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from journal.features.listeners.unlink_deleted import UnlinkDeleted
@@ -728,7 +741,7 @@ def team_journal(tmp_path, name: str):
     bus = Bus()
     scope = Scope(Environments(connection, bus), Links(connection, bus))
     outgoing = OutgoingChanges(connection, bus)
-    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), Links(connection, bus), SharedTables(connection, bus), ServiceHooks()))
+    bus.listen(ModelEvent, outgoing_recorder(connection, bus, scope, config, outgoing))
     bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
     blocks = IdBlocks(connection, bus)
     base = (ord(name[0]) - ord("a")) * 100_000

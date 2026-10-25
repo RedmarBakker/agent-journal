@@ -2,7 +2,9 @@ from journal.config import Config
 from journal.db.connection import Connection
 from journal.db.schema import Schema
 from journal.models.all_models import AllModels
+from journal.models.environment import Environment
 from journal.models.link import Link
+from journal.models.model import Model
 from journal.models.task_log import TaskLog
 from journal.models.user import User
 from journal.models.worker import Worker
@@ -17,30 +19,50 @@ ROW_REFERENCES = ((TaskLog, "task_id", "tasks"), (Worker, "edited_task", "tasks"
 
 
 class RowRenumbering:
-    """A joining journal's own shared rows moved into the team's row number blocks, so the team's rows laid in beside them never take their numbers: each row given the next number of its table's blocks, and every environment id, link end, task log's and worker's task, and stamp of this machine's person that named one renamed with it, the person named by their team account, and each row's attached files moved to its new number."""
+    """A joining journal's own shared rows, or the rows entering the team with a number the team server never handed this machine, moved into the team's row number blocks, so no row of the team's takes their numbers: each row given the next number of its table's blocks, and every environment id, link end, task log's and worker's task, and stamp of this machine's person that named one renamed with it, the person named by their team account, and each row's attached files moved to its new number."""
 
     def __init__(self, connection: Connection, blocks: IdBlocks, supply: BlockSupply, config: Config) -> None:
         self.connection, self.blocks, self.supply, self.config = connection, blocks, supply, config
 
     def renumbered(self, account_id: int) -> dict[str, dict[int, int]]:
-        moves = {model.storage(): self.numbers(model) for model in self.stored_models()}
-        refs = {model.table(): moves[model.storage()] for model in AllModels.MODELS if model.storage() in moves}
-        refs[User.table()] = {LOCAL_USER: account_id}
+        moves = {model.storage(): self.numbers(model.number_pool(), self.ids(model)) for model in self.stored_models()}
         with self.connection.transaction() as db:
-            for storage, numbers in moves.items():
-                self.moved_ids(db, storage, numbers)
-            environments = refs["environments"]
-            for storage in {model.storage() for model in AllModels.SCOPED}:
-                self.remapped(db, storage, "environment_id", environments)
-            for model, column, table in ROW_REFERENCES:
-                self.remapped(db, model.storage(), column, refs[table])
-            self.linked(db, refs)
+            refs = self.moved(db, moves, {User.table(): {LOCAL_USER: account_id}})
             self.restamped(db, Actor.user(LOCAL_USER).stamp, Actor.user(account_id).stamp)
             db.execute(f"DELETE FROM {User.storage()}")
+        self.files_kept(refs)
+        return refs
+
+    def into_team(self, rows: list[Model]) -> dict[str, dict[int, int]]:
+        stored: dict[str, tuple[str, list[int]]] = {}
+        for row in rows:
+            if self.blocks.is_given(row.number_pool(), row.row_id):
+                continue
+            stored.setdefault(row.storage(), (row.number_pool(), []))[1].append(row.row_id)
+        moves = {storage: self.numbers(pool, ids) for storage, (pool, ids) in stored.items()}
+        if not moves:
+            return {}
+        with self.connection.transaction() as db:
+            refs = self.moved(db, moves, {})
+        self.files_kept(refs)
+        return refs
+
+    def moved(self, db, moves: dict[str, dict[int, int]], extra: dict[str, dict[int, int]]) -> dict[str, dict[int, int]]:
+        refs = {**{model.table(): moves[model.storage()] for model in AllModels.MODELS if model.storage() in moves}, **extra}
+        for storage, numbers in moves.items():
+            self.moved_ids(db, storage, numbers)
+        environments = refs.get(Environment.table(), {})
+        for storage in {model.storage() for model in AllModels.SCOPED}:
+            self.remapped(db, storage, "environment_id", environments)
+        for model, column, table in ROW_REFERENCES:
+            self.remapped(db, model.storage(), column, refs.get(table, {}))
+        self.linked(db, refs)
+        return refs
+
+    def files_kept(self, refs: dict[str, dict[int, int]]) -> None:
         self.connection.cache.cleared()
         for table, folder in FOLDERS.items():
-            self.files_moved(self.config.files / folder, refs[table])
-        return refs
+            self.files_moved(self.config.files / folder, refs.get(table, {}))
 
     @staticmethod
     def stored_models() -> list:
@@ -50,9 +72,11 @@ class RowRenumbering:
                 shared.setdefault(model.storage(), model)
         return list(shared.values())
 
-    def numbers(self, model) -> dict[int, int]:
-        ids = [row["id"] for row in self.connection.all(f"SELECT id FROM {model.storage()} ORDER BY id")]
-        return dict(zip(ids, self.taken(model.number_pool(), len(ids))))
+    def ids(self, model) -> list[int]:
+        return [row["id"] for row in self.connection.all(f"SELECT id FROM {model.storage()} ORDER BY id")]
+
+    def numbers(self, pool: str, ids: list[int]) -> dict[int, int]:
+        return dict(zip(ids, self.taken(pool, len(ids))))
 
     def taken(self, pool: str, count: int) -> list[int]:
         numbers = self.blocks.taken(pool, count)
