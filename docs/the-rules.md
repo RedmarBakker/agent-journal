@@ -102,6 +102,7 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | reviewing | reviewing.review_failed | the reviewer of worker {{n}}, {{name}}, ended without a report: task {{task}} waits for your own check | ReviewingConduct.on_worker_review_failed_reviewing |
 | reviewing | reviewing.reviewer_changes_no_file | you are a reviewer: you change no file and merge nothing | Reviewing.on_tool_starting |
 | reviewing | reviewing.reviewer_gives_its_report | your review is not given yet | Reviewing.on_stop |
+| reviewing | reviewing.reviews_wait_for_a_reviewer | reviews waiting for a reviewer: {{waiting}}; reviewers: {{reviewers}} | ReviewingConduct.on_stop_reviewing, ReviewingConduct.on_ticked_reviewing |
 | reviewing | reviewing.work_reviewed | reviewer {{reviewer}} reviewed worker {{n}}, {{name}}, on task {{task}}: {{report}} | ReviewingConduct.on_worker_reviewed_reviewing |
 | secrets | secrets.secrets_out_of_reach | the secrets and the MCP keys in the private folder are out of your reach | SecretsConduct.on_tool_starting_secrets |
 | secrets | secrets.secret_allowed_for_programs | the user let secret {{n}}, {{title}}, go to {{programs}} | SecretsConduct.on_secret_allowed_secrets |

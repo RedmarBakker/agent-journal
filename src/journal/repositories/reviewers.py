@@ -7,4 +7,7 @@ class Reviewers(Checkers[Reviewer]):
     model = Reviewer
 
     def idle(self) -> list[Reviewer]:
-        return self.newest(self.query().filter(state=ReviewerState.REVIEWED).limit(1))
+        return self.selected(self.query().filter(state=ReviewerState.REVIEWED).order("id"))
+
+    def active(self) -> list[Reviewer]:
+        return self.selected(self.query().filter_listed("state", [ReviewerState.REVIEWING, ReviewerState.REVIEWED]).order("id"))

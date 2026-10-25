@@ -180,6 +180,27 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal reviewer add --help
+exit 0
+usage: journal reviewer add [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ agent: journal reviewer retire --help
+exit 0
+usage: journal reviewer retire [-h]
+
+options:
+  -h, --help  show this help message and exit
+
+$ agent: journal reviewer list --help
+exit 0
+usage: journal reviewer list [-h]
+
+options:
+  -h, --help  show this help message and exit
+
 $ user: journal message send 'Please look at the footer'
 exit 0
 message 9 sent
@@ -1504,6 +1525,7 @@ reports.write_an_update  [reports]  you committed work: if a meaningful piece la
 reviewing.review_failed  [reviewing]  the reviewer of worker {{n}}, {{name}}, ended without a report: task {{task}} waits for your own check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
 reviewing.reviewer_changes_no_file  [reviewing]  you are a reviewer: you change no file and merge nothing. read, run the tests the proofs name and judge the changes, then give your report with journal review "<one line per point>"
 reviewing.reviewer_gives_its_report  [reviewing]  your review is not given yet. journal review "<one line per point: 1 passed, or 2 short: why; then the tests you ran>"
+reviewing.reviews_wait_for_a_reviewer  [reviewing]  reviews waiting for a reviewer: {{waiting}}; reviewers: {{reviewers}}. add one with journal reviewer add when they pile up; journal reviewer list names them in their order
 reviewing.work_reviewed  [reviewing]  reviewer {{reviewer}} reviewed worker {{n}}, {{name}}, on task {{task}}:
 {{report}}. send what is short back with journal worker check {{n}} <point> --short "<what is missing>", or check each point with journal worker check {{n}} <point> and merge with journal worker merge {{n}}
 schedules.stop_scheduled_job  [schedules]  the user stopped your scheduled job {{job}}. delete it now with CronDelete, id {{job}}

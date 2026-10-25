@@ -33,7 +33,7 @@ SILENCE = Timeout.minutes(20)
 
 @dataclass(frozen=True)
 class Worker(Helper):
-    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
+    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     kind: str = "worker"
@@ -62,6 +62,7 @@ class Worker(Helper):
     edited_task: int = 0
     review_pending: bool = False
     failing_runs: int = 0
+    review_queued_at: float = 0.0
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session
@@ -95,7 +96,7 @@ class Worker(Helper):
         return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
 
     def review_requested(self, time: float, report: str) -> "Worker":
-        return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED, review_pending=True).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
+        return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
 
     def reviewed(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
         return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, reviewed", task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))
@@ -103,10 +104,13 @@ class Worker(Helper):
     def review_failed(self, time: float, task: int) -> "Worker":
         return self.review_ended(time, "review ended without a report").with_event(WorkerReviewFailed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, its review ended without a report", task=task))
 
+    def review_claimed(self) -> "Worker":
+        return self.with_(review_queued_at=0.0)
+
     def review_ended(self, time: float, move: str) -> "Worker":
         if not self.review_pending:
             raise Rejection(f"worker {self.id} has no work in review")
-        return self.contacted(time).moved(move, time).with_(review_pending=False)
+        return self.contacted(time).moved(move, time).with_(review_pending=False, review_queued_at=0.0)
 
     def unfinished(self, time: float, text: str) -> "Worker":
         return self.moved("ended without clocking out", time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out"))
@@ -125,7 +129,7 @@ class Worker(Helper):
         return instructed.with_event(instructed.pending(kind, time))
 
     def instructed(self, brief: str, time: float) -> "Worker":
-        return self.contacted(time).with_(brief=brief, state=WorkerState.DISPATCHED, adopted=False, pid=0, began=0.0, review_pending=False)
+        return self.contacted(time).with_(brief=brief, state=WorkerState.DISPATCHED, adopted=False, pid=0, began=0.0, review_pending=False, review_queued_at=0.0)
 
     def moved(self, move: str, time: float) -> "Worker":
         return self.with_(moves=self.moves.added(move, time))

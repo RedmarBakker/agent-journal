@@ -5,3 +5,4 @@ class ReviewerState(StrEnum):
     REVIEWING = "reviewing"
     REVIEWED = "reviewed"
     ENDED = "ended without a review"
+    RETIRED = "retired"

@@ -16391,6 +16391,78 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert status == 200 and "dismissal" not in str(body), "and the main agent hears nothing of it"
 
 
+def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewers_the_orchestrator_adds(app: App, monkeypatch):
+    from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
+    from journal.repositories.entries import Entries
+    from journal.repositories.reviewers import Reviewers
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("reviewing.reviewer", True, Actor.user(1))
+    names = ("Lady Lovelace", "Mr. Babbage", "Miss Hopper", "Mr. Turing")
+    for n, name in enumerate(names, 1):
+        console.run(["task", "create", f"part {n}", "--brief", f"part {n} is written"], AGENT)
+        console.run(["worker", "dispatch", name, "--task", str(n), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        workers, reviewers = app.container.get(Workers), app.container.get(Reviewers)
+        for n in range(1, 5):
+            workers.save(workers.find(n).with_(token_hash="h", session=f"w-{n}", resume=f"w-{n}").ready(1.0), Actor.system())
+    caller = lambda n: Caller.worker("main", n, f"w-{n}", "claude")
+
+    def clocked_out(n: int) -> None:
+        assert console.run(["proof", "1", f"part{n}.py:3, test_part{n} passes"], caller(n)).code == 0
+        assert console.run(["clock-out", f"part {n} is done"], caller(n)).code == 0
+        app.runtime().deferred.drain()
+
+    def reviewing() -> dict[int, int]:
+        with app.container.get(Scope).environment(MAIN):
+            deadline = timing.time() + 10
+            while any(not r.pid for r in reviewers.scoped() if r.is_reviewing()) and timing.time() < deadline:
+                timing.sleep(0.02)
+            return {r.id: int(r.brief.split("Worker ")[1].split(",")[0]) for r in reviewers.scoped() if r.is_reviewing() and r.pid}
+
+    def queued() -> list[int]:
+        with app.container.get(Scope).environment(MAIN):
+            return [w.id for w in workers.queued_reviews()]
+
+    assert "reviewers: 1, reviews waiting: 0" in console.run(["reviewer", "add"], AGENT).text, "journal reviewer add starts a reviewer"
+    for n in (1, 2, 3):
+        clocked_out(n)
+    first = reviewing()
+    assert list(first.values()) == [1] and queued() == [2, 3], "the one reviewer takes the first clock-out, and the others wait in the queue in clock-out order"
+    hook(app, "Stop")
+    with app.container.get(Scope).environment(MAIN):
+        waiting = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "reviewing.reviews_wait_for_a_reviewer"]
+    assert waiting and "reviews waiting for a reviewer: 2; reviewers: 1" in waiting[-1], "the orchestrator is told how many reviews wait"
+    added = console.run(["reviewer", "add"], AGENT).text
+    app.runtime().deferred.drain()
+    both = reviewing()
+    assert "reviewers: 2, reviews waiting: 1" in added and sorted(both.values()) == [1, 2] and queued() == [3], "a second reviewer raises the count and takes the next review at once; the third waits"
+    assert "waiting 1: worker 3, Miss Hopper" in console.run(["reviewer", "list"], AGENT).text, "the list names the review waiting"
+    assert "no reviewer is idle" in console.run(["reviewer", "retire"], AGENT).error, "a reviewer at work is not retired"
+    [first_reviewer] = first
+    with app.container.get(Scope).environment(MAIN):
+        session = reviewers.find(first_reviewer).session
+    assert console.run(["review", "1 passed. Tests: pytest tests/test_part1.py passed"], Caller.reviewer("main", first_reviewer, session, "claude")).code == 0
+    app.runtime().deferred.drain()
+    freed = reviewing()
+    assert freed.get(first_reviewer) == 3 and queued() == [], "the reviewer that reported takes the review that waited, as soon as it is free"
+    with app.container.get(Scope).environment(MAIN):
+        assert reviewers.find(first_reviewer).session == session, "in its own session"
+    settings.set("reviewing.reviewer", False, Actor.user(1))
+    clocked_out(4)
+    with app.container.get(Scope).environment(MAIN):
+        off = workers.find(4)
+    assert off.state == WorkerState.DELIVERED and not off.review_pending and queued() == [], "with the reviewer off a clock-out waits for the orchestrator, and there is no queue"
+    assert "the reviewer is off" in console.run(["reviewer", "add"], AGENT).error, "and no reviewer is added"
+    with app.container.get(Scope).environment(MAIN):
+        for reviewer in reviewers.scoped():
+            app.container.get(ReviewerRunner).stop(reviewer)
+
+
 def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transaction_commits(app: App):
     from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
     from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
@@ -16401,8 +16473,10 @@ def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transacti
     with app.container.get(Scope).environment(MAIN):
         workers, reviewers = app.container.get(Workers), app.container.get(Reviewers)
         worker = workers.save(Worker(environment_id=MAIN, name="Lady Lovelace"), Actor.system())
+        dispatch = app.container.get(ReviewerDispatch)
+        added = dispatch.added(MAIN)
         with workers.writing():
-            sent = app.container.get(ReviewerDispatch).sent(worker, "review the parser")
+            sent = dispatch.sent(added, worker, "review the parser")
             timing.sleep(0.5)
         deadline = timing.time() + 10
         while not reviewers.find(sent.id).pid and timing.time() < deadline:
