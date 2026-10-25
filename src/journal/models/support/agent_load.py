@@ -1,0 +1,47 @@
+from dataclasses import dataclass, replace
+
+
+@dataclass(frozen=True)
+class AgentLoad:
+    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L) and its refs oldest first, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low, with the minutes over the level its fitness counts whole and as nothing; with when it was measured and when its places last changed."""
+
+    arrivals: float = 0.0
+    clearings: float = 0.0
+    rho: float = 0.0
+    waiting: float = 0.0
+    waiting_refs: tuple[str, ...] = ()
+    wait_minutes: float = 0.0
+    little: float = 0.0
+    over_minutes: float = 0.0
+    under_minutes: float = 0.0
+    oldest_first: int = 0
+    clearings_counted: int = 0
+    dispatches_for: int = 0
+    dispatches_against: int = 0
+    over_full_minutes: float = 10.0
+    over_zero_minutes: float = 60.0
+    measured_at: float = 0.0
+    scaled_at: float = 0.0
+
+    @classmethod
+    def parsed(cls, data: dict) -> "AgentLoad":
+        return cls(**{**data, "waiting_refs": tuple(data.get("waiting_refs", ()))})
+
+    def is_measured(self) -> bool:
+        return self.measured_at > 0
+
+    def scaled(self, time: float) -> "AgentLoad":
+        return replace(self, scaled_at=time)
+
+    def waiting_text(self, named: int) -> str:
+        labels = [self.label(ref) for ref in self.waiting_refs[:named]]
+        rest = len(self.waiting_refs) - named
+        return ", ".join(labels) + (f" and {rest} more" if rest > 0 else "")
+
+    def oldest(self) -> str:
+        return self.label(self.waiting_refs[0]) if self.waiting_refs else "nothing"
+
+    @staticmethod
+    def label(ref: str) -> str:
+        table, _, number = ref.partition(":")
+        return f"{table.removesuffix('s')} {number}"

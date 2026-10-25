@@ -105,8 +105,17 @@ class AgentActivity:
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
             "fitness": {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines)} if fitness else None,
+            "load": self.load(agent),
             **self.rolling(),
         }
+
+    @staticmethod
+    def load(agent: Agent) -> dict | None:
+        load = agent.load
+        if not load.is_measured():
+            return None
+        return {"rho": load.rho, "arrivals": load.arrivals, "clearings": load.clearings, "waiting": load.waiting, "wait_minutes": load.wait_minutes, "little": load.little,
+                "waiting_refs": list(load.waiting_refs), "over_minutes": load.over_minutes}
 
     def fitness(self, agent: Agent) -> FitnessScore | None:
         profile = (WorkersProfiles.reviewed_mode_profile if self.settings.option(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(str(self.settings.option(WorkersOptions.MODE)))

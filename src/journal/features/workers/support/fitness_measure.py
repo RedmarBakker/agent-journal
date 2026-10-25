@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable
 
+from journal.features.workers.support.fitness_gap import FitnessGap
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 
 
@@ -28,3 +29,6 @@ class FitnessMeasure:
     def percent(self, counts: ToolUseCounts) -> int:
         part, total = self.share(counts)
         return round(100 * part / total) if total else 0
+
+    def gap(self, counts: ToolUseCounts) -> FitnessGap:
+        return FitnessGap(self.label, self.percent(counts), round(100 * self.low), round(100 * self.high), self.advice)

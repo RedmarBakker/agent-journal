@@ -2269,3 +2269,105 @@ def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one
     assert ran("1 failed", 1, session="w9") == [], "only the agent that sent the worker hears of it"
     handed = SettingsValue({WorkersOptions.TESTING.key: "Hand the tests over"})
     assert ran("1 failed", 1, handed) == [], "without the test budget nothing is told"
+
+
+def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_clearings():
+    from journal.features.workers.support.load_item import LoadItem
+    from journal.features.workers.support.load_series import LoadSeries
+    series, now = LoadSeries(window_minutes=30, half_life_minutes=10, busy_at=0.8, quiet_at=0.5), 100000.0
+    # an item every 3 minutes, each cleared a minute and a half after it came: busy half the time
+    steady = [LoadItem(f"workers:{n}", now - 3 * 3600 + n * 180, 1.0, now - 3 * 3600 + n * 180 + 90) for n in range(60)]
+    load = series.measured(steady, [], now)
+    assert abs(load.arrivals - 20) < 0.5 and abs(load.clearings - 40) < 0.5, "λ 20 an hour arrive, μ 40 an hour of busy time are cleared"
+    assert abs(load.rho - 0.5) < 0.02 and abs(load.wait_minutes - 1.5) < 0.01, "ρ = λ/μ, the share of time busy, and W from arrival to clearing"
+    assert abs(load.little - 0.5) < 0.02 and load.waiting == 0, "Little's law: λW is the 0.5 that waits on average, and nothing waits now"
+    assert load.oldest_first == load.clearings_counted == 10, "each cleared the oldest that waited"
+    # an item every minute, each waiting five: the orchestrator never idle, five waiting at a time
+    flooded = [LoadItem(f"workers:{n}", now - 2 * 3600 + n * 60, 1.0, now - 2 * 3600 + n * 60 + 300) for n in range(118)]
+    busy = series.measured(flooded, [], now)
+    assert busy.rho > 0.95 and abs(busy.wait_minutes - 5) < 0.01 and abs(busy.little - 5) < 0.2, "saturated: ρ near 1 and λW near the five that wait"
+    assert busy.over_minutes >= 60 and busy.waiting_refs == ("workers:116", "workers:117"), "over 0.8 the whole stretch, and what waits now oldest first"
+    # a user's message waits unanswered, weighted 3: dispatches made while the queue grows under a high load count against, one while calm counts for
+    oldest = series.measured([*flooded, LoadItem("messages:553", now - 600, 3.0)], [], now)
+    assert oldest.waiting_refs[0] == "messages:553" and oldest.waiting == 5.0, "the message is the oldest that waits, weighted 3"
+    growing = series.measured([*flooded, LoadItem("messages:553", now - 200, 3.0)], [now - 120, now - 60], now)
+    assert growing.dispatches_against == 2 and growing.dispatches_for == 0, "both dispatches made while the queue grew over 0.8"
+    quiet = [LoadItem(f"workers:{n}", now - 3 * 3600 + n * 180, 1.0, now - 3 * 3600 + n * 180 + 30) for n in range(60)]
+    calm = series.measured(quiet, [now - 300], now)
+    assert calm.rho < 0.5 and calm.dispatches_for == 1 and calm.dispatches_against == 0, "a dispatch while the load is low counts for"
+
+
+def test_a_workers_moves_and_the_users_messages_are_the_items_its_load_counts():
+    from types import SimpleNamespace
+    from journal.features.workers.support.load_items import LoadItems
+    from journal.models.support.worker_moves import WorkerMoves
+    reader = LoadItems(None, None, None, SimpleNamespace(decimal=lambda option: option.default))
+    moves = WorkerMoves((("clocked in", 10.0), ("clocked out", 100.0), ("sent back", 160.0), ("clocked in", 170.0), ("clocked out", 400.0), ("merged", 460.0), ("sent a job", 470.0), ("ended without clocking out", 900.0)))
+    items = reader.worker_items(Worker(id=7, environment_id=1, name="w", moves=moves), 0.5)
+    assert [(item.arrived_at, item.weight, item.cleared_at) for item in items] == [(100.0, 1.0, 160.0), (400.0, 1.5, 460.0), (900.0, 1.0, 0.0)], "a clock-out cleared by its send-back, the repeat weighted 1.5 cleared by its merge, and the end without a clock-out still waiting"
+    idle = reader.worker_items(Worker(id=8, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0), ("sent a job", 80.0)))), 0.5)
+    assert [(item.weight, item.cleared_at) for item in idle] == [(0.5, 80.0)], "an idle place while a task is open, cleared by a job into it"
+    assert reader.worker_items(Worker(id=9, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0),))), 0.0) == [], "with no task open an idle place is no item"
+
+
+def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest_and_with_the_ways_to_ease_it_when_critical():
+    from pathlib import Path
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import load_check
+    from journal.features.workers.workers_options import WorkersOptions
+    from journal.models.support.agent_load import AgentLoad
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
+    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=AgentLoad(rho=rho, waiting_refs=refs, measured_at=1.0))})), settings).nudges]
+    assert told(0.6) == [], "under the warning level nothing is said"
+    rising = told(0.74)
+    assert rising == ["your load is 0.74: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"] and len(rising[0]) <= 120, rising
+    critical = told(0.93)
+    assert critical[0].startswith("your load is 0.93, critical: worker 12, message 553, worker 15 wait, worker 12 the oldest") and "turn the reviewer on" in critical[0] and "queue work" in critical[0] and "lower workers.most_out" in critical[0]
+    assert told(0.8, tuple(f"workers:{n}" for n in range(10)))[0].startswith("your load is 0.8: worker 0, worker 1, worker 2, worker 3 and 6 more wait")
+    assert [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())})), settings).nudges] == [], "an unmeasured load says nothing"
+
+
+def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held_under_with_each_dwell_honoured_and_each_change_named():
+    from dataclasses import replace
+    from journal.features.workers.support.place_scaling import PlaceScaling
+    from journal.features.workers.workers_conduct import WorkersConduct
+    from journal.models.support.agent_load import AgentLoad
+    scaling, now = PlaceScaling(up_dwell_minutes=10, down_dwell_minutes=20, floor=2, ceiling=5), 10000.0
+    high = AgentLoad(rho=0.92, over_minutes=12, measured_at=now)
+    assert scaling.opens(high, 3, now), "over 0.8 for 12 minutes: a place opens"
+    assert not scaling.opens(replace(high, over_minutes=6), 3, now), "not before the 10 minute dwell"
+    assert not scaling.opens(high, 5, now), "never past the ceiling"
+    opened = replace(high, scaled_at=now)
+    assert not scaling.opens(replace(opened, over_minutes=17), 4, now + 7 * 60), "a second opening waits the dwell again"
+    assert scaling.opens(replace(opened, over_minutes=22), 4, now + 10 * 60)
+    low = AgentLoad(rho=0.3, under_minutes=25, measured_at=now)
+    assert scaling.closes(low, 3, False, now), "under 0.5 for 25 minutes: a place closes"
+    assert not scaling.closes(replace(low, under_minutes=15), 3, False, now), "not before the 20 minute dwell"
+    assert not scaling.closes(low, 3, True, now), "never while a worker holds a task"
+    assert not scaling.closes(replace(low, waiting=1.0), 3, False, now), "nor while anything waits"
+    assert not scaling.closes(low, 2, False, now), "never under the floor"
+    agent = Agent(id=1, environment_id=1, session="s1", load=high).place_opened(4, now)
+    event = agent.events[-1]
+    assert agent.load.scaled_at == now and (event.places, event.opened) == (4, True)
+    heard = lambda session: [n.rendered() for n in Ready().respond(event.reaching(session).with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges]
+    assert heard("s1") == ["your load stayed at 0.92 for 12 minutes: one place more, 4 workers out at once"], heard("s1")
+    assert heard("w2") == [], "only the orchestrator hears its places change"
+    closed = Agent(id=1, environment_id=1, session="s1", load=low).place_closed(2, now).events[-1]
+    assert [n.rendered() for n in Ready().respond(closed.reaching("s1").with_data(FeatureData({})), SettingsValue({}), (WorkersConduct,)).nudges] == ["your load stayed at 0.3 for 25 minutes: one place fewer, 2 workers out at once"]
+
+
+def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_load_itself():
+    from dataclasses import replace
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import CALM_DISPATCH_SHARE, LOAD_OVER, OLDEST_FIRST_SHARE, WorkersProfiles
+    from journal.models.support.agent_load import AgentLoad
+    handled = AgentLoad(rho=1.4, over_minutes=5, oldest_first=10, clearings_counted=10, dispatches_for=3, measured_at=1.0)
+    counts = ToolUseCounts(handovers=20, mode="orchestrator", load=handled)
+    assert (LOAD_OVER.closeness(counts), OLDEST_FIRST_SHARE.closeness(counts), CALM_DISPATCH_SHARE.closeness(counts)) == (1.0, 1.0, 1.0), "a high load handled well scores whole: the load itself is never scored"
+    late = replace(counts, load=replace(handled, over_minutes=35))
+    assert LOAD_OVER.closeness(late) == 0.5 and LOAD_OVER.closeness(replace(counts, load=replace(handled, over_minutes=70))) == 0.0, "full under 10 minutes over, falling straight to nothing at 60"
+    badly = replace(counts, load=replace(handled, over_minutes=35, oldest_first=4, dispatches_for=1, dispatches_against=4))
+    scored = WorkersProfiles.ORCHESTRATOR.scored(badly)
+    assert scored.is_measured and scored.score < WorkersProfiles.ORCHESTRATOR.scored(counts).score
+    assert any(line.startswith("the minutes your load stayed over the add-a-place level is 35 minutes, ideal 0-10 minutes") for line in scored.lines) or any("oldest" in line or "dispatches" in line for line in scored.lines), scored.lines
+    assert LOAD_OVER.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"

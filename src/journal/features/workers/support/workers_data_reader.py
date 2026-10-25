@@ -47,5 +47,6 @@ class WorkersDataReader:
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
             "tool_uses": lambda: ToolUseCounts.counted(agent),
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
+            "load": lambda: agent.load,
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

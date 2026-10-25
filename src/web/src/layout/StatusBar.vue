@@ -78,6 +78,21 @@ const modeOptions = computed(() =>
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
 const LOW_FITNESS = 70;
 const fitnessTip = computed(() => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: fitness.value.lines.length ? fitness.value.lines.join(" ") : "The agent works as this mode's ideal does."});
+// the orchestrator's load, arrivals over clearings, shown beside the fitness and never scored, toned by workers.load_warn and workers.load_critical
+const load = computed(() => agent.value?.load || null);
+const loadLevel = computed(() => {
+    const levels = store.settings?.workers || {};
+    if (!load.value) return "";
+    if (load.value.rho >= (levels.load_critical ?? 0.9)) return "critical";
+    return load.value.rho >= (levels.load_warn ?? 0.7) ? "warn" : "";
+});
+const loadTip = computed(
+    () =>
+        load.value && {
+            title: `Load ${load.value.rho.toFixed(2)}`,
+            line: `${Math.round(load.value.arrivals)} arrive an hour and ${Math.round(load.value.clearings)} are cleared an hour of busy time; ${load.value.waiting} wait, ${Math.round(load.value.wait_minutes)} minutes from arrival to clearing.${load.value.waiting_refs.length ? ` Oldest first: ${load.value.waiting_refs.slice(0, 4).map((ref) => ref.replace(/s:/, " ")).join(", ")}.` : ""}`,
+        }
+);
 const keepMode = (key) => (store.settings = {...store.settings, workers: {...store.settings.workers, mode: key}});
 
 async function pickMode(key) {
@@ -268,6 +283,7 @@ async function runBar(p) {
                 <template v-if="fitness">
                     <span :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip">{{ fitness.score }}</span>
                 </template>
+                <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
                 <button
                     type="button"
                     :class="['statusbar-helpers', {none: !workers.length}]"
@@ -541,6 +557,24 @@ async function runBar(p) {
 
 .statusbar-fitness.low {
     background: color-mix(in srgb, var(--tone-warn) 22%, transparent);
+}
+
+.statusbar-load {
+    padding: 1px 6px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--text-2) 12%, transparent);
+    color: var(--text-2);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+}
+
+.statusbar-load.warn {
+    background: color-mix(in srgb, var(--tone-warn) 22%, transparent);
+}
+
+.statusbar-load.critical {
+    background: color-mix(in srgb, var(--tone-bad) 24%, transparent);
 }
 
 .statusbar-helpers {

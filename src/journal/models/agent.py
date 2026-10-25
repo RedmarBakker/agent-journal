@@ -1,5 +1,5 @@
 from typing import ClassVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from journal.events.rows.user_paused import UserPaused
 from journal.events.rows.agent_thinking import AgentThinking
@@ -10,7 +10,9 @@ from journal.events.rows.launch_takeover import LaunchTakeover
 from journal.events.rows.overview_read import OverviewRead
 from journal.events.rows.context_decided import ContextDecided
 from journal.events.rows.skill_read import SkillRead
+from journal.events.rows.places_scaled import PlacesScaled
 from journal.models.agent_role import AgentRole
+from journal.models.support.agent_load import AgentLoad
 from journal.models.scoped import Scoped
 
 
@@ -57,6 +59,7 @@ class Agent(Scoped):
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
+    load: AgentLoad = AgentLoad()
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -132,6 +135,15 @@ class Agent(Scoped):
 
     def briefed(self) -> "Agent":
         return self.with_(briefed_uses=self.windowed((*self.briefed_uses, self.tool_uses)))
+
+    def load_measured(self, load: AgentLoad) -> "Agent":
+        return self.with_(load=replace(load, scaled_at=self.load.scaled_at))
+
+    def place_opened(self, places: int, time: float) -> "Agent":
+        return self.with_(load=self.load.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.load.rho, minutes=self.load.over_minutes, opened=True))
+
+    def place_closed(self, places: int, time: float) -> "Agent":
+        return self.with_(load=self.load.scaled(time)).with_event(PlacesScaled(environment_id=self.environment_id, time=time, agent_session=self.session, places=places, rho=self.load.rho, minutes=self.load.under_minutes, opened=False))
 
     def worker_waited(self) -> "Agent":
         return self.with_(late_worker_uses=self.windowed((*self.late_worker_uses, self.tool_uses)))
