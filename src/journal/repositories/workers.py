@@ -33,6 +33,9 @@ class Workers(ScopedRepository[Worker]):
     def dispatched_query(self) -> Query:
         return self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY])
 
+    def with_worktree(self) -> list[Worker]:
+        return self.selected(self.query().filter(worktree=True).order("id"))
+
     def idle_workers(self) -> list[Worker]:
         return self.selected(self.idle_query().order("id"))
 

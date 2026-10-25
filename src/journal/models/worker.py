@@ -224,6 +224,9 @@ class Worker(Helper):
     def is_unanswered(self, time: float, seconds: float, tested_at: float = 0.0) -> bool:
         return self.state == WorkerState.DELIVERED and not self.review_pending and time - max(self.silence.timeout.start, tested_at) > seconds
 
+    def is_retirable(self, time: float, seconds: float) -> bool:
+        return not self.adopted and not self.is_active() and not self.review_pending and time - self.moves.last_time() > seconds
+
     def is_idle(self) -> bool:
         return self.state == WorkerState.REPORTED and not self.adopted
 

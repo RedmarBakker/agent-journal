@@ -11,6 +11,9 @@ class WorkerMoves:
     def parsed(cls, data: dict) -> "WorkerMoves":
         return cls(tuple((str(word), float(time)) for word, time in data["steps"]))
 
+    def last_time(self) -> float:
+        return self.steps[-1][1] if self.steps else 0.0
+
     def added(self, word: str, time: float) -> "WorkerMoves":
         return WorkerMoves((*self.steps, (word, time)))
 

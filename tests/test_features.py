@@ -18824,3 +18824,21 @@ def test_documents_and_reports_list_ten_at_a_time_with_ten_open_rows_before_them
     assert got(app, f"/journal/docs/{page['rows'][0]['id']}", env)[1]["body"] == "the body", "a document read by its number is whole"
     report = got(app, "/journal/reports?limit=50", env)[1]["rows"][-1]
     assert report["title"] == "the report" and "body" not in report and "items" not in report, "a report is listed without its body and its items"
+
+
+def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_and_its_worktree_deleted(app: App, monkeypatch):
+    from journal.features.workers.jobs.worktree_cleanup import WorktreeCleanup
+    from journal.repositories.workers import Workers
+    workspace_made(app, ("platform",))
+    worker, folder, _ = worktree_worker(app, monkeypatch, "platform totals")
+    cleanup = app.container.get(WorktreeCleanup)
+    cleanup.tick(timing.time() + 5 * 3600)
+    assert folder.is_dir(), "a worker still out keeps its worktree, however long it runs"
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        resting = workers.find(worker.id)
+        workers.save(resting.with_(state=WorkerState.REPORTED, moves=resting.moves.added("reported", timing.time())), Actor.system())
+    cleanup.tick(timing.time() + 3 * 3600)
+    assert folder.is_dir(), "one at rest for less than the set four hours keeps it"
+    cleanup.tick(timing.time() + 5 * 3600)
+    assert not folder.is_dir() and worker_row(app).adopted, "one at rest past them, with nothing unmerged, is retired and its worktree deleted"
