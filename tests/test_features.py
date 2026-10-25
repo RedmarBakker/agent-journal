@@ -14039,11 +14039,11 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
         carriers[0].carrier.stop()
         team.log.wake()
         assert synced(lambda: all(loop.is_dead() for loop in carriers[0].carrier.loops)), "Ada's machine is offline: its sync's loops have ended, no pull of hers left waiting on the server"
-        now = clock.time()
-        monkeypatch.setattr(team.clock, "time", lambda: now + 89)
+        away_since = team.leases.state("session:review", clock.time()).renewed_at
+        monkeypatch.setattr(team.clock, "time", lambda: away_since + 89)
         early = b.console().run(["session", "start", "review"], bob)
-        assert early.code == 1 and "session:review is held by Ada" in early.error, "no claim before the holder has been away a minute and a half"
-        monkeypatch.setattr(team.clock, "time", lambda: now + 91)
+        assert early.code == 1 and "session:review is held by Ada" in early.error, "no claim before the holder has been away a minute and a half, counted from the last renewal of her lease"
+        monkeypatch.setattr(team.clock, "time", lambda: away_since + 91)
         status, answer = posted(b, "/journal/messages", {"text": "the release notes are ready", "idempotency": "bob-1"}, {"X-Journal-Env": "review"})
         assert status == 202 and "session review is held by Ada, offline since" in answer["notice"], answer
         assert not b.container.get(Messages).global_matching(idempotency="bob-1"), "the message waits on the team server, made nowhere yet"
