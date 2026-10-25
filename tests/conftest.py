@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import shutil
@@ -25,6 +26,7 @@ from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.models.setting import Setting
 from journal.support.actor import Actor
+from tests.shard_deal import ShardDeal
 from tests.shared_journal import SharedJournal
 from journal.features.voices.voices_options import VoicesOptions
 
@@ -46,6 +48,9 @@ def pytest_sessionstart(session) -> None:
 
 def pytest_sessionfinish(session, exitstatus) -> None:
     TESTS_MARK.unlink(missing_ok=True)
+    out = os.environ.get(DURATIONS_OUT_VARIABLE, "")
+    if out:
+        Path(out).write_text(json.dumps(seconds_taken))
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -122,14 +127,29 @@ def scope(connection: Connection, bus: Bus) -> Scope:
 SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
 
 
+DURATIONS_IN_VARIABLE = "JOURNAL_TEST_DURATIONS_IN"
+DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
+seconds_taken: dict[str, float] = {}
+
+
+def recorded_seconds() -> dict[str, float]:
+    path = Path(os.environ.get(DURATIONS_IN_VARIABLE, ""))
+    return json.loads(path.read_text()) if path.is_file() else {}
+
+
 def pytest_collection_modifyitems(config, items):
-    """A run started as one shard of a parallel suite keeps every test whose place in the collection falls to its shard."""
+    """A run started as one shard of a parallel suite keeps the tests the deal by last run's seconds gives its shard."""
     shard = os.environ.get(SHARD_VARIABLE, "")
     if not shard:
         return
     index, count = (int(part) for part in shard.split("/"))
-    kept = [item for place, item in enumerate(items) if place % count == index]
-    config.hook.pytest_deselected(items=[item for item in items if item not in kept])
+    mine = set(ShardDeal(recorded_seconds()).shards([item.nodeid for item in items], count)[index])
+    kept = [item for item in items if item.nodeid in mine]
+    config.hook.pytest_deselected(items=[item for item in items if item.nodeid not in mine])
     items[:] = kept
     sys.__stdout__.write(f"collected {len(kept)} items\n")
     sys.__stdout__.flush()
+
+
+def pytest_runtest_logreport(report) -> None:
+    seconds_taken[report.nodeid] = seconds_taken.get(report.nodeid, 0.0) + report.duration

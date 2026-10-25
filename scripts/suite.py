@@ -1,4 +1,5 @@
 """Runs the test suite: a run naming tests or options is one pytest run; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up."""
+import json
 import os
 import re
 import subprocess
@@ -20,6 +21,10 @@ PERCENT = re.compile(r"\[\s*(\d+)%\]")
 COLLECTED = re.compile(r"collected (\d+) items?(?: / (\d+) deselected)?")
 RESULT_LINE = re.compile(r"^(?:tests/\S+ )?([.FEsxX]+)\s*(?:\[\s*\d+%\])?$")
 PROGRESS_SECONDS = 2.0
+HEARTBEAT_SECONDS = 10.0
+DURATIONS_FILE = ROOT / ".journal" / "runtime" / "suite-durations.json"
+DURATIONS_IN_VARIABLE = "JOURNAL_TEST_DURATIONS_IN"
+DURATIONS_OUT_VARIABLE = "JOURNAL_TEST_DURATIONS_OUT"
 
 
 def shard_count() -> int:
@@ -28,7 +33,8 @@ def shard_count() -> int:
 
 def started(index: int, count: int, folder: Path) -> tuple[subprocess.Popen, Path]:
     output = folder / f"shard-{index}.txt"
-    process = subprocess.Popen(PYTEST, cwd=ROOT, env={**os.environ, SHARD_VARIABLE: f"{index}/{count}", "PYTHONUNBUFFERED": "1"}, stdout=output.open("w"), stderr=subprocess.STDOUT)
+    environ = {**os.environ, SHARD_VARIABLE: f"{index}/{count}", "PYTHONUNBUFFERED": "1", DURATIONS_IN_VARIABLE: str(DURATIONS_FILE), DURATIONS_OUT_VARIABLE: str(folder / f"shard-{index}.seconds.json")}
+    process = subprocess.Popen(PYTEST, cwd=ROOT, env=environ, stdout=output.open("w"), stderr=subprocess.STDOUT)
     return process, output
 
 
@@ -53,25 +59,32 @@ def failure_lines(text: str) -> list[str]:
     return lines
 
 
-def shard_percent(output: Path) -> int:
+def shard_progress(output: Path) -> tuple[int, int]:
     text = output.read_text()
     collected = COLLECTED.search(text)
     total = int(collected[1]) - int(collected[2] or 0) if collected else 0
-    if total > 0:
-        done = sum(len(match[1]) for line in text.splitlines() if (match := RESULT_LINE.match(line)))
-        return min(100, 100 * done // total)
-    found = PERCENT.findall(text)
-    return int(found[-1]) if found else 0
+    done = sum(len(match[1]) for line in text.splitlines() if (match := RESULT_LINE.match(line)))
+    return min(done, total), total
 
 
 def progress_shown(shards: list[tuple[subprocess.Popen, Path]]) -> None:
-    shown, began = -1, time.monotonic()
+    shown, began, last_shown = -1, time.monotonic(), 0.0
     while any(process.poll() is None for process, _ in shards) and time.monotonic() - began < SHARD_TIMEOUT_SECONDS:
-        percent = sum(100 if process.poll() is not None else shard_percent(output) for process, output in shards) // len(shards)
-        if percent != shown:
-            print(f"running tests [{percent:3d}%]", flush=True)
-            shown = percent
+        counts = [shard_progress(output) for _, output in shards]
+        finished, total = sum(done for done, _ in counts), sum(whole for _, whole in counts)
+        percent = 100 * finished // total if total else 0
+        if percent != shown or time.monotonic() - last_shown >= HEARTBEAT_SECONDS:
+            print(f"running tests [{percent:3d}%] {finished} of {total} finished", flush=True)
+            shown, last_shown = percent, time.monotonic()
         time.sleep(PROGRESS_SECONDS)
+
+
+def durations_kept(folder: Path) -> None:
+    seconds = json.loads(DURATIONS_FILE.read_text()) if DURATIONS_FILE.is_file() else {}
+    for path in folder.glob("shard-*.seconds.json"):
+        seconds.update(json.loads(path.read_text()))
+    DURATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DURATIONS_FILE.write_text(json.dumps(seconds))
 
 
 def whole_suite() -> int:
@@ -94,6 +107,7 @@ def whole_suite() -> int:
             failures.extend(failure_lines(text))
             took = next((line.rsplit(" in ", 1)[-1] for line in reversed(text.splitlines()) if COUNTS.search(line) and " in " in line), "")
             print(f"shards finished {done}/{count} [{round(100 * done / count):3d}%], shard {done - 1} in {took}", flush=True)
+        durations_kept(Path(folder))
         for line in failures:
             print(line)
         summary = ", ".join(f"{totals[name]} {name}" for name in ("failed", "errors", "passed", "skipped") if totals.get(name))
