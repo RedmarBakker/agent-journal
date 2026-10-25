@@ -10085,6 +10085,8 @@ def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_st
     assert clock_out().code == 0, "with each point proved and nothing uncommitted, the worker clocks out"
     with app.container.get(Scope).environment(MAIN):
         assert app.container.get(Workers).find(1).state == WorkerState.DELIVERED
+    shown = console.run(["task", "show", "1"], AGENT).text
+    assert "proof of point 1 (shown): parser.py:30, test_reads_all passes" in shown and "proof of point 2 (not done): the names need a table first" in shown, "reading the task in full prints each proof of its points"
     assert "a worker reports by clocking out" in console.run(["worker", "report", "1", "done"], lovelace).error, "journal worker report is refused to a worker, naming clock out"
 
 
