@@ -13661,6 +13661,64 @@ def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_
         team.close(server)
 
 
+def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own_branch_held_and_hosted_by_the_machine_that_started_it_and_a_start_of_a_held_one_is_refused(tmp_path, template_journal, monkeypatch):
+    from journal.models.environment_kind import EnvironmentKind
+    from journal.repositories.environments import Environments
+    from journal.sync.hosts import Hosts
+    bob = replace(USER, person=2)
+
+    def session(journal, name: str):
+        sessions = journal.container.get(Environments).session_rows([name])
+        return sessions[0] if sessions else None
+
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        started = a.console().run(["session", "start", "review"], USER)
+        assert started.code == 0 and "held by this machine, its host, on its branch journal/session-review" in started.text, started.error
+        assert b.console().run(["session", "start", "release"], bob).code == 0
+        assert synced(lambda: session(a, "release") is not None and session(b, "review") is not None), "each journal holds both sessions"
+        hub = a.container.get(Environments).hubs()[0]
+        review = session(a, "review")
+        assert (review.kind, review.team_key, review.branch) == (EnvironmentKind.SESSION, hub.team_key, "journal/session-review"), "a session is the team's, on its hub, with a branch of its own"
+        a_hosts, b_hosts = a.container.get(Hosts), b.container.get(Hosts)
+        assert a_hosts.is_host(session(a, "review")) and not a_hosts.is_host(session(a, "release")), "Ada's machine hosts the session it holds and not Bob's"
+        assert b_hosts.is_host(session(b, "release")) and not b_hosts.is_host(session(b, "review")), "and Bob's machine the one it holds"
+        refused = b.console().run(["session", "start", "review"], bob)
+        assert refused.code == 1 and "session:review is held by Ada" in refused.error, refused.error
+        assert not b_hosts.is_host(session(b, "review")), "a refused start leaves the session to the machine holding it"
+
+
+def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from conftest import copied
+    from journal.repositories.environments import Environments
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    port = server.server_address[1]
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    try:
+        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{port}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        server.shutdown()
+        server.server_close()
+        try:
+            refused = journal.console().run(["session", "start", "review"], USER)
+            assert refused.code == 1 and "the team server could not be reached" in refused.error, refused.error
+            assert journal.container.get(Environments).session_rows(["review"]) == [], "and no session is made"
+        finally:
+            server = team.started("127.0.0.1", port)
+    finally:
+        journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied

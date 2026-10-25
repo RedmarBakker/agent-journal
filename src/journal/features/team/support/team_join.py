@@ -243,7 +243,7 @@ class TeamJoin:
         self.outgoing.queued(OutgoingChange(row_table=User.table(), row=account_id, action=CREATED, fields=fields, changed_at={field: 0.0 for field in fields}, writer=Actor.user(account_id).stamp), Actor.user(account_id))
 
     def team_chat_ready(self, team_key: str) -> None:
-        chats = self.environments.sessions()
+        chats = self.environments.team_chats()
         if not chats:
             self.environments.save(Environment.session(team_key, TEAM_CHAT), Actor.system())
             return

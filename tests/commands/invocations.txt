@@ -306,6 +306,7 @@ agent team upgrade --help
 agent team versions --help
 agent team repository --help
 agent team remove --help
+agent session start review
 agent setup hooks --help
 agent setup project --help
 agent setup restart --help

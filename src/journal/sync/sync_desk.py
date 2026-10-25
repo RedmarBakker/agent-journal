@@ -14,6 +14,7 @@ from journal.sync.clock_offset import ClockOffset
 from journal.sync.desk_answer import DeskAnswer
 from journal.sync.host_desk import HostDesk
 from journal.sync.hub_drives import HubDrives
+from journal.sync.session_leases import SessionLeases
 from journal.sync.incoming_changes import IncomingChanges
 from journal.sync.journal_copy import JournalCopy
 from journal.sync.pull_queries import PullQueries
@@ -35,13 +36,13 @@ LOCK_SECONDS = 120
 
 
 class SyncDesk:
-    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease, the leases of the hub rows this machine drives and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and every environment placed in the team before the key was known given it, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
+    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease, the leases of the hub rows this machine drives and of the sessions it holds and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and every environment placed in the team before the key was known given it, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
 
-    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset, link: TeamServerLink, environments: Environments, drives: HubDrives) -> None:
+    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset, link: TeamServerLink, environments: Environments, drives: HubDrives, sessions: SessionLeases) -> None:
         self.account, self.outgoing, self.incoming, self.rejected, self.status = account, outgoing, incoming, rejected, status
         self.uploads, self.attachments, self.chat, self.upgrade, self.copy = uploads, attachments, chat, upgrade, copy
         self.supply, self.queries, self.host, self.offset, self.link, self.environments = supply, queries, host, offset, link, environments
-        self.drives = drives
+        self.drives, self.sessions = drives, sessions
         self.applying, self.sending = threading.Lock(), threading.RLock()
 
     @staticmethod
@@ -60,6 +61,7 @@ class SyncDesk:
     def refresh(self) -> None:
         self.chat.renew()
         self.drives.renew()
+        self.sessions.renew()
         self.refill()
         self.keyed()
 

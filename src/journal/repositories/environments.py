@@ -26,6 +26,12 @@ class Environments(Repository[Environment]):
     def sessions(self) -> list[Environment]:
         return self.selected(self.query().filter(kind=EnvironmentKind.SESSION).order("id"))
 
+    def team_chats(self) -> list[Environment]:
+        return self.selected(self.query().filter(kind=EnvironmentKind.SESSION, branch=None).order("id"))
+
+    def session_rows(self, names: list[str]) -> list[Environment]:
+        return self.selected(self.query().filter(kind=EnvironmentKind.SESSION).filter_unequal("branch", None).filter_listed("team_name", names).order("id"))
+
     def keys_learnt(self, team_key: str, actor: Actor) -> None:
         for environment in self.matching(team_key=UNKNOWN_TEAM_KEY):
             self.save(environment.key_learnt(team_key), actor)

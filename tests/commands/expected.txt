@@ -2419,6 +2419,10 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal session start review
+exit 1
+a session is a team's, held by one machine at a time: join a team first with journal team join
+
 $ agent: journal setup hooks --help
 exit 0
 usage: journal setup hooks [-h]

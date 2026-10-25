@@ -7,13 +7,13 @@ from journal.sync.team_chat_branch import TEAM_CHAT
 
 
 class SingleTeamChat(Seed):
-    """At boot, the Team chat is one environment, known to the team as team and owned by no one; a journal that holds more, as a join once made them, keeps the first and drops the others, which that join made empty."""
+    """At boot, the Team chat is one environment, known to the team as team and owned by no one; a journal that holds more, as a join once made them, keeps the first and drops the others, which that join made empty. A session of its own, which has its own branch, is no Team chat and is left alone."""
 
     def __init__(self, environments: Environments, links: Links) -> None:
         self.environments, self.links = environments, links
 
     def run(self) -> None:
-        chats = self.environments.sessions()
+        chats = self.environments.team_chats()
         if not chats:
             return
         team_chat, *duplicates = chats

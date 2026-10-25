@@ -3,15 +3,16 @@ from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.environments import Environments
 from journal.support.actor import Actor
 from journal.sync.hosting import Hosting
+from journal.sync.session_leases import SessionLeases
 from journal.sync.team_account import TeamAccount
 from journal.sync.team_server_link import TeamServerLink
 
 
 class Hosts:
-    """Which journal makes the writes of each environment: this one for all of them while it is in no team; in a team every journal makes its own writes in its team's hub and in the Team chat, whose agent hears them as they are pulled, any other environment's host is the machine of the person who owns it, and one nobody owns the hosted journal. A write in an environment this journal does not host is asked of its host through the team server."""
+    """Which journal makes the writes of each environment: this one for all of them while it is in no team; in a team every journal makes its own writes in its team's hub and in the Team chat, whose agent hears them as they are pulled, a session's host is the machine holding its lease, any other environment's host is the machine of the person who owns it, and one nobody owns the hosted journal. A write in an environment this journal does not host is asked of its host through the team server."""
 
-    def __init__(self, account: TeamAccount, owners: EnvironmentOwners, environments: Environments, hosting: Hosting, link: TeamServerLink) -> None:
-        self.account, self.owners, self.environments, self.hosting, self.link = account, owners, environments, hosting, link
+    def __init__(self, account: TeamAccount, owners: EnvironmentOwners, environments: Environments, hosting: Hosting, link: TeamServerLink, sessions: SessionLeases) -> None:
+        self.account, self.owners, self.environments, self.hosting, self.link, self.sessions = account, owners, environments, hosting, link, sessions
 
     def keys(self) -> tuple[str, ...]:
         return tuple(environment.key for environment in self.hosted_environments())
@@ -20,7 +21,7 @@ class Hosts:
         if not self.account.is_joined():
             return self.environments.rows()
         unowned = self.owners.unowned() if self.hosting.is_hosted() else []
-        return [*self.owners.owned(self.account.user_number()), *self.environments.hubs(), *self.environments.sessions(), *unowned]
+        return [*self.owners.owned(self.account.user_number()), *self.environments.hubs(), *self.environments.team_chats(), *self.sessions.hosted(), *unowned]
 
     def is_host(self, environment: Environment) -> bool:
         return environment.key in self.keys()

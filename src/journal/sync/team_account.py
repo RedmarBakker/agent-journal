@@ -141,3 +141,9 @@ class TeamAccount:
 
     def is_chat_holder(self) -> bool:
         return bool(self.contents().get("holds_chat", False))
+
+    def held_sessions(self) -> list[str]:
+        return list(self.contents().get("sessions", []))
+
+    def record_held_sessions(self, names: list[str]) -> None:
+        self.write({**self.contents(), "sessions": sorted(set(names))})

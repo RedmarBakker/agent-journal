@@ -3,6 +3,7 @@ from journal.features.support.service import Service
 from journal.features.team.support.team_data import TeamData
 from journal.features.team.support.team_data_reader import TeamDataReader
 from journal.features.team.team_conduct import TeamConduct
+from journal.features.team.commands.session_command import SessionCommand
 from journal.features.team.commands.team_command import TeamCommand
 from journal.features.team.jobs.team_chat_files import TeamChatFiles
 from journal.features.team.seeds.single_team_chat import SingleTeamChat
@@ -17,7 +18,7 @@ class TeamFeature(Feature[TeamData]):
     name = TeamPart.name
     title = "Team"
     help = "A journal shared with a team through its server: joining it, inviting people, the team's devices and how the sync stands."
-    commands = (TeamCommand,)
+    commands = (TeamCommand, SessionCommand)
     listeners = (EnvironmentOwnerRecord, ColleagueWriteGuard, SyncMomentCards)
     jobs = (TeamChatFiles,)
     seeds = (SingleTeamChat,)
