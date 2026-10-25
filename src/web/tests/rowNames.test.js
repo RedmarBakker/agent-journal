@@ -41,3 +41,12 @@ test("a row number in parentheses after its word is a chip too", () => {
     expect([...into.querySelectorAll("a[data-peek]")].map((c) => c.dataset.peek)).toEqual(["tasks:1463", "plans:24"]);
     expect(into.textContent).toBe("the joining task 1463 and plan 24");
 });
+
+test("a word with a list of numbers makes each number its own chip of the singular word", () => {
+    const into = document.createElement("div");
+    into.innerHTML = render("Messages 62830, 62833 and 62837 hold the same text, as do tasks 12, 13", {env: ""});
+    const chips = [...into.querySelectorAll("a[data-peek]")];
+    expect(chips.map((c) => c.dataset.peek)).toEqual(["messages:62830", "messages:62833", "messages:62837", "tasks:12", "tasks:13"]);
+    expect(chips.map((c) => c.textContent)).toEqual(["Message 62830", "Message 62833", "Message 62837", "task 12", "task 13"]);
+    expect(into.textContent).toBe("Message 62830, Message 62833 and Message 62837 hold the same text, as do task 12, task 13");
+});
