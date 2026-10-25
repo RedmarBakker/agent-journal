@@ -1024,7 +1024,7 @@ def test_the_states_and_the_conduct_of_tasks_and_plans_answer_the_row_events_fro
     agent_index = PlansReady().respond(PlanApproved(environment_id=1, time=1.0, plan_id=5, user_origin=False).with_data(data), settings, (PlansConduct,))
     assert agent_index.nudges == ()
     next_task = PlansReady().respond(TaskStarted(environment_id=1, time=1.0, task_id=8, title="the next", plan_id=5).with_data(data), settings, (PlansConduct,))
-    assert next_task.nudges[0].rendered() == "plan 5: task 8, the next is next. it has no brief and nothing logged yet"
+    assert next_task.nudges[0].rendered() == "plan 5: task 8 is next. it has no brief and nothing logged yet"
 
 
 def test_the_conduct_of_voices_etiquette_pins_and_migration_speak_from_the_data():
@@ -1085,7 +1085,7 @@ def test_the_conduct_of_git_checks_triggers_and_plugins_speak_and_hold_from_the_
     data = FeatureData({"plans": PlansData((), None, 0), "tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=()), "triggers": TriggersData(triggers=triggers), "plugins": PluginsData(root=Path("/p"), plugins_folder=Path("/p", ".journal", "plugins"))})
     assert Ready().respond(CommitDetected(sha="abcdef0123").with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct)).nudges == ()
     closed = Ready().respond(CommitDetected(sha="abcdef0123", closed=(4, 5), next_open=OpenTask(6, "the next", "", 0)).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct))
-    assert [n.rendered() for n in closed.nudges] == ["commit abcdef01 closed task 4, task 5", "tasks are open, and auto mode is on: task 6 next: the next. carry on with it"]
+    assert [n.rendered() for n in closed.nudges] == ["commit abcdef01 closed task 4, task 5", "tasks are open, and auto mode is on: task 6 next. carry on with it"]
     failed = Ready().respond(CheckCompleted(environment_id=0, time=1.0, check_id=2, title="lint", passed=False, output="a\nb c", prior_failure=False, wait_target=False, failure_reported_at=0.0).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct))
     assert [n.key for n in failed.nudges] == ["checks.check_failed"] and "b c" in failed.nudges[0].rendered()
     assert Ready().respond(CheckCompleted(environment_id=0, time=1.0, check_id=2, title="lint", passed=False, output="", prior_failure=True, wait_target=False, failure_reported_at=0.0).with_data(data), settings, (GitConduct, ChecksConduct, TriggersConduct, PluginsConduct)).nudges == ()
@@ -1206,7 +1206,7 @@ def test_the_conduct_of_messages_laws_shell_secrets_questions_profiles_and_worke
     assert [n.key for n in Ready().respond(Ticked(silence_seconds=1.0, time=200.0).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).nudges] == ["workers.act_on_the_reports"]
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Read", input={"file_path": str(private / "keys.json")}, operation=Claude().operation("Read", {"file_path": str(private / "keys.json")}))).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "secrets.secrets_out_of_reach"
     allowed = Ready().respond(SecretAllowed(environment_id=0, time=1.0, secret_id=2, title="GitHub", programs=("gh",)).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct))
-    assert [n.rendered() for n in allowed.nudges][0].startswith("the user let secret 2, GitHub, go to gh")
+    assert [n.rendered() for n in allowed.nudges][0].startswith("the user let secret 2 go to gh")
     assert Ready().respond(ToolStarting(call=ToolCall(tool="AskUserQuestion", input={}, operation=Claude().operation("AskUserQuestion", {}))).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "questions.ask_through_the_journal"
     worktree_file = str(tmp_path / "worktrees" / "3-Lady-Lovelace" / "a.py")
     assert Ready().respond(ToolStarting(call=ToolCall(tool="Edit", input={"file_path": worktree_file}, operation=Claude().operation("Edit", {"file_path": worktree_file}), writes=True, edited_paths=(worktree_file,))).with_data(data), settings, (MessagesConduct, LawsConduct, ShellConduct, SecretsConduct, QuestionsConduct, ProfilesConduct, WorkersConduct)).refusal.key == "workers.file_is_the_workers"
@@ -1326,7 +1326,7 @@ def test_idle_holds_the_stop_by_what_is_open_and_asks_on_the_ticks_from_the_data
     assert stop(of(paused)).refusal.rendered().startswith("paused tasks: task 2 (the parser)")
     assert stop(of(broken)).refusal.rendered().startswith("task 3 waits on check 1, lint, which cannot run")
     assert stop(of(open_next, approved=(9,))).refusal.rendered().startswith("plan 9 is approved and not started")
-    assert stop(of(open_next)).refusal.rendered().startswith("tasks are open, and auto mode is on: task 4 next: the footer")
+    assert stop(of(open_next)).refusal.rendered().startswith("tasks are open, and auto mode is on: task 4 next")
     assert stop(of(open_next), manual).refusal is None, "off auto mode an open task is no reason to go on"
     assert stop(of(nothing)).refusal is None
     left = of(replace(paused, blocked=(5,), open_ids=(4,)))
@@ -1514,7 +1514,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     waiting = pushed.pushed
     assert waiting.respond(Stop(time=130.0).with_data(of()), auto).refusal is None and waiting.respond(Ticked(silence_seconds=10.0, time=130.0).with_data(of()), auto).nudges == (), "quiet at a stop and on an early tick"
     meanwhile = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), auto)
-    assert meanwhile.target == replace(waiting, next_task_reported=True) and meanwhile.nudges[0].rendered().startswith("while you wait for the build, task 9, the next one is next"), "in auto mode the next task is named once after a minute"
+    assert meanwhile.target == replace(waiting, next_task_reported=True) and meanwhile.nudges[0].rendered().startswith("while you wait for the build, task 9 is next"), "in auto mode the next task is named once after a minute"
     assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), manual).nudges == (), "out of auto mode it is not"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
     assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered().startswith("you have waited 5 min on the build: check it"), "every five quiet minutes the agent is asked to look"

@@ -206,7 +206,7 @@ def test_a_plan_is_followed_task_by_task_to_its_end(app: App):
     assert app.container.get(SessionAgents).top("s1").name == "awaiting" and "is in hand" not in str(hook(app, "Stop")[1]), "a line the journal types frees no wait, and a stop while waiting is not told to carry on"
     output = console.run(["task", "complete", "1"], AGENT).text
     lower = app.container.get(Agents).session_agent("s1").stack[-2]
-    assert "task 2, tag it is next" in output and app.container.get(SessionAgents).top("s1").name == "awaiting" and lower["state"] == "following_plan" and lower["data"]["task_id"] == 1, "the wait stands and the plan beneath has not heard: only the top of the stack hears"
+    assert "task 2 is next" in output and app.container.get(SessionAgents).top("s1").name == "awaiting" and lower["state"] == "following_plan" and lower["data"]["task_id"] == 1, "the wait stands and the plan beneath has not heard: only the top of the stack hears"
     hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     assert (app.container.get(SessionAgents).top("s1").name, app.container.get(SessionAgents).top("s1").task_id) == ("following_plan", 2), "the agent's own tool use lifts the wait, and the plan catches up to its started task on resume"
     output = console.run(["task", "complete", "2"], AGENT).text
@@ -238,8 +238,8 @@ def test_taking_up_a_task_tells_its_brief_and_latest_log_lines(app: App, monkeyp
     console.run(["plan", "start", "1"], AGENT)
     closed = console.run(["task", "complete", "2"], AGENT).text
     app.runtime().deferred.drain()
-    assert "plan 1: task 3, tag it is next. brief: git tag v4" in closed, "the closing command prints the plan's next task with its brief"
-    assert not any("tag it is next" in line for line in keystrokes), "nothing is typed afterwards for a start the agent caused"
+    assert "plan 1: task 3 is next. brief: git tag v4" in closed, "the closing command prints the plan's next task with its brief"
+    assert not any("plan 1: task 3 is next" in line for line in keystrokes), "nothing is typed afterwards for a start the agent caused"
 
 
 def test_the_plans_next_task_is_named_once_when_another_of_its_tasks_closes_beside_the_one_in_hand(app: App, monkeypatch):
@@ -257,8 +257,8 @@ def test_the_plans_next_task_is_named_once_when_another_of_its_tasks_closes_besi
     first = console.run(["task", "complete", "1"], AGENT).text
     beside = console.run(["task", "complete", "4"], AGENT).text
     app.runtime().deferred.drain()
-    assert "plan 1: task 2, tag it is next" in first and "is next" not in beside, "closing a task not in hand says nothing about where the plan went"
-    assert not any("task 2, tag it is next" in line for line in keystrokes), "the next task is the command's printed output, never typed afterwards"
+    assert "plan 1: task 2 is next" in first and "is next" not in beside, "closing a task not in hand says nothing about where the plan went"
+    assert not any("task 2 is next" in line for line in keystrokes), "the next task is the command's printed output, never typed afterwards"
 
 
 def test_a_plan_blocks_itself_when_every_task_left_is_blocked_and_can_be_blocked_until_a_command_passes(app: App, monkeypatch):
@@ -1015,7 +1015,7 @@ def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch)
     assert console.run(["check", "run", "1"], USER).code == 0
     output = console.run(["check", "run", "2"], USER)
     assert output.code == 1 and "boom" in output.text
-    assert keystrokes and "check 2, it is broken, failed" in keystrokes[0] and "boom" in keystrokes[0]
+    assert keystrokes and "check 2 failed" in keystrokes[0] and "boom" in keystrokes[0]
     assert "failed   it is broken" in console.run(["check", "list"], USER).text
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
@@ -1133,7 +1133,7 @@ def test_a_task_the_user_opens_is_told_at_once_to_an_idle_agent_and_frees_a_stuc
     hook(app, "Stop")
     console.run(["task", "create", "the footer"], USER)
     app.runtime().deferred.drain()
-    assert any("task 1 is open: the footer" in line for line in keystrokes), "a task the user opens is typed at once to the idle agent"
+    assert any("task 1 is open" in line for line in keystrokes), "a task the user opens is typed at once to the idle agent"
     console.run(["task", "create", "my own note"], AGENT)
     app.runtime().deferred.drain()
     assert not any("my own note" in line for line in keystrokes), "the agent is not told of a task it made itself"
@@ -2288,7 +2288,7 @@ def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: 
     closed = console.run(["task", "complete", "3"], AGENT).text
     assert app.container.get(Tasks).find(4).state == "started" and (app.container.get(SessionAgents).top("s1").plan_id, app.container.get(SessionAgents).top("s1").task_id) == (2, 4), "in auto mode a checkpoint never stops the plan"
     app.runtime().deferred.drain()
-    assert "plan 2: task 4, q second is next" in closed and not any("q second is next" in line for line in keystrokes), "the closing command prints the next task; the state types nothing for a start the agent caused"
+    assert "plan 2: task 4 is next" in closed and not any("plan 2: task 4 is next" in line for line in keystrokes), "the closing command prints the next task; the state types nothing for a start the agent caused"
     console.run(["plan", "pause", "2"], AGENT)
     assert app.container.get(SessionAgents).top("s1").name == "idle", "a paused plan is over for the agent following it"
 
@@ -2859,7 +2859,7 @@ def test_auto_mode_answers_a_stop_with_the_next_task(app: App):
     app.console().run(["environment", "overview"], AGENT)
     app.console().run(["task", "create", "the footer"], USER)
     status, body = hook(app, "Stop")
-    assert body.get("decision") == "block" and "task 1 next: the footer" in body["reason"]
+    assert body.get("decision") == "block" and "task 1 next" in body["reason"]
     from journal.support.actor import Actor as A
     app.container.get(SettingRows).save(Setting(environment_id=0, key="tasks.auto", value=False), A.user(1))
     assert hook(app, "Stop")[1] == {}, "with auto off a stop is a stop"
@@ -3576,7 +3576,7 @@ def test_a_task_of_a_plan_not_yet_started_is_not_offered_at_a_stop(app: App):
     console.run(["plan", "add", "1", "planned work"], USER)
     assert hook(app, "Stop")[1] == {}, "a plan's task waits for the plan"
     console.run(["task", "create", "free work"], USER)
-    assert "task 2 next: free work" in hook(app, "Stop")[1]["reason"]
+    assert "task 2 next" in hook(app, "Stop")[1]["reason"]
 
 
 def test_the_shipped_templates_are_seeded_and_the_critique_ones_are_offered_to_the_viewer(app: App):
@@ -5970,7 +5970,7 @@ def test_the_agent_is_told_when_the_user_allows_a_program(app: App, monkeypatch)
     secret = app.container.get(Secrets).save(Secret(title="Github", proposed=("gh",)), Actor.agent("s1"))
     viewer(app, f"secrets/{secret.id}", {"programs": ["gh"], "proposed": []})
     app.runtime().deferred.drain()
-    assert any("the user let secret 1, Github, go to gh" in r.get("line", "") for r in transmitted)
+    assert any("the user let secret 1 go to gh" in r.get("line", "") for r in transmitted)
 
 
 def test_a_browser_login_is_taken_in_a_window_given_to_the_agents_browser_and_taken_back(app: App, tmp_path, monkeypatch):
@@ -6099,7 +6099,7 @@ def test_an_agent_waiting_in_auto_mode_is_pointed_to_the_next_task_after_a_quiet
     console.run(["await", "the suite", "--until", "false"], AGENT)
     tick_after(app, 70.0)
     app.runtime().deferred.drain()
-    assert any("while you wait for the suite, task 2, the header is next" in line for line in keystrokes), keystrokes
+    assert any("while you wait for the suite, task 2 is next" in line for line in keystrokes), keystrokes
 
 
 def test_an_approved_plan_not_started_holds_the_stop_until_it_is(app: App):
@@ -13268,8 +13268,8 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
     assert len(nudges) > 100, "every nudge of every feature is looked at"
     named = [key for key, nudge in nudges.items() if key.startswith("workers.") and "{{n}}" in nudge.title and "{{name}}" in nudge.title + nudge.brief]
     assert not named, f"a worker is named by its number alone, never also by its name: {named}"
-    titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief]
-    assert not titled, f"a task or a plan is given by its number, its title dropped: {titled}"
+    titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
+    assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
     short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.dispatch_while_busy": 70, "workers.worker_place_free": 70, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
              "shell.reader_report_to_read": 60, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
     values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, outcome="output 19248 passed")

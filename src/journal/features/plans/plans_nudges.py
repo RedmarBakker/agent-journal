@@ -8,7 +8,7 @@ class PlansNudges:
     ALL_BLOCKED = "all its tasks left are blocked"
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
     BUILDER_MODE = Nudge("plans", "now_building", "you now work as the builder", repeat=Timeout.seconds(0))
-    NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}}, {{title}} is next. {{briefing}}", repeat=Timeout.seconds(0))
+    NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing}}", repeat=Timeout.seconds(0))
     PLAN_FINISHED = Nudge("plans", "plan_done", "plan {{n}} is done: its last task closed", repeat=Timeout.seconds(0))
     PLAN_STALLED = Nudge("plans", "plan_waits_on_its_tasks", "plan {{n}}: no task can start; {{left}} paused, blocked or waiting", "`journal plan start {{n}}` once one can go on", repeat=Timeout.seconds(0))
     PLAN_POSTPONED = Nudge("plans", "the_user_postponed_the_plan", "the user postponed plan {{n}}")

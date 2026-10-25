@@ -73,7 +73,7 @@ class McpInstalling:
 
     def login(self, server: McpServer) -> bool:
         for agent in self.running():
-            line = self.nudger.deliver(agent, McpNudges.SERVER_LOGIN.create(name=server.name, title=server.title))
+            line = self.nudger.deliver(agent, McpNudges.SERVER_LOGIN.create(name=server.name, server=server.title))
             if line:
                 self.supervisor.type(agent.environment_id, line)
                 return True
