@@ -1,3 +1,5 @@
+from types import MappingProxyType
+
 from journal.features.messages.support.mentions import Mentions
 from journal.models.support.ref import Ref
 from journal.repositories.environments import Environments
@@ -10,5 +12,4 @@ class HubMentions:
         self.environments = environments
 
     def found(self, text: str) -> list[Ref]:
-        hubs = self.environments.hubs()
-        return Mentions.found(text, [hub.team_name for hub in hubs], hubs[0].name) if hubs else Mentions.found(text)
+        return Mentions.found(text, MappingProxyType({hub.team_name: hub.name for hub in self.environments.hubs()}))

@@ -1,15 +1,15 @@
+from journal.repositories.environments import Environments
 from journal.support.rejection import Rejection
-from journal.sync.team_account import TeamAccount
 
 
 class HubRows:
     """A row number as the CLI takes it: 12, or acme:12 for the row of the team named acme, refused when no team or more than one team has that name."""
 
-    def __init__(self, account: TeamAccount) -> None:
-        self.account = account
+    def __init__(self, environments: Environments) -> None:
+        self.environments = environments
 
     def number(self, text: str) -> int:
-        return self.resolve(text, [self.account.team_name()])
+        return self.resolve(text, [hub.team_name for hub in self.environments.hubs()])
 
     @staticmethod
     def resolve(text: str, names: list[str]) -> int:

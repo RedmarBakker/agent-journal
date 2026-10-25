@@ -3464,7 +3464,7 @@ def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_acme_is_the_hub_pl
 
 
 def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_hub_plan(app: App):
-    assert hub_mentions_of(app, "beta") == []
+    assert hub_mentions_of(app, "beta") == ["plans:12"]
 
 
 def test_a_server_set_up_in_claude_itself_is_removed_from_the_page_through_claudes_own_command(app: App, monkeypatch):
@@ -11584,7 +11584,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
     from journal.models.environment_kind import EnvironmentKind
     from journal.repositories.environment_owners import EnvironmentOwners
     from journal.repositories.environments import Environments
-    from journal.sync.team_account import TeamAccount
+    from journal.console.support.hub_rows import HubRows
     from sync_server.team_server import TeamServer
 
     def git(*arguments: str) -> None:
@@ -11615,7 +11615,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         assert joined_b.code == 0, joined_b.error
         assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentKind.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
         assert [row.row_id for row in a.container.get(Environments).hubs()] == [hub.row_id], "and the first journal still holds one"
-        assert [journal.container.get(TeamAccount).team_name() for journal in journals] == ["acme"] * 2, "each journal keeps the team's name, which a row number like acme:12 is read by"
+        assert [journal.container.get(HubRows).number("acme:12") for journal in journals] == [12, 12], "each journal reads acme:12 by the team's name on its hub"
     finally:
         for carrier in carriers:
             carrier.stop()

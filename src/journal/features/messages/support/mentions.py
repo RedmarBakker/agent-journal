@@ -1,20 +1,23 @@
 import re
+from types import MappingProxyType
 
 from journal.models.support.ref import Ref
 
 NOUNS = "task|todo|plan|doc|document|report|message|template|sequence|trigger|check|question|fact|rule|reminder|worker|secret|phase"
 TABLES = {"todo": "tasks", "document": "docs"}
+NO_HUBS = MappingProxyType({})
 
 
 class Mentions:
-    """The rows a text names: plan 1 is plans:1, task 12 is tasks:12, and acme plan 12 is team/plans:12 for a team named acme whose hub environment is named team. In the order named, each once."""
+    """The rows a text names: plan 1 is plans:1, task 12 is tasks:12, and acme plan 12 is acme/plans:12 for a team named acme whose hub environment is named acme, each team's name mapped to its hub's. In the order named, each once."""
 
     @staticmethod
-    def found(text: str, teams: list[str] = (), hub: str = "") -> list[Ref]:
+    def found(text: str, hubs: MappingProxyType = NO_HUBS) -> list[Ref]:
+        named = {team.lower(): hub for team, hub in hubs.items()}
         rows = []
-        for team, kind, n in Mentions.pattern(teams).findall(text):
+        for team, kind, n in Mentions.pattern(list(hubs)).findall(text):
             table = TABLES.get(kind.lower(), f"{kind.lower()}s")
-            ref = Ref(f"{hub}/{table}" if team else table, int(n))
+            ref = Ref(f"{named[team.lower()]}/{table}" if team else table, int(n))
             if ref not in rows:
                 rows.append(ref)
         return rows

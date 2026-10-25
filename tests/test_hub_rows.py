@@ -1,3 +1,5 @@
+from types import MappingProxyType
+
 import pytest
 
 from journal.console.support.hub_rows import HubRows
@@ -7,7 +9,7 @@ from journal.support.rejection import Rejection
 
 
 def test_team_named_plan_in_text_is_a_hub_row():
-    assert Mentions.found("see acme plan 12 and task 3", ["acme"]) == [Ref("acme/plans", 12), Ref("tasks", 3)]
+    assert Mentions.found("see acme plan 12 and task 3", MappingProxyType({"acme": "acme"})) == [Ref("acme/plans", 12), Ref("tasks", 3)]
     assert Mentions.found("acme plan 12") == [Ref("plans", 12)]
 
 
