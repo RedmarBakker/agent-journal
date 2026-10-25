@@ -110,3 +110,17 @@ describe("a full store", () => {
         set.mockRestore();
     });
 });
+
+describe("sending a comment", () => {
+    test("a comment sent while the API fails stays in the outbox, under its row, and is sent on the next answer", async () => {
+        server.create.mockRejectedValueOnce(new TypeError("offline"));
+        expect(await delivered("main", {text: "Looks wrong", on: "reports:12"}, [], "c-1")).toBe(false);
+        expect(queued().map((r) => [r.id, r.on])).toEqual([["c-1", "reports:12"]]);
+        const changed = vi.fn();
+        onOutboxChange(changed);
+        expect(await delivered("main", {text: "Another", on: "reports:12"}, [], "c-2")).toBe(true);
+        expect(server.create).toHaveBeenCalledWith("messages", {text: "Looks wrong", on: "reports:12", reply_target: undefined, idempotency: "c-1"});
+        expect(queued()).toEqual([]);
+        expect(changed).toHaveBeenCalledWith(["c-1", "c-2"]);
+    });
+});
