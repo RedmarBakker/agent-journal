@@ -27,11 +27,6 @@
     font-weight: 500;
 }
 
-.row-card-line {
-    color: var(--text-2);
-    font-size: 12.5px;
-}
-
 .update-card {
     gap: 0;
     max-width: 380px;

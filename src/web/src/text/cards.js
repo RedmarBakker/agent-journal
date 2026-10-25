@@ -1,7 +1,7 @@
 import {withoutChips} from "./words.js";
 import {escape, register, rowOf} from "./index.js";
 import {meta, tableOfWord} from "../domain/tables.js";
-import {bodyOf, titleOf} from "../domain/row.js";
+import {titleOf} from "../domain/row.js";
 import "./cards.css";
 
 const MARKED = /^\[\[chip ([a-z]+):(\d+)\|([^\]]*)\]\][.:]?$/m;
@@ -18,8 +18,7 @@ function alone(text) {
 function card(table, id, label, context) {
     const row = rowOf(context, table, id);
     const title = withoutChips(row ? titleOf(row) : label);
-    const line = row ? withoutChips(bodyOf(row).split("\n")[0]).slice(0, 160) : "";
-    return `<a class="row-card" href="#" data-peek="${table}:${id}"><span class="row-card-kind">${escape(meta(table).title)} ${id}</span><span class="row-card-title">${escape(title)}</span>${line ? `<span class="row-card-line">${escape(line)}</span>` : ""}</a>`;
+    return `<a class="row-card" href="#" data-peek="${table}:${id}"><span class="row-card-kind">${escape(meta(table).title)} ${id}</span><span class="row-card-title">${escape(title)}</span></a>`;
 }
 
 register(
