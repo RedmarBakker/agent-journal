@@ -802,6 +802,7 @@ phpunit: the failures and the totals of a phpunit or pest run
 pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it
 totals: a test run's totals
 vitest: the failed tests of a vitest run with their assertion lines, and its totals
+worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal
 
 $ agent: journal reader default totals
 exit 0
@@ -1346,6 +1347,7 @@ phpunit: the failures and the totals of a phpunit or pest run
 pytest: the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it
 totals: a test run's totals (the default for its commands)
 vitest: the failed tests of a vitest run with their assertion lines, and its totals
+worker-merge: a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal
 
 == journal task show current ==
 no task is in hand
@@ -1778,7 +1780,8 @@ usage: journal worker dispatch [-h] [--provider {claude,codex}]
                                --profile PROFILE [--model MODEL] [--worktree]
                                [--libraries LIBRARIES] [--copies COPIES]
                                [--no-libraries] [--pool] [--needs-secrets]
-                               [--fresh] --task TASK
+                               [--fresh] [--report REPORT [REPORT ...]]
+                               --task TASK
                                name [brief]
 
 positional arguments:
@@ -1824,6 +1827,10 @@ options:
                         cannot go to the pool
   --fresh               a fresh worker even though one back already worked on
                         the same files
+  --report REPORT [REPORT ...]
+                        when it reports on a queue: each (after every task,
+                        the default), queue (once its queue is empty) or every
+                        <n> (after every n tasks)
   --task TASK           the task it works on: an open one with a brief, or the
                         one you hold; it is the worker's alone until merged or
                         released
@@ -1849,17 +1856,21 @@ options:
 
 $ agent: journal worker queue --help
 exit 0
-usage: journal worker queue [-h] [--first] n tasks [tasks ...]
+usage: journal worker queue [-h] [--report REPORT [REPORT ...]] [--first]
+                            n tasks [tasks ...]
 
 positional arguments:
   n
   tasks
 
 options:
-  -h, --help  show this help message and exit
-  --first     put the tasks at the head of the queue, in the order given,
-              taking one from another worker's queue if it is there, so the
-              first is the next one sent
+  -h, --help            show this help message and exit
+  --report REPORT [REPORT ...]
+                        when it reports from now: each, queue or every <n>;
+                        unnamed, its choice stays
+  --first               put the tasks at the head of the queue, in the order
+                        given, taking one from another worker's queue if it is
+                        there, so the first is the next one sent
 
 $ agent: journal worker notify --help
 exit 0
@@ -1874,7 +1885,7 @@ options:
 
 $ agent: journal worker check --help
 exit 0
-usage: journal worker check [-h] [--short SHORT] n point
+usage: journal worker check [-h] [--short SHORT] [--task TASK] n point
 
 positional arguments:
   n
@@ -1883,6 +1894,9 @@ positional arguments:
 options:
   -h, --help     show this help message and exit
   --short SHORT  what is missing; the worker is sent it in its last session
+  --task TASK    a task of its queue it finished before the one it is on,
+                 which waits for the same merge; the one it is on when not
+                 named
 
 $ agent: journal worker merge --help
 exit 0

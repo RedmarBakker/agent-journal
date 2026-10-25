@@ -94,6 +94,7 @@ class WorkerCommand(Command):
         check.add_argument("n", type=int)
         check.add_argument("point", type=int)
         check.add_argument("--short", help="what is missing; the worker is sent it in its last session")
+        check.add_argument("--task", type=int, default=0, help="a task of its queue it finished before the one it is on, which waits for the same merge; the one it is on when not named")
         report = self.verb(verbs, "report", "the worker reports back")
         report.add_argument("n", type=int)
         report.add_argument("text")
@@ -262,14 +263,17 @@ class WorkerCommand(Command):
             task = self.actions.short_check(args.n, args.point, args.short, caller.actor)
             print(f"point {args.point} of task {task.id} sent back short to worker {args.n}")
             return 0
-        warning = self.actions.unrun(args.n, args.point) if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else ""
-        task = self.actions.check(args.n, args.point, caller.actor)
+        warning = self.actions.unrun(args.n, args.point, args.task) if self.settings.option(WorkersOptions.TESTING) == MERGER_TESTING else ""
+        task = self.actions.check(args.n, args.point, caller.actor, args.task)
         print("\n".join(filter(None, [f"point {args.point} of task {task.id} checked", warning])))
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:
         outcome = self.actions.merge(args.n, caller.actor)
-        print(f"task {outcome.task.id} done: {outcome.task.outcome}; {outcome.worktree or 'it had no worktree'}")
+        print(f"task {outcome.task.id} done: {outcome.task.outcome}")
+        print(outcome.worktree or "it had no worktree")
+        if outcome.finished:
+            print(f"closed with it, from its queue: {', '.join(f'task {task.id}' for task in outcome.finished)}")
         if outcome.next_task:
             print(outcome.next_task)
         if self.settings.option(WorkersOptions.MODE) == WorkersProfiles.ORCHESTRATOR.mode:

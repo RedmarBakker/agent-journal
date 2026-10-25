@@ -26,6 +26,7 @@ WAIT_LINK = "waits_on"
 CURRENT_TASK_LINK = "in_hand"
 WORKED_LINK = "worked_on"
 QUEUED_LINK = "queued_for"
+FINISHED_LINK = "finished_unmerged"
 WORKERS = "workers"
 WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task it holds, {holdings}"
 HOLDER_REFUSAL = "task {task} is held by worker {worker} until its work is merged or released: send that worker its next job, or release it first"
@@ -257,6 +258,18 @@ class Tasks(ScopedRepository[Task]):
 
     def release(self, holder: Ref, actor: Actor) -> None:
         self.freed(holder, CURRENT_TASK_LINK, actor)
+        self.freed(holder, FINISHED_LINK, actor)
+
+    def finished_on(self, task_id: int, holder: Ref, actor: Actor) -> None:
+        self.release_task(holder, task_id, actor)
+        self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK), actor)
+
+    def unfinished(self, holder: Ref, actor: Actor) -> None:
+        for link in self.links.all_matching(source=holder, kind=FINISHED_LINK):
+            self.links.delete(link, actor)
+
+    def finished_task_ids(self, holder: Ref) -> tuple[int, ...]:
+        return tuple(link.target.id for link in sorted(self.links.all_matching(source=holder, kind=FINISHED_LINK), key=lambda link: link.row_id))
 
     def release_task(self, holder: Ref, task_id: int, actor: Actor) -> None:
         for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), kind=CURRENT_TASK_LINK):

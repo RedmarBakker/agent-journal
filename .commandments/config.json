@@ -3,6 +3,7 @@
     "paths": [
         "src"
     ],
+    "base": "development",
     "disable": {
         "languages": [
             "php",

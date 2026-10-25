@@ -16,7 +16,7 @@ from journal.support.rejection import Rejection
 
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later."""
 
     noun = "clock-out"
     default_verb = "record"
@@ -45,6 +45,10 @@ class DepartureCommand(Command):
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"your branch could not be moved up to the project's branch: {clashing}; {REBASE_STEPS}, then clock out again")
+        holder = Ref(Worker.table(), worker.id)
+        waiting = self.tasks.queue(holder)
+        if not worker.pool_request and not worker.report_choice.is_due(len(self.tasks.finished_task_ids(holder)), len(waiting)):
+            return self.moved_on(task, waiting[0], holder, caller)
         if worker.pool_request:
             self.push_branch(worker)
         if self.moves.is_remote(worker):
@@ -52,6 +56,13 @@ class DepartureCommand(Command):
         else:
             self.reports.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
+        return 0
+
+    def moved_on(self, task: Task, next_task: Task, holder: Ref, caller: Caller) -> int:
+        self.tasks.finished_on(task.id, holder, caller.actor)
+        self.tasks.handover(next_task, holder, caller.actor)
+        print(f"task {task.id} is done and waits to be checked and merged with the rest of your queue; your next task, {next_task.id}: {next_task.title}. {next_task.brief}")
+        print("work on it now in this session: prove each of its points, commit, and clock out again")
         return 0
 
     def push_branch(self, worker: Worker) -> None:

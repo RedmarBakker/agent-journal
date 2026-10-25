@@ -25,6 +25,11 @@ class ReportChoice:
             return cls(int(values[1]))
         raise Rejection(f"--report takes {CHOICES}, not '{' '.join(values)}'")
 
+    def is_due(self, finished: int, queued: int) -> bool:
+        if not queued:
+            return True
+        return bool(self.tasks) and finished + 1 >= self.tasks
+
     def label(self) -> str:
         if self.tasks == 1:
             return "each"
