@@ -108,8 +108,6 @@ class DocCommand(Command):
         doc = self.docs.find(args.n)
         if not doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is not on the hub: journal doc share {doc.id} puts it there")
-        if not doc.is_changed_by(self.account.user_number(), self.account.is_admin()):
-            raise Rejection(f"only whoever put doc {doc.id} on the hub or an admin changes who may edit it")
         self.docs.save(doc.with_(edit_mode=DocEditMode(args.mode)), caller.actor)
         print(f"doc {doc.id} is {args.mode.replace('_', '-')} on the hub")
         return 0

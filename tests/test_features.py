@@ -11976,6 +11976,95 @@ def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_
         team.close(server)
 
 
+def test_a_read_only_hub_document_is_edited_by_its_author_or_an_admin_alone_on_a_journal_and_on_the_hosted_one_and_a_free_one_by_anyone(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from journal.models.doc_edit_mode import DocEditMode
+    from journal.repositories.doc_revisions import DocRevisions
+    from journal.repositories.docs import Docs
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    def titled(journal, title: str):
+        return next(iter(journal.container.get(Docs).global_matching(title=title)), None)
+
+    def edited(journal, title: str, text: str, caller) -> object:
+        page = tmp_path / f"{title.replace(' ', '-')}-{abs(hash(text))}.md"
+        page.write_text(text)
+        return journal.console().run(["doc", "update", str(titled(journal, title).id), "--file", str(page)], caller)
+
+    def body(journal, title: str) -> str:
+        return titled(journal, title).body
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    for name in ("b", "c"):
+        git("clone", "-q", str(tmp_path / "a"), str(tmp_path / name))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    a, b, c = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc")
+    for other in (b, c):
+        other.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    journals, carriers = [a, b, c], [CarriedSync(a).started(), CarriedSync(b).started(), CarriedSync(c).started()]
+    ada, bob, carol = USER, replace(USER, person=2), replace(USER, person=3)
+    try:
+        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], ada).code == 0
+        invitation = lambda email: re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", email], ada).text).group(1)
+        assert b.console().run(["team", "join", invitation("bob@example.com"), "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
+        for title, mode in (("Free page", "free"), ("Locked page", "read_only")):
+            page = tmp_path / f"{mode}.md"
+            page.write_text("# First\n\nthe first words\n")
+            assert a.console().run(["doc", "create", title, "--file", str(page)], ada).code == 0
+            assert a.console().run(["doc", "share", str(titled(a, title).id), "--mode", mode], ada).code == 0
+        page = tmp_path / "bobs.md"
+        page.write_text("# Bob's\n\nBob wrote this\n")
+        assert b.console().run(["doc", "create", "Bob's page", "--file", str(page)], bob).code == 0
+        assert b.console().run(["doc", "share", str(titled(b, "Bob's page").id), "--mode", "read_only"], bob).code == 0
+        assert eventually(lambda: all(titled(b, title) and titled(b, title).edit_mode != DocEditMode.LOCAL for title in ("Free page", "Locked page")) and titled(a, "Bob's page") is not None and titled(a, "Bob's page").edit_mode == DocEditMode.READ_ONLY), "each journal holds the hub's documents in their modes"
+        assert c.console().run(["team", "join", invitation("carol@example.com"), "--email", "carol@example.com", "--name", "Carol", "--password", "correct horse battery"], carol).code == 0
+        (c.config.home / "hosted").touch()
+        assert eventually(lambda: all(titled(c, title) is not None for title in ("Free page", "Locked page", "Bob's page"))), "a member who joins later is given the hub's documents too"
+
+        assert edited(b, "Free page", "# First\n\nBob's words\n", bob).code == 0
+        assert eventually(lambda: "Bob's words" in body(a, "Free page")), "an edit to a free document reaches the other journal"
+        for journal, who, caller in ((b, "Bob", bob), (c, "a late joiner on the hosted journal", carol), (c, "Bob on the hosted journal", bob)):
+            refused = edited(journal, "Locked page", "# First\n\nnot yours\n", caller)
+            assert refused.code == 1 and "read-only on the hub" in refused.error, f"{who}: {refused.error}"
+            assert "not yours" not in body(journal, "Locked page"), who
+        mode_refused = b.console().run(["doc", "mode", str(titled(b, "Locked page").id), "free"], bob)
+        assert mode_refused.code == 1 and "changes who may edit" in mode_refused.error, "another member does not change the mode"
+
+        assert edited(a, "Bob's page", "# Bob's\n\nAda, an admin, edited this\n", ada).code == 0, "an admin edits a document of another author"
+        assert edited(c, "Bob's page", "# Bob's\n\nAda, on the hosted journal\n", ada).code == 0, "an admin signed in to the hosted journal does too"
+        assert a.console().run(["doc", "mode", str(titled(a, "Bob's page").id), "free"], ada).code == 0 and titled(a, "Bob's page").edit_mode == DocEditMode.FREE, "and changes its mode"
+
+        assert edited(a, "Free page", "# First\n\nAda's later words\n", ada).code == 0
+        assert edited(a, "Free page", "# First\n\nBob's last words\n", replace(ada, person=2)).code == 0
+        revisions = a.container.get(DocRevisions).document_revisions(titled(a, "Free page"))
+        assert body(a, "Free page").endswith("Bob's last words\n") and any("Ada's later words" in revision.body for revision in revisions) and revisions[-1].body == body(a, "Free page"), "of two edits to a free document the later save stands and both stay in the revisions"
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
 def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
     from journal.features.etiquette.feature import Etiquette
     from journal.features.messages.feature import Messages as MessagesFeature

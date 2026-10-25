@@ -1,6 +1,7 @@
 from journal.features.docs.commands.doc_command import DocCommand
 from journal.features.docs.listeners.doc_revision_record import DocRevisionRecord
 from journal.features.docs.listeners.document_card import DocumentCard
+from journal.features.docs.listeners.hub_doc_guard import HubDocGuard
 from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.docs.docs_options import DocsOptions
@@ -11,7 +12,7 @@ class DocsFeature(Feature):
     title = "Documents"
     help = "What the project keeps knowing: documents shared by every environment, listed on the Documents page."
     commands = (DocCommand,)
-    listeners = (DocumentCard, DocRevisionRecord)
+    listeners = (DocumentCard, DocRevisionRecord, HubDocGuard)
     options = (DocsOptions.REVISION_WINDOW,)
 
     skill = Skill("docs", 'Store lasting knowledge of the project in a document; load it when something should still be known next month', """

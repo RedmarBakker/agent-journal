@@ -26,6 +26,12 @@ class Doc(Scoped):
     def copy_on_hub(self, hub_id: int, mode: DocEditMode, owner: int) -> "Doc":
         return Doc(environment_id=hub_id, title=self.title, abstract=self.abstract, body=self.body, edit_mode=mode, owner=owner)
 
+    def is_edited_from(self, prior: "Doc") -> bool:
+        return (self.title, self.abstract, self.body, self.edit_mode, self.owner, self.environment_id) != (prior.title, prior.abstract, prior.body, prior.edit_mode, prior.owner, prior.environment_id)
+
+    def is_mode_changed_from(self, prior: "Doc") -> bool:
+        return (self.edit_mode, self.owner, self.environment_id) != (prior.edit_mode, prior.owner, prior.environment_id)
+
     def is_changed_by(self, member: int, is_admin: bool) -> bool:
         return is_admin or member == self.owner
 

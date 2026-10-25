@@ -9,7 +9,7 @@ from journal.features.docs.docs_options import DocsOptions
 
 
 class DocRevisionRecord(Listener[Saved]):
-    """Every save of a document that changes its text is stored as a revision: the first save writes revision 1, a later one within the open window merges into the open revision with its change noted, and one after it opens the next."""
+    """Every save of a document that changes its text is stored as a revision: the first save writes revision 1, a later one within the open window merges into the open revision with its change noted when the same author saved it, and one by another author or after the window opens the next, so two people's edits at once are both kept."""
 
     def __init__(self, revisions: DocRevisions, settings: SettingRows, clock: Clock) -> None:
         self.revisions, self.settings, self.clock = revisions, settings, clock
@@ -28,7 +28,7 @@ class DocRevisionRecord(Listener[Saved]):
         change = latest.difference(doc)
         if not change:
             return
-        if latest.is_open(time):
+        if latest.is_open(time) and latest.updater == event.actor:
             self.revisions.save(latest.folded(doc, change, closes_at), event.actor)
             return
         self.revisions.added(DocRevision.build(doc, latest.number + 1, change, closes_at), doc, event.actor)
