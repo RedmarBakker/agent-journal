@@ -1,6 +1,9 @@
 <script setup>
 import {computed} from "vue";
 import CloseButton from "../kit/CloseButton.vue";
+import Btn from "../kit/Btn.vue";
+import Icon from "../kit/Icon.vue";
+import {go} from "../route.js";
 import {clock} from "../format/time.js";
 
 const WIDTH = 320;
@@ -31,6 +34,11 @@ const runs = computed(() =>
         .map((run) => run.map((point) => `${x(point.at)},${y(point.score)}`).join(" "))
 );
 const newest = computed(() => [...props.points].reverse());
+// the numbers the score is measured by are the settings named Fitness, opened from the panel's cogwheel
+const openSettings = () => {
+    emit("close");
+    go("settings", 0, "Fitness:");
+};
 const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.at)}`, line: point.moved});
 </script>
 
@@ -38,6 +46,7 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
     <div class="fitness-timeline">
         <header class="fitness-timeline-head">
             <h4 class="fitness-timeline-heading">Fitness {{ score }} of 100</h4>
+            <Btn kind="icon" class="fitness-timeline-settings" aria-label="Open the fitness settings" @click="openSettings"><Icon name="settings" /></Btn>
             <CloseButton @click="emit('close')" />
         </header>
         <ul class="fitness-timeline-lines">
@@ -86,6 +95,10 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
     flex: 1;
     flex-direction: column;
     min-height: 0;
+}
+
+.fitness-timeline-settings {
+    margin-left: auto;
 }
 
 .fitness-timeline-head {

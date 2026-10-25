@@ -123,9 +123,9 @@ class AgentActivity:
         return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines), "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
 
     def timeline(self, session: str) -> list[dict]:
-        since = time.time() - TIMELINE_HOURS * 3600
+        start_at = time.time() - TIMELINE_HOURS * 3600
         points = [FitnessPoint.parsed(entry.data) for entry in reversed(self.entries.session_kind_newest(session, FitnessPoint.KIND, TIMELINE_POINTS))]
-        return [point.shown() for point in points if point.scored_at >= since]
+        return [point.shown() for point in points if point.scored_at >= start_at]
 
     def rolling(self) -> dict:
         if not self.registry.is_enabled(Faults):

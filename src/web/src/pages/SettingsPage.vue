@@ -24,7 +24,7 @@ const LISTED = ["agent", "features", "system", "sharing"];
 const known = (key) => TABS.some((t) => t.key === key);
 const opening = (...keys) => keys.find(known) || TABS[0].key;
 const tab = ref(opening(route.value.sub, remembered(TAB, "")));
-const query = ref("");
+const query = ref(route.value.q);
 const filter = ref("all");
 const field = ref(null);
 const current = ref("");
