@@ -287,6 +287,7 @@ agent team invite --help
 agent team join --help
 agent team login --help
 agent team release --help
+agent team migrate --help
 agent team revoke --help
 agent team status --help
 agent team upgrade --help

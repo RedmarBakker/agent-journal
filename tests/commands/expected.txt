@@ -567,7 +567,7 @@ update 2: item 1 taken out
 
 $ agent: journal template create 'Find what is missing' --brief 'Read the plan against its goal' --applies-to plan --purpose critique
 exit 0
-template 12: Find what is missing
+template 13: Find what is missing
 
 $ agent: journal template list
 exit 0
@@ -576,13 +576,14 @@ exit 0
    3  Find what is missing (for plan, critique)
    4  Challenge the approach (for plan, critique)
    5  No tests (for worker, testing)
-   6  Scoped tests (for worker, testing)
-   7  Full suite (for worker, testing)
-   8  Never run tests (for plan, testing)
-   9  Tests at each phase end (for plan, testing)
-  10  Scoped tests after each task (for plan, testing)
-  11  Test throughout (for plan, testing)
-  12  Find what is missing (for plan, critique)
+   6  Test budget (for worker, testing)
+   7  Scoped tests (for worker, testing)
+   8  Full suite (for worker, testing)
+   9  Never run tests (for plan, testing)
+  10  Tests at each phase end (for plan, testing)
+  11  Scoped tests after each task (for plan, testing)
+  12  Test throughout (for plan, testing)
+  13  Find what is missing (for plan, critique)
 
 $ agent: journal template show 1
 exit 0
@@ -1117,6 +1118,11 @@ workers.solo_dispatches = 3
 workers.timeout_minutes = 60
 workers.mode = 'builder'  (the user sets it)
 workers.testing = 'Hand the tests over'
+workers.test_runs = 3
+workers.test_waiting = ''
+workers.tests_per_run = 20
+workers.test_run_minutes = 10
+workers.failing_runs = 3
 workers.check_reminder_uses = 25
 workers.most_out = 3
 workers.most_subagents = 5
@@ -1580,6 +1586,7 @@ workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents alread
 workers.solo_researches_itself  [workers]  you are solo: you sent more subagents than you read and searched yourself. read and research this yourself; a subagent is for the rare job too wide to do in your own turns
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
+workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
@@ -1589,7 +1596,7 @@ workers.worker_place_free  [workers]  worker {{n}}, {{name}}, is done; {{count}}
 workers.worker_quiet  [workers]  worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes. look at its transcript, notify it with `journal worker notify {{n}} "<text>"`, or stop it
 workers.worker_reported  [workers]  worker {{n}}, {{name}}, reported in the chat
 workers.worker_stopped_unreported  [workers]  worker {{n}}, {{name}}, stopped before it reported
-228 nudges
+229 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1631,7 +1638,8 @@ options:
   --tests TESTS         the test template that says how the worker tests when
                         the setting is Run the tests it wrote: Scoped tests by
                         default, Full suite, or one of the project's own; with
-                        Hand the tests over the worker runs none
+                        Hand the tests over the worker runs none, and with
+                        Test budget it tests only through journal tests turn
   --profile PROFILE     the worker profile it works by: senior, on Opus, for a
                         job that needs judgement; medior, on Sonnet, for one
                         whose shape is settled
@@ -2215,6 +2223,14 @@ usage: journal team release [-h]
 
 options:
   -h, --help  show this help message and exit
+
+$ agent: journal team migrate --help
+exit 0
+usage: journal team migrate [-h] [--preview]
+
+options:
+  -h, --help  show this help message and exit
+  --preview   name what would be withdrawn, moved and kept, and write nothing
 
 $ agent: journal team revoke --help
 exit 0
