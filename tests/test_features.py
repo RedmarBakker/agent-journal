@@ -3610,7 +3610,84 @@ def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_
     assert hub_mentions_of(app, "beta") == ["plans:12"]
 
 
-def test_a_task_of_a_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
+def test_a_plan_and_a_task_are_made_in_a_teams_hub_with_team_and_an_unjoined_team_is_refused(app: App):
+    from journal.models.environment import Environment
+    from journal.repositories.environments import Environments
+    from journal.repositories.plans import Plans
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
+    console = app.console()
+    plan = console.run(["plan", "create", "launch", "--team", "acme"], USER)
+    task = console.run(["task", "create", "ship it", "--team", "acme"], USER)
+    assert plan.text.startswith("acme plan ") and task.text.startswith("acme task "), "the answers name the rows with their team"
+    with app.container.get(Scope).environment(hub.row_id):
+        assert [p.title for p in app.container.get(Plans).scoped()] == ["launch"] and [t.title for t in app.container.get(Tasks).scoped()] == ["ship it"], "both are in the hub environment"
+    assert "no joined team is named zed" in console.run(["task", "create", "lost", "--team", "zed"], USER).text
+    assert "no joined team is named zed" in console.run(["plan", "create", "lost", "--team", "zed"], USER).text
+
+
+def test_a_request_and_an_issue_are_tasks_filed_in_the_hub_the_request_linked_to_its_person(app: App):
+    from journal.models.environment import Environment
+    from journal.models.user import User
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.users import Users
+    hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
+    bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
+    console = app.console()
+    made = [console.run(["task", "create", title, *flags], USER) for title, flags in (("review it", ["--to", "Bob"]), ("plan the move", ["--to-team"]), ("the board is slow", ["--issue"]))]
+    assert all(m.text.startswith("acme task ") for m in made), "each answer names the row with its team"
+    with app.container.get(Scope).environment(hub.row_id):
+        assert [t.title for t in app.container.get(Tasks).scoped()] == ["review it", "plan the move", "the board is slow"], "all three are in the hub environment"
+    kinds = sorted((link.kind, str(link.target)) for link in app.container.get(Links).rows() if link.kind in ("requested_of", "requested_of_team", "issue"))
+    assert kinds == [("issue", f"environments:{hub.row_id}"), ("requested_of", f"users:{bob.row_id}"), ("requested_of_team", f"environments:{hub.row_id}")]
+    assert "no person on the team is named Zed" in console.run(["task", "create", "x", "--to", "Zed"], USER).text
+    assert console.run(["task", "create", "plain"], USER).text.startswith("task "), "a task made with none of the flags never asks for a hub"
+
+
+def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list_and_done_on_the_requesters_when_finished(app: App):
+    from types import SimpleNamespace
+    from journal.chat.moment_cards import MomentCards
+    from journal.events.models.created import Created
+    from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
+    from journal.http.controllers.requests import RequestController
+    from journal.models.environment import Environment
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.user import User
+    from journal.repositories.environment_owners import EnvironmentOwners, OWNER
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.scope import Scope
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.users import Users
+    from journal.support.row_labels import RowLabels
+    environments, links = app.container.get(Environments), app.container.get(Links)
+    hub = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
+    home = environments.save(Environment(name="bob-main"), Actor.system())
+    bob = app.container.get(Users).save(User(name="Bob", email="bob@example.com"), Actor.system())
+    links.save(Link(source=Ref.build(bob), target=Ref.build(home), kind=OWNER), Actor.system())
+    with app.container.get(Scope).environment(hub.row_id):
+        task = app.container.get(Tasks).save(Task(title="review the plan"), Actor.user(1))
+    link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), kind="requested_of"), Actor.user(1))
+    listener = RequestArrivalCard(app.container.get(MomentCards), app.container.get(EnvironmentOwners), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id))
+    listener.handle(Created(model=link, actor=Actor.user(1)))
+    with app.container.get(Scope).environment(home.row_id):
+        cards = [m.text for m in app.container.get(Messages).scoped()]
+    assert cards == [f"acme task {task.row_id} is a request for you: review the plan"], "the card is in the person's main chat, naming the task with its team"
+    controller = app.container.get(RequestController)
+    assert [row["title"] for row in controller.index(SimpleNamespace(actor=Actor.user(bob.row_id))).body["rows"]] == ["review the plan"], "and the request is on their Requests list"
+    with app.container.get(Scope).environment(hub.row_id):
+        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state="done"), Actor.user(bob.row_id))
+    assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "done")], "and the requester's page reads it done once the recipient finished it"
+
+
+def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task
     from journal.repositories.environments import Environments
