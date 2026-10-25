@@ -9,7 +9,7 @@ import TaskRow from "./TaskRow.vue";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
 
 const props = defineProps({lines: {type: Array, required: true}, tasks: {type: Array, required: true}});
-const emit = defineEmits(["select", "act", "status", "more", "file", "new", "clear"]);
+const emit = defineEmits(["select", "act", "status", "more", "priority", "file", "new", "clear"]);
 const filtered = computed(() => Boolean(taskBoard.statuses.length || taskBoard.words));
 const hiddenDone = computed(() =>
     filtered.value || taskBoard.display.showDone ? 0 : props.tasks.filter((t) => statusOf(t) === "done").length
@@ -76,6 +76,7 @@ const fold = (key) => (taskBoard.folded[key] = !taskBoard.folded[key]);
                         @act="emit('act', line.task, $event)"
                         @status="emit('status', line.task, $event)"
                         @more="emit('more', line.task, $event)"
+                        @priority="emit('priority', line.task, $event)"
                     />
                 </template>
             </template>

@@ -77,3 +77,17 @@ describe("the chat's Tasks tab", () => {
         expect(row.querySelector(".status").nextElementSibling).toBe(row.querySelector(".priority"));
     });
 });
+
+describe("a task's priority", () => {
+    test("a click on a row's priority icon offers the four levels and saves the pick through the tasks route", async () => {
+        const change = vi.spyOn(api, "change").mockResolvedValue({});
+        const host = await shown();
+        host.querySelector('.task-row[data-task="3"] .priority').click();
+        await flush();
+        const items = [...document.body.querySelectorAll(".menu-item, [role=menuitem]")].map((i) => i.textContent.trim());
+        expect(items).toEqual(["Critical", "High", "Normal", "Low"]);
+        [...document.body.querySelectorAll(".menu-item, [role=menuitem]")][1].click();
+        await flush();
+        expect(change).toHaveBeenCalledWith("tasks", 3, {priority: 150});
+    });
+});

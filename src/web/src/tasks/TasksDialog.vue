@@ -132,6 +132,7 @@ useWindowEvent("keydown", escaped);
                             @act="acts.run"
                             @status="(task, el) => showMenu('status', task, el)"
                             @more="(task, el) => showMenu('more', task, el)"
+                            @priority="(task, el) => showMenu('priority', task, el)"
                             @file="file"
                             @new="draft"
                             @clear="clearFilter"

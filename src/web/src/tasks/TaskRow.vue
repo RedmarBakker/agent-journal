@@ -9,7 +9,7 @@ import PriorityIcon from "../kit/PriorityIcon.vue";
 import {NORMAL_PRIORITY, priorityLabel} from "../domain/taskPriority.js";
 
 const props = defineProps({task: {type: Object, required: true}, depth: {type: Number, default: 1}, selected: Boolean});
-const emit = defineEmits(["select", "act", "status", "more"]);
+const emit = defineEmits(["select", "act", "status", "more", "priority"]);
 const status = computed(() => statusOf(props.task));
 const next = computed(() => nextAct(props.task));
 const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : ""));
@@ -25,7 +25,7 @@ const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : "")
         >
             <TaskStatusIcon :status="status" />
         </button>
-        <span class="priority" :title="`Priority: ${priorityLabel(task.priority ?? NORMAL_PRIORITY)}`"><PriorityIcon :value="task.priority ?? NORMAL_PRIORITY" /></span>
+        <button type="button" class="priority" :title="`Priority: ${priorityLabel(task.priority ?? NORMAL_PRIORITY)}. Change it`" @click.stop="emit('priority', $event.currentTarget)"><PriorityIcon :value="task.priority ?? NORMAL_PRIORITY" /></button>
         <template v-if="taskBoard.display.number">
             <span class="number">{{ task.id }}</span>
         </template>
@@ -100,6 +100,10 @@ const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : "")
 }
 
 .priority {
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
     display: inline-flex;
     flex: none;
     align-items: center;

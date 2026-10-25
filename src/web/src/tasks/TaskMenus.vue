@@ -5,9 +5,16 @@ import MenuPanel from "../kit/MenuPanel.vue";
 import {moreActs, statusChoices} from "../domain/taskBoard.js";
 import TaskAsk from "./TaskAsk.vue";
 import TaskStatusIcon from "./TaskStatusIcon.vue";
+import {NORMAL_PRIORITY, PRIORITY_LEVELS} from "../domain/taskPriority.js";
 
 const props = defineProps({menu: {type: Object, default: null}, tasks: {type: Array, required: true}, acts: {type: Object, required: true}});
 const emit = defineEmits(["close", "show", "run"]);
+
+function setPriority(value) {
+    const task = props.menu.task;
+    emit("close");
+    props.acts.priority(task, value);
+}
 
 function pick(name) {
     const task = props.menu.task;
@@ -31,6 +38,12 @@ function pick(name) {
                         <TaskStatusIcon :status="c.status" />
                         {{ c.label }}
                     </MenuItem>
+                </template>
+            </template>
+            <template v-else-if="menu.kind === 'priority'">
+                <MenuLabel>Priority of task {{ menu.task.id }}</MenuLabel>
+                <template v-for="level in [...PRIORITY_LEVELS].reverse()" :key="level.key">
+                    <MenuItem :on="level.key === (menu.task.priority ?? NORMAL_PRIORITY)" @click="setPriority(level.key)">{{ level.label }}</MenuItem>
                 </template>
             </template>
             <template v-else>

@@ -39,6 +39,7 @@ function clearFilter() {
             @act="run"
             @status="(task, el) => showMenu('status', task, el)"
             @more="(task, el) => showMenu('more', task, el)"
+            @priority="(task, el) => showMenu('priority', task, el)"
             @file="acts.file"
             @new="draft"
             @clear="clearFilter"

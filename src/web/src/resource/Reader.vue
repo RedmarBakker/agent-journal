@@ -8,6 +8,7 @@ import {holding, isWhole, rows, whole} from "../sync/rows.js";
 import ResourceBody from "./ResourceBody.vue";
 import DocumentPage from "./DocumentPage.vue";
 import PlanPage from "./PlanPage.vue";
+import TaskPanel from "../tasks/TaskPanel.vue";
 import Dialog from "../kit/Dialog.vue";
 import AgentPage from "./AgentPage.vue";
 import WorkerPage from "./WorkerPage.vue";
@@ -98,7 +99,10 @@ watch(
             @dismiss="close"
             @close="emit('gone')"
         >
-            <template v-if="panel === 'inspector'">
+            <template v-if="table === 'tasks' && resource">
+                <TaskPanel :task="resource" @close="close" />
+            </template>
+            <template v-else-if="panel === 'inspector'">
                 <div :class="['inspector', {swapping, 'focusing-comment': focusComment}]">
                     <div class="inspector-pages">
                         <Transition name="inspector-page">

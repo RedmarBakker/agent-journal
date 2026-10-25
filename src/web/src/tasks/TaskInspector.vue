@@ -26,6 +26,7 @@ const props = defineProps({
     task: {type: Object, required: true},
     tasks: {type: Array, required: true},
     single: Boolean,
+    lone: Boolean,
     back: {type: String, default: "list"},
 });
 const emit = defineEmits(["close", "step", "act", "status", "more", "select", "answer"]);
@@ -53,7 +54,7 @@ watch(
 </script>
 
 <template>
-    <aside :class="['task-inspector', {single}]">
+    <aside :class="['task-inspector', {single, lone}]">
         <div class="top">
             <template v-if="single">
                 <Btn small @click="emit('close')">
@@ -65,8 +66,10 @@ watch(
                 <span class="crumb">{{ crumb }}</span>
             </template>
             <span class="grow" />
-            <Btn small title="Previous task (K)" @click="emit('step', -1)"><Icon name="up" :size="13" /></Btn>
-            <Btn small title="Next task (J)" @click="emit('step', 1)"><Icon name="down" :size="13" /></Btn>
+            <template v-if="!lone">
+                <Btn small title="Previous task (K)" @click="emit('step', -1)"><Icon name="up" :size="13" /></Btn>
+                <Btn small title="Next task (J)" @click="emit('step', 1)"><Icon name="down" :size="13" /></Btn>
+            </template>
             <template v-if="!single">
                 <Btn small aria-label="Close the task (Esc)" @click="emit('close')"><Icon name="close" :size="13" /></Btn>
             </template>
@@ -151,6 +154,12 @@ watch(
 
 .write :deep(.comment-write) {
     margin-top: 0;
+}
+
+.task-inspector.lone {
+    width: 100%;
+    height: 100%;
+    border-left: 0;
 }
 
 .task-inspector.single {

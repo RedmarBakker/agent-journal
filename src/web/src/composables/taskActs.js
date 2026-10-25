@@ -82,5 +82,13 @@ export function useTaskActs(client = api) {
         }
     }
 
-    return {toast, asking, run, finish, pause, block, edit, file};
+    async function priority(task, value) {
+        try {
+            await client.change("tasks", task.id, {priority: value});
+        } catch (e) {
+            say(e.message);
+        }
+    }
+
+    return {toast, asking, run, priority, finish, pause, block, edit, file};
 }
