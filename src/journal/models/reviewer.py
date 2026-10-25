@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from journal.events.rows.reviewer_ended import ReviewerEnded
 from journal.models.helper import Helper
 from journal.models.reviewer_state import ReviewerState
 
@@ -26,9 +25,7 @@ class Reviewer(Helper):
         return self.with_(state=ReviewerState.REVIEWED, token_hash="")
 
     def ended(self) -> "Reviewer":
-        if self.state != ReviewerState.REVIEWING:
-            return self
-        return self.with_(state=ReviewerState.ENDED, token_hash="").with_event(ReviewerEnded(environment_id=self.environment_id))
+        return self if self.state != ReviewerState.REVIEWING else self.with_(state=ReviewerState.ENDED, token_hash="")
 
     def is_reviewing(self) -> bool:
         return self.state == ReviewerState.REVIEWING

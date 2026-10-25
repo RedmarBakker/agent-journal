@@ -2,7 +2,7 @@ from argparse import Namespace
 from datetime import datetime, timezone
 
 from journal.console.command import REVIEWER_KINDS, Command
-from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
+from journal.features.reviewing.support.review_links import ReviewLinks
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.models.support.ref import Ref
@@ -21,8 +21,8 @@ class ReviewCommand(Command):
     default_verb = "record"
     callers = {"record": REVIEWER_KINDS}
 
-    def __init__(self, dispatch: ReviewerDispatch, reviewers: Reviewers, workers: Workers, tasks: Tasks, messages: Messages) -> None:
-        self.dispatch, self.reviewers, self.workers, self.tasks, self.messages = dispatch, reviewers, workers, tasks, messages
+    def __init__(self, links: ReviewLinks, reviewers: Reviewers, workers: Workers, tasks: Tasks, messages: Messages) -> None:
+        self.links, self.reviewers, self.workers, self.tasks, self.messages = links, reviewers, workers, tasks, messages
 
     def arguments(self, verbs) -> None:
         self.verb(verbs, "record", "your report on the work you review: one short line per point, passed or short with why, and the tests you ran").add_argument("report")
@@ -31,7 +31,7 @@ class ReviewCommand(Command):
         if caller.reviewer_number is None:
             raise Rejection("only a reviewer the journal sent gives a review")
         reviewer = self.reviewers.find(caller.reviewer_number)
-        worker = self.workers.find(self.dispatch.reviewed(reviewer.id).id)
+        worker = self.workers.find(self.links.worker(reviewer).id)
         task = self.tasks.last_task_id(Ref.build(worker))
         self.workers.save(worker.reviewed(datetime.now(timezone.utc).timestamp(), task, reviewer, args.report), caller.actor)
         self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{reviewer.name} reports: worker {worker.id}, {worker.name}, on task {task}: {args.report}", data={"kind": Message.REPORT, "worker": reviewer.name, "reviewer_id": reviewer.id}), caller.actor)

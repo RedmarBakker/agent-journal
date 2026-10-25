@@ -1,6 +1,5 @@
 from journal.features.feature import Feature
 from journal.features.reviewing.commands.review_command import ReviewCommand
-from journal.features.reviewing.listeners.review_handback import ReviewHandback
 from journal.features.reviewing.listeners.reviewer_retirement import ReviewerRetirement
 from journal.features.reviewing.listeners.reviewer_start import ReviewerStart
 from journal.features.reviewing.reviewing_conduct import ReviewingConduct
@@ -21,6 +20,6 @@ class ReviewingFeature(Feature):
     floors = {AgentRole.REVIEWER: Reviewing}
     options = (ReviewingOptions.REVIEWER,)
     commands = (ReviewCommand,)
-    listeners = (ReviewerStart, ReviewHandback, ReviewerRetirement)
+    listeners = (ReviewerStart, ReviewerRetirement)
     conduct = (ReviewingConduct,)
     nudges = (ReviewingNudges.REVIEWER_WRITES, ReviewingNudges.REPORT_REQUEST, ReviewingNudges.WORK_REVIEWED, ReviewingNudges.REVIEW_FAILED)
