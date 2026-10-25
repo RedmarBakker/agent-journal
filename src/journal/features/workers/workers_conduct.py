@@ -115,7 +115,7 @@ class WorkersConduct(Conduct):
         return self.none(WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, cause=RUN_LIMIT_CAUSE if event.is_run_limit else ""), *free_place(event.worker, event.data, settings))
 
     def on_proof_short(self, event: ProofShort, settings: Settings) -> Transition:
-        if not event.dispatcher or event.dispatcher != event.session:
+        if not event.dispatcher or event.dispatcher != event.session or event.is_reviewers():
             return self.none()
         return self.none(sent_back_line(event))
 
