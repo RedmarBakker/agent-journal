@@ -9,6 +9,6 @@ export function useTestTurns(active) {
         turns.value = got;
         loaded.value = true;
     };
-    usePoll("test_turns.open", {take, active: () => active.value});
+    usePoll("tests.turns", {take, active: () => active.value});
     return {turns, loaded};
 }
