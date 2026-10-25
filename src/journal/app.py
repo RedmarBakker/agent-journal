@@ -6,6 +6,7 @@ from journal.console.standard_commands import StandardCommands
 from journal.db.connection import Connection
 from journal.support.masks import Masks
 from journal.db.migrations import MIGRATIONS
+from journal.db.migration_failures import MigrationFailures
 from journal.db.migrator import Migrator
 from journal.db.indexes import Indexes
 from journal.support.large_reads import LargeReads
@@ -59,7 +60,7 @@ class App:
         self.config.home.mkdir(parents=True, exist_ok=True)
         connection = Connection(self.config.database, self.container.get(Masks), self.container.get(StageTimes), self.container.get(QueryTimes), self.container.get(LargeReads))
         schema = Schema(connection, AllModels.MODELS)
-        migrator = Migrator(connection, schema, MIGRATIONS)
+        migrator = Migrator(connection, schema, MIGRATIONS, self.container.get(MigrationFailures))
         if schema.create():
             migrator.record_all()
         migrator.run()

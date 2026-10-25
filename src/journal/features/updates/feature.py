@@ -17,6 +17,7 @@ from journal.features.updates.support.release_notes import ReleaseNotes
 from journal.features.updates.support.release_notes_reader import ReleaseNotesReader
 from journal.features.updates.updates_conduct import UpdatesConduct
 from journal.features.updates.seeds.version_change import VersionChange
+from journal.features.updates.seeds.migration_failure_notice import MigrationFailureNotice
 from journal.features.updates.seeds.supervisor_check import SupervisorCheck
 from journal.features.updates.updates_part import UpdatesPart
 from journal.features.updates.updates_nudges import UpdatesNudges
@@ -31,7 +32,7 @@ class Updates(Feature[ReleaseNotes]):
     help = "Finds the newest release of this version of the journal on GitHub, as often as you set, and installs it when you say so or, if you switch that on, by itself."
     options = (UpdatesOptions.REPOSITORY, UpdatesOptions.BRANCH, UpdatesOptions.AUTO, UpdatesOptions.CHECK_INTERVAL, UpdatesOptions.BOOT_SECONDS)
     listeners = (ReleaseCheck, SupervisorUpgrade, SessionRestartClose, LaunchTakeoverNotice, BootFailureNotice)
-    seeds = (VersionChange, SupervisorCheck)
+    seeds = (VersionChange, SupervisorCheck, MigrationFailureNotice)
     nudges = (UpdatesNudges.RELEASE_MESSAGES, UpdatesNudges.LAUNCH_TAKEOVER)
     data = (ReleaseNotesReader,)
     conduct = (UpdatesConduct,)

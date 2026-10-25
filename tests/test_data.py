@@ -1491,3 +1491,28 @@ def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_o
         settings.set("workers.mode", "orchestrator", USER)
         assert [load.writes for load in loads.counts if load.writes] == [], "the value it holds is written no more"
         assert reader.seen == ["orchestrator"] and settings.get("workers.mode") == "orchestrator", "a listener of the write reads the value written"
+
+
+def test_a_migration_that_raises_is_rolled_back_reported_retried_next_boot_and_the_ones_after_it_ran(connection):
+    from journal.db.migration import Migration
+    from journal.db.migration_failures import MigrationFailures
+    from journal.db.migrator import Migrator
+
+    class Makes(Migration):
+        def __init__(self, number: int, table: str, fails: bool = False) -> None:
+            self.number, self.table, self.fails = number, table, fails
+
+        def apply(self, connection) -> None:
+            connection.execute(f"CREATE TABLE {self.table} (id INTEGER)")
+            if self.fails:
+                raise RuntimeError("the rows differ from ours")
+
+    schema = Schema(connection, AllModels.MODELS)
+    tables = lambda: {row["name"] for row in connection.all("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    failures = MigrationFailures()
+    ran = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made", fails=True), Makes(9003, "third_made")), failures).run()
+    assert [m.number for m in ran] == [9001, 9003] and "second_made" not in tables() and {"first_made", "third_made"} <= tables(), "the failed one is rolled back and the ones after it ran"
+    assert [(f.number, "the rows differ from ours" in f.error) for f in failures.rows] == [(9002, True)] and "9002" in failures.lines()[0] and "tried again at the next start" in failures.lines()[0], "it is reported with its number and its error"
+    later = MigrationFailures()
+    again = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made"), Makes(9003, "third_made")), later).run()
+    assert [m.number for m in again] == [9002] and not later.rows and "second_made" in tables(), "it was left unrecorded, so the next boot runs it again"
