@@ -12621,8 +12621,13 @@ def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in
     assert queued.code == 0 and "it reports every 2" in queued.text, queued.error
     listed = console.run(["worker", "list"], AGENT).text
     assert "reports every 2" in listed and "reports queue" in listed and "reports every 3" in listed
-    refused = console.run(["worker", "queue", "2", "4", "--report", "every", "1"], AGENT)
-    assert refused.code != 0 and "--report takes each, queue or every <n> of two or more" in refused.error
+    for bad in (["every", "1"], ["every", "0"], ["every", "-1"], ["every", "abc"], ["some"]):
+        refused = console.run(["worker", "queue", "2", "4", "--report", *bad], AGENT)
+        assert refused.code != 0 and f"--report takes each, queue or every <n> of two or more, not '{' '.join(bad)}'" in refused.error, refused.error
+    from journal.db.connection import Connection
+    app.container.get(Connection).execute("UPDATE sent_agents SET report_choice = NULL WHERE id = 3")
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Workers).find(3).report_choice.label() == "each", "a row from before the choice, or from a teammate's older version, reads as each"
 
 
 def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
