@@ -156,7 +156,9 @@ async function drop() {
         <template v-if="reactions.length">
             <TurnReactions :reactions="reactions" @react="react" />
         </template>
-        <TurnHeader :turn="turn" />
+        <template v-if="!fromMain && !report">
+            <TurnHeader :turn="turn" />
+        </template>
     </div>
 </template>
 

@@ -46,6 +46,7 @@ async function drawn(turn) {
         collapsed: !collapsed,
         expanded: card.classList.contains("open") && host.querySelector(".growing-card-text").textContent === turn.text,
         bubble: host.querySelector(".thread-bubble").style.display !== "none",
+        header: Boolean(host.querySelector(".thread-meta")),
         red: card.classList.contains("bad"),
     };
     app.unmount();
@@ -57,13 +58,13 @@ test("what the agent sends to another agent sits on the agent's side and names w
     const [, sent] = threadTurns(messages, []).turns;
     const shown = await drawn(sent);
     expect(shown.mine).toBe(false);
-    expect(shown.head).toContain("Sent to Coco");
+    expect(shown.head).toContain("Message sent to Coco");
 });
 
 test("a send that failed says so in red with the tool's reason, never as sent", async () => {
     const [, sent, failed] = threadTurns(messages, []).turns;
     const shown = await drawn(failed);
-    expect(shown.head).toContain("Failed to send to Coco: the socket is stale");
+    expect(shown.head).toContain("Message not sent to Coco: the socket is stale");
     expect(shown.red).toBe(true);
     expect((await drawn(sent)).red).toBe(false);
 });
@@ -85,5 +86,6 @@ test("a message to or from another agent is a one-line card with its time, never
         expect(shown.expanded).toBe(true);
         expect(shown.bubble).toBe(false);
         expect(shown.time).toBeTruthy();
+        expect(shown.header).toBe(false);
     }
 });

@@ -6,8 +6,8 @@ import GrowingCard from "./GrowingCard.vue";
 const props = defineProps({data: {type: Object, default: () => ({})}, text: {type: String, default: ""}, time: {type: Number, default: 0}});
 const failed = computed(() => Boolean(props.data.sent_to && props.data.failure));
 const title = computed(() => {
-    if (failed.value) return `Failed to send to ${props.data.sent_to}: ${props.data.failure}`;
-    return props.data.sent_to ? `Sent to ${props.data.sent_to}` : `Message from ${props.data.peer || "the main agent"}`;
+    if (failed.value) return `Message not sent to ${props.data.sent_to}: ${props.data.failure}`;
+    return props.data.sent_to ? `Message sent to ${props.data.sent_to}` : `Message from ${props.data.peer || "the main agent"}`;
 });
 </script>
 
