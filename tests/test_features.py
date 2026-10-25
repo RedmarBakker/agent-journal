@@ -12509,7 +12509,7 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
     assert proved_and_out(app, caller, "platform/app.php:1").code == 0
     with app.container.get(Scope).environment(MAIN):
-        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-cd-tests", command=f"(cd {folder} && python3 scripts/suite.py)", session="s1", ran_in=str(folder.parent)), Actor.agent("s1"))
+        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-cd-tests", command=f'(cd "{folder}" && python3 scripts/suite.py)', session="s1", ran_in=str(folder.parent)), Actor.agent("s1"))
     awaited = app.console().run(["await", "begin", "the worker's suite", "--output", str(run.id)], AGENT)
     assert awaited.code == 0, awaited.error
     body = hook(app, "Stop")[1]

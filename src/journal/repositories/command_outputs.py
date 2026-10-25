@@ -19,7 +19,8 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def ran_within(self, folder: str) -> list[CommandOutput]:
         query = self.query()
-        return self.selected(query.filter_alternatives(query.filter_prefix("ran_in", folder), query.filter_prefix("command", f"(cd {folder}"), query.filter_prefix("command", f"cd {folder}")).order("id"))
+        opened = [query.filter_prefix("command", f"{lead}cd {quote}{folder}") for lead in ("", "(") for quote in ("", '"', "'")]
+        return self.selected(query.filter_alternatives(query.filter_prefix("ran_in", folder), *opened).order("id"))
 
     def ran_in(self, folder: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(ran_in=folder).order_descending("id"))
