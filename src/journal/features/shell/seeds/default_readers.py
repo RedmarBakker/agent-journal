@@ -14,6 +14,10 @@ SHIPPED = (
            finished_pattern=r"OK \(|Tests: ", failed_pattern=r"FAILURES!|ERRORS!|FAIL |Failed asserting|Tests: "),
     Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^step [0-9]+/[0-9]+: |^now: .{1,120}$|^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^step ([0-9]+)/([0-9]+): ", "Merging a worker's work", ReaderCommands(("journal worker merge",)),
            finished_pattern=r"^task [0-9]+ done: [^;]{1,90}$", failed_pattern=r"^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$"),
+    Reader("git-commit", "a commit: the commit it made and its files, or why its hooks refused it", r"^\[[^\]]+ [0-9a-f]{7,}\]|^ [0-9]+ files? changed|^error:|^fatal:|FAILED|hook", "", "Committing", ReaderCommands(("git commit",)),
+           finished_pattern=r"^\[[^\]]+ [0-9a-f]{7,}\]|^ [0-9]+ files? changed", failed_pattern=r"^error:|^fatal:|FAILED|hook"),
+    Reader("git-push", "a push: the commits it sent, the tests its gate counts, or why it was refused", r"^To |^   [0-9a-f]{7,}\.\.[0-9a-f]{7,}|^ ! \[|^error:|^fatal:|^remote:|\[ *[0-9]+%\]", r"\[ *([0-9]+)%\]", "Pushing", ReaderCommands(("git push",)),
+           finished_pattern=r"^   [0-9a-f]{7,}\.\.[0-9a-f]{7,}|^ \* \[new branch\]|Everything up-to-date", failed_pattern=r"^ ! \[|^error:|^fatal:|hook declined|FAILED"),
 )
 
 
@@ -30,7 +34,7 @@ class DefaultReaders(Seed):
     def run(self) -> None:
         for reader in SHIPPED:
             if not any((self.config.readers / f"{reader.name}{suffix}").is_file() for suffix in (".pattern", ".sh")) or self.is_retired(reader):
-                self.readers.add(reader)
+                self.readers.stock(reader)
 
     def is_retired(self, shipped: Reader) -> bool:
         path = self.config.readers / f"{shipped.name}.pattern"

@@ -64,6 +64,7 @@ class ReaderCommand(Command):
     def add(self, args: Namespace, caller: Caller) -> int:
         if not NAME.fullmatch(args.name):
             raise Rejection(f"a reader's name is lowercase words joined by -, such as failed-tests, not {args.name}")
+        self.readers.refuse_locked(args.name, "replaced")
         prior = self.readers.stored_reader(args.name)
         if prior is None and not (args.pattern or args.script):
             raise Rejection("a new reader says what it picks with --pattern or --script")
@@ -128,5 +129,5 @@ class ReaderCommand(Command):
             print("no reader is kept: journal reader add <name> keeps one")
         defaults = self.readers.default_names()
         for reader in readers:
-            print(f"{reader.name}: {reader.subject}" + (" (the default for its commands)" if reader.name in defaults else ""))
+            print(f"{reader.name}: {reader.subject}" + (" (locked)" if self.readers.is_locked(reader.name) else "") + (" (the default for its commands)" if reader.name in defaults else ""))
         return 0

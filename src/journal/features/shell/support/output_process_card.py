@@ -10,6 +10,7 @@ from journal.chat.process_card_contents import ProcessCardContents
 from journal.chat.card_detail import CardDetail
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.card_progress import CardProgress
+from journal.features.shell.support.git_titles import GitTitles
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.output_view import OutputView
 from journal.features.shell.support.output_views import OutputViews
@@ -26,6 +27,7 @@ from journal.features.shell.shell_options import ShellOptions
 from journal.support.time_source import TimeSource
 
 HEADLINE_CHARACTERS = 60
+GIT_READERS = ("git-commit", "git-push")
 ENDED_DOCK_SECONDS = 5
 DOCK_DELAY_SECONDS = 5
 UNDOCK_TIME_KEY = "undock_at"
@@ -36,8 +38,8 @@ class OutputProcessCard(ProcessCard):
 
     name = "output"
 
-    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, cardless: CardlessRuns, time_source: TimeSource) -> None:
-        self.time_source = time_source
+    def __init__(self, outputs: CommandOutputs, views: OutputViews, readers: Readers, messages: Messages, settings: SettingRows, docking: Docking, cardless: CardlessRuns, time_source: TimeSource, git_titles: GitTitles) -> None:
+        self.time_source, self.git_titles = time_source, git_titles
         self.outputs, self.views, self.readers, self.messages, self.settings, self.docking, self.cardless = outputs, views, readers, messages, settings, docking, cardless
 
     def card_contents(self, output: CommandOutput) -> ProcessCardContents | None:
@@ -86,6 +88,8 @@ class OutputProcessCard(ProcessCard):
 
     def title(self, output: CommandOutput, part: str) -> str:
         reader = self.readers.found(output.watch_reader)
+        if reader is not None and reader.name in GIT_READERS and (plain := self.git_titles.title(output.command, output.ran_in)):
+            return plain[:HEADLINE_CHARACTERS]
         heading = output.watch_title or (reader.label if reader is not None else "") or ActivityLabel.chain_label(part, output.command)
         topic = reader.topic(output.command) if reader is not None else ""
         full = f"{heading}: {topic}" if topic else heading

@@ -81,3 +81,24 @@ test("a card of a task created from a message opens the task on a click, not the
     app.unmount();
     host.remove();
 });
+
+test("a push is one live mark titled for the branch and the remote, and opens to the range of commits it sent", async () => {
+    window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+    const {default: Turn} = await import("../src/chat/Turn.vue");
+    const push = {...message, text: "Pushing development to origin", data: {kind: "card", output: 3, line: "git push origin development", detail: "abc1234..def5678  development -> development", lines: [], ending: "pushed", row: ""}};
+    const {turns} = threadTurns([push], []);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h(Turn, {turn: turns[0]})});
+    app.provide("scope", {...scope, api: {readOutput: vi.fn().mockResolvedValue({lines: ["To github.com:me/project.git", "   abc1234..def5678  development -> development"], start: 0, next: 2})}});
+    app.directive("tip", {});
+    app.mount(host);
+    await nextTick();
+    expect(host.querySelector(".mark .head").textContent).toContain("Pushing development to origin");
+    host.querySelector(".mark").click();
+    await new Promise((done) => setTimeout(done, 0));
+    await nextTick();
+    expect(host.querySelector(".mark-terminal").textContent).toContain("abc1234..def5678");
+    app.unmount();
+    host.remove();
+});

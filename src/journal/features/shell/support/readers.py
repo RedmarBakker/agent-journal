@@ -17,6 +17,8 @@ DEFAULTS_FILE = "defaults"
 KINDS = (".pattern", ".sh")
 # the readers the journal ships for a journal command that goes to the background, the one kind of reader of a journal command's output
 JOURNAL_COMMAND_READERS = ("worker-merge",)
+# the readers the journal ships: locked, never edited, removed or replaced by the agent or the user
+SHIPPED_READERS = ("pytest", "vitest", "dotnet-test", "phpunit", "worker-merge", "git-commit", "git-push")
 
 
 class Readers:
@@ -78,13 +80,21 @@ class Readers:
         default_names = self.default_names()
         return next((reader for reader in line_readers if reader.name in default_names), None) or min(line_readers, key=self.creation_seconds, default=None)
 
+    def is_locked(self, name: str) -> bool:
+        return name in SHIPPED_READERS or bool(self.owner(name))
+
+    def refuse_locked(self, name: str, does: str) -> None:
+        owner = self.owner(name)
+        if owner:
+            raise Rejection(f"the reader {name} is the plugin {owner}'s and locked: it is never {does}, and goes when the plugin is removed")
+        if name in SHIPPED_READERS:
+            raise Rejection(f"the reader {name} ships with the journal and is locked: it is never {does}")
+
     def removed(self, name: str) -> None:
         paths = self.files(name)
         if not paths:
             raise Rejection(f"no reader named {name}: `journal reader list` names them")
-        owner = self.owner(name)
-        if owner:
-            raise Rejection(f"the reader {name} is the plugin {owner}'s: it goes when the plugin is removed")
+        self.refuse_locked(name, "removed")
         for path in paths:
             path.unlink()
         remaining = self.default_names() - {name}
@@ -97,7 +107,7 @@ class Readers:
         return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
 
     def git_write_readers(self) -> list[Reader]:
-        return [reader for reader in self.all() if reader.commands.programs and all(GitWrites.is_writing(program) for program in reader.commands.programs) and not self.owner(reader.name)]
+        return [reader for reader in self.all() if reader.commands.programs and all(GitWrites.is_writing(program) for program in reader.commands.programs) and not self.is_locked(reader.name)]
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()
@@ -123,10 +133,16 @@ class Readers:
         return Reader.loaded(rows[0]) if rows else None
 
     def add(self, reader: Reader) -> None:
+        self.refuse_locked(reader.name, "replaced")
         self.stored_file(reader, ".pattern", reader.text())
 
     def add_script(self, reader: Reader, body: str) -> None:
+        self.refuse_locked(reader.name, "replaced")
         self.stored_file(reader, ".sh", reader.script_text(body))
+
+    # the journal's own write of a reader it ships
+    def stock(self, reader: Reader) -> None:
+        self.stored_file(reader, ".pattern", reader.text())
 
     # a reader written as one kind replaces one of the other kind by its name
     def stored_file(self, reader: Reader, suffix: str, text: str) -> None:

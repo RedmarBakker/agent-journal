@@ -18868,13 +18868,14 @@ def test_a_line_that_only_reads_or_does_everyday_git_shows_no_card_unless_it_fai
         outputs, cardless, card = app.container.get(CommandOutputs), app.container.get(CardlessRuns), app.container.get(OutputProcessCard)
         run = lambda command, status=0: outputs.save(CommandOutput(chain=command, command=command, folder=str(tmp_path / command.replace(" ", "_")[:40]), ended=True, status=status, moved=True), Actor.system())
         assert cardless.is_cardless(run("grep -rn needle src | head")) and cardless.is_cardless(run("cd src && ls -la")), "a quick search or listing shows no card"
-        assert cardless.is_cardless(run("git push -q origin development")) and cardless.is_cardless(run("git add -A && git commit -m x && git push")), "nor does everyday git, chained or not"
-        assert card.card_contents(run("git push origin main")) is None, "so no card is written for it"
+        assert cardless.is_cardless(run("git add -A && git status")) and cardless.is_cardless(run("git switch topic")), "nor does everyday git, chained or not"
+        assert not cardless.is_cardless(run("git push -q origin development")) and not cardless.is_cardless(run("git add -A && git commit -m x")), "but a push and a commit have a live card of their own"
+        assert card.card_contents(run("git status")) is None, "so no card is written for everyday git"
         assert not cardless.is_cardless(run("git push origin topic", status=1)), "a git line that failed shows its card"
         assert not cardless.is_cardless(run("python3 -m pytest -q")) and not cardless.is_cardless(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
         assert not cardless.is_cardless(run("git rebase main")), "a rebase is not everyday git"
         assert card.outcome(run("grep -rn needle src")) == "", "a read's card, when it has one, is never coloured"
-        pushed = run("git push origin release")
+        pushed = run("git status -s")
         stored = app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="Pushing", data={"kind": "card", "shows": "commands", "output": pushed.id, "card_type": "process"}), Actor.system())
         app.container.get(CardlessCards).run()
         assert not app.container.get(Messages).matching(id=stored.id), "the card a git line wrote before is removed at boot"
@@ -20648,8 +20649,8 @@ def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chai
 def test_a_line_of_only_everyday_git_shows_no_command_card_and_one_with_other_work_or_heavy_git_keeps_its_card():
     from journal.features.shell.support.cardless_runs import CardlessRuns
     cardless = CardlessRuns.is_git_routine
-    assert all(cardless(line) for line in ("git commit -qm x", "git add -A && git commit -m x", "git commit -m x && git push", "git switch phone", "git checkout -b phone")), "all-git lines the marks say need no card"
-    assert not any(cardless(line) for line in ("pytest -q && git commit -m x", "git rebase -i HEAD~3", "git filter-repo --path a", "git filter-branch --all")), "other work or heavy git keeps its card"
+    assert all(cardless(line) for line in ("git add -A", "git status && git diff", "git switch phone", "git checkout -b phone")), "all-git lines that need no card"
+    assert not any(cardless(line) for line in ("git commit -qm x", "git add -A && git commit -m x", "git push origin development", "pytest -q && git commit -m x", "git rebase -i HEAD~3", "git filter-repo --path a", "git filter-branch --all")), "a commit and a push, other work and heavy git keep a card"
 
 
 def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words(app: App):
@@ -20716,3 +20717,55 @@ def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says
     assert judge.one_word_title_report(output("git commit -m x"), "Committing") is None
     assert judge.one_word_title_report(output("make"), "Building") is not None, "any other run with a one word title is still reported"
     assert ActivityLabel.build("git push origin development") == "pushing to origin" and len(ActivityLabel.build("git push").split()) > 1, "and the journal's own label for a push says what runs"
+
+
+def test_a_push_writes_one_live_mark_read_by_the_reader_the_journal_ships_that_ends_with_its_outcome_and_raises_no_reader_report(app: App):
+    from journal.chat.process_cards import ProcessCards
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    from journal.repositories.reader_reports import ReaderReports
+    hook(app, "SessionStart")
+    folder = app.config.root / "push"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("git push origin development")
+    (folder / "0.out").write_text("[ 40%] tests/test_a.py\n[ 80%] tests/test_b.py\n")
+    app.container.get(OutputLog).start("push", "git push origin development", folder, Caller.agent("main", "s1", "claude"))
+    outputs, cards, card = app.container.get(CommandOutputs), app.container.get(ProcessCards), app.container.get(OutputProcessCard)
+    outputs.save(outputs.find(1).backgrounded(), Actor.system())
+    assert app.console().run(["output", "watch", "1", "--reader", "git-push"], AGENT).code == 0
+    cards.show(card.card_contents(outputs.find(1)))
+    with app.container.get(Scope).environment(1):
+        running = app.container.get(Messages).with_key("watch:1")
+    assert len(running) == 1 and running[0].text == "Pushing development to origin" and running[0].data["active"] is True, "the push is one live mark from the first moment"
+    (folder / "0.out").write_text("[100%] tests/test_b.py\nTo github.com:me/project.git\n   abc1234..def5678  development -> development\n")
+    outputs.save(outputs.find(1).ended_with(0, timing.time()), Actor.system())
+    cards.show(card.card_contents(outputs.find(1)))
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(1):
+        ended = app.container.get(Messages).with_key("watch:1")
+        reported = [report for report in app.container.get(ReaderReports).unread("s1") if report.output == 1]
+    assert len(ended) == 1 and ended[0].data["active"] is False and "abc1234..def5678" in " ".join(ended[0].data.get("lines", []) or [ended[0].data.get("detail", "")]), "the same mark ends with the range of commits pushed"
+    assert reported == [], "the reader judge never reports on a push"
+
+
+def test_a_reader_the_journal_ships_is_locked_and_refused_before_anything_is_written(app: App):
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_commands import ReaderCommands
+    from journal.features.shell.support.readers import Readers
+    from journal.support.rejection import Rejection
+    readers = app.container.get(Readers)
+    before = {name: readers.definition(name) for name in ("pytest", "git-push", "git-commit", "worker-merge")}
+    assert all(before.values()), "the journal ships them"
+    for name in before:
+        with pytest.raises(Rejection) as removing:
+            readers.removed(name)
+        assert "locked" in str(removing.value)
+        with pytest.raises(Rejection):
+            readers.add(Reader(name, "mine", ".", commands=ReaderCommands(("pytest",))))
+    assert {name: readers.definition(name) for name in before} == before, "nothing was written or removed"
+    edited = app.console().run(["reader", "add", "pytest", "--about", "mine", "--pattern", "."], AGENT)
+    assert edited.code != 0 and "locked" in edited.error, "the agent cannot replace one by the command"
+    assert "pytest" in app.console().run(["reader", "list"], USER).text and "(locked)" in app.console().run(["reader", "list"], USER).text
