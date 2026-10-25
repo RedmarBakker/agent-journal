@@ -43,6 +43,9 @@ MIGRATIONS = (
     ALTER TABLE host_requests ADD COLUMN declined TEXT NOT NULL DEFAULT '[]';
     CREATE TABLE pool_capacities (device_id INTEGER PRIMARY KEY, slots INTEGER NOT NULL, free INTEGER NOT NULL, version TEXT NOT NULL, reported_at REAL NOT NULL);
     """,
+    """
+    ALTER TABLE changes ADD COLUMN kept_by TEXT NOT NULL DEFAULT '';
+    """,
 )
 
 

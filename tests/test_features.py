@@ -11961,7 +11961,7 @@ def test_a_hosted_journal_signs_each_person_in_with_their_team_account_and_names
         (app.config.home / "hosted").touch()
         assert sent("/journal/people")[0] == 401, "a hosted journal refuses the API to a browser that has not signed in"
         from journal.sync.sync_secret import SECRET_HEADER, SyncSecret
-        with opener.open(HttpRequest(journal + "/journal/sync/team", headers={SECRET_HEADER: app.container.get(SyncSecret).value, "X-Journal-Desk-Protocol": "2"}), timeout=10) as desk:
+        with opener.open(HttpRequest(journal + "/journal/sync/team", headers={SECRET_HEADER: app.container.get(SyncSecret).value, "X-Journal-Desk-Protocol": "3"}), timeout=10) as desk:
             assert desk.status == 200, "the sync service beside the hosted journal reaches its doors with the journal's secret, signed in or not, so the hosted journal's changes go out"
         assert sent("/")[1]["Location"] == "/sign-in", "and sends a page request to the sign-in"
         assert b'<form method="post" action="/sign-in"' in sent("/sign-in")[2], "which answers with its own form, never the viewer's page, so a browser is not sent round in a loop"
@@ -13991,7 +13991,7 @@ def test_the_sync_desk_takes_a_pull_answer_and_hands_out_a_batch_through_its_loc
 
     app.container.get(Bus).listen(SyncedCreation, TaskCreations())
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).read())
     change = {"sequence": 5, "row_table": "tasks", "row": 7001, "action": CREATED, "actor": "user:2", "account_id": 2, "device_id": 2, "fields": {"environment_id": 1, "title": "made on another machine", "state": "open", "created_at": "2026-10-24T10:00:00+00:00", "creator": "user:2", "updated_at": "2026-10-24T10:00:00+00:00", "updater": "user:2"}, "changed_at": {"title": 1.0}}
     assert door("POST", "answer", {"changes": [change], "head": 5, "server_time": 1.0})["applied"] == 1
     with app.container.get(Scope).environment(1):
@@ -14019,7 +14019,7 @@ def test_a_batch_whose_answer_was_lost_is_handed_out_again_and_its_result_counts
     change(1, "started")
     change(2, "started")
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).read())
     first = door("GET", "batch")
     change(3, "done")
     again = door("GET", "batch")
@@ -14073,7 +14073,7 @@ def test_the_sync_service_is_handed_the_pull_query_and_the_waiting_files_and_its
     from journal.sync.pull_queries import PullQueries
     server, account = joined_team(app)
     port = app.server().port
-    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).read())
+    door = lambda method, path, body=None: json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).read())
     account.record_sequence(42)
     query = door("GET", "query?wait_seconds=25")
     assert query == {**json.loads(json.dumps(asdict(app.container.get(PullQueries).query(25)))), "path": query["path"]} and query["path"].startswith("/pull?after=42&wait=25"), "the query is the server's own, sequence and all, with the pull's path to send"
@@ -14120,7 +14120,7 @@ def test_the_sync_desk_answers_only_a_request_carrying_the_secret_written_at_boo
     assert stat.S_IMODE(secret_file.stat().st_mode) == 0o600 and len(secret_file.read_text()) == 64, "the secret is written at boot for its owner alone"
     def status(headers: dict) -> int:
         try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Desk-Protocol": "2", **headers}), timeout=10).status
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Desk-Protocol": "3", **headers}), timeout=10).status
         except HTTPError as refusal:
             return refusal.code
     secret = secret_file.read_text()
@@ -14201,13 +14201,13 @@ def test_a_full_copy_of_many_megabytes_posted_to_the_sync_desk_is_laid_in_with_t
     outgoing.queued(OutgoingChange(row_table="tasks", row=edited, action=UPDATED, fields={"title": "edited here meanwhile"}, changed_at={"title": 9e9}, writer="user:1"), Actor.system())
     body = json.dumps({"rows": rows, "head": 50, "server_time": 1.0}).encode()
     assert len(body) > 4_000_000
-    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=60).read())
+    answer = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=body, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=60).read())
     tasks = app.container.get(Tasks)
     with app.container.get(Scope).environment(local[0]["environment_id"]):
         assert answer == {"laid_in": True} and len(tasks.find(local[0]["id"]).brief) == 4_000_000, "the copy is laid in, many megabytes as it is"
         assert tasks.find(edited).title == "edited here meanwhile", "the write waiting to go stays on top of the team's copy"
     assert account.sequence() == 50
-    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=60).read())
+    stale = json.loads(urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/copy", data=json.dumps({"rows": [], "head": 10, "server_time": 1.0}).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=60).read())
     assert stale == {"laid_in": False}, "a copy no newer than the sequence held is never laid in"
     account.leave(0)
     server.shutdown()
@@ -14221,7 +14221,7 @@ def test_the_sync_desk_answers_busy_at_once_while_the_journal_boots(app: App):
     lifecycle = app.container.get(Lifecycle)
     def status() -> int:
         try:
-            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "2"}), timeout=10).status
+            return urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": (app.config.home / "runtime" / "sync-secret").read_text(), "X-Journal-Desk-Protocol": "3"}), timeout=10).status
         except HTTPError as refusal:
             return refusal.code
     lifecycle.booting()
@@ -14358,15 +14358,18 @@ def test_the_sync_service_and_the_server_agree_on_the_version_of_the_sync_desks_
     import http.server
     import threading
     from urllib.error import HTTPError
+    from journal.sync.sync_secret import DESK_PROTOCOL
+    from sync_service import journal_doors
     from sync_service.journal_doors import JournalDoors
     from sync_service.journal_mismatch import JournalMismatch
+    assert journal_doors.DESK_PROTOCOL == DESK_PROTOCOL == 3, "the sync service and the server speak the doors' version that carries a withdrawn change"
     port = app.server().port
     secret = (app.config.home / "runtime" / "sync-secret").read_text()
     try:
-        urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": secret, "X-Journal-Desk-Protocol": "0"}), timeout=10)
-        raise AssertionError("a carrier of another version was answered")
+        urlopen(HttpRequest(f"http://127.0.0.1:{port}/journal/sync/query", headers={"X-Journal-Env": "main", "X-Journal-Sync-Secret": secret, "X-Journal-Desk-Protocol": str(DESK_PROTOCOL - 1)}), timeout=10)
+        raise AssertionError("a carrier of the version before was answered")
     except HTTPError as refusal:
-        assert refusal.code == 426 and "version 2 of the sync desk's doors" in json.loads(refusal.read())["error"]
+        assert refusal.code == 426 and f"version {DESK_PROTOCOL} of the sync desk's doors" in json.loads(refusal.read())["error"]
 
     class OldServer(http.server.BaseHTTPRequestHandler):
         def do_GET(self):

@@ -678,6 +678,25 @@ def test_two_journals_exchange_their_changes_and_a_pulled_write_runs_no_listener
     incoming_b.apply([TeamChange(row_table="tasks", row=kept.id, action="updated", writer=USER.stamp, fields={"column_from_a_newer_journal": 1})])
 
 
+def test_a_withdrawn_change_is_never_read_as_a_deletion_or_an_update_and_a_queued_withdrawal_replaces_the_rows_earlier_change(tmp_path):
+    from journal.models.outgoing_change import OutgoingChange
+    from journal.sync.team_change import TeamChange
+    from sync_server.logged_change import LoggedChange
+
+    _, scope_a, tasks_a, outgoing_a, _ = team_journal(tmp_path, "a")
+    _, scope_b, tasks_b, _, incoming_b = team_journal(tmp_path, "b")
+    with scope_a.environment(1):
+        kept = tasks_a.save(Task(environment_id=1, title="kept"), actor=USER)
+    incoming_b.apply(team_changes(outgoing_a))
+    incoming_b.apply([TeamChange(row_table="tasks", row=kept.id, action="withdrawn", writer=USER.stamp, kept_by=keeper) for keeper in ("owner", "all")])
+    with scope_b.environment(1):
+        assert [(task.id, task.title) for task in tasks_b.rows()] == [(kept.id, "kept")], "a withdrawal deletes no row and changes none"
+    assert TeamChange.logged(LoggedChange("tasks", kept.id, "withdrawn", USER.stamp, 1, 1, kept_by="all")).kept_by == "all", "the keeper crosses from the server's log to the journal"
+    update, withdrawal = OutgoingChange(row_table="tasks", row=kept.id, action="updated", fields={"title": "x"}), OutgoingChange(row_table="tasks", row=kept.id, action="withdrawn", kept_by="owner")
+    assert update.merged(withdrawal).payload() | {"local_number": 0} == {"row_table": "tasks", "row": kept.id, "action": "withdrawn", "actor": "", "fields": {}, "changed_at": {}, "local_number": 0, "kept_by": "owner"}, "a withdrawal queued after an update is sent alone, with its keeper"
+    assert update.with_(action="created").merged(withdrawal) is None, "a row withdrawn before it was ever sent is sent not at all"
+
+
 def test_a_wiped_environment_and_a_deleted_rows_links_reach_the_other_journal(tmp_path):
     from journal.models.environment import Environment
     from journal.repositories.environments import Environments

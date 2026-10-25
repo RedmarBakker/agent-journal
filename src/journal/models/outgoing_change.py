@@ -6,11 +6,12 @@ from journal.models.model import Model
 CREATED = "created"
 UPDATED = "updated"
 DELETED = "deleted"
+WITHDRAWN = "withdrawn"
 
 
 @dataclass(frozen=True)
 class OutgoingChange(Model):
-    """One write of a shared row waiting to be sent to the team server: the row's table and number, whether it was created, updated or deleted, the columns as stored with when each was changed, and who wrote it. Stored on this machine."""
+    """One write of a shared row waiting to be sent to the team server: the row's table and number, whether it was created, updated, deleted or withdrawn from the team, the columns as stored with when each was changed, who wrote it, and for a withdrawn row who keeps it. Stored on this machine."""
 
     shared: ClassVar[bool] = False
     timeline_visible: ClassVar[bool] = False
@@ -22,11 +23,12 @@ class OutgoingChange(Model):
     changed_at: dict | None = None
     writer: str = ""
     is_sending: bool = False
+    kept_by: str = ""
 
     def merged(self, later: "OutgoingChange") -> "OutgoingChange | None":
-        if later.action == DELETED:
-            return None if self.action == CREATED else self.with_(action=DELETED, fields={}, changed_at={}, writer=later.writer)
+        if later.action in (DELETED, WITHDRAWN):
+            return None if self.action == CREATED else self.with_(action=later.action, fields={}, changed_at={}, writer=later.writer, kept_by=later.kept_by)
         return self.with_(fields={**(self.fields or {}), **(later.fields or {})}, changed_at={**(self.changed_at or {}), **(later.changed_at or {})}, writer=later.writer)
 
     def payload(self) -> dict:
-        return {"row_table": self.row_table, "row": self.row, "action": self.action, "actor": self.writer, "fields": self.fields or {}, "changed_at": self.changed_at or {}, "local_number": self.row_id}
+        return {"row_table": self.row_table, "row": self.row, "action": self.action, "actor": self.writer, "fields": self.fields or {}, "changed_at": self.changed_at or {}, "local_number": self.row_id, "kept_by": self.kept_by}

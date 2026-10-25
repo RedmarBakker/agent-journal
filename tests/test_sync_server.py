@@ -350,6 +350,46 @@ def test_a_journal_and_a_team_server_on_different_protocols_are_refused_with_the
         server.server_close()
 
 
+def test_a_withdrawn_change_reaches_a_journal_on_the_current_protocol_with_its_keeper_and_a_journal_on_the_old_one_is_refused_before_it_reads_it(tmp_path):
+    import json
+    import urllib.error
+    import urllib.request
+
+    from sync_server.team_server import TeamServer
+
+    team = TeamServer(tmp_path)
+    team.accounts.create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
+    team.accounts.create("bob@example.com", "Bob", PASSWORD, MEMBER, 1.0)
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+
+    def call(path, body=None, token="", protocol=PROTOCOL):
+        request = urllib.request.Request(address + path, data=None if body is None else json.dumps(body).encode(), headers={PROTOCOL_HEADER: str(protocol), **({"Authorization": f"Bearer {token}"} if token else {})})
+        try:
+            with urllib.request.urlopen(request, timeout=10) as answer:
+                return answer.status, json.loads(answer.read())
+        except urllib.error.HTTPError as refused:
+            return refused.code, json.loads(refused.read())
+
+    try:
+        ada = call("/login", {"email": "ada@example.com", "password": PASSWORD, "device_name": "laptop"})[1]["token"]
+        bob = call("/login", {"email": "bob@example.com", "password": PASSWORD, "device_name": "desktop"})[1]["token"]
+        task = {"row_table": "tasks", "row": 7, "action": "created", "actor": "user:1", "fields": {"title": "mine"}, "changed_at": {"title": 1.0}}
+        call("/push", {"changes": [task, {**task, "action": "withdrawn", "fields": {}, "changed_at": {}, "kept_by": "owner"}]}, ada)
+        status, refusal = call("/pull?after=0", token=bob, protocol=PROTOCOL - 1)
+        assert status == 426 and refusal == {"error": f"this journal speaks protocol {PROTOCOL - 1} and the team server {PROTOCOL}: upgrade the journal with journal update apply"}, "a journal on the protocol before the withdrawn action is refused, so it never reads a withdrawal as an update or a deletion"
+        assert call("/push", {"changes": [{**task, "row": 8}]}, bob, PROTOCOL - 1)[0] == 426 and team.log.row("tasks", 8) is None, "nor does it push"
+        pulled = call("/pull?after=0", token=bob)[1]["changes"]
+        assert [(change["action"], change["kept_by"]) for change in pulled] == [("created", ""), ("withdrawn", "owner")], "a journal on the current protocol pulls the withdrawal with who keeps the row"
+        assert call("/copy", token=bob)[1]["rows"] == [], "a full copy never holds a withdrawn row"
+        call("/push", {"changes": [{**task, "action": "updated", "fields": {"title": "late"}, "changed_at": {"title": 9.0}}]}, ada)
+        assert team.log.row("tasks", 7) is None, "an update to a withdrawn row is dropped"
+    finally:
+        server.shutdown()
+        server.server_close()
+        team.store.close()
+
+
 def test_an_upgrade_holds_every_other_push_replaces_the_teams_rows_once_and_keeps_the_old_copy(tmp_path):
     import json
     import sqlite3

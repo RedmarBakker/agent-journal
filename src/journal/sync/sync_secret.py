@@ -8,7 +8,7 @@ from journal.config import Config
 SECRET_FILE = "sync-secret"
 SECRET_HEADER = "x-journal-sync-secret"
 # the version of the sync desk's doors, which the sync service names on every call and the server answers only when it is its own
-DESK_PROTOCOL = 2
+DESK_PROTOCOL = 3
 PROTOCOL_HEADER = "x-journal-desk-protocol"
 
 
