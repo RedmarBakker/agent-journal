@@ -14156,12 +14156,16 @@ def test_a_hosted_journal_of_a_team_on_the_hub_lists_only_the_hub_the_sessions_a
 
 
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
-        assert not a.container.get(TeamAccount).is_on_hub()
-        own, hub_task = ada_tasks(a)
-        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)) and bool(b.container.get(Tasks).global_matching(id=own.id))), "a team not yet moved to the hub sends Ada's own task as before, beside the hub's"
-        assert team.log.row("tasks", own.id) is not None
+        assert not a.container.get(TeamAccount).is_on_hub() and not a.container.get(Environments).hubs(), "a team not yet moved to the hub has no hub until journal team migrate makes one"
+        main = a.container.get(Environments).existing("main")
+        with a.container.get(Scope).environment(main.row_id):
+            own = a.container.get(Tasks).save(Task(environment_id=main.row_id, title="Ada's own"), Actor.user(1))
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=own.id))), "a team not yet moved to the hub sends Ada's own task to Bob as before"
+        assert team.log.row("tasks", own.id) is not None, "and to the team server"
 
 
 def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_server_has_the_team_hold_each_environment_before_any_message_in_it(tmp_path, template_journal, monkeypatch):

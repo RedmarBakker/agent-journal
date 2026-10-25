@@ -18,7 +18,7 @@ class HubChoice:
     def hub(self, team: str) -> Environment:
         hubs = [hub for hub in self.environments.hubs() if not team or hub.team_name == team]
         if not hubs:
-            raise Rejection(f"no joined team is named {team}" if team else "no team is joined, so there is no hub to file in")
+            raise Rejection(f"no joined team is named {team}" if team else "there is no hub to file in: no team is joined, or the team is not on the hub yet, which journal team migrate moves it to")
         if len(hubs) > 1:
             raise Rejection("more than one team is joined: name the hub's team with --team")
         return hubs[0]
