@@ -10,7 +10,7 @@ python3 scripts/checks/private_data.py
 # every route and hook kind is timed against the saved full project in one process, and one over its budget, or a run past
 # its time limit, refuses the commit
 perl -e 'alarm shift; exec @ARGV' 300 python3 -m pytest -q -p no:warnings tests/route_points_run.py ||
-    { echo "commit refused: a route or hook spent more than its 50 points, or the run passed 300 seconds (python3 -m pytest -q tests/route_points_run.py)" >&2; exit 1; }
+    { echo "commit refused: a route or hook spent more than its 30 points, or the run passed 300 seconds (python3 -m pytest -q tests/route_points_run.py)" >&2; exit 1; }
 git diff --cached --quiet -- VERSION && exit 0
 npm --prefix src/web run build
 git add src/web/dist
