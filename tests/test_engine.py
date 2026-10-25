@@ -1792,8 +1792,7 @@ def orchestrated(app: App) -> None:
     for n, name in ((1, "Ada"), (2, "Florence"), (3, "Babbage")):
         assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
     waiting = stop()
-    assert stack()[-1] == "awaiting" and waiting.get("decision") == "block" and "journal worker wait 1 2 3" in waiting["reason"], "waiting on the workers, a stop is told once to wait for them"
-    assert stop(active=True).get("decision") != "block", "and a stop right after goes through"
+    assert stack()[-1] == "awaiting" and "journal worker wait" not in waiting.get("reason", ""), "waiting on the workers it dispatched, a stop goes through"
     workers = app.container.get(WorkerRows)
     for n in (1, 2, 3):
         app.container.get(WorkerRunner).run(workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))

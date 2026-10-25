@@ -189,13 +189,13 @@ def crew_stop(state: BaseState, event: Stop, settings: Settings) -> Transition:
     if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode:
         return state.none()
     workers = event.data.part(WorkersPart)
-    awaited = set(state.targets()) if isinstance(state, ExternalWait) else set()
-    delivered = [worker for worker in workers.delivered_workers if not worker.mention().is_other_dispatcher(event.session) and not is_awaited(worker, awaited, workers.delivered_runs)]
+    wait_refs = set(state.targets()) if isinstance(state, ExternalWait) else set()
+    delivered = [worker for worker in workers.delivered_workers if not worker.mention().is_other_dispatcher(event.session) and not is_awaited(worker, wait_refs, workers.delivered_runs)]
     if delivered:
         return state.refuse(WorkersNudges.DELIVERED_WAITING.create(workers=named(delivered)))
-    running = [worker for worker in workers.dispatched_workers if not worker.mention().is_other_dispatcher(event.session)]
-    if running and not event.prior_refusal:
-        return state.refuse(WorkersNudges.WORKERS_RUNNING.create(workers=named(running), numbers=" ".join(str(worker.id) for worker in running)))
+    out_workers = [worker for worker in workers.dispatched_workers if not worker.mention().is_other_dispatcher(event.session) and worker.mention().ref() not in wait_refs]
+    if out_workers and not event.prior_refusal:
+        return state.refuse(WorkersNudges.WORKERS_RUNNING.create(workers=named(out_workers), numbers=" ".join(str(worker.id) for worker in out_workers)))
     return state.none()
 
 

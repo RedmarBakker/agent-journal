@@ -12504,6 +12504,9 @@ def test_an_orchestrators_stop_is_refused_while_clocked_out_work_waits_and_told_
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
     app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    waiting = hook(app, "Stop")[1]
+    assert "journal worker wait" not in waiting.get("reason", ""), "a stop while it waits on the worker it dispatched is let through"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={})
     body = hook(app, "Stop")[1]
     assert body.get("decision") == "block" and "worker 1 (Worker 1) are still out and no work waits to be checked" in body["reason"] and "journal worker wait 1" in body["reason"], body
     again = hook(app, "Stop", stop_hook_active=True)[1]
