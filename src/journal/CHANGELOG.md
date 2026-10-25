@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## Unreleased
+
+- Colleagues' environments are no longer shown unless their chat is shared.
+
 ## 4.60.0
 
 - A reader's progress pattern that matches a line with no number no longer crashes the journal server at startup: such a line is simply no progress.
