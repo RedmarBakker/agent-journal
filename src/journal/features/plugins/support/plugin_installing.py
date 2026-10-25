@@ -16,9 +16,12 @@ from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.features.plugins.support.plugin_changes import PluginChanges
 from journal.features.plugins.support.plugin_hashes import PluginHashes
 from journal.features.plugins.support.plugin_runner import PluginRunner
+from journal.features.plugins.support.plugin_tags import PluginTags
 from journal.features.plugins.support.plugin_services import PluginServices
 from journal.features.plugins.support.plugin_settings import PluginSettings
 from journal.features.plugins.support.plugin_skills import PluginSkills
+from journal.support.release import Release
+from journal.version import VERSION
 from journal.support.actor import Actor
 from journal.support.actor_kind import ActorKind
 from journal.models.plugin import Plugin
@@ -40,18 +43,19 @@ SHIPPED_FILE = ".shipped-files"
 class PluginInstalling:
     """A plugin taken in: a folder linked where it lies, or a git address fetched into the journal's plugins folder; its manifest read and checked, a preview of all it will run, and only then its row, its data folder, its skills and its aliases."""
 
-    def __init__(self, config: Config, reader: ManifestReader, plugins: Plugins, folders: PluginFolders, hashes: PluginHashes, settings: PluginSettings, skills: PluginSkills, runner: PluginRunner, services: PluginServices, dashboard: DashboardRows, aliases: PluginAliases, checks: Checks) -> None:
+    def __init__(self, config: Config, reader: ManifestReader, plugins: Plugins, folders: PluginFolders, hashes: PluginHashes, settings: PluginSettings, skills: PluginSkills, runner: PluginRunner, services: PluginServices, dashboard: DashboardRows, aliases: PluginAliases, checks: Checks, tags: PluginTags) -> None:
+        self.tags = tags
         self.config, self.reader, self.plugins, self.folders, self.hashes, self.settings, self.skills, self.runner = config, reader, plugins, folders, hashes, settings, skills, runner
         self.services, self.dashboard, self.aliases, self.checks = services, dashboard, aliases, checks
 
     def preview(self, source: str) -> PluginPreview:
-        with self.staged(source) as (folder, commit):
+        with self.staged_release(source) as (folder, commit, tag):
             manifest = self.reader.read(folder)
-            return PluginPreview(manifest.name, manifest.title or manifest.name, manifest.version, manifest.description, source, commit, self.rows(manifest, folder), linked=Path(source).is_dir())
+            return PluginPreview(manifest.name, manifest.title or manifest.name, manifest.version, manifest.description, source, commit, self.rows(manifest, folder), linked=Path(source).is_dir(), release=tag)
 
     def install(self, source: str, environment: str, actor: Actor) -> Plugin:
         self.require_user(actor, "installs")
-        with self.staged(source) as (folder, commit):
+        with self.staged_release(source) as (folder, commit, _):
             manifest = self.reader.read(folder)
             self.free(manifest.name)
             linked = Path(source).is_dir()
@@ -234,6 +238,22 @@ class PluginInstalling:
         except MissingRow:
             return
         raise Rejection(f"a plugin named {name} is installed already: journal plugin upgrade {name}")
+
+    # a git address is taken at the newest release tag that runs on this journal, else at its head when it has no release tags; a folder as it lies
+    @contextmanager
+    def staged_release(self, source: str) -> Iterator[tuple[Path, str, str]]:
+        if Path(source).is_dir() or not (releases := self.tags.listed(source)):
+            with self.staged(source) as (folder, commit):
+                yield folder, commit, ""
+            return
+        with self.staged(source, "HEAD") as (folder, _):
+            newest_fit = self.tags.fitting(folder, releases, Release(VERSION))
+            if newest_fit is None:
+                newest = releases[-1]
+                raise Rejection(f"none of the {len(releases)} newest releases of {source} runs on journal {VERSION}: the newest, {newest.tag}, needs journal {self.tags.needs(folder, newest) or 'a newer version'}")
+            subprocess.run(["git", "-C", str(folder), "checkout", "--quiet", newest_fit.tag], capture_output=True, text=True, timeout=DOWNLOAD_SECONDS)
+            commit = subprocess.run(["git", "-C", str(folder), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=DOWNLOAD_SECONDS).stdout.strip()
+            yield folder, commit, newest_fit.tag
 
     @contextmanager
     def staged(self, source: str, ref: str | None = None) -> Iterator[tuple[Path, str]]:

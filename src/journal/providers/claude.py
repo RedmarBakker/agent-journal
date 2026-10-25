@@ -67,6 +67,7 @@ class Claude(Provider):
     session_variable = "CLAUDE_CODE_SESSION_ID"
     inherited_markers = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_SHELL_PREFIX")
     question_model = "haiku"
+    model_ranking = ("haiku", "sonnet", "opus")
     model_tiers = {"haiku": ModelTier.FAST, "sonnet": ModelTier.GENERAL, "opus": ModelTier.STRONGEST}
     settings_files = (".claude/settings.json", ".claude/settings.local.json", "~/.claude/settings.json")
     profile_suffix = ".md"

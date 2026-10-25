@@ -19,6 +19,7 @@ class PluginPreview:
     changes: tuple[str, ...] = ()
     code: tuple[str, ...] = ()
     current: bool = False
+    release: str = ""
 
     def files_changed(self) -> list[str]:
         counts: dict[str, list[int]] = {}

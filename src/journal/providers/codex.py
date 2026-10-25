@@ -64,6 +64,7 @@ class Codex(Provider):
     session_variable = "CODEX_THREAD_ID"
     inherited_markers = ("CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_TOOL_CALL_ID", "CODEX_CI", "CODEX_SANDBOX", "CODEX_VERSION", "CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS")
     question_model = ""
+    model_ranking = ("gpt-6-luna", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-6.1-sol", "gpt-6-astra")
     settings_files = (".codex/hooks.json", "~/.codex/hooks.json")
     network_access = ("-c", "sandbox_workspace_write.network_access=true")
 

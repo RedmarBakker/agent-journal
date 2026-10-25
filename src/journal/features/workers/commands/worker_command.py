@@ -1,3 +1,4 @@
+from journal.features.workers.support.allowed_models import AllowedModels
 import time
 from datetime import datetime, timezone
 from journal.features.team.support.start_rule import StartRule
@@ -61,13 +62,18 @@ EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "re
 
 TEST_COMMAND_MISSING = "the journal runs each worker's tests with the project's test command, and none is set: set it with journal tests command \"<the command, without the tests>\" --proof \"<the arguments that run one test that passes>\", then dispatch again"
 
+# the most workers `journal worker list` reads and shows, the newest
+LISTED_WORKERS = 30
+
+
 class WorkerCommand(Command):
     noun = "worker"
     uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase) -> None:
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, allowed: AllowedModels, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting, rebases: WorkerRebase) -> None:
+        self.allowed = allowed
         self.targets, self.fitting, self.rebases = targets, fitting, rebases
         self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
@@ -179,7 +185,7 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads, searches, researches or reviews goes to a subagent with the Agent tool")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=args.model or self.model(args.profile, provider), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=self.allowed_model(provider, args.profile, args.model or self.model(args.profile, provider)), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
@@ -256,12 +262,18 @@ class WorkerCommand(Command):
         if self.profiles.kind(profile) != ProfileKind.WORKER:
             raise Rejection(f"{profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
 
+    def allowed_model(self, provider: str, profile: str, model: str) -> str:
+        moved, note = self.allowed.clamped(provider, profile, model)
+        if note:
+            print(note)
+        return moved
+
     def staffing(self, args: Namespace) -> tuple[str, str | None]:
         worker = self.workers.find(args.n)
         if args.profile is None:
-            return args.model or worker.model, worker.profile
+            return (self.allowed_model(worker.provider, worker.profile, args.model) if args.model else worker.model), worker.profile
         self.worker_profile(args.profile)
-        return args.model or self.model(args.profile, worker.provider), args.profile
+        return self.allowed_model(worker.provider, args.profile, args.model or self.model(args.profile, worker.provider)), args.profile
 
     def model(self, profile: str, provider: str) -> str:
         return self.providers.lookup(provider).profile_model(self.profiles.read(profile))
@@ -424,7 +436,9 @@ class WorkerCommand(Command):
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:
-        workers = self.workers.scoped()
+        workers = list(reversed(self.workers.scoped_page(LISTED_WORKERS)))
+        if len(workers) == LISTED_WORKERS:
+            print(f"the newest {LISTED_WORKERS} workers are listed; `journal worker open` lists the ones to act on")
         for worker in workers:
             print(f"{worker.id:>4}  {worker.state:<10} {worker.name}: {CardDetail.shortened(worker.brief)}")
             print(self.standing_line(worker))

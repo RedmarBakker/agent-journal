@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-C8Hdxjla.js
 import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-D0Utg88x.js";import{e as al}from"./tokens-DDFs0RK0.js";import"./tip-D3aHugAP.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-Btyu5JVM.js";import{e as al}from"./tokens-DDFs0RK0.js";import"./tip-BLRsY9FJ.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 571a33b12 (The queue's work: allowed models, plugin release tags, git marks from events, bounded search and worker list, and the sins of them fixed):src/web/dist/assets/figure-BW9e4Oio.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT

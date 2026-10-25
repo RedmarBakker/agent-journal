@@ -169,13 +169,13 @@ class Repository(Generic[M]):
         rows = {row.id: row for row in self.selected(self.query().filter_listed("id", ids))}
         return [rows[n] for n in ids if n in rows]
 
-    def search(self, terms: list[str]) -> list[M]:
-        return self.search_rows(self.query(), terms)
+    def search(self, terms: list[str], limit: int = MATCH_ROWS) -> list[M]:
+        return self.search_rows(self.query(), terms, limit)
 
-    def search_rows(self, query: Query, terms: list[str]) -> list[M]:
+    def search_rows(self, query: Query, terms: list[str], limit: int = MATCH_ROWS) -> list[M]:
         for word in terms:
             query = query.filter_alternatives(*(self.query().filter_containing(name, word) for name in self.model.text_fields))
-        return self.selected(query.order_descending("id").limit(MATCH_ROWS))
+        return self.selected(query.order_descending("id").limit(limit))
 
     def page(self, limit: int, previous: int | None = None, **fields) -> list[M]:
         query = self.query().filter(**fields)

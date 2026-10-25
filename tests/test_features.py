@@ -2391,7 +2391,7 @@ def test_a_commit_trailer_finishes_the_tasks_it_names(app: App, monkeypatch):
     app.runtime().deferred.drain()
     from journal.repositories.messages import Messages
     thresholds = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "commits"]
-    assert len(thresholds) == 1 and thresholds[0].text.startswith("Committed ") and thresholds[0].data["detail"] == "Ship the footer", "the commit is a message in the chat, once"
+    assert len(thresholds) == 1 and thresholds[0].text.startswith("Committed ") and thresholds[0].text.endswith(": Ship the footer"), "the commit is a message in the chat, once"
 
 
 def test_the_start_block_carries_the_quiet_rule_the_laws_a_takeover_and_what_waits(app: App):
@@ -10965,7 +10965,7 @@ def test_a_commit_whose_own_hook_was_lost_is_spotted_at_the_next_tool_use_and_cl
     hook(app, "SessionStart")
     looked = dict(tool_name="Bash", tool_input={"command": "ls"}, tool_response={"stdout": "", "stderr": ""})
     hook(app, "PostToolUse", **looked)
-    cards = lambda: [m.text for m in app.container.get(Messages).scoped() if m.text.startswith("Committed")]
+    cards = lambda: [m.text for m in app.container.get(Messages).scoped() if m.text.startswith("Committed ")]
     assert cards() == [], "the head as first seen is no commit of this session's"
     app.console().run(["task", "create", "footer", "--start"], AGENT)
     hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git commit -qm 'the footer' && sh install.sh"})
@@ -18368,7 +18368,6 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_is_rebased_by_the_journal_
     assert brief.startswith("The journal rebased your worktree onto the project's branch") and "conflict in platform/app.php" in brief and "fix only the files that clash" in brief and brief.endswith("finish the job"), brief
     assert "<<<<<<< " in (folder / "platform/app.php").read_text(), "the journal stopped the rebase with the conflict in the worktree, for the worker to fix"
 
-
 def test_a_clock_out_commits_and_rebases_the_workers_work_and_goes_on_with_a_rebase_once_its_conflicts_are_fixed(app: App, monkeypatch):
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
@@ -19703,7 +19702,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     hook(app, "SessionStart")
     settings.set("workers.mode", "orchestrator", Actor.user(1))
     settings.set("reviewing.reviewer", True, Actor.user(1))
-    settings.set("workers.reviewer_model", "claude-haiku-5-5", Actor.user(1))
+    settings.set("workers.allowed_models", ["claude reviewer: haiku"], Actor.user(1))
     with app.container.get(Scope).environment(MAIN):
         workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
     console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
@@ -19742,7 +19741,7 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
         app.runtime().deferred.drain()
 
     reviewer = clocked_out("parser.py:20, test_reads_every_rule passes")
-    assert reviewer.model == "claude-haiku-5-5", "the reviewer runs on the reviewer model the settings name"
+    assert reviewer.model == "haiku", "the reviewer runs on the strongest model the settings allow it"
     assert all(part in reviewer.brief for part in ("the parser reads every rule of the grammar", "parser.py:20, test_reads_every_rule passes", "$ python3 -m pytest tests/test_parser.py (exit 0)", "3 passed in 0.4s")), "it is handed the task's brief, the worker's proof and the output of the test the worker ran"
     before = newest()
     reviewed(reviewer, "1 passed. Tests: python3 -m pytest tests/test_parser.py passed")
@@ -20542,3 +20541,110 @@ def test_merging_all_takes_in_every_checked_worker_and_names_one_with_points_unc
     assert merged.code == 0, merged.error
     assert worker_row(app, 1).state == WorkerState.MERGED and worker_row(app, 2).state == WorkerState.MERGED, merged.text
     assert worker_row(app, 3).state == WorkerState.DELIVERED and "skipped: task 3 point 1 not checked yet" in merged.text, merged.text
+
+
+def plugin_releases_made(folder: Path, releases: dict[str, dict]) -> str:
+    """A git repository of a plugin named tagged, one commit and one release tag for each of the releases given with the manifest keys it adds, and the address file:// that reaches it."""
+    manifest = {"name": "tagged", "version": "1.0.0", "program": "run.py", "hears": ["tool_starting"]}
+    repository_made(folder, {"run.py": "print()", "journal-plugin.json": json.dumps(manifest)})
+    for tag, extra in releases.items():
+        (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "version": tag.removeprefix("v"), **extra}))
+        git_run(folder, "commit", "-qam", tag)
+        git_run(folder, "tag", tag)
+    return f"file://{folder}"
+
+
+def test_a_plugin_pasted_as_a_git_address_is_installed_at_the_newest_release_tag_that_runs_on_this_journal(app: App, tmp_path):
+    from journal.features.plugins.support.plugin_installing import PluginInstalling
+    from journal.repositories.plugins import Plugins
+    from journal.support.rejection import Rejection
+    from journal.version import VERSION
+    installing = app.container.get(PluginInstalling)
+    address = plugin_releases_made(tmp_path / "tagged", {"v1.0.0": {}, "v1.5.0": {"journal": VERSION}, "v2.0.0": {"journal": "99.0.0"}})
+    assert installing.preview(address).release == "v1.5.0", "the card names the release it chose, the newest that fits"
+    installed = installing.install(address, "main", Actor.user(1))
+    assert installed.release == "v1.5.0" and installed.manifest.version == "1.5.0" and app.container.get(Plugins).lookup("tagged").release == "v1.5.0"
+    app.container.get(Plugins).delete(installed, Actor.user(1))
+    none = plugin_releases_made(tmp_path / "toonew", {"v2.0.0": {"journal": "99.0.0"}})
+    with pytest.raises(Rejection) as refused:
+        installing.preview(none)
+    assert "v2.0.0" in str(refused.value) and "99.0.0" in str(refused.value), "none fits: the card says what the newest needs"
+
+
+def test_a_plugin_installed_from_a_branch_follows_the_release_tags_newer_than_its_version_and_a_folder_with_changes_is_left(app: App, tmp_path):
+    from journal.features.plugins.support.plugin_installing import PluginInstalling
+    from journal.features.plugins.support.plugin_releases import PluginReleases
+    from journal.repositories.plugins import Plugins
+    from journal.version import VERSION
+    folder = tmp_path / "tagged"
+    address = plugin_releases_made(folder, {})
+    installing, plugins = app.container.get(PluginInstalling), app.container.get(Plugins)
+    installed = installing.install(address, "main", Actor.user(1))
+    assert installed.release == "" and installed.manifest.version == "1.0.0", "a repository without release tags is installed at its head"
+    for tag, extra in {"v1.1.0": {}, "v1.2.0": {"journal": VERSION}, "v3.0.0": {"journal": "99.0.0"}}.items():
+        (folder / "journal-plugin.json").write_text(json.dumps({"name": "tagged", "version": tag.removeprefix("v"), "program": "run.py", "hears": ["tool_starting"], **extra}))
+        git_run(folder, "commit", "-qam", tag)
+        git_run(folder, "tag", tag)
+    app.container.get(PluginReleases).upgraded_all(VERSION, Actor.system())
+    moved = plugins.lookup("tagged")
+    assert moved.release == "v1.2.0" and moved.manifest.version == "1.2.0", "the plugin moves to the newest tag that runs on this journal"
+
+
+def test_a_plugin_linked_to_a_folder_with_changes_not_committed_is_not_moved_to_a_newer_release_tag(app: App, tmp_path):
+    from journal.features.plugins.support.plugin_releases import PluginReleases
+    from journal.models.plugin import Plugin
+    from journal.repositories.plugins import Plugins
+    from journal.version import VERSION
+    folder = tmp_path / "tagged"
+    plugin_releases_made(folder, {"v1.1.0": {}})
+    plugins = app.container.get(Plugins)
+    plugins.save(Plugin(name="tagged", source=str(folder), linked=True, manifest=PluginManifest.parsed({"name": "tagged", "version": "1.0.0", "program": "run.py"})), Actor.user(1))
+    (folder / "run.py").write_text("print('mine')")
+    app.container.get(PluginReleases).upgraded_all(VERSION, Actor.system())
+    assert plugins.lookup("tagged").manifest.version == "1.0.0" and (folder / "run.py").read_text() == "print('mine')", "a folder with uncommitted changes is left as it is"
+
+
+def test_a_git_commit_push_and_switch_are_marked_from_their_events_alone_or_chained_and_a_line_with_other_work_keeps_its_card(app: App, tmp_path):
+    from journal.repositories.messages import Messages
+    from journal.features.shell.support.shell_record import ShellRecord
+    from journal.repositories.scope import Scope
+    from journal.support.caller import Caller
+    folder = repository_made(tmp_path / "work", {"a.txt": "one\n"})
+    git_run(folder, "checkout", "-q", "-b", "development")
+    (folder / "a.txt").write_text("two\n")
+    (folder / "b.txt").write_text("new\n")
+    git_run(folder, "add", "-A")
+    git_run(folder, "commit", "-qm", "Two files")
+    caller = Caller.agent("main", "s1", "claude")
+    record = app.container.get(ShellRecord)
+    marks = lambda: [m.text for m in app.container.get(Messages).scoped() if m.data.get("shows") in ("commits", "pushes", "branch_switches")]
+    with app.container.get(Scope).environment(MAIN):
+        record.start("c1", "git add -A && git commit -qm 'Two files'", tmp_path / "out1", caller, str(folder))
+        record.finish_part("c1", "git commit -qm 'Two files'", 0, 0.1, "", [], caller)
+        record.finish_part("c1", "git commit -qm 'Two files'", 0, 0.1, "", [], caller)
+        git_run(folder, "checkout", "-q", "-b", "phone")
+        record.start("c2", "git checkout -b phone", tmp_path / "out2", caller, str(folder))
+        record.finish_part("c2", "git checkout -b phone", 0, 0.1, "", [], caller)
+        record.finish_part("c2", "git status", 0, 0.1, "", [], caller)
+        record.start("c3", "git push origin phone", tmp_path / "out3", caller, str(folder))
+        record.finish_part("c3", "git push origin phone", 0, 0.1, "", [], caller)
+        record.finish_part("c3", "git commit -qm 'Two files'", 1, 0.1, "", [], caller)
+    assert marks() == ["Committed 2 files on development: Two files", "Switched to branch phone", "Pushed phone to origin"], "a commit once however often it ends, a switch, a push; a failed part and a status mark nothing"
+
+
+def test_a_line_of_only_everyday_git_shows_no_command_card_and_one_with_other_work_or_heavy_git_keeps_its_card():
+    from journal.features.shell.support.cardless_runs import CardlessRuns
+    cardless = CardlessRuns.is_git_routine
+    assert all(cardless(line) for line in ("git commit -qm x", "git add -A && git commit -m x", "git commit -m x && git push", "git switch phone", "git checkout -b phone")), "all-git lines the marks say need no card"
+    assert not any(cardless(line) for line in ("pytest -q && git commit -m x", "git rebase -i HEAD~3", "git filter-repo --path a", "git filter-branch --all")), "other work or heavy git keeps its card"
+
+
+def test_a_search_reads_and_shows_at_most_forty_rows_however_many_hold_the_words(app: App):
+    hook(app, "SessionStart")
+    console = app.console()
+    for n in range(45):
+        console.run(["task", "create", f"needle number {n}"], AGENT)
+    for n in range(5):
+        console.run(["fact", "add", f"a needle fact {n}"], AGENT)
+    found = console.run(["search", "needle"], AGENT).text.strip().splitlines()
+    assert len(found) == 40 and found[0].startswith("task "), "the newest rows of the first kinds fill the forty and the later kinds are not read"

@@ -26,6 +26,8 @@ from journal.repositories.templates import Templates
 from journal.repositories.triggers import Triggers
 from journal.repositories.workers import Workers
 
+# the most rows one search reads and shows, the kinds asked in turn until they are filled
+SHOWN_ROWS = 40
 CONVERSATION_COUNT = 5
 CONVERSATION = "conversation"
 
@@ -51,7 +53,12 @@ class Search:
         return self.rows(terms, wanted) + (self.conversation_hits(terms) if CONVERSATION in names else [])
 
     def rows(self, terms: list[str], kinds) -> list[SearchHit]:
-        return [self.hit(row, terms) for kind in kinds for row in kind.search(terms)]
+        matches: list[Model] = []
+        for kind in kinds:
+            if len(matches) >= SHOWN_ROWS:
+                break
+            matches += kind.search(terms, SHOWN_ROWS - len(matches))
+        return [self.hit(row, terms) for row in matches]
 
     def hit(self, row: Model, terms: list[str]) -> SearchHit:
         if not isinstance(row, Message) or row.agent_role == AgentRole.MAIN or row.session is None:

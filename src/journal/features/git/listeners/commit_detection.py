@@ -7,7 +7,6 @@ from pathlib import Path
 from journal.config import Config
 from journal.console.console import Console
 from journal.support.caller import Caller
-from journal.chat.moment_cards import MomentCards
 from journal.events.agent.commit_detected import CommitDetected
 from journal.events.agent.tool_finished import ToolFinished
 from journal.hooks.agent_event_post import AgentEventPost
@@ -18,7 +17,8 @@ from journal.repositories.tasks import Tasks as TaskRows
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.support.worktree import Worktree
-from journal.support.card_kind import CardKind
+from journal.events.announcer import Announcer
+from journal.features.git.support.git_facts import GitFacts
 from journal.features.tasks.support.next_open_task import NextOpenTask
 from journal.support.decision import Decision
 
@@ -33,10 +33,12 @@ class CommitDetection(AgentListener[ToolFinished]):
 
     blocking = True
 
-    def __init__(self, config: Config, cards: MomentCards, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_task: NextOpenTask, entries: Entries) -> None:
-        self.config, self.cards, self.console, self.environments, self.tasks, self.events = config, cards, console, environments, tasks, events
+    def __init__(self, config: Config, console: Console, environments: Environments, tasks: TaskRows, events: AgentEventPost, next_task: NextOpenTask, entries: Entries, announcer: Announcer) -> None:
+        self.announcer = announcer
+        self.config, self.console, self.environments, self.tasks, self.events = config, console, environments, tasks, events
         self.next_task, self.entries = next_task, entries
         self._head_log_times: dict[Path, float] = {}
+        self.detected: set[str] = set()
 
     def handle(self, event: ToolFinished) -> Decision | None:
         texts = [part.text for part in event.call.parts]
@@ -47,10 +49,12 @@ class CommitDetection(AgentListener[ToolFinished]):
             return None
         head = self.head(folder)
         actor = Actor.agent(event.session)
-        if not head or self.cards.is_shown(f"{COMMIT}:{head.sha}", actor) or not (commit_call or self.is_agents(event, head)):
+        if not head or head.sha in self.detected or not (commit_call or self.is_agents(event, head)):
             return None
-        label = f"Committed {head.sha[:8]} on `{head.branch}`"
-        self.cards.show(event.environment_id, event.session, label, head.subject, actor=actor, key=f"{COMMIT}:{head.sha}", shows=CardKind.COMMITS)
+        self.detected.add(head.sha)
+        committed = GitFacts.commit(folder, event.environment_id, event.session)
+        if committed is not None:
+            self.announcer.announce(committed)
         return self.commit(event, head.sha, head.body if self.is_agents(event, head) else "")
 
     def is_agents(self, event: ToolFinished, head: HeadCommit) -> bool:

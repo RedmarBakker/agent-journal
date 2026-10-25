@@ -1,6 +1,7 @@
 <script setup>
 import SettingGroup from "../kit/SettingGroup.vue";
 import AgentVoice from "./AgentVoice.vue";
+import SettingsModels from "./SettingsModels.vue";
 import SettingsTunnel from "./SettingsTunnel.vue";
 
 defineProps({region: {type: Object, required: true}, across: Boolean, sheet: Boolean});
@@ -27,6 +28,13 @@ defineEmits(["change", "timing", "act"]);
                     <AgentVoice />
                 </template>
             </SettingGroup>
+        </template>
+        <template v-if="region.key === 'agent' && !across">
+            <div class="settings-region-head">
+                <h3 class="settings-subhead">Models each role may run on</h3>
+                <p class="settings-line">For each provider and each role, the models it may run on; a worker, a reviewer or a verifier asking for another is moved to the nearest one ticked.</p>
+            </div>
+            <SettingsModels />
         </template>
         <template v-if="region.key === 'sharing' && !across">
             <div class="settings-region-head">

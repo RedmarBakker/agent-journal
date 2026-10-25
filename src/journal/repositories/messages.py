@@ -13,7 +13,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
 from journal.repositories.reactions import Reactions
 from journal.repositories.scope import Scope
-from journal.repositories.repository import PAGE_ROWS
+from journal.repositories.repository import MATCH_ROWS, PAGE_ROWS
 from journal.repositories.scoped_repository import ScopedRepository
 from journal.repositories.environment_owners import EnvironmentOwners
 
@@ -73,8 +73,9 @@ class Messages(ScopedRepository[Message]):
     def main_voice(self) -> Query:
         return self.main_chat().filter(author=Author.AGENT).filter_present("session")
 
-    def search(self, terms: list[str]) -> list[Message]:
-        return [*self.search_rows(self.main_chat(), terms), *self.search_rows(self.query().filter_unlisted("agent_role", (AgentRole.MAIN,)), terms)]
+    def search(self, terms: list[str], limit: int = MATCH_ROWS) -> list[Message]:
+        chat = self.search_rows(self.main_chat(), terms, limit)
+        return [*chat, *self.search_rows(self.query().filter_unlisted("agent_role", (AgentRole.MAIN,)), terms, limit - len(chat))] if len(chat) < limit else chat
 
     def unread(self) -> list[Message]:
         return self.selected(self.unread_query().order("id").limit(PAGE_ROWS))

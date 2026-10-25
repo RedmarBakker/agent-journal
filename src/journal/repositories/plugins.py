@@ -38,6 +38,9 @@ class Plugins(Repository[Plugin]):
     def release_plugins(self) -> list[Plugin]:
         return [plugin for plugin in self.all() if not plugin.linked and plugin.release]
 
+    def sourced_plugins(self) -> list[Plugin]:
+        return [plugin for plugin in self.all() if plugin.linked or not plugin.release]
+
     def enabled(self) -> list[Plugin]:
         if self.live is None:
             self.live = [p for p in self.all() if p.enabled]

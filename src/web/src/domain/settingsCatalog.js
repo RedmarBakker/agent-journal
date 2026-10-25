@@ -170,7 +170,7 @@ function settingRow(f, setting, settings) {
 const settingRows = (f, setting, settings) => [settingRow(f, setting, settings)];
 
 function featureRows(f, settings, extras) {
-    const declared = f.settings.filter((s) => s.kind !== "map" && !s.hidden);
+    const declared = f.settings.filter((s) => s.kind !== "map" && !s.hidden && s.name !== "allowed_models");
     const under = (key) => declared.filter((s) => s.under === key).flatMap((s) => settingRows(f, s, settings));
     const own =
         hasTiming(f.trigger) && f.trigger_label

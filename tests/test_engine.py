@@ -2710,3 +2710,22 @@ def test_the_merger_runs_one_turn_at_a_time_in_the_order_they_were_asked_for():
     assert Part("git merge feature").is_branch_write() and Part("git -C x pull").is_branch_write() and Part("git commit -qm x").is_branch_write(), "a command that writes the branch goes through the merger"
     assert not Part("git status").is_branch_write() and not Part("git log -3").is_branch_write() and not Part("ls").is_branch_write(), "a read of git does not wait"
 
+
+
+def test_a_model_outside_the_allowed_ones_of_its_role_is_moved_to_the_nearest_allowed_and_the_line_says_so():
+    from types import SimpleNamespace
+    from journal.features.workers.support.allowed_models import AllowedModels
+    from journal.providers.providers import Providers
+    from journal.providers.provider import Provider
+    lines = ["claude journal-medior: sonnet, opus", "claude reviewer: sonnet", "claude verifier: haiku, opus", "codex journal-medior: gpt-5.6-sol, gpt-6-astra"]
+    allowed = AllowedModels(SimpleNamespace(texts=lambda option: tuple(lines)), Providers())
+    assert allowed.clamped("claude", "journal-medior", "sonnet") == ("sonnet", ""), "an allowed model is left alone"
+    moved, said = allowed.clamped("claude", "journal-medior", "haiku")
+    assert moved == "sonnet" and "haiku is not allowed for journal-medior on claude" in said and "moved to sonnet" in said, "under the minimum it goes up to it"
+    assert allowed.clamped("claude", "reviewer", "opus")[0] == "sonnet", "over the maximum it comes down to it"
+    assert allowed.clamped("claude", "verifier", "sonnet")[0] == "opus", "between two as near, the stronger"
+    assert allowed.clamped("claude", "journal-medior", "claude-haiku-5-5")[0] == "claude-sonnet-5-5", "a full model name keeps all but its tier"
+    assert allowed.clamped("claude", "some-worker-profile", "haiku")[0] == "sonnet", "a role with no line takes journal-medior's"
+    assert allowed.clamped("codex", "journal-medior", "gpt-6-luna")[0] == "gpt-5.6-sol" and allowed.clamped("codex", "journal-medior", "gpt-6.1-sol")[0] == "gpt-6-astra", "Codex is held to the same from its own list"
+    assert allowed.clamped("claude", "journal-medior", "some-unranked-model") == ("some-unranked-model", ""), "a model not on the provider's list is not judged"
+    assert allowed.strongest("claude", "verifier") == "opus" and allowed.strongest("claude", "reviewer") == "sonnet"

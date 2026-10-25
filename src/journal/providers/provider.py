@@ -70,6 +70,8 @@ class Provider(ABC):
     question_model: ClassVar[str]
     # the words in a model's name that rank it among the program's models, fast, general or strongest
     model_tiers: ClassVar[dict[str, ModelTier]] = {}
+    # the program's models from the cheapest to the strongest, which the models a role may run on are chosen from
+    model_ranking: ClassVar[tuple[str, ...]] = ()
     settings_files: ClassVar[tuple[str, ...]]
     settings_extras: ClassVar[dict] = {}
     foreign_settings: ClassVar[tuple[str, ...]] = ()
