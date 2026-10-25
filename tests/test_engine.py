@@ -1785,26 +1785,27 @@ def orchestrated(app: App) -> None:
     console.run(["plan", "todos", "1", "1", *[str(n) for n in range(1, 21)]], USER)
     assert console.run(["plan", "ready", "1"], AGENT).code == 0 and console.run(["plan", "approve", "1"], USER).code == 0 and console.run(["plan", "start", "1"], AGENT).code == 0
     stack = lambda: [s["state"] for s in agents.session_agent("s1").stack]
-    assert stack() == ["orchestrating", "orchestrating_plan"], "the orchestrator's mode state and its plan state, with task 1 in hand"
-    stop = lambda: hook(app, "Stop")[1]
+    assert stack() == ["orchestrating", "orchestrating_plan"] and tasks.find(1).state == "open", "the orchestrator's mode state and its plan state, every piece left open for workers"
+    stop = lambda active=False: hook(app, "Stop", stop_hook_active=active)[1]
     first = stop()
-    assert first.get("decision") == "block" and "hand it to a worker" in first["reason"] and "19 tasks are open" in first["reason"] and "dispatch a worker" in first["reason"], "a stop is refused with the task to hand over and the others to dispatch"
-    for n, name in ((2, "Ada"), (3, "Florence"), (4, "Babbage")):
-        assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on a task the plan holds while another is in hand"
-    assert stack()[-1] == "awaiting" and stop().get("decision") != "block", "waiting on the workers, a stop is fine"
+    assert first.get("decision") == "block" and "20 tasks are open" in first["reason"] and "dispatch a worker" in first["reason"] and "is in hand" not in first["reason"], "a stop is refused with the open pieces to dispatch"
+    for n, name in ((1, "Ada"), (2, "Florence"), (3, "Babbage")):
+        assert console.run(["worker", "dispatch", name, f"do piece {n}", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--task", str(n)], AGENT).code == 0, "a worker is put on an open piece of the plan"
+    waiting = stop()
+    assert stack()[-1] == "awaiting" and waiting.get("decision") == "block" and "journal worker wait 1 2 3" in waiting["reason"], "waiting on the workers, a stop is told once to wait for them"
+    assert stop(active=True).get("decision") != "block", "and a stop right after goes through"
     workers = app.container.get(WorkerRows)
     for n in (1, 2, 3):
         app.container.get(WorkerRunner).run(workers.find(n), ["sh", "-c", "echo the piece is done"], Actor.agent("s1"))
     assert stack() == ["orchestrating", "orchestrating_plan"], "the last report pops the wait and the orchestrator is back on its plan"
     for n in (1, 2, 3):
         assert console.run(["worker", "complete", str(n)], AGENT).code == 0
-    for n in (2, 3, 4):
         assert console.run(["task", "complete", str(n), "--how", "reviewed and merged"], AGENT).code == 0
-    assert console.run(["task", "complete", "1", "--how", "done"], AGENT).code == 0
     app.runtime().deferred.drain()
-    assert tasks.find(5).state == "started" and stack()[-1] == "orchestrating_plan", "the plan goes on to the next open piece"
-    for n in range(5, 21):
-        assert stop().get("decision") == "block", f"a stop with piece {n} in hand and pieces open is refused, never allowed"
+    assert tasks.find(4).state == "open" and stack()[-1] == "orchestrating_plan", "the plan leaves its next open piece for a worker"
+    for n in range(4, 21):
+        assert stop().get("decision") == "block", f"a stop with piece {n} and the rest open is refused, never allowed"
+        assert console.run(["task", "start", str(n)], AGENT).code == 0
         hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": f"journal task complete {n} --how done"})
         assert console.run(["task", "complete", str(n), "--how", "done"], AGENT).code == 0
         app.runtime().deferred.drain()
