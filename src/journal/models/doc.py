@@ -24,9 +24,6 @@ class Doc(Scoped):
     def put_on_hub(self, hub_id: int, mode: DocEditMode, owner: int) -> "Doc":
         return self.with_(environment_id=hub_id, edit_mode=mode, owner=owner)
 
-    def copy_on_hub(self, hub_id: int, mode: DocEditMode, owner: int) -> "Doc":
-        return Doc(environment_id=hub_id, title=self.title, abstract=self.abstract, body=self.body, edit_mode=mode, owner=owner)
-
     def local_copy(self) -> "Doc":
         return Doc(title=self.title, abstract=self.abstract, body=self.body, is_copy=True)
 

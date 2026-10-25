@@ -21,6 +21,7 @@ from journal.sync.team_account import TeamAccount
 
 
 ATTACHED = "attached_to"
+COPIED_FROM = "copied_from"
 
 
 class DocCommand(Command):
@@ -107,19 +108,22 @@ class DocCommand(Command):
         if doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
         owner = self.account.user_number()
-        if args.keep_copy:
-            on_hub = self.docs.save(doc.copy_on_hub(hub.row_id, mode, owner), caller.actor)
-        else:
-            on_hub = self.docs.save(doc.put_on_hub(hub.row_id, mode, owner), caller.actor)
-            self.doc_revisions.moved(on_hub, caller.actor)
-        print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {doc.id} stays here" if args.keep_copy else ""))
+        on_hub = self.docs.save(doc.put_on_hub(hub.row_id, mode, owner), caller.actor)
+        self.doc_revisions.moved(on_hub, caller.actor)
+        copy = self.copy_of(on_hub, caller) if args.keep_copy else None
+        print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
         return 0
 
     def copy(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)
-        copy = self.docs.save(doc.local_copy(), caller.actor)
+        copy = self.copy_of(doc, caller)
         print(f"doc {copy.id}: a copy of doc {doc.id}, kept on this machine")
         return 0
+
+    def copy_of(self, doc: Doc, caller: Caller) -> Doc:
+        copy = self.docs.save(doc.local_copy(), caller.actor)
+        self.links.save(Link(source=Ref.build(copy), target=Ref.build(doc), kind=COPIED_FROM), caller.actor)
+        return copy
 
     def attach(self, args: Namespace, caller: Caller) -> int:
         doc = self.on_hub(args.n)

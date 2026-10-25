@@ -12518,6 +12518,79 @@ def test_a_read_only_hub_document_copied_locally_never_syncs_and_a_free_one_atta
         team.close(server)
 
 
+def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisions_for_the_other_journal_and_a_kept_copy_points_back_at_it(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.repositories.doc_revisions import DocRevisions
+    from journal.repositories.docs import Docs
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    git("clone", "-q", str(tmp_path / "a"), str(tmp_path / "b"))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    a, b = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "ab")
+    b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    journals, carriers = [a, b], [CarriedSync(a).started(), CarriedSync(b).started()]
+    bob = replace(USER, person=2)
+    try:
+        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
+        invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
+        assert b.console().run(["team", "join", invited, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
+        a.container.get(Environments).lookup("main")
+        docs, links, revisions = a.container.get(Docs), a.container.get(Links), a.container.get(DocRevisions)
+        page = tmp_path / "page.md"
+        page.write_text("# Page\n\nthe first words\n")
+        assert a.console().run(["doc", "create", "Linked page", "--file", str(page)], USER).code == 0
+        doc = next(iter(docs.global_matching(title="Linked page")))
+        assert a.console().run(["doc", "keep", str(doc.id)], USER).code == 0
+        page.write_text("# Page\n\nthe second words\n")
+        assert a.console().run(["doc", "update", str(doc.id), "--file", str(page)], USER).code == 0
+        assert a.console().run(["task", "create", "About the page", "--brief", "b"], USER).code == 0
+        about = links.save(Link(source=Ref("tasks", 1), target=Ref.build(doc), kind="about_document"), Actor.system())
+        before = len(revisions.document_revisions(doc))
+        assert before == 2, "the document has two revisions before it moves"
+        shared = a.console().run(["doc", "share", str(doc.id), "--keep-copy"], USER)
+        assert shared.code == 0, shared.error
+        moved = docs.find(doc.id)
+        assert moved.is_on_hub() and moved.id == doc.id, "the document keeps its row, so every link, mention and attachment to it points at the hub row"
+        assert [link.row_id for link in links.all_matching(target=Ref.build(moved), kind="about_document")] == [about.row_id], "the local link still points at it"
+        assert len(revisions.document_revisions(moved)) == before and all(revision.environment_id == moved.environment_id for revision in revisions.document_revisions(moved)), "its revisions moved with it"
+        copy = next(d for d in docs.global_matching(title="Linked page") if d.is_copy)
+        assert [link.target for link in links.all_matching(source=Ref.build(copy), kind="copied_from")] == [Ref.build(moved)], "--keep-copy leaves a copied_from link on the copy, which stays here"
+        assert eventually(lambda: (read := next(iter(b.container.get(Docs).global_matching(title="Linked page")), None)) is not None and read.is_on_hub() and len(b.container.get(DocRevisions).document_revisions(read)) == before), "the other journal reads the document and all its revisions"
+        on_b = next(d for d in b.container.get(Docs).global_matching(title="Linked page") if not d.is_copy)
+        assert eventually(lambda: b.container.get(Links).all_matching(target=Ref.build(on_b), kind="about_document")), "and the link to it"
+        assert [revision.body for revision in b.container.get(DocRevisions).document_revisions(on_b)][-1].endswith("the second words\n")
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
 def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
     from journal.features.etiquette.feature import Etiquette
     from journal.features.messages.feature import Messages as MessagesFeature
