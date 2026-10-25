@@ -862,7 +862,7 @@ def test_a_journal_backs_up_before_it_deletes_withdrawn_rows_and_one_restored_fr
     from journal.sync.team_change import TeamChange
 
     team, (_, scope_a, tasks_a, _, _), (_, _, tasks_b, _, _), carried = served_team_journals(tmp_path)
-    shared = scope_a.environments.save(Environment(name="mine", is_shared_with_team=True), USER)
+    shared = scope_a.environments.save(Environment(name="mine", team_key="k1"), USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="mine"), actor=USER)
         message = SharedTables(tasks_a.connection, tasks_a.bus).rows("messages").save(Message(environment_id=shared.id, text="hello"), USER)
@@ -1023,7 +1023,7 @@ def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_a
         rule = SharedTables(tasks_a.connection, tasks_a.bus).rows("rules").save(Rule(text="a rule"), USER)
         private = scope_a.environments.save(Environment(name="mine"), USER)
         links_a.save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
-        shared = scope_a.environments.save(Environment(name="open", is_shared_with_team=True), USER)
+        shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
         with scope_a.environment(private.id):
             task = tasks_a.save(Task(environment_id=private.id, title="mine"), actor=USER)
         with scope_a.environment(shared.id):
