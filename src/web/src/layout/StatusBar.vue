@@ -283,16 +283,6 @@ async function runBar(p) {
                     />
                 </template>
                 <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
-                <template v-if="bars.length">
-                    <Btn
-                        kind="icon"
-                        :class="['statusbar-strip', {on: stripped}]"
-                        v-tip:strip="stripped ? {title: 'Show every plan', line: 'Gives each started plan its own row again.'} : {title: 'Fold the plans', line: 'Shows every started plan as one thin strip.'}"
-                        @click.stop="stripped = !stripped"
-                    >
-                        <Icon name="plan" />
-                    </Btn>
-                </template>
                 <template v-if="fitness">
                     <button
                         type="button"
@@ -399,6 +389,16 @@ async function runBar(p) {
                         @close="reviewersOpen = false"
                     />
                 </MenuPanel>
+            </template>
+            <template v-if="bars.length">
+                <Btn
+                    kind="icon"
+                    :class="['statusbar-strip', {on: stripped}]"
+                    v-tip:strip="stripped ? {title: 'Show every plan', line: 'Gives each started plan its own row again.'} : {title: 'Fold the plans', line: 'Shows every started plan as one thin strip.'}"
+                    @click.stop="stripped = !stripped"
+                >
+                    <Icon name="plan" />
+                </Btn>
             </template>
             <Btn
                 kind="icon"
