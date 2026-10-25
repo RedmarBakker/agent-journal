@@ -1,4 +1,8 @@
-from journal.http.controllers.shaped_rows_controller import ShapedRowsController
+from journal.http.row_list_page import RowListPage
+from journal.http.listing import Listing
+from journal.http.counts import Counts
+from journal.db.query import Query
+from journal.http.controllers.controller import Controller
 from journal.http.row_list import RowList
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
@@ -15,10 +19,8 @@ from journal.repositories.rows import Rows
 COMMENTED = ("tasks", "plans", "docs", "reports", "facts", "rules", "reminders", "questions")
 
 
-class CommentController(ShapedRowsController[Message]):
+class CommentController(Controller[Message]):
     """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does. Their list is the messages alone, or with on=tasks:12 every comment under that row; one read by id names the row it is under."""
-
-    is_timeline = True
 
     def __init__(self, messages: Messages, links: Links, rows: Rows) -> None:
         self.repository, self.links, self.references = messages, links, rows
@@ -27,10 +29,13 @@ class CommentController(ShapedRowsController[Message]):
         if "on" not in request.query:
             return super().index(request)
         rows = self.repository.row_comments(self.row(request.query["on"]))
-        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows)))
+        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0)))
 
-    def rows(self) -> list[Message]:
-        return self.repository.comments()
+    def list_query(self) -> Query:
+        return self.repository.comments_query()
+
+    def list_page(self, listing: Listing, query: Query) -> RowListPage:
+        return listing.timeline(self.repository, query, self.closed_rows(query))
 
     def shown_page(self, rows: list[Message]) -> list[dict]:
         enabled = self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows])

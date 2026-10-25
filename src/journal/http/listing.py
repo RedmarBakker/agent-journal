@@ -1,20 +1,18 @@
 from dataclasses import dataclass
-from typing import Callable, TypeVar
+from datetime import datetime, timezone
 
+from journal.db.query import Query
 from journal.http.row_list_page import RowListPage
-from journal.models.model import Model
-from journal.repositories.repository import PAGE_ROWS as REPOSITORY_PAGE_ROWS
+from journal.repositories.repository import PAGE_ROWS as REPOSITORY_PAGE_ROWS, Repository
 
 PAGE_ROWS = 50
 # the most rows a list asks for, one under a repository's page, so the row that says another page follows fits in one read
 LISTING_ROW_LIMIT = REPOSITORY_PAGE_ROWS - 1
 
-M = TypeVar("M", bound=Model)
-
 
 @dataclass(frozen=True)
 class Listing:
-    """What the viewer requests of a list: the newest `limit` rows and the newest `limit` open ones besides, so no list returns more than two pages, only the closed ones when requested, older than `before`, newer than `after`, changed since `since` (newer than `after` and at most `limit` of them, so a change since an old moment never reads the whole table), or only the ids given."""
+    """What the viewer requests of a list, each read in SQL within the page's row limit: the newest `limit` rows and, but on a timeline, the newest `limit` open ones besides, so no list returns more than two pages, only the closed ones when requested, older than `before`, newer than `after`, changed since `since` (newer than `after` and at most `limit` of them, so a change since an old moment never reads the whole table), or only the ids given."""
 
     limit: int = PAGE_ROWS
     closed: bool = False
@@ -34,18 +32,27 @@ class Listing:
     def query_number(query: dict, key: str, default: int) -> int:
         return int(query[key]) if query.get(key) else default
 
-    def listed(self, rows: list[M], is_open: Callable[[M], bool], timeline: bool = False) -> RowListPage:
-        rows = sorted(rows, key=lambda r: r.row_id)
-        if self.ids:
-            return RowListPage(rows=[r for r in rows if r.row_id in self.ids], is_last_page=True)
+    def listed(self, repository: Repository, rows: Query, open_rows: Query, closed_rows: Query) -> RowListPage:
+        page = self.timeline(repository, rows, closed_rows)
+        if self.cutoff_at or self.closed or self.upper_id:
+            return page
+        shown = [row.row_id for row in page["rows"]]
+        open_ = repository.selected(open_rows.filter_greater("id", self.lower_id).filter_unlisted("id", shown).order_descending("id").limit(self.limit))
+        return RowListPage(rows=sorted([*open_, *page["rows"]], key=lambda row: row.row_id), is_last_page=page["is_last_page"])
+
+    def timeline(self, repository: Repository, rows: Query, closed_rows: Query) -> RowListPage:
         if self.cutoff_at:
-            changed = [r for r in rows if r.update_time.timestamp() > self.cutoff_at and r.row_id > self.lower_id]
-            return RowListPage(rows=changed[-self.limit:], is_last_page=len(changed) <= self.limit)
+            return self.changes(repository, rows)
         if self.closed:
-            closed = [r for r in rows if not is_open(r) and (not self.upper_id or r.row_id < self.upper_id)]
-            return RowListPage(rows=closed[-self.limit:], is_last_page=len(closed) <= self.limit)
-        wanted = [r for r in rows if (not self.upper_id or r.row_id < self.upper_id) and r.row_id > self.lower_id]
-        page = wanted[-self.limit:]
-        shown = {r.row_id for r in page}
-        open_ = [r for r in rows if is_open(r) and r.row_id > self.lower_id and r.row_id not in shown][-self.limit:] if not self.upper_id and not timeline else []
-        return RowListPage(rows=sorted([*open_, *page], key=lambda r: r.row_id), is_last_page=len(wanted) <= self.limit)
+            return self.newest(repository, self.older(closed_rows))
+        return self.newest(repository, self.older(rows).filter_greater("id", self.lower_id))
+
+    def changes(self, repository: Repository, rows: Query) -> RowListPage:
+        return self.newest(repository, rows.filter_greater("updated_at", datetime.fromtimestamp(self.cutoff_at, timezone.utc)).filter_greater("id", self.lower_id))
+
+    def older(self, rows: Query) -> Query:
+        return rows.filter_less("id", self.upper_id) if self.upper_id else rows
+
+    def newest(self, repository: Repository, rows: Query) -> RowListPage:
+        newest = repository.selected(rows.order_descending("id").limit(self.limit + 1))
+        return RowListPage(rows=sorted(newest[:self.limit], key=lambda row: row.row_id), is_last_page=len(newest) <= self.limit)

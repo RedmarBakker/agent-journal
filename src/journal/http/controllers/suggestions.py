@@ -1,3 +1,4 @@
+from journal.db.query import Query
 from journal.features.suggestions.support.suggestion_search import SuggestionSearch
 from journal.http.controllers.controller import Controller
 from journal.http.support.request import Request
@@ -13,11 +14,11 @@ class SuggestionController(Controller[Suggestion]):
     def __init__(self, suggestions: Suggestions, suggesting: SuggestionSearch) -> None:
         self.repository, self.suggesting = suggestions, suggesting
 
-    def rows(self) -> list[Suggestion]:
-        return self.repository.all()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_null("answer")
 
-    def is_open(self, row: Suggestion) -> bool:
-        return not row.is_answered()
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_present("answer")
 
     def accept(self, request: Request) -> Response:
         return self.answered(request, SuggestionAnswer.ACCEPTED)

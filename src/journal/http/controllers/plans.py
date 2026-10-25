@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from journal.models.plan_state import PlanState
+from journal.db.query import Query
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
 from journal.features.tasks.active_task import ActiveTask
@@ -18,6 +20,8 @@ from journal.repositories.links import Links
 from journal.repositories.plans import PLAN_LINK, Plans
 from journal.repositories.tasks import Tasks
 
+CLOSED_PLAN_STATES = tuple(state for state in PlanState if state.is_closed())
+
 
 class PlanController(Controller[Plan]):
     """Plans in outline, and the user's moves on one: approve, start, pause, finish and abandon."""
@@ -28,11 +32,11 @@ class PlanController(Controller[Plan]):
         self.repository, self.tasks, self.links, self.outline, self.moments, self.taking, self.rounds = plans, tasks, links, outline, timeline, taking, rounds
         self.plan_testing = testing
 
-    def rows(self) -> list[Plan]:
-        return self.repository.scoped()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_unlisted("state", CLOSED_PLAN_STATES)
 
-    def is_open(self, row: Plan) -> bool:
-        return not row.state.is_closed()
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_listed("state", CLOSED_PLAN_STATES)
 
     def shown_page(self, rows: list[Plan]) -> list[dict]:
         return [self.outline.build(plan) for plan in rows]

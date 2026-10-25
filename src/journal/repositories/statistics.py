@@ -9,7 +9,7 @@ class Statistics(Repository[Statistic]):
     def lower(self, prefix: str) -> dict[str, int]:
         return {row.key: row.value for row in self.selected(self.query().filter_prefix("key", prefix).order("key"))}
 
-    def counted(self, key: str, actor: Actor) -> Statistic:
+    def incremented(self, key: str, actor: Actor) -> Statistic:
         return self.added(key, 1, actor)
 
     def added(self, key: str, amount: int, actor: Actor) -> Statistic:

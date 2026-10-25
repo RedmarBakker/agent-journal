@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from journal.db.query import Query
 from journal.features.tasks.active_task import ActiveTask
 from journal.features.tasks.support.task_holders import TaskHolders
 from journal.features.tasks.support.waits import Waits
@@ -14,7 +15,7 @@ from journal.models.task_log import TaskLog
 from journal.models.task_state import TaskState
 from journal.repositories.plans import PLAN_LINK
 from journal.repositories.task_logs import TaskLogs
-from journal.repositories.tasks import Tasks
+from journal.repositories.tasks import CLOSED_STATES, Tasks
 from journal.features.workers.support.worker_task_view import WorkerTaskView
 from journal.repositories.proofs import Proofs
 from journal.repositories.worker_todos import WorkerTodos
@@ -29,13 +30,13 @@ class TaskController(Controller[Task]):
     def __init__(self, tasks: Tasks, logs: TaskLogs, workers: Workers, waits: Waits, taking: ActiveTask, task_holders: TaskHolders, todos: WorkerTodos, proofs: Proofs) -> None:
         self.repository, self.task_logs, self.workers, self.waits, self.taking, self.task_holders, self.todos, self.proofs = tasks, logs, workers, waits, taking, task_holders, todos, proofs
 
-    def rows(self) -> list[Task]:
-        return self.repository.shown()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_unlisted("state", CLOSED_STATES)
 
-    def is_open(self, row: Task) -> bool:
-        return not row.is_closed()
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_listed("state", CLOSED_STATES)
 
-    def counts(self, rows: list[Task]) -> Counts:
+    def counts(self, query: Query) -> Counts:
         return Counts(all=self.repository.count(), open=self.repository.unfinished_count(), unread=self.repository.unviewed())
 
     def shown_page(self, rows: list[Task]) -> list[dict]:

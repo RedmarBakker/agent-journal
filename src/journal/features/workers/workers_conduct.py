@@ -190,7 +190,7 @@ def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -
     tasks, workers = event.data.part(TasksPart), event.data.part(WorkersPart)
     if settings.value(WorkersOptions.MODE) != "orchestrator" or is_full(workers.dispatched_workers, settings.integer(WorkersOptions.WORKER_LIMIT)) or not tasks.open_ids:
         return state.none()
-    return state.none(WorkersNudges.CREW_REMINDER.create(count=len(tasks.open_ids), tasks=tasks.open_next))
+    return state.none(WorkersNudges.CREW_REMINDER.create(count=tasks.open_count, tasks=tasks.open_next))
 
 
 def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
@@ -205,7 +205,7 @@ def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> 
     tasks = data.part(TasksPart)
     if settings.value(WorkersOptions.MODE) != "orchestrator" or not tasks.open_ids:
         return ()
-    return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, count=len(tasks.open_ids), tasks=tasks.open_next),)
+    return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, count=tasks.open_count, tasks=tasks.open_next),)
 
 
 def place_answer(state: BaseState, event: WorkerMerged | WorkerRetired, settings: Settings) -> Transition:

@@ -1,6 +1,7 @@
 import mimetypes
 import time as timing
 
+from journal.db.query import Query
 from journal.config import Config
 from journal.features.pausing.agent_pause import AgentPause
 from journal.features.schedules.job_stop import JobStop
@@ -45,9 +46,6 @@ class AgentController(Controller[Agent]):
         self.environments, self.providers, self.running, self.config, self.pausing, self.job_stop = environments, providers, active, config, pausing, job_stop
         self.writes, self.hosts, self.owners, self.remote = writes, hosts, owners, remote
 
-    def rows(self) -> list[Agent]:
-        return self.repository.scoped()
-
     def listed(self, listing: Listing) -> RowList:
         environment = self.environment()
         if self.hosts.is_host(environment):
@@ -55,8 +53,11 @@ class AgentController(Controller[Agent]):
         rows = self.remote.rows(environment, timing.time())
         return RowList(rows=rows, is_last_page=True, counts=Counts(all=len(rows), open=len(rows), unread=0))
 
-    def is_open(self, row: Agent) -> bool:
-        return row.state != "ended"
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_unequal("state", "ended")
+
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter(state="ended")
 
     def shown_page(self, rows: list[Agent]) -> list[dict]:
         return self.activity.page(rows)

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from journal.db.query import Query
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
 from journal.http.support.request import Request
@@ -16,13 +17,13 @@ class NoticeController(Controller[Notice]):
     def __init__(self, notices: Notices) -> None:
         self.repository = notices
 
-    def rows(self) -> list[Notice]:
-        return self.repository.scoped()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_null("closed_at")
 
-    def is_open(self, row: Notice) -> bool:
-        return row.closed_at is None
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_present("closed_at")
 
-    def counts(self, rows: list[Notice]) -> Counts:
+    def counts(self, query: Query) -> Counts:
         return Counts(all=self.repository.count(), open=self.repository.open_count(), unread=self.repository.unviewed())
 
     def close(self, request: Request) -> Response:

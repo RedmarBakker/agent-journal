@@ -1,3 +1,4 @@
+from journal.db.query import Query
 from journal.features.sharing.share_actions import ShareActions
 from journal.features.sharing.share_targets import ShareTargets
 from journal.features.sharing.support.tunnel import Tunnel
@@ -17,11 +18,11 @@ class ShareController(Controller[Share]):
     def __init__(self, shares: Shares, actions: ShareActions, targets: ShareTargets, tunnel: Tunnel) -> None:
         self.repository, self.actions, self.targets, self.tunnel = shares, actions, targets, tunnel
 
-    def rows(self) -> list[Share]:
-        return self.repository.scoped()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_null("stopped_at")
 
-    def is_open(self, row: Share) -> bool:
-        return row.stopped_at is None
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_present("stopped_at")
 
     def index_page(self, rows: list[Share]) -> list[dict]:
         return [self.public_fields(share) for share in rows]

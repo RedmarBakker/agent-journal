@@ -13,6 +13,12 @@ from journal.support.stage_times import StageTimes
 
 HISTORY_TOOL_STARTS = 6
 POLL_COMMANDS = 3
+# the tasks an agent took in hand most recently, the one an event names among them: a main agent keeps the link to every task it ever held
+RECENT_HELD_TASKS = 8
+# the open tasks a line names, the first by priority; the count says how many there are in all
+OPEN_TASKS_NAMED = 5
+# the open tasks a line names as next, by number
+OPEN_TASKS_NEXT = 3
 
 
 class TasksDataReader:
@@ -36,10 +42,11 @@ class TasksDataReader:
             "first_pause_reason": lambda: next((task.pause_reason for task in self.tasks.paused_tasks()), ""),
             "next_open": lambda: self.next_open(),
             "last_commands": lambda: self.last_commands(agent),
-            "open_ids": lambda: tuple(t.row_id for t in self.tasks.open_tasks()),
-            "open_next": lambda: ", ".join(str(t.row_id) for t in self.tasks.open_tasks()[:3]),
+            "open_ids": lambda: tuple(t.row_id for t in self.tasks.open_page(OPEN_TASKS_NAMED)),
+            "open_count": lambda: self.tasks.open_count(),
+            "open_next": lambda: ", ".join(str(t.row_id) for t in self.tasks.open_page(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.with_state(TaskState.STARTED)),
-            "agent_tasks": lambda: self.tasks.holder_task_ids(self.workers.agent_holder(agent)),
+            "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_HELD_TASKS),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def current_id(self, agent: Agent) -> int:

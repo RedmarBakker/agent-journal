@@ -17,9 +17,9 @@ class SubagentRecord(Listener[Updated]):
         if not isinstance(event.model, Entry) or not SubagentEntries.is_dispatch_entry(event.model):
             return
         session = event.model.data.get("session_id", "")
-        stored = {s.dispatch: s for s in self.subagents.session_subagents(session)}
-        if event.model.kind in ENDS and not any(row.is_running() for row in stored.values()):
+        if event.model.kind in ENDS and not self.subagents.running_session_subagents(session):
             return
+        stored = {s.dispatch: s for s in self.subagents.session_subagents(session)}
         paired = {row.dispatch: row for row in self.entries.rows(session)}
         for row in paired.values():
             self.recorded(stored.get(row.dispatch), row, Actor.agent(session))

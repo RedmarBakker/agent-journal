@@ -1,5 +1,8 @@
+from journal.models.worker_state import WorkerState
+from journal.db.query import Query
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_reports import WorkerReports
+from journal.http.counts import Counts
 from journal.http.row_list import RowList
 from journal.http.support.request import Request
 from journal.support.response import Response
@@ -12,6 +15,8 @@ from journal.repositories.proofs import Proofs
 from journal.repositories.tasks import Tasks
 from journal.repositories.worker_todos import WorkerTodos
 from journal.repositories.workers import Workers
+
+ACTIVE_WORKER_STATES = (WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED)
 
 
 class WorkerController(Controller[Worker]):
@@ -54,13 +59,13 @@ class WorkerController(Controller[Worker]):
             return super().index(request)
         numbers = {int(n) for n in str(request.query["tasks"]).split(",") if n.strip().isdigit()}
         rows = self.repository.numbered(sorted(self.tasks.workers_of(numbers)))
-        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows)))
+        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=Counts(all=len(rows), open=len([w for w in rows if w.is_active()]), unread=0)))
 
-    def rows(self) -> list[Worker]:
-        return self.repository.scoped()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_listed("state", ACTIVE_WORKER_STATES)
 
-    def is_open(self, row: Worker) -> bool:
-        return row.is_active()
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_unlisted("state", ACTIVE_WORKER_STATES)
 
     def index_page(self, rows: list[Worker]) -> list[dict]:
         return [self.worker_fields(w) for w in rows]

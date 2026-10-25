@@ -28,9 +28,6 @@ class EnvironmentController(Controller[Environment]):
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
         self.owners, self.starts, self.hydration, self.removal, self.sharing, self.hosts = owners, starts, hydration, removal, sharing, hosts
 
-    def rows(self) -> list[Environment]:
-        return self.repository.all()
-
     def index_page(self, rows: list[Environment]) -> list[dict]:
         return self.shown_page(rows)
 

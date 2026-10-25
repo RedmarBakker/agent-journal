@@ -12,8 +12,5 @@ class CollectionController(Controller[Collection]):
     def __init__(self, collections: Collections) -> None:
         self.repository = collections
 
-    def rows(self) -> list[Collection]:
-        return self.repository.scoped()
-
     def shown_page(self, rows: list[Collection]) -> list[dict]:
         return [{**ModelFields.build(c), "members": [str(ref) for ref in self.repository.members(c)]} for c in rows]

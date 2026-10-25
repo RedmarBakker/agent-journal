@@ -1,9 +1,11 @@
 from dataclasses import fields
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
+from journal.db.query import Query
 from journal.http.listing import Listing
+from journal.http.row_list_page import RowListPage
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.model import Model
@@ -13,40 +15,42 @@ S = TypeVar("S", bound=Model)
 
 
 class Controller(Generic[S]):
-    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. A resource whose rows close says which are open; one that shows more than its fields says what in shown_page. Its list, unless asked for by id, is its own rows alone, with what index_page adds of each row's own, and reads no relationship of them."""
+    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. Its list is a query its repository pages, filters and counts in SQL: its own rows alone unless list_query says which, with what index_page adds of each row's own, and reads no relationship of them; a resource whose rows close names its open and its closed rows as filters of that query; one that shows more than its fields says what in shown_page."""
 
     repository: Repository[S]
-    is_timeline = False
 
     def index(self, request: Request) -> Response:
         return Response.json(self.listed(Listing.query_listing(request.query)))
 
     def listed(self, listing: Listing) -> RowList:
+        query = self.list_query()
         if listing.ids:
             rows = self.id_rows(listing.ids)
-            return RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows))
+            return RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(query))
         with self.repository.listing():
-            return self.page(listing, self.index_page)
+            page = self.list_page(listing, query)
+            return RowList(rows=self.index_page(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(query))
 
-    def page(self, listing: Listing, shown: Callable[[list[S]], list]) -> RowList:
-        rows = self.rows()
-        page = listing.listed(rows, self.is_open, self.is_timeline)
-        return RowList(rows=shown(page["rows"]), is_last_page=page["is_last_page"], counts=self.counts(rows))
+    def list_page(self, listing: Listing, query: Query) -> RowListPage:
+        return listing.listed(self.repository, query, self.open_rows(query), self.closed_rows(query))
 
     def index_page(self, rows: list[S]) -> list:
         return list(rows)
 
-    def rows(self) -> list[S]:
-        return self.repository.all()
+    def list_query(self) -> Query:
+        return self.repository.query()
+
+    def open_rows(self, query: Query) -> Query:
+        return query
+
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_listed("id", ())
 
     def id_rows(self, ids: tuple[int, ...]) -> list[S]:
-        return self.repository.numbered(sorted(ids))
+        return self.repository.selected(self.list_query().filter_listed("id", sorted(ids)).order("id"))
 
-    def is_open(self, row: S) -> bool:
-        return True
-
-    def counts(self, rows: list[S]) -> Counts:
-        return Counts(all=len(rows), open=len([row for row in rows if self.is_open(row)]), unread=0)
+    def counts(self, query: Query) -> Counts:
+        return Counts(all=self.repository.counted(query), open=self.repository.counted(self.open_rows(query)), unread=0)
 
     def shown(self, row: S) -> object:
         return self.shown_page([row])[0]

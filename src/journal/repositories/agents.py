@@ -11,8 +11,8 @@ class Agents(ScopedRepository[Agent]):
     model = Agent
 
     def current(self) -> Agent | None:
-        responsive = [item for item in self.scoped() if item.state != "ended" and item.role == AgentRole.MAIN]
-        return responsive[-1] if responsive else None
+        responsive = self.selected(self.unended_query().filter(role=AgentRole.MAIN).order_descending("id").limit(1))
+        return responsive[0] if responsive else None
 
     def all_agents(self) -> list[Agent]:
         return self.global_matching()
@@ -30,10 +30,10 @@ class Agents(ScopedRepository[Agent]):
         return self.newest(self.query().filter(state="ended").filter_unequal("session", session).filter_unequal("sequence_runs", ()))
 
     def active_session_agents(self, session: str) -> list[Agent]:
-        return [agent for agent in self.global_matching(session=session) if agent.state != "ended"] if session else []
+        return self.selected_globally(self.unended_query().filter(session=session).order("id")) if session else []
 
     def active_main_agents(self) -> list[Agent]:
-        return [agent for agent in self.main_agents() if agent.state != "ended"]
+        return self.selected_globally(self.unended_query().filter(role=AgentRole.MAIN).order("id"))
 
     def active_main_agent(self, session: str) -> Agent | None:
         rows = self.selected_globally(self.query().filter(role=AgentRole.MAIN, session=session).filter_unequal("state", "ended").order("id"))
@@ -43,7 +43,7 @@ class Agents(ScopedRepository[Agent]):
         return [agent for agent in self.active_main_agents() if agent.has_program()]
 
     def active_agents(self) -> list[Agent]:
-        return [agent for agent in self.scoped() if agent.state != "ended"]
+        return self.selected(self.unended_query().order("id"))
 
     def conversation_agents(self, count: int) -> list[Agent]:
         return [agent for agent in self.scoped() if agent.has_program() and agent.role == AgentRole.MAIN][-count:]
@@ -52,13 +52,16 @@ class Agents(ScopedRepository[Agent]):
         return self.global_matching(environment_id=environment_id, role=AgentRole.MAIN, state="ended")
 
     def main_scoped(self, environment_id: int) -> list[Agent]:
-        return [item for item in self.global_matching(environment_id=environment_id, role=AgentRole.MAIN) if item.state != "ended"]
+        return self.selected_globally(self.unended_query().filter(environment_id=environment_id, role=AgentRole.MAIN).order("id"))
 
     def unended(self) -> list[Agent]:
-        return [item for item in self.global_matching() if item.state != "ended"]
+        return self.selected_globally(self.unended_query().order("id"))
 
     def unended_scoped(self, environment_id: int) -> list[Agent]:
-        return [item for item in self.global_matching(environment_id=environment_id) if item.state != "ended"]
+        return self.selected_globally(self.unended_query().filter(environment_id=environment_id).order("id"))
+
+    def unended_query(self) -> Query:
+        return self.query().filter_unequal("state", "ended")
 
     def running_peers(self, agent: Agent) -> list[Agent]:
         if agent.role != AgentRole.MAIN:
@@ -66,7 +69,7 @@ class Agents(ScopedRepository[Agent]):
         return self.selected_globally(self.query().filter(environment_id=agent.environment_id, role=AgentRole.MAIN, provider=agent.provider).filter_unequal("state", "ended").filter_unequal("session", agent.session).order("id"))
 
     def all_current(self) -> Agent | None:
-        responsive = sorted((item for item in self.main_agents() if item.state != "ended"), key=lambda item: item.update_time)
+        responsive = sorted(self.active_main_agents(), key=lambda item: item.update_time)
         return responsive[-1] if responsive else None
 
     def with_state(self, name: str) -> list[Agent]:

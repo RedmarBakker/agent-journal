@@ -1,3 +1,5 @@
+from journal.models.subagent_state import SubagentState
+from journal.db.query import Query
 from journal.http.controllers.controller import Controller
 from journal.models.subagent import Subagent
 from journal.repositories.subagents import Subagents
@@ -11,8 +13,8 @@ class SubagentController(Controller[Subagent]):
     def __init__(self, subagents: Subagents) -> None:
         self.repository = subagents
 
-    def rows(self) -> list[Subagent]:
-        return self.repository.scoped()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter(state=SubagentState.ACTIVE)
 
-    def is_open(self, row: Subagent) -> bool:
-        return row.is_running()
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_unequal("state", SubagentState.ACTIVE)

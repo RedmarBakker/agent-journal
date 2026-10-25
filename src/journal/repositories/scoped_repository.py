@@ -28,10 +28,6 @@ class ScopedRepository(Repository[S]):
     def selected_globally(self, query: Query) -> list[S]:
         return self._selected(query)
 
-    def counted(self, query: Query) -> int:
-        with self.connection.unlisted():
-            return self.connection.result(*self._scoped(query).count())["value"]
-
     def maximum(self, query: Query, column: str, empty_value):
         return self.connection.result(*self._scoped(query).maximum(column, empty_value))["value"]
 

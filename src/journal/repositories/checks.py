@@ -18,4 +18,5 @@ class Checks(Repository[Check]):
         return self.all_matching(creator=Actor.plugin(plugin).stamp, is_retired=False)
 
     def broken_waits(self) -> list[Check]:
-        return [check for check in self.all_matching(wait_target=True) if check.cannot_run() and not check.is_resolved()]
+        unpassed = self.query().filter_alternatives(self.query().filter_null("last_passed"), self.query().filter(last_passed=False))
+        return self.selected(unpassed.filter(wait_target=True, is_retired=False).filter_unequal("last_fault", "").order("id"))

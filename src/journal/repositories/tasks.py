@@ -130,11 +130,19 @@ class Tasks(ScopedRepository[Task]):
         return self.free_tasks(state, UNAPPROVED_PLAN_STATES)
 
     def free_tasks(self, state: TaskState, plan_states: tuple[str, ...]) -> list[Task]:
-        tasks = self.selected(self.query().filter(state=state).order_descending("priority").order("id"))
-        plan_links = self.links.model_links("source", tasks, PLAN_LINK)
-        plan_ids = set(self.selected_ids(Query.build(Plan).filter_listed("id", sorted({link.target.id for link in plan_links})).filter_listed("state", list(plan_states)))) if plan_links else set()
-        plan_task_ids = {link.source.id for link in plan_links if link.target.id in plan_ids}
-        return [task for task in tasks if task.row_id not in plan_task_ids]
+        return self.selected(self.free_query(state, plan_states))
+
+    def open_page(self, rows: int) -> list[Task]:
+        return self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
+
+    def open_count(self) -> int:
+        return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES))
+
+    def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
+        query = self.query().filter(state=state).order_descending("priority").order("id")
+        plans = [Ref(Plan.table(), plan_id) for plan_id in self.selected_ids(Query.build(Plan).filter_listed("state", list(plan_states)))]
+        planned = self.links.query().filter(kind=PLAN_LINK).filter_listed("target", plans).filter_ref("source", self.query())
+        return query.filter_absent(planned) if plans else query
 
     def recent_completions(self, start: datetime, end: datetime) -> list[Task]:
         return self.selected(self.query().filter(state=TaskState.FINISHED).filter_greater_equal("finished_at", start).filter_less("finished_at", end).order("id"))
@@ -146,15 +154,20 @@ class Tasks(ScopedRepository[Task]):
         return self.holder_task(Ref.build(agent))
 
     def holder_task(self, holder: Ref) -> Task | None:
-        tasks = [task for task in self.numbered(self.holder_task_ids(holder)) if task.state in (TaskState.STARTED, TaskState.DELEGATED)]
+        held = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
+        tasks = self.selected(self.query().filter_listed("state", [TaskState.STARTED, TaskState.DELEGATED]).filter_existing(held).order("id"))
         return next((task for task in tasks if task.state == TaskState.STARTED), tasks[0] if tasks else None)
 
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
         return tuple(link.target.id for link in self.links.all_matching(source=holder, kind=CURRENT_TASK_LINK))
 
     def last_task_id(self, holder: Ref) -> int:
-        task_ids = self.holder_task_ids(holder)
+        task_ids = self.recent_task_ids(holder, 1)
         return task_ids[-1] if task_ids else 0
+
+    def recent_task_ids(self, holder: Ref, count: int) -> tuple[int, ...]:
+        links = self.links.selected(self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).order_descending("id").limit(count))
+        return tuple(reversed([link.target.id for link in links]))
 
     def holder(self, task: Task) -> Ref | None:
         holders = self.links.sources(task, CURRENT_TASK_LINK)
@@ -247,7 +260,7 @@ class Tasks(ScopedRepository[Task]):
         return {link.target.id: link.source.id for link in self.links.model_links("source", workers, CURRENT_TASK_LINK)}
 
     def worker_holdings(self) -> dict[int, int]:
-        return {link.target.id: link.source.id for link in self.links.all_matching(kind=CURRENT_TASK_LINK) if link.source.type == WORKERS}
+        return {link.target.id: link.source.id for link in self.links.selected(self.links.query().filter(kind=CURRENT_TASK_LINK).filter_prefix("source", f"{WORKERS}:").order("id"))}
 
     # the task each of the workers worked on before the one it holds, read from their own links alone
     def earlier_tasks(self, workers: list[Model], holdings: dict[int, int]) -> dict[int, int]:
@@ -274,7 +287,3 @@ class Tasks(ScopedRepository[Task]):
 
     def unviewed(self) -> int:
         return self.counted(self.query().filter_unlisted("state", CLOSED).filter_missing_prefix("creator", USER_PREFIX))
-
-    def shown(self) -> list[Task]:
-        unfinished = self.selected(self.query().filter_unlisted("state", CLOSED).order("id"))
-        return sorted([*unfinished, *self.newest(self.query().filter_listed("state", CLOSED))], key=lambda t: t.row_id)

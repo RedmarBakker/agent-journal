@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from journal.db.query import Query
 from journal.features.secrets.support.login_window import LoginWindow
 from journal.features.secrets.support.programs import Programs
 from journal.http.controllers.controller import Controller
@@ -19,8 +20,11 @@ class SecretController(Controller[Secret]):
     def __init__(self, secrets: Secrets, values: SecretValues, window: LoginWindow, scope: Scope) -> None:
         self.repository, self.values, self.window, self.scope = secrets, values, window, scope
 
-    def is_open(self, row: Secret) -> bool:
-        return row.deleted_at is None
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_null("deleted_at")
+
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_present("deleted_at")
 
     def store(self, request: Request) -> Response:
         body = request.body

@@ -1,3 +1,4 @@
+from journal.db.query import Query
 from journal.features.dumps.support.dump_filer import DumpFiler
 from journal.sync.attachments import Attachments
 from journal.http.controllers.controller import Controller
@@ -15,11 +16,11 @@ class DumpController(Controller[Dump]):
     def __init__(self, sorting: DumpFiler, dumps: Dumps, attachments: Attachments) -> None:
         self.filing, self.repository, self.attachments = sorting, dumps, attachments
 
-    def rows(self) -> list[Dump]:
-        return self.repository.scoped()
+    def open_rows(self, query: Query) -> Query:
+        return query.filter_alternatives(self.repository.query().filter_null("completed_at"), self.repository.query().filter(completed_at=0.0))
 
-    def is_open(self, row: Dump) -> bool:
-        return not row.is_completed
+    def closed_rows(self, query: Query) -> Query:
+        return query.filter_greater("completed_at", 0.0)
 
     def shown_page(self, rows: list[Dump]) -> list[dict]:
         filed = self.repository.linked_rows(d.row_id for d in rows)

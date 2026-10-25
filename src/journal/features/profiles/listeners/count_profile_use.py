@@ -18,5 +18,5 @@ class CountProfileUse(AgentListener[ToolStarting]):
         if not name:
             return
         actor = Actor.agent(event.session)
-        self.statistics.counted(f"profiles.{name}.uses", actor)
+        self.statistics.incremented(f"profiles.{name}.uses", actor)
         self.statistics.set(f"profiles.{name}.last_used", int(time.time()), actor)

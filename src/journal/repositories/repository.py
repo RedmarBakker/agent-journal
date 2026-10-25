@@ -68,6 +68,10 @@ class Repository(Generic[M]):
     def stored_count(self) -> int:
         return self.stored_matching_count(self.query())
 
+    def counted(self, query: Query) -> int:
+        with self.connection.unlisted():
+            return self.connection.result(*self._scoped(query).count())["value"]
+
     def stored_matching_count(self, query: Query) -> int:
         return self.connection.result(*query.count())["value"]
 

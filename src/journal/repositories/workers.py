@@ -24,7 +24,13 @@ class Workers(ScopedRepository[Worker]):
         return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).order("id"))
 
     def running_workers(self) -> list[Worker]:
-        return [worker for worker in self.scoped() if worker.is_running()]
+        return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY]).order("id"))
+
+    def idle_workers(self) -> list[Worker]:
+        return self.selected(self.query().filter(state=WorkerState.REPORTED, adopted=False).order("id"))
+
+    def delivered_workers(self) -> list[Worker]:
+        return self.selected(self.query().filter(state=WorkerState.DELIVERED).order("id"))
 
     def has_idle(self) -> bool:
         return any(worker.is_idle() for worker in self.scoped())

@@ -51,8 +51,10 @@ def polling_check(state: BaseState, event: ToolStarting) -> Transition:
 
 
 def impasse_check(state: BaseState, event: ToolStarting) -> Transition:
+    if not any(part.text.split()[:2] == ["journal", "stuck"] for part in event.call.parts):
+        return state.none()
     tasks = event.data.part(TasksPart)
-    work_count = len(tasks.open_ids) + len(tasks.started_ids) + len(tasks.paused)
-    if not work_count or not any(part.text.split()[:2] == ["journal", "stuck"] for part in event.call.parts):
+    work_count = tasks.open_count + len(tasks.started_ids) + len(tasks.paused)
+    if not work_count:
         return state.none()
     return state.refuse(TasksNudges.IMPASSE_REFUSAL.create(count=work_count))

@@ -141,9 +141,6 @@ class Messages(ScopedRepository[Message]):
     def latest_rows(self, query: Query, last: int) -> list[Message]:
         return list(reversed(self.selected(query.order_descending("created_at").order_descending("id").limit(last))))
 
-    def changes(self, chat: Query, time: datetime, lower_id: int, limit: int) -> list[Message]:
-        return list(reversed(self.selected(chat.filter_greater("updated_at", time).filter_greater("id", lower_id).order_descending("id").limit(limit))))
-
     def unviewed(self) -> int:
         return self.counted(self.main_chat().filter(author=Author.AGENT).filter_null("read_at")) + self.counted(self.main_chat().filter(author=Author.COLLEAGUE).filter_json("data->viewed", 0))
 
@@ -197,8 +194,8 @@ class Messages(ScopedRepository[Message]):
     def voice_matches(self, text: str, last: int) -> list[Message]:
         return [message for message in self.recent_voice(last) if message.text == text]
 
-    def comments(self) -> list[Message]:
-        return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK)).order("id"))
+    def comments_query(self) -> Query:
+        return self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK))
 
     def row_comments(self, ref: Ref) -> list[Message]:
         return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK, target=str(ref))).order("id"))

@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 
 from journal.db.query import Query
 from journal.features.messages.support.hub_mentions import HubMentions
@@ -25,8 +24,6 @@ from journal.models.agent_role import AgentRole
 class MessageController(Controller[Message]):
     """The chat: the user's, the agent's and the journal's messages by id, read a page at a time from the database; the user's are sent from here, as the user, or asked of the environment's host when this journal is not it, and then found by the key the page sent it with once the host has made it."""
 
-    is_timeline = True
-
     repository: Messages
 
     def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts, mentions: HubMentions) -> None:
@@ -41,9 +38,9 @@ class MessageController(Controller[Message]):
 
     def chat_page(self, chat: Query, listing: Listing) -> RowListPage:
         if listing.ids:
-            return listing.listed(self.repository.numbered(listing.ids), lambda m: True, timeline=True)
+            return RowListPage(rows=self.repository.numbered(sorted(listing.ids)), is_last_page=True)
         if listing.cutoff_at:
-            return listing.listed(self.repository.changes(chat, datetime.fromtimestamp(listing.cutoff_at, timezone.utc), listing.lower_id, listing.limit + 1), lambda m: True, timeline=True)
+            return listing.changes(self.repository, chat)
         rows, has_older = self.repository.message_page(chat, listing.limit, listing.upper_id, listing.lower_id)
         return RowListPage(rows=rows, is_last_page=not has_older)
 

@@ -1,3 +1,4 @@
+from journal.db.query import Query
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
 from journal.http.support.model_fields import ModelFields
@@ -14,7 +15,7 @@ class ReactionController(Controller[Reaction]):
     def __init__(self, reactions: Reactions) -> None:
         self.repository = reactions
 
-    def counts(self, rows: list[Reaction]) -> Counts:
+    def counts(self, query: Query) -> Counts:
         all_items = self.repository.count()
         return Counts(all=all_items, open=all_items, unread=self.repository.authored(Author.AGENT))
 
