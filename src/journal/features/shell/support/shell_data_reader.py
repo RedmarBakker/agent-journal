@@ -1,6 +1,7 @@
 from journal.repositories.reader_reports import ReaderReports
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
+from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.ended_output import EndedOutput
 from journal.features.shell.support.output_reads import OutputReads
 from journal.features.shell.support.output_view import OutputView
@@ -60,7 +61,7 @@ class ShellDataReader:
 
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
         commands = [CommandShape.command_name(output.command) for output in self.outputs.recent_unwatched_moves(agent.session, RECENT_MOVES)]
-        return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and self.readers.reading(command) is None))
+        return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and not GitWrites.is_writing(command) and self.readers.reading(command) is None))
 
     def output_reads(self, agent: Agent) -> tuple[str, ...]:
         commands = [command for e in self.entries.output_tool_starts(agent.session) if (command := e.recorded_call().command)]

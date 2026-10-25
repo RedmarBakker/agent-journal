@@ -9,6 +9,7 @@ from journal.events.announcer import Announcer
 from journal.events.moments.reader_added import ReaderAdded
 from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
+from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.activity_title import ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
 from journal.support.caller import Caller
@@ -64,6 +65,9 @@ class ReaderCommand(Command):
             raise Rejection(f"the reader {args.name} is a script: change it with --script, or write it as a pattern with --pattern")
         if prior is None and not args.about:
             raise Rejection("a new reader says what it picks with --about")
+        writing = [command.strip() for command in (args.commands or "").split(",") if GitWrites.is_writing(command)]
+        if writing:
+            raise Rejection(f"{', '.join(writing)} is marked in the chat by the journal itself: git commit and git push get no reader of their own")
         reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
         for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):
             re.compile(pattern)

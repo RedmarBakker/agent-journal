@@ -2527,3 +2527,9 @@ def test_a_watched_progress_that_stands_still_past_twenty_seconds_is_noted_and_o
     stalls.seen(8, 0.0, 0.0)
     stalls.seen(8, 0.0, 60.0)
     assert stalls.longest_seconds(8) == 0.0, "a run that shows no figure at all is the missing-progress finding's, not this one's"
+
+
+def test_a_git_commit_or_push_is_never_owed_a_reader_and_every_other_git_step_may_be():
+    from journal.features.shell.support.git_writes import GitWrites
+    assert all(GitWrites.is_writing(command) for command in ("git commit", "git push")), "the journal marks a commit and a push itself, so neither gets a reader"
+    assert not any(GitWrites.is_writing(command) for command in ("git rebase", "git merge", "git log", "git show", "git diff")), "a rebase, a merge and reading the history keep their readers"
