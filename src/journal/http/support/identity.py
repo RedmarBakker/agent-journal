@@ -18,4 +18,4 @@ class Identity:
         if claim.plugin and self.tokens.matches(claim.plugin, claim.token):
             return Actor.plugin(claim.plugin)
         session = self.sessions.session(cookie)
-        return Actor.user(session.person if session else self.accounts.person_in(headers.get(ENVIRONMENT_HEADER, "")))
+        return Actor.user(session.person if session else self.accounts.person_in(headers.get(ENVIRONMENT_HEADER.lower(), "")))
