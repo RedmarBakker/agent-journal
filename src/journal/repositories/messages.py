@@ -205,9 +205,6 @@ class Messages(ScopedRepository[Message]):
         chat = self.main_chat().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter(author=Author.AGENT).filter_present("reply_target"))
         return self.window(chat, last)
 
-    def voice_matches(self, text: str, last: int) -> list[Message]:
-        return [message for message in self.recent_voice(last) if message.text == text]
-
     def comments_query(self) -> Query:
         return self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK))
 

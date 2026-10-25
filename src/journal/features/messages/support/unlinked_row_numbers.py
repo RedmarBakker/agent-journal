@@ -18,7 +18,7 @@ COUNT_UNITS = frozenset({
 LIST_JOINS = frozenset({",", "and", "or", "&", "/"})
 LEAST_ROW_NUMBER = 100
 # the marks a number quoted as itself stands between, such as my message said "3419", which is cited and never linked
-QUOTE_MARKS = frozenset({'"', "'", "“", "”", "‘", "’"})
+QUOTE_CHARACTERS = frozenset({'"', "'", "“", "”", "‘", "’"})
 # the kind of row a number is linked to, by its word, in the order a number's most likely kind is looked up
 ROW_TABLES = {"task": "tasks", "plan": "plans", "worker": "workers", "report": "reports", "doc": "docs", "question": "questions", "message": "messages"}
 
@@ -49,8 +49,8 @@ class UnlinkedRowNumbers:
         if not candidate.isdigit() or int(candidate) < LEAST_ROW_NUMBER:
             return False
         next_token = tokens[i + 1].lower() if i + 1 < len(tokens) else ""
-        is_quoted = i > 0 and tokens[i - 1] in QUOTE_MARKS and next_token in QUOTE_MARKS
-        return not is_quoted and next_token not in COUNT_UNITS and cls.preceding_word(tokens, i) not in ROW_KINDS
+        inside_quotes = i > 0 and tokens[i - 1] in QUOTE_CHARACTERS and next_token in QUOTE_CHARACTERS
+        return not inside_quotes and next_token not in COUNT_UNITS and cls.preceding_word(tokens, i) not in ROW_KINDS
 
     @staticmethod
     def preceding_word(tokens: list[str], i: int) -> str:

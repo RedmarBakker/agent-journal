@@ -5427,13 +5427,18 @@ def test_a_block_arriving_twice_at_once_is_recorded_once(app: App, monkeypatch):
     hook(app, "SessionStart")
     record = app.container.get(RecordTurn)
     checked = RecordTurn.is_recorded
-    monkeypatch.setattr(RecordTurn, "is_recorded", lambda self, part: (checked(self, part), timing.sleep(0.2))[0])
+    monkeypatch.setattr(RecordTurn, "is_recorded", lambda self, part, turn_key: (checked(self, part, turn_key), timing.sleep(0.2))[0])
     block = TurnDisplayed(text="Checking the worker's inspector now.", delta="", turn_id="t1", final=True).placed("s1", 1, "claude", 0.0, 0.0)
     threads = [threading.Thread(target=contextvars.copy_context().run, args=(record.handle, block)) for _ in range(2)]
     [t.start() for t in threads]
     [t.join() for t in threads]
     line_text = [m for m in app.container.get(Messages).scoped() if m.text == "Checking the worker's inspector now."]
     assert len(line_text) == 1, "the transcript's copy and the display hook's copy, handled at once, make one message"
+    with app.container.get(Scope).environment(MAIN):
+        messages = app.container.get(Messages)
+        messages.save(line_text[0].with_(text="Checking the worker's inspector, task 7, now."), Actor.agent("s1"))
+    record.handle(block)
+    assert [m.text for m in app.container.get(Messages).scoped() if "inspector" in m.text] == ["Checking the worker's inspector, task 7, now."], "a message edited after it was recorded is known by its turn, never recorded again from the transcript's old text"
 
 def test_the_card_for_a_question_the_user_answered_is_the_users(app: App):
     from journal.support.actor_kind import ActorKind
