@@ -8,13 +8,13 @@ from journal.repositories.repository import PAGE_ROWS as REPOSITORY_PAGE_ROWS, R
 PAGE_ROWS = 50
 # the most rows a list asks for, one under a repository's page, so the row that says another page follows fits in one read
 LISTING_ROW_LIMIT = REPOSITORY_PAGE_ROWS - 1
-# the rows a page holds of a list read seldom, so against a cold cache, or of wide rows: twenty stay within an answer's thirty points
-SHORT_PAGE_ROWS = 20
+# the rows a page holds of a list read seldom, so against a cold cache, or of wide rows: ten, and ten open rows besides, stay within an answer's thirty points
+SHORT_PAGE_ROWS = 10
 
 
 @dataclass(frozen=True)
 class Listing:
-    """What the viewer requests of a list, each read in SQL within the page's row limit: the newest `limit` rows and, but on a timeline or a list whose every row is open, the newest `limit` open ones besides, so no list returns more than two pages, only the closed ones when requested, older than `before`, newer than `after`, changed since `since` (newer than `after` and at most `limit` of them, so a change since an old moment never reads the whole table), or only the ids given."""
+    """What the viewer requests of a list, each read in SQL within the page's row limit: the newest `limit` rows and, but on a timeline, the newest `limit` open ones besides, so no list returns more than two pages, only the closed ones when requested, older than `before`, newer than `after`, changed since `since` (newer than `after` and at most `limit` of them, so a change since an old moment never reads the whole table), or only the ids given."""
 
     limit: int = PAGE_ROWS
     closed: bool = False
@@ -39,7 +39,7 @@ class Listing:
 
     def listed(self, repository: Repository, rows: Query, open_rows: Query, closed_rows: Query) -> RowListPage:
         page = self.timeline(repository, rows, closed_rows)
-        if self.cutoff_at or self.closed or self.upper_id or open_rows == rows:
+        if self.cutoff_at or self.closed or self.upper_id:
             return page
         shown = [row.row_id for row in page["rows"]]
         open_ = repository.selected(open_rows.filter_greater("id", self.lower_id).filter_unlisted("id", shown).order_descending("id").limit(self.limit))

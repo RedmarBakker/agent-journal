@@ -11,7 +11,7 @@ from journal.repositories.notices import Notices
 
 
 class NoticeController(Controller[Notice]):
-    """Notices pinned for the user, open until closed, listed twenty at a time."""
+    """Notices pinned for the user, open until closed, listed ten at a time."""
 
     repository: Notices
     page_rows = SHORT_PAGE_ROWS

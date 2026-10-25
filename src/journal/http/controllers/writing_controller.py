@@ -17,7 +17,7 @@ W = TypeVar("W", Doc, Report)
 
 
 class WritingController(Controller[W]):
-    """What documents and reports share: a list reads each without its long fields, twenty at a time, and the rows it links to and how many comments are under it are requested by id; a section is added at the end of the body."""
+    """What documents and reports share: a list reads each without its long fields, ten at a time, and the rows it links to and how many comments are under it are requested by id; a section is added at the end of the body."""
 
     page_rows = SHORT_PAGE_ROWS
     omitted_fields: tuple[str, ...] = ("body",)

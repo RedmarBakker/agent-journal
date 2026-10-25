@@ -9,7 +9,7 @@ from journal.repositories.reactions import REACTS, Reactions
 
 
 class ReactionController(Controller[Reaction]):
-    """The emoji on messages, listed twenty at a time, one read by id with the message it sits on; an emoji the agent put on counts as unread."""
+    """The emoji on messages, listed ten at a time, one read by id with the message it sits on; an emoji the agent put on counts as unread."""
 
     repository: Reactions
     page_rows = SHORT_PAGE_ROWS
