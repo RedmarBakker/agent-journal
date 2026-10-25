@@ -25,7 +25,7 @@
         "reason": "worker 1 (Lady Lovelace) reported and you have not acted on it. give it its next job, stop it, or mark it done"
       },
       "typed": [
-        "[journal] worker 1, Lady Lovelace, reported in the chat"
+        "[journal] worker 1 reported"
       ],
       "nudges": [
         "workers.worker_reported",
@@ -41,8 +41,8 @@
       "name": "the last one back",
       "answer": null,
       "typed": [
-        "[journal] the wait for worker 1, worker 2 is over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, reported",
-        "[journal] worker 2, Dr. Einstein, reported in the chat"
+        "[journal] wait over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, reported",
+        "[journal] worker 2 reported"
       ],
       "nudges": [
         "tasks.wait_over",

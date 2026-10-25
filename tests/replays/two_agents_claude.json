@@ -43,8 +43,8 @@
       "name": "the worker reports",
       "answer": null,
       "typed": [
-        "[journal] the wait for worker 1 is over: worker 1, Lady Lovelace, reported",
-        "[journal] worker 1, Lady Lovelace, reported in the chat"
+        "[journal] wait over: worker 1, Lady Lovelace, reported",
+        "[journal] worker 1 reported"
       ],
       "nudges": [
         "tasks.wait_over",

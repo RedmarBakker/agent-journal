@@ -1,3 +1,4 @@
+from journal.events.rows.dump_arrived import DumpArrived
 from journal.features.dumps.commands.dump_command import DumpCommand
 from journal.features.dumps.states.sorting_dump import SortingDump
 from journal.features.feature import Feature
@@ -41,4 +42,4 @@ named for what it is about, never after the file it was received in. One dump is
    `journal dump propose <n> '[{"ask": "Want me to plan the mobile layout?", "label": "Plan it"}]' --summary "<what you filed and where>"`
    (`'[]'` for no next step) and start nothing yourself.
 8. Only the user stops, removes, or chooses a next step. `journal dump reopen <n>` works a closed dump again.
-""", keywords=("dump", "dumps", "dumped"))
+""", keywords=("dump", "dumps", "dumped"), commands=('dump',), events=(DumpArrived,))

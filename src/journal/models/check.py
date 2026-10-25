@@ -5,6 +5,7 @@ from datetime import datetime
 from journal.support.check_progress import CheckProgress
 from journal.support.check_report import CheckReport
 from journal.events.rows.check_completed import CheckCompleted
+from journal.events.rows.check_failed import CheckFailed
 from journal.events.rows.row_resolved import RowResolved
 from journal.models.model import Model
 from journal.support.rejection import Rejection
@@ -59,6 +60,8 @@ class Check(Model):
     def completed(self, passed: bool, output: str, time: datetime, elapsed: float, report: CheckReport | None, fault: str) -> "Check":
         executed = CheckCompleted(environment_id=0, time=time.timestamp(), check_id=self.row_id, title=self.title, passed=passed, output=output, prior_failure=self.last_passed is False, wait_target=self.wait_target, failure_reported_at=self.failure_reported_at)
         recorded = self.with_(last_passed=passed, last_stopped=False, last_output=output, last_run_at=time, last_duration=elapsed, last_report=report, progress=None, last_fault=fault).with_event(executed)
+        if not passed:
+            recorded = recorded.with_event(CheckFailed(environment_id=0, time=time.timestamp(), check_id=self.row_id))
         if self.wait_target and passed and not self.is_resolved():
             return recorded.with_event(RowResolved(environment_id=0, time=time.timestamp(), ref=f"{self.table()}:{self.id}", outcome=recorded.outcome()))
         return recorded

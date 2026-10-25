@@ -35,4 +35,4 @@ as a pin, and the same link again only after a number of your tool uses. The use
 
 The same goes for what a subagent makes: when you dispatch one to produce something the user will open, tell it
 to end its report with the link, and pin that the moment it reports, before you say anything else about its work.
-""", keywords=('pin', 'pinned', 'link', 'design'))
+""", keywords=('pin', 'pinned', 'link', 'design'), commands=('notice',))

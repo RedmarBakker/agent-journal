@@ -100,7 +100,7 @@
     {
       "name": "a write before the plans skill is read",
       "answer": {
-        "error": "read the plans skill before anything else: .claude/skills/journal-plans/SKILL.md. every other tool waits until you have\nread due, message 2: 3"
+        "error": "read the messages skill before anything else: .claude/skills/journal-messages/SKILL.md. every other tool waits until you have\nread due, message 2: 3"
       },
       "typed": [],
       "nudges": [
@@ -123,7 +123,7 @@
     {
       "name": "a write after",
       "answer": {
-        "error": "read the etiquette skill before anything else: .claude/skills/journal-etiquette/SKILL.md. every other tool waits until you have\nread due, message 2: 2"
+        "error": "read the messages skill before anything else: .claude/skills/journal-messages/SKILL.md. every other tool waits until you have\nread due, message 2: 2"
       },
       "typed": [],
       "nudges": [

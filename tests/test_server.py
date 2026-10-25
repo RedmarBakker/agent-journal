@@ -404,6 +404,9 @@ def test_the_reads_of_the_chat_page_and_of_a_hook_find_their_messages_and_entrie
     try:
         hook("SessionStart")
         call(server, "POST", "/journal/messages", {"text": "hello agent"})
+        app.runtime().deferred.drain()
+        hook("PostToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / ".claude/skills/journal-messages/SKILL.md")}, tool_response="")
+        app.runtime().deferred.drain()
         times = app.container.get(QueryTimes)
         times.clear()
         hook("PreToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_use_id="t-1")

@@ -22,4 +22,4 @@ A collection is a row of its own whose links are its members, rows of any type; 
   add them all, and say so in one line so the user can rename or remove it. A single row with nothing related gets no
   collection of its own, and a row the user took out of a collection is never put back.
 - A dump files its items into a collection of its own, named with the dump.
-""", keywords=('collection', 'collections', 'group', 'belong together'))
+""", keywords=('collection', 'collections', 'group', 'belong together'), commands=('collection',))

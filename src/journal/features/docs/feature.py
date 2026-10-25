@@ -31,4 +31,4 @@ Documents are the project's, the same in every environment.
   opens a new one. `journal doc revisions <n>` lists them, number, time, author and change; `journal doc revision <n> <k>`
   prints one in full. An old revision can be read but never restored.
 - `journal doc import <folder>` imports the documents version 3 stored, each folder's doc.md.
-""", keywords=("doc", "docs", "document", "documents"))
+""", keywords=("doc", "docs", "document", "documents"), commands=('doc',))

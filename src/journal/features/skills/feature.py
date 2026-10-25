@@ -1,3 +1,4 @@
+from journal.features.skills.listeners.skill_triggers import SkillTriggers
 from journal.features.feature import Feature
 from journal.features.skills.listeners.skill_obligation import SkillObligation
 from journal.features.skills.skills_conduct import SkillsConduct
@@ -20,7 +21,7 @@ class Skills(Feature[SkillsData]):
     title = "Skills"
     help = "The journal's skills are written for the agent and required by the states at the moments they matter: the journal's at a start, a state's at a start in it, the ones a prompt names; a write waits until the file is read."
     commands = (SkillCommand,)
-    listeners = (SkillObligation, SkillCard, CompactionReset)
+    listeners = (SkillObligation, SkillCard, CompactionReset, SkillTriggers)
     data = (SkillsDataReader,)
     conduct = (SkillsConduct,)
 

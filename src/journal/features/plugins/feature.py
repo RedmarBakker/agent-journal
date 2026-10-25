@@ -51,4 +51,4 @@ stop, send you a line, show a card in the chat or run journal commands as itself
   when the user asks you to work on it, is yours to change; the journal switches the plugin off until the user has
   read the change.
 - Writing a plugin: docs/plugins.md describes all of it, the manifest, the line in and the line out.
-""", keywords=("plugin", "plugins"))
+""", keywords=("plugin", "plugins"), commands=('plugin',))

@@ -1,3 +1,4 @@
+from journal.events.rows.message_arrived import MessageArrived
 from journal.features.feature import Feature
 from journal.features.messages.support.messages_data_reader import MessagesDataReader
 from journal.features.messages.support.messages_data import MessagesData
@@ -79,4 +80,4 @@ The user sends messages; you answer them before anything else.
   answer it, with SendMessage to that agent, only when it asks a question, so two agents never answer each other endlessly.
 - Everything you write for the user reaches the chat as a message; keep it about the work, never about the
   journal's own commands.
-""", keywords=('message', 'messages', 'inbox', 'reply'))
+""", keywords=('message', 'messages', 'inbox', 'reply'), commands=('message',), events=(MessageArrived,))

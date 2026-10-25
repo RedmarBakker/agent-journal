@@ -22,4 +22,4 @@ anything made from it, and its parts are the outline a new item starts with.
 - `journal template create "<title>" --brief "<instructions>" --applies-to plan --purpose critique --parts "title: body | title: body"` writes one.
 - The plan page asks for a critique naming a template: review the plan with it, and put what you find in a
   report linked to the plan.
-""", keywords=('template', 'templates', 'critique'))
+""", keywords=('template', 'templates', 'critique'), commands=('template',))

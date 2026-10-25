@@ -1,3 +1,4 @@
+from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.features.feature import Feature
 from journal.features.workers.clock_conduct import ClockConduct
 from journal.features.workers.listeners.shortfall_return import ShortfallReturn
@@ -162,4 +163,4 @@ A subagent only reads. A worker writes: code in a worktree of its own, a documen
 - A subagent job on files an idle subagent of the same kind read is refused, naming its SendMessage line, so the
   subagent that knows the files takes it. `journal subagent retire <n>` releases a subagent: it is no longer offered
   and no longer counts among the subagents running at once (workers.most_subagents).
-""", keywords=('worker', 'workers', 'helper', 'dispatch', 'worktree', 'send', 'notify'), required_states=('awaiting',))
+""", keywords=('worker', 'workers', 'helper', 'dispatch', 'worktree', 'send', 'notify'), required_states=('awaiting',), commands=('worker', 'subagent'), events=(WorkerDelivered,))

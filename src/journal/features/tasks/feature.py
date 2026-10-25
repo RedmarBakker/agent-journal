@@ -85,4 +85,4 @@ needs no task; file one for work that is an item of its own, that waits, or that
   one, and only the user stops you. A stop with paused tasks names them, in auto mode or not: paused is still open.
 - Work you put off in words is work lost: file it as a task instead.
 - Stopping with a task in hand is informed to continue. Stuck: `journal stuck "<why>"`.
-""", keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'))
+""", keywords=('task', 'tasks', 'todo'), required_states=('working', 'stuck', 'awaiting'), commands=('task',))

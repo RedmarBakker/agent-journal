@@ -54,4 +54,4 @@ until its last step is done.
 - A stop with a step open is shown the step once; a wait, an open question or a pending duty to the journal keeps it silent.
 - `journal sequence create "<title>" --steps "first | second | third"` writes one; `--starts-on plan.created`
   makes a row you create start it on its own.
-""", keywords=('sequence', 'sequences', 'steps'))
+""", keywords=('sequence', 'sequences', 'steps'), commands=('sequence',))

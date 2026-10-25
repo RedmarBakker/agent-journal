@@ -22,7 +22,7 @@
       "name": "worker 1 reports",
       "answer": null,
       "typed": [
-        "[journal] worker 1, Lady Lovelace, reported in the chat"
+        "[journal] worker 1 reported"
       ],
       "nudges": [
         "workers.worker_reported"
@@ -37,8 +37,8 @@
       "name": "worker 2 is stopped",
       "answer": null,
       "typed": [
-        "[journal] the wait for worker 1, worker 2 is over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported",
-        "[journal] worker 2, Dr. Einstein, stopped before it reported"
+        "[journal] wait over: worker 1, Lady Lovelace, reported; worker 2, Dr. Einstein, stopped before it reported",
+        "[journal] worker 2 stopped before it reported"
       ],
       "nudges": [
         "tasks.wait_over",

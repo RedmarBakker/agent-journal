@@ -49,7 +49,7 @@ outside the project, and never in the journal; the journal masks a value anywher
   which deletes the file.
 - `journal secret folder` names the file the values are stored in; `journal secret delete <n>` removes one.
 - A deleted secret keeps its values for thirty days for `journal secret restore <n>`, then they are removed.
-""", keywords=("secret", "secrets", "api key", "token", "password", "login"))
+""", keywords=("secret", "secrets", "api key", "token", "password", "login"), commands=('secret',))
     listeners = (LeakAlarm, ExpiryQuestion, SecretPurge)
     data = (SecretsDataReader,)
     conduct = (SecretsConduct,)

@@ -35,4 +35,4 @@ A report holds what was just checked or researched; lasting knowledge goes in a 
 - An update for the user: `journal report changes` lists what it covers since the last update the user read, by section;
   `journal report recap "<one or two sentences>"` writes it, your summary over the rows the journal gathered, docked at the
   bottom of the chat. `journal report item <section> <row> "<title>"`, `note <n> "<text>"` and `drop <n>` change the latest.
-""", keywords=('report', 'reports', 'critique', 'review', 'write-up'))
+""", keywords=('report', 'reports', 'critique', 'review', 'write-up'), commands=('report',))

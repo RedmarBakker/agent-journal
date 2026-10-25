@@ -4,6 +4,7 @@ from typing import ClassVar
 
 from journal.events.rows.reader_report_dismissed import ReaderReportDismissed
 from journal.events.rows.reader_report_judged import ReaderReportJudged
+from journal.events.rows.reader_report_raised import ReaderReportRaised
 from journal.models.scoped import Scoped
 from journal.support.rejection import Rejection
 
@@ -26,6 +27,9 @@ class ReaderReport(Scoped):
     is_refuted: bool = False
     verdict: str = ""
     judged_at: datetime | None = None
+
+    def creation_events(self) -> tuple[ReaderReportRaised, ...]:
+        return (ReaderReportRaised(environment_id=self.environment_id, session=self.session),)
 
     def opened(self, time: datetime) -> "ReaderReport":
         return self if self.read_at else self.with_(read_at=time)

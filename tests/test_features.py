@@ -16834,10 +16834,37 @@ def test_a_memory_command_waits_until_the_memory_skill_is_read(skilled):
     app.console().run(["environment", "overview"], AGENT)
     held = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal reminder create 'tag it'"})
     assert held[0] == 409 and "read the memory skill before anything else" in held[1]["error"], "a reminder command waits for the memory skill"
-    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal task list"})[0] == 200, "another journal command goes through"
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal search tag"})[0] == 200, "another journal command goes through"
     read_skill(app, "journal-memory")
     app.runtime().deferred.drain()
     assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal reminder create 'tag it'"})[0] == 200, "read, the command goes through"
+
+
+def test_each_skill_is_made_due_by_its_commands_and_by_the_events_that_call_for_it(skilled):
+    from journal.models.reader_report import ReaderReport
+    from journal.repositories.agents import Agents
+    from journal.repositories.reader_reports import ReaderReports
+    app = skilled
+    hook(app, "SessionStart")
+    read_skill(app, "journal")
+    app.console().run(["environment", "overview"], AGENT)
+    owed = lambda: list(app.container.get(Agents).session_agent("s1").skills_due)
+    held = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal doc list"})
+    assert held[0] == 409 and "read the docs skill before anything else" in held[1]["error"], "a doc command waits for the docs skill"
+    read_skill(app, "journal-docs")
+    app.runtime().deferred.drain()
+    assert hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal doc list"})[0] == 200, "read, the command goes through"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(ReaderReports).save(ReaderReport(environment_id=MAIN, reader="pytest", output=1, command="pytest", session="s1", findings=("x",), fixes=("y",)), Actor.system())
+    app.runtime().deferred.drain()
+    assert "shell" in owed(), "a reader report reaching the agent makes the shell skill due"
+    read_skill(app, "journal-shell")
+    app.runtime().deferred.drain()
+    assert "shell" not in owed()
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(ReaderReports).save(ReaderReport(environment_id=MAIN, reader="pytest", output=2, command="pytest", session="s1", findings=("x",), fixes=("y",)), Actor.system())
+    app.runtime().deferred.drain()
+    assert "shell" not in owed(), "a skill read since the last compaction is not made due again"
 
 
 def test_a_new_environment_is_filled_from_a_kept_claude_session_and_its_first_agent_is_asked_once_to_read_it(app: App, tmp_path, monkeypatch):

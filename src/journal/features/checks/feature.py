@@ -1,3 +1,4 @@
+from journal.events.rows.check_failed import CheckFailed
 from journal.features.checks.commands.check_command import CheckCommand
 from journal.features.checks.listeners.run_due_checks import RunDueChecks
 from journal.features.checks.checks_conduct import ChecksConduct
@@ -38,4 +39,4 @@ the next pass clears it.
 - A check shows its progress from what it prints: a count such as `120/983`, test dots, or a percent. It may write
   a report to the file named by `$JOURNAL_REPORT`: `{"title", "summary", "findings": [{"name", "file", "line", "where",
   "text", "group"}]}`; the page lists its findings under the check, grouped, each opening its file at its line.
-""", keywords=("check", "checks", "ci", "suite"))
+""", keywords=("check", "checks", "ci", "suite"), commands=('check',), events=(CheckFailed,))

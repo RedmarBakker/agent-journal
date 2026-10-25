@@ -1,3 +1,4 @@
+from journal.events.rows.reader_report_raised import ReaderReportRaised
 from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.features.feature import Feature
 from journal.features.shell.listeners.output_notice import OutputNotice
@@ -99,4 +100,4 @@ Every shell command you run goes through the journal's runner.
 - A test suite is a long runner: run it on its own and chain the commit after its result in a second call.
 - A journal command runs on its own, or chained only with other journal commands; chained with anything else it is
   refused, since it would move to the background with the rest and its answer would be lost.
-""", keywords=("background", "long-running", "alias"))
+""", keywords=("background", "long-running", "alias"), commands=('output', 'reader', 'alias'), events=(ReaderReportRaised,))

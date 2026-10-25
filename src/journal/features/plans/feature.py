@@ -1,3 +1,4 @@
+from journal.events.rows.plan_approved import PlanApproved
 from journal.features.feature import Feature
 from journal.features.plans.plans_demands import PlansDemands
 from journal.features.plans.support.plans_data_reader import PlansDataReader
@@ -65,4 +66,4 @@ by you, approved by them, and then followed: finishing one task starts the next 
   `journal plan block <n> "<why>"`, with `--on question:N`, `--on task:N` or `--until "<command>"` as for a task, so it
   opens by itself; `journal plan unblock <n>` opens it by hand.
 - `journal plan cancel <n>` abandons it, with the tasks that belong to it alone; tasks another active plan has stay.
-""", keywords=('plan', 'plans', 'roadmap', 'phases'), required_states=('following_plan', 'orchestrating_plan'))
+""", keywords=('plan', 'plans', 'roadmap', 'phases'), required_states=('following_plan', 'orchestrating_plan'), commands=('plan',), events=(PlanApproved,))
