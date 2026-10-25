@@ -11143,6 +11143,31 @@ def test_a_task_sent_back_a_second_time_is_marked_with_the_first_reason_and_a_th
     assert lines[2] == "worker 1 back on point 1 3 times; earlier: the alias names are missing; the tests do not run. change the target, the model or the worker", "the third also tells the orchestrator to change the target, the model or the worker"
 
 
+def test_with_every_place_full_a_clocked_out_worker_is_named_as_the_work_to_check_and_a_refused_dispatch_says_the_same(app: App, monkeypatch):
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    settings, console = app.container.get(SettingRows), app.console()
+    hook(app, "SessionStart")
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("workers.most_out", 1, Actor.user(1))
+    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
+    console.run(["task", "create", "the lexer", "--brief", "splits the words"], AGENT)
+    assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+    lovelace = Caller.worker("main", 1, "w-1", "claude")
+    console.run(["proof", "1", "parser.py:1, test passes"], lovelace)
+    assert console.run(["clock-out", "the parser is done"], lovelace).code == 0
+    app.runtime().deferred.drain()
+    told = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    assert "places full; check worker 1 first" in told, "the one place is held by the clocked-out worker, and the line names it"
+    refused = console.run(["worker", "dispatch", "Mr. Babbage", "--task", "2", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    assert refused.code == 1 and "places full; check worker 1 first" in refused.error, "a dispatch past the limit says the same"
+
+
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []

@@ -39,6 +39,7 @@ class WorkersNudges:
     WORKER_KEEPS_FAILING = Nudge("workers", "worker_keeps_failing", "worker {{n}} failed {{runs}} test runs in a row", repeat=Timeout.seconds(0))
     WORKER_STOPPED_UNREPORTED = Nudge("workers", "worker_stopped_unreported", "worker {{n}} stopped before it reported{{cause}}", repeat=Timeout.seconds(0))
     SUBAGENT_OVERFLOW = Nudge("workers", "too_many_subagents", "{{running}} subagents are running, the most at once", "wait for one, or do it yourself", repeat=Timeout.seconds(0))
+    PLACES_FULL = Nudge("workers", "places_full_check_work", "places full; check worker {{n}} first", "its check frees a place", repeat=Timeout.tool_uses(30))
     WORKER_OVERFLOW = Nudge("workers", "too_many_workers", "{{out}} workers are out, the most at once", "`journal worker wait`, or send the job to one that reported", repeat=Timeout.seconds(0))
     WORKER_FILE = Nudge("workers", "file_is_the_workers", "that file is in worker {{n}}'s worktree", "`journal worker send {{n}} \"<job>\"`, or wait for its report and merge", repeat=Timeout.seconds(0))
     UNREAD_WORKER_REPORTS = Nudge("workers", "act_on_the_reports", "{{reports_waiting}} reported and you have not acted on it", "give it its next job, stop it, or mark it done", repeat=Timeout.seconds(180), blocks_regardless=True)

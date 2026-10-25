@@ -130,10 +130,11 @@ class WorkerCommand(Command):
             raise Rejection(self.starts.hosted_refusal())
         if self.profiles.kind(args.profile) != ProfileKind.WORKER:
             raise Rejection(f"{args.profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
-        output = self.workers.running_locally()
+        output = self.workers.held_locally()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
-            raise Rejection(WorkersNudges.WORKER_OVERFLOW.create(out=len(output)).rendered())
+            waiting = self.workers.checkable_workers()
+            raise Rejection((WorkersNudges.PLACES_FULL.create(n=waiting[0].id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
         if args.pool and self.pool_refusal(args):
             raise Rejection(self.pool_refusal(args))
         task = self.assignment(args.task, caller)

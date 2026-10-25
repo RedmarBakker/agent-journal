@@ -47,6 +47,9 @@ class Workers(ScopedRepository[Worker]):
     def running_pool_workers(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if worker.pool_request]
 
+    def held_locally(self) -> list[Worker]:
+        return [*self.running_locally(), *(worker for worker in self.checkable_workers() if not worker.pool_request)]
+
     def running_locally(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if not worker.pool_request]
 

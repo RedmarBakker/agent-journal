@@ -1673,6 +1673,7 @@ workers.own_output_ended  [workers]  output {{n}} ended with code {{status}}. re
 workers.own_output_running  [workers]  your output {{n}} still runs, and your run ends when you stop. wait for it, then stop again
 workers.place_closed  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once
 workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once
+workers.places_full_check_work  [workers]  places full; check worker {{n}} first. its check frees a place
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
 workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}
 workers.send_it_to_an_idle_worker  [workers]  {{count}} of the {{kept}} {{profile}} workers kept are idle:
@@ -1701,7 +1702,7 @@ workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} 
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times; earlier: {{earlier}}. change the target, the model or the worker
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-248 nudges
+249 nudges
 
 $ agent: journal worker list
 exit 0

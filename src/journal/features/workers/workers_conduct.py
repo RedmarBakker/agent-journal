@@ -268,7 +268,11 @@ def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> T
 
 def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     tasks, workers = event.data.part(TasksPart), event.data.part(WorkersPart)
-    if settings.value(WorkersOptions.MODE) != "orchestrator" or is_full(workers.dispatched_workers, settings.integer(WorkersOptions.WORKER_LIMIT)) or not tasks.open_ids:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
+        return state.none()
+    if is_full((*workers.dispatched_workers, *workers.ready_work), settings.integer(WorkersOptions.WORKER_LIMIT)):
+        return state.none(*(WorkersNudges.PLACES_FULL.create(n=min(workers.ready_work, key=lambda work: work.delivered_at).worker),) if workers.ready_work else ())
+    if not tasks.open_ids:
         return state.none()
     return state.none(WorkersNudges.CREW_REMINDER.create(count=tasks.open_count, tasks=tasks.open_next))
 
