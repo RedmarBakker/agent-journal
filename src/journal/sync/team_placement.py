@@ -14,15 +14,23 @@ NO_TEAM = ""
 
 
 class TeamPlacement:
-    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine."""
+    """The team a row belongs to, by its key, or none: an environment when it is a hub, a session or one its owner shares, each with its team; a row of an environment with that environment; a link only when both its ends are in one team; a person in the home team; a setting of the team's scope in the home team when it is the project's, else with its environment; every other row, rules and templates among them, in none; and whether a row is sent to the team server: a row of a team at all on a team on the hub, as on a team not yet moved there every shared row but a setting of one person or machine. A placement moved by rows and the teams they are going to answers as if they were there already."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, account: TeamAccount) -> None:
         self.tables, self.scopes, self.account = tables, scopes, account
         self.placements = {Environment: self.environment_team, Link: self.link_team, User: self.user_team, Setting: self.setting_team}
+        self.moves: dict[tuple[str, int], str] = {}
+
+    def moved(self, moves: dict[tuple[str, int], str]) -> "TeamPlacement":
+        placement = TeamPlacement(self.tables, self.scopes, self.account)
+        placement.moves = moves
+        return placement
 
     def team_key(self, row: Model) -> str:
         if not row.shared:
             return NO_TEAM
+        if (row.table(), row.row_id) in self.moves:
+            return self.moves[(row.table(), row.row_id)]
         placed = self.placements.get(type(row))
         if placed:
             return placed(row)

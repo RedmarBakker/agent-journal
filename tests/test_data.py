@@ -643,14 +643,45 @@ def environment_withdrawal(config, connection, bus, scope):
     return EnvironmentWithdrawal(TeamAccount(config), SharedTables(connection, bus), Links(connection, bus), EnvironmentOwners(Links(connection, bus), Users(connection, bus), scope.environments), team_scopes(connection, bus, scope))
 
 
-def migration_withdrawal(tmp_path, name: str, scope, tasks, outgoing):
-    """The migration's withdrawal on the team journal of that name, as team_journal made it."""
+def team_migration(tmp_path, name: str, scope, tasks, outgoing):
+    """The move to the hub on the team journal of that name, as team_journal made it, reaching the team server its team file names."""
     from journal.config import Config
+    from journal.db.schema import Schema
+    from journal.features.team.support.team_migration import TeamMigration
+    from journal.models.all_models import AllModels
+    from journal.repositories.doc_revisions import DocRevisions
+    from journal.repositories.doc_scope import DocScope
+    from journal.repositories.docs import Docs
+    from journal.repositories.environment_owners import EnvironmentOwners
+    from journal.repositories.journal_backup import JournalBackup
     from journal.repositories.shared_tables import SharedTables
+    from journal.repositories.users import Users
     from journal.services.service_hooks import ServiceHooks
     from journal.sync.migration_withdrawal import MigrationWithdrawal
+    from journal.sync.team_account import TeamAccount
+    from journal.sync.team_placement import TeamPlacement
+    from journal.sync.team_server_link import TeamServerLink
 
-    return MigrationWithdrawal(outgoing, SharedTables(tasks.connection, tasks.bus), Links(tasks.connection, tasks.bus), environment_withdrawal(Config(tmp_path / name), tasks.connection, tasks.bus, scope), ServiceHooks())
+    config, connection, bus = Config(tmp_path / name), tasks.connection, tasks.bus
+    tables, scopes, account, visible = SharedTables(connection, bus), team_scopes(connection, bus, scope), TeamAccount(config), DocScope(scope.environments, scope)
+    withdrawal = MigrationWithdrawal(outgoing, tables, environment_withdrawal(config, connection, bus, scope), scopes, ServiceHooks())
+    owners = EnvironmentOwners(Links(connection, bus), Users(connection, bus), scope.environments)
+    return TeamMigration(account, TeamServerLink(account, Schema(connection, AllModels.MODELS)), scope.environments, owners, withdrawal, TeamPlacement(tables, scopes, account), Docs(connection, bus, scope, visible), DocRevisions(connection, bus, scope, Links(connection, bus), visible), tables, JournalBackup(connection), config)
+
+
+def migration_withdrawn(tmp_path, name: str, scope, tasks, outgoing, actor) -> None:
+    """The migration's withdrawals planned and queued on the team journal of that name, with no hub made and no document moved."""
+    migration = team_migration(tmp_path, name, scope, tasks, outgoing)
+    migration.withdrawal.withdraw(tuple(migration.withdrawal.planned(actor.stamp, migration.placement)), actor)
+
+
+def served_link(team, server, tmp_path, name: str, email: str, account_id: int) -> None:
+    """The team file of the journal of that name, logged in as a new device of that person on the team server served over HTTP."""
+    import json
+    from journal.sync.team_account import TEAM_FILE
+
+    _, token = team.devices.login(email, "correct horse battery", f"{name}'s migrating device", "10.0.0.9", 5.0)
+    (tmp_path / name / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": account_id, "team_key": team.details.answer().key, "address": f"http://127.0.0.1:{server.server_address[1]}", "token": token}))
 
 
 def team_journal(tmp_path, name: str):
@@ -793,8 +824,8 @@ def served_team_journals(tmp_path):
     _, ada = team.devices.login("ada@example.com", "correct horse battery", "laptop", "10.0.0.1", 2.0)
     bob, _ = team.devices.login("bob@example.com", "correct horse battery", "desktop", "10.0.0.2", 2.0)
     journal_a, journal_b = team_journal(tmp_path, "a"), team_journal(tmp_path, "b")
-    (tmp_path / "a" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 1}))
-    (tmp_path / "b" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2}))
+    (tmp_path / "a" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 1, "team_key": team.details.answer().key}))
+    (tmp_path / "b" / ".journal" / TEAM_FILE).write_text(json.dumps({"account_id": 2, "team_key": team.details.answer().key}))
     outgoing_a, incoming_b, pulled = journal_a[3], journal_b[4], [0]
 
     def carried():
@@ -915,7 +946,7 @@ def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_an
     kept = [rows_a.rows(row.table()).save(row, USER) for row in (Rule(text="a rule"), Template(title="a template"), Trigger(phrases=("a phrase",)), Check(title="a check", command="true"), Sequence(title="a sequence"))]
     private = scope_a.environments.save(Environment(name="private"), USER)
     shared = scope_a.environments.save(Environment(name="open", team_key="k1"), USER)
-    chat = scope_a.environments.save(Environment(name="team", kind=EnvironmentKind.SESSION), USER)
+    chat = scope_a.environments.save(Environment.session(team.details.answer().key, "team"), USER)
     owner = Links(tasks_a.connection, tasks_a.bus).save(Link(source=Ref.build(User(id=1)), target=Ref.build(private), kind="owner"), USER)
     with scope_a.environment(shared.id):
         task = tasks_a.save(Task(environment_id=shared.id, title="open work"), actor=USER)
@@ -924,7 +955,7 @@ def test_the_migration_withdraws_the_rows_every_journal_keeps_from_the_server_an
     on_server = lambda: {(row.row_table, row.row) for row in team.log.copied_rows()}
     assert set(withdrawn) <= on_server(), "before the migration the team server holds them all"
 
-    migration_withdrawal(tmp_path, "a", scope_a, tasks_a, outgoing_a).withdraw(Actor.system())
+    migration_withdrawn(tmp_path, "a", scope_a, tasks_a, outgoing_a, Actor.system())
     carried()
     assert not set(withdrawn) & on_server() and {("environments", shared.id), ("environments", chat.id), ("tasks", task.id)} <= on_server(), "the server forgets the rules, templates, triggers, checks, sequences and the unshared environment, and keeps the shared ones and their rows"
     assert not team.store.all("SELECT * FROM rows WHERE fields LIKE '%private%'") and not team.store.all("SELECT * FROM changes WHERE fields LIKE '%private%'"), "no unshared environment's name is left on the server"
@@ -1006,26 +1037,15 @@ def test_only_the_teams_settings_reach_the_other_journal_never_a_machines_or_a_p
 
 
 def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_and_the_servers_backup_brings_the_earlier_rows_back(tmp_path):
-    import json
-    from journal.config import Config
-    from journal.db.schema import Schema
-    from journal.features.team.support.team_migration import TeamMigration
-    from journal.models.all_models import AllModels
     from journal.models.environment import Environment
     from journal.models.rule import Rule
     from journal.models.user import User
-    from journal.repositories.environment_owners import EnvironmentOwners
     from journal.repositories.shared_tables import SharedTables
-    from journal.repositories.users import Users
     from journal.support.rejection import Rejection
-    from journal.sync.team_account import TEAM_FILE, TeamAccount
-    from journal.sync.team_server_link import TeamServerLink
 
     team, (_, scope_a, tasks_a, outgoing_a, _), _, carried = served_team_journals(tmp_path)
     server = team.started("127.0.0.1", 0)
-    _, token = team.devices.login("ada@example.com", "correct horse battery", "migrating", "10.0.0.4", 5.0)
-    config = Config(tmp_path / "a")
-    (config.home / TEAM_FILE).write_text(json.dumps({"account_id": 1, "address": f"http://127.0.0.1:{server.server_address[1]}", "token": token}))
+    served_link(team, server, tmp_path, "a", "ada@example.com", 1)
     links_a = Links(tasks_a.connection, tasks_a.bus)
     try:
         rule = SharedTables(tasks_a.connection, tasks_a.bus).rows("rules").save(Rule(text="a rule"), USER)
@@ -1038,7 +1058,7 @@ def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_a
             open_task = tasks_a.save(Task(environment_id=shared.id, title="open work"), actor=USER)
         carried()
         earlier = {(row.row_table, row.row) for row in team.log.copied_rows()}
-        migration = TeamMigration(TeamAccount(config), TeamServerLink(TeamAccount(config), Schema(tasks_a.connection, AllModels.MODELS)), scope_a.environments, EnvironmentOwners(links_a, Users(tasks_a.connection, tasks_a.bus), scope_a.environments), migration_withdrawal(tmp_path, "a", scope_a, tasks_a, outgoing_a), config)
+        migration = team_migration(tmp_path, "a", scope_a, tasks_a, outgoing_a)
 
         plan = migration.plan(USER)
         assert outgoing_a.waiting() == [] and scope_a.environments.hubs() == [] and not (tmp_path / "server" / "backups").exists(), "the preview writes nothing, here or on the team server"
@@ -1061,6 +1081,59 @@ def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_a
         team.store.close()
 
 
+def test_a_team_that_synced_everything_moves_to_the_hub_leaving_each_journal_its_own_and_the_server_only_team_rows(tmp_path):
+    from journal.models.doc import Doc
+    from journal.models.doc_edit_mode import DocEditMode
+    from journal.models.doc_revision import DocRevision
+    from journal.models.environment import Environment
+    from journal.models.message import Message
+    from journal.models.plan import Plan
+    from journal.models.user import User
+    from journal.repositories.shared_tables import SharedTables
+
+    team, (_, scope_a, tasks_a, outgoing_a, _), (_, _, tasks_b, _, _), carried = served_team_journals(tmp_path)
+    server = team.started("127.0.0.1", 0)
+    served_link(team, server, tmp_path, "a", "ada@example.com", 1)
+    rows_a, rows_b, links_a = SharedTables(tasks_a.connection, tasks_a.bus), SharedTables(tasks_b.connection, tasks_b.bus), Links(tasks_a.connection, tasks_a.bus)
+    migration = team_migration(tmp_path, "a", scope_a, tasks_a, outgoing_a)
+    try:
+        ada_own, bob_own = (scope_a.environments.save(Environment(name=name), USER) for name in ("ada-own", "bob-own"))
+        shared = scope_a.environments.save(Environment(name="open", team_key=team.details.answer().key), USER)
+        for person, environment in ((1, ada_own), (2, bob_own)):
+            links_a.save(Link(source=Ref.build(User(id=person)), target=Ref.build(environment), kind="owner"), USER)
+        with scope_a.environment(ada_own.id):
+            ada_plan = rows_a.rows("plans").save(Plan(environment_id=ada_own.id, title="Ada's plan"), USER)
+            ada_task = tasks_a.save(Task(environment_id=ada_own.id, title="Ada's task"), actor=USER)
+        with scope_a.environment(bob_own.id):
+            bob_task = tasks_a.save(Task(environment_id=bob_own.id, title="Bob's task"), actor=USER)
+        with scope_a.environment(shared.id):
+            message = rows_a.rows("messages").save(Message(environment_id=shared.id, text="in the open"), USER)
+        doc = migration.docs.save(Doc(title="how we work", body="the guide"), USER)
+        revision = migration.revisions.added(DocRevision(number=1, title="how we work", body="the guide"), doc, USER)
+        carried()
+        held = lambda rows, places: {place for place in places if rows.rows(place[0]).matching(id=place[1])}
+        ada_rows, bob_rows = {("plans", ada_plan.id), ("tasks", ada_task.id)}, {("tasks", bob_task.id)}
+        assert held(rows_b, ada_rows | bob_rows) == ada_rows | bob_rows, "before the migration the team syncs everything"
+
+        migration.run(USER)
+        carried()
+        [hub] = scope_a.environments.hubs()
+        environments = {("environments", ada_own.id), ("environments", bob_own.id), ("environments", shared.id)}
+        assert held(rows_a, ada_rows | environments | {("messages", message.id)}) == ada_rows | environments | {("messages", message.id)} and held(rows_a, bob_rows) == set(), "Ada's journal keeps her environments, plan and task and the shared chat, and lets Bob's task go"
+        assert held(rows_b, bob_rows | environments | {("messages", message.id)}) == bob_rows | environments | {("messages", message.id)} and held(rows_b, ada_rows) == set(), "Bob's journal keeps his own task and the shared chat, and lets Ada's plan and task go"
+        for rows in (rows_a, rows_b):
+            moved = rows.rows("docs").find(doc.id)
+            assert (moved.environment_id, moved.edit_mode, rows.rows("doc_revisions").find(revision.id).environment_id) == (hub.id, DocEditMode.FREE, hub.id), "the document and its revision are in the hub, free to edit, on both journals"
+        on_server = [(row.row_table, row.row) for row in team.log.copied_rows()]
+        assert on_server and all(migration.placement.is_team_row(rows_a.rows(table).find(row)) for table, row in on_server), "the server holds only team rows"
+        assert not (ada_rows | bob_rows) & set(on_server) and {("docs", doc.id), ("messages", message.id), ("environments", hub.id)} <= set(on_server)
+        assert list((tmp_path / "a" / ".journal").glob("journal-before-hub-*.db")) and list((tmp_path / "server" / "backups").glob("team-before-hub-*.db")), "the journal and the team server were backed up first"
+    finally:
+        server.shutdown()
+        server.server_close()
+        team.store.close()
+
+
 def test_a_team_setting_reaches_the_other_journal_and_a_personal_one_does_not_before_and_after_the_migration(tmp_path):
     from journal.repositories.setting_rows import SettingRows
     from journal.events.models.synced import Synced
@@ -1075,7 +1148,7 @@ def test_a_team_setting_reaches_the_other_journal_and_a_personal_one_does_not_be
     carried()
     assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "before the migration the team's setting reaches the other journal and the person's name does not"
 
-    migration_withdrawal(tmp_path, "a", scope_a, tasks_a, outgoing_a).withdraw(Actor.system())
+    migration_withdrawn(tmp_path, "a", scope_a, tasks_a, outgoing_a, Actor.system())
     carried()
     assert settings_b.project_values() == {WorkersOptions.WORKER_LIMIT.key: 3} and set(on_server()) == {WorkersOptions.WORKER_LIMIT.key}, "the migration moves no setting row: the team's setting stays on the server and the other journal"
     settings_a.set(WorkersOptions.WORKER_LIMIT.key, 5, USER)

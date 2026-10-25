@@ -46,7 +46,7 @@ class TeamCommand(Command):
         self.verb(verbs, "release", "let the Team chat go, so another person may claim it; its agent on this machine stops")
         self.verb(verbs, "chat", "who holds the Team chat, and whether they are online")
         self.verb(verbs, "leave", "leave the team: the sync stops, every local row stays, and the team's settings are kept in a backup file")
-        migrate = self.verb(verbs, "migrate", "move a team that syncs everything to the hub, once: the team server writes its backup first, then the hub environment is made and every unshared environment, rule, template, trigger, check and sequence is withdrawn from the server, each journal keeping what is its own; admins only")
+        migrate = self.verb(verbs, "migrate", "move a team that syncs everything to the hub, once: this journal and the team server are backed up first, then the hub environment is made, the project's documents move into it free to edit, and every row the hub places in no team is withdrawn from the server, unshared environments' rows kept by their owners and rules, templates and the like by every journal; admins only")
         migrate.add_argument("--preview", action="store_true", help="name what would be withdrawn, moved and kept, and write nothing")
 
     def join(self, args: Namespace, caller: Caller) -> int:
