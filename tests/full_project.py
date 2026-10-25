@@ -1,4 +1,4 @@
-"""Builds tests/fixtures/full_project.db.gz, the database of a full project the route timing run measures against: every row is generated here from a fixed seed and a list of plain words, never copied from a real journal, since the repository is public. Built again, from the checkout's root, when the schema moves far enough that the saved file no longer boots: PYTHONPATH=src python3 -m tests.full_project"""
+"""Builds tests/fixtures/full_project.db.gz, the database of a full project the route timing run measures against, shaped as a journal worked in for weeks: an agent that finished hundreds of the tasks it took in hand, a started plan of many tasks over many phases, sessions long ended, wait checks, the session's subagents and command outputs. Every row is generated here from a fixed seed and a list of plain words, never copied from a real journal, since the repository is public. Built again, from the checkout's root, when the schema moves far enough that the saved file no longer boots: PYTHONPATH=src python3 -m tests.full_project"""
 import gzip
 import random
 import re
@@ -13,13 +13,22 @@ from journal.config import Config
 from journal.features.voices.voices_options import VoicesOptions
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.features.workers.workers_options import WorkersOptions
+from journal.models.agent import Agent
 from journal.models.author import Author
+from journal.models.check import Check
+from journal.models.command_output import CommandOutput
 from journal.models.message import Message
+from journal.models.subagent import Subagent
+from journal.models.subagent_state import SubagentState
 from journal.models.setting import Setting
+from journal.repositories.agents import Agents
+from journal.repositories.checks import Checks
+from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
+from journal.repositories.subagents import Subagents
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from tests.in_process import posted
@@ -32,6 +41,9 @@ WORDS = ("parser", "header", "footer", "login", "release", "report", "plan", "ph
          "script", "build", "viewer", "panel", "button", "label", "notice", "chart", "count", "cache", "write", "read", "lock", "thread", "queue", "job",
          "timer", "clock", "file", "folder", "path", "name", "title", "brief", "goal", "step", "order", "field", "column", "value", "number", "text")
 PLANS, PHASES, PLAN_TASKS, LOOSE_TASKS, FINISHED_TASKS, WORKERS = 30, 3, 8, 400, 150, 40
+# plan 1, started last, its first task in the agent's hand
+STARTED_PLAN_TASKS, STARTED_PLAN_PHASES = 60, 8
+ENDED_SESSIONS, WAIT_CHECKS, BROKEN_WAIT_CHECKS, SUBAGENTS, OUTPUTS = 80, 100, 10, 40, 30
 MESSAGES, TOOL_CALLS, DISPLAYS, COMMENTS, REACTIONS = 4000, 1200, 300, 400, 300
 DOCS, REPORTS, ABOUT_REPORTS, CHECKS, FACTS, RULES, REMINDERS, QUESTIONS = 80, 60, 20, 25, 40, 30, 30, 20
 SPARE_TASKS, SPARE_MESSAGES = 50, 100
@@ -83,22 +95,28 @@ def hook(app: App, kind: str, **body) -> None:
 
 
 def plans(app: App, words: random.Random) -> list[int]:
-    console, tasks = app.console(), []
-    for _ in range(PLANS):
-        plan = number(console.run(["plan", "create", phrase(words, 4), "--brief", sentence(words)], USER).text, "plan")
-        added = [number(console.run(["plan", "add", str(plan), phrase(words, 5), "--brief", sentence(words)], USER).text, "task") for _ in range(PLAN_TASKS)]
-        for phase in range(1, PHASES + 1):
-            console.run(["plan", "phase", str(plan), phrase(words, 3), "--when", sentence(words)], USER)
-            console.run(["plan", "todos", str(plan), str(phase), *(str(task) for task in added[phase - 1::PHASES])], USER)
-        tasks.extend(added)
-    return tasks
+    plan(app, words, STARTED_PLAN_TASKS, STARTED_PLAN_PHASES)
+    app.console().run(["plan", "approve", "1"], USER)
+    return [task for _ in range(PLANS) for task in plan(app, words, PLAN_TASKS, PHASES)]
+
+
+def plan(app: App, words: random.Random, task_count: int, phase_count: int) -> list[int]:
+    console = app.console()
+    plan = number(console.run(["plan", "create", phrase(words, 4), "--brief", sentence(words)], USER).text, "plan")
+    added = [number(console.run(["plan", "add", str(plan), phrase(words, 5), "--brief", sentence(words)], USER).text, "task") for _ in range(task_count)]
+    for phase in range(1, phase_count + 1):
+        console.run(["plan", "phase", str(plan), phrase(words, 3), "--when", sentence(words)], USER)
+        console.run(["plan", "todos", str(plan), str(phase), *(str(task) for task in added[phase - 1::phase_count])], USER)
+    return added
 
 
 def loose_tasks(app: App, words: random.Random) -> list[int]:
     console = app.console()
     tasks = [number(console.run(["task", "create", phrase(words, 5), "--brief", sentence(words)], AGENT).text, "task") for _ in range(LOOSE_TASKS)]
     for task in tasks[:FINISHED_TASKS]:
-        posted(app, f"/journal/tasks/{task}/finish", {"how": sentence(words)}, MAIN)
+        for command in (["task", "start", str(task)], ["task", "complete", str(task), "--how", sentence(words)]):
+            ran = console.run(command, AGENT)
+            assert ran.code == 0, ran.error
     return tasks
 
 
@@ -122,7 +140,6 @@ def chat(app: App, words: random.Random) -> list[int]:
 
 
 def hooks(app: App, words: random.Random) -> None:
-    hook(app, "SessionStart")
     for n in range(TOOL_CALLS):
         call = {"tool_name": "Read", "tool_input": {"file_path": f"src/{words.choice(WORDS)}.py"}, "tool_use_id": f"t-{n}"}
         hook(app, "PreToolUse", **call)
@@ -159,6 +176,26 @@ def remarks(app: App, words: random.Random, tasks: list[int], messages: list[int
         posted(app, f"/journal/messages/{messages[n * 7 % len(messages)]}/react", {"emoji": words.choice(("👍", "👀", "✅"))}, MAIN)
 
 
+def history(app: App, words: random.Random) -> None:
+    main_id, system = app.container.get(Environments).existing("main").row_id, Actor.system()
+    with app.container.get(Scope).environment(main_id):
+        for n in range(ENDED_SESSIONS):
+            app.container.get(Agents).save(Agent(environment_id=main_id, session=f"ended-{n}", provider="claude", state="ended"), system)
+        for n in range(WAIT_CHECKS):
+            fault = "the command was not found" if n < BROKEN_WAIT_CHECKS else ""
+            app.container.get(Checks).save(Check(title=f"the wait for {phrase(words, 4)} ends when this passes", brief=sentence(words), command="true", interval=60, wait_target=True, last_passed=False if fault else True, last_fault=fault), system)
+        for n in range(SUBAGENTS):
+            brief = " ".join(sentence(words) for _ in range(12))
+            app.container.get(Subagents).save(Subagent(environment_id=main_id, dispatch=f"sub:{n}", dispatcher="s1", task=phrase(words, 5), brief=brief, agent_type="Explore", session=f"agent-{n}", state=SubagentState.FINISHED), system)
+        for n in range(OUTPUTS):
+            app.container.get(CommandOutputs).save(CommandOutput(environment_id=main_id, chain=f"c-{n}", command=f"python3 -m pytest -q tests/test_{words.choice(WORDS)}.py", session="s1", ended=True, summary="\n".join(sentence(words) for _ in range(8))), system)
+
+
+def started_plan(app: App) -> None:
+    started = app.console().run(["plan", "start", "1"], AGENT)
+    assert started.code == 0, started.error
+
+
 def spare(app: App, words: random.Random) -> None:
     spare_env = {"X-Journal-Env": "spare"}
     for _ in range(SPARE_TASKS):
@@ -186,6 +223,7 @@ def main() -> int:
         app = booted(Path(folder))
         try:
             plan_tasks = plans(app, words)
+            hook(app, "SessionStart")
             tasks = plan_tasks + loose_tasks(app, words)
             workers(app, words)
             messages = chat(app, words)
@@ -193,6 +231,8 @@ def main() -> int:
             writing(app, words, plan_tasks)
             memory(app, words)
             remarks(app, words, tasks, messages)
+            history(app, words)
+            started_plan(app)
             spare(app, words)
             app.runtime().deferred.drain()
             saved(app)

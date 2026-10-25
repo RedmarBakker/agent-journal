@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent_listener import AgentListener
-from journal.models.agent import Agent
 from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
 from journal.repositories.tasks import Tasks
@@ -22,20 +21,11 @@ class EndedAgentTasks(AgentListener[SessionStarted]):
     def handle(self, event: SessionStarted) -> None:
         if event.subagent:
             return
-        starting = self.agents.session_agent(event.session).id
-        ended = {agent.id for agent in self.agents.ended_main_agents(event.environment_id)} - {starting}
-        for task_id, holder in self.tasks.holders().items():
-            if holder.type == Agent.table() and holder.id in ended:
-                self.paused(task_id, event.time)
-            elif holder.type == Agent.table() and holder.id == starting:
-                self.resumed(task_id, event.time)
-
-    def paused(self, task_id: int, time: float) -> None:
-        task = self.tasks.find(task_id)
-        if task.state == TaskState.STARTED:
-            self.tasks.save(task.paused(ENDED_REASON, datetime.fromtimestamp(time, timezone.utc)), Actor.system())
-
-    def resumed(self, task_id: int, time: float) -> None:
-        task = self.tasks.find(task_id)
-        if task.state == TaskState.PAUSED and task.pause_reason == ENDED_REASON:
-            self.tasks.save(task.started(datetime.fromtimestamp(time, timezone.utc)), Actor.system())
+        starting = self.agents.session_agent(event.session)
+        moment = datetime.fromtimestamp(event.time, timezone.utc)
+        ended = self.agents.ended_main_query(event.environment_id).filter_unequal("id", starting.id)
+        for task in self.tasks.agent_held(TaskState.STARTED, ended):
+            self.tasks.save(task.paused(ENDED_REASON, moment), Actor.system())
+        for task in self.tasks.agent_held(TaskState.PAUSED, self.agents.query().filter(id=starting.id)):
+            if task.pause_reason == ENDED_REASON:
+                self.tasks.save(task.started(moment), Actor.system())

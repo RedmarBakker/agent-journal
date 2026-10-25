@@ -188,7 +188,7 @@ class Plans(ScopedRepository[Plan]):
     # it joined its phase, then its tasks under no phase in the order they joined the plan; one link read a phase, never the plan's tasks' rows
     def first_task(self, plan: Plan, state: TaskState, candidates: Query) -> Task | None:
         matching = candidates.filter(state=state)
-        phases = [Ref(Phase.table(), n) for n in self.phases.selected_ids(self.plan_phase_query(plan).order("id"))]
+        phases = [Ref.build(phase) for phase in self.plan_phases(plan)]
         for phase in phases:
             found = self.first_link(self.links.query().filter(kind=PHASE_LINK, target=phase), matching)
             if found is not None:
@@ -225,6 +225,6 @@ class Plans(ScopedRepository[Plan]):
 
     def postpone(self, plan: Plan, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)
-        for task in [t for t in self.plan_tasks(plan) if t.state == TaskState.STARTED]:
+        for task in self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id")):
             self.tasks.save(task.paused(f"plan {plan.id} was paused", time), actor)
         return self.save(plan.postponed(time.timestamp(), actor.is_user()), actor)

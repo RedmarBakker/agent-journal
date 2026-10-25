@@ -24,7 +24,7 @@ class Agents(ScopedRepository[Agent]):
         return self.global_matching(role=AgentRole.MAIN)
 
     def sequence_agents(self, environment_id: int) -> list[Agent]:
-        return [agent for agent in self.global_matching(environment_id=environment_id) if agent.sequence_runs]
+        return self.selected_globally(self.query().filter(environment_id=environment_id).filter_unequal("sequence_runs", ()).order("id"))
 
     def ended_sequence_agents(self, session: str) -> list[Agent]:
         return self.newest(self.query().filter(state="ended").filter_unequal("session", session).filter_unequal("sequence_runs", ()))
@@ -48,8 +48,8 @@ class Agents(ScopedRepository[Agent]):
     def conversation_agents(self, count: int) -> list[Agent]:
         return [agent for agent in self.scoped() if agent.has_program() and agent.role == AgentRole.MAIN][-count:]
 
-    def ended_main_agents(self, environment_id: int) -> list[Agent]:
-        return self.global_matching(environment_id=environment_id, role=AgentRole.MAIN, state="ended")
+    def ended_main_query(self, environment_id: int) -> Query:
+        return self.query().filter(environment_id=environment_id, role=AgentRole.MAIN, state="ended")
 
     def main_scoped(self, environment_id: int) -> list[Agent]:
         return self.selected_globally(self.unended_query().filter(environment_id=environment_id, role=AgentRole.MAIN).order("id"))

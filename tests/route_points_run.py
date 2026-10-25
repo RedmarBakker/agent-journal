@@ -1,4 +1,4 @@
-"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, and every hook kind is generated from the router and the hook kinds and answered in-process against the saved full project (tests/full_project.py), counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing."""
+"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind and the commands an agent runs on its plan are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read and a read the viewer polls."""
 
 import json
 import time
@@ -8,8 +8,12 @@ from pathlib import Path
 import pytest
 
 from journal.app import App
+from journal.db.connection import Connection
 from journal.features.faults.support.slow_requests import UNMEASURED_PATHS, SlowRequests
 from journal.models.support.request_loads import RequestLoads
+from journal.repositories.environments import Environments
+from journal.repositories.plans import Plans
+from journal.repositories.scope import Scope
 from journal.repositories.load_tally import LoadTally
 from journal.http.controllers.controller import Controller
 from journal.http.router import Router
@@ -76,10 +80,17 @@ PARAMETERS = {"id": "1", "table": "tasks", "name": "journal", "provider": "claud
 # the body a route needs to do its work, the shim's own words and environment for the command routes; every other write is sent an empty one
 BODIES = {"/cli": (JSON, json.dumps({"argv": ["task", "list"], "env": "main", "session": None}).encode()), "/cli/run": (RAW, b"JOURNAL_ENV=main\0\0task\0list\0")}
 EMPTY = (JSON, b"{}")
+# a change read asks for the rows changed since the run began, as a poll right after the last read does
 LIST_PARAMETERS = ("limit=50", "closed=1", "before=1000", "after=1", "since={since}", "ids=1,2,3")
 # writes that take a row away run last, so every other route still finds the rows it names
 LAST_ACTS = ("/delete", "/remove", "/purge", "/sign-out", "/disconnect")
 GET_TRIES = 3
+# a list's change read is sent when the timeline says a row of its table changed, so it always finds the table written since its last read
+CHANGE_READ = "since="
+# reads the viewer polls over rows written between two polls, counted against a cold cache, each with why
+POLLED = {"GET /journal/bar": "polled every half second while the agent works, over the entries every hook writes"}
+# the plan the full project has started, its first task in the agent's hand
+STARTED_PLAN = 1
 # a row loaded, a write and a started kilobyte loaded are a point each, whatever the machine is doing
 POINTS_BUDGET = 30
 # the answers that spent more than the budget when the gate was made, each with what it spent then: none may spend more,
@@ -118,7 +129,7 @@ def cases(app: App) -> list[tuple[str, str, tuple[str, bytes]]]:
     """Every route not left out, as the method, a path that names a row of the full project and a harmless body: each read and each list with its list parameters first, then each write, the ones that take a row away last."""
     timed = [route for route in app.container.get(Router).routes if not is_left_out(route)]
     reads = [("GET", path(route), EMPTY) for route in timed if route.method == "GET"]
-    lists = [("GET", f"{path(route)}?{parameter.format(since=time.time() - 3600)}", EMPTY) for route in timed if is_list(route) for parameter in LIST_PARAMETERS]
+    lists = [("GET", f"{path(route)}?{parameter.format(since=time.time())}", EMPTY) for route in timed if is_list(route) for parameter in LIST_PARAMETERS]
     writes = sorted((route for route in timed if route.method == "POST"), key=lambda route: route.pattern.endswith(LAST_ACTS))
     return [*reads, *lists, *(("POST", path(route), BODIES.get(route.pattern, EMPTY)) for route in writes)]
 
@@ -144,12 +155,23 @@ def answer_loads(app: App, method: str, target: str, body: tuple[str, bytes]) ->
     return loads
 
 
+def cold_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
+    """The same against a cold cache, as an answer finds it once the rows it reads were written."""
+    app.container.get(Connection).cache.cleared()
+    return answer_loads(app, method, target, body)
+
+
+def is_cold(method: str, target: str) -> bool:
+    return CHANGE_READ in target or f"{method} {target}" in POLLED
+
+
 def least_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
-    """A read's least of its tries after the first, which loads a cold cache; a write once, since a second would change what it finds."""
+    """A read's least of its tries after the first, which loads a cold cache, each try cold for a read a live journal answers after a write; a write once, since a second would change what it finds."""
     if method == "POST":
         return answer_loads(app, method, target, body)
+    tried = cold_loads if is_cold(method, target) else answer_loads
     answer_loads(app, method, target, body)
-    return min((answer_loads(app, method, target, body) for _ in range(GET_TRIES)), key=RequestLoads.points)
+    return min((tried(app, method, target, body) for _ in range(GET_TRIES)), key=RequestLoads.points)
 
 
 def allowed(name: str) -> int:
@@ -198,9 +220,31 @@ def test_every_hook_kind_answers_within_its_budget_on_a_full_project(full_projec
     posted = lambda kind, body, try_name: (JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode())
     for kind, body in bodies.items():
         answer_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "warm"))
-    loads = {kind: answer_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "counted")) for kind, body in bodies.items()}
+    loads = {kind: cold_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "counted")) for kind, body in bodies.items()}
     hooks = over(recorded({f"hook {kind.value}": load for kind, load in loads.items()}))
     assert not hooks, "\n".join(hooks)
+
+
+def in_hand(app: App) -> int:
+    with app.container.get(Scope).environment(app.container.get(Environments).existing("main").row_id):
+        plans = app.container.get(Plans)
+        return plans.started_task(plans.find(STARTED_PLAN)).id
+
+
+def command(app: App, *argv: str) -> RequestLoads:
+    return answer_loads(app, "POST", "/cli", (JSON, json.dumps({"argv": list(argv), "env": "main", "session": "s1"}).encode()))
+
+
+def test_the_commands_an_agent_runs_on_its_started_plan_answer_within_their_budget(full_project: App):
+    first = in_hand(full_project)
+    spending = {"POST /cli/task complete": command(full_project, "task", "complete", str(first), "--how", "the parser is written")}
+    following = in_hand(full_project)
+    assert following != first, "the plan took its next task in hand"
+    spending["POST /cli/task pause"] = command(full_project, "task", "pause", str(following), "the footer first")
+    spending["POST /cli/task start"] = command(full_project, "task", "start", str(following))
+    spending["POST /cli/output list"] = command(full_project, "output", "list")
+    commands = over(recorded(spending))
+    assert not commands, "\n".join(commands)
 
 
 def test_a_route_made_heavy_on_purpose_is_reported_over_its_budget(full_project: App):

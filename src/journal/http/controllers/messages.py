@@ -33,7 +33,7 @@ class MessageController(Controller[Message]):
     def listed(self, listing: Listing) -> RowList:
         page = self.chat_page(self.repository.main_chat(), listing)
         unread = self.repository.unviewed()
-        counts = Counts(all=self.repository.counted(self.repository.main_chat()), open=len(self.open_ids()) + unread, unread=unread)
+        counts = Counts(all=self.repository.counted(self.repository.main_chat()), open=len(self.repository.unanswered()) + self.repository.unread_count() + unread, unread=unread)
         return RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=counts)
 
     def chat_page(self, chat: Query, listing: Listing) -> RowListPage:
@@ -48,9 +48,6 @@ class MessageController(Controller[Message]):
         listing = Listing.query_listing(request.query)
         page = self.chat_page(self.repository.agent_chat(request.params["session"]), listing)
         return Response.json(RowList(rows=self.shown_page(page["rows"]), is_last_page=page["is_last_page"], counts=Counts(all=len(page["rows"]), open=0, unread=0)))
-
-    def open_ids(self) -> set[int]:
-        return {m.row_id for m in self.repository.unanswered()} | {m.row_id for m in self.repository.unread()}
 
     def shown_page(self, rows: list[Message]) -> list[dict]:
         filed, commented, unanswered = self.repository.linked(Messages.SUBJECT_LINK, [m.row_id for m in rows]), self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows]), {m.id for m in self.repository.unanswered()}

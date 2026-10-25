@@ -46,7 +46,7 @@ class StartLines:
         return self.numbered(r.text for r in self.reminders.standing())
 
     def waiting(self) -> str:
-        counts = {"tasks": len(self.tasks.open_tasks()), "messages": self.messages.unread_count(), "questions": len(self.questions.open())}
+        counts = {"tasks": self.tasks.open_count(), "messages": self.messages.unread_count(), "questions": len(self.questions.open())}
         return ", ".join(f"{n} {name}" for name, n in counts.items() if n)
 
     def team_history(self, environment: Environment) -> str:

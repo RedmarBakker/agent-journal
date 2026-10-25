@@ -136,10 +136,9 @@ class Tasks(ScopedRepository[Task]):
         return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES))
 
     def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
-        query = self.query().filter(state=state).order_descending("priority").order("id")
-        plans = [Ref(Plan.table(), plan_id) for plan_id in self.selected_ids(Query.build(Plan).filter_listed("state", list(plan_states)))]
-        planned = self.links.query().filter(kind=PLAN_LINK).filter_listed("target", plans).filter_ref("source", self.query())
-        return query.filter_absent(planned) if plans else query
+        plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_named(self.links.query(), "target")
+        planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
+        return self.query().filter(state=state).filter_absent(planned).order_descending("priority").order("id")
 
     def recent_completions(self, start: datetime, end: datetime) -> list[Task]:
         return self.selected(self.query().filter(state=TaskState.FINISHED).filter_greater_equal("finished_at", start).filter_less("finished_at", end).order("id"))
@@ -170,8 +169,9 @@ class Tasks(ScopedRepository[Task]):
         holders = self.links.sources(task, CURRENT_TASK_LINK)
         return holders[-1] if holders else None
 
-    def holders(self) -> dict[int, Ref]:
-        return {link.target.id: link.source for link in self.links.all_matching(kind=CURRENT_TASK_LINK)}
+    def agent_held(self, state: TaskState, agents: Query) -> list[Task]:
+        held = self.links.query().filter(kind=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_named(self.links.query(), "source"))
+        return self.selected(self.query().filter(state=state).filter_existing(held).order("id"))
 
     def row_holders(self, rows: list[Task]) -> dict[int, Ref]:
         return {link.target.id: link.source for link in self.links.model_links("target", rows, CURRENT_TASK_LINK)}
