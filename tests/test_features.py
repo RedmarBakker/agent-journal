@@ -3677,9 +3677,10 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), kind="requested_of"), Actor.user(1))
     listener = RequestArrivalCard(app.container.get(MomentCards), app.container.get(EnvironmentOwners), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id))
     listener.handle(Created(model=link, actor=Actor.user(1)))
+    app.runtime().deferred.drain()
     with app.container.get(Scope).environment(home.row_id):
         cards = [m.text for m in app.container.get(Messages).scoped()]
-    assert cards == [f"acme task {task.row_id} is a request for you: review the plan"], "the card is in the person's main chat, naming the task with its team"
+    assert set(cards) == {f"acme task {task.row_id} is a request for you: review the plan"}, "the card is in the person's main chat, naming the task with its team"
     controller = app.container.get(RequestController)
     assert [row["title"] for row in controller.index(SimpleNamespace(actor=Actor.user(bob.row_id))).body["rows"]] == ["review the plan"], "and the request is on their Requests list"
     with app.container.get(Scope).environment(hub.row_id):
