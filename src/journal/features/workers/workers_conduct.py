@@ -15,6 +15,7 @@ from journal.features.workers.support.written_wait import WrittenWait
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
+from journal.events.rows.worker_keeps_clashing import WorkerKeepsClashing
 from journal.events.rows.quick_report_dropped import QuickReportDropped
 from journal.events.rows.tiny_job_dropped import TinyJobDropped
 from journal.events.rows.worker_limited import WorkerLimited
@@ -122,6 +123,11 @@ class WorkersConduct(Conduct):
             return self.none()
         ready = [work for work in event.data.part(WorkersPart).ready_work if work.worker == event.worker.id]
         return self.none(*(WorkersNudges.WORK_READY.create(n=work.worker, name=work.name, task=work.task) for work in ready))
+
+    def on_worker_keeps_clashing(self, event: WorkerKeepsClashing, settings: Settings) -> Transition:
+        if event.worker.is_other_dispatcher(event.session):
+            return self.none()
+        return self.none(WorkersNudges.BRANCH_KEEPS_CLASHING.create(n=event.worker.id, clashes=event.clashes, clashing=event.clashing))
 
     def on_worker_reported(self, event: WorkerReported, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):

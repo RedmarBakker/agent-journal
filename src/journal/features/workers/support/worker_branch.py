@@ -63,7 +63,7 @@ class WorkerBranch:
         environment = self.environments.find(worker.environment_id)
         tree = Worktree(self.config.root, environment.name)
         if environment.branch == tree.branch and not tree.path.is_dir():
-            raise Rejection(f"the worktree {tree.path} of environment {environment.name} is gone, so its workers have nowhere to start from and nothing to merge into: launch {environment.name} again, which makes it anew from its kept tip, then dispatch")
+            raise Rejection(f"the worktree {tree.path} of environment {environment.name} is gone, so its workers have nowhere to start from and nothing to merge into: launch {environment.name} again, which makes it anew from its saved tip, then dispatch")
         if not self.account.is_joined():
             return self.config.root
         return tree.path if tree.path.is_dir() else self.config.root
@@ -110,7 +110,7 @@ class WorkerBranch:
             return []
         finished = self.git("log", "--reverse", "--format=%h %s", f"HEAD..{tip}", cwd=repository.checkout)
         if finished.returncode != 0:
-            raise Rejection(f"git could not list worker {worker.id}'s commits in {repository.label()}: {(finished.stderr.strip().splitlines() or ['no reason given'])[-1]}")
+            raise Rejection(f"git could not list worker {worker.id}'s commits in {repository.label()}: {(finished.stderr.strip().splitlines() or ['no reason'])[-1]}")
         return [line for line in finished.stdout.splitlines() if line.strip()]
 
     def unmerged_count(self, worker: Worker) -> int:
@@ -247,7 +247,10 @@ class WorkerBranch:
 
     def is_built_clash(self, folder: Path) -> bool:
         clashing = self.conflicts(folder)
-        return bool(clashing) and bool(self.built_paths()) and all(path.startswith(self.built_paths()) for path in clashing.split(", "))
+        return bool(clashing) and all(self.is_built(path) for path in clashing.split(", "))
+
+    def is_built(self, path: str) -> bool:
+        return bool(self.built_paths()) and path.startswith(self.built_paths())
 
     def project_side(self, folder: Path) -> subprocess.CompletedProcess:
         for path in self.conflicts(folder).split(", "):
@@ -265,7 +268,6 @@ class WorkerBranch:
             self.git("commit", "-qm", "Build the built files again on the project's branch", cwd=folder)
         return ""
 
-    # the files the worker's branch would clash in if it merged now, read by git merge-tree without touching the branch or the checkout
     def clash_preview(self, worker: Worker) -> str:
         clashing = []
         for repository in self.pending(worker):
@@ -274,7 +276,7 @@ class WorkerBranch:
                 continue
             tree = self.git("merge-tree", "--write-tree", "--name-only", "--no-messages", "HEAD", tip, cwd=repository.checkout)
             if tree.returncode == 1:
-                clashing += [str(repository.path(path)) for path in tree.stdout.split()[1:]]
+                clashing += [str(repository.path(path)) for path in tree.stdout.split()[1:] if not self.is_built(path)]
         return ", ".join(clashing)
 
     def merged(self, repository: WorkerRepository, worker: Worker) -> str:

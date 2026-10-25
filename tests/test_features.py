@@ -13408,7 +13408,7 @@ def test_a_rebase_conflict_in_an_inner_repository_merges_nothing_anywhere(app: A
     assert git_run(root, "rev-parse", "HEAD").stdout.strip() == project_head and git_run(root / "platform", "rev-parse", "HEAD").stdout.strip() == platform_head
 
 
-def test_a_merge_refused_on_a_clash_records_for_the_orchestrator_the_files_and_the_command_that_sends_the_worker_back(app: App, monkeypatch):
+def test_a_merge_refused_on_a_clash_records_the_files_for_the_orchestrator_and_sends_the_worker_back_by_itself(app: App, monkeypatch):
     import json as json_module
     from journal.db.connection import Connection
     from journal.repositories.proofs import Proofs
@@ -13430,10 +13430,12 @@ def test_a_merge_refused_on_a_clash_records_for_the_orchestrator_the_files_and_t
     checked = proofs()
     refused = app.console().run(["worker", "merge", "1"], AGENT)
     line = "worker 1's work was not merged: its branch clashes\nrebased onto the branch of"
-    assert refused.code != 0 and refused.error.startswith(line) and "conflict in platform/app.php" in refused.error and 'journal worker send 1 "rebase your branch onto the project\'s branch' in refused.error and refused.error.count("\n") == 3, refused.error
+    assert refused.code != 0 and refused.error.startswith(line) and "conflict in platform/app.php" in refused.error and 'went back to the worker to rebase by itself' in refused.error and refused.error.count("\n") == 3, refused.error
     cards = [(row["text"], json_module.loads(row["data"])) for row in app.container.get(Connection).all("SELECT text, data FROM messages WHERE text LIKE '%merge of task 1 refused%'")]
     assert len(cards) == 1 and cards[0][1]["lines"][1] == refused.error.splitlines()[0] and "platform/app.php" in cards[0][1]["lines"][0], "the line is recorded for the orchestrator as a card in its chat"
-    assert proofs() == checked and worker_row(app).state == WorkerState.DELIVERED and task_state() != "done", "the worker's proofs and task are kept"
+    app.runtime().deferred.drain()
+    assert proofs() == checked and task_state() != "done", "the worker's proofs and task are kept"
+    assert worker_row(app).state == WorkerState.DISPATCHED and "conflict in platform/app.php" in worker_row(app).brief and worker_row(app).clashes == 1, "and the branch went back to the worker to rebase, with no send by hand"
 
 
 def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_suite_after_it_names_the_merged_worker(app: App, monkeypatch):
@@ -18277,6 +18279,60 @@ def test_a_clock_out_moves_the_workers_branch_up_to_the_project_and_sends_a_clas
     assert app.console().run(["clock-out", "the work is in"], caller).code == 0, "once it has no clash the clock-out goes through"
     project_tip = git_run(root / "platform", "rev-parse", "HEAD").stdout.strip()
     assert git_run(folder / "platform", "merge-base", "--is-ancestor", project_tip, "HEAD").returncode == 0, "and the worker's branch is moved up to the project's, the note committed meanwhile with it"
+
+
+def test_a_merge_landing_sends_back_each_waiting_branch_it_makes_clash_and_leaves_one_clashing_only_in_built_files_alone(app: App, monkeypatch):
+    from journal.repositories.entries import NUDGE, Entries
+    root = workspace_made(app, ("platform",))
+    _, first, first_caller = worktree_worker(app, monkeypatch, "platform totals")
+    _, second, second_caller = worktree_worker(app, monkeypatch, "platform header", n=2)
+    _, third, third_caller = worktree_worker(app, monkeypatch, "platform notes", n=3)
+    committed(first / "platform", "app.php", "<?php\n// the first worker's line\n")
+    committed(second / "platform", "app.php", "<?php\n// the second worker's line\n")
+    committed(third / "platform", "notes.md", "the third worker's notes\n")
+    app.container.get(SettingRows).set("workers.built_paths", ["dist"], Actor.system())
+    committed(first / "platform", "dist/app.js", "built by the first worker\n")
+    committed(third / "platform", "dist/app.js", "built by the third worker\n")
+    for caller, proof in ((first_caller, "platform/app.php:1"), (second_caller, "platform/app.php:1"), (third_caller, "platform/notes.md:1")):
+        assert proved_and_out(app, caller, proof).code == 0
+    app.console().run(["worker", "check", "2", "1"], AGENT)
+    merged = checked_and_merged(app, 1)
+    assert merged.code == 0, merged.error
+    app.runtime().deferred.drain()
+    clashing = worker_row(app, 2)
+    assert clashing.state == WorkerState.DISPATCHED and "conflict in platform/app.php" in clashing.brief and "no longer merges cleanly" in clashing.brief, "the branch the merge made clash went back to its worker with the conflict, by itself"
+    assert worker_row(app, 3).state == WorkerState.DELIVERED and worker_row(app, 3).clashes == 0, "a branch that clashes only in built files, which its merge builds again, is left alone"
+    with app.container.get(Scope).environment(MAIN):
+        named = [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.branch_keeps_clashing"]
+    assert named == [], "the main agent hears nothing of a first clash"
+
+
+def test_a_branch_sent_back_as_often_in_a_row_as_the_setting_allows_is_named_to_the_main_agent(app: App, monkeypatch):
+    from journal.features.workers.support.clash_return import ClashReturn
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.workers import Workers
+    workspace_made(app, ("platform",))
+    worktree_worker(app, monkeypatch, "platform totals")
+    hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "ls"})
+
+    def named() -> list[str]:
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            return [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.branch_keeps_clashing"]
+
+    def clashed() -> None:
+        with app.container.get(Scope).environment(MAIN):
+            delivered = app.container.get(Workers).save(worker_row(app).with_(state=WorkerState.DELIVERED), Actor.system())
+            app.container.get(ClashReturn).send(delivered, "platform/app.php")
+
+    clashed()
+    clashed()
+    assert named() == [], "two clashes in a row are the worker's own business"
+    clashed()
+    lines = named()
+    assert len(lines) == 1 and lines[0].startswith("worker 1's branch went back to rebase 3 times in a row") and "platform/app.php" in lines[0], lines
+    with app.container.get(Scope).environment(MAIN):
+        assert worker_row(app).merged(1, 0.0).clashes == 0, "a merge starts the count again"
 
 
 def test_a_refused_claude_shell_command_is_swapped_for_one_that_prints_the_reason_never_a_red_hook_error(app: App):

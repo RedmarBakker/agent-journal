@@ -18,6 +18,7 @@ class WorkersNudges:
     OPEN_TODOS = Nudge("workers", "open_todos", "your to-do list has {{count}} open items: {{items}}", "finish them, or say why with journal clock-out", repeat=Timeout.seconds(0))
     WORK_READY = Nudge("workers", "work_ready", "worker {{n}} ready: task {{task}}", repeat=Timeout.seconds(0))
     CHECK_REMINDER = Nudge("workers", "check_reminder", "worker {{n}} waits: task {{task}}", repeat=Timeout.seconds(180))
+    BRANCH_KEEPS_CLASHING = Nudge("workers", "branch_keeps_clashing", "worker {{n}}'s branch went back to rebase {{clashes}} times in a row, as merges landed under it; it clashes in {{clashing}}", "merge the other workers' work in an order that lets it catch up, or hold their merges until it is ready", repeat=Timeout.seconds(0))
     RUN_UNFINISHED = Nudge("workers", "run_unfinished", "worker {{n}} ended without clocking out{{cause}}", repeat=Timeout.seconds(0))
     WORKER_REPORTED = Nudge("workers", "worker_reported", "worker {{n}} reported", repeat=Timeout.seconds(0))
     STARTED_PLANS = Nudge("workers", "started_plans", "started plans: {{plans}}", repeat=Timeout.minutes(10), blocks_regardless=True)
