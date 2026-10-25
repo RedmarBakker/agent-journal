@@ -56,6 +56,8 @@ ASSIGNMENT_REFUSALS = {
 }
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
+# a pool worker pushes its branch at each clock-out and takes one task per request, so it cannot yet go through a queue before it reports
+POOL_REPORT_REFUSAL = "a pool worker reports after each task for now: it pushes its branch at each clock-out and takes one task per request, so --report queue and --report every are refused with --pool"
 
 class WorkerCommand(Command):
     noun = "worker"
@@ -150,6 +152,8 @@ class WorkerCommand(Command):
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
+        if args.pool and ReportChoice.argument(args.report).tasks != 1:
+            raise Rejection(POOL_REPORT_REFUSAL)
         self.worker_profile(args.profile)
         output = self.workers.held_locally()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
@@ -291,6 +295,8 @@ class WorkerCommand(Command):
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
+        if args.report and worker.pool_request and ReportChoice.argument(args.report).tasks != 1:
+            raise Rejection(POOL_REPORT_REFUSAL)
         if args.report:
             worker = self.workers.save(worker.with_(report_choice=ReportChoice.argument(args.report)), caller.actor)
         for n in reversed(args.tasks) if args.first else args.tasks:

@@ -12747,6 +12747,9 @@ def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in
     assert queued.code == 0 and "it reports every 2" in queued.text, queued.error
     listed = console.run(["worker", "list"], AGENT).text
     assert "reports every 2" in listed and "reports queue" in listed and "reports every 3" in listed
+    console.run(["task", "create", "the pooled job", "--brief", "the pooled job: done when it is in"], AGENT)
+    pooled = console.run(["worker", "dispatch", "Worker 9", "--task", "5", "--changes", "the files of its task", "--profile", "journal-medior", "--worktree", "--no-libraries", "--pool", "--report", "queue"], AGENT)
+    assert pooled.code != 0 and "a pool worker reports after each task for now" in pooled.error, pooled.error
     for bad in (["every", "1"], ["every", "0"], ["every", "-1"], ["every", "abc"], ["some"]):
         refused = console.run(["worker", "queue", "2", "4", "--report", *bad], AGENT)
         assert refused.code != 0 and f"--report takes each, queue or every <n> of two or more, not '{' '.join(bad)}'" in refused.error, refused.error
