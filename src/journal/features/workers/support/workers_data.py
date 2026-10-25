@@ -30,7 +30,7 @@ class WorkersData:
     delivered_runs: tuple[tuple[int, int], ...] = ()
     tool_uses: ToolUseCounts = ToolUseCounts()
     code_lines: int = 0
-    crowd: AgentLoad = AgentLoad()
+    load: AgentLoad = AgentLoad()
     fitness_level: int = 100
     merge_check: MergeCheck = MergeCheck()
     last_calls: dict[int, str] = field(default_factory=dict)
