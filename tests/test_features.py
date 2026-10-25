@@ -3455,8 +3455,8 @@ def hub_mentions_of(app: App, team: str) -> list[str]:
     from journal.sync.team_account import TEAM_FILE
     from journal.config import Config
     home = app.container.get(Config).home
-    app.container.get(Environments).save(Environment(name="team", is_team_chat=True), Actor.system())
-    (home / TEAM_FILE).write_text(json.dumps({"team_name": team}))
+    app.container.get(Environments).save(Environment.hub("acme-key", "acme"), Actor.system())
+    (home / TEAM_FILE).write_text(json.dumps({"team_name": team, "team_key": "acme-key"}))
     try:
         hook(app, "SessionStart")
         app.console().run(["message", "send", "look at acme plan 12"], USER)
@@ -3467,7 +3467,7 @@ def hub_mentions_of(app: App, team: str) -> list[str]:
 
 
 def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_acme_is_the_hub_plan(app: App):
-    assert hub_mentions_of(app, "acme") == ["team/plans:12"]
+    assert hub_mentions_of(app, "acme") == ["acme/plans:12"]
 
 
 def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_hub_plan(app: App):
@@ -11591,6 +11591,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
     from journal.models.environment_kind import EnvironmentKind
     from journal.repositories.environment_owners import EnvironmentOwners
     from journal.repositories.environments import Environments
+    from journal.sync.team_account import TeamAccount
     from sync_server.team_server import TeamServer
 
     def git(*arguments: str) -> None:
@@ -11621,6 +11622,7 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         assert joined_b.code == 0, joined_b.error
         assert [(row.row_id, row.key, row.kind) for row in b.container.get(Environments).hubs(new.key)] == [(hub.row_id, hub.key, EnvironmentKind.HUB)], "a later journal finds the same hub, and makes no second one"
         assert [row.row_id for row in a.container.get(Environments).hubs(new.key)] == [hub.row_id], "and the first journal still holds one"
+        assert [(journal.container.get(TeamAccount).team_key(), journal.container.get(TeamAccount).team_name()) for journal in journals] == [(new.key, "acme")] * 2, "each journal keeps the team's key and name, which find its hub"
     finally:
         for carrier in carriers:
             carrier.stop()

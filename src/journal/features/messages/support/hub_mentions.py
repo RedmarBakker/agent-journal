@@ -11,5 +11,5 @@ class HubMentions:
         self.account, self.environments = account, environments
 
     def found(self, text: str) -> list[Ref]:
-        hubs = self.environments.team_chats() if self.account.team_name() else []
+        hubs = self.environments.hubs(self.account.team_key()) if self.account.team_key() else []
         return Mentions.found(text, [self.account.team_name()], hubs[0].name) if hubs else Mentions.found(text)

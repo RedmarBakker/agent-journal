@@ -30,6 +30,9 @@ class TeamAccount:
     def team_name(self) -> str:
         return str(self.contents().get("team_name", ""))
 
+    def team_key(self) -> str:
+        return str(self.contents().get("team_key", ""))
+
     def device(self) -> str:
         return str(self.contents().get("device", ""))
 
