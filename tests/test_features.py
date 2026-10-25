@@ -3658,6 +3658,7 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     from journal.models.link import Link
     from journal.models.support.ref import Ref
     from journal.models.task import Task
+    from journal.models.task_state import TaskState
     from journal.models.user import User
     from journal.repositories.environment_owners import EnvironmentOwners, OWNER
     from journal.repositories.environments import Environments
@@ -3685,7 +3686,7 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     controller = app.container.get(RequestController)
     assert [row["title"] for row in controller.index(SimpleNamespace(actor=Actor.user(bob.row_id))).body["rows"]] == ["review the plan"], "and the request is on their Requests list"
     with app.container.get(Scope).environment(hub.row_id):
-        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state="done"), Actor.user(bob.row_id))
+        app.container.get(Tasks).save(app.container.get(Tasks).find(task.row_id).with_(state=TaskState.FINISHED), Actor.user(bob.row_id))
     assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "done")], "and the requester's page reads it done once the recipient finished it"
 
 
