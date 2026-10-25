@@ -63,7 +63,7 @@ test("hovering the Orchestrator button shows its one-line description and its to
 
 test("hovering the Builder button shows the Auto toggle, which flips tasks.auto, and the load and fitness sit left of the mode buttons", async () => {
     choose("main");
-    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57}, fitness: {mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6}}];
+    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57, arrivals: 44, clearings: 79, waiting: 3, wait_minutes: 1.1, waiting_refs: []}, fitness: {mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6}}];
     store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
     const save = vi.spyOn(api, "saveSettings").mockResolvedValue(null);
     const host = document.createElement("div");
