@@ -23,10 +23,10 @@ COUNTED_HOURS = 1
 class TestsCommand(Command):
     """A worker's turn to run tests within the test budget; the project's test command, set only once a run of it with the arguments of one test passes; the machine's load with the turns going and waiting, for the orchestrator to judge the budget by; and the budget set, written as the Settings page writes it, the next turns following it and runs already going left to end."""
 
-    __test__ = False
-
     noun = "tests"
     callers = {"turn": WORKER_KINDS}
+
+    __test__ = False
 
     def __init__(self, turns: TestTurns, rows: TurnRows, workers: Workers, settings: SettingRows, config: Config, scope: Scope) -> None:
         self.turns, self.rows, self.workers, self.settings, self.config, self.scope = turns, rows, workers, settings, config, scope
@@ -44,7 +44,7 @@ class TestsCommand(Command):
     def turn(self, args: Namespace, caller: Caller) -> int:
         if caller.worker_number is None:
             raise Rejection("only a worker asks for a turn to run tests: the agent that sent it runs them itself")
-        print(self.turns.take(self.workers.find(caller.worker_number), shlex.join(args.ids), caller))
+        print(self.turns.run_batches(self.workers.find(caller.worker_number), shlex.join(args.ids), caller))
         return 0
 
     def command(self, args: Namespace, caller: Caller) -> int:
@@ -58,16 +58,16 @@ class TestsCommand(Command):
         return 0
 
     def load(self, args: Namespace, caller: Caller) -> int:
-        going, waiting = self.rows.running(), self.rows.waiting()
+        started_turns, waiting = self.rows.running(), self.rows.waiting()
         machine = MachineLoad.read()
-        beyond = machine.beyond(len(going))
-        marked = f"; {beyond} beyond what {len(going)} test runs going explain" if beyond else ""
-        print(f"load {' '.join(map(str, machine.averages))} on {machine.cores} cores, {machine.free_megabytes:,} MB free{marked}")
-        names = {worker.row_id: worker.name for worker in self.workers.selected_globally(self.workers.query().filter_listed("id", sorted({turn.worker for turn in [*going, *waiting]})))}
-        for state, turns in (("going", going), ("waiting", waiting)):
+        excess = machine.beyond(len(started_turns))
+        excess_note = f"; {excess} beyond what {len(started_turns)} test runs going explain" if excess else ""
+        print(f"load {' '.join(map(str, machine.averages))} on {machine.cores} cores, {machine.free_megabytes:,} MB free{excess_note}")
+        names = {worker.row_id: worker.name for worker in self.workers.selected_globally(self.workers.query().filter_listed("id", sorted({turn.worker for turn in [*started_turns, *waiting]})))}
+        for state, turns in (("going", started_turns), ("waiting", waiting)):
             for turn in turns:
                 print(f"{state}: {self.turn_line(turn, names)}")
-        if not going and not waiting:
+        if not started_turns and not waiting:
             print("no turn going or waiting")
         counts = self.rows.outcome_counts(datetime.now(timezone.utc) - timedelta(hours=COUNTED_HOURS))
         print(f"last hour: {counts.get(TestOutcome.PASSED, 0)} passed, {counts.get(TestOutcome.FAILED, 0)} failed")
@@ -83,7 +83,7 @@ class TestsCommand(Command):
             raise Rejection("a test budget is at least 1 run at once and 1 test id a run")
         self.settings.set(WorkersOptions.TEST_RUNS.key, args.runs, caller.actor)
         if args.per_run is not None:
-            self.settings.set(WorkersOptions.TESTS_PER_RUN.key, args.per_run, caller.actor)
-        per_run = self.settings.integer(WorkersOptions.TESTS_PER_RUN)
-        print(f"test budget: {args.runs} runs at once, {per_run} test ids a run; the next turns follow it, runs already going end as they are")
+            self.settings.set(WorkersOptions.TEST_ID_LIMIT.key, args.per_run, caller.actor)
+        test_id_limit = self.settings.integer(WorkersOptions.TEST_ID_LIMIT)
+        print(f"test budget: {args.runs} runs at once, {test_id_limit} test ids a run; the next turns follow it, runs already going end as they are")
         return 0

@@ -2389,7 +2389,7 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     from journal.features.workers.workers_conduct import crowd_check
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
-    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.WORKLOAD_WARNING_RATIO.key: 0.7, WorkersOptions.WORKLOAD_CRITICAL_RATIO.key: 0.9})
     told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), crowd=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
     assert told(0.6) == [], "under the warning level nothing is said"
     rising = told(0.74)
@@ -2408,9 +2408,9 @@ def test_the_builder_is_told_to_hand_less_out_over_its_own_ceiling_and_the_solo_
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     def told(mode, rho):
-        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.BUILDER_CEILING.key: 0.5, WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
+        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.BUILDER_CEILING.key: 0.5, WorkersOptions.WORKLOAD_WARNING_RATIO.key: 0.7, WorkersOptions.WORKLOAD_CRITICAL_RATIO.key: 0.9})
         load = AgentLoad(rho=rho, waiting_refs=("workers:12",), waiting_items=1, measured_at=1.0)
-        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=load)}))
+        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load)}))
         return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
     assert told("builder", 0.4) == [], "under its ceiling the builder is told nothing"
     assert told("builder", 0.6) == ["your load is 0.6, over 0.5: worker 12 wait; hand less out and take in what is back first, worker 12 the oldest"], told("builder", 0.6)
@@ -2516,7 +2516,7 @@ def test_a_wait_written_in_words_is_told_to_be_a_block_and_blocked_work_that_sta
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
     from journal.features.workers.workers_conduct import unmoved_task_lines, unordered_lines, text_wait_check, text_wait_lines
-    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.HELD_STILL_MINUTES.key: 60, WorkersOptions.HELD_SHARE.key: 0.4, WorkersOptions.UNORDERED_PLAN_TASKS.key: 10})
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.STALLED_BLOCK_MINUTES.key: 60, WorkersOptions.BLOCKED_SHARE.key: 0.4, WorkersOptions.UNORDERED_PLAN_TASKS.key: 10})
     builder = SettingsValue({WorkersOptions.MODE.key: "builder"})
     worded = lambda line, settings=settings: [n.rendered() for n in text_wait_check(Ready(), ToolStarting(call=shell(line)), settings).nudges]
     block_line = "you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else"

@@ -42,33 +42,33 @@ class TestTurns:
         self.lock = threading.Lock()
         self.timed_out: set[int] = set()
 
-    def take(self, worker: Worker, ids: str, caller: Caller) -> str:
+    def run_batches(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team: its tests run there, not through a turn here")
-        folder, ran = str(self.branch.folder(worker)), []
+        folder, runs = str(self.branch.folder(worker)), []
         for batch in self.batches(ids):
-            turn = self.asked(worker, batch, f"{self.command(folder)} {batch}", folder)
+            turn = self.open_turn(worker, batch, f"{self.command(folder)} {batch}", folder)
             if not self.waited(turn):
                 return "your turn was taken back: nothing ran"
-            ran.append((turn, self.ran(turn, caller, worker.environment_id)))
-        return self.joined(ran)
+            runs.append((turn, self.run_turn(turn, caller, worker.environment_id)))
+        return self.joined(runs)
 
     def batches(self, ids: str) -> list[str]:
-        words = shlex.split(ids)
-        tests = [shlex.join(words[i:i + 2]) if words[i] == "-k" else shlex.quote(words[i]) for i in range(len(words)) if i == 0 or words[i - 1] != "-k"]
-        size = max(self.settings.integer(WorkersOptions.TESTS_PER_RUN), 1)
+        parts = shlex.split(ids)
+        tests = [shlex.join(parts[i:i + 2]) if parts[i] == "-k" else shlex.quote(parts[i]) for i in range(len(parts)) if i == 0 or parts[i - 1] != "-k"]
+        size = max(self.settings.integer(WorkersOptions.TEST_ID_LIMIT), 1)
         return [" ".join(tests[start:start + size]) for start in range(0, len(tests), size)] or [""]
 
-    def joined(self, ran: list[tuple[TestTurn, str]]) -> str:
-        if len(ran) == 1:
-            return self.result(*ran[0])
-        passed = sum(int(count) for _, text in ran for count in PASSED_COUNT.findall(text))
-        failed = sum(TestRunResult.printed(text, self.readers.reading(turn.command)).failed for turn, text in ran)
-        return "\n".join([*(self.result(turn, text) for turn, text in ran), f"{len(ran)} runs: {passed} passed, {failed} failed"])
+    def joined(self, runs: list[tuple[TestTurn, str]]) -> str:
+        if len(runs) == 1:
+            return self.result(*runs[0])
+        passed = sum(int(count) for _, text in runs for count in PASSED_COUNT.findall(text))
+        failed = sum(TestRunResult.printed(text, self.readers.reading(turn.command)).failed for turn, text in runs)
+        return "\n".join([*(self.result(turn, text) for turn, text in runs), f"{len(runs)} runs: {passed} passed, {failed} failed"])
 
     def checked(self, worker: Worker, ids: str, caller: Caller) -> tuple[TestTurn, str]:
         folder = str(self.branch.folder(worker))
-        turn = self.asked(worker, ids, f"{self.command(folder)} {ids}", folder)
+        turn = self.open_turn(worker, ids, f"{self.command(folder)} {ids}", folder)
         if not self.waited(turn):
             raise Rejection("your test run was taken back before it ran: clock out again")
         self.turns.save(self.turns.find(turn.id).with_run_event(time.time()), Actor.system())
@@ -95,14 +95,14 @@ class TestTurns:
         while output is not None and not output.ended:
             time.sleep(POLL_SECONDS)
             output = self.outputs.find(output.row_id)
-        return output, self.printed(output, text) if moved else text
+        return output, self.stored_text(output, text) if moved else text
 
     @staticmethod
     def exit_code(text: str) -> int:
         codes = [line.split()[-1] for line in text.splitlines() if line.startswith(EXIT)]
         return int(codes[-1]) if codes and codes[-1].lstrip("-").isdigit() else 1
 
-    def asked(self, worker: Worker, ids: str, command: str, folder: str) -> TestTurn:
+    def open_turn(self, worker: Worker, ids: str, command: str, folder: str) -> TestTurn:
         with self.lock:
             waiting, cap = self.turns.waiting(), self.waiting_cap()
             if any(turn.worker == worker.id for turn in [*waiting, *self.running()]):
@@ -116,14 +116,14 @@ class TestTurns:
             with self.lock:
                 if self.turns.find(turn.id).state != TestTurnState.WAITING:
                     return False
-                running = self.running()
-                free = [row for row in self.turns.waiting() if row.folder not in {going.folder for going in running}]
-                if free and free[0].id == turn.id and len(running) < self.budget():
+                open_runs = self.running()
+                free = [row for row in self.turns.waiting() if row.folder not in {run.folder for run in open_runs}]
+                if free and free[0].id == turn.id and len(open_runs) < self.budget():
                     self.turns.save(self.turns.find(turn.id).started(time.time()), Actor.system())
                     return True
             time.sleep(POLL_SECONDS)
 
-    def ran(self, turn: TestTurn, caller: Caller, environment: int) -> str:
+    def run_turn(self, turn: TestTurn, caller: Caller, environment: int) -> str:
         started = time.time()
         limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, started))
         limit.start()
@@ -135,19 +135,19 @@ class TestTurns:
             raise
         output = self.run_output(turn, started)
         moved = output is not None and not output.ended
-        output = self.awaited(output, started) if moved else output
+        output = self.foreground_output(output, started) if moved else output
         later = self.turns.find(turn.id)
         if output is not None and not output.ended:
             self.turns.save(later.backgrounded(output.row_id), Actor.system())
             return text
-        text = self.printed(output, text) if moved else text
+        text = self.stored_text(output, text) if moved else text
         limit.cancel()
         self.recorded(later, TestRunResult.printed(text, self.readers.reading(turn.command)))
         self.turns.save(self.turns.find(turn.id).ended(), Actor.system())
         return text
 
-    def awaited(self, output, started: float):
-        """A run the shell runner moved to the background is waited for until the foreground limit has passed since it began, so a turn's result is handed back in the foreground."""
+    # a run the shell runner moved to the background is waited for until the foreground limit has passed since it began, so a turn's result is handed back in the foreground
+    def foreground_output(self, output, started: float):
         deadline = started + self.settings.integer(FOREGROUND_OPTION)
         while output is not None and not output.ended and time.time() < deadline:
             time.sleep(POLL_SECONDS)
@@ -155,15 +155,18 @@ class TestTurns:
         return output
 
     @staticmethod
-    def printed(output, text: str) -> str:
+    def stored_text(output, text: str) -> str:
         files = OutputFiles(Path(output.folder))
-        return "\n".join([*files.lines(), f"{EXIT} {output.status}", ""]) if files.is_stored() else text
+        if not files.is_stored():
+            return text
+        lines = [*files.lines(), f"{EXIT} {output.status}", ""]
+        return "\n".join(lines)
 
-    def recorded(self, turn: TestTurn, result: TestRunResult) -> None:
+    def recorded(self, turn: TestTurn, summary: TestRunResult) -> None:
         later = self.turns.find(turn.id)
-        self.turns.save(later.passed_run() if result.is_passed() else later.failed_run(result.failed), Actor.system())
+        self.turns.save(later.passed_run() if summary.is_passed() else later.failed_run(summary.failed), Actor.system())
         worker = self.workers.find(turn.worker)
-        self.workers.save(worker.passed_run() if result.is_passed() else worker.failed_run(result.failed, time.time()), Actor.system())
+        self.workers.save(worker.passed_run() if summary.is_passed() else worker.failed_run(summary.failed, time.time()), Actor.system())
 
     def run_output(self, turn: TestTurn, started: float):
         return next((row for row in self.outputs.ran_in(turn.folder) if row.creation_time.timestamp() >= started), None)
@@ -202,7 +205,7 @@ class TestTurns:
             worker = self.workers.find(turn.worker)
             caller = Caller.worker(self.environments.find(turn.environment_id).name, worker.id, worker.session, worker.provider)
             if self.waited(turn):
-                self.ran(turn, caller, turn.environment_id)
+                self.run_turn(turn, caller, turn.environment_id)
 
     def running(self) -> list[TestTurn]:
         return [turn for turn in self.turns.running() if turn.output == 0 or not self.outputs.find(turn.output).ended]
@@ -210,9 +213,9 @@ class TestTurns:
     def result(self, turn: TestTurn, text: str) -> str:
         lines = [line for line in text.splitlines() if not line.startswith(EXIT)]
         reader = self.readers.reading(turn.command)
-        picked = reader.card_lines(lines) if reader is not None else []
+        reader_lines = reader.card_lines(lines) if reader is not None else []
         timed = [f"timed out: the run was stopped after {self.limit_seconds() / 60:g} minutes, the test budget's time limit"] if turn.id in self.timed_out else []
-        return "\n".join([*(picked or lines[-LAST_LINES:]), *timed])
+        return "\n".join([*(reader_lines or lines[-LAST_LINES:]), *timed])
 
     def command(self, folder: str) -> str:
         set = str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()

@@ -62,7 +62,7 @@ class WorkersDataReader:
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
             "tool_uses": lambda: ToolUseCounts.counted(agent),
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
-            "load": lambda: agent.load,
+            "workload": lambda: agent.load,
             "fitness_level": lambda: agent.data.get("fitness_level", 100),
             "merge_check": lambda: self.checks.failure(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},

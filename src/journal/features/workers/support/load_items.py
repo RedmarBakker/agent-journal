@@ -23,23 +23,25 @@ class LoadItems:
         self.workers, self.messages, self.tasks, self.settings = workers, messages, tasks, settings
 
     def read(self, start: float) -> tuple[list[LoadItem], list[float]]:
-        since = datetime.fromtimestamp(start, timezone.utc)
-        workers = self.workers.selected(self.workers.query().filter_greater_equal("updated_at", since).order("id"))
+        window_start = datetime.fromtimestamp(start, timezone.utc)
+        workers = self.workers.selected(self.workers.query().filter_greater_equal("updated_at", window_start).order("id"))
         idle_weight = self.settings.decimal(WorkersOptions.WEIGHT_IDLE_PLACE) if self.tasks.open_count() else 0.0
         items = [item for worker in workers for item in self.worker_items(worker, idle_weight) if item.cleared_at == 0.0 or item.cleared_at >= start]
         dispatches = [time for worker in workers for word, time in worker.moves.steps if word in DISPATCHES and time >= start]
-        return [*items, *self.message_items(since)], dispatches
+        return [*items, *self.message_items(window_start)], dispatches
 
     def worker_items(self, worker: Worker, idle_weight: float) -> list[LoadItem]:
         ref, repeat, pending, items = str(Ref.build(worker)), False, None, []
         weights = {DELIVERY_MOVE: 1.0, UNFINISHED: 1.0, IDLE: idle_weight}
         for word, time in worker.moves.steps:
             if word in weights and pending is None and weights[word]:
-                pending = LoadItem(ref, time, self.settings.decimal(WorkersOptions.WEIGHT_REPEAT_SEND_BACK) if word == DELIVERY_MOVE and repeat else weights[word])
+                pending = LoadItem(ref, time, self.settings.decimal(WorkersOptions.RESEND_WEIGHT) if word == DELIVERY_MOVE and repeat else weights[word])
             elif word in CLEARING:
                 items += [pending.cleared(time)] if pending is not None else []
                 pending, repeat = None, word == REJECTION_MOVE
-        return [*items, *([pending] if pending is not None else [])]
+        if pending is not None:
+            items.append(pending)
+        return items
 
     def message_items(self, begin: datetime) -> list[LoadItem]:
         weight = self.settings.decimal(WorkersOptions.WEIGHT_USER_MESSAGE)

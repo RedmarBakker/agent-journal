@@ -26,25 +26,25 @@ class LoadRecord(AgentListener[ToolFinished]):
         rows = self.agents.session_rows(event.session)
         if not rows or rows[0].role != AgentRole.MAIN:
             return
-        window, half_life = self.settings.decimal(WorkersOptions.LOAD_WINDOW), self.settings.decimal(WorkersOptions.LOAD_HALF_LIFE)
-        series = LoadSeries(window, half_life, self.settings.decimal(WorkersOptions.SCALE_UP_AT), self.settings.decimal(WorkersOptions.SCALE_DOWN_AT))
+        window, half_life = self.settings.decimal(WorkersOptions.WORKLOAD_WINDOW_MINUTES), self.settings.decimal(WorkersOptions.WORKLOAD_SMOOTHING_MINUTES)
+        series = LoadSeries(window, half_life, self.settings.decimal(WorkersOptions.PLACE_OPENING_RATIO), self.settings.decimal(WorkersOptions.PLACE_CLOSING_RATIO))
         items, dispatches = self.items.read(event.time - (window + HALF_LIVES * half_life) * 60)
         ratios = replace(series.measured(items, dispatches, event.time), over_full_minutes=self.settings.decimal(WorkersOptions.RECOVERY_FULL), over_zero_minutes=self.settings.decimal(WorkersOptions.RECOVERY_ZERO))
         orchestrating = self.settings.option(WorkersOptions.MODE) == "orchestrator"
         self.agents.rewritten(rows[0], Actor.system(), lambda current: self.scaled(current.load_measured(ratios), event.time) if orchestrating else current.load_measured(ratios))
 
-    def scaled(self, agent: Agent, now: float) -> Agent:
-        floor, ceiling = (str(self.settings.option(option)).strip() for option in (WorkersOptions.PLACE_FLOOR, WorkersOptions.PLACE_CEILING))
-        if not floor.isdigit() or not ceiling.isdigit():
+    def scaled(self, agent: Agent, moment: float) -> Agent:
+        fewest, ceiling = (str(self.settings.option(option)).strip() for option in (WorkersOptions.MIN_PLACES, WorkersOptions.MAX_PLACES))
+        if not fewest.isdigit() or not ceiling.isdigit():
             return agent
-        scaling = PlaceScaling(self.settings.decimal(WorkersOptions.SCALE_UP_DWELL), self.settings.decimal(WorkersOptions.SCALE_DOWN_DWELL), int(floor), int(ceiling))
+        scaling = PlaceScaling(self.settings.decimal(WorkersOptions.PLACE_OPENING_MINUTES), self.settings.decimal(WorkersOptions.PLACE_CLOSING_MINUTES), int(fewest), int(ceiling))
         places = self.settings.integer(WorkersOptions.WORKER_LIMIT)
-        if scaling.opens(agent.load, places, now):
+        if scaling.opens(agent.load, places, moment):
             self.placed(1)
-            return agent.place_opened(places + 1, now)
-        if scaling.closes(agent.load, places, bool(self.tasks.worker_holdings()), now):
+            return agent.place_opened(places + 1, moment)
+        if scaling.closes(agent.load, places, bool(self.tasks.worker_holdings()), moment):
             self.placed(-1)
-            return agent.place_closed(places - 1, now)
+            return agent.place_closed(places - 1, moment)
         return agent
 
     def placed(self, step: int) -> None:

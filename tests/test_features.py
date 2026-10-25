@@ -4203,7 +4203,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
 
     def ask(number):
         with app.container.get(Scope).environment(1):
-            results[number] = turns.take(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), f"tests/test_{number}.py", SimpleNamespace())
+            results[number] = turns.run_batches(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), f"tests/test_{number}.py", SimpleNamespace())
 
     def until(test):
         end = time.time() + 10
@@ -4232,7 +4232,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     status, _ = hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "journal suite"}, tool_use_id="suite-1")
     assert status == 200, "the orchestrator's own suite goes at once while a turn waits: the budget gates only workers' turns"
     budget = app.console().run(["tests", "budget", "1", "10"], AGENT)
-    assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 1 and settings.integer(WorkersOptions.TESTS_PER_RUN) == 10
+    assert budget.code == 0 and settings.integer(WorkersOptions.TEST_RUNS) == 1 and settings.integer(WorkersOptions.TEST_ID_LIMIT) == 10
     page = got(app, "/journal/settings", {"X-Journal-Env": "main"})[1]["workers"]
     assert (page["test_runs"], page["tests_per_run"]) == (1, 10), "the Settings page shows the budget the command set"
     assert next(row for row in settings.project_rows() if row.key == WorkersOptions.TEST_RUNS.key).updater == AGENT.actor, "written with the caller as its actor"
@@ -4251,7 +4251,7 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
         thread.join(10)
     assert hour() == (before[0] + 4, before[1] + 1), "with the runs passed and failed in the last hour"
     settings.set(WorkersOptions.TEST_RUNS.key, WorkersOptions.TEST_RUNS.default, Actor.user(1))
-    settings.set(WorkersOptions.TESTS_PER_RUN.key, WorkersOptions.TESTS_PER_RUN.default, Actor.user(1))
+    settings.set(WorkersOptions.TEST_ID_LIMIT.key, WorkersOptions.TEST_ID_LIMIT.default, Actor.user(1))
     settings.set(WorkersOptions.TESTING.key, WorkersOptions.TESTING.default, Actor.user(1))
     settings.set(WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default, Actor.user(1))
 
@@ -4365,7 +4365,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     def ask(number):
         with app.container.get(Scope).environment(1):
             try:
-                results[number] = turns.take(worker(number), f"tests/test_{number}.py", SimpleNamespace())
+                results[number] = turns.run_batches(worker(number), f"tests/test_{number}.py", SimpleNamespace())
             except Rejection as refusal:
                 refused.append(str(refusal))
 
@@ -4466,7 +4466,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
 
     def ask(turns, number):
         with scope.environment(1):
-            results[number] = turns.take(worker(number), f"tests/test_{number}.py", SimpleNamespace())
+            results[number] = turns.run_batches(worker(number), f"tests/test_{number}.py", SimpleNamespace())
 
     def asking(turns, *numbers):
         threads = [threading.Thread(target=ask, args=(turns, number)) for number in numbers]
@@ -4506,7 +4506,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     turns = fresh()
     with scope.environment(1):
         for number in (1, 2, 3):
-            turns.asked(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
+            turns.open_turn(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), "t", "pytest -q t", str(tmp_path / f"wt{number}"))
     resumed = turns.resume()
     for number in (1, 2, 3):
         assert until(lambda: len(started) == number) and started == list(range(1, number + 1)), "after a restart the waiting turns run in order, one at a time"
@@ -4558,7 +4558,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
     def ask(number, ids):
         with scope.environment(1):
             try:
-                results[number] = turns.take(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), ids, SimpleNamespace())
+                results[number] = turns.run_batches(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), ids, SimpleNamespace())
             except Rejection as refusal:
                 results[number] = f"refused: {refusal}"
 
@@ -4629,10 +4629,10 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
 
     turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
     settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
-    settings.set(WorkersOptions.TESTS_PER_RUN.key, 2, Actor.user(1))
+    settings.set(WorkersOptions.TEST_ID_LIMIT.key, 2, Actor.user(1))
     settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
     with scope.environment(1):
-        result = turns.take(SimpleNamespace(id=1, name="Worker 1", pool_request=0, environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
+        result = turns.run_batches(SimpleNamespace(id=1, name="Worker 1", pool_request=0, environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
     assert lines == ["pytest -q a.py b.py", "pytest -q c.py d.py", "pytest -q e.py"], "five ids with two to a run are three runs, the ids kept whole"
     assert most[0] == 1, "each run takes its own place in the budget"
     assert "FAILED tests/a.py::t" in result and "2 passed" in result, "a failing first batch does not stop the others, and the result holds each batch's lines"
@@ -10256,7 +10256,7 @@ def test_the_worker_profiles_teach_the_turn_and_a_custom_one_starts_with_it(app:
     from journal.features.workers.workers_options import TEST_BUDGET
     app.container.get(SettingRows).set(WorkersOptions.TESTING.key, TEST_BUDGET, Actor.user(1))
     assert "journal tests turn" in files.worker_instructions("journal-medior") and "journal tests turn" in files.worker_instructions("cartographer"), "with Test budget a worker is told to test only through journal tests turn, hooks or none"
-    assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TESTS_PER_RUN, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
+    assert [(o.key, o.default) for o in (WorkersOptions.TEST_RUNS, WorkersOptions.TEST_WAITING, WorkersOptions.TEST_ID_LIMIT, WorkersOptions.TEST_RUN_MINUTES, WorkersOptions.FAILING_RUNS)] == [("workers.test_runs", 3), ("workers.test_waiting", ""), ("workers.tests_per_run", 20), ("workers.test_run_minutes", 10), ("workers.failing_runs", 3)]
 
 
 def test_the_main_agent_is_told_a_workers_work_is_ready_and_checks_each_proof(app: App, monkeypatch):

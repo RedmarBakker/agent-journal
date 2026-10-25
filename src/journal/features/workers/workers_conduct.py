@@ -278,8 +278,8 @@ def unmoved_task_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
     unmoved = tasks.last_moves
     if not unmoved:
         return ()
-    long_unmoved = tuple(n for n, last_move in unmoved.items() if Timeout.minutes(settings.integer(WorkersOptions.HELD_STILL_MINUTES)).started(last_move).is_elapsed(event.time))
-    crowded = len(unmoved) > settings.decimal(WorkersOptions.HELD_SHARE) * (tasks.open_count + len(unmoved))
+    long_unmoved = tuple(n for n, last_move in unmoved.items() if Timeout.minutes(settings.integer(WorkersOptions.STALLED_BLOCK_MINUTES)).started(last_move).is_elapsed(event.time))
+    crowded = len(unmoved) > settings.decimal(WorkersOptions.BLOCKED_SHARE) * (tasks.open_count + len(unmoved))
     listed = tuple(sorted(unmoved)) if crowded else tuple(sorted(long_unmoved))
     return (WorkersNudges.UNMOVED_TASKS.create(tasks=", ".join(str(n) for n in listed)),) if listed else ()
 
@@ -488,7 +488,7 @@ HANDOVER_LINES = ("journal worker dispatch", "journal worker queue")
 
 
 def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    crowd = event.data.part(WorkersPart).load
+    crowd = event.data.part(WorkersPart).workload
     mode = settings.value(WorkersOptions.MODE)
     if not crowd.is_measured() or not crowd.waiting_refs or event.subagent or mode not in ("orchestrator", "builder"):
         return state.none()
@@ -496,8 +496,8 @@ def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Tr
     if mode == "builder":
         ceiling = settings.decimal(WorkersOptions.BUILDER_CEILING)
         return state.none(WorkersNudges.BUILDER_CROWDED.create(**values, ceiling=ceiling)) if crowd.rho >= ceiling else state.none()
-    if crowd.rho >= settings.decimal(WorkersOptions.LOAD_CRITICAL):
+    if crowd.rho >= settings.decimal(WorkersOptions.WORKLOAD_CRITICAL_RATIO):
         return state.none(WorkersNudges.CROWDED_CRITICAL.create(**values))
-    if crowd.rho >= settings.decimal(WorkersOptions.LOAD_WARN):
+    if crowd.rho >= settings.decimal(WorkersOptions.WORKLOAD_WARNING_RATIO):
         return state.none(WorkersNudges.CROWDED_RISING.create(**values))
     return state.none()
