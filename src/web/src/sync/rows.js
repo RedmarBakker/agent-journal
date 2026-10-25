@@ -383,9 +383,13 @@ export async function optimistic(table, row, send) {
 }
 
 export async function patched(row, change, send) {
+    const before = (store.rows[row.table] || []).map((held) => [held, {...held}]);
     change(row);
     try {
         await send();
+    } catch (refusal) {
+        before.forEach(([held, copy]) => Object.assign(held, copy));
+        throw refusal;
     } finally {
         await refresh([row.table]);
     }

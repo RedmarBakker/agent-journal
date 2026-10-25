@@ -200,7 +200,7 @@ test("a figure keeps its place on the floor it rests on as that moves, and loses
     const box = {left: 300, top: 600, width: 400, height: 120};
     page(box);
     const seat = restOf(FIGURE, {x: 700, y: 600});
-    expect(footingOn(seat, floorsNow())).toEqual({id: floorOf(seat.on), dx: seat.x - 300, dy: 0, posture: "stand", face: seat.face, home: false});
+    expect(footingOn(seat, floorsNow())).toEqual({id: floorOf(seat.on), dx: seat.x - 300, dy: 0, posture: "stand", face: seat.face, swings: false, home: false});
     expect(footingOn({...seat, on: null}, floorsNow())).toBe(null);
     const moved = {getBoundingClientRect: () => ({...box, left: 320, top: 580})};
     const kept = {id: floorOf(moved), dx: 10, dy: 0, posture: "stand", home: false};

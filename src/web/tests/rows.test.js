@@ -141,7 +141,7 @@ describe("entries", () => {
         await takeEntries([{id: 1, kind: "created", data: {table: "tasks", id: 1}}]);
         await vi.waitFor(() => expect(store.rows.tasks).toEqual([row(1)]));
         expect(store.counts.tasks).toEqual({open: 1, all: 1, unread: 0});
-        expect(api.list).toHaveBeenCalledWith("tasks", {limit: PAGE});
+        expect(api.list).toHaveBeenCalledWith("tasks", {limit: PAGE, since: 0, after: 0});
     });
 
     test("a task touched by a new proof, check or to-do item is read again, its new fields replacing the held row", async () => {

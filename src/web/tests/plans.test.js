@@ -40,7 +40,8 @@ test("a refused approval is passed on and the rows are read again, so the card d
     const [, , ready] = rows("plans");
     await expect(approvePlan(ready)).rejects.toThrow("not yet");
     expect(api.list).toHaveBeenCalled();
-    await vi.waitFor(() => expect(states()).toEqual(["started", "approved"]));
+    expect(ready.state).toBe("ready");
+    await vi.waitFor(() => expect(states()).toEqual(["started", "approved", "ready"]));
 });
 
 test("pausing a plan marks it paused", async () => {
