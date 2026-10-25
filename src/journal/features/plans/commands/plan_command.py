@@ -22,7 +22,10 @@ from journal.repositories.links import Links
 from journal.support.rejection import Rejection
 from journal.repositories.phases import Phases
 from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, Plans
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
+from journal.features.workers.workers_options import WorkersOptions
+from journal.support.caller_kind import CallerKind
 CURRENT = "current"
 
 
@@ -30,9 +33,10 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
+        self.settings = settings
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -173,11 +177,14 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
-        if not caller.actor.is_user():
+        if not caller.actor.is_user() and not self.orchestrator_may_approve(caller):
             raise Rejection("only the user approves a plan: ask, then wait for their word")
         plan = self.plans.approve(self.plans.find(args.n), caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
+
+    def orchestrator_may_approve(self, caller: Caller) -> bool:
+        return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator" and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
 
     def start(self, args: Namespace, caller: Caller) -> int:
         plan = self.plans.start(self.plans.find(args.n), self.taking.holder(caller), caller.actor)

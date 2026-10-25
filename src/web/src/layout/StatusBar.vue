@@ -1,9 +1,10 @@
 <script setup>
 import RollingWord from "../kit/RollingWord.vue";
 import {agent} from "../composables/leadAgent.js";
-import {autoOn, workMode} from "../composables/settings.js";
-import {MODES} from "../domain/modes.js";
+import {autoOn, orchestratorApproves, workMode} from "../composables/settings.js";
+import {MODES, showsApprovalToggle} from "../domain/modes.js";
 import {api} from "../api/client.js";
+import {saveSettings} from "../actions/settings.js";
 import Segmented from "../kit/Segmented.vue";
 import Spinner from "../kit/Spinner.vue";
 import {relativeText} from "../format/relativeText.js";
@@ -84,6 +85,14 @@ async function pickMode(key) {
         await api.saveMode(key);
     } catch (e) {
         keepMode(was);
+        toast.value = {text: e.message};
+    }
+}
+
+async function setOrchestratorApproves(on) {
+    try {
+        await saveSettings({workers: {orchestrator_approves_plans: on}});
+    } catch (e) {
         toast.value = {text: e.message};
     }
 }
@@ -216,6 +225,19 @@ async function runBar(p) {
                     @change="setAuto"
                 />
                 <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
+                <template v-if="showsApprovalToggle(workMode)">
+                    <Switch
+                        :on="orchestratorApproves"
+                        word="approves plans"
+                        labelled
+                        v-tip:approves="
+                            orchestratorApproves
+                                ? {title: 'The orchestrator approves plans', line: 'It approves a plan itself with journal plan approve.'}
+                                : {title: 'Only you approve plans', line: 'The orchestrator waits for your approval of every plan.'}
+                        "
+                        @change="setOrchestratorApproves"
+                    />
+                </template>
                 <template v-if="fitness">
                     <span :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip">{{ fitness.score }}</span>
                 </template>

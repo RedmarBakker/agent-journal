@@ -15665,3 +15665,39 @@ def test_a_reminder_set_for_a_local_time_in_a_repeated_hour_is_due_at_its_earlie
     finally:
         monkeypatch.undo()
         time.tzset()
+
+
+def test_the_orchestrator_approves_a_plan_only_when_the_user_allows_it(app: App):
+    console = app.console()
+    settings = app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "p", "--brief", "the goal"], AGENT)
+    console.run(["plan", "phase", "1", "Lay the floor", "--when", "the floor is level"], AGENT)
+    console.run(["plan", "add", "1", "pour the slab"], AGENT)
+    console.run(["plan", "ready", "1"], AGENT)
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "with the toggle off the orchestrator is refused"
+    settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
+    settings.set("workers.mode", "builder", Actor.user(1))
+    assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "the toggle counts in orchestrator mode only"
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    assert console.run(["plan", "approve", "1"], AGENT).code == 0, "with the toggle on the orchestrator approves"
+
+
+def test_the_orchestrator_approval_setting_is_the_users_to_set(app: App):
+    from journal.http.controllers.settings import SettingController
+    from journal.support.rejection import Rejection
+    console = app.console()
+    hook(app, "SessionStart")
+    for caller in (AGENT, Caller.worker("main", 1, "s2", "claude"), Caller.verifier("main", 1, "s3", "claude")):
+        refused = console.run(["settings", "set", "workers.orchestrator_approves_plans", "on"], caller)
+        assert refused.code == 1 and "the user's to set" in refused.error
+    controller = app.container.get(SettingController)
+    for actor in (Actor.agent("s1"), Actor.worker(1), Actor.verifier(1)):
+        with pytest.raises(Rejection, match="the user sets it on the plan bar"):
+            controller.saved("workers", {"orchestrator_approves_plans": True}, actor)
+    assert app.container.get(SettingRows).option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS) is False
+    assert console.run(["settings", "set", "workers.orchestrator_approves_plans", "on"], USER).code == 0
+    controller.saved("workers", {"orchestrator_approves_plans": False}, Actor.user(1))
+    assert app.container.get(SettingRows).option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS) is False

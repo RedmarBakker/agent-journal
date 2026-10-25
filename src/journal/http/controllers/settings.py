@@ -2,6 +2,8 @@ from journal.features.registry import Registry
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.support.actor import Actor
+from journal.support.option import USER
+from journal.support.rejection import Rejection
 from journal.repositories.setting_rows import SettingRows
 
 FEATURES = "features"
@@ -24,9 +26,12 @@ class SettingController:
 
     def saved(self, top: str, inner: dict, actor: Actor) -> None:
         existing = {f.name for f in self.registry.features}
+        reserved = {option.key for option in self.registry.options() if option.setter == USER}
         for name, value in inner.items():
             if top == FEATURES and name not in existing:
                 continue
+            if f"{top}.{name}" in reserved and not actor.is_user():
+                raise Rejection(f"{top}.{name} is the user's to set: the user sets it on the plan bar or the Settings page")
             if value is None:
                 self.settings.unset(f"{top}.{name}", actor)
             else:

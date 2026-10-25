@@ -7,6 +7,9 @@ export const MODES = [
 
 export const DEFAULT_MODE = "builder";
 
+// the plan bar's toggle that lets the orchestrator approve plans is shown in orchestrator mode only
+export const showsApprovalToggle = (mode) => mode === "orchestrator";
+
 // How workers test, as the workers list offers it; the journal keeps it as workers.testing, by these words.
 export const TESTINGS = [
     {key: "Hand the tests over", label: "Hand the tests over", note: "A worker never runs a test; each proof names the test and the command that runs it, and the agent that merges runs them."},
