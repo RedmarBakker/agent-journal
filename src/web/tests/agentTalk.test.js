@@ -1,10 +1,13 @@
+import {readFileSync} from "node:fs";
 import {expect, test} from "vitest";
 import {threadTurns} from "../src/domain/thread.js";
+import {store} from "../src/state/store.js";
 
 const at = (n) => new Date(Date.UTC(2026, 9, 21, 12, 0, n)).toISOString();
 const message = (id, fields) => ({id, table: "messages", text: "", files: [], created_at: at(id), data: {}, ...fields});
 
 test("hiding agents talking to each other leaves no worker or subagent mark or report in the thread", () => {
+    store.spec = {...store.spec, marks: JSON.parse(readFileSync("tests/fixtures/markKinds.json", "utf8"))};
     const messages = [
         message(1, {author: "user", creator: "user:1", text: "build the parser"}),
         message(2, {
