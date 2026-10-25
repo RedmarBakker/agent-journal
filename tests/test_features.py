@@ -9491,7 +9491,7 @@ def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_thei
             todos.appended(task, text, Actor.worker(1))
         assert [(item.position, item.text) for item in todos.task_items(task)] == [(1, "write the grammar"), (2, "write the test"), (3, "run it")], "the to-do items are kept in order"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace")
-    moves = [(worker.ready(1.0), WorkerReady, "clocked in"), (worker.delivered(2.0), WorkerDelivered, "clocked out"), (worker.merged(3.0), WorkerMerged, "merged"), (worker.released(4.0), WorkerReleased, "released")]
+    moves = [(worker.ready(1.0), WorkerReady, "clocked in"), (worker.delivered(2.0), WorkerDelivered, "clocked out"), (worker.merged(7, 3.0), WorkerMerged, "merged"), (worker.released(4.0), WorkerReleased, "released")]
     assert all(isinstance(moved.events[-1], kind) and moved.state == state for moved, kind, state in moves), "each state change of a worker carries its event"
 
 
