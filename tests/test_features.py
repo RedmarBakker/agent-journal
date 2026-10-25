@@ -3789,6 +3789,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     from types import SimpleNamespace
     from journal.features.shell.support.readers import Readers
     from journal.features.workers.support.test_turns import TestTurns
+    from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.test_turns import TestTurns as TurnRows
     from journal.support.rejection import Rejection
@@ -3802,7 +3803,19 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             gates[number].wait(10)
             yield f"FAILED tests/test_{number}.py::test_it\n".encode()
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs))
+    class Crew:
+        def __init__(self):
+            self.kept = []
+
+        def find(self, number):
+            return Worker(id=number, environment_id=1, name=f"Worker {number}")
+
+        def save(self, row, actor):
+            self.kept.append(row.id)
+            return row
+
+    crew = Crew()
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), crew)
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -3839,6 +3852,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
     for thread in threads:
         thread.join(10)
     assert all(f"tests/test_{n}.py::test_it" in results[n] for n in (1, 2, 3)), "each worker is handed its own result"
+    assert sorted(crew.kept) == [1, 2, 3], "and how each run ended is kept on its worker"
 
     started.clear(), results.clear()
     gates.update({n: threading.Event() for n in (1, 2, 3)})
