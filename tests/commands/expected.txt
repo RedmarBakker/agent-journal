@@ -2387,6 +2387,16 @@ positional arguments:
 options:
   -h, --help     show this help message and exit
 
+$ agent: journal team remove --help
+exit 0
+usage: journal team remove [-h] account
+
+positional arguments:
+  account
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal setup hooks --help
 exit 0
 usage: journal setup hooks [-h]

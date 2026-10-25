@@ -17,3 +17,6 @@ class LeaseRows:
 
     def remove(self, name: str) -> None:
         self.store.execute("DELETE FROM leases WHERE name = ?", (name,))
+
+    def remove_person(self, account_id: int) -> None:
+        self.store.execute("DELETE FROM leases WHERE account_id = ?", (account_id,))

@@ -49,6 +49,9 @@ class Leases:
                 self.rows.remove(name)
             return self.state(name, request_at)
 
+    def release_person(self, account_id: int) -> None:
+        self.rows.remove_person(account_id)
+
     def state(self, name: str, request_at: float) -> Lease:
         row = self.rows.current(name)
         if row is None:

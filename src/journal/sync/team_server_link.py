@@ -106,6 +106,12 @@ class TeamServerLink:
     def pin_version(self, version: str) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/version", {"version": version})))
 
+    def leave_team(self) -> int:
+        return int(json.loads(self.posted("/people/leave", {})).get("withdrawn", 0))
+
+    def remove_person(self, account_id: int) -> str:
+        return str(json.loads(self.posted("/people/remove", {"account_id": account_id})).get("name", ""))
+
     def tie_repository(self, tied: bool) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/repository", {"tied": tied})))
 

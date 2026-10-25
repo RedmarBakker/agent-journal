@@ -13304,6 +13304,37 @@ def test_a_journal_joins_two_teams_each_writing_with_its_own_account_on_its_own_
             team.close(server)
 
 
+def test_a_removed_member_has_their_drives_and_leases_freed_their_shared_chats_withdrawn_from_the_team_and_keeps_their_environments(tmp_path, template_journal, monkeypatch):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.support.ref import Ref
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    from journal.sync.hub_drives import HubDrives
+    bob = replace(USER, person=2)
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        _, hub_task = ada_tasks(a)
+        assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id)))
+        assert b.console().run(["environment", "create", "lab"], bob).code == 0
+        lab = b.container.get(Environments).existing("lab")
+        with b.container.get(Scope).environment(lab.row_id):
+            note = b.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text="Bob's lab note"), Actor.user(2))
+        assert b.console().run(["environment", "share", "lab"], bob).code == 0
+        driven = b.console().run(["task", "drive", str(hub_task.id)], bob)
+        assert driven.code == 0, driven.error
+        lease = HubDrives.lease_name(Ref.build(hub_task))
+        assert synced(lambda: team.log.row("environments", lab.row_id) is not None and bool(a.container.get(Environments).keyed(lab.key)) and a.container.get(Tasks).find(hub_task.id).driver == "Bob"), "Bob's shared lab and his drive reach the team"
+        assert team.leases.state(lease, timing.time()).holder == "Bob"
+
+        removed = a.console().run(["team", "remove", "2"], USER)
+        assert removed.code == 0 and "is removed from the team" in removed.text, removed.error
+        assert team.leases.state(lease, timing.time()).holder == "", "the removed member's leases are freed"
+        assert team.log.row("environments", lab.row_id) is None and team.log.row("messages", note.id) is None, "their shared chat is withdrawn from the server, its rows with it"
+        assert synced(lambda: not a.container.get(Environments).keyed(lab.key) and not a.container.get(Messages).global_matching(id=note.id) and a.container.get(Tasks).find(hub_task.id).driver == ""), "and from every colleague's journal, the hub task no longer named as theirs to drive"
+        assert b.container.get(Environments).keyed(lab.key) and b.container.get(Messages).global_matching(id=note.id) and b.container.get(Environments).existing("main"), "the removed member's own journal keeps their environments and chats"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
@@ -16006,12 +16037,12 @@ def test_a_joined_journal_leaves_its_team_keeping_its_rows_and_a_backup_of_the_t
     from journal.repositories.outgoing_changes import OutgoingChanges
     from journal.sync.team_account import TeamAccount
     account = app.container.get(TeamAccount)
-    account.write({"address": "https://203.0.113.5:8443", "token": "t", "device": 1, "sequence": 7})
+    account.write({"address": "http://127.0.0.1:9", "token": "t", "device": 1, "sequence": 7})
     app.container.get(IdBlocks).add("tasks", 100, 199)
     app.container.get(OutgoingChanges).queued(OutgoingChange(row_table="tasks", row=1, action=UPDATED, fields={"state": "open"}, changed_at={"state": 1.0}, writer="user:1"), Actor.system())
     app.console().run(["task", "create", "kept after leaving"], USER)
     said = app.console().run(["team", "leave"], USER)
-    assert said.code == 0 and "left the team at https://203.0.113.5:8443" in said.text, said.error
+    assert said.code == 0 and "left the team at http://127.0.0.1:9" in said.text and "the team server was not reached" in said.text, said.error
     assert not account.is_joined() and list(app.config.home.glob("team.json.left-*")), "the team's settings are kept in a backup"
     assert app.container.get(IdBlocks).all() == [] and app.container.get(OutgoingChanges).waiting() == [], "the blocks and the queue only the old team could take are gone"
     assert "kept after leaving" in app.console().run(["task", "list"], USER).text, "every local row stays"

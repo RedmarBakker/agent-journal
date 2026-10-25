@@ -21,6 +21,7 @@ from sync_server.team_details import TeamDetails
 from sync_server.db.team_detail_rows import TeamDetailRows
 from sync_server.change_log import ChangeLog
 from sync_server.copy_handler import CopyHandler
+from sync_server.departure import Departure
 from sync_server.db.account_rows import AccountRows
 from sync_server.db.change_rows import ChangeRows
 from sync_server.db.device_rows import DeviceRows
@@ -65,9 +66,10 @@ class TeamServer:
         self.details = TeamDetails(TeamDetailRows(self.store), self.log, self.accounts)
         self.ranges = IdRanges(self.store, IdBlockRows(self.store), self.details)
         self.blocks = BlocksHandler(self.ranges, self.devices)
-        self.admins = AdminHandler(self.devices, self.accounts, self.invitations, self.clock, self.details)
         self.files = FileStore(data / FILES)
         self.leases = Leases(self.store, LeaseRows(self.store), self.accounts)
+        self.departure = Departure(self.store, self.log, self.leases, self.files, self.accounts, self.clock)
+        self.admins = AdminHandler(self.devices, self.accounts, self.invitations, self.clock, self.details, self.departure)
         self.signins = SigninLinks(self.devices, self.accounts)
         self.host_requests = HostRequests(HostRequestRows(self.store), PoolCapacityRows(self.store), self.devices, self.log)
         self.uploads = UploadHandler(self.store, self.log, self.ranges, self.devices, self.details)

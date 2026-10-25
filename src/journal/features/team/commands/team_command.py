@@ -40,6 +40,7 @@ class TeamCommand(Command):
         self.verb(verbs, "devices", "every device of the team; admins only")
         self.verb(verbs, "revoke", "revoke a device, so it reaches the team no more; admins only").add_argument("device", type=int)
         self.verb(verbs, "versions", "whether a journal must run exactly the team's pinned version to sync (exact, the default) or any version will do (any); admins only").add_argument("rule", choices=("exact", "any"))
+        self.verb(verbs, "remove", "remove a person from the team by their account number: their devices are revoked, their drives and leases freed and the environments they share withdrawn from the team, which their own journal keeps; admins only").add_argument("account", type=int)
         self.verb(verbs, "repository", "whether the team takes only journals of its repository (tied, the default) or of any repository (untied); admins only").add_argument("tie", choices=("tied", "untied"))
         self.verb(verbs, "upgrade", "pin the team to a journal version, such as 4.20.0, which every member's journal then asks to install; admins only").add_argument("version")
         claim = self.verb(verbs, "claim", "hold the Team chat, so this machine runs its agent; one machine holds it at a time")
@@ -116,6 +117,12 @@ class TeamCommand(Command):
         self.joined()
         summary = TeamRequests.reached(lambda: self.link.allow_versions(args.rule))
         print(f"journals sync on version {summary.version} alone" if summary.versions == "exact" else f"journals on any version sync; the team is pinned to {summary.version}")
+        return 0
+
+    def remove(self, args: Namespace, caller: Caller) -> int:
+        self.joined()
+        name = TeamRequests.reached(lambda: self.link.remove_person(args.account))
+        print(f"{name or f'account {args.account}'} is removed from the team: their devices are revoked, their drives and leases freed and the environments they shared withdrawn")
         return 0
 
     def repository(self, args: Namespace, caller: Caller) -> int:
