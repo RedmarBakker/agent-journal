@@ -29,9 +29,9 @@ BACKUP_NAME = "journal-before-hub-%Y%m%d-%H%M%S.db"
 class TeamMigration:
     """A team that synced everything moved to the hub by journal team migrate, once: its plan names the hub environment it makes, named as the team server names the team or else after the checkout, the project's documents and their revisions it moves into the hub, free to edit, and every row it withdraws, judged by where the hub places each once the documents are there. The run writes this journal and the team server to backups before anything changes, then makes the hub, moves the documents, queues the withdrawals and deletes here what another person keeps. A team that holds a hub is on it already, and a journal that has not learnt its team's key yet cannot place its rows; both are refused."""
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, environments: Environments, owners: EnvironmentOwners, withdrawal: MigrationWithdrawal, placement: TeamPlacement, docs: Docs, revisions: DocRevisions, moving: HubMove, tables: SharedTables, backups: JournalBackup, config: Config) -> None:
+    def __init__(self, account: TeamAccount, link: TeamServerLink, environments: Environments, owners: EnvironmentOwners, withdrawal: MigrationWithdrawal, placement: TeamPlacement, docs: Docs, revisions: DocRevisions, hub_move: HubMove, tables: SharedTables, backups: JournalBackup, config: Config) -> None:
         self.account, self.link, self.environments, self.owners, self.withdrawal, self.placement = account, link, environments, owners, withdrawal, placement
-        self.docs, self.revisions, self.moving, self.tables, self.backups, self.config = docs, revisions, moving, tables, backups, config
+        self.docs, self.revisions, self.hub_move, self.tables, self.backups, self.config = docs, revisions, hub_move, tables, backups, config
 
     def plan(self, actor: Actor) -> MigrationPlan:
         if self.environments.hubs():
@@ -56,7 +56,7 @@ class TeamMigration:
         backup = self.link.backup()
         hub = self.environments.save(Environment.hub(plan.team_key, plan.hub), actor)
         for doc in self.project_docs():
-            self.moving.put(doc, hub.row_id, DocEditMode.FREE, doc.owner, actor)
+            self.hub_move.put(doc, hub.row_id, DocEditMode.FREE, doc.owner, actor)
         self.withdrawal.withdraw(plan.withdrawals, actor)
         self.let_go(plan, actor)
         return backup

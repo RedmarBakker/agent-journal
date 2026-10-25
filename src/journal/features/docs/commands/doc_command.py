@@ -29,8 +29,8 @@ class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, moving: HubMove) -> None:
-        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.moving = docs, revisions, clock, hub_rows, hub, account, links, scope, moving
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, hub_move: HubMove) -> None:
+        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.hub_move = docs, revisions, clock, hub_rows, hub, account, links, scope, hub_move
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
@@ -109,7 +109,7 @@ class DocCommand(Command):
         if doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
         owner = self.account.user_number()
-        on_hub = self.moving.put(doc, hub.row_id, mode, owner, caller.actor)
+        on_hub = self.hub_move.put(doc, hub.row_id, mode, owner, caller.actor)
         copy = self.copy_of(on_hub, caller) if args.keep_copy else None
         print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
         return 0
