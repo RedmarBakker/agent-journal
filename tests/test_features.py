@@ -18681,3 +18681,22 @@ def test_a_seed_that_raises_at_boot_is_logged_and_skipped_and_the_failure_and_th
     assert not notice.exists(), "and told once"
     app.container.get(BootNotices).announce()
     assert len(told) == 2
+
+
+def test_a_list_whose_every_row_is_open_reads_one_page_and_documents_and_reports_list_twenty_at_a_time_without_their_long_fields(app):
+    env = {"X-Journal-Env": "main"}
+    for n in range(25):
+        posted(app, "/journal/docs", {"title": f"doc {n}", "body": "the body"}, env)
+    posted(app, "/journal/reports", {"title": "the report", "body": "what was found"}, env)
+    page = got(app, "/journal/docs?limit=50", env)[1]
+    assert [d["title"] for d in page["rows"]] == [f"doc {n}" for n in range(5, 25)] and not page["is_last_page"], "the newest twenty, and no older page besides"
+    assert not any("body" in d for d in page["rows"]), "a document is listed without its body"
+    older = got(app, f"/journal/docs?limit=50&before={page['rows'][0]['id']}", env)[1]
+    assert [d["title"] for d in older["rows"]][-5:] == [f"doc {n}" for n in range(5)], "the older page on scrolling"
+    assert got(app, f"/journal/docs/{page['rows'][0]['id']}", env)[1]["body"] == "the body", "a document read by its number is whole"
+    report = got(app, "/journal/reports?limit=50", env)[1]["rows"][-1]
+    assert report["title"] == "the report" and "body" not in report and "items" not in report, "a report is listed without its body and its items"
+    for n in range(4):
+        posted(app, "/journal/facts", {"text": f"fact {n}"}, env)
+    facts = got(app, "/journal/facts?limit=2", env)[1]
+    assert [f["text"] for f in facts["rows"]] == ["fact 2", "fact 3"] and not facts["is_last_page"], "every fact is open, so the newest two alone"

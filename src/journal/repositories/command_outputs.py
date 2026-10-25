@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from journal.support.actor import Actor
 
@@ -62,9 +62,11 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
             self.save(watched.unwatched(), actor)
         return self.save(output.watched(reader, title), actor)
 
-    def ended_runs(self, prefixes: tuple[str, ...], count: int) -> list[CommandOutput]:
-        query = self.query()
-        return self.selected(query.filter(ended=True).filter_alternatives(*(query.filter_prefix("command", prefix) for prefix in prefixes)).order_descending("id").limit(count))
+    def ended_run_results(self, prefixes: tuple[str, ...], count: int, upper_id: int) -> list[CommandOutput]:
+        query = self.query().filter(ended=True)
+        query = query.filter_less("id", upper_id) if upper_id else query
+        runs = query.filter_alternatives(*(self.query().filter_prefix("command", prefix) for prefix in prefixes))
+        return self.selected(runs.with_columns("command", "status", "updated_at").order_descending("id").limit(count))
 
     def started_with(self, prefix: str) -> list[CommandOutput]:
         return self.selected(self.query().filter_prefix("command", prefix).order("id"))

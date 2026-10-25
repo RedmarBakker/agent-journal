@@ -1,8 +1,11 @@
 from typing import TypeVar
 
+from journal.db.query import Query
 from journal.http.controllers.controller import Controller
 from journal.http.support.download_response import DownloadResponse
 from journal.http.support.model_fields import ModelFields
+from journal.http.listing import SHORT_PAGE_ROWS, Listing
+from journal.http.row_list_page import RowListPage
 from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.doc import Doc
@@ -14,10 +17,16 @@ W = TypeVar("W", Doc, Report)
 
 
 class WritingController(Controller[W]):
-    """What documents and reports share: a list includes each without its body, the rows it links to and how many comments are under it, which are requested by id; a section is added at the end of the body."""
+    """What documents and reports share: a list reads each without its long fields, twenty at a time, and the rows it links to and how many comments are under it are requested by id; a section is added at the end of the body."""
+
+    page_rows = SHORT_PAGE_ROWS
+    omitted_fields: tuple[str, ...] = ("body",)
+
+    def list_page(self, listing: Listing, query: Query) -> RowListPage:
+        return super().list_page(listing, query.without(*self.omitted_fields))
 
     def index_page(self, rows: list[W]) -> list[dict]:
-        return [{name: value for name, value in ModelFields.build(row).items() if name != "body"} for row in rows]
+        return [{name: value for name, value in ModelFields.build(row).items() if name not in self.omitted_fields} for row in rows]
 
     def shown_page(self, rows: list[W]) -> list[dict]:
         linked = self.repository.linked_rows(row.row_id for row in rows)

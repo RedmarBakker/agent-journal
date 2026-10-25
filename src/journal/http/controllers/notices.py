@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from journal.db.query import Query
 from journal.http.controllers.controller import Controller
+from journal.http.listing import SHORT_PAGE_ROWS
 from journal.http.counts import Counts
 from journal.http.support.request import Request
 from journal.support.response import Response
@@ -10,9 +11,10 @@ from journal.repositories.notices import Notices
 
 
 class NoticeController(Controller[Notice]):
-    """Notices pinned for the user, open until closed."""
+    """Notices pinned for the user, open until closed, listed twenty at a time."""
 
     repository: Notices
+    page_rows = SHORT_PAGE_ROWS
 
     def __init__(self, notices: Notices) -> None:
         self.repository = notices

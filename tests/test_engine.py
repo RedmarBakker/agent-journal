@@ -2346,7 +2346,7 @@ def test_the_orchestrators_load_is_measured_as_one_server_from_its_arrivals_and_
     flooded = [LoadItem(f"workers:{n}", now - 2 * 3600 + n * 60, 1.0, now - 2 * 3600 + n * 60 + 300) for n in range(118)]
     busy = series.measured(flooded, [], now)
     assert busy.rho > 0.95 and abs(busy.wait_minutes - 5) < 0.01 and abs(busy.little - 5) < 0.2, "saturated: ρ near 1 and λW near the five that wait"
-    assert busy.over_minutes >= 60 and busy.waiting_refs == ("workers:116", "workers:117"), "over 0.8 the whole stretch, and what waits now oldest first"
+    assert busy.over_minutes >= 60 and busy.waiting_refs == ("workers:116", "workers:117") and busy.waiting_items == 2, "over 0.8 the whole stretch, and what waits now oldest first"
     # a user's message waits unanswered, weighted 3: dispatches made while the queue grows under a high load count against, one while calm counts for
     oldest = series.measured([*flooded, LoadItem("messages:553", now - 600, 3.0)], [], now)
     assert oldest.waiting_refs[0] == "messages:553" and oldest.waiting == 5.0, "the message is the oldest that waits, weighted 3"
@@ -2377,7 +2377,7 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
-    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=AgentLoad(rho=rho, waiting_refs=refs, measured_at=1.0))})), settings).nudges]
+    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
     assert told(0.6) == [], "under the warning level nothing is said"
     rising = told(0.74)
     assert rising == ["your load is 0.74: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"] and len(rising[0]) <= 120, rising

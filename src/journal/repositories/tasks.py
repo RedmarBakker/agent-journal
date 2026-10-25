@@ -130,11 +130,14 @@ class Tasks(ScopedRepository[Task]):
     def free_tasks(self, state: TaskState, plan_states: tuple[str, ...]) -> list[Task]:
         return self.selected(self.free_query(state, plan_states))
 
-    def open_page(self, rows: int) -> list[Task]:
-        return self.selected(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
+    def open_page_ids(self, rows: int) -> list[int]:
+        return self.selected_ids(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).limit(rows))
 
     def open_count(self) -> int:
         return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES))
+
+    def has_stale_open(self, moment: datetime) -> bool:
+        return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_less_equal("updated_at", moment)) > 0
 
     def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
         plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_named(self.links.query(), "target")

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.agent.compacting import Compacting
 from journal.events.agent.tool_finished import ToolFinished
@@ -42,15 +44,14 @@ class ToolUses:
         return self.tool_counted(event, rows[0])
 
     def tool_counted(self, event: AgentEvent, agent: Agent) -> AgentEvent:
-        if isinstance(event, ToolStarting) and not event.subagent and ToolUseCounts.is_handover(event.call.recorded()):
-            agent = self.agents.save(agent.with_handover(event.time), Actor.system())
-        if isinstance(event, ToolStarting) and not event.subagent:
-            agent = self.agents.save(self.reviewed(agent, event), Actor.system())
-        if isinstance(event, ToolStarting) and not event.call.is_journal and not event.subagent:
-            agent = self.agents.save(self.used(agent, event.call.recorded(), event.time), Actor.system())
-            shape = event.call.recorded().shape
-            return event.counted(agent.tool_uses).shape_counted(self.entries.shape_count(event.session, shape) + 1 if shape else 0)
-        return event.counted(agent.tool_uses)
+        if not isinstance(event, ToolStarting) or event.subagent:
+            return event.counted(agent.tool_uses)
+        call = event.call.recorded()
+        reviewed = self.reviewed(agent.with_handover(event.time) if ToolUseCounts.is_handover(call) else agent, event)
+        if event.call.is_journal:
+            return event.counted(self.agents.save(reviewed, Actor.system()).tool_uses)
+        agent = self.agents.save(self.used(reviewed, call, event.time), Actor.system())
+        return event.counted(agent.tool_uses).shape_counted(self.entries.shape_count(event.session, call.shape) + 1 if call.shape else 0)
 
     def reviewed(self, agent: Agent, event: ToolStarting) -> Agent:
         call = event.call.recorded()
@@ -59,7 +60,7 @@ class ToolUses:
         tested = self.runs.folder(event.call.command, event.folder)
         agent = agent.tests_run(tested, event.time) if tested else agent
         agent = agent.worker_reused() if ToolUseCounts.is_send(call) else agent
-        agent = agent.fresh_over_idle() if ToolUseCounts.is_dispatch(call) and any(worker.is_idle() for worker in self.workers.scoped()) else agent
+        agent = agent.fresh_over_idle() if ToolUseCounts.is_dispatch(call) and self.workers.has_idle() else agent
         return agent.briefed() if ToolUseCounts.is_handover(call) and ToolUseCounts.is_complete_brief(call) else agent
 
     def merged(self, agent: Agent, call: ToolCall) -> Agent:
@@ -69,19 +70,16 @@ class ToolUses:
             return agent.unchecked_merge()
         return agent.worker_merged(str(self.branch.place(workers[0]).resolve()), workers[0].clocked_out_at())
 
-    def has_late_worker(self, time: float) -> bool:
-        return any(worker.is_unanswered(time, ANSWER_SECONDS) for worker in self.workers.scoped())
-
     def has_late_task(self, time: float) -> bool:
         limit = self.settings.integer(WorkersOptions.WORKER_LIMIT)
-        if limit > 0 and len(self.workers.running_workers()) >= limit:
+        if limit > 0 and self.workers.dispatched_count() >= limit:
             return False
-        return any(task.updated_at is not None and time - task.updated_at.timestamp() >= ANSWER_SECONDS for task in self.tasks.open_tasks())
+        return self.tasks.has_stale_open(datetime.fromtimestamp(time - ANSWER_SECONDS, timezone.utc))
 
     def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))
         agent = agent.in_mode(mode).tool_used()
-        agent = agent.worker_waited() if mode == "orchestrator" and self.has_late_worker(time) else agent
+        agent = agent.worker_waited() if mode == "orchestrator" and self.workers.has_unanswered(time, ANSWER_SECONDS) else agent
         agent = agent.task_waited() if mode == "orchestrator" and self.has_late_task(time) else agent
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
         agent = agent.file_edited() if call.edited_paths else agent

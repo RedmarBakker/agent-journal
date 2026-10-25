@@ -92,12 +92,12 @@ class EnvironmentCommand(Command):
 
     def current_work(self, caller: Caller) -> list[str]:
         start = datetime.now(timezone.utc) - TAKEOVER_WINDOW
-        peers = self.agents.recent_peers(caller.session, start)
+        peer = self.agents.recent_peer(caller.session, start)
         holder = self.taking.holder(caller)
         current = None if holder is None else self.tasks.holder_task(holder)
         peer_tasks = self.tasks.other_started_tasks(current)
         lines = [
-            f"taken over from another agent, last seen {peers[-1].update_time.astimezone().strftime('%H:%M')}" if peers else "",
+            f"taken over from another agent, last seen {peer.update_time.astimezone().strftime('%H:%M')}" if peer else "",
             f"task in hand: {current.id} {current.title}" if current else "no task in hand",
             self.matching_rows("started by other agents", [f"{t.id} {t.title}" for t in peer_tasks]),
             self.matching_rows("open tasks", [f"{t.id} {t.title}" for t in self.tasks.open_tasks()]),

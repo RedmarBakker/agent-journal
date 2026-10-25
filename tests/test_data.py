@@ -1386,5 +1386,27 @@ def test_the_agent_lists_a_session_start_reads_hold_only_the_other_agents_they_n
         assert [agent.session for agent in agents.running_peers(own)] == ["peer"], "a running main agent of its provider"
         assert [agent.session for agent in agents.ended_sequence_agents("own")] == ["ended"], "an ended agent with sequence runs"
         start = datetime.now(timezone.utc) - timedelta(minutes=10)
-        assert [agent.session for agent in agents.recent_peers("own", start)] == ["peer", "codex", "worker"], "an agent ended a moment after it began is no peer"
-        assert agents.recent_peers("own", datetime.now(timezone.utc) + timedelta(minutes=1)) == []
+        assert agents.recent_peer("own", start).session == "worker", "the newest peer, as an agent ended a moment after it began is no peer"
+        assert agents.recent_peer("own", datetime.now(timezone.utc) + timedelta(minutes=1)) is None
+
+
+def test_a_read_that_leaves_columns_or_keys_out_loads_its_rows_with_those_fields_at_their_defaults_and_counts_only_what_it_loaded(connection, bus, scope):
+    from journal.models.report import Report
+    from journal.repositories.entries import Entries
+    from journal.repositories.load_tally import LoadTally
+    from journal.repositories.reports import Reports
+    reports, entries = Reports(connection, bus, scope), Entries(connection, bus, scope)
+    with scope.environment(1):
+        reports.save(Report(title="the parser", abstract="what it reads", body="a long body " * 200, items=({"section": "done", "ref": "tasks:1", "title": "t"},)), USER)
+        entries.save(Entry(environment_id=1, kind="ToolStarting", actor=Actor.agent("s1"), data={"tool_name": "Read", "tool_input": {"file_path": "x" * 3000}, "call": {"read_paths": ["x"]}}), USER)
+        LoadTally.begin()
+        summary = reports.selected(reports.query().without("body", "items"))[0]
+        bare = reports.selected(reports.query().with_columns("title"))[0]
+        call = entries.selected(entries.query().without_keys("data", "tool_input"))[0]
+        loads = LoadTally.ended()
+    assert (summary.title, summary.abstract, summary.body, summary.items) == ("the parser", "what it reads", "", ()), "a column left out holds its default"
+    assert (bare.id, bare.title, bare.abstract) == (summary.id, "the parser", ""), "a read of only some columns keeps the number besides"
+    assert call.data == {"tool_name": "Read", "call": {"read_paths": ["x"]}}, "a key left out of a JSON column is not in it"
+    assert loads.points() < 10, f"what was left out is not loaded: {loads.line()}"
+    with pytest.raises(UnknownColumn):
+        reports.query().without("no_such_column")

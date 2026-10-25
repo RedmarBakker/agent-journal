@@ -7,3 +7,6 @@ class Questions(ScopedRepository[Question]):
 
     def open(self) -> list[Question]:
         return self.selected(self.query().filter_null("answer").order("id"))
+
+    def open_count(self) -> int:
+        return self.counted(self.query().filter_null("answer"))

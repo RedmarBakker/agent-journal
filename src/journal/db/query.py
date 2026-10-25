@@ -11,11 +11,12 @@ from journal.models.support.column import Column
 JSON_KEY = re.compile(r"^[a-z_]+$")
 JSON_ARROW = "->"
 PREFIX_END = "￿"
+DAY_SECONDS = 86400
 
 
 @dataclass(frozen=True)
 class Query:
-    """A read or a write of one table composed in calls, each returning a new query, and rendered to SQL text and its parameters for the Connection to run; a column the table does not have fails as it is named, and data->key->key names a JSON path in a column; a model that shares its table with another reads and writes only rows of its own kind, and is named in refs by its own name."""
+    """A read or a write of one table composed in calls, each returning a new query, and rendered to SQL text and its parameters for the Connection to run; a column the table does not have fails as it is named, and data->key->key names a JSON path in a column; a model that shares its table with another reads and writes only rows of its own kind, and is named in refs by its own name; a read may leave columns out, whose fields its rows then hold at their defaults, and keys out of a JSON column."""
 
     table: str
     columns: Mapping[str, Column]
@@ -25,6 +26,8 @@ class Query:
     row_offset: int = 0
     subquery_tables: tuple[str, ...] = ()
     ref_table: str = ""
+    omitted: tuple[str, ...] = ()
+    omitted_keys: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def build(cls, model: type[Model]) -> "Query":
@@ -69,6 +72,15 @@ class Query:
 
     def filter_present(self, column: str) -> "Query":
         return self._with(Condition(f"{self.expression(column)} IS NOT NULL"))
+
+    def filter_lasting(self, start: str, end: str, seconds: float) -> "Query":
+        return self._with(Condition(f"{self._span(start, end)} >= ?", (seconds / DAY_SECONDS,)))
+
+    def filter_lasting_less(self, start: str, end: str, seconds: float) -> "Query":
+        return self._with(Condition(f"{self._span(start, end)} < ?", (seconds / DAY_SECONDS,)))
+
+    def _span(self, start: str, end: str) -> str:
+        return f"julianday({self.expression(end)}) - julianday({self.expression(start)})"
 
     def filter_prefix(self, column: str, prefix: str) -> "Query":
         return self.filter_greater_equal(column, prefix).filter_less(column, prefix + PREFIX_END)
@@ -119,6 +131,18 @@ class Query:
     def limit(self, rows: int) -> "Query":
         return replace(self, row_limit=rows)
 
+    def without(self, *columns: str) -> "Query":
+        return replace(self, omitted=(*self.omitted, *(self._column(name).name for name in columns)))
+
+    def with_columns(self, *columns: str) -> "Query":
+        columns_read = {"id", *(self._column(name).name for name in columns)}
+        return replace(self, omitted=tuple(name for name in self.columns if name not in columns_read))
+
+    def without_keys(self, column: str, *keys: str) -> "Query":
+        if not all(JSON_KEY.match(key) for key in keys):
+            raise UnknownColumn(self.table, column)
+        return replace(self, omitted_keys=(*self.omitted_keys, *((self._column(column).name, key) for key in keys)))
+
     def offset(self, rows: int) -> "Query":
         return replace(self, row_offset=rows)
 
@@ -126,7 +150,11 @@ class Query:
         return self._joined().text
 
     def select(self) -> tuple[str, tuple]:
-        return self._read("*")
+        return self._read(", ".join(self.selected_column(name) for name in self.columns if name not in self.omitted) if self.omitted or self.omitted_keys else "*")
+
+    def selected_column(self, name: str) -> str:
+        keys = [f"'$.{key}'" for column, key in self.omitted_keys if column == name]
+        return f"json_remove({name}, {', '.join(keys)}) AS {name}" if keys else name
 
     def select_ids(self) -> tuple[str, tuple]:
         return self._read("id")

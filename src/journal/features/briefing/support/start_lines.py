@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from journal.events.agent.session_started import SessionStarted
 from journal.models.environment import Environment
 from journal.models.message import Message
-from journal.models.task_state import TaskState
 from journal.repositories.agents import Agents
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.facts import Facts
@@ -33,8 +32,8 @@ class StartLines:
         return "" if event.source == "compact" else self.other_session_time(event.session)
 
     def other_session_time(self, session: str) -> str:
-        peers = self.agents.recent_peers(session, datetime.now(timezone.utc) - TAKEOVER_WINDOW)
-        return peers[-1].update_time.astimezone().strftime("%H:%M") if peers else ""
+        peer = self.agents.recent_peer(session, datetime.now(timezone.utc) - TAKEOVER_WINDOW)
+        return peer.update_time.astimezone().strftime("%H:%M") if peer else ""
 
     def rules_numbered(self) -> str:
         return self.numbered(r.text for r in self.rules.all())
@@ -46,7 +45,7 @@ class StartLines:
         return self.numbered(r.text for r in self.reminders.standing())
 
     def waiting(self) -> str:
-        counts = {"tasks": self.tasks.open_count(), "messages": self.messages.unread_count(), "questions": len(self.questions.open())}
+        counts = {"tasks": self.tasks.open_count(), "messages": self.messages.unread_count(), "questions": self.questions.open_count()}
         return ", ".join(f"{n} {name}" for name, n in counts.items() if n)
 
     def team_history(self, environment: Environment) -> str:

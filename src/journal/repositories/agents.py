@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from journal.db.query import Query
 from journal.models.agent import Agent
@@ -6,6 +6,8 @@ from journal.models.agent_role import AgentRole
 from journal.support.missing_row import MissingRow
 from journal.repositories.scoped_repository import ScopedRepository
 
+# an agent ended sooner than this after it began never worked, so is no peer
+PEER_SECONDS = 60
 
 class Agents(ScopedRepository[Agent]):
     model = Agent
@@ -96,9 +98,10 @@ class Agents(ScopedRepository[Agent]):
     def session_query(self, session: str) -> Query:
         return self.query().filter(session=session).order("id").limit(1)
 
-    def recent_peers(self, session: str | None, start: datetime) -> list[Agent]:
-        recent = self.newest(self.query().filter_unequal("session", session).filter_greater_equal("updated_at", start))
-        return [item for item in recent if not (item.state == "ended" and item.update_time - item.creation_time < timedelta(minutes=1))]
+    def recent_peer(self, session: str | None, start: datetime) -> Agent | None:
+        lasting = self.query().filter_alternatives(self.query().filter_unequal("state", "ended"), self.query().filter_lasting("created_at", "updated_at", PEER_SECONDS))
+        rows = self.selected(lasting.filter_unequal("session", session).filter_greater_equal("updated_at", start).order_descending("id").limit(1))
+        return rows[0] if rows else None
 
     def _row_reads(self, row: Agent) -> list[Query]:
         return [self.session_query(row.session)]

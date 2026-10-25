@@ -320,14 +320,14 @@ class Repository(Generic[M]):
         self.connection.changed(self.model.storage())
 
     def _loaded(self, query: Query) -> list[M]:
-        return self.connection.cached(query.tables(), *query.select(), lambda rows: [self._load(row) for row in rows])
+        return self.connection.cached(query.tables(), *query.select(), lambda rows: [self._load(row, query.omitted) for row in rows])
 
     def _column_values(self, row: M) -> dict:
         return {column.name: getattr(row, column.name) for column in self.columns if column.name != "id"}
 
-    def _load(self, row) -> M:
+    def _load(self, row, omitted: tuple[str, ...]) -> M:
         LoadTally.counted(self.table, row)
-        return self._parsed_row(lambda column: row[column.name])
+        return self._parsed_row(lambda column: None if column.name in omitted else row[column.name])
 
     def _parsed_row(self, stored: Callable[[Column], object]) -> M:
         return self.model(**{column.name: value for column in self.columns if (value := column.parsed(stored(column))) is not None})

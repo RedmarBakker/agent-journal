@@ -98,7 +98,7 @@ class Messages(ScopedRepository[Message]):
     def unanswered(self) -> list[Message]:
         voiced_at = self.last_message()
         query = self.main_chat().filter(author=Author.USER).filter_present("read_at")
-        read = self.selected((query if voiced_at is None else query.filter_greater("read_at", voiced_at)).order("id"))
+        read = self.selected((query if voiced_at is None else query.filter_greater("read_at", voiced_at)).without("text").order("id"))
         return [m for m in read if not m.is_terminal_line and not self.answered(m) and not self.agent_reaction(m)]
 
     def last_message(self) -> str | None:

@@ -6,7 +6,7 @@ import {useGrowFromCard} from "../composables/growFromCard.js";
 import TextDisplay from "../kit/TextDisplay.vue";
 import CloseButton from "../kit/CloseButton.vue";
 import {useScope} from "../composables/scope.js";
-import {holding, rows} from "../sync/rows.js";
+import {holding, isWhole, rows, whole} from "../sync/rows.js";
 import {peek, route} from "../route.js";
 
 // each section of an update in the order it is read, with the words it is shown under
@@ -28,6 +28,7 @@ const sections = computed(() =>
 
 watchEffect(() => {
     if (!report.value) holding("reports", [id]).catch((error) => console.error(error));
+    else if (!isWhole(report.value)) whole("reports", id).catch((error) => console.error(error));
 });
 
 const panel = ref(null);

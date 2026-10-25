@@ -3,13 +3,14 @@ from dataclasses import dataclass, replace
 
 @dataclass(frozen=True)
 class AgentLoad:
-    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L) and its refs oldest first, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low, with the minutes over the level its fitness counts whole and as nothing; with when it was measured and when its places last changed."""
+    """The orchestrator's load as last measured, kept on its row: the smoothed arrivals λ and clearings μ an hour, ρ = λ/μ, what waits now (L), how many items and the refs of the oldest few, the minutes from arrival to clearing (W), λW to check L against by Little's law, how many minutes running ρ has stayed over the scale-up level and under the scale-down level, and the handling the fitness scores: the clearings that took the oldest waiting item first among those counted, and the dispatches made while the queue grew over the scale-up level against those made into idle places while ρ was low, with the minutes over the level its fitness counts whole and as nothing; with when it was measured and when its places last changed."""
 
     arrivals: float = 0.0
     clearings: float = 0.0
     rho: float = 0.0
     waiting: float = 0.0
     waiting_refs: tuple[str, ...] = ()
+    waiting_items: int = 0
     wait_minutes: float = 0.0
     little: float = 0.0
     over_minutes: float = 0.0
@@ -33,10 +34,10 @@ class AgentLoad:
     def scaled(self, time: float) -> "AgentLoad":
         return replace(self, scaled_at=time)
 
-    def waiting_text(self, named: int) -> str:
-        labels = [self.label(ref) for ref in self.waiting_refs[:named]]
-        rest = len(self.waiting_refs) - named
-        return ", ".join(labels) + (f" and {rest} more" if rest > 0 else "")
+    def waiting_text(self, shown_count: int) -> str:
+        labels = [self.label(ref) for ref in self.waiting_refs[:shown_count]]
+        remaining_count = self.waiting_items - shown_count
+        return ", ".join(labels) + (f" and {remaining_count} more" if remaining_count > 0 else "")
 
     def oldest(self) -> str:
         return self.label(self.waiting_refs[0]) if self.waiting_refs else "nothing"

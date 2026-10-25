@@ -1,6 +1,7 @@
 from journal.db.query import Query
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
+from journal.http.listing import SHORT_PAGE_ROWS
 from journal.http.support.model_fields import ModelFields
 from journal.models.author import Author
 from journal.models.reaction import Reaction
@@ -8,9 +9,10 @@ from journal.repositories.reactions import REACTS, Reactions
 
 
 class ReactionController(Controller[Reaction]):
-    """The emoji on messages, one read by id with the message it sits on; an emoji the agent put on counts as unread."""
+    """The emoji on messages, listed twenty at a time, one read by id with the message it sits on; an emoji the agent put on counts as unread."""
 
     repository: Reactions
+    page_rows = SHORT_PAGE_ROWS
 
     def __init__(self, reactions: Reactions) -> None:
         self.repository = reactions

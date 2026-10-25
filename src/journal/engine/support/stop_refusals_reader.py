@@ -2,7 +2,7 @@ from journal.engine.safety_conduct import PANIC_REFUSAL_COUNT
 from journal.models.agent import Agent
 from journal.repositories.entries import Entries
 
-# the newest turn events looked at for stops refused in a row: enough to reach the count that panics, past the stop being answered
+# the most stops refused in a row counted: enough to reach the count that panics, past the stop being answered
 RECENT_TURN_EVENTS = PANIC_REFUSAL_COUNT + 1
 STOP = "Stop"
 
@@ -14,13 +14,7 @@ class StopRefusalsReader:
         self.entries = entries
 
     def read(self, agent: Agent) -> int:
-        events = self.entries.turn_events(agent.session, RECENT_TURN_EVENTS)
-        if events and events[0].kind == STOP and "refused" not in events[0].data:
-            events = events[1:]
-        refusals = 0
-        for entry in events:
-            if entry.kind != STOP or "refused" not in entry.data:
-                break
-            refusals += 1
-        return refusals
+        newest = self.entries.turn_events(agent.session, 1)
+        answered = newest[0].row_id if newest and newest[0].kind == STOP and "refused" not in newest[0].data else 0
+        return self.entries.refusal_run_count(agent.session, answered, RECENT_TURN_EVENTS)
 

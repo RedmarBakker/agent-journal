@@ -388,7 +388,7 @@ def open_work_check(state: BaseState, event: ToolStarting, settings: Settings) -
         return state.none()
     if is_full((*workers.dispatched_workers, *workers.ready_work), settings.integer(WorkersOptions.WORKER_LIMIT)):
         return state.none(*(WorkersNudges.PLACES_FULL.create(n=min(workers.ready_work, key=lambda work: work.delivered_at).worker),) if workers.ready_work else ())
-    if not tasks.open_ids:
+    if not tasks.open_count:
         return state.none()
     return state.none(WorkersNudges.CREW_REMINDER.create(count=tasks.open_count, tasks=tasks.open_next))
 
@@ -405,7 +405,7 @@ def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> 
     if settings.value(WorkersOptions.MODE) != "orchestrator":
         return ()
     tasks = data.part(TasksPart)
-    if not tasks.open_ids:
+    if not tasks.open_count:
         return ()
     return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, count=tasks.open_count, tasks=tasks.open_next),)
 

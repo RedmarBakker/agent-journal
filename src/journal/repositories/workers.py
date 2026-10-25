@@ -1,4 +1,5 @@
 from journal.db.connection import Connection
+from journal.db.query import Query
 from journal.events.bus import Bus
 from journal.models.agent import Agent
 from journal.models.support.ref import Ref
@@ -24,10 +25,19 @@ class Workers(ScopedRepository[Worker]):
         return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY, WorkerState.DELIVERED, WorkerState.UNFINISHED]).order("id"))
 
     def running_workers(self) -> list[Worker]:
-        return self.selected(self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY]).order("id"))
+        return self.selected(self.dispatched_query().order("id"))
+
+    def dispatched_count(self) -> int:
+        return self.counted(self.dispatched_query())
+
+    def dispatched_query(self) -> Query:
+        return self.query().filter_listed("state", [WorkerState.DISPATCHED, WorkerState.READY])
 
     def idle_workers(self) -> list[Worker]:
-        return self.selected(self.query().filter(state=WorkerState.REPORTED, adopted=False).order("id"))
+        return self.selected(self.idle_query().order("id"))
+
+    def idle_query(self) -> Query:
+        return self.query().filter(state=WorkerState.REPORTED, adopted=False)
 
     def queued_reviews(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.DELIVERED, review_pending=True).filter_greater("review_queued_at", 0).order("review_queued_at"))
@@ -42,10 +52,10 @@ class Workers(ScopedRepository[Worker]):
         return self.selected(self.query().filter(state=WorkerState.DELIVERED).filter_unequal("review_pending", True).order("id"))
 
     def has_idle(self) -> bool:
-        return any(worker.is_idle() for worker in self.scoped())
+        return self.counted(self.idle_query()) > 0
 
     def has_unanswered(self, time: float, seconds: float) -> bool:
-        return any(worker.is_unanswered(time, seconds) for worker in self.scoped())
+        return any(worker.is_unanswered(time, seconds) for worker in self.checkable_workers())
 
     def running_pool_workers(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if worker.pool_request]

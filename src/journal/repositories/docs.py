@@ -8,13 +8,14 @@ from journal.events.bus import Bus
 from journal.repositories.doc_scope import DocScope
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.scoped_repository import ScopedRepository
+from journal.repositories.unacted_writing import UnactedWriting
 
 
-class Docs(ScopedRepository[Doc]):
+class Docs(ScopedRepository[Doc], UnactedWriting):
     model = Doc
 
-    def unsettled(self) -> list[Doc]:
-        return self.selected(self.query().filter(settled_reason="").order("id"))
+    def unsigned_query(self) -> Query:
+        return self.query().filter(settled_reason="")
 
     def __init__(self, connection: Connection, bus: Bus, scope: Scope, visible: DocScope) -> None:
         super().__init__(connection, bus, scope)

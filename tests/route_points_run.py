@@ -1,4 +1,4 @@
-"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind and the commands an agent runs on its plan are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read and a read the viewer polls."""
+"""Outside the default run, since it loads the saved full project: the commit gate runs it before each commit. Every route the server registers, each list with its list parameters, every hook kind as the agent orchestrates, the commands an agent runs on its plan and those it runs as its session starts are generated from the router, the hook kinds and the saved full project (tests/full_project.py) and answered in-process against it, counting points, not time: a row loaded, a write and a started kilobyte loaded are a point each, and any answer over its 30 points fails the run, whatever the machine is doing. An answer a live journal gives after the rows it reads were written is counted against a cold cache, as it is there: a hook, a list's change read, a read the viewer polls, a list it reads whole as a page opens and a command run as a session starts."""
 
 import json
 import math
@@ -9,12 +9,14 @@ from pathlib import Path
 import pytest
 
 from journal.app import App
+from journal.features.workers.workers_options import WorkersOptions
 from journal.db.connection import Connection
 from journal.features.faults.support.slow_requests import UNMEASURED_PATHS, SlowRequests
 from journal.models.support.request_loads import RequestLoads
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.load_tally import LoadTally
 from journal.http.controllers.controller import Controller
 from journal.http.router import Router
@@ -22,6 +24,7 @@ from journal.http.support.identity import Identity
 from journal.http.support.json_out import JsonOut
 from journal.http.support.request_reading import RequestReading
 from journal.http.support.route import Route
+from journal.support.actor import Actor
 from journal.support.hook_kind import HookKind
 from journal.support.response import Response
 from tests.full_project import unpacked
@@ -90,8 +93,13 @@ GET_TRIES = 3
 CHANGE_READ = "since="
 # reads the viewer polls over rows written between two polls, counted against a cold cache, each with why
 POLLED = {"GET /journal/bar": "polled every half second while the agent works, over the entries every hook writes"}
+# lists the viewer reads whole when a page or the chat opens, seldom enough that the cache has long let their rows go, counted against a cold cache, each with why
+OPENED = {"GET /journal/docs": "read when the library opens", "GET /journal/reports": "read when the reports open", "GET /journal/notices": "read when the chat opens, for the pins above it",
+          "GET /journal/reactions": "read when the chat opens, for the emoji on its messages"}
 # the plan the full project has started, its first task in the agent's hand
 STARTED_PLAN = 1
+# the hooks are answered as the agent orchestrates, the mode whose listeners read the most: its workers, its load, its suite runs and what it never acted on
+ORCHESTRATOR = "orchestrator"
 # a row loaded, a write and a started kilobyte loaded are a point each, whatever the machine is doing
 POINTS_BUDGET = 30
 # the answers that spent more than the budget when the gate was made, each with what it spent then: none may spend more,
@@ -164,7 +172,7 @@ def cold_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> R
 
 
 def is_cold(method: str, target: str) -> bool:
-    return CHANGE_READ in target or f"{method} {target}" in POLLED
+    return CHANGE_READ in target or f"{method} {target}" in POLLED or f"{method} {target}" in OPENED
 
 
 def least_loads(app: App, method: str, target: str, body: tuple[str, bytes]) -> RequestLoads:
@@ -206,6 +214,7 @@ def over_budget(app: App, measured: list[tuple[str, str, tuple[str, bytes]]]) ->
 def test_every_route_is_timed_or_left_out_by_name_and_every_hook_kind_has_a_body(full_project: App):
     routes = full_project.container.get(Router).routes
     assert sorted(set(LEFT_OUT) - {key(route) for route in routes}) == [], "a route left out by name is one the server registers"
+    assert sorted({*POLLED, *OPENED} - {key(route) for route in routes}) == [], "a read counted cold by name is one the server registers"
     timed = {(method, target.split("?")[0]) for method, target, _ in cases(full_project)}
     assert [key(route) for route in routes if not is_left_out(route) and (route.method, path(route)) not in timed] == [], "every route not left out is timed"
     assert set(hook_bodies()) == set(HookKind), "every hook kind is timed"
@@ -217,7 +226,12 @@ def test_every_route_answers_within_its_budget_on_a_full_project(full_project: A
     assert not routes, "\n".join(routes)
 
 
-def test_every_hook_kind_answers_within_its_budget_on_a_full_project(full_project: App):
+def orchestrating(app: App) -> None:
+    app.container.get(SettingRows).set(WorkersOptions.MODE.key, ORCHESTRATOR, Actor.user(1))
+
+
+def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent_orchestrates(full_project: App):
+    orchestrating(full_project)
     bodies = hook_bodies()
     posted = lambda kind, body, try_name: (JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode())
     for kind, body in bodies.items():
@@ -234,7 +248,15 @@ def in_hand(app: App) -> int:
 
 
 def command(app: App, *argv: str) -> RequestLoads:
-    return answer_loads(app, "POST", "/cli", (JSON, json.dumps({"argv": list(argv), "env": "main", "session": "s1"}).encode()))
+    return answer_loads(app, "POST", "/cli", command_body(argv))
+
+
+def cold_command(app: App, *argv: str) -> RequestLoads:
+    return cold_loads(app, "POST", "/cli", command_body(argv))
+
+
+def command_body(argv: tuple[str, ...]) -> tuple[str, bytes]:
+    return JSON, json.dumps({"argv": list(argv), "env": "main", "session": "s1"}).encode()
 
 
 def test_the_commands_an_agent_runs_on_its_started_plan_answer_within_their_budget(full_project: App):
@@ -245,6 +267,12 @@ def test_the_commands_an_agent_runs_on_its_started_plan_answer_within_their_budg
     spending["POST /cli/task pause"] = command(full_project, "task", "pause", str(following), "the footer first")
     spending["POST /cli/task start"] = command(full_project, "task", "start", str(following))
     spending["POST /cli/output list"] = command(full_project, "output", "list")
+    commands = over(recorded(spending))
+    assert not commands, "\n".join(commands)
+
+
+def test_the_commands_an_agent_runs_as_its_session_starts_answer_within_their_budget_against_a_cold_cache(full_project: App):
+    spending = {f"POST /cli/{' '.join(argv)}": cold_command(full_project, *argv) for argv in (("environment", "overview"), ("check", "list"))}
     commands = over(recorded(spending))
     assert not commands, "\n".join(commands)
 

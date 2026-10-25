@@ -57,7 +57,7 @@ class CheckCommand(Command):
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:
-        for check in self.checks.all():
+        for check in self.checks.verdicts():
             print(f"{check.id:>4}  {check.verdict():<8} {check.title}")
         return 0
 

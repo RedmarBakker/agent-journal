@@ -1,11 +1,11 @@
 {
- "GET /journal/bar": 80,
+ "POST /cli/environment overview": 1715,
  "POST /cli/task complete": 55,
  "POST /journal/plans/1": 85,
  "POST /journal/tasks/1/finish": 65,
  "hook MessageDisplay": 135,
- "hook SessionStart": 285,
- "hook Stop": 45,
+ "hook SessionStart": 160,
+ "hook Stop": 65,
  "hook StopFailure": 130,
  "hook SubagentStart": 125,
  "hook SubagentStop": 125

@@ -13,6 +13,7 @@ FILE_ROLL_SECONDS = 2.5
 LAST_FILE_EXTRA_SECONDS = 1.0
 FILE_STEP_SECONDS = 0.001
 TOOLS = ("ToolStarting", "ToolFinished")
+PARTS = (PART_START, PART_END)
 
 
 @dataclass(frozen=True)
@@ -34,13 +35,13 @@ class BarRow:
 
     @staticmethod
     def is_shown(entry: Entry) -> bool:
-        if entry.kind in (PART_START, PART_END):
+        if entry.kind in PARTS:
             return entry.data["part"].split(" ", 1)[0] not in SETUP_COMMANDS
         return entry.kind in TOOLS and not entry.recorded_call().command
 
     @classmethod
     def build(cls, entry: Entry) -> "BarRow":
-        return cls.part_row(entry) if entry.kind in (PART_START, PART_END) else cls.tool_row(entry)
+        return cls.part_row(entry) if entry.kind in PARTS else cls.tool_row(entry)
 
     @classmethod
     def part_row(cls, entry: Entry) -> "BarRow":

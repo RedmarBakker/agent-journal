@@ -8,9 +8,10 @@ from journal.repositories.reports import Reports
 
 
 class ReportController(WritingController[Report]):
-    """What was checked or researched, written up here, and the updates the user reads, each marked read when the user first opens it."""
+    """What was checked or researched, written up here, and the updates the user reads, whose items a list leaves out with the body, each marked read when the user first opens it."""
 
     repository: Reports
+    omitted_fields = ("body", "items")
 
     def __init__(self, reports: Reports) -> None:
         self.repository = reports

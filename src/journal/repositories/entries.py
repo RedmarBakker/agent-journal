@@ -17,6 +17,8 @@ DISPATCHES = ENTRIES.filter_alternatives(
     ENTRIES.filter(kind="PromptSubmitted").filter_prefix("data->prompt", "<task-notification>"),
 ).inlined()
 NUDGE = "nudge"
+# the keys of an entry's data that hold what a tool was given and gave back, what a command printed and the agent's last words, which a read of what the agent did leaves out
+PAYLOAD_KEYS = ("tool_input", "tool_response", "transcript_path", "output", "last_assistant_message")
 
 
 # the events of an agent's turn that end a run of held stops, the stop among them
@@ -65,7 +67,7 @@ class Entries(ScopedRepository[Entry]):
         return {row.recorded_call().command for row in rows}
 
     def shape_count(self, session: str, shape: str, last: int = 200) -> int:
-        return len(self.selected(self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).filter_json("data->call->shape", shape).order_descending("id").limit(last)))
+        return min(self.counted(self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).filter_json("data->call->shape", shape)), last)
 
     def newer_shell_starts(self, session: str, earliest: datetime, last: int = 500) -> list[Entry]:
         shell = self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
@@ -81,11 +83,15 @@ class Entries(ScopedRepository[Entry]):
         return [entry for entry in self.newer_kind_entries(kind, earliest, last) if entry.is_session(session)]
 
     def open_moves(self, moved: str, ended: str) -> list[Entry]:
-        chains = {entry.data["chain"] for entry in self.kind_entries(ended, 50)}
-        return [entry for entry in reversed(self.kind_entries(moved, 50)) if entry.data["chain"] not in chains]
+        chains = list(self.grouped_counts(self.query().filter(kind=moved), "data->chain"))
+        closed = self.grouped_counts(self.query().filter(kind=ended).filter_listed("data->chain", chains), "data->chain") if chains else {}
+        open_chains = [chain for chain in chains if chain not in closed]
+        return self.selected(self.query().filter(kind=moved).filter_listed("data->chain", open_chains).order("id")) if open_chains else []
 
-    def session_scoped_entries(self, session: str, last: int) -> list[Entry]:
-        return [entry for entry in reversed(self.kind_entries_scoped(last)) if entry.is_session(session)]
+    def session_activity(self, session: str, part_kinds: tuple[str, ...], tool_kinds: tuple[str, ...], last: int) -> list[Entry]:
+        tools = self.query().filter_listed("kind", tool_kinds).filter_alternatives(self.query().filter_null("data->call->command"), self.query().filter_json("data->call->command", ""))
+        shown = self.query().filter(actor=Actor.agent(session)).filter_alternatives(self.query().filter_listed("kind", part_kinds), tools)
+        return list(reversed(self.selected(shown.without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))))
 
     def session_kind_entries(self, kind: str, session: str) -> list[Entry]:
         return [entry for entry in self.kind_entries(kind) if entry.is_session(session)]
@@ -107,7 +113,17 @@ class Entries(ScopedRepository[Entry]):
         return [entry.data["refused"] for entry in self.selected(self.query().filter(actor=Actor.agent(session), kind="Stop").filter_present("data->refused").order_descending("id").limit(count))]
 
     def turn_events(self, session: str, count: int) -> list[Entry]:
-        return self.selected(self.query().filter(actor=Actor.agent(session)).filter_listed("kind", TURN_EVENTS).order_descending("id").limit(count))
+        return self.selected(self.turn_query(session).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(count))
+
+    def refusal_run_count(self, session: str, upper_id: int, count_cap: int) -> int:
+        events = self.turn_query(session).filter_less("id", upper_id) if upper_id else self.turn_query(session)
+        unrefused = events.filter_alternatives(self.query().filter_unequal("kind", "Stop"), self.query().filter_null("data->refused"))
+        run_start = self.selected_ids(unrefused.order_descending("id").limit(1))
+        refused = events.filter(kind="Stop").filter_present("data->refused")
+        return min(self.counted(refused.filter_greater("id", run_start[0]) if run_start else refused), count_cap)
+
+    def turn_query(self, session: str) -> Query:
+        return self.query().filter(actor=Actor.agent(session)).filter_listed("kind", TURN_EVENTS)
 
     def line_entries(self, session: str, keys: tuple[str, ...], last: int = 100) -> list[Entry]:
         return self.selected(self.lines(session).filter_listed("data->key", keys).order_descending("id").limit(last))

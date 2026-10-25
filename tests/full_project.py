@@ -1,4 +1,4 @@
-"""Builds tests/fixtures/full_project.db.gz, the database of a full project the route timing run measures against, shaped as a journal worked in for weeks: an agent that finished hundreds of the tasks it took in hand, a started plan of many tasks over many phases, sessions long ended, wait checks, the session's subagents and command outputs. Every row is generated here from a fixed seed and a list of plain words, never copied from a real journal, since the repository is public. Built again, from the checkout's root, when the schema moves far enough that the saved file no longer boots: PYTHONPATH=src python3 -m tests.full_project"""
+"""Builds tests/fixtures/full_project.db.gz, the database of a full project the route timing run measures against, shaped as a journal worked in for weeks: an agent that finished hundreds of the tasks it took in hand, a started plan of many tasks over many phases, sessions long ended, wait checks, the session's subagents and command outputs, a third of them whole runs of the suite, and the notices it pinned, most closed. Every row is generated here from a fixed seed and a list of plain words, never copied from a real journal, since the repository is public. Built again, from the checkout's root, when the schema moves far enough that the saved file no longer boots: PYTHONPATH=src python3 -m tests.full_project"""
 import gzip
 import random
 import re
@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from journal.app import App
@@ -19,6 +20,7 @@ from journal.models.author import Author
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
 from journal.models.message import Message
+from journal.models.notice import Notice
 from journal.models.subagent import Subagent
 from journal.models.subagent_state import SubagentState
 from journal.models.support.ref import Ref
@@ -28,6 +30,7 @@ from journal.repositories.checks import Checks
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
+from journal.repositories.notices import Notices
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.subagents import Subagents
@@ -48,6 +51,9 @@ PLANS, PHASES, PLAN_TASKS, LOOSE_TASKS, FINISHED_TASKS, WORKERS = 30, 3, 8, 400,
 # plan 1, started last, its first task in the agent's hand
 STARTED_PLAN_TASKS, STARTED_PLAN_PHASES = 60, 8
 ENDED_SESSIONS, WAIT_CHECKS, BROKEN_WAIT_CHECKS, SUBAGENTS, OUTPUTS = 80, 100, 10, 40, 30
+NOTICES, OPEN_NOTICES = 60, 5
+# every third command output a run of the whole suite that passed, the rest runs of one test file
+SUITE_COMMAND, SUITE_OUTPUT_STEP = "journal suite", 3
 # the workers left reported, their work not yet taken in; the rest are merged, so no worker is still out when the project boots, as none is
 # in a journal worked in for weeks, and the watch on workers out (workers/jobs/worker_watch.py) never rewrites them while a run measures
 IDLE_WORKERS = 5
@@ -143,8 +149,9 @@ def workers(app: App, words: random.Random) -> None:
             runner.recorded_end(worker, Actor.system())
         app.runtime().deferred.drain()
         for worker in crew.scoped()[IDLE_WORKERS:]:
+            holder_tasks = tasks.holder_task_ids(Ref.build(worker))
             tasks.release(Ref.build(worker), Actor.system())
-            crew.save(crew.find(worker.row_id).merged(time.time()), Actor.system())
+            crew.save(crew.find(worker.row_id).merged(holder_tasks[0] if holder_tasks else 0, time.time()), Actor.system())
     app.runtime().deferred.drain()
 
 
@@ -205,7 +212,16 @@ def history(app: App, words: random.Random) -> None:
             brief = " ".join(sentence(words) for _ in range(12))
             app.container.get(Subagents).save(Subagent(environment_id=main_id, dispatch=f"sub:{n}", dispatcher="s1", task=phrase(words, 5), brief=brief, agent_type="Explore", session=f"agent-{n}", state=SubagentState.FINISHED), system)
         for n in range(OUTPUTS):
-            app.container.get(CommandOutputs).save(CommandOutput(environment_id=main_id, chain=f"c-{n}", command=f"python3 -m pytest -q tests/test_{words.choice(WORDS)}.py", session="s1", ended=True, summary="\n".join(sentence(words) for _ in range(8))), system)
+            command = SUITE_COMMAND if n % SUITE_OUTPUT_STEP == 0 else f"python3 -m pytest -q tests/test_{words.choice(WORDS)}.py"
+            app.container.get(CommandOutputs).save(CommandOutput(environment_id=main_id, chain=f"c-{n}", command=command, session="s1", ended=True, status=0, summary="\n".join(sentence(words) for _ in range(8))), system)
+
+
+def notices(app: App, words: random.Random) -> None:
+    main_id, system = app.container.get(Environments).existing("main").row_id, Actor.system()
+    with app.container.get(Scope).environment(main_id):
+        for n in range(NOTICES):
+            notice = Notice(environment_id=main_id, title=phrase(words, 6), link=f"https://example.com/{words.choice(WORDS)}", label="Open")
+            app.container.get(Notices).save(notice if n >= NOTICES - OPEN_NOTICES else notice.closed(datetime.now(timezone.utc)), system)
 
 
 def started_plan(app: App) -> None:
@@ -249,6 +265,7 @@ def main() -> int:
             memory(app, words)
             remarks(app, words, tasks, messages)
             history(app, words)
+            notices(app, words)
             started_plan(app)
             spare(app, words)
             app.runtime().deferred.drain()

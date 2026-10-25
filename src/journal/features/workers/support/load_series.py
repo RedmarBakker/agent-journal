@@ -8,6 +8,8 @@ STEP_SECONDS = 60.0
 HALF_LIVES = 6
 # how far back a dispatch looks to see whether the queue was growing, in seconds
 GROWTH_SECONDS = 300.0
+# the oldest waiting items the load keeps the refs of on the agent's row; the rest it counts
+WAITING_REFS_STORED = 8
 
 
 @dataclass(frozen=True)
@@ -45,7 +47,7 @@ class LoadSeries:
         counted = [item for item in items if item.is_cleared_in(now - window, now)]
         sorted_waiting = sorted((item for item in items if item.is_waiting(now)), key=lambda item: (item.arrived_at, item.ref))
         for_, against = self.dispatch_counts(series, [time for time in dispatches if now - window < time <= now])
-        return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings or 0.0, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting),
+        return AgentLoad(arrivals=round(arrivals, 2), clearings=round(clearings or 0.0, 2), rho=round(rho, 2), waiting=round(waiting, 2), waiting_refs=tuple(item.ref for item in sorted_waiting[:WAITING_REFS_STORED]), waiting_items=len(sorted_waiting),
                          wait_minutes=round(wait or 0.0, 2), little=round(arrivals * (wait or 0.0) / 60, 2), over_minutes=self.stretch(series, lambda value: value > self.busy_at),
                          under_minutes=self.stretch(series, lambda value: value < self.quiet_at), oldest_first=sum(1 for item in counted if self.was_oldest(items, item)),
                          clearings_counted=len(counted), dispatches_for=for_, dispatches_against=against, measured_at=now)

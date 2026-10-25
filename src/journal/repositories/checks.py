@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from journal.db.query import Query
 from journal.models.check import Check
 from journal.repositories.repository import Repository
 from journal.support.actor import Actor
@@ -9,7 +10,13 @@ class Checks(Repository[Check]):
     model = Check
 
     def all(self) -> list[Check]:
-        return self.newest(self.query().filter(wait_target=False, is_retired=False))
+        return self.newest(self.listed_query())
+
+    def verdicts(self) -> list[Check]:
+        return self.newest(self.listed_query().with_columns("title", "last_passed", "last_stopped"))
+
+    def listed_query(self) -> Query:
+        return self.query().filter(wait_target=False, is_retired=False)
 
     def due(self, time: datetime) -> list[Check]:
         return [check for check in self.rows() if check.needs_run(time)]

@@ -4,7 +4,7 @@ from typing import Generic, TypeVar
 from journal.http.counts import Counts
 from journal.http.row_list import RowList
 from journal.db.query import Query
-from journal.http.listing import Listing
+from journal.http.listing import LISTING_ROW_LIMIT, Listing
 from journal.http.row_list_page import RowListPage
 from journal.http.support.request import Request
 from journal.support.response import Response
@@ -15,15 +15,16 @@ S = TypeVar("S", bound=Model)
 
 
 class Controller(Generic[S]):
-    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. Its list is a query its repository pages, filters and counts in SQL: its own rows alone unless list_query says which, with what index_page adds of each row's own, and reads no relationship of them; a resource whose rows close names its open and its closed rows as filters of that query; one that shows more than its fields says what in shown_page."""
+    """One per model: its list, one row, a new one and a change, over its repository as the request's environment sees it. Its list is a query its repository pages, filters and counts in SQL: its own rows alone unless list_query says which, with what index_page adds of each row's own, and reads no relationship of them; a resource whose rows close names its open and its closed rows as filters of that query; one that shows more than its fields says what in shown_page; one whose rows are wide pages fewer of them at a time."""
 
     repository: Repository[S]
+    page_rows: int = LISTING_ROW_LIMIT
 
     def index(self, request: Request) -> Response:
         return Response.json(self.listed(Listing.query_listing(request.query)))
 
     def listed(self, listing: Listing) -> RowList:
-        query = self.list_query()
+        listing, query = listing.capped(self.page_rows), self.list_query()
         if listing.ids:
             rows = self.id_rows(listing.ids)
             return RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(query))

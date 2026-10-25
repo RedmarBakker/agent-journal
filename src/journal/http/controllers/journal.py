@@ -7,7 +7,7 @@ from journal.features.faults.support.developer_numbers import DeveloperNumbers
 from journal.features.updates.support.update_card import UpdateCard
 from journal.hooks.hook_arrivals import HookArrivals
 from journal.http.agents.agent_activity import AgentActivity
-from journal.http.agents.bar_row import BarRow
+from journal.http.agents.bar_row import PARTS, TOOLS, BarRow
 from journal.http.agents.current_work import CurrentWork
 from journal.http.journal.environment_data import EnvironmentData
 from journal.http.journal.task_block import TaskBlock
@@ -29,6 +29,8 @@ COLOR = "#5e64c9"
 STARTED = timing.time()
 SILENCE_LIMIT_SECONDS = 900.0
 ACTIVITY_ENTRIES = 8
+# each item of the bar opens with one entry and closes with another
+ACTIVITY_ENTRY_ROWS = 2 * ACTIVITY_ENTRIES
 
 
 class JournalController:
@@ -80,13 +82,13 @@ class JournalController:
             work = self.current.work(agent) if agent else None
             task = TaskBlock(work.task.row_id, work.task.title, work.wait_text) if work else None
             silent = activity is not None and activity["status"] in ("busy", "working") and timing.time() - activity["heard_at"].timestamp() > SILENCE_LIMIT_SECONDS
-            return EnvironmentData(environment, activity, task, len(self.questions.open()), self.messages.unread_count(), self.tasks.unfinished_count(), silent, self.owners.owner_name(environment.row_id))
+            return EnvironmentData(environment, activity, task, self.questions.open_count(), self.messages.unread_count(), self.tasks.unfinished_count(), silent, self.owners.owner_name(environment.row_id))
 
     def bar(self, request: Request) -> Response:
         agent = self.agents.current()
         if not agent:
             return Response.json([])
-        recent = BarRow.shown(self.entries.session_scoped_entries(agent.session, 60))
+        recent = BarRow.shown(self.entries.session_activity(agent.session, PARTS, TOOLS, ACTIVITY_ENTRY_ROWS))
         queue, open_ = [], {}
         for row in (BarRow.build(entry).relative(str(self.config.root)) for entry in recent):
             if not row.ended:
