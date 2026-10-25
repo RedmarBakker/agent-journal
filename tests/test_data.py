@@ -352,6 +352,7 @@ def test_the_environment_teams_migration_makes_the_team_chat_a_session_gives_sha
         for name, team_chat, shared in (("main", 0, 0), ("team", 1, 0), ("ada-docs", 0, 1)):
             connection.execute("INSERT INTO environments (name, key, kind, team_key, is_team_chat, is_shared_with_team, created_at, creator) VALUES (?, lower(hex(randomblob(16))), 'local', '', ?, ?, '2026-10-24', 'system')", (name, team_chat, shared))
         connection.execute("INSERT INTO docs (title, body, created_at, creator) VALUES ('Handbook', 'how we work', '2026-10-24', 'system')")
+        connection.execute("INSERT INTO doc_revisions (number, title, body, created_at, creator) VALUES (1, 'Handbook', 'how we work', '2026-10-24', 'system')")
         with connection.transaction() as db:
             EnvironmentTeams().apply(db)
         return connection
@@ -360,7 +361,7 @@ def test_the_environment_teams_migration_makes_the_team_chat_a_session_gives_sha
     rows = {row["name"]: (row["kind"], row["team_key"]) for row in keyed.all("SELECT name, kind, team_key FROM environments")}
     assert rows == {"main": ("local", ""), "team": ("session", "k1"), "ada-docs": ("local", "k1")}, "no environment is lost, the Team chat is a session in the team and the shared one carries its key"
     assert not {"is_team_chat", "is_shared_with_team"} & {row["name"] for row in keyed.all("PRAGMA table_info(environments)")}, "the flags they were marked by are gone"
-    assert [(row["title"], row["environment_id"]) for row in keyed.all("SELECT title, environment_id FROM docs")] == [("Handbook", 0)], "every document is the project's"
+    assert [(row["title"], row["environment_id"]) for row in keyed.all("SELECT title, environment_id FROM docs UNION ALL SELECT title, environment_id FROM doc_revisions")] == [("Handbook", 0)] * 2, "every document and revision from before is the project's"
     keyed.close()
     unkeyed = migrated(tmp_path / "unkeyed", {"address": "https://team.example"}, TEAM_FILE)
     assert {row["name"]: row["team_key"] for row in unkeyed.all("SELECT name, team_key FROM environments")} == {"main": "", "team": "unknown", "ada-docs": "unknown"}, "a journal that has not learnt its team's key places them in the team as unknown, which the sync names once the server does"
