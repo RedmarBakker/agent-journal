@@ -42,4 +42,4 @@ class RecordRunChanges(Listener[Updated]):
     def stored(self, agent: Agent, run: SequenceRun, subject: str, shows: CardKind) -> None:
         data = {"session": agent.session, "n": run.sequence_id, "title": run.title, "what": subject}
         self.entries.save(Entry(environment_id=agent.environment_id, kind=RUN, actor=Actor.system(), data=data), Actor.system())
-        self.cards.show(agent.environment_id, agent.session, f"Sequence {run.sequence_id}, {run.title}: {subject}", "list", "sequence", row=Ref("sequences", run.sequence_id), shows=shows)
+        self.cards.show(agent.environment_id, agent.session, f"Sequence {run.sequence_id}, {run.title}: {subject}", row=Ref("sequences", run.sequence_id), shows=shows)

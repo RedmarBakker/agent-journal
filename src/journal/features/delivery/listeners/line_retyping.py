@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.engine.support.session_agents import SessionAgents
 from journal.chat.turn import Turn
@@ -30,7 +31,7 @@ class LineRetyping(AgentListener[Ticked]):
             if dropped.tries >= TRY_COUNT:
                 self.typed.abandon(dropped)
                 self.supervisor.release(event.environment_id)
-                self.cards.show(event.environment_id, event.session, f"A line did not reach the agent, typed {TRY_COUNT} times over five minutes", "terminal", "bad", dropped.line, shows=CardKind.FAULTS)
+                self.cards.show(event.environment_id, event.session, f"A line did not reach the agent, typed {TRY_COUNT} times over five minutes", dropped.line, shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)
             else:
                 repeat = self.typed.retry(dropped, event.time)
                 self.supervisor.retype(event.environment_id, repeat.line)

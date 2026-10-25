@@ -13,7 +13,7 @@
   {
    "key": "work",
    "title": "Work",
-   "icon": "todos"
+   "icon": "task"
   },
   {
    "key": "journal",
@@ -21,36 +21,445 @@
    "icon": "bolt"
   }
  ],
+ "families": [
+  {
+   "key": "thoughts",
+   "title": "The agent's words",
+   "icon": "bot",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "faults",
+   "title": "The journal's own faults",
+   "icon": "warn",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "visitors",
+   "title": "Visitors",
+   "icon": "chat",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "skills",
+   "title": "Skills",
+   "icon": "book",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "context",
+   "title": "Context",
+   "icon": "gauge",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "rules",
+   "title": "Rules",
+   "icon": "rules",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "facts",
+   "title": "Facts",
+   "icon": "pins",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "reminders",
+   "title": "Reminders",
+   "icon": "reminders",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "tasks",
+   "title": "Tasks",
+   "icon": "task",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "impasse",
+   "title": "Agent stuck",
+   "icon": "warn",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "requests",
+   "title": "Requests",
+   "icon": "inbox",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "filed",
+   "title": "Filed from your messages",
+   "icon": "inbox",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "questions",
+   "title": "Questions",
+   "icon": "questions",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "sequences",
+   "title": "Sequences",
+   "icon": "list",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "helpers",
+   "title": "Workers and subagents",
+   "icon": "agents",
+   "group": "agent",
+   "colouring": "outcome"
+  },
+  {
+   "key": "triggers",
+   "title": "Triggers",
+   "icon": "bolt",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "checks",
+   "title": "Checks",
+   "icon": "check",
+   "group": "work",
+   "colouring": "outcome"
+  },
+  {
+   "key": "commands",
+   "title": "Commands",
+   "icon": "terminal",
+   "group": "work",
+   "colouring": "outcome"
+  },
+  {
+   "key": "verifiers",
+   "title": "Verifiers",
+   "icon": "verifier",
+   "group": "journal",
+   "colouring": "outcome"
+  },
+  {
+   "key": "reviews",
+   "title": "Reviews",
+   "icon": "verifier",
+   "group": "agent",
+   "colouring": "outcome"
+  },
+  {
+   "key": "menus",
+   "title": "Menus",
+   "icon": "bolt",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "documents",
+   "title": "Documents",
+   "icon": "docs",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "git",
+   "title": "Git",
+   "icon": "branch",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "plugins",
+   "title": "Plugins",
+   "icon": "plug",
+   "group": "journal",
+   "colouring": "outcome"
+  },
+  {
+   "key": "phones",
+   "title": "Phones",
+   "icon": "phone",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "searches",
+   "title": "Searches",
+   "icon": "search",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "updates",
+   "title": "Updates",
+   "icon": "bolt",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "suggestions",
+   "title": "Suggestions",
+   "icon": "bulb",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "team",
+   "title": "Team",
+   "icon": "warn",
+   "group": "work",
+   "colouring": "none"
+  }
+ ],
  "kinds": [
   {
    "key": "thoughts",
    "label": "Summaries of the agent's words",
-   "icon": "bot",
-   "group": "agent",
+   "family": "thoughts",
    "main": true,
    "shown": true,
    "turns": [
     "thought"
    ],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "bot",
+   "group": "agent",
+   "colouring": "none"
   },
   {
-   "key": "skills",
-   "label": "Skills the agent loads",
-   "icon": "book",
-   "group": "agent",
+   "key": "faults",
+   "label": "The journal's own faults",
+   "family": "faults",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "warn",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "visitors",
+   "label": "Visitor comments",
+   "family": "visitors",
+   "main": true,
+   "shown": true,
+   "turns": [
+    "visitor"
+   ],
+   "messages": [],
+   "covers": [],
+   "icon": "chat",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "skills",
+   "label": "Skills the agent loads",
+   "family": "skills",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "book",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "compactions",
+   "label": "Conversation compacted",
+   "family": "context",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "gauge",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "rules",
+   "label": "Rules",
+   "family": "rules",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "rules",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "facts",
+   "label": "Facts",
+   "family": "facts",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "pins",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "reminders",
+   "label": "Reminders",
+   "family": "reminders",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "reminders",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "acknowledgements",
+   "label": "Acknowledged reminders",
+   "family": "reminders",
+   "main": false,
+   "shown": false,
+   "turns": [],
+   "messages": [
+    "acknowledgement"
+   ],
+   "covers": [],
+   "icon": "reminders",
+   "group": "reminders",
+   "colouring": "none"
+  },
+  {
+   "key": "task_moves",
+   "label": "Tasks started and finished",
+   "family": "tasks",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "task",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "task_pauses",
+   "label": "Tasks paused and blocked",
+   "family": "tasks",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "task",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "stuck",
+   "label": "Agent stuck",
+   "family": "impasse",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "warn",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "requests",
+   "label": "Requests filed for you",
+   "family": "requests",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "inbox",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "filed",
+   "label": "Filed from your messages",
+   "family": "filed",
+   "main": true,
+   "shown": true,
+   "turns": [
+    "receipt"
+   ],
+   "messages": [],
+   "covers": [],
+   "icon": "inbox",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "questions",
+   "label": "Questions asked and answered",
+   "family": "questions",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "questions",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "sequences",
+   "label": "Sequences starting and finishing",
+   "family": "sequences",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "list",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "sequence_steps",
+   "label": "Every step of a sequence",
+   "family": "sequences",
+   "main": false,
+   "shown": false,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "list",
+   "group": "journal",
+   "colouring": "none"
   },
   {
    "key": "agents",
    "label": "Agents talking to each other",
-   "icon": "agents",
-   "group": "agent",
+   "family": "helpers",
    "main": true,
    "shown": true,
    "turns": [],
@@ -58,356 +467,233 @@
    "covers": [
     "subagents",
     "workers"
-   ]
+   ],
+   "icon": "agents",
+   "group": "agent",
+   "colouring": "outcome"
   },
   {
    "key": "subagents",
    "label": "Subagents",
-   "icon": "agents",
-   "group": "agent",
+   "family": "helpers",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "agents",
+   "group": "agent",
+   "colouring": "outcome"
   },
   {
    "key": "workers",
    "label": "Workers",
-   "icon": "agents",
-   "group": "agent",
+   "family": "helpers",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [
     "report"
    ],
-   "covers": []
-  },
-  {
-   "key": "reviewers",
-   "label": "Reviews of a worker's work",
-   "icon": "verifier",
+   "covers": [],
+   "icon": "agents",
    "group": "agent",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "compactions",
-   "label": "Conversation compacted",
-   "icon": "gauge",
-   "group": "agent",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "made",
-   "label": "Documents the agent made",
-   "icon": "docs",
-   "group": "agent",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "searches",
-   "label": "Searches the agent ran",
-   "icon": "search",
-   "group": "agent",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "stuck",
-   "label": "Agent stuck",
-   "icon": "warn",
-   "group": "agent",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "acknowledgements",
-   "label": "Acknowledged reminders",
-   "icon": "check",
-   "group": "agent",
-   "main": false,
-   "shown": false,
-   "turns": [],
-   "messages": [
-    "acknowledgement"
-   ],
-   "covers": []
-  },
-  {
-   "key": "rules",
-   "label": "Rules",
-   "icon": "rules",
-   "group": "reminders",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "facts",
-   "label": "Facts",
-   "icon": "pins",
-   "group": "reminders",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "reminders",
-   "label": "Reminders",
-   "icon": "reminders",
-   "group": "reminders",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "commands",
-   "label": "Long commands and outputs",
-   "icon": "terminal",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "commits",
-   "label": "Commits",
-   "icon": "branch",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "worktrees",
-   "label": "Worktrees",
-   "icon": "branch",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "checks",
-   "label": "Checks passing and failing",
-   "icon": "check",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "questions",
-   "label": "Questions asked and answered",
-   "icon": "questions",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "filed",
-   "label": "Filed from your messages",
-   "icon": "inbox",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [
-    "receipt"
-   ],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "task_moves",
-   "label": "Tasks started, finished, paused and blocked",
-   "icon": "task",
-   "group": "work",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "conflicts",
-   "label": "Your edits a colleague's newer edit replaced",
-   "icon": "warn",
-   "group": "work",
-   "main": false,
-   "shown": false,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "sequences",
-   "label": "Sequences starting and finishing",
-   "icon": "list",
-   "group": "journal",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "sequence_steps",
-   "label": "Every step of a sequence",
-   "icon": "list",
-   "group": "journal",
-   "main": false,
-   "shown": false,
-   "turns": [],
-   "messages": [],
-   "covers": []
+   "colouring": "outcome"
   },
   {
    "key": "triggers",
    "label": "Triggers",
+   "family": "triggers",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
    "icon": "bolt",
    "group": "journal",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
+   "colouring": "none"
   },
   {
-   "key": "menus",
-   "label": "Menus the journal answered",
-   "icon": "bolt",
-   "group": "journal",
+   "key": "checks",
+   "label": "Checks passing and failing",
+   "family": "checks",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "check",
+   "group": "work",
+   "colouring": "outcome"
   },
   {
-   "key": "suggestions",
-   "label": "Suggestions",
-   "icon": "bulb",
-   "group": "journal",
+   "key": "commands",
+   "label": "Long commands and outputs",
+   "family": "commands",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "terminal",
+   "group": "work",
+   "colouring": "outcome"
   },
   {
    "key": "verifiers",
    "label": "Dismissals a verifier checked",
-   "icon": "verifier",
-   "group": "journal",
+   "family": "verifiers",
    "main": true,
    "shown": false,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "verifier",
+   "group": "journal",
+   "colouring": "outcome"
+  },
+  {
+   "key": "reviewers",
+   "label": "Reviews of a worker's work",
+   "family": "reviews",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "verifier",
+   "group": "agent",
+   "colouring": "outcome"
+  },
+  {
+   "key": "menus",
+   "label": "Menus the journal answered",
+   "family": "menus",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "bolt",
+   "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "made",
+   "label": "Documents the agent made",
+   "family": "documents",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "docs",
+   "group": "agent",
+   "colouring": "none"
+  },
+  {
+   "key": "commits",
+   "label": "Commits",
+   "family": "git",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "branch",
+   "group": "work",
+   "colouring": "none"
+  },
+  {
+   "key": "worktrees",
+   "label": "Worktrees",
+   "family": "git",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
+   "icon": "branch",
+   "group": "work",
+   "colouring": "none"
   },
   {
    "key": "plugins",
    "label": "Plugin notes",
-   "icon": "plug",
-   "group": "journal",
+   "family": "plugins",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "plug",
+   "group": "journal",
+   "colouring": "outcome"
   },
   {
    "key": "phones",
    "label": "Phones paired",
+   "family": "phones",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
    "icon": "phone",
    "group": "journal",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
+   "colouring": "none"
   },
   {
-   "key": "requests",
-   "label": "Requests filed for you",
-   "icon": "inbox",
-   "group": "journal",
+   "key": "searches",
+   "label": "Searches the agent ran",
+   "family": "searches",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "search",
+   "group": "agent",
+   "colouring": "none"
   },
   {
    "key": "updates",
    "label": "The journal server replaced by a newer launch",
+   "family": "updates",
+   "main": true,
+   "shown": true,
+   "turns": [],
+   "messages": [],
+   "covers": [],
    "icon": "bolt",
    "group": "journal",
+   "colouring": "none"
+  },
+  {
+   "key": "suggestions",
+   "label": "Suggestions",
+   "family": "suggestions",
    "main": true,
    "shown": true,
    "turns": [],
    "messages": [],
-   "covers": []
+   "covers": [],
+   "icon": "bulb",
+   "group": "journal",
+   "colouring": "none"
   },
   {
-   "key": "faults",
-   "label": "The journal's own faults",
+   "key": "conflicts",
+   "label": "Your edits a colleague's newer edit replaced",
+   "family": "team",
+   "main": false,
+   "shown": false,
+   "turns": [],
+   "messages": [],
+   "covers": [],
    "icon": "warn",
-   "group": "journal",
-   "main": true,
-   "shown": true,
-   "turns": [],
-   "messages": [],
-   "covers": []
-  },
-  {
-   "key": "visitors",
-   "label": "Visitor comments",
-   "icon": "chat",
-   "group": "journal",
-   "main": true,
-   "shown": true,
-   "turns": [
-    "visitor"
-   ],
-   "messages": [],
-   "covers": []
+   "group": "work",
+   "colouring": "none"
   }
  ]
 }

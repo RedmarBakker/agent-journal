@@ -17,4 +17,4 @@ class RequestCards:
         if not homes:
             return
         with self.scope.environment(homes[0].row_id):
-            self.cards.show(homes[0].row_id, None, text, "inbox", row=Ref.build(task), shows=CardKind.REQUESTS)
+            self.cards.show(homes[0].row_id, None, text, row=Ref.build(task), shows=CardKind.REQUESTS)

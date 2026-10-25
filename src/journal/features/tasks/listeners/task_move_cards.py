@@ -14,14 +14,14 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 from journal.support.row_labels import RowLabels
 
-# what each move of a task is called on its mark, with its tone, none since a move is an event, its icon and the field of the task that says why
+# what each move of a task is called on its card, the card kind it is shown as and the field of the task that says why
 MOVES = {
-    "started": ("Started", "", "task", ""),
-    "resumed": ("Resumed", "", "task", ""),
-    "unblocked": ("Unblocked", "", "task", ""),
-    "done": ("Finished", "", "task", "outcome"),
-    "paused": ("Paused", "", "task", "pause_reason"),
-    "blocked": ("Blocked", "", "task", "block_reason"),
+    "started": ("Started", CardKind.TASK_MOVES, ""),
+    "resumed": ("Resumed", CardKind.TASK_MOVES, ""),
+    "unblocked": ("Unblocked", CardKind.TASK_MOVES, ""),
+    "done": ("Finished", CardKind.TASK_MOVES, "outcome"),
+    "paused": ("Paused", CardKind.TASK_PAUSES, "pause_reason"),
+    "blocked": ("Blocked", CardKind.TASK_PAUSES, "block_reason"),
 }
 
 
@@ -40,10 +40,10 @@ class TaskMoveCards(Listener[RowEvent]):
             self.show_move(event, "unblocked", event.reason)
 
     def show_move(self, event: TaskStarted | TaskClosed | TaskReopened, move: str, reason: str) -> None:
-        heading, tone, icon, reason_field = MOVES[move]
+        heading, shows, reason_field = MOVES[move]
         with self.scope.environment(event.environment_id):
             task = self.tasks.find(event.task_id)
         label = CardDetail.shortened(f"{heading} {self.labels.name('task', task)}: {task.title}")
         detail = reason or (getattr(task, reason_field) if reason_field else "")
         for environment_id in event.environment_ids():
-            self.cards.show(environment_id, None, label, icon, tone=tone, detail=detail, row=Ref("tasks", task.id), actor=Actor.system(), shows=CardKind.TASK_MOVES)
+            self.cards.show(environment_id, None, label, detail=detail, row=Ref("tasks", task.id), actor=Actor.system(), shows=shows)

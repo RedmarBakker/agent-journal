@@ -11,4 +11,4 @@ class TriggerCard(Listener[TriggerFired]):
         self.cards = cards
 
     def handle(self, event: TriggerFired) -> None:
-        self.cards.show(event.environment_id, event.session, f"Trigger {event.text}", "bolt", "", ", ".join(event.phrases), event.ref, shows=CardKind.TRIGGERS)
+        self.cards.show(event.environment_id, event.session, f"Trigger {event.text}", ", ".join(event.phrases), event.ref, shows=CardKind.TRIGGERS)

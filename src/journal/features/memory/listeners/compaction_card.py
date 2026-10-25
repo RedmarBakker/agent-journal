@@ -11,4 +11,4 @@ class CompactionCard(AgentListener[Compacting]):
         self.cards = cards
 
     def handle(self, event: Compacting) -> None:
-        self.cards.show(event.environment_id, event.session, "Conversation compacted", "activity", "warn", kind="compacted", shows=CardKind.COMPACTIONS)
+        self.cards.show(event.environment_id, event.session, "Conversation compacted", kind="compacted", shows=CardKind.COMPACTIONS)

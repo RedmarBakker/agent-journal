@@ -1,3 +1,8 @@
+from journal.support.card_family import CardFamily
+from journal.support.mark_kind import MarkKind
+from journal.support.mark_kinds import AGENT
+from journal.support.card_kind import CardKind
+from journal.support.card_colouring import CardColouring
 from journal.features.feature import Feature
 from journal.features.reviewing.commands.reviewer_command import ReviewerCommand
 from journal.features.reviewing.listeners.reviewer_loss import ReviewerLoss
@@ -21,6 +26,8 @@ class ReviewingFeature(Feature[ReviewingData]):
     """In orchestrator mode with the reviewer on, a worker's clock-out goes to a reviewer the journal sends itself rather than to the agent that sent the worker: the reviewer is an agent of its own, never a worker, resting on Reviewing from its first hook; it reads the brief and each proof, runs the tests, judges the changes and reports each point, and the agent decides, sending the work back or merging it."""
 
     name = ReviewingPart.name
+    card_families = (CardFamily("reviews", "Reviews", "verifier", AGENT, CardColouring.OUTCOME),)
+    card_kinds = (MarkKind(CardKind.REVIEWERS, "Reviews of a worker's work", "reviews"),)
     title = "Reviewing workers' work"
     fixed = True
     help = "In orchestrator mode with the reviewer on, each worker that clocks out joins a review queue, in order, and the next free reviewer takes it; a reviewer's report on each point comes to the agent, which sends the work back or merges it. journal reviewer add starts another reviewer."

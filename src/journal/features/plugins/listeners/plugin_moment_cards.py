@@ -11,5 +11,5 @@ class PluginMomentCards(Listener[PluginStanding]):
         self.cards = cards
 
     def handle(self, event: PluginStanding) -> None:
-        label, icon, tone, detail = event.card_parts()
-        self.cards.show(event.environment_id, "", label, icon, tone=tone, detail=detail, shows=CardKind.PLUGINS)
+        label, outcome, detail = event.card_parts()
+        self.cards.show(event.environment_id, "", label, detail=detail, shows=CardKind.PLUGINS, outcome=outcome)

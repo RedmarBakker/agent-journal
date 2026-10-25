@@ -1053,8 +1053,8 @@ def test_a_check_runs_and_a_failure_is_typed_to_the_agent(app: App, monkeypatch)
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         from journal.repositories.messages import Messages
-        icons = {m.text: m.data.get("icon") for m in app.container.get(Messages).all() if m.text.startswith("Check ")}
-    assert icons.get("Check it is broken failed") == "x" and icons.get("Check it is fine passed") == "check", icons
+        outcomes = {m.text: m.data.get("outcome") for m in app.container.get(Messages).all() if m.text.startswith("Check ")}
+    assert outcomes.get("Check it is broken failed") == "failed" and outcomes.get("Check it is fine passed") == "passed", outcomes
 
 
 def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_stuck(app: App, monkeypatch):
@@ -1118,16 +1118,16 @@ def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_fo
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         from journal.repositories.messages import Messages
-        marks = [(m.text, m.data.get("detail", "")) for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
+        marks = [(m.text, m.data.get("detail", "")) for m in app.container.get(Messages).all() if m.data.get("shows") in ("task_moves", "task_pauses")]
     texts = [text for text, _ in marks]
     assert "Started task 1: the parser" in texts and "Paused task 1: the parser" in texts and "Blocked task 2: the footer" in texts and "Finished task 1: the parser" in texts, texts
     assert ("Blocked task 2: the footer", "waits on the client's logo") in marks, "a paused or blocked mark says why"
     assert texts.count("Started task 1: the parser") == 1 and "Resumed task 1: the parser" in texts, "a paused task taken up again is resumed, not started"
     assert "Unblocked task 2: the footer" in texts, "and a blocked task opened again has a mark too"
     with app.container.get(Scope).environment(MAIN):
-        looks = {m.text: (m.data.get("tone"), m.data.get("icon")) for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"}
-    assert looks["Paused task 1: the parser"] == ("", "task"), "a task's move is an event, so its mark has no colour and the task icon"
-    assert looks["Finished task 1: the parser"] == ("", "task"), "a finished task too: colour is kept for runs that pass or fail"
+        looks = {m.text: (m.data.get("outcome"), m.data.get("shows")) for m in app.container.get(Messages).all() if m.data.get("shows") in ("task_moves", "task_pauses")}
+    assert looks["Paused task 1: the parser"] == ("", "task_pauses"), "a task's move is an event with no outcome, a pause shown as a pause"
+    assert looks["Finished task 1: the parser"] == ("", "task_moves"), "a finished task too: colour is kept for runs that pass or fail"
 
 
 def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):
@@ -2332,7 +2332,7 @@ def test_notable_moments_are_cards_in_the_chat(app: App):
     app.console().run(["task", "create", "t", "--start"], AGENT)
     app.console().run(["stuck", "stuck on the login"], AGENT)
     cards = [m for m in app.container.get(Messages).scoped() if m.author == "system" and m.data.get("shows") != "task_moves"]
-    assert [c.text for c in cards] == ["Agent stuck"] and cards[0].data["detail"] == "stuck on the login" and cards[0].data["tone"] == "bad"
+    assert [c.text for c in cards] == ["Agent stuck"] and cards[0].data["detail"] == "stuck on the login" and cards[0].data["outcome"] == "warned"
 
 
 def test_a_fresh_conversation_opens_with_an_introduction_and_a_resumed_one_with_a_word_that_the_agent_is_back(app: App, monkeypatch):
@@ -2374,7 +2374,7 @@ def test_a_commit_trailer_finishes_the_tasks_it_names(app: App, monkeypatch):
     hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "git commit -m x"}, tool_response={"stdout": "", "stderr": ""})
     app.runtime().deferred.drain()
     from journal.repositories.messages import Messages
-    thresholds = [m for m in app.container.get(Messages).all() if m.data.get("tone") == "commit"]
+    thresholds = [m for m in app.container.get(Messages).all() if m.data.get("shows") == "commits"]
     assert len(thresholds) == 1 and thresholds[0].text.startswith("Agent committed ") and thresholds[0].data["detail"] == "Ship the footer", "the commit is a message in the chat, once"
 
 
@@ -2842,8 +2842,8 @@ def test_a_worker_card_is_green_for_nothing_and_blue_for_its_report(app: App):
     from journal.repositories.workers import Workers
     card, workers = app.container.get(WorkerProcessCard), app.container.get(Workers)
     states = (WorkerState.MERGED, WorkerState.RELEASED, WorkerState.DELIVERED, WorkerState.REPORTED)
-    tones = {state: card.standing(workers.save(Worker(environment_id=1, name=f"Worker {state}", brief="b", state=state), Actor.system())).tone for state in states}
-    assert tones == {WorkerState.MERGED: "", WorkerState.RELEASED: "", WorkerState.DELIVERED: "", WorkerState.REPORTED: "work"}, "merged, released and ready to check are plain; a report is a quiet blue"
+    tones = {state: card.standing(workers.save(Worker(environment_id=1, name=f"Worker {state}", brief="b", state=state), Actor.system())).outcome for state in states}
+    assert tones == {WorkerState.MERGED: "passed", WorkerState.RELEASED: "", WorkerState.DELIVERED: "passed", WorkerState.REPORTED: "passed"}, "merged, ready to check and reported have passed; released is plain"
 
 
 def test_the_agent_bars_data_carries_the_average_points_of_each_kind_while_load_counting_is_on(app: App):
@@ -3379,14 +3379,14 @@ def test_a_chains_parts_are_recorded_and_a_moved_chain_reports_when_it_ends(app:
     app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=1, time=0.0, silence_seconds=12.0))
     assert "output 1 failed" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1]) and len(keystrokes) == notified, "an end is named once"
     cards = [m for m in app.container.get(Messages).scoped() if m.author == "system"]
-    assert len(cards) == 1 and (cards[-1].text, cards[-1].data["tone"], cards[-1].data["ending"], cards[-1].data["line"]) == ("Testing", "bad", "failed with code 1", "pytest -q"), "the moved command has one card, settled in place: titled by what it does, red as it failed, its command kept for the opened card"
+    assert len(cards) == 1 and (cards[-1].text, cards[-1].data["outcome"], cards[-1].data["ending"], cards[-1].data["line"]) == ("Testing", "failed", "failed with code 1", "pytest -q"), "the moved command has one card, settled in place: titled by what it does, red as it failed, its command kept for the opened card"
     assert cards[-1].data["shows"] == "commands", "a card names the Show in chat switch that hides it"
     (app.config.root / "c2").mkdir()
     ShellVerbs(app).split("pytest -q", str(app.config.root / "c2"))
     ShellVerbs(app).moved("c2", "pytest -q", "/tmp/out/c2")
     ShellVerbs(app).ended("c2", 0, "/tmp/out/c2", "........ [ 76%]\n....... [100%]")
     card = [m for m in app.container.get(Messages).scoped() if m.author == "system"][-1]
-    assert (card.text, card.data["tone"]) == ("Testing", "good"), "a run that finished turns its card green"
+    assert (card.text, card.data["outcome"]) == ("Testing", "passed"), "a run that finished turns its card green"
 
 
 def test_a_file_edit_in_the_bar_says_editing_and_counts_the_lines_it_added_and_removed(app: App):
@@ -9439,13 +9439,13 @@ def test_a_fact_a_rule_or_a_reminder_recorded_or_struck_is_a_card_in_the_chat(ap
     console.run(["rule", "create", "Always run the suite before a commit", "--reason", "a red commit costs a day"], USER)
     console.run(["reminder", "strike", "1"], AGENT) if console.run(["reminder", "create", "check the log after the restart"], AGENT).code == 0 else None
     app.runtime().deferred.drain()
-    cards = [(m.text, m.data.get("row"), m.data.get("detail"), m.data.get("icon")) for m in app.container.get(Messages).scoped() if m.data.get("kind") == "card" and m.data.get("row", "").split(":")[0] in ("facts", "rules", "reminders")]
+    cards = [(m.text, m.data.get("row"), m.data.get("detail"), m.data.get("shows")) for m in app.container.get(Messages).scoped() if m.data.get("kind") == "card" and m.data.get("row", "").split(":")[0] in ("facts", "rules", "reminders")]
     assert cards == [
-        ("Fact 1 recorded", "facts:1", "", "check"),
-        ("Rule 1 recorded", "rules:1", "", "check"),
-        ("Reminder 1 recorded", "reminders:1", "", "check"),
-        ("Reminder 1 struck", "reminders:1", "", "rules"),
-    ], "each memory row recorded or struck is a card opening the row"
+        ("Fact 1 recorded", "facts:1", "", "facts"),
+        ("Rule 1 recorded", "rules:1", "", "rules"),
+        ("Reminder 1 recorded", "reminders:1", "", "reminders"),
+        ("Reminder 1 struck", "reminders:1", "", "reminders"),
+    ], "each memory row recorded or struck is a card opening the row, shown as its own kind"
 
 
 def test_a_tasks_brief_is_written_anew(app: App):
@@ -10901,7 +10901,7 @@ def test_a_watched_output_shows_its_readers_lines_after_every_tool_use_and_its_e
     ended = [line for line in said if "which you watched, finished" in line]
     assert len(ended) == 1 and "the tests 100%" in ended[0], "the end is said once, with the last view"
     with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Messages).with_key("watch:1")[0].data["tone"] == "good", "its card turns green once the run finished"
+        assert app.container.get(Messages).with_key("watch:1")[0].data["outcome"] == "passed", "its card turns green once the run finished"
     deferred.drain()
     after = json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1])
     assert "output 1" not in after and not outputs.find(1).is_watched, "the watch ends with its command"
@@ -11366,7 +11366,7 @@ def test_each_worker_moment_after_its_dispatch_is_a_short_mark_of_its_own(app: A
     kept_conversation(app, monkeypatch)
     hook(app, "SessionStart")
     console, workers, messages = app.console(), app.container.get(Workers), app.container.get(Messages)
-    marks = lambda: [(m.text, m.data.get("tone"), m.data.get("detail")) for m in messages.scoped() if m.data.get("shows") == "workers" and not m.data.get("key")]
+    marks = lambda: [(m.text, m.data.get("outcome", ""), m.data.get("detail")) for m in messages.scoped() if m.data.get("shows") == "workers" and not m.data.get("key")]
     dispatched(console, ["Mr. Wedgwood", "the vase", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     console.run(["worker", "report", "1", "the vase is fired"], Caller.agent("main", "w1", "claude"))
     workers.save(workers.find(1).with_(resume="w-1"), USER.actor)
@@ -11945,7 +11945,7 @@ def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_samp
     verifiers = app.container.get(Verifiers).all()
     assert len(verifiers) == 1 and app.container.get(Links).targets(verifiers[0], VERIFIES) == [Ref.build(worker)], "the model-fit sample sent a verifier on the merged worker"
     app.container.get(Verifiers).save(verifiers[0].with_(session="v-1"), Actor.system())
-    cards = [message for message in app.container.get(Messages).all() if message.data.get("icon") == "verifier"]
+    cards = [message for message in app.container.get(Messages).all() if message.data.get("shows") == "verifiers"]
     assert cards and cards[-1].data["row"] == "workers:1" and "judging whether worker 1's model fit its work" in cards[-1].text, [message.text for message in cards]
 
 
@@ -15983,7 +15983,7 @@ def test_a_commit_offers_an_update_at_most_once_an_hour_and_recap_docks_one_over
 
     assert not commit("Start the parser"), "the first commit only starts the clock"
     with app.container.get(Scope).environment(MAIN):
-        first = [m for m in messages.all() if m.data.get("tone") == "commit"][0]
+        first = [m for m in messages.all() if m.data.get("shows") == "commits"][0]
         messages.save(first.with_(created_at=datetime.now(timezone.utc) - timedelta(hours=2)), Actor.system())
     assert commit("Finish the parser"), "an hour after the clock started, a commit offers an update"
     assert not commit("Tidy the parser"), "the offer starts the clock again"
@@ -16595,7 +16595,7 @@ def test_marks_of_one_kind_in_quick_succession_fold_into_one_naming_them_all(app
     with app.container.get(Scope).environment(MAIN):
         before = len(messages.scoped())
         for label in ("Hosted journal's edit of check 11 was kept over yours", "Hosted journal's edit of check 32 was kept over yours", "Hosted journal's edit of check 32's title was kept over yours"):
-            cards.show(MAIN, None, label, "warn", detail="kept: 4", shows=CardKind.CONFLICTS)
+            cards.show(MAIN, None, label, detail="kept: 4", shows=CardKind.CONFLICTS)
         cards.show(MAIN, None, "Task 4 started", "task", shows=CardKind.FACTS)
         chat = messages.scoped()[before:]
     assert [m.text for m in chat] == ["Hosted journal's edit of check 11 was kept over yours, and 2 more like it", "Task 4 started"], "three marks of one kind fold into one, a mark of another kind is posted"
@@ -18307,7 +18307,7 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
         refuted, judged = reports.find(report.id), verifiers.find(verifier.id)
         card = app.container.get(Messages).with_key(f"verifier:{verifier.id}")[0]
     assert refuted.dismissal is None and refuted.is_refuted and judged.state == VerifierState.JUDGED and not judged.token_hash, "a no opens the report again, and the verdict ends the verifier"
-    assert card.text.startswith(f"Verifier {verifier.id}, Diogenes") and card.text.endswith("the dismissal is refuted") and card.data["icon"] == "verifier" and card.data["tone"] == "bad" and "120-character compiler command" in str(card.data), "its one card in the chat turns to its verdict, with its reason"
+    assert card.text.startswith(f"Verifier {verifier.id}, Diogenes") and card.text.endswith("the dismissal is refuted") and card.data["outcome"] == "failed" and "120-character compiler command" in str(card.data), "its one card in the chat turns to its verdict, with its reason"
     assert sessions.top(verifier.session).name == "ended", "and its session ends"
     status, body = write()
     assert status == 409 and "found wrong" in body["error"] and "120-character compiler command" in body["error"] and "verifier" not in body["error"], "the next write is held at once, with the reason, and never names a verifier"
@@ -19104,8 +19104,12 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     from journal.support.card_kind import CardKind
     from journal.support.mark_kinds import MarkKinds
     served = got(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
-    groups, kinds = {group["key"] for group in served["groups"]}, {kind["key"]: kind for kind in served["kinds"]}
-    assert set(CardKind) <= set(kinds) and all(kind["group"] in groups for kind in kinds.values()), "every kind a card names is registered, each in a registered group"
+    groups, families, kinds = {group["key"] for group in served["groups"]}, {family["key"]: family for family in served["families"]}, {kind["key"]: kind for kind in served["kinds"]}
+    assert set(CardKind) <= set(kinds) and all(kind["family"] in families for kind in kinds.values()) and all(family["group"] in groups for family in families.values()), "every kind a card names is declared, each in a declared family inside a group"
+    assert all(kind["icon"] == families[kind["family"]]["icon"] for kind in kinds.values()), "a kind's icon is its family's, never its own"
+    assert families["tasks"]["icon"] == "task" and families["tasks"]["colouring"] == "none" and families["commands"]["colouring"] == "outcome", "a task's cards are events with the task icon; a command's are processes coloured by their outcome"
     assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardKind.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
     assert not kinds[CardKind.VERIFIERS]["shown"] and kinds[CardKind.SEQUENCES]["main"] and not kinds[CardKind.SEQUENCE_STEPS]["main"], "verifier marks start hidden; a sequence's steps are a detail of its start and finish"
-    assert served == MarkKinds.served() == json.loads((Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json").read_text()), "the viewer's tests read the registry as it is served"
+    from journal.features.registry import Registry
+    registry = app.container.get(Registry)
+    assert served == MarkKinds.served(registry.card_families(), registry.card_kinds()) == json.loads((Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json").read_text()), "the viewer's tests read the registry as it is served"

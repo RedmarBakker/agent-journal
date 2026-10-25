@@ -12,6 +12,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
+from journal.support.card_outcome import CardOutcome
 
 MOMENT = "moment"
 FOLD_SECONDS = Option("messages.fold_marks_seconds", "Fold marks of one kind within", "Seconds within which a chat mark of the same kind as the chat's newest message, a mark too, is counted in it instead of posted", 10, unit="seconds")
@@ -23,8 +24,8 @@ class MomentCards:
     def __init__(self, messages: Messages, settings: SettingRows, agents: Agents) -> None:
         self.messages, self.settings, self.agents = messages, settings, agents
 
-    def show(self, environment_id: int, session: str | None, label: str, icon: str, tone: str = "", detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardKind) -> Message:
-        data = {"kind": kind, "icon": icon, "tone": tone, "row": str(row) if row else "", "command": command}
+    def show(self, environment_id: int, session: str | None, label: str, detail: str = "", row: Ref | None = None, kind: str = "card", actor: Actor = Actor.system(), key: str = "", command: str = "", *, shows: CardKind, outcome: CardOutcome = CardOutcome.NONE) -> Message:
+        data = {"kind": kind, "outcome": str(outcome), "row": str(row) if row else "", "command": command}
         return self.show_fields(environment_id, session, label, data, actor, shows, detail, key)
 
     def show_fields(self, environment_id: int, session: str | None, label: str, data: dict, actor: Actor, shows: CardKind, detail: str = "", key: str = "") -> Message:

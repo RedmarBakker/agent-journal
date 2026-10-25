@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from dataclasses import dataclass
 
 from journal.events.moments.plugin_standing import PluginStanding
@@ -7,5 +8,5 @@ from journal.events.moments.plugin_standing import PluginStanding
 class PluginRecovered(PluginStanding):
     """A plugin that was failing answered again."""
 
-    def card_parts(self) -> tuple[str, str, str, str]:
-        return f"Plugin {self.plugin} answers again", "check", "", ""
+    def card_parts(self) -> tuple[str, CardOutcome, str]:
+        return f"Plugin {self.plugin} answers again", CardOutcome.PASSED, ""

@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 import time
 from pathlib import Path
 
@@ -39,7 +40,7 @@ class OutputProcessCard(ProcessCard):
     def card_contents(self, output: CommandOutput) -> ProcessCardContents:
         view = self.views.view(output)
         part = CommandText.shown(self.watched_part(output))
-        data = {"kind": "card", "icon": "terminal", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.dock_state(output)}
+        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.dock_state(output)}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardKind.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
     def stored_contents(self, outputs: list[CommandOutput]) -> list[ProcessCardContents]:
@@ -51,7 +52,7 @@ class OutputProcessCard(ProcessCard):
         return {**self.progress(output, view).fields(), **CardDetail.parts(self.views.card_text(output, view)), "active": not output.ended}
 
     def progress(self, output: CommandOutput, view: OutputView) -> CardProgress:
-        return CardProgress(self.tone(output), view.figure, view.fraction, view.ending, self.views.count(output), view.is_counting)
+        return CardProgress(self.outcome(output), view.figure, view.fraction, view.ending, self.views.count(output), view.is_counting)
 
     def dock_state(self, output: CommandOutput) -> dict:
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())
@@ -67,10 +68,10 @@ class OutputProcessCard(ProcessCard):
         return dock_time if current_time < dock_time else current_time + ENDED_DOCK_SECONDS
 
     @staticmethod
-    def tone(output: CommandOutput) -> str:
+    def outcome(output: CommandOutput) -> CardOutcome:
         if not output.ended:
-            return ""
-        return "good" if output.is_success() else "bad"
+            return CardOutcome.RUNNING
+        return CardOutcome.PASSED if output.is_success() else CardOutcome.FAILED
 
     def title(self, output: CommandOutput, part: str) -> str:
         reader = self.readers.found(output.watch_reader)

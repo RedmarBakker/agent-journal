@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.sequence_abandoned import SequenceAbandoned
@@ -12,4 +13,4 @@ class AbandonedRunCard(Listener[SequenceAbandoned]):
         self.cards = cards
 
     def handle(self, event: SequenceAbandoned) -> None:
-        self.cards.show(event.environment_id, event.session, f"Sequence {event.sequence_id}, {event.title}, abandoned at step {event.step + 1}: {event.explanation}", "bolt", "bad", f"left undone: {event.skipped}", Ref("sequences", event.sequence_id), shows=CardKind.SEQUENCES)
+        self.cards.show(event.environment_id, event.session, f"Sequence {event.sequence_id}, {event.title}, abandoned at step {event.step + 1}: {event.explanation}", f"left undone: {event.skipped}", Ref("sequences", event.sequence_id), shows=CardKind.SEQUENCES, outcome=CardOutcome.WARNED)

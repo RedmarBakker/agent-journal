@@ -1,3 +1,7 @@
+from journal.support.card_family import CardFamily
+from journal.support.mark_kind import MarkKind
+from journal.support.mark_kinds import JOURNAL
+from journal.support.card_kind import CardKind
 from journal.features.feature import Feature
 from journal.features.sequences.support.sequences_data_reader import SequencesDataReader
 from journal.features.sequences.support.sequences_data import SequencesData
@@ -20,6 +24,8 @@ from journal.features.sequences.sequences_part import SequencesPart
 
 class Sequences(Feature[SequencesData]):
     name = SequencesPart.name
+    card_families = (CardFamily("sequences", "Sequences", "list", JOURNAL),)
+    card_kinds = (MarkKind(CardKind.SEQUENCES, "Sequences starting and finishing", "sequences"), MarkKind(CardKind.SEQUENCE_STEPS, "Every step of a sequence", "sequences", main=False, shown=False),)
     title = "Sequences"
     help = "Steps the agent follows one at a time."
     commands = (SequenceCommand,)

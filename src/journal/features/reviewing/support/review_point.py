@@ -1,9 +1,9 @@
+from journal.support.card_outcome import CardOutcome
 from dataclasses import dataclass
 
 from journal.features.reviewing.support.point_verdict import PointVerdict
 
-GOOD, BAD = "good", "bad"
-TONES = {PointVerdict.PASSED: GOOD, PointVerdict.SHORT: BAD, PointVerdict.UNDECIDED: ""}
+OUTCOMES = {PointVerdict.PASSED: CardOutcome.PASSED, PointVerdict.SHORT: CardOutcome.FAILED, PointVerdict.UNDECIDED: CardOutcome.NONE}
 
 
 @dataclass(frozen=True)
@@ -17,5 +17,5 @@ class ReviewPoint:
     def line(self) -> str:
         return f"Point {self.number} {self.verdict}: {self.reason}".rstrip(": ")
 
-    def tone(self) -> str:
-        return TONES[self.verdict]
+    def outcome(self) -> CardOutcome:
+        return OUTCOMES[self.verdict]

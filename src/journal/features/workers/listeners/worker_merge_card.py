@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.card_detail import CardDetail
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
@@ -17,6 +18,6 @@ class WorkerMergeCard(Listener[WorkerWorkMerged]):
         then = f"it went on to task {event.next_task}" if event.next_task else "it is idle"
         label = CardDetail.shortened(f"Worker {event.worker}, {event.name}: work on task {event.task} merged; {then}")
         row = Ref("workers", event.worker)
-        data = {"kind": "card", "icon": "agents", "tone": "", "row": str(row), "command": "", "task": event.task}
+        data = {"kind": "card", "outcome": str(CardOutcome.PASSED), "row": str(row), "command": "", "task": event.task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()
         self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardKind.WORKERS)

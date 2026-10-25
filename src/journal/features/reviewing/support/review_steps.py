@@ -1,5 +1,5 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
-from journal.features.reviewing.support.review_point import BAD, GOOD
 from journal.features.reviewing.support.review_report import ReviewReport
 from journal.events.rows.worker_mention import WorkerMention
 from journal.models.agent_role import AgentRole
@@ -20,15 +20,15 @@ class ReviewSteps:
         self.step(reviewer.environment_id, reviewer.session, f"Started reviewing {worker.title()}", "")
 
     def test_passed(self, reviewer: Reviewer, command: str) -> None:
-        self.step(reviewer.environment_id, reviewer.session, f"Ran {command}: passed", GOOD)
+        self.step(reviewer.environment_id, reviewer.session, f"Ran {command}: passed", CardOutcome.PASSED)
 
     def test_failed(self, reviewer: Reviewer, command: str) -> None:
-        self.step(reviewer.environment_id, reviewer.session, f"Ran {command}: failed", BAD)
+        self.step(reviewer.environment_id, reviewer.session, f"Ran {command}: failed", CardOutcome.FAILED)
 
     def reported(self, environment_id: int, session: str, worker: WorkerMention, report: ReviewReport) -> None:
         for point in report.points():
-            self.step(environment_id, session, point.line(), point.tone())
-        self.step(environment_id, session, f"Handed its report on {worker.title()}, to the agent: {report.text}", "")
+            self.step(environment_id, session, point.line(), point.outcome())
+        self.step(environment_id, session, f"Handed its report on {worker.title()}, to the agent: {report.text}", CardOutcome.NONE)
 
-    def step(self, environment_id: int, session: str, text: str, tone: str) -> None:
-        self.cards.show_role_card(AgentRole.REVIEWER, environment_id, session, text, {"kind": REVIEW_STEP, "icon": "reviewer", "tone": tone}, Actor.system(), CardKind.REVIEWERS)
+    def step(self, environment_id: int, session: str, text: str, outcome: CardOutcome) -> None:
+        self.cards.show_role_card(AgentRole.REVIEWER, environment_id, session, text, {"kind": REVIEW_STEP, "outcome": str(outcome)}, Actor.system(), CardKind.REVIEWERS)

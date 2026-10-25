@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.rows.check_completed import CheckCompleted
@@ -19,4 +20,4 @@ class CheckCard(Listener[CheckCompleted]):
             return
         tail = "\n".join(event.output.strip().splitlines()[-TAIL_LINES:])
         for agent in self.agents.active_main_agents():
-            self.cards.show(agent.environment_id, agent.session, f"Check {event.title} {'passed' if event.passed else 'failed'}", "check" if event.passed else "x", "good" if event.passed else "bad", tail, Ref("checks", event.check_id), shows=CardKind.CHECKS)
+            self.cards.show(agent.environment_id, agent.session, f"Check {event.title} {'passed' if event.passed else 'failed'}", tail, Ref("checks", event.check_id), shows=CardKind.CHECKS, outcome=CardOutcome.PASSED if event.passed else CardOutcome.FAILED)

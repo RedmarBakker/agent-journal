@@ -1,3 +1,6 @@
+from journal.support.card_family import CardFamily
+from journal.support.mark_kind import MarkKind
+from journal.support.mark_kinds import MarkKinds
 from journal.engine.support.modes import Modes
 from journal.models.agent_role import AgentRole
 from journal.engine.base_state import BaseState
@@ -54,6 +57,12 @@ class Registry:
 
     def services(self) -> list[Service]:
         return [service for feature in self.features for service in feature.services]
+
+    def card_families(self) -> list[CardFamily]:
+        return [*MarkKinds.FAMILIES, *(family for feature in self.features for family in feature.card_families)]
+
+    def card_kinds(self) -> list[MarkKind]:
+        return [*MarkKinds.KINDS, *(kind for feature in self.features for kind in feature.card_kinds)]
 
     def skills(self) -> list[Skill]:
         return [feature.skill for feature in self.features if feature.skill]

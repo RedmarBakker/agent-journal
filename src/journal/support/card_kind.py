@@ -30,6 +30,7 @@ class CardKind(StrEnum):
     PHONES = "phones"
     FILED = "filed"
     TASK_MOVES = "task_moves"
+    TASK_PAUSES = "task_pauses"
     FAULTS = "faults"
     CONFLICTS = "conflicts"
     UPDATES = "updates"

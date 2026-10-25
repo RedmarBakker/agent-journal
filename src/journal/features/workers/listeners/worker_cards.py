@@ -33,4 +33,4 @@ class WorkerCards(Listener[ModelEvent]):
             return
         key = f"worker:{worker.id}:{worker.state}:{worker.silence.timeout.start}"
         if not self.cards.is_shown(key, actor):
-            self.cards.show(worker.environment_id, worker.dispatcher, self.card.label(worker, standing.text), self.card.icon(worker), tone=standing.tone, detail=standing.detail, row=Ref.build(worker), actor=actor, key=key, shows=CardKind.WORKERS)
+            self.cards.show(worker.environment_id, worker.dispatcher, self.card.label(worker, standing.text), detail=standing.detail, row=Ref.build(worker), actor=actor, key=key, shows=CardKind.WORKERS, outcome=standing.outcome)

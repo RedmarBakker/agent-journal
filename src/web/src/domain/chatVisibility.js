@@ -1,11 +1,23 @@
 import {store} from "../state/store.js";
 
-// The chat mark kinds and their groups as the server registers them (MarkKinds), served with the manifest the viewer boots from:
-// each kind's label, icon and group, whether it is one of the group's main marks, whether it is shown until hidden, the viewer's
-// turn kinds and message kinds it covers, and the other kinds hiding it hides too.
+// The chat card kinds, their families and groups as the features declare them, served with the manifest the viewer boots from:
+// each kind's label, its family's icon, group and colouring, whether it is one of the family's main cards, whether it is shown until
+// hidden, the viewer's turn kinds and message kinds it covers, and the other kinds hiding it hides too.
 const registry = () => store.spec?.marks || {groups: [], kinds: []};
 const kinds = () => registry().kinds;
 const keysOf = (rows) => rows.map((kind) => kind.key);
+
+// the colour of each outcome a card reports: blue running, green passed, red failed, orange warned
+const OUTCOME_TONES = {running: "work", passed: "good", failed: "bad", warned: "warn"};
+
+// A card's icon, its family's, and its colour, its outcome's where its family is coloured or the card warns; a card from before
+// the registry, or of a kind it does not know, keeps the icon and tone it was written with
+export const cardLook = (card) => {
+    const kind = kinds().find((row) => row.key === card.shows);
+    if (!kind) return {icon: card.icon || "dot", tone: card.tone || OUTCOME_TONES[card.outcome] || ""};
+    const coloured = kind.colouring === "outcome" || card.outcome === "warned";
+    return {icon: kind.icon, tone: coloured ? OUTCOME_TONES[card.outcome] || "" : ""};
+};
 
 // the marks the chat hides until the user shows them
 export const defaultHidden = () => keysOf(kinds().filter((kind) => !kind.shown));

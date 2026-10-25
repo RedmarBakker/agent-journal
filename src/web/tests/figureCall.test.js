@@ -37,13 +37,13 @@ test("the dove act is gone, and so is the whistle and runner of a dispatch: a se
 test("only an agent given work starts the call: a worker's dispatch and its next job, never its start again, a message sent it or a message to another session", () => {
     const card = (id, text, data) => ({table: "messages", id, author: "system", text, data, session: null, created_at: new Date((10 + id) * 1000).toISOString()});
     const messages = [
-        card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
-        card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", icon: "agents", tone: "", row: "workers:57", task: 2743}),
-        card(3, "Worker 57, Mr. Muybridge, motion photographer: started again in its last session", {kind: "card", icon: "agents", tone: ""}),
-        card(4, "Worker 57, Mr. Muybridge, motion photographer: sent a message in its session", {kind: "card", icon: "agents", tone: ""}),
+        card(1, "Worker 57, Mr. Muybridge, motion photographer: started on claude opus", {kind: "card", shows: "workers", row: "workers:57", task: 2742, card_type: "process", process: "worker", active: true}),
+        card(2, "Worker 57, Mr. Muybridge, motion photographer: sent its next job", {kind: "card", shows: "workers", row: "workers:57", task: 2743}),
+        card(3, "Worker 57, Mr. Muybridge, motion photographer: started again in its last session", {kind: "card", shows: "workers"}),
+        card(4, "Worker 57, Mr. Muybridge, motion photographer: sent a message in its session", {kind: "card", shows: "workers"}),
         card(5, "From the main agent, about the output", {kind: "peer", sent_to: "45-mr-faraday", address: "45-mr-faraday"}),
         // a worker's own standing is no send-off
-        card(6, "Worker 57, Mr. Muybridge, motion photographer: merged", {kind: "card", icon: "agents", tone: ""}),
+        card(6, "Worker 57, Mr. Muybridge, motion photographer: merged", {kind: "card", shows: "workers"}),
     ];
     const beats = beatsAfter(withSystemCards({session: "s", data: {}}, messages), 0);
     expect(beats.map((fire) => [fire.beat, fire.card])).toEqual([1, 2].map((id) => ["messaged", `messages:${id}`]));
@@ -564,7 +564,7 @@ test("a worker's dispatch sets off the call by what its mark is, the worker's pr
         id,
         author: "system",
         text: `Worker ${worker}, Mr. Muybridge, motion photographer: ${text}`,
-        data: {kind: "card", icon: "agents", tone, row: `workers:${worker}`, task: 2700 + worker, card_type: "process", process, active: true},
+        data: {kind: "card", shows: "workers", outcome: tone === "bad" ? "failed" : "", row: `workers:${worker}`, task: 2700 + worker, card_type: "process", process, active: true},
         session: "s",
         created_at: new Date((1000 + id) * 1000).toISOString(),
     });
@@ -589,8 +589,8 @@ test("jobs handed out in a row make one call: each worker named, then each task 
     const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
     const {CALL_COOLDOWN} = await import("../src/figure/pile.js");
     // a worker's dispatch and its next jobs, each mark naming the task it gave (features/workers worker_process_card, worker_moment_cards)
-    const dispatch = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: started on claude opus`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, card_type: "process", process: "worker", active: true, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
-    const nextJob = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: sent its next job`, data: {kind: "card", icon: "agents", tone: "", row: `workers:${worker}`, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    const dispatch = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: started on claude opus`, data: {kind: "card", shows: "workers", row: `workers:${worker}`, card_type: "process", process: "worker", active: true, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    const nextJob = (id, worker, task) => ({table: "messages", id, author: "system", session: "s", text: `Worker ${worker}, Mr. Muybridge, motion photographer: sent its next job`, data: {kind: "card", shows: "workers", row: `workers:${worker}`, task}, created_at: new Date((1000 + id) * 1000).toISOString()});
     // worker 260 given tasks 200, 201 and 204, and worker 261 dispatched on task 300 in between, all within a few seconds
     const messages = [dispatch(1, 260, 200), nextJob(2, 260, 201), dispatch(3, 261, 300), nextJob(4, 260, 204)];
     const lead = withSystemCards({session: "s", data: {}}, messages);
@@ -617,7 +617,7 @@ test("jobs handed out in a row make one call: each worker named, then each task 
 test("a worker is called only once a task is given to it: a mark that names none rings nothing, a dispatch on a task rings a call saying the worker and the task, and no call is ever spoken without a task", async () => {
     const {answerTo, heldCall, joinedCall} = await import("../src/figure/reactions.js");
     const {callLines} = await import("../src/domain/figureState.js");
-    const mark = (id, label, data) => ({table: "messages", id, author: "system", session: "s", text: `Worker 260, Mr. Muybridge, motion photographer: ${label}`, data: {kind: "card", icon: "agents", tone: "", row: "workers:260", ...data}, created_at: new Date((1000 + id) * 1000).toISOString()});
+    const mark = (id, label, data) => ({table: "messages", id, author: "system", session: "s", text: `Worker 260, Mr. Muybridge, motion photographer: ${label}`, data: {kind: "card", shows: "workers", row: "workers:260", ...data}, created_at: new Date((1000 + id) * 1000).toISOString()});
     const process = {card_type: "process", process: "worker", active: true};
     // a dispatch or a next job whose mark names no task, a worker named alone: no call
     const untasked = [mark(1, "started on claude opus", {...process, task: 0}), mark(2, "sent its next job", {}), mark(3, "sent its next job", {task: 0})];

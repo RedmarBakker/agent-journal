@@ -1,3 +1,8 @@
+from journal.support.card_family import CardFamily
+from journal.support.mark_kind import MarkKind
+from journal.support.mark_kinds import JOURNAL
+from journal.support.card_kind import CardKind
+from journal.support.card_colouring import CardColouring
 from journal.features.feature import Feature
 from journal.support.skill import Skill
 from journal.features.plugins.commands.dashboard_command import DashboardCommand
@@ -23,6 +28,8 @@ from journal.features.plugins.plugins_part import PluginsPart
 
 class PluginsFeature(Feature[PluginsData]):
     name = PluginsPart.name
+    card_families = (CardFamily("plugins", "Plugins", "plug", JOURNAL, CardColouring.OUTCOME),)
+    card_kinds = (MarkKind(CardKind.PLUGINS, "Plugin notes", "plugins"),)
     title = "Plugins"
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
     options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)

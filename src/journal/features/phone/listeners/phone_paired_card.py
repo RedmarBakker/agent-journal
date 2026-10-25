@@ -13,4 +13,4 @@ class PhonePairedCard(Listener[Created]):
 
     def handle(self, event: Created) -> None:
         if isinstance(event.model, Phone):
-            self.cards.show(event.model.environment_id, "", f"A phone paired: {event.model.name}", "phone", shows=CardKind.PHONES)
+            self.cards.show(event.model.environment_id, "", f"A phone paired: {event.model.name}", shows=CardKind.PHONES)

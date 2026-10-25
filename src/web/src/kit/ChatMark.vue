@@ -42,7 +42,7 @@ const tint = computed(() => ({
         :is="tag"
         v-bind="passed"
         :type="tag === 'button' ? 'button' : undefined"
-        :class="['mark', {tinted: shade, console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
+        :class="['mark', {tinted: shade, filled: mark.tone === 'bad', console: mark.command, nested: mark.depth > 0, [`ended-${mark.state}`]: mark.ended}]"
         :style="tint"
         :title="hover"
         :data-figure-mark="mark.key"
@@ -139,6 +139,11 @@ button.mark:hover {
 
 .mark.tinted .ico {
     color: var(--mark);
+}
+
+.mark.filled {
+    border-color: color-mix(in srgb, var(--tone-bad) 70%, transparent);
+    background: color-mix(in srgb, var(--tone-bad) 22%, transparent);
 }
 
 .mark:has(.progress) {

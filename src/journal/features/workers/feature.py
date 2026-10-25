@@ -1,3 +1,8 @@
+from journal.support.card_family import CardFamily
+from journal.support.mark_kind import MarkKind
+from journal.support.mark_kinds import AGENT
+from journal.support.card_kind import CardKind
+from journal.support.card_colouring import CardColouring
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.features.feature import Feature
 from journal.features.workers.clock_conduct import ClockConduct
@@ -64,6 +69,8 @@ class Workers(Feature[WorkersData]):
     """A worker is an agent sent to write: code in a worktree of its own, a document, a change. A subagent only reads; a worker is the one that writes."""
 
     name = WorkersPart.name
+    card_families = (CardFamily("helpers", "Workers and subagents", "agents", AGENT, CardColouring.OUTCOME),)
+    card_kinds = (MarkKind("agents", "Agents talking to each other", "helpers", covers=(CardKind.SUBAGENTS, CardKind.WORKERS)), MarkKind(CardKind.SUBAGENTS, "Subagents", "helpers"), MarkKind(CardKind.WORKERS, "Workers", "helpers", messages=("report",)),)
     title = "Workers"
     help = "Agents sent to write one bounded job; the agent waits for their reports. How workers test is one of three: the agent that merges runs the tests, a worker runs the tests it wrote, or a worker tests within a budget through journal tests turn, the agent reading the machine's load and the turns with journal tests load and setting the budget with journal tests budget; its own suite is never queued."
     modes = Modes(WorkersOptions.MODE, {"builder": PlansReady, "orchestrator": Orchestrating, "solo": Soloing})

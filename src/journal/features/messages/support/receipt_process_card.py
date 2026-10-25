@@ -28,7 +28,7 @@ class ReceiptProcessCard(ProcessCard):
                 self.messages.delete(card, Actor.system())
             return None
         receipt_text = ", ".join(f"{ref.type.rstrip('s')} {ref.id}" for ref in receipt_refs)
-        return ProcessCardContents(self.name, message.environment_id, key, f"Filed {receipt_text} from your message", {"kind": "card", "icon": "inbox", "row": f"messages:{message.id}"}, Actor.system(), CardKind.FILED, False)
+        return ProcessCardContents(self.name, message.environment_id, key, f"Filed {receipt_text} from your message", {"kind": "card", "row": f"messages:{message.id}"}, Actor.system(), CardKind.FILED, False)
 
     def refresh(self, message: Message) -> dict:
         return {"active": False}

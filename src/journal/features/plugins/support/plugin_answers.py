@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 import shlex
 
 from journal.console.console import Console
@@ -16,6 +17,10 @@ from journal.repositories.entries import Entries
 COMMAND = "plugin_command"
 
 
+# the tones a plugin names its cards in, as the outcome the viewer colours
+TONE_OUTCOMES = {"good": CardOutcome.PASSED, "warn": CardOutcome.WARNED, "bad": CardOutcome.FAILED, "danger": CardOutcome.FAILED, "running": CardOutcome.RUNNING}
+
+
 class PluginAnswers:
     """What a plugin's answer asks beyond the hook's reply: its cards in the chat, a moment card each, or a process card, PluginProcessCard, for one with a key, replacing the earlier of that key where it stands if the user has not written since, else at the bottom of the chat, and its journal commands run as the plugin, a step deeper."""
 
@@ -32,7 +37,7 @@ class PluginAnswers:
     def show(self, plugin: Plugin, card: PluginCard, environment_id: int) -> None:
         kind = plugin.manifest.card_kind(card.kind)
         label = self.text.plain(card.label or kind.label)
-        data = {"kind": "plugin", "plugin": plugin.name, "card": card.kind, "icon": kind.icon, "tone": card.tone or kind.tone, "collapsed": kind.collapsed}
+        data = {"kind": "plugin", "plugin": plugin.name, "card": card.kind, "outcome": str(TONE_OUTCOMES.get(card.tone or kind.tone, CardOutcome.NONE)), "collapsed": kind.collapsed}
         self.announcer.announce(PluginCardRequested(environment_id=environment_id, plugin=plugin.name, label=label, data=data, detail=self.text.plain(card.detail), card_key=card.key))
 
     def run(self, plugin: Plugin, line: str, environment: str, environment_id: int) -> None:

@@ -150,9 +150,11 @@ export {actOver, frameIn, closeAt, canSwitch, goesOnFacing, stretchedAs, stretch
 // or its next job, a mark known by its words alone, a queue's next task among them; a mark that names no task, a message to it, its start
 // again and the mark's updates give it none (features/workers worker_process_card and worker_moment_cards)
 const NEXT_JOB = /: sent its next job/;
+// how a card's process ended, as it reports it, or as its colour said on a card from before cards reported their outcome
+const outcomeOf = (card) => card.outcome || {good: "passed", bad: "failed"}[card.tone] || "";
 // a worker's process card, whatever it says, is the main agent's own act of giving work; the moment marks of what the worker later
 // became (reported, finished, merged) are the worker's and ring nothing
-const givenWork = (card) => Boolean(card.task) && ((card.process && card.processName === "worker" && card.tone !== "bad") || (card.icon === "agents" && NEXT_JOB.test(card.label)));
+const givenWork = (card) => Boolean(card.task) && ((card.process && card.processName === "worker" && outcomeOf(card) !== "failed") || (card.shows === "workers" && NEXT_JOB.test(card.label)));
 
 // One-off beats, each fired by a card the journal wrote on the agent's row and played once before the held state resumes;
 // the first rule a card matches names its beat
@@ -160,15 +162,15 @@ const BEATS = [
     // a sin the commandments plugin found in the agent's change, and one it found repented, as its cards in the chat say
     {beat: "sin_committed", matches: (card) => card.pluginCard === "sin-found"},
     {beat: "sin_fixed", matches: (card) => card.pluginCard === "sin-resolved"},
-    {beat: "committed", matches: (card) => card.tone === "commit"},
-    {beat: "failed", matches: (card) => card.icon === "check" && card.tone === "danger"},
-    {beat: "refused", matches: (card) => card.tone === "danger"},
-    {beat: "answered", matches: (card) => card.icon === "question"},
-    {beat: "task_finished", matches: (card) => card.icon === "todos" && card.tone === "good"},
+    {beat: "committed", matches: (card) => card.shows === "commits"},
+    {beat: "failed", matches: (card) => card.shows === "checks" && outcomeOf(card) === "failed"},
+    {beat: "refused", matches: (card) => card.shows === "workers" && outcomeOf(card) === "failed" && !card.process},
     {beat: "question_asked", matches: (card) => card.kind === "question"},
+    {beat: "answered", matches: (card) => card.shows === "questions"},
+    {beat: "task_finished", matches: (card) => card.shows === "task_moves" && /^Finished /.test(card.label)},
     {beat: "messaged", matches: givenWork},
-    {beat: "fact_filed", matches: (card) => card.icon === "check" && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
-    {beat: "check_passed", matches: (card) => card.icon === "check" && card.tone === "good"},
+    {beat: "fact_filed", matches: (card) => ["facts", "reminders"].includes(card.shows) && /^(Fact|Reminder) \d+ recorded/.test(card.label)},
+    {beat: "check_passed", matches: (card) => card.shows === "checks" && outcomeOf(card) === "passed"},
 ];
 
 // the beat for what the agent says in the chat, by the message's kind: a report
@@ -227,7 +229,7 @@ export function writtenFacesAfter(agent, messages, seenAt) {
 const isTestRun = (card) => new ChatMark(card).isTest();
 
 // A test run's ending: its watch card's, or a process card's tone once it is no longer active
-const endingOf = (card) => card.watch?.ending || (card.process && !card.active && {good: "finished", bad: "failed"}[card.tone]) || "";
+const endingOf = (card) => card.watch?.ending || (card.process && !card.active && {passed: "finished", failed: "failed"}[outcomeOf(card)]) || "";
 
 // A pass this many seconds or fewer after a failed test run is that failure fixed
 export const FIX_SECONDS = 30 * 60;
@@ -252,12 +254,12 @@ export function testResultsAfter(agent, known, since) {
 }
 
 // The process cards that have ended since `known` (card key to whether it was active) was last filled in, which this fills in: each one
-// seen running and now ended with a tone of good or bad, as {tone, time, card}. A card first seen already ended is not an end.
+// seen running and now ended as passed (tone good) or failed (tone bad), as {tone, time, card}. A card first seen already ended is not an end.
 export function processEndsAfter(agent, known) {
     const cards = (agent?.data?.cards || []).filter((card) => card.process);
-    const ended = cards.filter((card) => known.get(card.key) === true && !card.active && ["good", "bad"].includes(card.tone));
+    const ended = cards.filter((card) => known.get(card.key) === true && !card.active && ["passed", "failed"].includes(outcomeOf(card)));
     cards.forEach((card) => known.set(card.key, card.active));
-    return ended.map((card) => ({tone: card.tone, time: Number(card.time), card: card.key}));
+    return ended.map((card) => ({tone: outcomeOf(card) === "passed" ? "good" : "bad", time: Number(card.time), card: card.key}));
 }
 
 // The agent's row with the system's cards for its session, or for no session, among its own, as messages carry them
@@ -273,7 +275,8 @@ export const withSystemCards = (agent, messages) =>
                     .map((m) => ({
                         key: refOf(m),
                         time: createdAt(m),
-                        icon: m.data.icon,
+                        shows: m.data.shows || "",
+                        outcome: m.data.outcome || "",
                         tone: m.data.tone,
                         kind: m.data.kind,
                         pluginCard: m.data.card || "",

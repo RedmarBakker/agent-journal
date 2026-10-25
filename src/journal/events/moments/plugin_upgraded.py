@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from dataclasses import dataclass
 
 from journal.events.moments.plugin_standing import PluginStanding
@@ -11,5 +12,5 @@ class PluginUpgraded(PluginStanding):
     tag: str
     version: str
 
-    def card_parts(self) -> tuple[str, str, str, str]:
-        return f"Plugin {self.plugin} upgraded from {self.previous} to {self.tag} for journal {self.version}", "plug", "", ""
+    def card_parts(self) -> tuple[str, CardOutcome, str]:
+        return f"Plugin {self.plugin} upgraded from {self.previous} to {self.tag} for journal {self.version}", CardOutcome.NONE, ""

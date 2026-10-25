@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.card_detail import CardDetail
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
@@ -14,7 +15,7 @@ class WorkerMergeRefusalCard(Listener[WorkerMergeRefused]):
         self.cards = cards
 
     def handle(self, event: WorkerMergeRefused) -> None:
-        data = {"kind": "card", "icon": "agents", "tone": "bad", "row": str(Ref("workers", event.worker)), "command": "", "task": event.task}
+        data = {"kind": "card", "outcome": str(CardOutcome.FAILED), "row": str(Ref("workers", event.worker)), "command": "", "task": event.task}
         actor = Actor.agent(event.dispatcher) if event.dispatcher else Actor.system()
         label = CardDetail.shortened(f"Worker {event.worker}, {event.name}: merge of task {event.task} refused, its branch clashes with this one")
         self.cards.show_fields(event.environment_id, event.dispatcher, label, data, actor, CardKind.WORKERS, detail=f"{event.clashing}\n{event.line}")

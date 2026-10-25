@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.process_card import ProcessCard
 from journal.chat.process_card_contents import ProcessCardContents
 from journal.chat.card_detail import CardDetail
@@ -14,9 +15,7 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 
 FAILURES = ("could not start", "failed with code", "stopped after")
-STATE_TONES = {WorkerState.STOPPED: "", WorkerState.READY: "", WorkerState.MERGED: "", WorkerState.RELEASED: ""}
-# the icon an agent's cards draw by its role: a worker's people, a verifier's lantern
-WORKER_ICON = "agents"
+STATE_OUTCOMES = {WorkerState.STOPPED: CardOutcome.NONE, WorkerState.READY: CardOutcome.RUNNING, WorkerState.MERGED: CardOutcome.PASSED, WorkerState.RELEASED: CardOutcome.NONE}
 STATE_NAMES = {WorkerState.STOPPED: "stopped", WorkerState.READY: "started", WorkerState.MERGED: "merged", WorkerState.RELEASED: "released", WorkerState.UNFINISHED: "stopped before it finished", WorkerState.DELIVERED: "finished, ready to check"}
 FAILED = "failed"
 
@@ -35,14 +34,10 @@ class WorkerProcessCard(ProcessCard):
 
     def card_contents(self, worker: Worker, standing: CardStanding, actor: Actor) -> ProcessCardContents | None:
         older = self.messages.keyed(self.key(worker), actor)
-        if older and older[0].data.get("tone") == standing.tone and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
+        if older and older[0].data.get("outcome") == str(standing.outcome) and older[0].data.get("detail") == standing.detail and older[0].text.endswith(standing.text):
             return None
-        data = {"kind": "card", "icon": self.icon(worker), "tone": standing.tone, "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
+        data = {"kind": "card", "outcome": str(standing.outcome), "row": str(Ref.build(worker)), "task": self.tasks.last_task_id(Ref.build(worker))}
         return ProcessCardContents(self.name, worker.environment_id, self.key(worker), self.label(worker, standing.text), data, actor, CardKind.WORKERS, worker.state == WorkerState.DISPATCHED, standing.detail, worker.dispatcher)
-
-    @staticmethod
-    def icon(worker: Worker) -> str:
-        return WORKER_ICON
 
     @staticmethod
     def label(worker: Worker, text: str) -> str:
@@ -51,20 +46,20 @@ class WorkerProcessCard(ProcessCard):
     def refresh(self, message: Message) -> dict:
         worker = self.workers.find(Ref.parse(message.data["row"]).id)
         standing = self.standing(worker)
-        return {"tone": standing.tone, **CardDetail.parts(standing.detail), "active": worker.state == WorkerState.DISPATCHED}
+        return {"outcome": str(standing.outcome), **CardDetail.parts(standing.detail), "active": worker.state == WorkerState.DISPATCHED}
 
     def standing(self, worker: Worker) -> CardStanding:
-        if worker.state in STATE_TONES:
-            return CardStanding(STATE_NAMES[worker.state], STATE_TONES[worker.state])
+        if worker.state in STATE_OUTCOMES:
+            return CardStanding(STATE_NAMES[worker.state], STATE_OUTCOMES[worker.state])
         if worker.state == WorkerState.UNFINISHED:
-            return CardStanding(STATE_NAMES[worker.state], "bad", worker.run_end)
+            return CardStanding(STATE_NAMES[worker.state], CardOutcome.FAILED, worker.run_end)
         if worker.state == WorkerState.DELIVERED:
-            return CardStanding(STATE_NAMES[worker.state], "", self.first_line(worker))
+            return CardStanding(STATE_NAMES[worker.state], CardOutcome.PASSED, self.first_line(worker))
         if worker.state == WorkerState.REPORTED and self.reports.last(worker).startswith(FAILURES):
-            return CardStanding(FAILED, "bad", self.reports.last(worker))
+            return CardStanding(FAILED, CardOutcome.FAILED, self.reports.last(worker))
         if worker.state == WorkerState.REPORTED:
-            return CardStanding("reported", "work", self.first_line(worker))
-        return CardStanding(f"started on {worker.provider} {worker.model}".rstrip(), "", worker.brief)
+            return CardStanding("reported", CardOutcome.PASSED, self.first_line(worker))
+        return CardStanding(f"started on {worker.provider} {worker.model}".rstrip(), CardOutcome.RUNNING, worker.brief)
 
     def first_line(self, worker: Worker) -> str:
         report = self.reports.last(worker)

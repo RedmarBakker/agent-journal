@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from dataclasses import dataclass
 
 from journal.events.moments.plugin_standing import PluginStanding
@@ -10,5 +11,5 @@ class PluginUpgradeFailed(PluginStanding):
     version: str
     reason: str
 
-    def card_parts(self) -> tuple[str, str, str, str]:
-        return f"Plugin {self.plugin} was not upgraded for journal {self.version}: {self.reason}", "plug", "bad", ""
+    def card_parts(self) -> tuple[str, CardOutcome, str]:
+        return f"Plugin {self.plugin} was not upgraded for journal {self.version}: {self.reason}", CardOutcome.WARNED, ""

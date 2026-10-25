@@ -18,13 +18,13 @@ class MemoryCard:
     def __init__(self, cards: MomentCards, scope: Scope) -> None:
         self.cards, self.scope = cards, scope
 
-    def show(self, row: Model, actor: Actor, verb: str, icon: str = "rules", tone: str = "") -> None:
+    def show(self, row: Model, actor: Actor, verb: str) -> None:
         if type(row) not in MEMORY_KINDS:
             return
         noun, shows = MEMORY_KINDS[type(row)]
         environment = getattr(row, "environment_id", 0) or self.scope.id
         session = actor.id if actor.kind == ActorKind.AGENT else ""
-        self.cards.show(environment, session, f"{noun} {row.id} {verb}{self.moment(row)}", icon, tone, "", Ref.build(row), actor=actor, shows=shows)
+        self.cards.show(environment, session, f"{noun} {row.id} {verb}{self.moment(row)}", "", Ref.build(row), actor=actor, shows=shows)
 
     @staticmethod
     def moment(row: Model) -> str:

@@ -1,5 +1,5 @@
 import {withoutChips} from "../text/words.js";
-import {visibleIn} from "./chatVisibility.js";
+import {cardLook, visibleIn} from "./chatVisibility.js";
 import {refOf, seconds} from "./row.js";
 import {meta} from "./tables.js";
 
@@ -72,8 +72,7 @@ const SYSTEM_TURNS = {
     card: (card, label) => ({
         kind: "card",
         data: {
-            icon: card.icon,
-            tone: card.tone,
+            ...cardLook(card),
             label,
             detail: card.detail,
             lines: card.lines || [],
@@ -105,8 +104,7 @@ const SYSTEM_TURNS = {
     plugin: (card, label) => ({
         kind: "card",
         data: {
-            icon: card.icon || "plug",
-            tone: card.tone,
+            ...cardLook(card),
             label,
             name: card.plugin,
             detail: card.detail,
@@ -166,7 +164,7 @@ export function threadTurns(messages, pending, older = false, hidden = []) {
 const GROUP_FROM = 4;
 export const SUBAGENT_COLOR = "var(--tone-work)";
 const GROUPS = {
-    skill: () => ({key: "skill", icon: "book", tone: "good", label: (n) => `${n} skills loaded`}),
+    skill: () => ({key: "skill", icon: "book", label: (n) => `${n} skills loaded`}),
     whisper: () => ({key: "whisper", icon: "rules", label: (n) => `${n} rules and facts recalled`}),
     subagent: () => ({key: "subagent", icon: "agents", color: SUBAGENT_COLOR, label: (n) => `${n} subagent updates`}),
     card: (t) => ({

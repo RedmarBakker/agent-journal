@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 import time
 
 from journal.support.masks import Masks
@@ -22,4 +23,4 @@ class LeakAlarm(AgentListener[Ticked]):
         variables = sorted({variable for variable, _ in self.masks.leaks})
         self.masks.leaks.clear()
         self._said_at = time.time()
-        self.cards.show(event.environment_id, event.session, f"A secret's value was about to be recorded and was masked: {', '.join(variables)}", "key", "bad", shows=CardKind.FAULTS)
+        self.cards.show(event.environment_id, event.session, f"A secret's value was about to be recorded and was masked: {', '.join(variables)}", shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)

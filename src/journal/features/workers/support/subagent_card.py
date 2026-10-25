@@ -1,7 +1,11 @@
+from journal.support.card_outcome import CardOutcome
 from dataclasses import asdict, dataclass
 
 from journal.models.subagent import Subagent
 from journal.models.subagent_state import SubagentState
+
+# how a subagent in each state stands on its card
+STATE_OUTCOMES = {SubagentState.ACTIVE.value: CardOutcome.RUNNING, SubagentState.FINISHED.value: CardOutcome.PASSED, SubagentState.FAILED.value: CardOutcome.FAILED, SubagentState.UNFINISHED.value: CardOutcome.FAILED}
 
 
 @dataclass(frozen=True)
@@ -21,4 +25,4 @@ class SubagentCard:
         return cls(session, agent, row.agent_type, row.model, row.session, state.value, reason)
 
     def as_data(self) -> dict:
-        return {"kind": "subagent", **asdict(self)}
+        return {"kind": "subagent", **asdict(self), "outcome": str(STATE_OUTCOMES.get(self.state, CardOutcome.NONE))}

@@ -17,7 +17,7 @@ class SuggestionProcessCard(ProcessCard):
         return f"suggestion:{suggestion.id}"
 
     def card_contents(self, suggestion: Suggestion, suggester: Suggester, environment_id: int) -> ProcessCardContents:
-        data = {"kind": "suggestion", "icon": "bulb", "row": f"suggestions:{suggestion.id}", "accept": suggester.accept_label, "answer": suggestion.answer or "", "description": suggester.detail()}
+        data = {"kind": "suggestion", "row": f"suggestions:{suggestion.id}", "accept": suggester.accept_label, "answer": suggestion.answer or "", "description": suggester.detail()}
         return ProcessCardContents(self.name, environment_id, self.key(suggestion), suggestion.title, data, Actor.system(), CardKind.SUGGESTIONS, False)
 
     def refresh(self, message: Message) -> dict:

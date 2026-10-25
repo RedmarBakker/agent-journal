@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.config import Config
 from journal.events.agent.session_started import SessionStarted
@@ -22,4 +23,4 @@ class RenamedWorktreeFolders(AgentListener[SessionStarted]):
         if event.environment_id != main or not renamed_folders or self.cards.is_shown(key, Actor.system()):
             return
         line = f"Worktree folders an older version moved aside are kept, never deleted, in {place}: {', '.join(renamed_folders)}"
-        self.cards.show(main, event.session, line, "branch", tone="warn", actor=Actor.system(), key=key, shows=CardKind.WORKTREES)
+        self.cards.show(main, event.session, line, actor=Actor.system(), key=key, shows=CardKind.WORKTREES, outcome=CardOutcome.WARNED)

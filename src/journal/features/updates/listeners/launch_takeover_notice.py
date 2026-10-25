@@ -20,6 +20,6 @@ class LaunchTakeoverNotice(Listener[ServerReplaced]):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
             label = f"The journal now runs version {event.version}: a newer launch replaced the journal server on {event.previous} that this launch had"
-            self.cards.show(environment.row_id, agent.session if agent else None, label, "bolt", shows=CardKind.UPDATES)
+            self.cards.show(environment.row_id, agent.session if agent else None, label, shows=CardKind.UPDATES)
             if agent is not None:
                 self.agents.save(agent.upgraded(event.previous, event.version, event.time), Actor.system())

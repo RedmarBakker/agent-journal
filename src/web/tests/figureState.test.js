@@ -96,9 +96,9 @@ test("while the agent works the figure shows the work, as the bar says Working, 
 test("a beat fires only for what reached the row after it was last seen, oldest first", () => {
     const row = agent({
         cards: [
-            {time: 5, tone: "commit"},
-            {time: 20, icon: "check", tone: "danger"},
-            {time: 30, tone: "danger"},
+            {time: 5, shows: "commits"},
+            {time: 20, shows: "checks", outcome: "failed"},
+            {time: 30, shows: "workers", outcome: "failed"},
         ],
         person_at: 25,
     });

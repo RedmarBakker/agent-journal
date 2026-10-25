@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.events.agent.impasse_report import ImpasseReport
 from journal.events.agent_listener import AgentListener
@@ -11,4 +12,4 @@ class ImpasseCard(AgentListener[ImpasseReport]):
         self.cards = cards
 
     def handle(self, event: ImpasseReport) -> None:
-        self.cards.show(event.environment_id, event.session, "Agent stuck", "warn", "bad", event.reason, shows=CardKind.IMPASSE)
+        self.cards.show(event.environment_id, event.session, "Agent stuck", event.reason, shows=CardKind.IMPASSE, outcome=CardOutcome.WARNED)

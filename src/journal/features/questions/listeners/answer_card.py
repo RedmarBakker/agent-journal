@@ -15,4 +15,4 @@ class AnswerCard(Listener[QuestionAnswered]):
     def handle(self, event: QuestionAnswered) -> None:
         actor = Actor.parse(event.actor)
         label = f"You answered question {event.question_id}" if actor.is_user() else f"Question {event.question_id} answered by {actor.lookup}"
-        self.cards.show(event.environment_id, "", label, "questions", "", "", Ref("questions", event.question_id), actor=actor, shows=CardKind.QUESTIONS)
+        self.cards.show(event.environment_id, "", label, "", Ref("questions", event.question_id), actor=actor, shows=CardKind.QUESTIONS)

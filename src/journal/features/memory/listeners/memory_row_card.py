@@ -7,4 +7,4 @@ class MemoryRowCard(MemoryCard, Listener[Created]):
     """A fact, a rule or a reminder recorded is a card in the chat, as version 3 showed it: its number with a check mark, and the row it opens."""
 
     def handle(self, event: Created) -> None:
-        self.show(event.model, event.actor, "recorded", "check", "")
+        self.show(event.model, event.actor, "recorded")

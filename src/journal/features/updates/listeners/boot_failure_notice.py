@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.events.listener import Listener
 from journal.events.moments.boot_failed import BootFailed
@@ -18,4 +19,4 @@ class BootFailureNotice(Listener[BootFailed]):
         for environment in self.supervisor.running(self.environments.all()):
             with self.scope.environment(environment.row_id):
                 agent = self.agents.current()
-            self.cards.show(environment.row_id, agent.session if agent else None, event.text, "bolt", tone="warn", shows=CardKind.UPDATES)
+            self.cards.show(environment.row_id, agent.session if agent else None, event.text, shows=CardKind.UPDATES, outcome=CardOutcome.WARNED)

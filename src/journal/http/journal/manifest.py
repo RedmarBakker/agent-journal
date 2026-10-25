@@ -20,7 +20,7 @@ class Manifest:
         self.config, self.registry = config, registry
 
     def assembled(self, environment: str) -> JournalFacts:
-        return JournalFacts(self.config.root.name, environment, VERSION, self.build(), self.features(), self.groups(), MarkKinds.served())
+        return JournalFacts(self.config.root.name, environment, VERSION, self.build(), self.features(), self.groups(), MarkKinds.served(self.registry.card_families(), self.registry.card_kinds()))
 
     def features(self) -> list[dict]:
         return [{"name": f.name, "title": f.title, "help": f.help, "default": f.default, "fixed": f.fixed,

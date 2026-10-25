@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from journal.chat.moment_cards import MomentCards
 from journal.events.agent.agent_event import AgentEvent
 from journal.events.listener import Listener
@@ -16,7 +17,7 @@ class BypassNotice(Listener[AgentEvent]):
         bypasses = self.log.taken()
         if bypasses:
             detail = "\n".join(bypass.described() for bypass in bypasses)
-            self.cards.show(event.environment_id, event.session, self.label(bypasses), "bolt", tone="bad", detail=detail, shows=CardKind.FAULTS)
+            self.cards.show(event.environment_id, event.session, self.label(bypasses), detail=detail, shows=CardKind.FAULTS, outcome=CardOutcome.WARNED)
 
     @staticmethod
     def label(bypasses: list[Bypass]) -> str:

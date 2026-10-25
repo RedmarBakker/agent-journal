@@ -1,3 +1,4 @@
+from journal.support.card_outcome import CardOutcome
 from pathlib import Path
 import os
 import re
@@ -138,7 +139,7 @@ class SlowRequests:
             self.show(tally, self.budget("GET"), moment)
 
     def show(self, tally: SlowRequestTally, budget: int, moment: float) -> None:
-        self.announcer.announce(SlowRequestsReported(environment_id=self.scope.id, total=tally.total(), data={"kind": "card", "icon": "gauge", "tone": "bad", "row": "", **tally.serialized()}, detail=tally.detail(budget), moment=moment))
+        self.announcer.announce(SlowRequestsReported(environment_id=self.scope.id, total=tally.total(), data={"kind": "card", "outcome": str(CardOutcome.WARNED), "row": "", **tally.serialized()}, detail=tally.detail(budget), moment=moment))
 
     def is_reportable(self, reported_at: float, moment: float) -> bool:
         if not reported_at:
