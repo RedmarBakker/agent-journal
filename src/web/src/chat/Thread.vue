@@ -868,11 +868,12 @@ const {colleague, me} = useColleague();
     visibility: hidden;
 }
 
+/* the docks run the composer's whole width, out over the foot's own side padding, which only the status line keeps */
 .chat-docks {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    width: 100%;
+    margin: 0 -8px;
 }
 
 .thread-down.over-docks {

@@ -57,3 +57,9 @@ test("while the plan bar is open the chat never snaps itself to its foot after r
     const rest = thread.split("function restAtFoot() {")[1].split("\n}\n")[0];
     expect(rest).toContain("!planOpen.value");
 });
+
+test("the docked cards run the composer's whole width: their side margins cancel the foot's side padding exactly", () => {
+    const padding = rule(".chat-foot").match(/padding: 0 (\d+)px;/)[1];
+    expect(rule(".chat-docks")).toContain(`margin: 0 -${padding}px;`);
+    expect(rule(".chat-docks")).not.toContain("width: 100%");
+});
