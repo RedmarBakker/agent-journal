@@ -11,6 +11,7 @@ from journal.config import Config
 from journal.support.caller import ACTOR, ACTOR_TOKEN, AGENT_SHELL
 from journal.providers.support.helper_setup import JOURNAL_ACTIVE, HelperSetup
 from journal.support.agent_token import AgentToken
+from journal.features.workers.support.usage_limit import UsageLimit
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.pool_worker_moves import ENDED, PoolWorkerMoves
 from journal.features.workers.support.worker_end import WorkerEnd
@@ -157,6 +158,10 @@ class WorkerRunner:
         if self.moves.is_remote(current):
             self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
             self.moves.ended(current)
+            return
+        resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", time.time())
+        if resumes_at and current.is_running():
+            self.workers.save(current.limited(time.time(), resumes_at, outcome), actor)
             return
         if not self.awaits_report(current):
             self.close(current, outcome, actor)

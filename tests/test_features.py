@@ -9812,6 +9812,39 @@ def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_st
     assert "a worker reports by clocking out" in console.run(["worker", "report", "1", "done"], lovelace).error, "journal worker report is refused to a worker, naming clock out"
 
 
+def test_a_worker_stopped_at_the_usage_limit_waits_for_it_and_goes_on_by_itself_when_it_resets(app: App, monkeypatch):
+    from journal.events.bus import Bus
+    from journal.events.clock_ticked import ClockTicked
+    from journal.features.workers.listeners.limit_resumes import RESUME_JOB
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.entries import Entries
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the parser", "--brief", "the parser is written"], AGENT)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    runner = app.container.get(WorkerRunner)
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        worker = workers.save(workers.find(1).with_(token_hash="h", resume="lovelace-session"), Actor.system())
+        runner.run(worker, ["sh", "-c", "echo \"You've hit your session limit · resets 8:10am\""], Actor.agent("s1"))
+        waiting = workers.find(1)
+        assert waiting.state == WorkerState.LIMITED and waiting.resumes_at > timing.time(), "the run is marked waiting for the usage limit, never ended without clocking out"
+        assert timing.strftime("%H:%M", timing.localtime(waiting.resumes_at)) == "08:10", "the reset time is read from the provider's line"
+        told = [entry.data["line"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.worker_waits_for_the_usage_limit"]
+        assert told == ["worker 1 stopped at the usage limit and goes on by itself at 08:10"], told
+        assert not [entry for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["key"] == "workers.run_unfinished"], "nor is it told as a run that ended unfinished"
+    app.container.get(Bus).dispatch(ClockTicked(time=waiting.resumes_at - 60))
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Workers).find(1).state == WorkerState.LIMITED, "before the reset it waits"
+    app.container.get(Bus).dispatch(ClockTicked(time=waiting.resumes_at))
+    with app.container.get(Scope).environment(MAIN):
+        sent = app.container.get(Workers).find(1)
+        assert sent.state == WorkerState.DISPATCHED and RESUME_JOB in sent.brief and sent.resume == "lovelace-session", "at the reset time it is sent on in its own session"
+
+
 def test_a_worker_whose_run_ends_without_clocking_out_keeps_its_task_held_until_released(app: App, monkeypatch):
     from journal.features.workers.support.worker_runner import TIMEOUT_STATUS, WorkerRunner
     from journal.models.support.ref import Ref

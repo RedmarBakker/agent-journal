@@ -22,6 +22,7 @@ from journal.events.rows.worker_queue_empty import WorkerQueueEmpty
 from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.events.rows.worker_merged import WorkerMerged
 from journal.events.rows.worker_released import WorkerReleased
+from journal.events.rows.worker_limited import WorkerLimited
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_notified import WorkerNotified
 from journal.events.rows.worker_retired import WorkerRetired
@@ -39,6 +40,7 @@ SILENCE = Timeout.minutes(20)
 ENDED_UNFINISHED = "ended without clocking out"
 # how a run that went past the time limit says it was stopped
 RUN_LIMIT_END = "stopped after"
+LIMITED_MOVE = "stopped at the usage limit"
 RUN_LIMIT_REASON = "run limit"
 # the move that hands a worker a point back, and the one that takes its work in
 SENT_BACK, MERGED = "sent back", "merged"
@@ -46,7 +48,7 @@ SENT_BACK, MERGED = "sent back", "merged"
 
 @dataclass(frozen=True)
 class Worker(Helper):
-    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, how its merged work fit the model it ran on, what its runs have cost in dollars, when its work was last merged and for which task, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
+    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, how its merged work fit the model it ran on, what its runs have cost in dollars, when its work was last merged and for which task, when it goes on by itself after stopping at the usage limit, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     kind: str = "worker"
@@ -79,6 +81,7 @@ class Worker(Helper):
     review_queued_at: float = 0.0
     merged_at: float = 0.0
     merged_task: int = 0
+    resumes_at: float = 0.0
     cost_dollars: float = 0.0
 
     def conversation(self) -> str:
@@ -154,6 +157,9 @@ class Worker(Helper):
     def unfinished(self, time: float, text: str) -> "Worker":
         times = sum(1 for word, _ in self.moves.steps if word == ENDED_UNFINISHED) + 1
         return self.moved(ENDED_UNFINISHED, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out", times=times, is_run_limit=text.startswith(RUN_LIMIT_END)))
+
+    def limited(self, time: float, resumes_at: float, text: str) -> "Worker":
+        return self.moved(LIMITED_MOVE, time).with_(state=WorkerState.LIMITED, pid=0, token_hash="", run_end=text, resumes_at=resumes_at).with_event(WorkerLimited(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, waiting for the usage limit", resumes_at=resumes_at))
 
     def merged(self, task: int, time: float) -> "Worker":
         return self.moved(MERGED, time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))

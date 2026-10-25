@@ -1735,7 +1735,8 @@ workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} 
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times on {{model}}; earlier: {{earlier}}. change the target or the worker, or send its next job on a stronger model: journal worker send {{n}} --model <model> "<job>"
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-260 nudges
+workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
+261 nudges
 
 $ agent: journal worker list
 exit 0

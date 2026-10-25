@@ -10,3 +10,4 @@ class WorkerState(StrEnum):
     MERGED = "merged"
     RELEASED = "released"
     UNFINISHED = "ended without clocking out"
+    LIMITED = "waiting for the usage limit"
