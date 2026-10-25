@@ -19,11 +19,15 @@ test("a worker's report card is one line saying what it is and on which task, wi
     await flush();
     expect(host.querySelector(".report-card-worker").textContent).toBe("Report from worker 1126, Mr. Bertillon, on task 3318");
     expect(host.querySelector(".report-card").textContent.trim()).toBe("Report from worker 1126, Mr. Bertillon, on task 3318");
-    expect(host.querySelector(".report-card-report")).toBeNull();
+    const wrap = host.querySelector(".report-card-wrap");
+    expect(wrap.classList.contains("open")).toBe(false);
     host.querySelector(".report-card").click();
     await flush();
+    expect(wrap.classList.contains("open")).toBe(true);
+    expect(wrap.contains(host.querySelector(".report-card-report"))).toBe(true);
+    expect(host.querySelectorAll(".report-card-body").length).toBe(1);
     expect(host.querySelector(".report-card-report").textContent).toBe("the reminder test drains its queue first");
     host.querySelector(".report-card").click();
     await flush();
-    expect(host.querySelector(".report-card-report")).toBeNull();
+    expect(wrap.classList.contains("open")).toBe(false);
 });
