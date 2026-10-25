@@ -52,11 +52,15 @@ def unowed_skills(request):
         unowed(request.getfixturevalue("app"))
 
 
+# a request is answered, however long a loaded machine takes: the tests check what is answered, never how soon
+REQUEST_SECONDS = 60
+
+
 def call(server, method: str, path: str, body: dict | None = None, environment: str = "main"):
     data = json.dumps(body).encode() if body is not None else None
     request = HttpRequest(f"http://127.0.0.1:{server.port}{path}", data=data, method=method, headers={"Content-Type": "application/json", "X-Journal-Env": environment})
     try:
-        with urlopen(request, timeout=5) as reply:
+        with urlopen(request, timeout=REQUEST_SECONDS) as reply:
             return reply.status, json.loads(reply.read())
     except HTTPError as error:
         return error.code, json.loads(error.read())

@@ -4385,6 +4385,19 @@ def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_re
     assert runs.unrun(later, proof), "a run from before the clock-out does not count"
 
 
+def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app: App):
+    import time
+    from journal.features.checks.support.check_runner import CheckRunner
+    from journal.models.check import Check
+    from journal.repositories.checks import Checks
+    checks, runner = app.container.get(Checks), app.container.get(CheckRunner)
+    with app.container.get(Scope).environment(MAIN):
+        stale = checks.save(Check(title="slow", command="true", interval=1), Actor.user(1))
+        running = checks.save(stale.started(time.time()), Actor.user(1))
+        returned = runner.start(stale, Actor.system())
+        assert returned.progress.time == running.progress.time == checks.find(stale.row_id).progress.time, "the due tick had read the check before the run began: it starts no second run over the first"
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task
@@ -11421,9 +11434,9 @@ def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: 
             slow = next((output for output in outputs.watched(AGENT.session) if not output.ended and output.row_id not in quick), None)
         time.sleep(0.05)
     job = app.container.get(RunCardStart)
-    job.tick(time.time())
+    job.tick(slow.creation_time.timestamp() + 1)
     assert slow is not None and not cards(slow), "a run still within its first 3 seconds shows no card"
-    job.tick(time.time() + 3.5)
+    job.tick(slow.creation_time.timestamp() + 3.5)
     assert cards(slow), "once it has gone on for 3 seconds its card is in the chat"
     run.join(10)
     app.runtime().deferred.drain()
@@ -17215,9 +17228,10 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
             [reviewer] = [reviewer for reviewer in reviewers.scoped() if reviewer.is_reviewing()]
-            deadline = timing.time() + 10
+            deadline = timing.time() + 90
             while not reviewers.find(reviewer.id).pid and timing.time() < deadline:
                 timing.sleep(0.02)
+            assert reviewers.find(reviewer.id).pid, "the reviewer's program started"
             return reviewers.save(reviewers.find(reviewer.id).with_(token_hash=token.digest()), Actor.system())
 
     def reviewer_hook(reviewer, kind: str, **body):

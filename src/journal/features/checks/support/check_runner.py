@@ -34,10 +34,12 @@ class CheckRunner:
         return self.finished(self.checks.save(check.started(started), actor), started, actor)
 
     def start(self, check: Check, actor: Actor) -> Check:
-        if check.is_running(timing.time()):
-            return check
-        started = timing.time()
-        commenced = self.checks.save(check.started(started), actor)
+        with self.checks.writing():
+            current = self.checks.find(check.row_id)
+            if current.is_running(timing.time()):
+                return current
+            started = timing.time()
+            commenced = self.checks.save(current.started(started), actor)
         threading.Thread(target=self.finished, args=(commenced, started, actor), name=f"check-{commenced.id}", daemon=True).start()
         return commenced
 
