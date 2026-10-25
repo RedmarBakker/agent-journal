@@ -177,6 +177,9 @@ class Messages(ScopedRepository[Message]):
     def keyed_all(self, key: str, actor: Actor) -> list[Message]:
         return self.selected_globally(self.query().filter_json("data->key", key).filter(creator=actor))
 
+    def message_replies(self, message_id: int) -> list[Message]:
+        return self.selected(self.main_chat().filter(reply_target=message_id).order("id"))
+
     def replies(self, message: Message) -> list[Message]:
         matched = self.selected(self.main_voice().filter(reply_target=message.id).order("id"))
         linked = [self.find(ref.id) for ref in self.links.sources(message, self.ANSWERS)]

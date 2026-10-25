@@ -860,6 +860,23 @@ def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_pat
         app.runtime().stop()
 
 
+def test_a_comment_under_a_chat_message_is_a_reply_to_it_and_a_reply_to_a_reply_is_taken_too(tmp_path: Path):
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    server = app.server()
+    try:
+        first = call(server, "POST", "/journal/messages", {"text": "the header looks off"})[1]["id"]
+        status, reply = call(server, "POST", "/journal/comments", {"on": f"messages:{first}", "text": "and the footer too"})
+        assert status == 201 and reply["reply_target"] == first, "a comment under a message is taken as the user's reply to it"
+        status, again = call(server, "POST", "/journal/comments", {"on": f"messages:{reply['id']}", "text": "both, please"})
+        assert status == 201 and again["reply_target"] == reply["id"], "and a comment under that reply is a reply to the reply"
+        under = call(server, "GET", f"/journal/comments?on=messages:{first}")[1]["rows"]
+        assert [c["text"] for c in under] == ["and the footer too"], "a message's comments are its replies"
+        assert call(server, "POST", "/journal/comments", {"on": "messages:99999", "text": "x"})[0] >= 400, "a message that is not there is refused"
+    finally:
+        app.runtime().stop()
+
+
 def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_listed_on_their_own(tmp_path: Path):
     app = main_journal(Config(tmp_path, port=0))
     app.runtime().start()
