@@ -21,6 +21,7 @@ class WorkersOptions:
     TEST_WAITING = Option("workers.test_waiting", "Turns that may wait", "With the test budget, the most turns that may wait for a free run; blank is no limit", "", kind="text", unit="turns")
     TESTS_PER_RUN = Option("workers.tests_per_run", "Test ids in one run", "With the test budget, the most test ids one run may name", 20, unit="ids")
     TEST_RUN_MINUTES = Option("workers.test_run_minutes", "Minutes a test run may take", "With the test budget, the minutes after which a run is stopped", 10, unit="min")
+    TEST_COMMAND = Option("workers.test_command", "Test command", "With the test budget, the command a turn runs with the test ids the worker names; blank runs pytest where the project has a tests folder, and where it has none a turn is refused", "", kind="text")
     FAILING_RUNS = Option("workers.failing_runs", "Failing runs in a row", "With the test budget, the failing runs in a row of one worker after which the agent that sent it is told, once, until a passed run starts the count again", 3, unit="runs")
     TEST_RUN_LINES = Option("workers.test_run_lines", "Line for each failed test run", "With the test budget, the agent that sent a worker is told in one line of each of its test runs that failed, and how many failed; off, it is told only once a worker keeps failing", True, kind="switch")
     WORKER_LIMIT = Option("workers.most_out", "Workers out at once", "The most workers out at a time; a dispatch past it is refused until one reports. 0 is no limit", 3, unit="workers")

@@ -3842,6 +3842,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             time.sleep(0.4)
         return threads
 
+    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
     settings.set(WorkersOptions.TEST_RUNS.key, 2, Actor.user(1))
     threads = asking(1, 2, 3)
     assert until(lambda: len(started) == 2) and started == [str(tmp_path / "wt1"), str(tmp_path / "wt2")], "a budget of 2 starts two runs, each in its own worker's worktree"
@@ -3940,6 +3941,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
             time.sleep(0.05)
         return test()
 
+    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
     settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
     settings.set(WorkersOptions.TEST_RUN_MINUTES.key, 0.01, Actor.user(1))
     turns = fresh()
@@ -3953,9 +3955,6 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     settings.set(WorkersOptions.TEST_RUN_MINUTES.key, 10, Actor.user(1))
     turns = fresh()
     first = asking(turns, 1)
-    waiting = threading.Thread(target=ask, args=(turns, 1))
-    waiting.start()
-    time.sleep(0.4)
     follow = asking(turns, 2)
     assert started == [1]
     turns.release(1)
@@ -3974,6 +3973,90 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
         gates[number].set()
     for thread in resumed:
         thread.join(10)
+
+
+def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_worker_holds_one_turn_and_a_worktree_one_run(app: App, tmp_path):
+    import threading
+    import time
+    from types import SimpleNamespace
+    from journal.features.shell.support.readers import Readers
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.environments import Environments
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    from journal.support.rejection import Rejection
+    settings, scope = app.container.get(SettingRows), app.container.get(Scope)
+    lines, gates, saved = [], {}, []
+
+    class Crew:
+        def find(self, number):
+            return Worker(id=number, environment_id=1, name=f"Worker {number}")
+
+        def save(self, row, actor):
+            saved.append(row)
+            return row
+
+    class Runner:
+        def run(self, request, caller, environment):
+            lines.append((request.line, Path(request.cwd).name))
+            gates.setdefault(request.line, threading.Event()).wait(10)
+            if "nope" in request.line:
+                yield b"ERROR: file or directory not found: nope.py\n__journal_exit 4\n"
+            else:
+                yield b"1 passed\n__journal_exit 0\n"
+
+    folders = {"a": tmp_path / "a", "b": tmp_path / "b", "bare": tmp_path / "bare"}
+    for name in ("a", "b"):
+        (folders[name] / "tests").mkdir(parents=True)
+    folders["bare"].mkdir()
+    where = {1: "a", 2: "a", 3: "b", 4: "bare"}
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
+    settings.set(WorkersOptions.TEST_RUNS.key, 3, Actor.user(1))
+    results = {}
+
+    def ask(number, ids):
+        with scope.environment(1):
+            try:
+                results[number] = turns.take(SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1), ids, SimpleNamespace())
+            except Rejection as refusal:
+                results[number] = f"refused: {refusal}"
+
+    def until(test):
+        end = time.time() + 10
+        while not test() and time.time() < end:
+            time.sleep(0.05)
+        return test()
+
+    ask(4, "tests/x.py")
+    assert results[4] == f"refused: this project has no test command: set {WorkersOptions.TEST_COMMAND.key}", "a project with no test command refuses a turn in one line naming the setting"
+    settings.set(WorkersOptions.TEST_COMMAND.key, "make check", Actor.user(1))
+    gates["make check tests/x.py"] = threading.Event()
+    gates["make check tests/x.py"].set()
+    ask(3, "tests/x.py")
+    assert lines == [("make check tests/x.py", "b")], "the configured command runs with the test ids"
+    settings.set(WorkersOptions.TEST_COMMAND.key, "", Actor.user(1))
+    gates["pytest -q nope.py"] = threading.Event()
+    gates["pytest -q nope.py"].set()
+    ask(3, "nope.py")
+    assert lines[-1] == ("pytest -q nope.py", "b") and "file or directory not found" in results[3], "with none set, pytest runs where there is a tests folder, and a missing test comes back as the runner's not found result"
+    assert saved and saved[-1].failing_runs == 1, "as a failed run, counted toward the failing runs"
+    first = threading.Thread(target=ask, args=(1, "tests/one.py"))
+    first.start()
+    assert until(lambda: lines[-1][0] == "pytest -q tests/one.py"), "a turn started"
+    second = threading.Thread(target=ask, args=(2, "tests/two.py"))
+    second.start()
+    time.sleep(0.6)
+    assert lines[-1][0] == "pytest -q tests/one.py", "two workers in one worktree go one after another, whatever the budget"
+    again = threading.Thread(target=ask, args=(1, "tests/again.py"))
+    again.start()
+    again.join(10)
+    assert results[1].startswith("refused: worker 1") and "has a turn open already" in results[1], "a worker's second turn is refused while its first is open"
+    gates.setdefault("pytest -q tests/one.py", threading.Event()).set()
+    assert until(lambda: lines[-1][0] == "pytest -q tests/two.py"), "and the second starts once the first ends"
+    gates.setdefault("pytest -q tests/two.py", threading.Event()).set()
+    first.join(10)
+    second.join(10)
 
 
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):

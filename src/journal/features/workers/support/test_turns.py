@@ -41,7 +41,8 @@ class TestTurns:
     def take(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team: its tests run there, not through a turn here")
-        turn = self.asked(worker, ids, f"pytest -q {ids}", str(self.branch.folder(worker)))
+        folder = str(self.branch.folder(worker))
+        turn = self.asked(worker, ids, f"{self.command(folder)} {ids}", folder)
         if not self.waited(turn):
             return "your turn was taken back: nothing ran"
         text = self.ran(turn, caller, worker.environment_id)
@@ -50,6 +51,8 @@ class TestTurns:
     def asked(self, worker: Worker, ids: str, command: str, folder: str) -> TestTurn:
         with self.lock:
             waiting, cap = self.turns.waiting(), self.waiting_cap()
+            if any(turn.worker == worker.id for turn in [*waiting, *self.running()]):
+                raise Rejection(f"worker {worker.id}, {worker.name}, has a turn open already: ask for the next once its result is back")
             if (waiting or len(self.running()) >= self.budget()) and cap is not None and len(waiting) >= cap:
                 raise Rejection(f"{len(waiting)} turns already wait for a test run: ask again once one has run")
             return self.turns.save(TestTurn(environment_id=worker.environment_id, worker=worker.id, ids=ids, command=command, folder=folder), Actor.worker(worker.id))
@@ -59,8 +62,9 @@ class TestTurns:
             with self.lock:
                 if self.turns.find(turn.id).state != TestTurnState.WAITING:
                     return False
-                waiting = self.turns.waiting()
-                if waiting and waiting[0].id == turn.id and len(self.running()) < self.budget():
+                running = self.running()
+                free = [row for row in self.turns.waiting() if row.folder not in {going.folder for going in running}]
+                if free and free[0].id == turn.id and len(running) < self.budget():
                     self.turns.save(self.turns.find(turn.id).started(), Actor.system())
                     return True
             time.sleep(POLL_SECONDS)
@@ -137,6 +141,14 @@ class TestTurns:
         picked = reader.card_lines(lines) if reader is not None else []
         timed = [f"timed out: the run was stopped after {self.limit_seconds() / 60:g} minutes, the test budget's time limit"] if turn.id in self.timed_out else []
         return "\n".join([*(picked or lines[-LAST_LINES:]), *timed])
+
+    def command(self, folder: str) -> str:
+        set = str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()
+        if set:
+            return set
+        if (Path(folder) / "tests").is_dir():
+            return "pytest -q"
+        raise Rejection(f"this project has no test command: set {WorkersOptions.TEST_COMMAND.key}")
 
     def budget(self) -> int:
         return self.settings.integer(WorkersOptions.TEST_RUNS)

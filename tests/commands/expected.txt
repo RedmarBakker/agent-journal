@@ -1150,6 +1150,7 @@ workers.test_waiting = ''
 workers.tests_per_run = 20
 workers.test_run_minutes = 10
 workers.failing_runs = 3
+workers.test_command = ''
 workers.test_run_lines = True
 workers.check_reminder_uses = 25
 workers.most_out = 3
