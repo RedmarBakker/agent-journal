@@ -1,5 +1,7 @@
 import {createApp, h, nextTick} from "vue";
 import {expect, test, vi} from "vitest";
+
+vi.mock("../src/route.js", async (original) => ({...(await original()), peek: vi.fn()}));
 import {threadTurns} from "../src/domain/thread.js";
 
 const lines = Array.from({length: 13}, (_, i) => `finding ${i + 1}`);
@@ -62,7 +64,7 @@ test("a process card opens in one click to its summary and a terminal view fetch
 test("a card of a task created from a message opens the task on a click, not the message", async () => {
     window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
     const {default: Turn} = await import("../src/chat/Turn.vue");
-    const {route} = await import("../src/route.js");
+    const {peek} = await import("../src/route.js");
     const created = {...message, data: {kind: "card", detail: "", lines: [], row: "tasks:12", shows: "filed"}, text: "Created task 12 from your message"};
     const {turns} = threadTurns([created], []);
     const host = document.createElement("div");
@@ -75,7 +77,7 @@ test("a card of a task created from a message opens the task on a click, not the
     expect(host.querySelector(".mark .head").textContent).toContain("Created task 12 from your message");
     host.querySelector(".mark").click();
     await nextTick();
-    expect(route.value.stack.at(-1)).toMatchObject({table: "tasks", id: 12});
+    expect(peek).toHaveBeenCalledWith("tasks", 12, 0);
     app.unmount();
     host.remove();
 });

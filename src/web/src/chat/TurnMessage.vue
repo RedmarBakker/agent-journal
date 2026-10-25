@@ -25,6 +25,7 @@ import {pendingRow} from "../domain/placeholders.js";
 import {colleagueColour} from "../domain/people.js";
 import {focusTurn, laidOut} from "../platform/view.js";
 import {optimistic} from "../sync/rows.js";
+import {growHeight} from "./arrival.js";
 import {render} from "../text/index.js";
 
 const props = defineProps({turn: Object});
@@ -117,8 +118,8 @@ async function drop() {
             <template v-if="resourceComment">
                 <TurnParent :label="commentParent.label" @open="openComment" />
             </template>
-            <template v-if="filed.length || turn.kind === 'question'">
-                <div :class="['thread-results', {live: turn.kind === 'question' && !turn.question.closedAt}]">
+            <Transition :css="false" @enter="growHeight">
+                <div v-if="filed.length || turn.kind === 'question'" :class="['thread-results', {live: turn.kind === 'question' && !turn.question.closedAt}]">
                     <template v-if="turn.kind === 'question'">
                         <p class="thread-ask-label">Question</p>
                     </template>
@@ -128,7 +129,7 @@ async function drop() {
                         </button>
                     </template>
                 </div>
-            </template>
+            </Transition>
             <template v-if="quoteText">
                 <TurnQuote :html="quoteHtml" @go="resourceComment ? openComment() : toQuoted()" />
             </template>

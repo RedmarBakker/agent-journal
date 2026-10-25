@@ -29,6 +29,7 @@ const task = {table: "tasks", id: 3, title: "open one", brief: "", state: "open"
 
 test("a task opened on its own renders the tasks dialog's own inspector, whose priority control saves through the tasks route", async () => {
     store.rows = {tasks: [task], plans: [], questions: [], checks: []};
+    vi.spyOn(api, "get").mockResolvedValue({rows: []});
     const change = vi.spyOn(api, "change").mockResolvedValue({});
     const host = document.body.appendChild(document.createElement("div"));
     app = createApp({render: () => h(TaskPanel, {task})});

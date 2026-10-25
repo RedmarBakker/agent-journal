@@ -1,5 +1,5 @@
 import {expect, test} from "vitest";
-import {DEPART_MS, FADE_MS, OWN_MS, PUSH_MS, arrivalQueue, arrive, arriveAtOnce, depart} from "../src/chat/arrival.js";
+import {DEPART_MS, FADE_MS, OWN_MS, PUSH_MS, arrivalQueue, arrive, arriveAtOnce, depart, growHeight} from "../src/chat/arrival.js";
 
 function stage(follows = () => true, arrival = arrive) {
     const log = [];
@@ -100,4 +100,15 @@ test("a turn that goes closes its height while it fades, and is let go once the 
     expect(timers[0][1]).toBe(DEPART_MS);
     timers[0][0]();
     expect(gone).toBe(true);
+});
+
+test("chips joining a bubble open its height to take them, and leave no style behind", () => {
+    const el = {style: {}, scrollHeight: 30, offsetHeight: 0};
+    const timers = [];
+    let done = false;
+    growHeight(el, () => (done = true), (fn) => timers.push(fn));
+    expect(el.style.height).toBe("30px");
+    timers[0]();
+    expect(done).toBe(true);
+    expect(el.style.height).toBe("");
 });

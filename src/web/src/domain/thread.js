@@ -81,6 +81,7 @@ const SYSTEM_TURNS = {
             counting: Boolean(card.counting),
             output: card.output || 0,
             line: card.line || "",
+            summary: card.summary || "",
             ending: card.ending || "",
             docked: Boolean(card.docked),
             command: card.command,

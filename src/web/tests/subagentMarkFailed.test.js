@@ -10,6 +10,8 @@ async function drawn(props) {
     app.directive("tip", {});
     app.mount(host);
     await nextTick();
+    host.querySelector(".mark")?.click();
+    await nextTick();
     const shown = {text: host.textContent, red: host.innerHTML.includes("--tone-danger")};
     app.unmount();
     host.remove();
@@ -61,6 +63,8 @@ test("a subagent that said it could not do the job is an orange mark with its ow
     });
     app.directive("tip", {});
     app.mount(host);
+    await nextTick();
+    host.querySelector(".mark").click();
     await nextTick();
     expect(host.textContent).toContain("Subagent could not do it");
     expect(host.textContent).toContain("look: I can't reach the server");

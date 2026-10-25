@@ -74,7 +74,7 @@ export function arrivalQueue({gap = QUEUE_GAP_MS, later = setTimeout} = {}) {
     }
     return (el, options, done, arrival = arrive) => {
         if (!options.pane || !options.follows()) return done();
-        const item = {el, options, done, arrival, display: el.style.display};
+        const item = {el, options, done, arrival, display: el.style.display || ""};
         if (!running) {
             running = true;
             return arrival(el, options, () => finish(item));
@@ -91,4 +91,17 @@ export function depart(el, done, later = setTimeout) {
     el.style.transition = `height ${DEPART_MS}ms ${EASE}, opacity ${DEPART_MS}ms ease-in, margin ${DEPART_MS}ms ${EASE}`;
     Object.assign(el.style, {height: "0px", opacity: "0", marginTop: "0px", marginBottom: "0px"});
     later(done, DEPART_MS);
+}
+
+// Something that joins a bubble, as the chips of a task made from it: the bubble's height opens to take it instead of jumping.
+export function growHeight(el, done, later = setTimeout) {
+    const height = el.scrollHeight;
+    Object.assign(el.style, {boxSizing: "border-box", height: "0px", overflow: "hidden", opacity: "0"});
+    void el.offsetHeight;
+    el.style.transition = `height ${PUSH_MS}ms ${EASE}, opacity ${FADE_MS}ms ease-out`;
+    Object.assign(el.style, {height: `${height}px`, opacity: "1"});
+    later(() => {
+        Object.assign(el.style, {boxSizing: "", height: "", overflow: "", opacity: "", transition: ""});
+        done();
+    }, PUSH_MS);
 }
