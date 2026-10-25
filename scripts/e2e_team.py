@@ -10,6 +10,7 @@ import http.client
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -232,12 +233,82 @@ def check_hosted_journal() -> str:
     return f"{'OK' if found and opened else 'FAIL'}: a opened the hosted journal at http://{SERVER} from its own journal: it shows the hub {hub.get('name') if hub else 'none'} of the team (environments {reply.status}: {[row.get('name') for row in rows]}) and its home holds the hub task filed here {opened} (tasks {home.status})"
 
 
+def stored(name: str, sql: str, params: tuple = ()) -> list[dict]:
+    connection = sqlite3.connect(f"file:{WORK / FOLDERS[name] / '.journal/journal.db'}?mode=ro", uri=True, timeout=10)
+    connection.row_factory = sqlite3.Row
+    try:
+        return [dict(row) for row in connection.execute(sql, params)]
+    finally:
+        connection.close()
+
+
+def page(name: str, title: str, words: str) -> str:
+    written = WORK / f"{name}-{title.replace(' ', '-')}-{abs(hash(words))}.md"
+    written.write_text(f"# {title}\n\n{words}\n")
+    return str(written)
+
+
+def body(name: str, number: int) -> str:
+    rows = stored(name, "SELECT body FROM docs WHERE id = ?", (number,))
+    return rows[0]["body"] if rows else ""
+
+
+def check_hosted_hub_home() -> str:
+    cookie = waiting_for(signed_in, 180)
+    if not cookie:
+        return "FAIL: the hosted journal opened no session from a's one-time link"
+    reply = hosted("GET", "/journal/environments", cookie=cookie)
+    rows = json.loads(reply.read()).get("rows", []) if reply.status == 200 else []
+    unshared = [row.get("name") for row in rows if row.get("kind") == "local" and not row.get("team_key")]
+    hub = next((row.get("name") for row in rows if row.get("kind") == "hub"), "")
+    return f"{'OK' if hub and not unshared else 'FAIL'}: the hosted journal lists the hub {hub or 'none'} and these environments that are not shared: {unshared or 'none'} (all: {[row.get('name') for row in rows]})"
+
+
+def check_hub_documents() -> str:
+    seen = []
+    for mode in ("free", "read_only"):
+        title = f"{mode} page {STAMP}"
+        journal("a", "doc", "create", title, "--file", page("a", title, "the first words"))
+        number = stored("a", "SELECT id FROM docs WHERE title = ? ORDER BY id DESC", (title,))[0]["id"]
+        journal("a", "doc", "share", str(number), "--mode", mode)
+        reached = bool(waiting_for(lambda: "the first words" in body("b", number)))
+        by_b = journal("b", "doc", "update", str(number), "--file", page("b", title, "Bob's words"))
+        refused = "read-only on the hub" in by_b
+        bob_on_a = bool(waiting_for(lambda: "Bob's words" in body("a", number), 45)) if not refused else "Bob's words" in body("a", number)
+        journal("a", "doc", "update", str(number), "--file", page("a", title, "Ada's later words"))
+        ada_on_b = bool(waiting_for(lambda: "Ada's later words" in body("b", number)))
+        expected = (reached, bob_on_a, ada_on_b, refused) == ((True, True, True, False) if mode == "free" else (True, False, True, True))
+        seen.append((expected, f"{mode} doc {number}: reached b {reached}, b's edit {'refused' if refused else 'taken'} and on a {bob_on_a}, a's edit on b {ada_on_b}"))
+    return f"{'OK' if all(ok for ok, _ in seen) else 'FAIL'}: " + "; ".join(text for _, text in seen)
+
+
+def check_drive_to_done() -> str:
+    hub = hubs("a")[0]
+    title = f"driven task {STAMP}"
+    journal("a", "task", "create", title, "--brief", "driven from a to done", "--team", hub["team_name"])
+    number = stored("a", "SELECT id FROM tasks WHERE title = ? ORDER BY id DESC", (title,))[0]["id"]
+    on_b = lambda: next(iter(stored("b", "SELECT state, driver FROM tasks WHERE id = ?", (number,))), {})
+    reached = bool(waiting_for(on_b))
+    drive = journal("a", "task", "drive", str(number))
+    driven_on_b = bool(waiting_for(lambda: on_b().get("driver") == PEOPLE["a"][1]))
+    started = journal("a", "task", "start", str(number))
+    completed = journal("a", "task", "complete", str(number), "--how", "finished end to end")
+    done_on_b = bool(waiting_for(lambda: on_b().get("state") == "done"))
+    cookie = waiting_for(signed_in, 60)
+    reply = hosted("GET", "/journal/tasks?limit=49", cookie=cookie) if cookie else None
+    hosted_rows = json.loads(reply.read()).get("rows", []) if reply and reply.status == 200 else []
+    on_hosted = next((row for row in hosted_rows if row.get("title") == title), {})
+    hosted_seen = on_hosted.get("state") == "done" and on_hosted.get("driver") == PEOPLE["a"][1]
+    ok = reached and driven_on_b and done_on_b and hosted_seen
+    return f"{'OK' if ok else 'FAIL'}: hub task {number} driven from a's main by journal commands, as its agent runs them (drive: {drive.splitlines()[0] if drive else 'nothing'}; start: {started.splitlines()[0] if started else 'nothing'}; complete: {completed.splitlines()[0] if completed else 'nothing'}): reached b {reached}, b shows it driven by {PEOPLE['a'][1]} {driven_on_b}, b shows it done {done_on_b}, the hosted journal shows it {on_hosted.get('state', 'absent')} driven by {on_hosted.get('driver') or 'nobody'}"
+
+
 def check_pre_hub_copy() -> str:
     return "WAITS: needs a copy of a pre-hub team journal and the migration of phase 2; not run yet"
 
 
 CHECKS = (("team key and hub", check_team_key_and_hub), ("hub write reaches the other journal and the server", check_hub_write), ("a personal task never reaches the server", check_personal_task),
-          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("a pre-hub team journal migrates", check_pre_hub_copy))
+          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("the hosted journal's hub home lists no environment that is not shared", check_hosted_hub_home), ("a hub document in each edit mode is edited from both journals, a read-only one refused to the other", check_hub_documents), ("a hub task driven from a to done shows driven and done on b and the hosted journal", check_drive_to_done), ("a pre-hub team journal migrates", check_pre_hub_copy))
 
 
 def checks() -> None:
