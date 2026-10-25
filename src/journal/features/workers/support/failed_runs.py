@@ -22,7 +22,7 @@ class FailedRuns:
 
     def picked(self, worker: Worker) -> list[str]:
         clocked_out = max((time for word, time in worker.moves.steps if word == CLOCKED_OUT), default=0.0)
-        for output in self.outputs.ran_in(str(self.branch.place(worker))):
+        for output in self.outputs.ran_in(str(self.branch.folder(worker))):
             reader = self.readers.reading(output.command)
             if output.creation_time.timestamp() < clocked_out:
                 return []

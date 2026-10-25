@@ -45,7 +45,7 @@ class TestTurns:
     def take(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team: its tests run there, not through a turn here")
-        folder, ran = str(self.branch.place(worker)), []
+        folder, ran = str(self.branch.folder(worker)), []
         for batch in self.batches(ids):
             turn = self.asked(worker, batch, f"{self.command(folder)} {batch}", folder)
             if not self.waited(turn):

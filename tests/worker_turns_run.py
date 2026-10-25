@@ -11,6 +11,7 @@ import pytest
 
 from journal.app import App
 from journal.config import Config
+from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.test_turn_state import TestTurnState
 from journal.models.worker import Worker
@@ -38,14 +39,16 @@ def boot():
 def test_two_workers_turns_run_one_after_the_other_under_a_budget_of_one_and_each_is_handed_its_result(app: App):
     root, scope = app.config.root, app.container.get(Scope)
     (app.config.home / "port").write_text(str(app.server().port))
-    (root / "tests").mkdir(exist_ok=True)
-    (root / "tests" / "test_passing.py").write_text("import time\n\n\ndef test_passes():\n    time.sleep(2)\n")
-    (root / "tests" / "test_failing.py").write_text("def test_fails():\n    assert 1 == 2\n")
     settings = app.container.get(SettingRows)
     settings.set(WorkersOptions.TEST_COMMAND.key, f"{sys.executable} -m pytest -q -p no:cacheprovider", Actor.user(1))
     settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
     with scope.environment(1):
-        workers = [app.container.get(Workers).save(Worker(environment_id=1, name=f"Worker {n}", brief="b", session=f"w{n}", token_hash=AgentToken.hashed("tok")), Actor.system()) for n in (1, 2)]
+        workers = [app.container.get(Workers).save(Worker(environment_id=1, name=f"Worker {n}", brief="b", session=f"w{n}", worktree=True, token_hash=AgentToken.hashed("tok")), Actor.system()) for n in (1, 2)]
+    for worker in workers:
+        tests = app.container.get(WorkerBranch).folder(worker) / "tests"
+        tests.mkdir(parents=True)
+        (tests / "test_passing.py").write_text("import time\n\n\ndef test_passes():\n    time.sleep(2)\n")
+        (tests / "test_failing.py").write_text("def test_fails():\n    assert 1 == 2\n")
     results = {}
 
     def turn(worker: Worker, test: str) -> None:
