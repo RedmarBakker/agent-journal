@@ -1140,6 +1140,7 @@ usage.check_minutes = 15
 workers.builder_handovers = 2
 workers.orchestrator_lines = 200
 workers.orchestrator_approves_plans = False  (the user sets it)
+workers.plan_stall_minutes = 60
 workers.fitness_threshold = 70
 workers.solo_dispatches = 3
 workers.timeout_minutes = 60
@@ -1612,6 +1613,7 @@ workers.orchestrate  [workers]  {{count}} tasks are open; next: {{tasks}}. dispa
 workers.orchestrator_hands_the_work_out  [workers]  you are the orchestrator: you changed at least {{limit}} lines of code yourself since your last handover. hand the work to a worker and review what comes back
 workers.own_output_ended  [workers]  output {{n}} ended with code {{status}}. read it with journal output read {{n}} --summary
 workers.own_output_running  [workers]  your output {{n}} still runs, and your run ends when you stop. wait for it, then stop again
+workers.plan_stalled  [workers]  plan {{n}}, {{title}}, has not moved since {{since}}, over {{minutes}} minutes, while another started plan moves. look at what holds it: its open, paused and blocked tasks
 workers.run_unfinished  [workers]  worker {{n}}, {{name}}, ended its run without clocking out and still holds its task. journal worker send {{n}} "<job>", or journal worker release {{n}}
 workers.send_it_to_an_idle_worker  [workers]  {{count}} of the {{kept}} {{profile}} workers kept are idle:
 {{workers}}. send the job to one of them, or retire one with `journal worker complete <n> --why "<reason>"`
@@ -1620,6 +1622,7 @@ workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers alre
 workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents already worked on files this job names:
 {{subagents}}. send the job to one with its SendMessage line, or retire one with `journal subagent retire <n>`
 workers.solo_researches_itself  [workers]  you are solo: you sent more subagents than you read and searched yourself. read and research this yourself; a subagent is for the rare job too wide to do in your own turns
+workers.started_plans  [workers]  started plans: {{plans}}. which worker takes each open task, and which plan goes first, is yours to decide
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn

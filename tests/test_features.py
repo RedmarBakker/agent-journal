@@ -1737,6 +1737,48 @@ def test_each_work_mode_says_its_alignment_line_when_the_agent_drifts_from_it(ap
     assert "you are solo" in dispatch() + shell("echo checked"), "subagents past its own reads by the limit tell the solo agent to research itself"
 
 
+def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one_that_stalls(app: App):
+    from journal.db.connection import Connection
+    from journal.models.plan_state import PlanState
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.plans import Plans
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    for title, tasks in (("release", ("write the notes", "tag it")), ("billing", ("the invoice",))):
+        console.run(["plan", "create", title, "--brief", f"ship {title}"], USER)
+        for task in tasks:
+            console.run(["plan", "add", str(app.container.get(Plans).rows()[-1].id), task], USER)
+    plans = app.container.get(Plans)
+    release, billing = plans.rows()[-2:]
+    for plan in (release, billing):
+        plans.save(plan.with_(state=PlanState.STARTED), USER)
+    lines = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
+
+    hook(app, "Stop")
+    [status] = lines("workers.started_plans")
+    parts = status.removeprefix("started plans: ").split("; ")
+    assert parts[0].startswith(f"plan {release.id}, release:") and "0 of 2 tasks done, 2 open with no worker" in parts[0] and parts[1].startswith(f"plan {billing.id}, billing:") and "0 of 1 tasks done, 1 open with no worker" in parts[1], "the orchestrator's status line names both started plans with their counts"
+    assert lines("workers.plan_stalled") == [], "no plan is stalled while both moved just now"
+    shown = console.run(["plan", "show", "current"], AGENT).text
+    assert f"started: plan {release.id}, release" in shown and f"started: plan {billing.id}, billing" in shown, "journal plan show current shows every started plan"
+
+    old = "2020-01-01T00:00:00+00:00"
+    connection = app.container.get(Connection)
+    connection.execute("UPDATE plans SET updated_at = ? WHERE id = ?", (old, release.id))
+    for task_id in plans.plan_task_ids(release):
+        connection.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (old, task_id))
+    connection.changed("plans")
+    connection.changed("tasks")
+    hook(app, "Stop")
+    hook(app, "Stop")
+    stalled = lines("workers.plan_stalled")
+    assert len(stalled) == 1 and stalled[0].startswith(f"plan {release.id}, release, has not moved since") and "over 60 minutes, while another started plan moves" in stalled[0], "a plan untouched past the setting is named once as stalled, while the other moves"
+    told = lines("workers.started_plans") + stalled
+    assert not any(re.search(r"worker \d|journal worker dispatch", line) for line in told), "no line tells which worker to use"
+
+
 def test_the_builder_is_scored_against_its_ideal_and_told_the_measure_furthest_off(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)

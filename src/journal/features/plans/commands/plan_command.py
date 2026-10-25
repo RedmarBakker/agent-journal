@@ -1,3 +1,4 @@
+import time
 from argparse import Namespace
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from journal.features.tasks.support.waits import Waits
 from journal.features.workers.support.subagent_entries import SubagentEntries
 from journal.models.link import Link
 from journal.models.phase import Phase
+from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
 from journal.models.support.ref import Ref
@@ -34,10 +36,10 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
-        self.settings, self.drives = settings, drives
+        self.settings, self.drives, self.statuses = settings, drives, statuses
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -86,7 +88,7 @@ class PlanCommand(Command):
         driving.add_argument("n", type=int)
         driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
         self.verb(verbs, "release", "let a hub plan you drive go, so anyone may drive it").add_argument("n", type=int)
-        self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, a team's name and number such as acme:12, or current for the started plan")
+        self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, a team's name and number such as acme:12, or current for every started plan")
         self.verb(verbs, "list", "every plan here")
         testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
@@ -241,13 +243,19 @@ class PlanCommand(Command):
         return 0
 
     def show(self, args: Namespace, caller: Caller) -> int:
-        if args.n == CURRENT:
-            started = next(iter(self.plans.running_plans()), None)
-            if started is None:
-                print("no plan is started")
-                return 0
-            args.n = started.id
-        plan = self.plans.find(self.hub_rows.number(args.n))
+        return self.current() if args.n == CURRENT else self.shown(self.plans.find(self.hub_rows.number(args.n)))
+
+    def current(self) -> int:
+        started = self.statuses.started()
+        if not started:
+            print("no plan is started")
+        now = time.time()
+        for status in started:
+            print(f"started: {status.line(now)}")
+            self.shown(self.plans.find(status.plan_id))
+        return 0
+
+    def shown(self, plan: Plan) -> int:
         print(f"plan {plan.id} {plan.state}: {plan.title}")
         if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]

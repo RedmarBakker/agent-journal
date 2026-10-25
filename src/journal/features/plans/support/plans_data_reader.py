@@ -1,4 +1,5 @@
 from journal.engine.support.lazy_facts import LazyFacts
+from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.models.agent import Agent
 from journal.models.plan import Plan
@@ -17,8 +18,8 @@ RECENT_PLAN_TASKS = 3
 class PlansDataReader:
     """Reads the plans feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields PlansData names; the started plan's facts the same, with the fields StartedPlan names."""
 
-    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, scope: Scope, stages: StageTimes) -> None:
-        self.plans, self.briefing, self.entries, self.testing = plans, briefing, entries, testing
+    def __init__(self, plans: Plans, briefing: TaskBriefing, entries: Entries, testing: PlanTesting, statuses: PlanStatuses, scope: Scope, stages: StageTimes) -> None:
+        self.plans, self.briefing, self.entries, self.testing, self.statuses = plans, briefing, entries, testing, statuses
         self.scope, self.stages = scope, stages
 
     def read(self, agent: Agent) -> LazyFacts:
@@ -26,6 +27,7 @@ class PlansDataReader:
             "approved": lambda: tuple(p.row_id for p in self.plans.approved()),
             "started": lambda: self.started(),
             "review_plan": lambda: self.review_plan(agent),
+            "started_plans": lambda: self.statuses.started(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def started(self) -> LazyFacts | None:

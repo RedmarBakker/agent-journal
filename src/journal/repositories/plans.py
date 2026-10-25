@@ -70,6 +70,16 @@ class Plans(ScopedRepository[Plan]):
         planned = self.links.query().filter(kind=PLAN_LINK, target=Ref.build(plan)).filter_ref("source", self.tasks.query())
         return self.tasks.query().filter_existing(planned)
 
+    def task_count(self, plan: Plan) -> int:
+        return self.tasks.counted(self.plan_task_query(plan))
+
+    def unassigned_count(self, plan: Plan) -> int:
+        return self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.OPEN))
+
+    def last_moved(self, plan: Plan) -> float:
+        latest = self.tasks.selected(self.plan_task_query(plan).order_descending("updated_at").limit(1))
+        return max(plan.updated_at, *(task.updated_at for task in latest)).timestamp()
+
     def plan_tasks(self, plan: Plan) -> list[Task]:
         return self.tasks.numbered(ref.id for ref in self.links.sources(plan, PLAN_LINK))
 
