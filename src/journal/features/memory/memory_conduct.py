@@ -5,6 +5,7 @@ from journal.engine.conduct import Conduct
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.agent_event import AgentEvent
+from journal.events.agent.line_delivered import LineDelivered
 from journal.events.agent.stop import Stop
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.tool_starting import ToolStarting
@@ -57,6 +58,8 @@ def triggered_lines(event, trigger: MemoryTrigger) -> list:
 
 
 def due_lines(event: AgentEvent) -> list:
+    if isinstance(event, LineDelivered):
+        return []
     return [MemoryNudges.REMINDER_DUE.create(n=reminder.id, text=reminder.text) for reminder in event.data.part(MemoryPart).timed if reminder.due_at <= event.time]
 
 
