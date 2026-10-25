@@ -19,7 +19,7 @@ REVIEWER_SECONDS = 1200
 
 
 class ReviewerRunner(HelperRunner[Reviewer]):
-    """Runs a reviewer the journal sent, for twenty minutes at most, time enough to run the tests the proofs name; a reviewer that ends without its report, or runs past its limit, first hands the work it reviews back to the agent that sent the worker, for that agent's own check, so the work is never left waiting on it."""
+    """Runs a reviewer the journal sent, for twenty minutes at most, time enough to run the tests the proofs name; a reviewer that ends without its report, or runs past its limit, first hands the work it reviews back to the agent that sent the worker, for that agent's own check, so the work is never left waiting on it, and the reviewer ends even when that fails."""
 
     seconds = REVIEWER_SECONDS
 
@@ -29,9 +29,11 @@ class ReviewerRunner(HelperRunner[Reviewer]):
 
     def ended(self, reviewer: Reviewer) -> None:
         current = self.rows.find(reviewer.row_id)
-        if current.is_reviewing():
-            self.return_work(current)
-        super().ended(current)
+        try:
+            if current.is_reviewing():
+                self.return_work(current)
+        finally:
+            super().ended(current)
 
     def return_work(self, reviewer: Reviewer) -> None:
         worker = self.workers.find(self.links.worker(reviewer).id)

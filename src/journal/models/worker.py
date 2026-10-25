@@ -91,8 +91,8 @@ class Worker(Helper):
     def reviewed(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
         return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, reviewed", task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))
 
-    def review_failed(self, time: float, task: int, reviewer: Reviewer) -> "Worker":
-        return self.review_ended(time, "review ended without a report").with_event(WorkerReviewFailed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, its review ended without a report", task=task, reviewer=reviewer.id))
+    def review_failed(self, time: float, task: int) -> "Worker":
+        return self.review_ended(time, "review ended without a report").with_event(WorkerReviewFailed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, its review ended without a report", task=task))
 
     def review_ended(self, time: float, move: str) -> "Worker":
         if not self.review_pending:

@@ -10,4 +10,3 @@ class WorkerReviewFailed(RowResolved):
 
     worker: WorkerMention
     task: int
-    reviewer: int

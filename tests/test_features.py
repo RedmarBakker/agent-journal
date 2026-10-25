@@ -1855,6 +1855,9 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     assert not sent.is_unanswered(1000.0, 300), "a worker in review waits on the reviewer, not the orchestrator"
     reviewed = sent.reviewed(900.0, 1, Reviewer(id=9, environment_id=1, session="r-1"), "1 passed")
     assert not reviewed.is_unanswered(1000.0, 300) and reviewed.is_unanswered(1300.0, 300), "its answer time runs from the reviewer's report"
+    failed = sent.review_failed(900.0, 1)
+    assert not failed.review_pending and type(failed.events[-1]).__name__ == "WorkerReviewFailed" and failed.events[-1].task == 1, "a failed review clears the worker's review and carries the event that tells the orchestrator"
+    assert failed.is_unanswered(1300.0, 300), "and from then the work waits on the orchestrator"
 
 
 def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_and_counts_only_those(app: App):
