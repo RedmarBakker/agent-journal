@@ -175,6 +175,52 @@ def a_worker_reports(app, replay: Replay, provider: str) -> None:
     replay.step("worker 2 is stopped")
 
 
+def a_queue_runs_to_merge(app, replay: Replay, provider: str) -> None:
+    """The steps: three tasks queued to one worker reporting at its queue's end; it moves on twice in silence and reports once; one task is sent back short, done again, and all three are merged in one merge."""
+    hook_as(app, provider, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    for n in (1, 2, 3):
+        console.run(["task", "create", f"part {n}", "--brief", f"1. part {n} is written"], AGENT)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its tasks", "--profile", "journal-medior", "--model", "fast", "--tests", "Scoped tests"], AGENT)
+    console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT)
+    worker = Caller.worker("main", 1, "w1", "claude")
+    console.run(["clock-in"], worker)
+    replay.step("three tasks queued")
+    for n in (1, 2):
+        console.run(["proof", "1", f"part{n}.md:1"], worker)
+        console.run(["clock-out", f"part {n} written"], worker)
+        app.runtime().deferred.drain()
+        replay.step(f"moves on after part {n}")
+    console.run(["proof", "1", "part3.md:1"], worker)
+    console.run(["clock-out", "all three parts written"], worker)
+    app.runtime().deferred.drain()
+    replay.step("reports once")
+    console.run(["worker", "check", "1", "1", "--task", "1", "--short", "part 1 needs its heading"], AGENT)
+    console.run(["clock-in"], worker)
+    console.run(["proof", "1", "part1.md:1, with its heading"], worker)
+    console.run(["clock-out", "part 1 has its heading"], worker)
+    app.runtime().deferred.drain()
+    replay.step("sent back once and reports again")
+    for task in (1, 2, 3):
+        console.run(["worker", "check", "1", "1", "--task", str(task)], AGENT)
+    console.run(["worker", "merge", "1"], AGENT)
+    app.runtime().deferred.drain()
+    replay.step("all three merged")
+
+
+def test_a_queue_runs_to_merge_matches_its_record(journal, monkeypatch):
+    from journal.features.workers.support.worker_actions import WorkerActions
+    app, provider = journal
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
+    replay, rows = played(f"a_queue_runs_to_merge_{provider}", app, monkeypatch, a_queue_runs_to_merge, provider, nudges=True)
+    steps = {s["name"]: s for s in replay.record()}
+    assert steps["moves on after part 1"]["typed"] == [] and steps["moves on after part 2"]["typed"] == [], "a move inside the queue says nothing to the dispatcher"
+    assert "[journal] worker 1 ready: task 3" in steps["reports once"]["typed"], "the worker reports once, at its queue's end"
+    assert rows == [], "the agent would have seen the same, and the record says the same"
+
+
 def a_question_is_answered(app, replay: Replay, provider: str) -> None:
     """The steps: a question asked and waited on, then answered by the user."""
     hook_as(app, provider, "SessionStart")

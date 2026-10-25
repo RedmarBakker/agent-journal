@@ -1,0 +1,86 @@
+{
+  "nudges": true,
+  "steps": [
+    {
+      "name": "three tasks queued",
+      "answer": null,
+      "typed": [],
+      "nudges": [
+        "briefing.journal_ready",
+        "briefing.handle_the_journal_quietly",
+        "briefing.the_laws_apply",
+        "briefing.look_before_the_first_write",
+        "voices.how_to_talk_to_the_user"
+      ],
+      "stack": [
+        "idle",
+        "awaiting"
+      ]
+    },
+    {
+      "name": "moves on after part 1",
+      "answer": null,
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "awaiting"
+      ]
+    },
+    {
+      "name": "moves on after part 2",
+      "answer": null,
+      "typed": [],
+      "nudges": [],
+      "stack": [
+        "idle",
+        "awaiting"
+      ]
+    },
+    {
+      "name": "reports once",
+      "answer": null,
+      "typed": [
+        "[journal] wait over: worker 1, Lady Lovelace, clocked out",
+        "[journal] worker 1 ready: task 3"
+      ],
+      "nudges": [
+        "tasks.wait_over",
+        "workers.work_ready"
+      ],
+      "stack": [
+        "idle"
+      ]
+    },
+    {
+      "name": "sent back once and reports again",
+      "answer": null,
+      "typed": [
+        "[journal] worker 1 back on point 1",
+        "[journal] wait over: worker 1, Lady Lovelace, clocked out",
+        "[journal] worker 1 ready: task 1"
+      ],
+      "nudges": [
+        "workers.worker_sent_back",
+        "tasks.wait_over",
+        "workers.work_ready"
+      ],
+      "stack": [
+        "idle"
+      ]
+    },
+    {
+      "name": "all three merged",
+      "answer": null,
+      "typed": [
+        "[journal] worker 1 has no work left. queue it tasks with journal worker queue 1 <task> <task>, or retire it"
+      ],
+      "nudges": [
+        "workers.worker_has_no_work_left"
+      ],
+      "stack": [
+        "idle"
+      ]
+    }
+  ]
+}
