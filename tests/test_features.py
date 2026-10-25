@@ -1126,8 +1126,8 @@ def test_a_task_started_paused_blocked_and_finished_leaves_a_mark_in_the_chat_fo
     assert "Unblocked task 2: the footer" in texts, "and a blocked task opened again has a mark too"
     with app.container.get(Scope).environment(MAIN):
         looks = {m.text: (m.data.get("tone"), m.data.get("icon")) for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"}
-    assert looks["Paused task 1: the parser"] == ("paused", "pause"), "a paused task has a colour and an icon of its own"
-    assert looks["Finished task 1: the parser"] == ("good", "todos")
+    assert looks["Paused task 1: the parser"] == ("", "task"), "a task's move is an event, so its mark has no colour and the task icon"
+    assert looks["Finished task 1: the parser"] == ("", "task"), "a finished task too: colour is kept for runs that pass or fail"
 
 
 def test_a_started_task_is_paused_never_blocked_and_paused_work_comes_first_and_can_wait_on_a_row(app: App, monkeypatch):

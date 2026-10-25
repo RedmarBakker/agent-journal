@@ -256,7 +256,7 @@
   {
    "key": "task_moves",
    "label": "Tasks started, finished, paused and blocked",
-   "icon": "todos",
+   "icon": "task",
    "group": "work",
    "main": true,
    "shown": true,

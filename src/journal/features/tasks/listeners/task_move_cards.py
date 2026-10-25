@@ -14,14 +14,14 @@ from journal.support.actor import Actor
 from journal.support.card_kind import CardKind
 from journal.support.row_labels import RowLabels
 
-# what each move of a task is called on its mark, with its tone, its icon and the field of the task that says why
+# what each move of a task is called on its mark, with its tone, none since a move is an event, its icon and the field of the task that says why
 MOVES = {
-    "started": ("Started", "", "todos", ""),
-    "resumed": ("Resumed", "", "todos", ""),
-    "unblocked": ("Unblocked", "", "todos", ""),
-    "done": ("Finished", "good", "todos", "outcome"),
-    "paused": ("Paused", "paused", "pause", "pause_reason"),
-    "blocked": ("Blocked", "warn", "todos", "block_reason"),
+    "started": ("Started", "", "task", ""),
+    "resumed": ("Resumed", "", "task", ""),
+    "unblocked": ("Unblocked", "", "task", ""),
+    "done": ("Finished", "", "task", "outcome"),
+    "paused": ("Paused", "", "task", "pause_reason"),
+    "blocked": ("Blocked", "", "task", "block_reason"),
 }
 
 

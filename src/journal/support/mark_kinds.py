@@ -37,7 +37,7 @@ class MarkKinds:
         MarkKind(CardKind.CHECKS, "Checks passing and failing", "check", WORK),
         MarkKind(CardKind.QUESTIONS, "Questions asked and answered", "questions", WORK),
         MarkKind(CardKind.FILED, "Filed from your messages", "inbox", WORK, turns=("receipt",)),
-        MarkKind(CardKind.TASK_MOVES, "Tasks started, finished, paused and blocked", "todos", WORK),
+        MarkKind(CardKind.TASK_MOVES, "Tasks started, finished, paused and blocked", "task", WORK),
         MarkKind(CardKind.CONFLICTS, "Your edits a colleague's newer edit replaced", "warn", WORK, main=False, shown=False),
         MarkKind(CardKind.SEQUENCES, "Sequences starting and finishing", "list", JOURNAL),
         MarkKind(CardKind.SEQUENCE_STEPS, "Every step of a sequence", "list", JOURNAL, main=False, shown=False),
