@@ -54,7 +54,11 @@ def test_two_workers_turns_run_one_after_the_other_under_a_budget_of_one_and_eac
 
     first = threading.Thread(target=turn, args=(workers[0], "tests/test_passing.py"))
     first.start()
-    states = lambda: [row.state for row in app.container.get(TestTurns).rows()]
+
+    def states() -> list:
+        with scope.environment(1):
+            return [row.state for row in app.container.get(TestTurns).rows()]
+
     end = time.time() + 20
     while TestTurnState.RUNNING not in states() and time.time() < end:
         time.sleep(0.1)
