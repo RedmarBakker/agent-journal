@@ -6,7 +6,7 @@ PERCENT = 100
 
 @dataclass(frozen=True)
 class Progress:
-    """How far a command has progressed by its output: a count of a total, a percentage being a count of a hundred, with the reader's words in front; with a step pattern, each step printed since the last count adds its share of the row before it, so a run that prints its percentage once a row moves with every step."""
+    """How far a command has progressed by its output: a count of a total, a percentage being a count of a hundred, with the reader's words in front, read only from lines whose match holds a number; with a step pattern, each step printed since the last count adds its share of the row before it, so a run that prints its percentage once a row moves with every step."""
 
     count: int
     total: int
@@ -21,7 +21,7 @@ class Progress:
         if not pattern:
             return cls.empty()
         rows = re.compile(pattern)
-        hits = [(number, match) for number, line in enumerate(lines) if (match := rows.search(line))]
+        hits = [(number, match) for number, line in enumerate(lines) if (match := rows.search(line)) and cls.figures(match)]
         if not hits:
             return cls.empty()
         figures = cls.figures(hits[-1][1])
@@ -31,7 +31,7 @@ class Progress:
 
     @staticmethod
     def figures(match: re.Match) -> list[int]:
-        return [int(figure) for figure in match.groups() if figure is not None]
+        return [int(figure) for figure in match.groups() if figure is not None and figure.isdigit()]
 
     @classmethod
     def stepped(cls, step_pattern: re.Pattern, lines: list[str], hits: list[tuple[int, re.Match]]) -> float:

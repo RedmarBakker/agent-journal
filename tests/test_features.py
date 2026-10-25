@@ -14733,6 +14733,14 @@ def test_a_card_line_of_one_word_is_reported_to_the_reader_and_a_line_of_several
     assert not [report for report in unread if report.output == wordy], "a card with a line of several words gets no report"
 
 
+def test_a_progress_pattern_that_matches_a_line_with_no_number_reads_no_progress_from_it_and_never_fails():
+    from journal.features.shell.support.progress import Progress
+    lines = ["running tests", "tests [ 40%]", "running tests again", "done"]
+    assert Progress.found(r"tests(?: \[ *(\d+)%\])?", "", lines, "") == Progress(40, 100), "a line the pattern matches with no number in it is passed over, before and after the counted line"
+    assert not Progress.found(r"running (\w+)", "", lines, "").is_known(), "a pattern whose match holds only words reads no progress"
+    assert Progress.found(r"tests(?: \[ *(\d+)%\])?", "", lines, r"\.") == Progress(40, 100), "and so does a run with a step pattern"
+
+
 def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(app: App):
     from journal.features.shell.support.reader import Reader
     from journal.features.shell.support.reader_judge import ReaderJudge
