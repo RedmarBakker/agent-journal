@@ -12300,6 +12300,23 @@ def test_a_hub_task_bound_to_adas_environment_is_her_agents_work_and_its_change_
         assert team.log.row("links", a.container.get(Links).all_matching(kind=BOUND_LINK)[0].id) is None, "the binding is Ada's own and never reaches the team server"
 
 
+def test_an_agent_view_reaches_the_team_server_for_a_shared_environment_and_the_hub_and_never_for_one_its_owner_has_not_shared(tmp_path, template_journal, monkeypatch):
+    from journal.http.agents.agent_view_sender import AgentViewSender
+    from journal.repositories.environments import Environments
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        assert a.console().run(["environment", "create", "open"], USER).code == 0
+        shared = a.console().run(["environment", "share", "open"], USER)
+        assert shared.code == 0, shared.error
+        environments = a.container.get(Environments)
+        own, open_one, hub = environments.existing("main"), environments.existing("open"), environments.hubs()[0]
+        bobs_own = b.container.get(Environments).existing("main")
+        for journal in (a, b):
+            journal.container.get(AgentViewSender).send(timing.time() + 3600)
+        keys = set(team.agent_views.views_by_key)
+        assert {open_one.key, hub.key} <= keys, "the views of a shared environment and of the hub reach the team server"
+        assert own.key not in keys and bobs_own.key not in keys, "a person's environment they have not shared never sends its agent view to the team server"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

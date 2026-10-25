@@ -6,6 +6,7 @@ from journal.features.voices.support.voice_choice import VoiceChoice
 from journal.http.agents.agent_activity import AgentActivity
 from journal.http.agents.terminal_lines import TerminalLines
 from journal.http.support.json_out import JsonOut
+from journal.models.environment import Environment
 from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.sync.hosts import Hosts
@@ -20,7 +21,7 @@ TERMINAL_LINE_COUNT = 50
 
 
 class AgentViewSender:
-    """Sends the team server the agent bar rows of each environment this journal hosts, each with its agent's newest terminal lines and the voice its owner chose here, whose figure the hosted journal shows, other than the Team chat, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
+    """Sends the team server the agent bar rows of each environment this journal hosts that the team may see, a shared one or the hub, and the Team chat only from the machine that holds it, never a person's environment they have not shared, each with its agent's newest terminal lines and the voice its owner chose here, whose figure the hosted journal shows, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
 
     def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink, voices: VoiceChoice) -> None:
         self.account, self.hosts, self.agents, self.activity, self.terminal, self.scope, self.link = account, hosts, agents, activity, terminal, scope, link
@@ -57,7 +58,10 @@ class AgentViewSender:
         self.last_views, self.last_send_at = views, request_at
 
     def views(self) -> dict[str, list[dict]]:
-        return {environment.key: self.rows(environment.row_id) for environment in self.hosts.hosted_environments() if not environment.is_session()}
+        return {environment.key: self.rows(environment.row_id) for environment in self.hosts.hosted_environments() if self.is_viewed(environment)}
+
+    def is_viewed(self, environment: Environment) -> bool:
+        return self.account.is_chat_holder() if environment.is_session() else not environment.is_private()
 
     def rows(self, environment_id: int) -> list[dict]:
         with self.scope.environment(environment_id):
