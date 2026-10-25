@@ -13,9 +13,11 @@ window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListen
 
 const {api} = await import("../src/api/client.js");
 const {store} = await import("../src/state/store.js");
+const {choose} = await import("../src/state/environment.js");
 const {default: TaskPanel} = await import("../src/tasks/TaskPanel.vue");
 
 let app = null;
+choose("main");
 afterEach(() => {
     app?.unmount();
     app = null;
