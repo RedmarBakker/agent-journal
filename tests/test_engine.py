@@ -1874,6 +1874,22 @@ def test_work_waiting_to_be_checked_is_named_every_so_many_tool_uses_while_the_a
     assert said(waiting, 10) and said(merged, 10) == [], "again at the next, and not once it is merged"
 
 
+def test_claude_codes_switch_model_menu_is_recognised_in_a_narrow_terminal_and_a_model_picker_is_not():
+    import textwrap
+    from journal.providers.support.menu import Menu
+    warning = "This conversation is cached for the current model. Switching to \x1b[1mOpus 5.5\x1b[22m means the full history gets re-read on your next message."
+    wrapped = "\r\n".join(textwrap.wrap(warning, 40))
+    frame = ("\x1b[38;5;209mBefuddling… (46s · ↓ 1.9k tokens · thinking with high effort)\x1b[0m\r\n\r\n" + "─" * 40 + "\r\n"
+             "\x1b[1;33mSwitch model?\x1b[0m\r\nYour next response will be slower and\r\nuse more tokens\r\n\r\n" + wrapped + "\r\n\r\n"
+             "\x1b[38;5;147m❯ 1. Yes, switch to Opus 5.5\x1b[0m\r\n  2. No, go back\r\n\r\n" + "─" * 40 + "\r\n\r\n" + "─" * 40 + "\r\n"
+             "▸▸ bypass permissions on (shift+tab to cycle) · ← for agents\r\n")
+    menu = Menu.parsed(frame)
+    assert "Switch model?" not in menu.question, "the wrapped warning pushes the menu's title out of the lines read as its question"
+    assert menu.switching_model() and menu.accepting().label == "Yes, switch to Opus 5.5", "the switch is still recognised, by its yes option, and that option is the one taken"
+    picker = Menu.parsed("Select model\r\n❯ 1. Opus 5.5\r\n  2. Sonnet 5.5\r\n  3. Haiku 5.5\r\nEnter to confirm · Esc to exit\r\n")
+    assert not picker.switching_model(), "a picker that names models but asks to switch nothing is not taken for the switch"
+
+
 def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_wrote(app: App, monkeypatch):
     import os
     import time as timing

@@ -9,6 +9,7 @@ FOOTER = re.compile(r"Enter to (?:select|confirm|continue)|Esc to (?:cancel|exit
 QUESTION = re.compile(r"\?\s*$")
 TRUSTED = re.compile(r"\btrust\b", re.I)
 SWITCHING_MODEL = re.compile(r"\bswitch model\b", re.I)
+SWITCH_OPTION = re.compile(r"^yes, switch to\b", re.I)
 HOOK_REVIEW = re.compile(r"\bhooks? (?:need|needs) review\b|\bhooks? (?:are|is) new or changed\b", re.I)
 TRUST_ALL = re.compile(r"^trust all\b", re.I)
 PERMISSION = re.compile(r"do you want to (?:proceed|make this edit|create|run|allow|read)|allow .* to\b", re.I)
@@ -88,7 +89,7 @@ class Menu:
         return bool(PERMISSION.search(self.question))
 
     def switching_model(self) -> bool:
-        return bool(SWITCHING_MODEL.search(self.question))
+        return bool(SWITCHING_MODEL.search(self.question)) or any(SWITCH_OPTION.search(o.label) for o in self.options)
 
     def keys(self, claimed: Option) -> str:
         time = next((i for i, o in enumerate(self.options) if o.cursor), 0)
