@@ -1,3 +1,4 @@
+from journal.features.shell.support.activity_label import LONG_RUNS, ActivityLabel
 from journal.chat.process_cards import ProcessCards
 from journal.events.listener import Listener
 from journal.events.models.saved import Saved
@@ -17,5 +18,7 @@ class OutputCard(Listener[Saved]):
             return
         if not (output.moved or output.is_watched or output.watch_reader):
             return
-        if self.card.is_shown(output) or output.has_run_long(output.update_time.timestamp()):
-            self.cards.show(self.card.card_contents(output))
+        is_long_run = output.has_run_long(output.update_time.timestamp()) or ActivityLabel.line_label(output.command) in LONG_RUNS
+        if self.card.is_shown(output) or is_long_run:
+            if contents := self.card.card_contents(output):
+                self.cards.show(contents)

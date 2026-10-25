@@ -4084,6 +4084,7 @@ def test_removing_a_reader_leaves_a_watch_on_its_last_lines_and_the_next_shell_l
     folder = tmp_path / "watched"
     folder.mkdir()
     (folder / "parts").write_text("R\n")
+    (folder / "0.part").write_text("make all")
     (folder / "0.out").write_text("1 first\nplain second\n3 third\nplain fourth\n")
     output = outputs.save(CommandOutput(chain="watched", command="make all", folder=str(folder), watch_reader="watched-log"), Actor.system())
     views = app.container.get(OutputViews)
@@ -17638,6 +17639,38 @@ def test_a_readers_label_ending_half_a_sentence_is_refused_and_a_whole_phrase_is
     refused = console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running the tests of"], AGENT)
     assert refused.code != 0 and TITLE_RULE in refused.error and "stops on 'of'" in refused.error, refused.error
     assert console.run(["reader", "add", "go-packages", "--pattern", "ok", "--about", "a go test run", "--label", "Running tests"], AGENT).code == 0, "a whole phrase is taken"
+
+
+def test_a_line_that_only_reads_or_does_everyday_git_shows_no_card_unless_it_failed_and_a_test_run_always_does(app: App, tmp_path):
+    from journal.features.shell.seeds.cardless_cards import CardlessCards
+    from journal.features.shell.seeds.git_write_readers import GitWriteReaders
+    from journal.features.shell.support.cardless_runs import CardlessRuns
+    from journal.features.shell.support.output_process_card import OutputProcessCard
+    from journal.features.shell.support.readers import Readers
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.messages import Messages
+    from journal.models.message import Message
+    from journal.models.author import Author
+    with app.container.get(Scope).environment(MAIN):
+        outputs, cardless, card = app.container.get(CommandOutputs), app.container.get(CardlessRuns), app.container.get(OutputProcessCard)
+        run = lambda command, status=0: outputs.save(CommandOutput(chain=command, command=command, folder=str(tmp_path / command.replace(" ", "_")[:40]), ended=True, status=status, moved=True), Actor.system())
+        assert cardless.is_cardless(run("grep -rn needle src | head")) and cardless.is_cardless(run("cd src && ls -la")), "a quick search or listing shows no card"
+        assert cardless.is_cardless(run("git push -q origin development")) and cardless.is_cardless(run("git add -A && git commit -m x && git push")), "nor does everyday git, chained or not"
+        assert card.card_contents(run("git push origin main")) is None, "so no card is written for it"
+        assert not cardless.is_cardless(run("git push origin topic", status=1)), "a git line that failed shows its card"
+        assert not cardless.is_cardless(run("python3 -m pytest -q")) and not cardless.is_cardless(run("python3 -m pytest -q && git commit -m y")), "a test run, alone or before a commit, shows its card"
+        assert not cardless.is_cardless(run("git rebase main")), "a rebase is not everyday git"
+        assert card.outcome(run("grep -rn needle src")) == "", "a read's card, when it has one, is never coloured"
+        pushed = run("git push origin release")
+        stored = app.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="Pushing", data={"kind": "card", "shows": "commands", "output": pushed.id, "card_type": "process"}), Actor.system())
+        app.container.get(CardlessCards).run()
+        assert not app.container.get(Messages).matching(id=stored.id), "the card a git line wrote before is removed at boot"
+    readers = app.container.get(Readers)
+    (app.config.readers).mkdir(parents=True, exist_ok=True)
+    (app.config.readers / "git-pushing.pattern").write_text("# a push\n.\ncommands: git push\n")
+    app.container.get(GitWriteReaders).run()
+    assert "git-pushing" not in {reader.name for reader in readers.all()}, "and a reader kept for git push alone is removed at boot"
 
 
 def test_a_wrapped_command_is_named_for_what_it_wraps_and_every_ecosystem_has_its_words():

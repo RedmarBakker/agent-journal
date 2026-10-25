@@ -1,3 +1,4 @@
+from journal.features.shell.support.activity_label import ActivityLabel
 from journal.repositories.reader_reports import ReaderReports
 from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
@@ -60,7 +61,8 @@ class ShellDataReader:
         return CommandShape.command_name(watched[0].command) if watched else ""
 
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
-        commands = [CommandShape.command_name(output.command) for output in self.outputs.recent_unwatched_moves(agent.session, RECENT_MOVES)]
+        lines = [output.command for output in self.outputs.recent_unwatched_moves(agent.session, RECENT_MOVES)]
+        commands = [CommandShape.command_name(line) for line in lines if not ActivityLabel.is_reading(line)]
         return tuple(dict.fromkeys(command for command in commands if command and not Chain.is_journal_line(command) and not GitWrites.is_writing(command) and self.readers.reading(command) is None))
 
     def output_reads(self, agent: Agent) -> tuple[str, ...]:

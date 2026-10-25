@@ -21,6 +21,10 @@ from journal.repositories.environment_owners import EnvironmentOwners
 # the most rows one page of the chat holds, its written messages and the marks between them together
 CHAT_PAGE_ROWS = 400
 
+# the newest cards of one kind looked at by a cleanup at boot
+NEWEST_SHOWN = 2000
+
+
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
     SUBJECT_LINK = "about"
@@ -224,3 +228,7 @@ class Messages(ScopedRepository[Message]):
         if message.is_comment() and actor.is_user():
             return self.save(message.viewed(), actor) if not message.data.get(Message.VIEWED) else message
         return message if message.read_at else self.save(message.with_(read_at=datetime.now(timezone.utc), read_position=tool_use), actor)
+
+    def newest_shown(self, kind: str) -> list[Message]:
+        return self.selected(self.query().filter_json("data->shows", kind).order_descending("id").limit(NEWEST_SHOWN))
+

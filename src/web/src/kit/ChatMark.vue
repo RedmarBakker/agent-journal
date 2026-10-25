@@ -142,8 +142,8 @@ button.mark:hover {
 }
 
 .mark.filled {
-    border-color: color-mix(in srgb, var(--tone-bad) 70%, transparent);
-    background: color-mix(in srgb, var(--tone-bad) 22%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border-2));
+    background: color-mix(in srgb, var(--danger) 9%, transparent);
 }
 
 .mark:has(.progress) {

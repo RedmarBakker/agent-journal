@@ -1,3 +1,4 @@
+from journal.features.shell.support.git_writes import GitWrites
 from datetime import datetime, timezone
 from pathlib import Path
 from journal.config import Config
@@ -92,6 +93,9 @@ class Readers:
 
     def journal_readers(self) -> list[Reader]:
         return [reader for reader in self.all() if self.reads_journal_output(reader) and not self.owner(reader.name)]
+
+    def git_write_readers(self) -> list[Reader]:
+        return [reader for reader in self.all() if reader.commands.programs and all(GitWrites.is_writing(program) for program in reader.commands.programs) and not self.owner(reader.name)]
 
     def reads_journal_output(self, reader: Reader) -> bool:
         aliases = self.aliases.index()

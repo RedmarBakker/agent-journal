@@ -40,6 +40,8 @@ VALUED_FLAGS = frozenset({"--prefix", "-C", "--cwd", "-pl", "--filter"})
 
 # the activities long enough to be watched through a reader as they run
 LONG_RUNS = ("testing", "building")
+# the activities that only read, search or list, which show no card of their own and are never owed a reader
+READ_LABELS = frozenset({"searching", "reading", "listing", "reading history", "reading a diff", "checking git"})
 
 
 
@@ -79,6 +81,11 @@ class ActivityLabel:
     @classmethod
     def test_runs(cls, parts: tuple[str, ...]) -> list[str]:
         return [part for part in parts if cls.build(part) == TESTING]
+
+    @classmethod
+    def is_reading(cls, line: str) -> bool:
+        parts = [part.text for part in Chain.parts(line)]
+        return bool(parts) and all(cls.build(part) in READ_LABELS or cls.build(part) in (IDLE, "moving") for part in parts) and cls.line_label(line) in READ_LABELS
 
     @classmethod
     def line_label(cls, line: str) -> str:
