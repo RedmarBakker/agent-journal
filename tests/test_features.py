@@ -16742,7 +16742,7 @@ def test_a_run_that_printed_nothing_for_a_long_stretch_is_told_to_unbuffer_and_o
         with app.container.get(Scope).environment(1):
             return [finding for report in app.container.get(ReaderReports).unread("s1") if report.output == output.row_id for finding in report.findings]
 
-    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end"], AGENT).code == 0
+    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end", "--label", "Testing the packages"], AGENT).code == 0
     silent = run("silent", "ok  \tshop/cart\t90.2s\n", 90.0)
     assert any("printed nothing for 90 seconds" in finding for finding in silent) and not any("showed no progress" in finding for finding in silent), "a run that printed no line for 90 seconds is the command's buffering, never the reader's progress"
     shown = run("counted", "[ 10%] shop/cart\n[ 50%] shop/pay\nok  \tshop/pay\t0.4s\n", 5.0)
