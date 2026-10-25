@@ -3764,6 +3764,7 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     from journal.chat.moment_cards import MomentCards
     from journal.events.models.created import Created
     from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
+    from journal.features.tasks.support.request_cards import RequestCards
     from journal.http.controllers.requests import RequestController
     from journal.models.environment import Environment
     from journal.models.link import Link
@@ -3788,7 +3789,7 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     with app.container.get(Scope).environment(hub.row_id):
         task = app.container.get(Tasks).save(Task(title="review the plan"), Actor.user(1))
     link = links.save(Link(source=Ref.build(task), target=Ref.build(bob), kind="requested_of"), Actor.user(1))
-    listener = RequestArrivalCard(app.container.get(MomentCards), app.container.get(EnvironmentOwners), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id), app.container.get(Scope))
+    listener = RequestArrivalCard(app.container.get(RequestCards), app.container.get(Tasks), app.container.get(RowLabels), SimpleNamespace(user_number=lambda: bob.row_id))
     listener.handle(Created(model=link, actor=Actor.user(1)))
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(home.row_id):
@@ -11206,6 +11207,8 @@ def test_a_request_declined_with_a_reason_and_one_done_show_on_the_requesters_pa
         assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
         invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         assert b.console().run(["team", "join", invited, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], bob).code == 0
+        from journal.repositories.users import Users
+        assert eventually(lambda: any(user.name == "Bob" for user in a.container.get(Users).all())), "Bob is a member Ada's journal knows by name"
         for title in ("Review the plan", "Check the copy"):
             assert a.console().run(["task", "create", title, "--brief", "b", "--to", "Bob"], USER).code == 0
         titled = lambda journal, title: next(iter(journal.container.get(Tasks).global_matching(title=title)), None)
