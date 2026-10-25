@@ -13946,6 +13946,23 @@ def test_a_removed_member_has_their_drives_and_leases_freed_their_shared_chats_w
         assert b.container.get(Environments).keyed(lab.key) and b.container.get(Messages).global_matching(id=note.id) and b.container.get(Environments).existing("main"), "the removed member's own journal keeps their environments and chats"
 
 
+def test_a_hosted_journal_of_a_team_on_the_hub_lists_only_the_hub_the_sessions_and_the_shared_environments(tmp_path, template_journal, monkeypatch):
+    from journal.http.controllers.environments import EnvironmentController
+    from journal.http.listing import Listing
+    from journal.repositories.environments import Environments
+    from journal.sync.hosting import HOSTED_FILE
+    bob = replace(USER, person=2)
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        for name in ("lab", "open"):
+            assert b.console().run(["environment", "create", name], bob).code == 0
+        assert b.console().run(["environment", "share", "open"], bob).code == 0
+        listed = lambda: {row["name"] for row in b.container.get(EnvironmentController).listed(Listing.query_listing({}))["rows"]}
+        assert {"main", "lab", "open"} <= listed(), "a member's own journal lists its own environments"
+        (b.config.home / HOSTED_FILE).touch()
+        hub = b.container.get(Environments).hubs()[0].name
+        assert listed() == {hub, "team", "open"}, "a hosted journal lists the hub, the Team chat and the shared environment, never one not shared, its own main among them"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

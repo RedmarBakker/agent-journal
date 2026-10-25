@@ -16,17 +16,24 @@ from journal.features.team.support.start_rule import StartRule
 from journal.features.git.support.worktree_removal import WorktreeRemoval
 from journal.features.git.support.worktree_hosts import WorktreeHosts
 from journal.features.team.support.environment_sharing import EnvironmentSharing
+from journal.db.query import Query
+from journal.sync.hosting import Hosting
+from journal.sync.team_account import TeamAccount
 
 
 class EnvironmentController(Controller[Environment]):
-    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, the environment shared with the team or taken back, or removed with everything in it; the project's stored conversations are listed for the form."""
+    """The project's environments; one is made here, its chat filled from a conversation an agent program stored for the project when one is named, an agent is started in one from here, stopped, the environment shared with the team or taken back, or removed with everything in it; the project's stored conversations are listed for the form; a hosted journal of a team on the hub lists only what the team shares, its hub, its sessions and the environments shared with it, never one of its own."""
 
     repository: Environments
 
     def __init__(self, environments: Environments, launcher: AgentLauncher, supervisor: SupervisorLink, config: Config, owners: EnvironmentOwners, starts: StartRule,
-                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing, hosts: WorktreeHosts) -> None:
+                 hydration: SessionHydration, removal: WorktreeRemoval, sharing: EnvironmentSharing, hosts: WorktreeHosts, hosting: Hosting, account: TeamAccount) -> None:
         self.repository, self.launcher, self.supervisor, self.config = environments, launcher, supervisor, config
         self.owners, self.starts, self.hydration, self.removal, self.sharing, self.hosts = owners, starts, hydration, removal, sharing, hosts
+        self.hosting, self.account = hosting, account
+
+    def list_query(self) -> Query:
+        return self.repository.team_query() if self.hosting.is_hosted() and self.account.is_on_hub() else super().list_query()
 
     def index_page(self, rows: list[Environment]) -> list[dict]:
         return self.shown_page(rows)
