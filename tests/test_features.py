@@ -14058,6 +14058,43 @@ def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_a
         assert f"new message {made[0].id} from Bob" in lines(), lines()
 
 
+def test_a_session_start_on_a_plan_a_local_environment_drives_is_refused_and_a_local_drive_of_a_plan_a_session_drives_is_refused(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from conftest import copied
+    from journal.models.plan import Plan
+    from journal.repositories.environments import Environments
+    from journal.repositories.plans import Plans
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    try:
+        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        console, environments = journal.console(), journal.container.get(Environments)
+        main, hub = environments.existing("main"), environments.hubs()[0]
+        with journal.container.get(Scope).environment(hub.row_id):
+            local_plan, session_plan = (journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title=title), Actor.user(1)) for title in ("the local one", "the session's"))
+        assert console.run(["plan", "drive", str(local_plan.id)], USER).code == 0
+        refused = console.run(["session", "start", "alpha", "--plan", str(local_plan.id)], USER)
+        assert refused.code == 1 and f"from the environment {main.name} on this machine" in refused.error, refused.error
+        assert environments.session_rows(["alpha"]) == [], "the refused start makes no session"
+        started = console.run(["session", "start", "beta", "--plan", str(session_plan.id)], USER)
+        assert started.code == 0 and "session beta is held by this machine" in started.text and "is driven from here" in started.text, started.error
+        local = console.run(["plan", "drive", str(session_plan.id)], USER)
+        assert local.code == 1 and "from the environment beta on this machine" in local.error, local.error
+    finally:
+        journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied
