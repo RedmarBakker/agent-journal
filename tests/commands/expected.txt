@@ -1659,7 +1659,7 @@ workers.own_output_running  [workers]  your output {{n}} still runs, and your ru
 workers.place_closed  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once
 workers.place_opened  [workers]  your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once
 workers.plan_stalled  [workers]  plan {{n}} stalled since {{since}}, {{minutes}} min
-workers.run_unfinished  [workers]  worker {{n}} ended without clocking out
+workers.run_unfinished  [workers]  worker {{n}} ended without clocking out{{cause}}
 workers.send_it_to_an_idle_worker  [workers]  {{count}} of the {{kept}} {{profile}} workers kept are idle:
 {{workers}}. send the job to one of them, or retire one with `journal worker complete <n> --why "<reason>"`
 workers.send_it_to_the_worker_that_knows  [workers]  {{count}} idle workers already worked on files this job names:
@@ -1678,11 +1678,13 @@ workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{s
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_place_free  [workers]  worker {{n}} free; open: {{tasks}}
-workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min
+workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{last}}
+workers.worker_quiet_split  [workers]  worker {{n}} quiet {{minutes}} min; split its job?
 workers.worker_reported  [workers]  worker {{n}} reported
-workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported
+workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}
+workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-241 nudges
+243 nudges
 
 $ agent: journal worker list
 exit 0
