@@ -1,5 +1,6 @@
 import re
-from datetime import datetime
+from collections import Counter
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from journal.features.shell.support.card_line import CardLine
@@ -12,6 +13,9 @@ from journal.models.command_output import ACTIVE, FAILED, FINISHED, CommandOutpu
 from journal.repositories.command_outputs import CommandOutputs
 from journal.models.reader_report import ReaderReport
 from journal.support.command_shape import CommandShape
+from journal.features.shell.shell_options import ShellOptions
+from journal.repositories.reader_reports import ReaderReports
+from journal.repositories.setting_rows import SettingRows
 
 # a run at least this long needed its progress shown while it ran
 PROGRESS_SECONDS = 30
@@ -27,13 +31,16 @@ SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|w
 PROGRESS_MISSING = "its card showed no progress"
 PROGRESS_STALLED = "its progress stood still for"
 SUMMARY_MISSING = "the card ended with no line of its own"
+POOR_LINES = "the card showed lines too long"
+SINGLE_WORD = "the card showed a line of one word"
+FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING)
 
 
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls) -> None:
-        self.readers, self.outputs, self.stalls = readers, outputs, stalls
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows) -> None:
+        self.readers, self.outputs, self.stalls, self.reports, self.settings = readers, outputs, stalls, reports, settings
 
     def latest_stored_run(self, reader: Reader) -> CommandOutput | None:
         runs = self.outputs.latest(NEWEST_RUNS)
@@ -45,23 +52,34 @@ class ReaderJudge:
         if reader is None or reader.script or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
-        shortfalls = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines)]
+        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines)]
+        kinds = self.dismissal_kinds(output.command, ended_at)
+        shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
         if not shortfalls:
             return None
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
+
+    def dismissal_kinds(self, command: str, time: datetime) -> set[str]:
+        limit = self.settings.integer(ShellOptions.DISMISSAL_LIMIT)
+        if not limit:
+            return set()
+        name = CommandShape.command_name(command)
+        reports = self.reports.dismissed_reports(time - timedelta(hours=self.settings.integer(ShellOptions.PAUSE_HOURS)))
+        counts = Counter(kind for report in reports if CommandShape.command_name(report.command) == name for kind in FINDING_KINDS if any(kind in finding for finding in report.findings))
+        return {kind for kind, count in counts.items() if count >= limit}
 
     def poor_lines(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         poor = [line for line in reader.variant(output.stage()).card_lines(lines) if CardLine.is_poor(CardLine.plain(line))][:QUOTED_LINES]
         if not poor:
             return []
         quoted = "; ".join(f'"{line[:120]}"' for line in poor)
-        return [(f"the card showed lines too long or too much like code to read at a glance: {quoted}", "narrow the pattern to the short lines a person reads, such as the failures' names and the summary")]
+        return [(f"{POOR_LINES} or too much like code to read at a glance: {quoted}", "narrow the pattern to the short lines a person reads, such as the failures' names and the summary")]
 
     def single_word_lines(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         single = [line for line in reader.variant(output.stage()).card_lines(lines) if len(CardLine.plain(line).split()) == 1][:QUOTED_LINES]
         if not single:
             return []
-        return [(f"the card showed a line of one word, which says nothing of the run: {self.quoted(single)}", "give the reader a pattern that picks a line saying what the run is doing, in several words")]
+        return [(f"{SINGLE_WORD}, which says nothing of the run: {self.quoted(single)}", "give the reader a pattern that picks a line saying what the run is doing, in several words")]
 
     def missing_progress(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         seconds = (ended_at - output.creation_time).total_seconds()

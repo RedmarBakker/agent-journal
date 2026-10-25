@@ -23,6 +23,7 @@ from journal.features.shell.shell_demands import ShellDemands
 from journal.features.shell.shell_nudges import ShellNudges
 from journal.features.shell.shell_options import ShellOptions
 from journal.features.shell.shell_part import ShellPart
+from journal.features.shell.support.streaming_form import COUNTING
 
 
 class Shell(Feature[ShellData]):
@@ -31,7 +32,7 @@ class Shell(Feature[ShellData]):
     title = "Shell commands"
     help = "A chained command is run part by part, each recorded with its output and its duration; one that runs past fifteen seconds, or ten while a message of yours waits, goes to the background and the agent is told when it ends."
     commands = (OutputCommand, ReaderCommand)
-    options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.REPORT_READ_LIMIT, ShellOptions.REPORT_FIX_LIMIT, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
+    options = (FOREGROUND_OPTION, ShellOptions.READER_LIMIT, ShellOptions.REPORT_READ_LIMIT, ShellOptions.REPORT_FIX_LIMIT, ShellOptions.DISMISSAL_LIMIT, ShellOptions.PAUSE_HOURS, ShellOptions.MESSAGE_FOREGROUND_LIMIT, ShellOptions.SHOWN, ShellOptions.READ_SHOWN, ShellOptions.COMMAND_SHOWN, ShellOptions.SHORT, ShellOptions.UNREAD_OUTPUT_INTERVAL, ShellOptions.OUTPUT_DOCK, ShellOptions.OUTPUT_COUNT)
     listeners = (OutputNotice, WatchUpdate, OutputCard, ChangedOutputCard, ReaderOutputCards, ReaderJudgement)
     seeds = (CutOffOutputs, DefaultReaders, JournalOutputReaders)
     jobs = (WatchRefresh, RestartWait, RunCardStart)
@@ -72,6 +73,7 @@ Every shell command you run goes through the journal's runner.
   `\\[(\\d+)%\\]` or a count of a total such as `(\\d+)/(\\d+)`, shown as a bar in the card, and `--label "<words>"` says what the run is doing, such as Running tests or Building the
   application, never a bare name such as Tests; `--topic '<pattern>'`, read over the command line, adds what a run is about
   after the title, such as the test files or the -k a line names, for a command run with different arguments.
+  A run over several suites, packages or shards shows its progress too: """ + COUNTING + """.
   `--finished '<pattern>'` and `--failed '<pattern>'` pick other lines once the command finished or failed, such as its summary
   or its failures; a script reader finds which in JOURNAL_OUTPUT_STAGE: running, finished or failed.
 - A reader names the commands whose output it reads, `--commands "pytest"`, and a command moved to the background that

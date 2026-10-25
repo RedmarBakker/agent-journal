@@ -7,7 +7,7 @@ from journal.support.command_shape import RUNNERS, TOKEN_PATTERN, CommandShape
 VERBS: dict[str, str | dict] = {"git": {"commit": "committing", "push": "pushing", "pull": "pulling", "add": "staging", "checkout": "switching branch", "merge": "merging", "rebase": "rebasing", "status": "checking git", "diff": "reading a diff", "show": "reading a diff", "log": "reading history", "rev-list": "reading history", "grep": "searching", "ls-files": "listing", "switch": "switching branch", "tag": "tagging", "branch": "listing", "fetch": "fetching", "ls-remote": "checking git", "rev-parse": "checking git"},
          "pytest": "testing", "phpunit": "testing", "pest": "testing", "php": {"artisan": {"test": "testing", "": "running artisan"}}, "npm": {"test": "testing", "run": {"build": "building", "test": "testing", "": "running a script"}, "install": "installing", "ci": "installing"}, "vitest": "testing", "vite": {"build": "building", "": "running vite"},
          "npx": {"vitest": "testing", "vite": {"build": "building", "": "running vite"}, "": "running npx"}, "pip": "installing", "pip3": "installing", "make": "building",
-         "cargo": {"build": "building", "test": "testing", "run": "running"}, "go": {"test": "testing", "build": "building", "": "running go"}, "pnpm": {"test": "testing", "build": "building", "install": "installing", "": "running a script"}, "yarn": {"test": "testing", "build": "building", "install": "installing", "": "running a script"}, "docker": "running docker", "gh": "on github", "journal": {"suite": "testing", "": "journalling"}, "cd": "moving", "ls": "listing", "cat": "reading", "sed": "reading", "head": "reading", "tail": "reading", "grep": "searching", "rg": "searching", "find": "searching", "curl": "fetching"}
+         "cargo": {"build": "building", "test": "testing", "run": "running"}, "go": {"test": "testing", "build": "building", "": "running go"}, "pnpm": {"test": "testing", "build": "building", "install": "installing", "": "running a script"}, "yarn": {"test": "testing", "build": "building", "install": "installing", "": "running a script"}, "docker": "running docker", "gh": "on github", "journal": {"suite": "testing", "": "journalling"}, "cd": "moving", "ls": "listing", "cat": "reading", "cut": "reading", "sed": "reading", "head": "reading", "tail": "reading", "grep": "searching", "rg": "searching", "find": "searching", "curl": "fetching"}
 
 
 # the flags that take the word after them as their value, as npm --prefix src/web, so that word is no part of what the command does
@@ -26,7 +26,7 @@ IDLE = "running"
 SHELL_SYNTAX = re.compile(r"^(\[\[?|\(\(|\{|\}|\w+\(\)|test|#.*)$")
 
 # the body of a loop or an if, which says what the part does
-BODY = re.compile(r"^\s*(?:for|while|until|if)\s+(.*?);\s*(?:do|then)\s+(.+?)(?:;\s*(?:done|fi)\b.*)?$", re.DOTALL)
+BODY = re.compile(r"^\s*(?:time\s+)?(?:for|while|until|if)\s+(.*?);\s*(?:do|then)\s+(.+?)(?:;\s*(?:done|fi)\b.*)?$", re.DOTALL)
 
 # a loop body that only waits, whose loop is named for what it waits on
 WAITING = re.compile(r"^\s*(sleep\b.*|true|:)\s*$")
@@ -46,6 +46,8 @@ WRITING = re.compile(r"^\s*cat\b[^|]*(?<![0-9&])>(?!&|\s*/dev/null)")
 
 # the activity of a command that runs tests
 TESTING = "testing"
+# a program that does a job of its own when it is given no word after it
+BARE_RUNS = {"yarn": "installing"}
 
 class ActivityLabel:
     """What one command is doing, in a word or two, as the bar and the chat show it: git commit is committing, pytest and php artisan test are testing; the words are followed as deep as the table names them."""
@@ -90,6 +92,8 @@ class ActivityLabel:
             return "running sed"
         if WRITING.match(part):
             return "writing a file"
+        if len(arguments) == 1 and arguments[0] in BARE_RUNS:
+            return BARE_RUNS[arguments[0]]
         fallback = f"running {arguments[0]}"
         verb = VERBS.get(arguments[0].rsplit("/", 1)[-1])
         for word in arguments[1:]:

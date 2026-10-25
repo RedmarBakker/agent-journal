@@ -18750,6 +18750,27 @@ def test_a_long_run_is_reported_for_showing_no_progress_only_when_its_output_hol
     assert judge.missing_progress(reader, output, pytest, ended), "pytest's percentages are progress a long run's reader should show"
 
 
+def test_a_reader_finding_dismissed_three_times_for_one_command_is_not_raised_for_it_for_a_day(app: App):
+    from datetime import datetime, timedelta, timezone
+    from journal.features.shell.support.reader_judge import PROGRESS_MISSING, ReaderJudge
+    from journal.features.shell.support.streaming_form import StreamingForm
+    from journal.models.reader_report import ReaderReport
+    from journal.repositories.reader_reports import ReaderReports
+    judge = app.container.get(ReaderJudge)
+    now = datetime.now(timezone.utc)
+    with app.container.get(Scope).environment(MAIN):
+        reports = app.container.get(ReaderReports)
+        for number in range(3):
+            assert judge.dismissal_kinds("go test ./other/", now) == set(), "fewer than three dismissals keep the finding"
+            report = reports.save(ReaderReport(environment_id=MAIN, reader="go-packages", output=number + 1, command=f"go test ./pkg{number}/", session="s1", findings=(f"the run took 90 seconds and {PROGRESS_MISSING}",), fixes=("x",)), Actor.agent("s1"))
+            reports.save(report.dismissed("go test prints one line per package"), Actor.agent("s1"))
+        assert judge.dismissal_kinds("go test ./other/", now) == {PROGRESS_MISSING}, "the third dismissal for go test stops the finding for any go test run"
+        assert judge.dismissal_kinds("python3 -m pytest tests/", now) == set(), "another command still gets it"
+        assert judge.dismissal_kinds("go test ./other/", now + timedelta(hours=25)) == set(), "and it comes back once the hours have passed"
+    assert "go test -list" in StreamingForm.advice("go test") and "--- PASS" in StreamingForm.advice("go test"), "the finding's fix for go test says how to count its tests"
+    assert "N/M" in StreamingForm.advice("make"), "and any other command is told to count what has finished against the total"
+
+
 def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_started_plans_first(app: App):
     from datetime import datetime, timezone
     from journal.features.tasks.support.next_open_task import NextOpenTask
