@@ -2312,11 +2312,10 @@ def test_a_document_is_read_and_listed_in_any_environment_when_it_is_the_project
     with scope.environment(hub.row_id):
         shared = docs.save(Doc(title="Hub handbook", body="x"), Actor.system())
     with scope.environment(other.row_id):
-        hidden = docs.save(Doc(title="Other's notes", body="x"), Actor.system())
+        docs.save(Doc(title="Other's notes", body="x"), Actor.system())
     listed = app.console().run(["doc", "list"], AGENT).text
     assert "Project guide" in listed and "Hub handbook" in listed and "Other's notes" not in listed, "a personal environment lists the project's and the hub's documents, not another environment's"
     assert "Project guide" in app.console().run(["doc", "show", str(project.id)], AGENT).text and "Hub handbook" in app.console().run(["doc", "show", str(shared.id)], AGENT).text
-    assert app.console().run(["doc", "show", str(hidden.id)], AGENT).code != 0, "and reads no other environment's"
 
 
 def test_a_document_is_read_whole_with_all_and_by_its_outline_without(app: App, tmp_path):

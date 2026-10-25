@@ -92,6 +92,6 @@ class DocCommand(Command):
         rows = [doc for doc in map(Version3Doc.read, sorted(p for p in folder.iterdir() if p.is_dir())) if doc]
         new = [doc for doc in rows if not self.docs.titled(doc.title)]
         for doc in new:
-            self.docs.save(doc, caller.actor)
+            self.docs.of_project(doc, caller.actor)
         print(f"{len(new)} documents brought in, {len(rows) - len(new)} already here")
         return 0
