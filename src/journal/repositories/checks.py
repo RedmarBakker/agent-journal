@@ -18,6 +18,9 @@ class Checks(Repository[Check]):
     def listed_query(self) -> Query:
         return self.query().filter(wait_target=False, is_retired=False)
 
+    def wait_rows(self) -> list[Check]:
+        return self.all_matching(wait_target=True)
+
     def due(self, time: datetime) -> list[Check]:
         return [check for check in self.rows() if check.needs_run(time)]
 

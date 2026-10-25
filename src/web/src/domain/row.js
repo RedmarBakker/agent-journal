@@ -60,6 +60,8 @@ const CLOSED = {
     shares: (r) => seconds(r.stopped_at),
     dumps: (r) => seconds(r.completed_at),
     agents: (r) => (r.state === "ended" ? seconds(r.updated_at) : 0),
+    // a check a wait made for itself is listed apart from the project's own, under Waits
+    checks: (r) => (r.wait_target ? seconds(r.created_at) : 0),
 };
 
 // When the row closed, in seconds; 0 while it is open, and always for a table whose rows never close.

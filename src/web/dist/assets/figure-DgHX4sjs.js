@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-DgHX4sjs.js
 import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-BKbxyKYT.js";import{e as al}from"./tokens-CDlVDfIF.js";import"./tip-d1hpnqHg.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-BxbhONEL.js";import{e as al}from"./tokens-CDlVDfIF.js";import"./tip-ByA3tvIg.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> e7125b8e9 (A wait's own checks leave the Checks page for a Waits tab of their own and count neither in its total nor on the sidebar, which name only the project's own checks, as journal check list does; a block's check is deleted once its task or plan opens and an await's once its wait leaves the agent's stack, where they were only retired or kept running; and at boot the checks earlier waits left that nothing waits on are deleted):src/web/dist/assets/figure-Go6oF9oM.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT

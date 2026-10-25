@@ -9,11 +9,11 @@ from journal.support.actor import Actor
 
 
 class ReleaseWaits(Listener[RowEvent]):
-    """A task open again, a paused task whose wait ended or one taken up again waits on nothing: its wait links go and the checks its block or its pausing made are retired."""
+    """A task open again, a paused task whose wait ended or one taken up again waits on nothing: its wait links go and the checks its block or its pausing made are deleted."""
 
     def __init__(self, tasks: Tasks, waits: Waits) -> None:
         self.tasks, self.waits = tasks, waits
 
     def handle(self, event: RowEvent) -> None:
         if isinstance(event, (TaskReopened, TaskWaitEnded, TaskStarted)):
-            self.waits.released(self.tasks.find(event.task_id), event.time, Actor.system())
+            self.waits.released(self.tasks.find(event.task_id), Actor.system())

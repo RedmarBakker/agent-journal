@@ -7,16 +7,17 @@ from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.support.rejection import Rejection
 from journal.repositories.checks import Checks
+from journal.features.tasks.support.wait_checks import WaitChecks
 from journal.repositories.links import Links
 from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks, WAIT_LINK
 
 
 class Waits:
-    """What a blocked task or plan waits on, as the command line names it: a question or task by --on, a command by --until; each a row the wait links to, and opens it once resolved; once it is open, its waits are released and the checks its block made retired."""
+    """What a blocked task or plan waits on, as the command line names it: a question or task by --on, a command by --until; each a row the wait links to, and opens it once resolved; once it is open, its waits are released and the checks its block made deleted."""
 
-    def __init__(self, tasks: Tasks, questions: Questions, checks: Checks, links: Links) -> None:
-        self.tasks, self.questions, self.checks, self.links = tasks, questions, checks, links
+    def __init__(self, tasks: Tasks, questions: Questions, checks: Checks, links: Links, wait_checks: WaitChecks) -> None:
+        self.tasks, self.questions, self.checks, self.links, self.wait_checks = tasks, questions, checks, links, wait_checks
 
     @staticmethod
     def arguments(parser: ArgumentParser, subject: str) -> None:
@@ -47,15 +48,8 @@ class Waits:
         (self.questions if kind == "question" else self.tasks).find(ref.id)
         return ref
 
-    def released(self, row: Model, time: float, actor: Actor) -> None:
-        source = Ref.build(row)
+    def released(self, row: Model, actor: Actor) -> None:
         for link in self.links.source_links(row, WAIT_LINK):
-            self.retired_check(link.target, time, actor)
             self.links.delete(link, actor)
-
-    def retired_check(self, target: Ref, time: float, actor: Actor) -> None:
-        if target.type != Check.table():
-            return
-        check = self.checks.find(target.id)
-        if check.wait_target and not check.is_retired:
-            self.checks.save(check.retired(time), actor)
+            if link.target.type == Check.table():
+                self.wait_checks.deleted([link.target.id], actor)

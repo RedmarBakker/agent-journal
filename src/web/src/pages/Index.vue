@@ -38,6 +38,7 @@ const COUNTS = {
     every: () => recordCount(props.table, "all"),
 };
 const filters = computed(() => kind.value.filters.map((f) => ({...f, count: (COUNTS[f.shows] || COUNTS.every)()})));
+const emptyLine = computed(() => filters.value.find((f) => f.key === filter.value)?.empty || "");
 watch(
     () => [route.value.sub, props.table],
     ([sub]) => (filter.value = filters.value.some((f) => f.key === sub) ? sub : "open"),
@@ -124,8 +125,11 @@ function select(id) {
         </template>
         <template v-if="!listed.length && !library">
             <EmptyState class="empty" :loading="!hasLoaded(table)">
-                No {{ kind.title.toLowerCase() }}s
-                {{ filter === "open" ? (all.length ? "open" : "on this environment") : "closed" }}{{ filter !== "open" || !all.length ? " yet" : "" }}.
+                <template v-if="emptyLine">{{ emptyLine }}</template>
+                <template v-else>
+                    No {{ kind.title.toLowerCase() }}s
+                    {{ filter === "open" ? (all.length ? "open" : "on this environment") : "closed" }}{{ filter !== "open" || !all.length ? " yet" : "" }}.
+                </template>
             </EmptyState>
         </template>
         <PagedList :shown="listed.length" :total="total" :more="moreToLoad" :load="loadMore">

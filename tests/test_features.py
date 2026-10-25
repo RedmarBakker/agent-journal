@@ -353,7 +353,40 @@ def test_a_task_blocked_until_a_command_passes_opens_by_itself_and_a_broken_one_
     marker.write_text("")
     runner.run(checks.find(1), Actor.system())
     assert tasks.find(1).state == "open" and any("task 1 is open again: the check 1 it waited on is done" in line for line in keystrokes), "the passing check opens the task and the agent is told"
-    assert not checks.find(1).needs_run(datetime.now(timezone.utc) + timedelta(hours=1)), "a passed wait runs no more"
+    app.runtime().deferred.drain()
+    assert checks.numbered([1]) == [] and checks.find(2).wait_target, "a passed wait's check is deleted once its task opens, and the one still waited on stays"
+
+
+def test_a_waits_own_checks_are_listed_apart_counted_out_and_deleted_once_the_wait_ends(app: App, monkeypatch):
+    from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
+    from journal.http.controllers.checks import CheckController
+    from journal.http.listing import Listing
+    from journal.models.check import Check
+    from journal.repositories.checks import Checks
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["check", "create", "lint", "--command", "true"], USER)
+    console.run(["task", "create", "deploy"], AGENT)
+    console.run(["task", "block", "1", "--until", "false"], AGENT)
+    console.run(["await", "the deploy to finish", "--until", "false"], AGENT)
+    checks, controller = app.container.get(Checks), app.container.get(CheckController)
+    listed, waits = controller.listed(Listing.query_listing({})), controller.listed(Listing.query_listing({"closed": "1"}))
+    assert sorted(check.id for check in listed["rows"]) == [1, 2, 3] and listed["counts"]["open"] == 1, "the page counts the project's own check alone; the block's and the wait's are listed too"
+    assert sorted(check.id for check in waits["rows"]) == [2, 3], "the Waits tab lists the checks the block and the wait made for themselves"
+    assert [line.split()[-1] for line in console.run(["check", "list"], AGENT).text.splitlines()] == ["lint"], "journal check list names the project's own check alone"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    app.runtime().deferred.drain()
+    assert [check.id for check in checks.numbered([1, 2, 3])] == [1, 2], "the wait lifted, its own check is deleted; the blocked task's stays"
+    console.run(["task", "unblock", "1"], AGENT)
+    app.runtime().deferred.drain()
+    assert [check.id for check in checks.numbered([1, 2, 3])] == [1], "the task open again, its block's check is deleted"
+    console.run(["task", "block", "1", "--until", "false"], AGENT)
+    blocking = [check.id for check in checks.wait_rows()]
+    checks.save(Check(title="the wait for an earlier deploy ends when this passes", command="false", wait_target=True), Actor.system())
+    app.container.get(LeftWaitChecks).run()
+    assert len(blocking) == 1 and [check.id for check in checks.wait_rows()] == blocking, "at boot a wait's check nothing waits on is deleted, and the one a blocked task waits on stays"
 
 
 def test_a_plan_with_a_blocked_task_waits_and_is_not_done(app: App, monkeypatch):

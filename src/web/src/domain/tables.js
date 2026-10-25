@@ -140,6 +140,10 @@ export const TABLES = {
     }),
     checks: kind("Check", "checkbox", "A script that says pass or fail about the project, run by hand, by its button, or every so many minutes", {
         view: "check",
+        filters: [
+            {key: "open", title: "Checks", shows: "open"},
+            {key: "closed", title: "Waits", shows: "closed", empty: "No wait has a check of its own."},
+        ],
         scope: "project",
         in_sidebar: true,
         listed_under: "sidebar",

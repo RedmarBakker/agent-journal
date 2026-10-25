@@ -24,6 +24,8 @@ from journal.features.tasks.listeners.request_outcome_card import RequestOutcome
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.listeners.delete_ended_wait_checks import DeleteEndedWaitChecks
+from journal.features.tasks.seeds.left_wait_checks import LeftWaitChecks
 
 
 class Tasks(Feature[TasksData]):
@@ -33,7 +35,8 @@ class Tasks(Feature[TasksData]):
     states = (Ready, Working, Impasse, ExternalWait)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
     options = (TasksOptions.AUTO, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
-    listeners = (ClearWaits, ReleaseWaits, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
+    seeds = (LeftWaitChecks,)
+    listeners = (ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
     conduct = (TasksConduct, TaskEditConduct)
     worker_conduct = (TaskEditConduct,)
     data = (TasksDataReader,)

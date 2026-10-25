@@ -1,4 +1,5 @@
 from journal.events.models.updated import Updated
+from journal.features.tasks.states.external_wait import ExternalWait
 from journal.models.check import Check
 from journal.models.command_output import CommandOutput
 from journal.models.question import Question
@@ -11,7 +12,7 @@ POLL_INTERVAL_MINUTES = 0.5
 
 
 class WaitTargets:
-    """What an agent's wait ends on, by table:id, the rows it may name, and the one place that checks whether a write resolved a row something waits on."""
+    """What an agent's wait ends on, by table:id, the rows it may name, and the one place that checks whether a write resolved a row something waits on, and the checks an agent's waits on its stack end on."""
 
     def __init__(self, outputs: CommandOutputs, checks: Checks) -> None:
         self.outputs, self.checks = outputs, checks
@@ -26,6 +27,11 @@ class WaitTargets:
     @staticmethod
     def ref(row: CommandOutput | Check) -> str:
         return f"{row.table()}:{row.id}"
+
+    @staticmethod
+    def awaited_checks(stack: tuple) -> set[int]:
+        prefix = f"{Check.table()}:"
+        return {int(ref.removeprefix(prefix)) for frame in stack if frame.get("state") == ExternalWait.name for ref in frame.get("data", {}).get("end_refs", "").split(",") if ref.startswith(prefix)}
 
     @staticmethod
     def title(name: str) -> str:
