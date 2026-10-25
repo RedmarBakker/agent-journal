@@ -12,9 +12,9 @@ FRAME = re.compile(r"^[=\-*#_~ ]{3,}|[=\-*#_~ ]{3,}$")
 FAILED_TEST = re.compile(r"^(FAILED|ERROR) \S+::\S+|^(×|✗|✕|FAIL)\s+\S")
 # a line of prose: a commit subject, a sentence, however long up to the most a card holds
 PROSE_CHARACTERS = 200
-PROSE_WORDS = 4
-PROSE_SHARE = 0.8
-WORD = re.compile(r"[\w'’,.;!?()-]+")
+PROSE_TOKENS = 4
+PROSE_RATIO = 0.8
+TOKEN = re.compile(r"[\w'’,.;!?()-]+")
 PROSE_BREAKS = re.compile(r"[{}\[\]=\"/\\]|\S:\d")
 
 
@@ -35,7 +35,7 @@ class CardLine:
 
     @staticmethod
     def is_prose(text: str) -> bool:
-        words = text.split()
-        if len(text) > PROSE_CHARACTERS or len(words) < PROSE_WORDS or PROSE_BREAKS.search(text):
+        tokens = text.split()
+        if len(text) > PROSE_CHARACTERS or len(tokens) < PROSE_TOKENS or PROSE_BREAKS.search(text):
             return False
-        return sum(1 for word in words if WORD.fullmatch(word)) >= len(words) * PROSE_SHARE
+        return sum(1 for token in tokens if TOKEN.fullmatch(token)) >= len(tokens) * PROSE_RATIO
