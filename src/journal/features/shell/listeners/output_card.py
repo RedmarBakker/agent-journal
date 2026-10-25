@@ -26,5 +26,5 @@ class OutputCard(Listener[Saved]):
         if self.card.is_shown(output) or is_long_run:
             if contents := self.card.card_contents(output):
                 self.cards.show(contents)
-                if ActivityTitle.is_one_word(contents.label) and (report := self.judge.one_word_title_report(output, contents.label)):
+                if output.is_watched and ActivityTitle.is_one_word(contents.label) and (report := self.judge.one_word_title_report(output, contents.label)):
                     self.reports.save(report, Actor.system())
