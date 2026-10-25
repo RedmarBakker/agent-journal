@@ -34,7 +34,7 @@ journal_local_environment() {
 
 # While the journal at $1 (its .journal folder) boots or restarts, as its runtime/journal.booting file says, waits for it, at most
 # BOOT_WAIT_TENTHS tenths of a second, and prints how many milliseconds it waited, 0 when it was up. The file holds the booting
-# server's process id, and the wait ends once that process is gone, so a boot that died leaves nothing waiting. A restart writes
+# server's process id, and the wait ends once that process is gone, so a boot that died leaves nothing waiting: its booting file and the port file beside it are stale and are removed. A restart writes
 # "restart" and the old server's id: while the old server still answers nothing waits, and once it is gone the wait for the next one
 # lasts RESTART_WAIT_TENTHS at most.
 BOOT_WAIT_TENTHS=600
@@ -45,7 +45,7 @@ journal_boot_wait() {
         booting=$(cat "$1/runtime/journal.booting" 2>/dev/null)
         case "$booting" in
             restart\ *) ! kill -0 "${booting#restart }" 2>/dev/null && [ "$tenths" -lt "$RESTART_WAIT_TENTHS" ] || break ;;
-            *) kill -0 "$booting" 2>/dev/null || break ;;
+            *) kill -0 "$booting" 2>/dev/null || { [ -z "$booting" ] || rm -f "$1/runtime/journal.booting" "$1/port"; break; } ;;
         esac
         sleep 0.1
         tenths=$((tenths + 1))
