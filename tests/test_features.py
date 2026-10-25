@@ -16852,6 +16852,84 @@ def test_with_the_reviewer_on_clocked_out_workers_queue_in_order_for_the_reviewe
             app.container.get(ReviewerRunner).stop(reviewer)
 
 
+def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_worker_goes_on_while_a_short_goes_back_to_it(app: App, monkeypatch):
+    from journal.features.reviewing.support.review_report import ReviewReport
+    from journal.models.command_output import CommandOutput
+    from journal.models.proof_state import ProofState
+    from journal.models.task_state import TaskState
+    from journal.models.support.ref import Ref
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import Entries
+    from journal.repositories.proofs import Proofs
+    from journal.repositories.reviewers import Reviewers
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    assert ReviewReport("1 passed\n2 short: no table").judged and ReviewReport("1 passed").is_approved(1) and ReviewReport("1 passed. 2 undecided: the proof names no test").is_undecided(2) and ReviewReport("1 passed").is_undecided(2), "a report signs off when it passes every point, and is undecided when no point is short but one is undecided or not named"
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("reviewing.reviewer", True, Actor.user(1))
+    settings.set("workers.reviewer_model", "claude-haiku-5-5", Actor.user(1))
+    with app.container.get(Scope).environment(MAIN):
+        workers, reviewers, tasks, proofs = app.container.get(Workers), app.container.get(Reviewers), app.container.get(Tasks), app.container.get(Proofs)
+    console.run(["task", "create", "the parser", "--brief", "the parser reads every rule of the grammar"], AGENT)
+    console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        parser, lexer = sorted(tasks.scoped(), key=lambda row: row.id)[-2:]
+    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", str(parser.id), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    assert dispatched.code == 0, dispatched.error
+    with app.container.get(Scope).environment(MAIN):
+        worker = max(workers.scoped(), key=lambda row: row.id)
+        workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+        app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
+    assert console.run(["worker", "queue", str(worker.id), str(lexer.id)], AGENT).code == 0
+    lovelace = Caller.worker("main", worker.id, "w-1", "claude")
+
+    def clocked_out(proof: str):
+        assert console.run(["proof", "1", proof], lovelace).code == 0
+        out = console.run(["clock-out", "done"], lovelace)
+        assert out.code == 0, out.error
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            [reviewer] = [r for r in reviewers.scoped() if r.is_reviewing()]
+            return reviewer
+
+    def told() -> list[str]:
+        with app.container.get(Scope).environment(MAIN):
+            return [entry.data["key"] for entry in app.container.get(Entries).kind_entries("nudge") if entry.data["session"] == "s1"]
+
+    def reviewed(reviewer, report: str) -> None:
+        out = console.run(["review", report], Caller.reviewer("main", reviewer.id, reviewer.session, "claude"))
+        assert out.code == 0, out.error
+        app.runtime().deferred.drain()
+
+    reviewer = clocked_out("parser.py:20, test_reads_every_rule passes")
+    assert reviewer.model == "claude-haiku-5-5", "the reviewer runs on the reviewer model the settings name"
+    assert all(part in reviewer.brief for part in ("the parser reads every rule of the grammar", "parser.py:20, test_reads_every_rule passes", "$ python3 -m pytest tests/test_parser.py (exit 0)", "3 passed in 0.4s")), "it is handed the task's brief, the worker's proof and the output of the test the worker ran"
+    before = told()
+    reviewed(reviewer, "1 passed. Tests: python3 -m pytest tests/test_parser.py passed")
+    with app.container.get(Scope).environment(MAIN):
+        signed, going = tasks.find(parser.id), workers.find(worker.id)
+        holding = tasks.holder_task_ids(Ref.build(going))
+    assert signed.state == TaskState.FINISHED and going.state == WorkerState.DISPATCHED and holding == (lexer.id,), "the sign-off merges the work, which closes its task, and the worker goes straight on to the next task in its queue"
+    assert told() == before, "with no line to the orchestrator"
+    again = clocked_out("lexer.py:4, test_splits passes")
+    assert again.id == reviewer.id, "the same reviewer takes the next review"
+    reviewed(again, "1 short: the lexer drops the last word. FAILED tests/test_lexer.py::test_last_word")
+    with app.container.get(Scope).environment(MAIN):
+        back, [proof] = workers.find(worker.id), proofs.task_proofs(tasks.find(lexer.id))
+    assert back.state == WorkerState.DISPATCHED and proof.state == ProofState.SHORT and "the lexer drops the last word" in proof.shortfall and "test_last_word" in proof.shortfall, "a point short goes back to the worker by itself, with the reason and the failing output"
+    assert told() == before, "and the orchestrator hears nothing of it"
+    last = clocked_out("lexer.py:9, test_last_word passes")
+    reviewed(last, "1 passed")
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(lexer.id).state == TaskState.FINISHED, "the work proved again is signed off"
+    lines = told()[len(before):]
+    assert lines.count("workers.worker_has_no_work_left") == 1 and set(lines) <= {"workers.worker_has_no_work_left", "tasks.wait_over"}, ("the orchestrator is told once, when the worker's queue runs dry, and its wait on the worker ends with it", lines)
+
+
 def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transaction_commits(app: App):
     from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
     from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
@@ -16879,6 +16957,7 @@ def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transacti
 
 
 def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_reviewer_whose_report_reaches_the_orchestrator(app: App, monkeypatch):
+    from journal.models.proof_state import ProofState
     from journal.features.reviewing.support.reviewer_dispatch import JURAN
     from journal.models.agent_role import AgentRole
     from journal.models.reviewer_state import ReviewerState
@@ -16927,7 +17006,7 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     with app.container.get(Scope).environment(MAIN):
         sent = workers.find(1)
     assert reviewer.name == JURAN and reviewer.pid and sent.state == WorkerState.DELIVERED and sent.review_pending, "the clock-out sends the journal's reviewer, and its program runs"
-    assert all(part in reviewer.brief for part in ("reads the grammar", "parser.py:12, test_reads passes", "the parser is done", "journal sins", "journal review")), "it is handed the brief, each proof and the report"
+    assert all(part in reviewer.brief for part in ("reads the grammar", "parser.py:12, test_reads passes", "the parser is done", "git diff HEAD...", "journal review")), "it is handed the brief, each proof and the report"
     assert not told("workers.work_ready") and "awaiting workers 1" in console.run(["worker", "wait", "1"], AGENT).text, "the orchestrator is not told of the clock-out, and a wait on the worker waits for its review"
     posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": reviewer.session}, {"X-Journal-Env": "main", "X-Journal-Actor": f"reviewer:{reviewer.id}", "X-Journal-Actor-Token": "a wrong token"})
     assert not app.container.get(Agents).active_session_agents(reviewer.session), "a hook that claims a reviewer without its token is not taken in"
@@ -16953,9 +17032,12 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
         messages = app.container.get(Messages)
         steps = [message.text for message in messages.selected(messages.agent_chat(reviewer.session).order("id")) if message.data.get("kind") == "review_step"]
     assert steps == ["Started reviewing worker 1, Lady Lovelace", "Ran python3 -m pytest tests/test_parser.py: passed", "Point 1 passed", "Point 2 short: the alias names are missing", f"Handed its report on worker 1, Lady Lovelace, to the agent: {report}"], ("the reviewer pane's steps, in order: the review started, the test it ran, each point and the report", steps)
-    [line] = told("reviewing.work_reviewed")
-    assert f"reviewer {reviewer.id} reviewed worker 1, Lady Lovelace, on task 1:" in line and report in line, "its one report reaches the orchestrator with each point and the tests run"
-    assert not told("workers.work_ready"), "the orchestrator is told of the review alone, never of the clock-out"
+    with app.container.get(Scope).environment(MAIN):
+        from journal.repositories.proofs import Proofs
+        from journal.repositories.tasks import Tasks
+        back, proofs = workers.find(1), {proof.point: proof for proof in app.container.get(Proofs).task_proofs(app.container.get(Tasks).find(1))}
+    assert back.state == WorkerState.DISPATCHED and proofs[1].state == ProofState.CHECKED and proofs[2].state == ProofState.SHORT and "the alias names are missing" in proofs[2].shortfall, "the point short goes back to the worker with the reviewer's reason, and the point passed is checked"
+    assert not told("reviewing.reviewer_could_not_decide") and not told("workers.work_ready"), "and the orchestrator hears nothing of it"
     kept = clocked_out(babbage, "the lexer splits", "lexer.py:4, test_splits passes")
     assert kept.id == reviewer.id and kept.session == reviewer.session and len(reviewers.scoped()) == 1 and "the lexer splits the words" in kept.brief, "the idle reviewer takes the next review in its own session"
     os.killpg(kept.pid, signal.SIGKILL)
@@ -16969,9 +17051,6 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     assert not handed.review_pending and handed.state == WorkerState.DELIVERED, "a reviewer that fails hands the work back"
     assert any("worker 2, Mr. Babbage, ended without a report: task 2 waits for your own check" in line for line in told("reviewing.review_failed")), "and tells the orchestrator so"
     settings.set("reviewing.reviewer", False, Actor.user(1))
-    assert console.run(["worker", "check", "1", "1"], AGENT).code == 0
-    assert console.run(["worker", "check", "1", "2", "--short", "the alias names are missing"], AGENT).code == 0
-    app.runtime().deferred.drain()
     console.run(["proof", "2", "parser.py:31, the alias names are in"], lovelace)
     assert console.run(["clock-out", "the alias names are in"], lovelace).code == 0
     app.runtime().deferred.drain()

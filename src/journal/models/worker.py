@@ -15,6 +15,8 @@ from journal.events.rows.worker_ready import WorkerReady
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_review_failed import WorkerReviewFailed
 from journal.events.rows.worker_reviewed import WorkerReviewed
+from journal.events.rows.worker_review_undecided import WorkerReviewUndecided
+from journal.events.rows.worker_queue_empty import WorkerQueueEmpty
 from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.events.rows.worker_merged import WorkerMerged
 from journal.events.rows.worker_released import WorkerReleased
@@ -118,7 +120,13 @@ class Worker(Helper):
         return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
 
     def reviewed(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
-        return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, reviewed", task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))
+        return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))
+
+    def review_undecided(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
+        return self.reviewed(time, task, reviewer, report).with_event(WorkerReviewUndecided(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, its review left for you to decide", task=task, reviewer=reviewer.id, report=report))
+
+    def queue_emptied(self, time: float) -> "Worker":
+        return self.with_event(WorkerQueueEmpty(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, merged, with no work left"))
 
     def review_failed(self, time: float, task: int) -> "Worker":
         return self.review_ended(time, "review ended without a report").with_event(WorkerReviewFailed(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, its review ended without a report", task=task))

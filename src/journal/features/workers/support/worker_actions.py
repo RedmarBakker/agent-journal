@@ -95,13 +95,21 @@ class WorkerActions:
         return task
 
     def short_check(self, n: int, point: int, shortfall: str, actor: Actor) -> Task:
+        return self.short_checks(n, [(point, shortfall)], actor)
+
+    # every point short at once, the last one's save sending the worker back with the others' reasons too, since that send-back ends its clock-out
+    def short_checks(self, n: int, shortfalls: list[tuple[int, str]], actor: Actor) -> Task:
         worker = self.delivered(n, "proofs to check")
         task = self.worker_task(worker)
+        *first_shortfalls, (point, shortfall) = shortfalls
         proof = self.open_proof(task, point)
+        earlier = tuple(sent.shortfall for sent in self.proofs.task_proofs(task) if sent.state == ProofState.SHORT)
+        for number, reason in first_shortfalls:
+            self.proofs.save(self.open_proof(task, number).with_shortfall(reason), actor)
         if not self.moves.is_remote_run(worker):
             self.resumable(worker)
-        earlier = tuple(sent.shortfall for sent in self.proofs.task_proofs(task) if sent.state == ProofState.SHORT)
-        self.proofs.save(proof.short(self.failures.under(worker, shortfall), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher or "", earlier), actor)
+        shortfall_lines = "; ".join((shortfall, *(f"point {number} is short too: {reason}" for number, reason in first_shortfalls)))
+        self.proofs.save(proof.short(self.failures.under(worker, shortfall_lines), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher or "", earlier), actor)
         return task
 
     def unrun(self, n: int, point: int) -> str:
@@ -135,6 +143,8 @@ class WorkerActions:
         self.moves.cleared(worker)
         worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
+        if not next_task:
+            self.workers.save(self.workers.find(worker.id).queue_emptied(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp()))
         return MergeOutcome(closed, worktree_line, next_line)
 

@@ -1217,6 +1217,7 @@ workers.build_command = ''
 workers.pool_slots = 0  (the user sets it)
 workers.pool_daily_minutes = 0  (the user sets it)
 workers.pool_profiles = journal-medior  (the user sets it)
+workers.reviewer_model = 'haiku'
 checks.repeat_minutes = 60
 shell.foreground = 15
 shell.reader_after = 5
@@ -1552,10 +1553,10 @@ questions.question_answered  [questions]  question {{n}} is answered. `journal q
 reports.write_an_update  [reports]  you committed work: if a meaningful piece landed, write the user an update. journal report changes shows what it covers, then journal report recap "<one or two sentences>" writes it, docked at the bottom of the chat; skip it when the work is small
 reviewing.review_failed  [reviewing]  the reviewer of worker {{n}}, {{name}}, ended without a report: task {{task}} waits for your own check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
 reviewing.reviewer_changes_no_file  [reviewing]  you are a reviewer: you change no file and merge nothing. read, run the tests the proofs name and judge the changes, then give your report with journal review "<one line per point>"
+reviewing.reviewer_could_not_decide  [reviewing]  reviewer {{reviewer}} could not decide worker {{n}}, {{name}}, on task {{task}}:
+{{report}}. decide the points it left: journal worker check {{n}} <point>, or --short "<what is missing>", then journal worker merge {{n}}
 reviewing.reviewer_gives_its_report  [reviewing]  your review is not given yet. journal review "<one line per point: 1 passed, or 2 short: why; then the tests you ran>"
 reviewing.reviews_wait_for_a_reviewer  [reviewing]  reviews waiting for a reviewer: {{waiting}}; reviewers: {{reviewers}}. add one with journal reviewer add when they pile up; journal reviewer list names them in their order
-reviewing.work_reviewed  [reviewing]  reviewer {{reviewer}} reviewed worker {{n}}, {{name}}, on task {{task}}:
-{{report}}. send what is short back with journal worker check {{n}} <point> --short "<what is missing>", or check each point with journal worker check {{n}} <point> and merge with journal worker merge {{n}}
 schedules.stop_scheduled_job  [schedules]  the user stopped your scheduled job {{job}}. delete it now with CronDelete, id {{job}}
 secrets.secret_allowed_for_programs  [secrets]  the user let secret {{n}} go to {{programs}}. run it with `journal secret run {{n}} -- <program> ...`
 secrets.secrets_out_of_reach  [secrets]  secrets are out of your reach. pass one to a program with `journal secret run <n> -- <program>`
@@ -1692,6 +1693,7 @@ workers.too_many_subagents  [workers]  {{running}} subagents are running, the mo
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
+workers.worker_has_no_work_left  [workers]  worker {{n}}, {{name}}, has no work left: its work is merged and its queue is empty. queue it the next tasks with journal worker queue {{n}} <task> <task>, or retire it
 workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_place_free  [workers]  worker {{n}} free; open: {{tasks}}
 workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{last}}

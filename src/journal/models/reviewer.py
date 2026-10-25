@@ -17,8 +17,8 @@ class Reviewer(Helper):
     kind: str = "reviewer"
     state: ReviewerState = ReviewerState.REVIEWING
 
-    def next_review(self, brief: str) -> "Reviewer":
-        return self.with_(brief=brief, state=ReviewerState.REVIEWING, pid=0)
+    def next_review(self, brief: str, model: str) -> "Reviewer":
+        return self.with_(brief=brief, model=model, state=ReviewerState.REVIEWING, pid=0)
 
     def running_as(self, pid: int) -> "Reviewer":
         return self.with_(pid=pid)

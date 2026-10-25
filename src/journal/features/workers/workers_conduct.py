@@ -19,7 +19,7 @@ from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
 from journal.models.support.model_fit import TOO_STRONG
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_test_failed import WorkerTestFailed
-from journal.events.rows.worker_merged import WorkerMerged
+from journal.events.rows.worker_queue_empty import WorkerQueueEmpty
 from journal.events.rows.worker_retired import WorkerRetired
 from journal.events.rows.worker_mention import WorkerMention
 from journal.events.rows.worker_dispatched import WorkerDispatched
@@ -119,8 +119,10 @@ class WorkersConduct(Conduct):
             return self.none()
         return self.none(sent_back_line(event))
 
-    def on_worker_merged(self, event: WorkerMerged, settings: Settings) -> Transition:
-        return place_answer(self, event, settings)
+    def on_worker_queue_empty(self, event: WorkerQueueEmpty, settings: Settings) -> Transition:
+        if event.worker.is_other_dispatcher(event.session):
+            return self.none()
+        return self.none(*(free_place(event.worker, event.data, settings) or (WorkersNudges.OUT_OF_WORK.create(n=event.worker.id, name=event.worker.name),)))
 
     def on_worker_retired(self, event: WorkerRetired, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
@@ -294,7 +296,7 @@ def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> 
     return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, count=tasks.open_count, tasks=tasks.open_next),)
 
 
-def place_answer(state: BaseState, event: WorkerMerged | WorkerRetired, settings: Settings) -> Transition:
+def place_answer(state: BaseState, event: WorkerRetired, settings: Settings) -> Transition:
     return state.none() if event.worker.is_other_dispatcher(event.session) else state.none(*free_place(event.worker, event.data, settings))
 
 

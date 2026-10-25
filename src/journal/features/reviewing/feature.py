@@ -31,4 +31,4 @@ class ReviewingFeature(Feature[ReviewingData]):
     data = (ReviewingDataReader,)
     listeners = (ReviewerStart, ReviewerRetirement, ReviewerLoss, ReviewerTestPassed, ReviewerTestFailed, ReviewReportSteps)
     conduct = (ReviewingConduct,)
-    nudges = (ReviewingNudges.REVIEWER_WRITES, ReviewingNudges.REPORT_REQUEST, ReviewingNudges.WORK_REVIEWED, ReviewingNudges.REVIEW_FAILED, ReviewingNudges.REVIEWS_WAITING)
+    nudges = (ReviewingNudges.REVIEWER_WRITES, ReviewingNudges.REPORT_REQUEST, ReviewingNudges.REVIEW_UNDECIDED, ReviewingNudges.REVIEW_FAILED, ReviewingNudges.REVIEWS_WAITING)
