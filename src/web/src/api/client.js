@@ -438,6 +438,11 @@ export class ApiClient {
         return this.get("/team/devices");
     }
 
+    // the requests filed for this person, in every environment
+    requests() {
+        return this.get("/requests");
+    }
+
     // revokes one device, so it reaches the team no more
     revokeDevice(id) {
         return this.post(`/team/devices/${encoded(id)}/revoke`, {});

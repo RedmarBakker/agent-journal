@@ -46,6 +46,7 @@ from journal.http.controllers.services import ServiceController
 from journal.http.controllers.shell import ShellController
 from journal.http.controllers.shares import ShareController
 from journal.http.controllers.skills import SkillController
+from journal.http.controllers.requests import RequestController
 from journal.http.controllers.tasks import TaskController
 from journal.http.controllers.templates import TemplateController
 from journal.http.controllers.transcripts import TranscriptController
@@ -171,6 +172,7 @@ class Routes:
     def work(self, router: Router) -> None:
         get = self.container.get
         tasks, plans, questions = get(TaskController), get(PlanController), get(QuestionController)
+        router.get(f"{API}/requests", get(RequestController).index)
         self.resource(router, "tasks", tasks)
         self.acts(router, "tasks", tasks, "start", "finish", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)

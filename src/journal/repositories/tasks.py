@@ -114,6 +114,9 @@ class Tasks(ScopedRepository[Task]):
     def other_started_tasks(self, current: Task | None) -> list[Task]:
         return [task for task in self.with_state(TaskState.STARTED) if current is None or task.id != current.id]
 
+    def numbered_anywhere(self, ids: list[int]) -> list[Task]:
+        return self.selected_globally(self.query().filter_listed("id", ids).order("id")) if ids else []
+
     def open_tasks(self) -> list[Task]:
         return self.actionable(TaskState.OPEN)
 

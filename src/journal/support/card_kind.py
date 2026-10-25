@@ -32,6 +32,7 @@ class CardKind(StrEnum):
     FAULTS = "faults"
     CONFLICTS = "conflicts"
     UPDATES = "updates"
+    REQUESTS = "requests"
 
     def folds(self) -> bool:
         return self in (CardKind.CONFLICTS,)

@@ -26,6 +26,7 @@ test("the Verifiers dropdown lists each verifier with its state and session, and
 
 test("a verifier's inspector shows its state, session, the reports it judged and its transcript", async () => {
     vi.spyOn(api, "verifierTranscript").mockResolvedValue({turns: [], total: 0});
+    window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
     const {default: VerifierPage} = await import("../src/resource/VerifierPage.vue");
     const root = document.createElement("div");
     createApp({render: () => h(VerifierPage, {resource: judged})}).mount(root);

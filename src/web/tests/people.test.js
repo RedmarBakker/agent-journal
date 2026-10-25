@@ -91,7 +91,8 @@ test("the sidebar lists the viewer's own environments and the Team chat", () => 
     const rows = [{id: 10, name: "ada-main"}, {id: 11, name: "bob-main"}, {id: 12, name: "bob-docs"}, {id: 13, name: "team"}];
     expect(sidebarEnvironments(rows, people).map((row) => row.name)).toEqual(["ada-main", "team"]);
     const sidebar = readFileSync(resolve(__dirname, "../src/layout/Sidebar.vue"), "utf8");
-    expect(sidebar).toMatch(/sidebarEnvironments\(rows\("environments"\), store\.people\)/);
+    expect(sidebar).toMatch(/ownEnvironments\(rows\("environments"\), store\.people\)/);
+    expect(sidebar).toMatch(/teamGroups\(rows\("environments"\), store\.people\)/);
 });
 
 test("an environment a colleague shares with the team shows in the sidebar with their name, and leaves it once taken back", () => {

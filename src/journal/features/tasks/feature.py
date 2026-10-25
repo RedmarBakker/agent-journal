@@ -18,6 +18,7 @@ from journal.features.tasks.listeners.release_waits import ReleaseWaits
 from journal.features.tasks.listeners.task_move_cards import TaskMoveCards
 from journal.features.tasks.listeners.impasse_card import ImpasseCard
 from journal.features.tasks.listeners.reply_task_links import ReplyTaskLinks
+from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
@@ -30,7 +31,7 @@ class Tasks(Feature[TasksData]):
     states = (Ready, Working, Impasse, ExternalWait)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
     options = (TasksOptions.AUTO, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
-    listeners = (ClearWaits, ReleaseWaits, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks)
+    listeners = (ClearWaits, ReleaseWaits, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard)
     conduct = (TasksConduct, TaskEditConduct)
     worker_conduct = (TaskEditConduct,)
     data = (TasksDataReader,)

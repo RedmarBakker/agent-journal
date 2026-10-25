@@ -1,6 +1,6 @@
 import {readFileSync} from "node:fs";
 import {createApp, h} from "vue";
-import {afterEach, expect, test} from "vitest";
+import {afterEach, expect, test, vi} from "vitest";
 import {ownEnvironments, teamGroups} from "../src/domain/hub.js";
 import HubBoard from "../src/pages/HubBoard.vue";
 import HubHome from "../src/pages/HubHome.vue";
@@ -100,4 +100,13 @@ test("with two teams each hub is its own group named for its team, holding the s
     ]);
     expect(new Set(groups.map((group) => group.key)).size).toBe(2);
     expect(ownEnvironments(rows, shared).map((row) => row.name)).toEqual(["main"]);
+});
+
+test("the Requests page lists the requests filed for the person", async () => {
+    const {api} = await import("../src/api/client.js");
+    const {default: RequestsPage} = await import("../src/pages/RequestsPage.vue");
+    vi.spyOn(api, "requests").mockResolvedValue({rows: [{id: 57, title: "review the plan"}]});
+    const host = mounted(RequestsPage, {});
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(host.querySelector("[data-requests-page]").textContent).toContain("Task 57: review the plan");
 });

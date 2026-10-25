@@ -16,6 +16,7 @@ import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
+import RequestsPage from "./pages/RequestsPage.vue";
 import HubPage from "./pages/HubPage.vue";
 import {computed} from "vue";
 import {peek, route} from "./route.js";
@@ -45,6 +46,7 @@ const open = (row) => peek(row.table, row.id);
         <template #plugins><PluginsPage /></template>
         <template #secrets><SecretsPage /></template>
         <template #team><TeamPage /></template>
+        <template #requests><RequestsPage /></template>
         <template #worker><WorkerHome /></template>
         <template #mcp><IntegrationsPage /></template>
         <template #resources><ResourcesPage /></template>
