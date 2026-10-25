@@ -57,13 +57,17 @@ def test_a_new_team_server_draws_its_key_and_a_number_t_below_2_21_once_and_one_
     assert first.details.answer() == drawn[0], "a second start draws nothing anew"
     old = Store(tmp_path / "old" / "team.db")
     old.script("CREATE TABLE schema_version (number INTEGER NOT NULL)")
-    for script in MIGRATIONS[:-1]:
+    before_keys = next(number for number, script in enumerate(MIGRATIONS) if "'key'" in script)
+    for script in MIGRATIONS[:before_keys]:
         old.script(script)
-    old.execute("INSERT INTO schema_version (number) VALUES (?)", (len(MIGRATIONS) - 1,))
+    old.execute("INSERT INTO schema_version (number) VALUES (?)", (before_keys,))
     Accounts(AccountRows(old)).create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
     ServerSchema(old).migrated()
-    assert TeamDetailRows(old).value("number") == "0" and len(TeamDetailRows(old).value("key")) == 32, "a server claimed before keeps T = 0 and is given a key"
-    for store in (first.store, second.store, old):
+    assert TeamDetailRows(old).value("number") == "" and len(TeamDetailRows(old).value("key")) == 32, "a server claimed before stores no number and is given a key"
+    old.close()
+    reopened = TeamServer(tmp_path / "old")
+    assert reopened.details.answer().number == 0, "and reads T = 0"
+    for store in (first.store, second.store, reopened.store):
         store.close()
 
 

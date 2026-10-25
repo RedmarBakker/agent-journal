@@ -14,18 +14,31 @@ from journal.sync.team_url import TeamUrl
 from sync_server.account import ADMIN
 
 TEAM_FILE = "team.json"
+TEAMS_FOLDER = "teams"
 ROOT_FILE = "team-root.crt"
 PREFIX_FILE = "team-prefix"
 
 
 class TeamAccount:
-    """This journal's place in a team: whether it has joined one and which device of the team this machine is, and whether it holds the team's upgrade, read from the file the join writes beside the database."""
+    """This journal's place in a team: whether it has joined one and which device of the team this machine is, whether it holds the team's upgrade, and the team's key and number T, read from the file the join writes in the teams folder beside the database, named by the team's key; an account from before teams had keys is read from team.json until its key is recorded, which moves it into the teams folder."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
 
     def is_joined(self) -> bool:
-        return (self.config.home / TEAM_FILE).is_file()
+        return self.path().is_file()
+
+    def path(self) -> Path:
+        return next(iter(sorted((self.config.home / TEAMS_FOLDER).glob("*.json"))), self.config.home / TEAM_FILE)
+
+    def team_key(self) -> str:
+        return str(self.contents().get("team_key", ""))
+
+    def team_number(self) -> int:
+        return int(self.contents().get("team_number", 0))
+
+    def record_team(self, key: str, number: int) -> None:
+        self.write({**self.contents(), "team_key": key, "team_number": number})
 
     def device(self) -> str:
         return str(self.contents().get("device", ""))
@@ -59,19 +72,23 @@ class TeamAccount:
 
     def leave(self, time: float) -> Path:
         backup = self.config.home / f"{TEAM_FILE}.left-{int(time)}"
-        (self.config.home / TEAM_FILE).replace(backup)
+        self.path().replace(backup)
         (self.config.home / ROOT_FILE).unlink(missing_ok=True)
         return backup
 
     def write(self, contents: dict) -> None:
-        path = self.config.home / TEAM_FILE
+        held = self.path()
+        path = self.config.home / TEAMS_FOLDER / f"{contents['team_key']}.json" if contents.get("team_key") else held
+        path.parent.mkdir(exist_ok=True)
         draft = path.with_suffix(".draft")
         draft.write_text(json.dumps(contents))
         os.chmod(draft, 0o600)
         draft.replace(path)
+        if held != path:
+            held.unlink(missing_ok=True)
 
     def contents(self) -> dict:
-        return json.loads((self.config.home / TEAM_FILE).read_text()) if self.is_joined() else {}
+        return json.loads(self.path().read_text()) if self.is_joined() else {}
 
     def user_number(self) -> int:
         return int(self.contents().get("account_id", LOCAL_USER))

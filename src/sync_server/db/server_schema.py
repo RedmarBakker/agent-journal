@@ -48,7 +48,7 @@ MIGRATIONS = (
     """,
     """
     INSERT INTO team_details (name, value) VALUES ('key', lower(hex(randomblob(16))));
-    INSERT INTO team_details (name, value) SELECT 'number', CASE WHEN EXISTS (SELECT 1 FROM accounts) THEN '0' ELSE CAST(1 + abs(random() % 2097151) AS TEXT) END;
+    INSERT INTO team_details (name, value) SELECT 'number', CAST(1 + abs(random() % 2097151) AS TEXT) WHERE NOT EXISTS (SELECT 1 FROM accounts);
     """,
 )
 

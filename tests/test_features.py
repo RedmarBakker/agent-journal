@@ -11590,7 +11590,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         team.close(server)
 
 
-def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_and_a_second_journal_finds_the_same_hub(tmp_path, template_journal, monkeypatch):
+def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a_second_finds_the_same_hub_and_each_keeps_its_account_under_the_teams_key(tmp_path, template_journal, monkeypatch):
     import re
     import subprocess
     from carried_sync import CarriedSync
@@ -11599,6 +11599,9 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
     from journal.repositories.environment_owners import EnvironmentOwners
     from journal.repositories.environments import Environments
     from journal.console.support.hub_rows import HubRows
+    from journal.db.connection import Connection
+    from journal.sync.sync_desk import SyncDesk
+    from journal.sync.team_account import TEAM_FILE, TeamAccount
     from sync_server.team_server import TeamServer
 
     def git(*arguments: str) -> None:
@@ -11630,6 +11633,19 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentKind.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
         assert [row.row_id for row in a.container.get(Environments).hubs()] == [hub.row_id], "and the first journal still holds one"
         assert [journal.container.get(HubRows).number("acme:12") for journal in journals] == [12, 12], "each journal reads acme:12 by the team's name on its hub"
+        accounts = [journal.container.get(TeamAccount) for journal in journals]
+        assert [(account.path().name, account.team_key(), account.team_number()) for account in accounts] == [(f"{new.key}.json", new.key, new.number)] * 2, "a joined journal keeps its account in the teams folder under the team's key, with the team's T"
+        team.store.execute("DELETE FROM team_details WHERE name = 'number'")
+        before_keys = {name: value for name, value in accounts[1].contents().items() if name not in ("team_key", "team_number")}
+        accounts[1].path().unlink()
+        (b.config.home / TEAM_FILE).write_text(json.dumps(before_keys))
+        numbered = lambda: {table: [row["id"] for row in b.container.get(Connection).all(f"SELECT id FROM {table} ORDER BY id")] for table in ("environments", "messages", "tasks", "links", "users")}
+        rows_before = numbered()
+        assert accounts[1].is_joined() and accounts[1].team_key() == "", "an account from before teams had keys is read from team.json"
+        b.container.get(SyncDesk).refresh()
+        assert (accounts[1].path().name, accounts[1].team_key(), accounts[1].team_number()) == (f"{new.key}.json", new.key, 0), "its key is learnt from the team server and it moves to the teams folder, a team from before T reading T = 0"
+        assert not (b.config.home / TEAM_FILE).exists() and accounts[1].address() == address, "nothing of the account is lost in the move"
+        assert numbered() == rows_before, "and no row is renumbered"
     finally:
         for carrier in carriers:
             carrier.stop()

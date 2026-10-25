@@ -32,12 +32,12 @@ LOCK_SECONDS = 120
 
 
 class SyncDesk:
-    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease and the row number blocks kept up, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
+    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
 
-    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset) -> None:
+    def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset, link: TeamServerLink) -> None:
         self.account, self.outgoing, self.incoming, self.rejected, self.status = account, outgoing, incoming, rejected, status
         self.uploads, self.attachments, self.chat, self.upgrade, self.copy = uploads, attachments, chat, upgrade, copy
-        self.supply, self.queries, self.host, self.offset = supply, queries, host, offset
+        self.supply, self.queries, self.host, self.offset, self.link = supply, queries, host, offset, link
         self.applying, self.sending = threading.Lock(), threading.RLock()
 
     @staticmethod
@@ -56,6 +56,14 @@ class SyncDesk:
     def refresh(self) -> None:
         self.chat.renew()
         self.refill()
+        self.keyed()
+
+    def keyed(self) -> None:
+        if self.account.team_key():
+            return
+        summary = self.link.summary(self.account.address())
+        if summary.key:
+            self.account.record_team(summary.key, summary.number)
 
     def refill(self) -> None:
         self.supply.refill()
