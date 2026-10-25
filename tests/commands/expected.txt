@@ -533,6 +533,10 @@ $ agent: journal doc attach 1
 exit 1
 doc 1 is not on the hub: journal doc share 1 puts it there
 
+$ agent: journal doc unshare 1
+exit 1
+doc 1 is not on the hub: journal doc share 1 puts it there
+
 $ agent: journal doc import --help
 exit 0
 usage: journal doc import [-h] folder
@@ -1630,12 +1634,10 @@ workers.too_many_subagents  [workers]  {{running}} subagents are running, the mo
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
-workers.worker_keeps_failing  [workers]  worker {{n}} failed {{runs}} test runs in a row
 workers.worker_place_free  [workers]  worker {{n}} free; open: {{tasks}}
 workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min
 workers.worker_reported  [workers]  worker {{n}} reported
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported
-workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 234 nudges
 
 $ agent: journal worker list
