@@ -1481,12 +1481,13 @@ def test_a_setting_saved_with_the_value_it_holds_writes_nothing_and_a_listener_o
         def handle(self, event: Saved) -> None:
             self.seen.append(settings.get("workers.mode"))
 
-    settings.set("workers.mode", "builder", USER)
-    LoadTally.begin()
-    settings.set("workers.mode", "builder", USER)
-    loads = LoadTally.ended()
-    reader = ModeReader()
-    bus.listen(Saved, reader)
-    settings.set("workers.mode", "orchestrator", USER)
-    assert [load.writes for load in loads.counts if load.writes] == [], "the value it holds is written no more"
-    assert reader.seen == ["orchestrator"] and settings.get("workers.mode") == "orchestrator", "a listener of the write reads the value written"
+    with scope.environment(1):
+        settings.set("workers.mode", "builder", USER)
+        LoadTally.begin()
+        settings.set("workers.mode", "builder", USER)
+        loads = LoadTally.ended()
+        reader = ModeReader()
+        bus.listen(Saved, reader)
+        settings.set("workers.mode", "orchestrator", USER)
+        assert [load.writes for load in loads.counts if load.writes] == [], "the value it holds is written no more"
+        assert reader.seen == ["orchestrator"] and settings.get("workers.mode") == "orchestrator", "a listener of the write reads the value written"

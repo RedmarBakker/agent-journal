@@ -1956,13 +1956,15 @@ options:
 
 $ agent: journal worker wait --help
 exit 0
-usage: journal worker wait [-h] on [on ...]
+usage: journal worker wait [-h] [--output N] on [on ...]
 
 positional arguments:
   on
 
 options:
   -h, --help  show this help message and exit
+  --output N  a command's output the same wait also ends on, such as a test
+              run; more than one waits for all
 
 $ agent: journal worker dock --help
 exit 0
