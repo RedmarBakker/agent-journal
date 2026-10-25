@@ -1,6 +1,8 @@
 import shlex
 from dataclasses import dataclass, field
 
+from journal.support.alias_call import AliasCall
+from journal.support.chain import Chain
 from journal.support.command_shape import CommandShape
 from journal.models.model import Model
 from journal.support.part import Part
@@ -33,3 +35,11 @@ class Alias(Model):
         head, tokens = Part(self.line.split(ARGS)[0]).tokens(), Part(part).tokens()
         prefix_match = bool(head) and len(tokens) >= len(head) and tokens[0].rsplit("/", 1)[-1] == head[0].rsplit("/", 1)[-1] and tokens[1:len(head)] == head[1:]
         return prefix_match or " " in CommandShape.build(part) and CommandShape.build(part) == CommandShape.build(self.line)
+
+    @staticmethod
+    def resolved(line: str, index: "dict[str, Alias]") -> str:
+        for part in Chain.parts(line):
+            call = AliasCall.parsed(part.uncut().text)
+            if part.recorded and call.name in index:
+                line = Chain.replaced(line, part.text, f"{index[call.name].command(call.args)} {part.cut()}".strip())
+        return line

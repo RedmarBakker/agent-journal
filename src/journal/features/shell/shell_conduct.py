@@ -93,7 +93,7 @@ def agent_command(event: ToolStarting) -> str:
 
 
 def piped_test_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    program = PipedTestRun.piped_filter(agent_command(event))
+    program = PipedTestRun.piped_filter(agent_command(event), {alias.name: alias for alias in event.data.part(ShellPart).aliases})
     return state.refuse(ShellNudges.PIPED_TEST_RUN.create(filter=program)) if program else state.none()
 
 

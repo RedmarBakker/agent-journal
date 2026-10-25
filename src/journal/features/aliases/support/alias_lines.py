@@ -11,12 +11,7 @@ class AliasLines:
         self.aliases = aliases
 
     def expanded(self, line: str) -> str:
-        index = self.aliases.index()
-        for part in Chain.parts(line):
-            call = AliasCall.parsed(part.text)
-            if part.recorded and call.name in index:
-                line = Chain.replaced(line, part.text, index[call.name].command(call.args))
-        return line
+        return Alias.resolved(line, self.aliases.index())
 
     def called(self, argv: list[str]) -> Alias | None:
         return self.aliases.index().get(argv[0]) if argv else None

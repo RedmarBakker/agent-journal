@@ -17877,6 +17877,21 @@ def test_a_test_run_piped_into_a_filter_is_refused_and_a_whole_run_or_another_pi
         assert bash(line)[0] == 200, line
 
 
+def test_an_alias_with_a_reader_piped_into_tail_head_or_cat_is_refused_and_its_cut_stays_at_the_end_of_the_line_it_stands_for(app: App):
+    from journal.features.aliases.support.alias_lines import AliasLines
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    assert app.console().run(["alias", "add", "tested", "sh -c 'echo one; echo two' {args} --verbose", "--reader", "pytest", "--about", "runs the tests"], AGENT).code == 0
+    assert app.console().run(["alias", "add", "plain", "echo", "--about", "says"], AGENT).code == 0
+    bash = lambda line: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
+    for line in ("journal tested ./cli/hooks/ 2>&1 | tail -4", "journal tested x | head -2", "journal tested x | cat"):
+        status, body = bash(line)
+        assert status == 409 and "hides the lines its reader reads" in body["error"], line
+    assert bash("journal tested ./cli/hooks/ 2>&1")[0] == 200 and bash("journal plain hi | tail -1")[0] == 200, "a whole run, or an alias with no reader, goes through"
+    expanded = app.container.get(AliasLines).expanded("journal tested ./cli/hooks/ 2>&1 | tail -4")
+    assert expanded == "sh -c 'echo one; echo two' ./cli/hooks/ 2>&1 --verbose | tail -4", expanded
+
+
 def test_a_journal_command_that_hands_the_agent_its_next_step_is_refused_when_cut_and_one_not_declared_still_runs_piped(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
