@@ -25,13 +25,11 @@ const wait = computed(() => (taskBoard.display.wait ? waitLine(props.task) : "")
         >
             <TaskStatusIcon :status="status" />
         </button>
+        <span class="priority" :title="`Priority: ${priorityLabel(task.priority ?? NORMAL_PRIORITY)}`"><PriorityIcon :value="task.priority ?? NORMAL_PRIORITY" /></span>
         <template v-if="taskBoard.display.number">
             <span class="number">{{ task.id }}</span>
         </template>
         <span class="title">{{ task.title }}</span>
-        <template v-if="(task.priority ?? NORMAL_PRIORITY) !== NORMAL_PRIORITY">
-            <span class="priority" :title="`Priority: ${priorityLabel(task.priority)}`"><PriorityIcon :value="task.priority" /></span>
-        </template>
         <template v-if="wait">
             <span class="wait">{{ wait }}</span>
         </template>

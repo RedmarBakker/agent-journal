@@ -7,7 +7,7 @@ const bars = computed(() => (props.value < 100 ? [1, 0.25, 0.25] : props.value =
 
 <template>
     <svg
-        :class="['ico', 'prio', {hot: value >= 200}]"
+        :class="['ico', 'prio', {hot: value >= 200, high: value >= 150 && value < 200}]"
         viewBox="0 0 16 16"
         fill="none"
         stroke="currentColor"
@@ -27,7 +27,11 @@ const bars = computed(() => (props.value < 100 ? [1, 0.25, 0.25] : props.value =
     flex: none;
     width: 14px;
     height: 14px;
-    color: var(--text-3);
+    color: var(--text-4);
+}
+
+.prio.high {
+    color: var(--accent);
 }
 
 .prio.hot {

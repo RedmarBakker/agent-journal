@@ -2,6 +2,7 @@ import {GROUPS, groupOf, planned, questionAbout, refParts} from "./records.js";
 import {standingOf, wholePhases} from "./plans.js";
 import {isClosed} from "./row.js";
 import {counted} from "../format/number.js";
+import {NORMAL_PRIORITY} from "./taskPriority.js";
 
 export const STATUS_WORDS = {...GROUPS, done: "Done"};
 export const STATUS_ORDER = ["blocked", "asked", "started", "delegated", "paused", "open", "planned", "done"];
@@ -77,6 +78,8 @@ export function shownTasks(tasks, {statuses, display, words}) {
 }
 
 const head = (key, depth, label, note, extra = {}) => ({type: "head", key, depth, label, note, ...extra});
+// Most urgent first, then by number.
+export const byPriority = (tasks) => [...tasks].sort((a, b) => (b.priority ?? NORMAL_PRIORITY) - (a.priority ?? NORMAL_PRIORITY) || a.id - b.id);
 const rowLines = (tasks, depth) => tasks.map((task) => ({type: "row", key: `t${task.id}`, depth, task}));
 
 function phaseLines(plan, shown, all, folded) {
@@ -139,7 +142,7 @@ function byPlan(shown, all, rows, folded) {
 
 function byStatus(shown, folded) {
     return STATUS_ORDER.flatMap((status) => {
-        const rows = shown.filter((t) => statusOf(t) === status);
+        const rows = byPriority(shown.filter((t) => statusOf(t) === status));
         if (!rows.length) return [];
         const key = `s${status}`;
         return [head(key, 0, STATUS_WORDS[status], String(rows.length), {status}), ...(folded[key] ? [] : rowLines(rows, 1))];
@@ -149,7 +152,7 @@ function byStatus(shown, folded) {
 const GROUPINGS = {
     plan: ({shown, all, plans, folded}) => byPlan(shown, all, plans, folded),
     status: ({shown, folded}) => byStatus(shown, folded),
-    none: ({shown}) => rowLines(shown, 0),
+    none: ({shown}) => rowLines(byPriority(shown), 0),
 };
 
 // The list as lines in the order they are drawn: a head for each group and phase, and a row for each task under one not folded.

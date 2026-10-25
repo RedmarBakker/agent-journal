@@ -63,4 +63,17 @@ describe("the chat's Tasks tab", () => {
         host.querySelector('.task-row[data-task="3"]').click();
         expect(location.hash).toBe("#/tasks/3");
     });
+
+    test("open tasks are ordered critical, high, normal, low and then by number, each row marking its priority after the status icon", async () => {
+        store.rows.tasks = [task(5, "low", "open", {priority: 50}), task(4, "normal", "open", {priority: 100}), task(3, "critical", "open", {priority: 200}), task(2, "high", "open", {priority: 150}), task(1, "also normal", "open")];
+        const host = await shown();
+        expect([...host.querySelectorAll(".tasks-tab .task-row")].map((r) => r.dataset.task)).toEqual(["3", "2", "1", "4", "5"]);
+        const marks = (id) => host.querySelector(`.task-row[data-task="${id}"] .prio`).classList;
+        expect(marks(3).contains("hot")).toBe(true);
+        expect(marks(2).contains("high")).toBe(true);
+        expect(marks(1).contains("hot") || marks(1).contains("high")).toBe(false);
+        expect(marks(5).contains("hot") || marks(5).contains("high")).toBe(false);
+        const row = host.querySelector('.task-row[data-task="3"]');
+        expect(row.querySelector(".status").nextElementSibling).toBe(row.querySelector(".priority"));
+    });
 });
