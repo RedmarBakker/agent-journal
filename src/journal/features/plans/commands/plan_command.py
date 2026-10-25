@@ -35,6 +35,8 @@ from journal.support.caller_kind import CallerKind
 CURRENT = "current"
 
 
+APPROVAL_REFUSAL = "only the user approves this plan: ask, then wait for their word"
+
 class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
@@ -189,17 +191,20 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
+        if not caller.actor.is_user() and not self.is_orchestrator_approver(caller):
+            raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.find(args.n)
-        if not caller.actor.is_user() and not self.is_orchestrator_approval(caller, plan):
-            raise Rejection("only the user approves this plan: ask, then wait for their word")
+        if not caller.actor.is_user() and self.is_agent_plan(plan):
+            raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.approve(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
 
-    def is_orchestrator_approval(self, caller: Caller, plan: Plan) -> bool:
-        if not self.is_orchestrator(caller) or not self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS):
-            return False
-        return not self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_OTHERS_PLANS) or plan.creation_actor.kind != ActorKind.AGENT
+    def is_orchestrator_approver(self, caller: Caller) -> bool:
+        return self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
+
+    def is_agent_plan(self, plan: Plan) -> bool:
+        return bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_OTHERS_PLANS)) and plan.creation_actor.kind == ActorKind.AGENT
 
     def is_orchestrator(self, caller: Caller) -> bool:
         return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator"
