@@ -12312,6 +12312,10 @@ def test_a_worker_merge_goes_to_the_background_at_once_with_the_reader_the_journ
     assert limits.is_background("journal worker merge 3") and limits.is_background("journal worker 3 merge"), "worker merge names itself among its command's background verbs"
     assert limits.build("journal worker merge 3", MAIN, None) > 0, "so its line has a foreground limit, which the runner passes at once"
     assert not limits.is_background("journal task list") and limits.build("journal task list", MAIN, None) == 0, "any other journal command stays in the foreground"
+    assert not limits.is_background("python3 -c \"print('it''s')\"") and not limits.is_background("echo 'open"), "a line with an unclosed quote is read, never refused"
+    from journal.features.shell.support.output_cap import OutputCap
+    caps = app.container.get(OutputCap)
+    assert not caps.build("journal worker merge 3").is_whole() and caps.build("journal task list").is_whole(), "a merge's output is kept under a number, so its card has a row; any other journal command is shown whole"
     app.container.get(DefaultReaders).run()
     app.container.get(JournalOutputReaders).run()
     assert readers.reading("journal worker merge 3").name == "worker-merge", "the reader the journal ships for a merge reads it, and the seed that removes readers of journal commands keeps it"
