@@ -179,6 +179,8 @@ def test_the_hooks_and_lines_that_went_around_the_journal_are_named_once_in_the_
     assert len([m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal did not answer in time")]) == 1, "named once: the next answer says nothing more"
 
 def test_the_agent_is_told_in_one_line_on_its_next_hook_what_went_through_unchecked_while_the_journal_did_not_answer(app: App):
+    post_hook(app, {"hook_event_name": "SessionStart", "session_id": "s1"})
+    app.container.get(ListenerQueue).drain()
     log = app.config.home / "runtime" / "bypass.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("1761393836 hook claude\n1761393837 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
