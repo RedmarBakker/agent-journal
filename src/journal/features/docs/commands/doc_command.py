@@ -108,8 +108,9 @@ class DocCommand(Command):
         if doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
         owner = self.account.user_number()
-        on_hub = self.docs.save(doc.put_on_hub(hub.row_id, mode, owner), caller.actor)
-        self.doc_revisions.moved(on_hub, caller.actor)
+        with self.docs.writing():
+            self.doc_revisions.moved(doc, hub.row_id, caller.actor)
+            on_hub = self.docs.save(doc.put_on_hub(hub.row_id, mode, owner), caller.actor)
         copy = self.copy_of(on_hub, caller) if args.keep_copy else None
         print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
         return 0

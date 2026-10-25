@@ -33,9 +33,9 @@ class DocRevisions(ScopedRepository[DocRevision], LinkedRows):
     def document_revisions(self, doc: Doc) -> list[DocRevision]:
         return sorted(self.children(doc), key=lambda revision: revision.number)
 
-    def moved(self, doc: Doc, actor: Actor) -> None:
+    def moved(self, doc: Doc, environment_id: int, actor: Actor) -> None:
         for revision in self.document_revisions(doc):
-            self.save(revision.with_(environment_id=doc.environment_id), actor)
+            self.save(revision.with_(environment_id=environment_id), actor)
 
     def latest(self, doc: Doc) -> DocRevision | None:
         revisions = self.document_revisions(doc)
