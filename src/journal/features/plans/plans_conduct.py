@@ -2,6 +2,7 @@ from journal.engine.conduct import Conduct
 from journal.engine.nudge import Nudge
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.rows.drive_ended import DriveEnded
 from journal.events.rows.plan_approved import PlanApproved
 from journal.events.rows.plan_blocked import PlanBlocked
 from journal.events.rows.plan_reopened import PlanReopened
@@ -16,7 +17,7 @@ from journal.features.tasks.tasks_part import TasksPart
 
 
 class PlansConduct(Conduct):
-    """The plans feature's conduct in every state: the user's approval informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied, which the plans feature's review demand then counts down."""
+    """The plans feature's conduct in every state: the user's approval informed, a drive of a hub row lost informed, a plan blocked or open again informed, the plan's next task named when the plan starts it, the wait named when none can start, at a start or a close, the plan's testing template informed when it starts and after each of its tasks closes, and a plan whose reviewers are all back instructed to be written into and readied, which the plans feature's review demand then counts down."""
 
     def on_plan_approved(self, event: PlanApproved, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_APPROVED.create(n=event.plan_id)) if event.user_origin else self.none()
@@ -26,6 +27,9 @@ class PlansConduct(Conduct):
 
     def on_plan_blocked(self, event: PlanBlocked, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_BLOCKED.create(n=event.plan_id, why=event.reason))
+
+    def on_drive_ended(self, event: DriveEnded, settings: Settings) -> Transition:
+        return self.none(PlansNudges.DRIVE_ENDED.create(name=event.name, why=event.reason, noun=event.noun, n=event.row_id))
 
     def on_plan_reopened(self, event: PlanReopened, settings: Settings) -> Transition:
         return self.none(PlansNudges.PLAN_REOPENED.create(n=event.plan_id, why=event.reason))

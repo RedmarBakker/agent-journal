@@ -11,6 +11,9 @@ from journal.features.plans.commands.plan_command import PlanCommand
 from journal.features.plans.listeners.advance_plan import AdvancePlan
 from journal.features.plans.listeners.reopen_finished_plan import ReopenFinishedPlan
 from journal.features.plans.listeners.plan_reopening import PlanReopening
+from journal.features.plans.listeners.driven_row_closures import DrivenRowClosures
+from journal.features.plans.listeners.driven_row_deletions import DrivenRowDeletions
+from journal.features.plans.listeners.ended_drive_write_guard import EndedDriveWriteGuard
 from journal.features.plans.plans_conduct import PlansConduct
 from journal.features.plans.seeds.closed_plans import ClosedPlans
 from journal.features.plans.states.following_plan import FollowingPlan
@@ -29,7 +32,7 @@ class Plans(Feature[PlansData]):
     help = "A plan is a goal, phases and the tasks under them, built with the user and started on their approval; following it, finishing one task starts the next."
     states = (PlansReady, PlansWorking, FollowingPlan)
     commands = (PlanCommand,)
-    listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening)
+    listeners = (PlanTestingDefault, PlanBlockade, ClearPlanWaits, ReleasePlanWaits, CountPlanReviewers, AdvancePlan, ReopenFinishedPlan, PlanReopening, DrivenRowDeletions, DrivenRowClosures, EndedDriveWriteGuard)
     conduct = (PlansConduct,)
     data = (PlansDataReader, TaskSuccessionReader)
     seeds = (ClosedPlans,)

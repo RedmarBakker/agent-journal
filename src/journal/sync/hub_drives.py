@@ -6,11 +6,13 @@ from journal.models.environment import Environment
 from journal.models.plan import Plan
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.repositories.environment_owners import EnvironmentOwners
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
 from journal.repositories.tasks import Tasks
 from journal.support.actor import Actor
+from journal.support.actor_kind import ActorKind
 from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
 from journal.sync.hosting import Hosting
@@ -24,11 +26,13 @@ RENEW_SECONDS = 60
 
 
 class HubDrives:
-    """The hub plans and tasks this machine drives, each from one of its environments: a drive takes the team server's lease of the row, refused while another device holds it, lapsed or not, renewed here every minute and lapsing 15 minutes after its last renewal, when a takeover alone has it; it binds the row to the environment in scope and writes on the hub row the person and the agent driving it, and a release undoes all three. A row whose lease another device took over is let go here at the next renewal. The hosted journal drives nothing."""
+    """The hub plans and tasks this machine drives, each from one of its environments: a drive takes the team server's lease of the row, refused while another device holds it, lapsed or not, renewed here every minute and lapsing 15 minutes after its last renewal, when a takeover alone has it; it binds the row to the environment in scope and writes on the hub row the person and the agent driving it, and a release undoes all three. A drive ends here when its lease is found taken over at a renewal, or its row is deleted or closed on another journal: the binding is lost, the environment's agent told why, naming who, and this machine's writes to the row refused until it is driven again. The hosted journal drives nothing."""
 
-    def __init__(self, link: TeamServerLink, bindings: PlanBindings, tasks: Tasks, plans: Plans, environments: Environments, scope: Scope, hosting: Hosting, labels: RowLabels) -> None:
+    def __init__(self, link: TeamServerLink, bindings: PlanBindings, tasks: Tasks, plans: Plans, environments: Environments, scope: Scope, hosting: Hosting, labels: RowLabels, owners: EnvironmentOwners) -> None:
         self.link, self.bindings, self.environments, self.scope, self.hosting, self.labels = link, bindings, environments, scope, hosting, labels
+        self.owners = owners
         self.repositories = {Task: tasks, Plan: plans}
+        self.tables = {Task.table(): tasks, Plan.table(): plans}
         self.renewed_at = 0.0
 
     def drive(self, row: Task | Plan, actor: Actor) -> Task | Plan:
@@ -56,7 +60,12 @@ class HubDrives:
         try:
             self.link.acquire_free_lease(self.lease_name(ref), DRIVE_LAPSE_SECONDS)
         except TeamRefusal:
-            self.bindings.unbind(ref, Actor.system())
+            holder = self.link.lease_state(self.lease_name(ref))
+            self.bindings.end(self.tables[ref.type].find(ref.id), f"{holder.holder} took it over on {holder.device_name}", Actor.system())
+
+
+    def doer(self, actor: Actor) -> str:
+        return self.owners.person_name(int(actor.id)) if actor.kind == ActorKind.USER else "someone"
 
     def driven(self, row: Task | Plan, lease_request: Callable[[str], Lease], actor: Actor) -> Task | Plan:
         environment = self.drivable(row)

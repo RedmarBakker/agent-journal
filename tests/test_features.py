@@ -13090,6 +13090,66 @@ def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_i
         assert getattr(a.container.get(SessionAgents).top("s1"), "task_id", 0) != driven.id, "whose task in hand is let go"
 
 
+def test_a_drive_ends_when_its_hub_task_is_deleted_or_finished_on_another_journal_or_its_lease_taken_over_with_its_link_gone_one_line_to_the_agent_and_the_old_drivers_write_refused(tmp_path, template_journal, monkeypatch):
+    import time as clock
+    from datetime import datetime, timezone
+    from journal.engine.state_machine import StateMachine
+    from journal.events.bus import Bus
+    from journal.events.listener import Listener
+    from journal.events.rows.drive_ended import DriveEnded
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.task_state import TaskState
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.scope import BOUND_LINK
+    from journal.repositories.tasks import Tasks
+    from journal.sync.hub_drives import DRIVE_LAPSE_SECONDS, HubDrives
+    ended: list[DriveEnded] = []
+
+    class EndedDrives(Listener[DriveEnded]):
+        def handle(self, event: DriveEnded) -> None:
+            ended.append(event)
+
+    def hub_task(title: str) -> Task:
+        with a.container.get(Scope).environment(hub.row_id):
+            return a.container.get(Tasks).save(Task(environment_id=hub.row_id, title=title), Actor.user(1))
+
+    def bobs(task_id: int, write) -> None:
+        tasks = b.container.get(Tasks)
+        with b.container.get(Scope).environment(tasks.find(task_id).environment_id):
+            write(tasks, tasks.find(task_id))
+
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        assert hook(a, "SessionStart")[0] == 200
+        a.console().run(["environment", "overview"], AGENT)
+        main, hub = a.container.get(Environments).existing("main"), a.container.get(Environments).hubs()[0]
+        deleted, finished, taken = [hub_task(title) for title in ("to be deleted", "to be finished", "to be taken over")]
+        assert synced(lambda: all(b.container.get(Tasks).global_matching(id=task.id) for task in (deleted, finished, taken))), "the three hub tasks are on Bob's journal"
+        for task in (deleted, finished, taken):
+            assert a.console().run(["task", "drive", str(task.id)], USER).code == 0
+        a.container.get(Bus).listen(DriveEnded, EndedDrives())
+        bobs(deleted.id, lambda tasks, task: tasks.delete(task, Actor.user(2)))
+        bobs(finished.id, lambda tasks, task: tasks.save(task.finished(datetime.now(timezone.utc), "Bob finished it"), Actor.user(2)))
+        assert synced(lambda: {event.row_id for event in ended} >= {deleted.id, finished.id}), "the deletion and the finish end Ada's drives as they arrive"
+        a.container.get(HubDrives).renewed_at = clock.monotonic()
+        lapsed = clock.time() + DRIVE_LAPSE_SECONDS + 1
+        monkeypatch.setattr(team.clock, "time", lambda: lapsed)
+        assert b.console().run(["task", "drive", str(taken.id), "--take-over"], replace(USER, person=2)).code == 0
+        a.container.get(HubDrives).renewed(Ref.build(taken))
+        assert not a.container.get(Links).all_matching(kind=BOUND_LINK), "each binding is released"
+        assert sorted(event.row_id for event in ended) == sorted((deleted.id, finished.id, taken.id)), "the agent is told once for each"
+        why = {event.row_id: event.reason for event in ended}
+        assert "deleted it on another journal" in why[deleted.id] and "marked it done on another journal" in why[finished.id] and why[taken.id].startswith("Bob took it over on "), why
+        machine = a.container.get(StateMachine)
+        assert all(event.environment_id == main.row_id and "s1" in {agent.session for agent in machine.audience(event)} for event in ended), "in the environment that drove it, to its agent"
+        assert a.container.get(Tasks).find(finished.id).state == TaskState.FINISHED
+        for task in (finished, taken):
+            refused = a.console().run(["task", "rename", str(task.id), "Ada's name for it"], USER)
+            assert refused.code == 1 and "is driven from here no longer" in refused.error, refused.error
+        assert a.console().run(["task", "rename", str(deleted.id), "Ada's name for it"], USER).code == 1, "a deleted task is not written either"
+
+
 def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied
