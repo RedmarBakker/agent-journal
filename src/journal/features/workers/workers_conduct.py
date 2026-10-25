@@ -182,8 +182,11 @@ def idle_cap_check(state: BaseState, event: ToolStarting, settings: Settings) ->
 
 
 def retire_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    lines = [line for line in worker_lines(event, "complete", "stop") if not line.reason]
+    if not lines:
+        return state.none()
     idle = {w.id: w for w in event.data.part(WorkersPart).idle_workers}
-    retirements = [line for line in worker_lines(event, "complete", "stop") if line.number in idle and not line.reason]
+    retirements = [line for line in lines if line.number in idle]
     return state.refuse(WorkersNudges.REUSE_QUESTION.create(n=retirements[0].number, name=idle[retirements[0].number].name)) if retirements else state.none()
 
 

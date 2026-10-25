@@ -6,6 +6,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from journal.app import App
@@ -20,6 +21,7 @@ from journal.models.command_output import CommandOutput
 from journal.models.message import Message
 from journal.models.subagent import Subagent
 from journal.models.subagent_state import SubagentState
+from journal.models.support.ref import Ref
 from journal.models.setting import Setting
 from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
@@ -29,6 +31,8 @@ from journal.repositories.messages import Messages
 from journal.repositories.scope import PROJECT, Scope
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.subagents import Subagents
+from journal.repositories.tasks import Tasks
+from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from tests.in_process import posted
@@ -44,6 +48,9 @@ PLANS, PHASES, PLAN_TASKS, LOOSE_TASKS, FINISHED_TASKS, WORKERS = 30, 3, 8, 400,
 # plan 1, started last, its first task in the agent's hand
 STARTED_PLAN_TASKS, STARTED_PLAN_PHASES = 60, 8
 ENDED_SESSIONS, WAIT_CHECKS, BROKEN_WAIT_CHECKS, SUBAGENTS, OUTPUTS = 80, 100, 10, 40, 30
+# the workers left reported, their work not yet taken in; the rest are merged, so no worker is still out when the project boots, as none is
+# in a journal worked in for weeks, and the watch on workers out (workers/jobs/worker_watch.py) never rewrites them while a run measures
+IDLE_WORKERS = 5
 MESSAGES, TOOL_CALLS, DISPLAYS, COMMENTS, REACTIONS = 4000, 1200, 300, 400, 300
 DOCS, REPORTS, ABOUT_REPORTS, CHECKS, FACTS, RULES, REMINDERS, QUESTIONS = 80, 60, 20, 25, 40, 30, 30, 20
 SPARE_TASKS, SPARE_MESSAGES = 50, 100
@@ -130,6 +137,15 @@ def workers(app: App, words: random.Random) -> None:
         assert dispatch.code == 0, dispatch.error
     for limit in limits:
         settings.set(limit.key, limit.default, Actor.user(1))
+    with app.container.get(Scope).environment(app.container.get(Environments).existing("main").row_id):
+        crew, tasks, runner = app.container.get(Workers), app.container.get(Tasks), app.container.get(WorkerRunner)
+        for worker in crew.scoped():
+            runner.recorded_end(worker, Actor.system())
+        app.runtime().deferred.drain()
+        for worker in crew.scoped()[IDLE_WORKERS:]:
+            tasks.release(Ref.build(worker), Actor.system())
+            crew.save(crew.find(worker.row_id).merged(time.time()), Actor.system())
+    app.runtime().deferred.drain()
 
 
 def chat(app: App, words: random.Random) -> list[int]:
@@ -183,7 +199,8 @@ def history(app: App, words: random.Random) -> None:
             app.container.get(Agents).save(Agent(environment_id=main_id, session=f"ended-{n}", provider="claude", state="ended"), system)
         for n in range(WAIT_CHECKS):
             fault = "the command was not found" if n < BROKEN_WAIT_CHECKS else ""
-            app.container.get(Checks).save(Check(title=f"the wait for {phrase(words, 4)} ends when this passes", brief=sentence(words), command="true", interval=60, wait_target=True, last_passed=False if fault else True, last_fault=fault), system)
+            # a broken wait waits to be run by hand, so no check runs while a run measures
+            app.container.get(Checks).save(Check(title=f"the wait for {phrase(words, 4)} ends when this passes", brief=sentence(words), command="true", interval=0 if fault else 60, wait_target=True, last_passed=False if fault else True, last_fault=fault), system)
         for n in range(SUBAGENTS):
             brief = " ".join(sentence(words) for _ in range(12))
             app.container.get(Subagents).save(Subagent(environment_id=main_id, dispatch=f"sub:{n}", dispatcher="s1", task=phrase(words, 5), brief=brief, agent_type="Explore", session=f"agent-{n}", state=SubagentState.FINISHED), system)

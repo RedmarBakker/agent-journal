@@ -5,6 +5,7 @@
  "POST /journal/tasks/1/finish": 61,
  "hook MessageDisplay": 131,
  "hook SessionStart": 282,
+ "hook Stop": 38,
  "hook StopFailure": 124,
  "hook SubagentStart": 120,
  "hook SubagentStop": 122
