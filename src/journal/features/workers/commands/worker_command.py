@@ -98,6 +98,7 @@ class WorkerCommand(Command):
         queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
+        queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order given, taking one from another worker's queue if it is there, so the first is the next one sent")
         self.verb(verbs, "drain", "give back every task waiting in a worker's queue, open again, in one mark; the task it works on stays its").add_argument("n", type=int)
         notify = self.verb(verbs, "notify", "give a running worker a message in its live session")
         notify.add_argument("n", type=int)
@@ -254,8 +255,8 @@ class WorkerCommand(Command):
 
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
-        for n in args.tasks:
-            self.tasks.queued(self.tasks.find(n), Ref.build(worker), caller.actor)
+        for n in reversed(args.tasks) if args.first else args.tasks:
+            (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
             print(self.actions.next_job(worker.id, caller.actor))

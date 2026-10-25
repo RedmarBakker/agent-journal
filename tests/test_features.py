@@ -4398,6 +4398,52 @@ def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app:
         assert returned.progress.time == running.progress.time == checks.find(stale.row_id).progress.time, "the due tick had read the check before the run began: it starts no second run over the first"
 
 
+def test_a_task_put_first_in_a_workers_queue_is_the_next_one_sent_and_one_in_another_workers_queue_moves_to_the_head_of_this_one(app: App, monkeypatch):
+    import subprocess
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.models.support.ref import Ref
+    from journal.models.task_state import TaskState
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "-b", "main")
+    (root / ".gitignore").write_text(".journal/\n")
+    git("add", ".gitignore")
+    git("-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-qm", "start")
+    console, tasks = app.console(), app.container.get(Tasks)
+    hook(app, "SessionStart")
+    for title in ("the notes", "the second", "the third", "the fourth", "the other worker's", "its queued one"):
+        console.run(["task", "create", title, "--brief", f"{title} is written"], AGENT)
+    for name, task in (("Mr. Babbage", "1"), ("Lady Lovelace", "5")):
+        console.run(["worker", "dispatch", name, "--task", task, "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        for number in (1, 2):
+            workers.save(workers.find(number).with_(token_hash="h", session=f"w-{number}").ready(1.0), Actor.system())
+    queue = lambda number: [task.id for task in tasks.queue(Ref.build(workers.find(number)))]
+    assert console.run(["worker", "queue", "1", "2", "3", "4"], AGENT).code == 0
+    assert console.run(["worker", "queue", "2", "6"], AGENT).code == 0
+    first = console.run(["worker", "queue", "1", "4", "--first"], AGENT)
+    assert first.code == 0 and "queue: task 4, task 2, task 3" in first.text, first.error or first.text
+    with app.container.get(Scope).environment(MAIN):
+        assert queue(1) == [4, 2, 3], "the fourth task is first in the queue"
+    moved = console.run(["worker", "queue", "2", "3", "--first"], AGENT)
+    assert moved.code == 0 and "queue: task 3, task 6" in moved.text, moved.error or moved.text
+    with app.container.get(Scope).environment(MAIN):
+        assert queue(2) == [3, 6] and queue(1) == [4, 2], "a task in another worker's queue moves to the head of this one"
+        assert tasks.find(3).state == TaskState.DELEGATED
+    babbage = Caller.worker("main", 1, "w-1", "claude")
+    console.run(["proof", "1", "notes.md:1, written"], babbage)
+    console.run(["clock-out", "the notes are written"], babbage)
+    console.run(["worker", "check", "1", "1"], AGENT)
+    monkeypatch.setattr(WorkerActions, "resumable", lambda self, worker: None)
+    merged = console.run(["worker", "merge", "1"], AGENT)
+    assert merged.code == 0 and "it went straight on to task 4 from its queue" in merged.text, merged.error or merged.text
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task
