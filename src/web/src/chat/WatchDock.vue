@@ -60,14 +60,14 @@ watch(
                 <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
             </span>
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="[card.line, opened ? 'Fold the output' : 'Show the whole output'].filter(Boolean).join('\n\n')" @click="toggle">{{ message.text }}</button>
-            <template v-if="ranFor">
-                <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
-            </template>
             <template v-if="card.count">
                 <span class="watch-dock-figure">{{ card.count }}</span>
             </template>
             <template v-if="card.ending">
                 <span class="watch-dock-ending">{{ card.ending }}</span>
+            </template>
+            <template v-if="ranFor">
+                <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>

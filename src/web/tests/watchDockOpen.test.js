@@ -169,3 +169,14 @@ test("a docked run that failed shows red by the outcome its card reports, never 
     await flush();
     expect(host.querySelector(".watch-dock-state").dataset.state).toBe("bad");
 });
+
+test("the run's duration is the last detail of a docked card's head, after its figure and its ending", async () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    app = createApp({render: () => h(WatchDock, {message: {...watched, data: {...watched.data, count: "3 of 9", ending: "Passed", began_at: 1, ended_at: 5}}})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    const order = [...host.querySelectorAll(".watch-dock-figure, .watch-dock-ending")].map((el) => el.textContent.trim());
+    expect(order).toEqual(["3 of 9", "Passed", "4s"]);
+});
