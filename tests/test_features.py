@@ -11247,6 +11247,65 @@ def test_a_request_declined_with_a_reason_and_one_done_show_on_the_requesters_pa
         team.close(server)
 
 
+def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its_first_driver_an_issue_is_on_none_and_a_request_for_one_is_readable_by_a_third(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.db.connection import Connection
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.users import Users
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    def eventually(check) -> bool:
+        deadline = timing.monotonic() + TEAM_SYNC_WAIT_SECONDS
+        while timing.monotonic() < deadline:
+            if check():
+                return True
+            timing.sleep(0.05)
+        return False
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    for name in ("b", "c"):
+        git("clone", "-q", str(tmp_path / "a"), str(tmp_path / name))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    a, b, c = (booted(copied(template_journal, tmp_path / name), monkeypatch) for name in "abc")
+    for other in (b, c):
+        other.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+    journals, carriers = [a, b, c], [CarriedSync(a).started(), CarriedSync(b).started(), CarriedSync(c).started()]
+    bob, carol = replace(USER, person=2), replace(USER, person=3)
+    try:
+        assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
+        for journal, email, name, caller in ((b, "bob@example.com", "Bob", bob), (c, "carol@example.com", "Carol", carol)):
+            invited = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", email], USER).text).group(1)
+            assert journal.console().run(["team", "join", invited, "--email", email, "--name", name, "--password", "correct horse battery"], caller).code == 0
+        assert eventually(lambda: any(user.name == "Bob" for user in a.container.get(Users).all())), "Ada's journal knows Bob by name"
+        for title, flag in (("Team job", "--to-team"), ("Bobs job", "--to"), ("Slow board", "--issue")):
+            arguments = ["task", "create", title, "--brief", "b", flag, *(["Bob"] if flag == "--to" else [])]
+            assert a.console().run(arguments, USER).code == 0, title
+        titled = lambda journal, title: next(iter(journal.container.get(Tasks).global_matching(title=title)), None)
+        assert eventually(lambda: all(titled(journal, title) for journal in (b, c) for title in ("Team job", "Bobs job", "Slow board"))), "every hub row reaches every member's journal, a request for one person and an issue included"
+        page = lambda journal: sorted(row["title"] for row in json.load(urlopen(HttpRequest(f"http://127.0.0.1:{journal.server().port}/journal/requests", headers={"X-Journal-Env": "main"}), timeout=5))["rows"])
+        assert page(a) == ["Team job"] and page(b) == ["Bobs job", "Team job"] and page(c) == ["Team job"], "the team request is on every member's page, the one for Bob on his alone, and the issue on none"
+        team_job = titled(a, "Team job")
+        assert a.console().run(["task", "drive", str(team_job.id)], USER).code == 0, "the first to drive a team request holds it"
+        second = b.console().run(["task", "drive", str(team_job.id)], bob)
+        assert second.code == 1 and "held by Ada" in second.error, second.error
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []

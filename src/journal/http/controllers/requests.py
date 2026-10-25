@@ -13,13 +13,13 @@ from journal.support.response import Response
 
 
 class RequestController:
-    """The requests filed for the signed-in person, and those the signed-in person filed with the state each has reached, newest first, from every environment, the hub's among them."""
+    """The requests filed for the signed-in person or for the whole team, an issue never among them, and those the signed-in person filed with the state each has reached, newest first, from every environment, the hub's among them."""
 
     def __init__(self, tasks: Tasks, links: Links, users: Users, environments: Environments, holders: TaskHolders) -> None:
         self.tasks, self.links, self.users, self.environments, self.holders = tasks, links, users, environments, holders
 
     def index(self, request: Request) -> Response:
-        ids = [ref.id for ref in self.links.sources(User(id=int(request.actor.id)), REQUESTED_OF)]
+        ids = sorted({*(ref.id for ref in self.links.sources(User(id=int(request.actor.id)), REQUESTED_OF)), *(link.source.id for link in self.links.of_kind(TEAM_REQUEST))})
         return Response.json({"rows": [ModelFields.build(task) for task in reversed(self.tasks.numbered_anywhere(ids))]})
 
     def filed(self, request: Request) -> Response:
