@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from journal.console.command import HELPER_KINDS, SUBAGENT_KINDS, WORKER_KINDS, Command
 from journal.support.caller import Caller
+from journal.support.row_labels import RowLabels
 from journal.support.caller_kind import CallerKind
 from journal.engine.clock import Clock
 from journal.support.rejection import Rejection
@@ -35,10 +36,10 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels) -> None:
         self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check = check
+        self.check, self.labels = check, labels
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -88,7 +89,7 @@ class TaskCommand(Command):
         if args.start:
             task = self.taking.start(task, caller)
         unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
-        print("\n".join(filter(None, [f"task {task.id} {task.state}" + (f" (from message {args.message})" if args.message else ""), unfiled])))
+        print("\n".join(filter(None, [f"{self.labels.name('task', task)} {task.state}" + (f" (from message {args.message})" if args.message else ""), unfiled])))
         return 0
 
     def message_link(self, message: int, task: Task, caller: Caller) -> None:
@@ -101,13 +102,13 @@ class TaskCommand(Command):
     def rename(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
         task = self.tasks.save(old_task.edited(args.title, old_task.brief, self.clock.time()), caller.actor)
-        print("\n".join(filter(None, [f"task {task.id} is now: {task.title}", self.reminder.line(old_task)])))
+        print("\n".join(filter(None, [f"{self.labels.name('task', task)} is now: {task.title}", self.reminder.line(old_task)])))
         return 0
 
     def brief(self, args: Namespace, caller: Caller) -> int:
         old_task = self.tasks.find(args.n)
         task = self.tasks.save(old_task.edited(old_task.title, args.brief, self.clock.time()), caller.actor)
-        print("\n".join(filter(None, [f"task {task.id} brief written anew", self.reminder.line(old_task)])))
+        print("\n".join(filter(None, [f"{self.labels.name('task', task)} brief written anew", self.reminder.line(old_task)])))
         return 0
 
     def edit(self, args: Namespace, caller: Caller) -> int:
@@ -119,7 +120,7 @@ class TaskCommand(Command):
         priority_task = task.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else task
         new_task = self.tasks.save(priority_task.edited(args.title or task.title, args.brief or task.brief, self.clock.time()), caller.actor)
         self.message_link(args.message, new_task, caller)
-        summary = f"task {task.id} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
+        summary = f"{self.labels.name('task', task)} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
         print("\n".join(filter(None, [summary + (f" (from message {args.message})" if args.message else ""), ("" if args.message else self.reminder.line(task))])))
         return 0
 
@@ -132,16 +133,16 @@ class TaskCommand(Command):
     def log(self, args: Namespace, caller: Caller) -> int:
         task = self.readable(args.n, caller)
         if caller.kind == CallerKind.MAIN_AGENT and not task.is_started():
-            raise Rejection(f"task {task.id} is not in hand, and a log line is read only while a task runs. Put what it has to know in its brief: read it with journal task show {task.id}, then journal task edit {task.id} --brief \"<the whole brief>\"")
+            raise Rejection(f"{self.labels.name('task', task)} is not in hand, and a log line is read only while a task runs. Put what it has to know in its brief: read it with journal task show {task.id}, then journal task edit {task.id} --brief \"<the whole brief>\"")
         self.logs.save(TaskLog.build(task, args.line, self.clock.time()), caller.actor)
-        print(f"task {task.id} logged")
+        print(f"{self.labels.name('task', task)} logged")
         return 0
 
     def pause(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).paused(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         waits = f", waiting on: {self.tasks.reason(task)}; you are told when that is over" if args.on or args.until else ""
-        print(f"task {task.id} paused{waits}")
+        print(f"{self.labels.name('task', task)} paused{waits}")
         return 0
 
     def resume(self, args: Namespace, caller: Caller) -> int:
@@ -149,7 +150,7 @@ class TaskCommand(Command):
 
     def claimed_task(self, n: int, caller: Caller, manner: str) -> int:
         task = self.taking.start(self.tasks.find(n), caller)
-        print("\n".join([f"task {task.id} {manner}", *self.briefing.lines(task)]))
+        print("\n".join([f"{self.labels.name('task', task)} {manner}", *self.briefing.lines(task)]))
         return 0
 
     def block(self, args: Namespace, caller: Caller) -> int:
@@ -157,12 +158,12 @@ class TaskCommand(Command):
         self.check.refuse(args.n, args.on)
         task = self.tasks.save(self.tasks.find(args.n).blocked(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
-        print(f"task {task.id} blocked, waiting on: {self.tasks.reason(task)}")
+        print(f"{self.labels.name('task', task)} blocked, waiting on: {self.tasks.reason(task)}")
         return 0
 
     def unblock(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).unblocked("it was unblocked by hand", self._time().timestamp()), caller.actor)
-        print(f"task {task.id} open again")
+        print(f"{self.labels.name('task', task)} open again")
         return 0
 
     def complete(self, args: Namespace, caller: Caller) -> int:
@@ -170,13 +171,13 @@ class TaskCommand(Command):
         if args.n in holdings and not caller.actor.is_user():
             raise Rejection(f"task {args.n} is worker {holdings[args.n]}'s: take its work in with journal worker merge {holdings[args.n]} once its proofs are checked")
         task = self.tasks.save(self.tasks.find(args.n).finished(self._time(), args.how), caller.actor)
-        print(f"task {task.id} done")
+        print(f"{self.labels.name('task', task)} done")
         self._name_next(task)
         return 0
 
     def cancel(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.save(self.tasks.find(args.n).cancelled(self._time(), args.why), caller.actor)
-        print(f"task {task.id} cancelled")
+        print(f"{self.labels.name('task', task)} cancelled")
         self._name_next(task)
         return 0
 
@@ -192,7 +193,7 @@ class TaskCommand(Command):
                 return 0
             args.n = current_task.id
         task = self.readable(int(args.n), caller)
-        print(f"""task {task.id}: {task.title}
+        print(f"""{self.labels.name('task', task)}: {task.title}
 state: {task.state}
 {self.place(task)}
 {self.briefing.whole(task)}""")

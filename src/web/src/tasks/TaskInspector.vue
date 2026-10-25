@@ -11,6 +11,8 @@ import {planOf} from "../domain/records.js";
 import {wholePhases} from "../domain/plans.js";
 import {wholePlans} from "../composables/wholePlans.js";
 import {updatedAt} from "../domain/row.js";
+import {rowLabel} from "../domain/rowLabels.js";
+import {rows} from "../sync/rows.js";
 import {nextAct, otherActs, statusOf} from "../domain/taskBoard.js";
 import {ago} from "../format/time.js";
 import TaskChain from "./TaskChain.vue";
@@ -71,7 +73,7 @@ watch(
         </div>
         <Transition name="swap" mode="out-in">
             <div :key="task.id" class="body">
-                <div class="stamp">Task {{ task.id }} · updated {{ ago(updatedAt(task)) || "just now" }}</div>
+                <div class="stamp">{{ rowLabel("task", task, rows("environments")) }} · updated {{ ago(updatedAt(task)) || "just now" }}</div>
                 <h3 class="title">{{ task.title }}</h3>
                 <TaskState
                     :task="task"

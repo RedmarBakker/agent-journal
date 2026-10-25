@@ -1,8 +1,9 @@
 <script setup>
 import {computed} from "vue";
 import {boardColumns} from "../domain/hub.js";
+import {rowLabel} from "../domain/rowLabels.js";
 
-const props = defineProps({tasks: {type: Array, default: () => []}});
+const props = defineProps({tasks: {type: Array, default: () => []}, environments: {type: Array, default: () => []}});
 const emit = defineEmits(["open"]);
 const columns = computed(() => boardColumns(props.tasks));
 </script>
@@ -13,7 +14,7 @@ const columns = computed(() => boardColumns(props.tasks));
             <section class="column" :data-column="column.key">
                 <h3 class="head">{{ column.title }} <span class="count">{{ column.tasks.length }}</span></h3>
                 <template v-for="task in column.tasks" :key="task.id">
-                    <button type="button" class="card" @click="emit('open', task)">Task {{ task.id }}: {{ task.title }}</button>
+                    <button type="button" class="card" @click="emit('open', task)">{{ rowLabel("task", task, environments) }}: {{ task.title }}</button>
                 </template>
             </section>
         </template>

@@ -60,3 +60,8 @@ test("the hub board puts each task of the hub in the column of its state", () =>
     expect(column("waiting")).toEqual(["Task 3: c"]);
     expect(column("done")).toEqual(["Task 4: d"]);
 });
+
+test("a hub task is named with its team on its card", () => {
+    const host = mounted(HubBoard, {tasks: [{id: 57, title: "ship it", state: "open", environment_id: 5}, {id: 8, title: "local", state: "open", environment_id: 1}], environments: environments});
+    expect([...host.querySelectorAll("[data-column=open] .card")].map((card) => card.textContent.trim())).toEqual(["acme task 57: ship it", "Task 8: local"]);
+});
