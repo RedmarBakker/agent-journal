@@ -13,7 +13,7 @@ UPLOAD_ACTOR = "system"
 
 
 class UploadHandler:
-    """Takes the first full copy of a journal that becomes the team's: every row as a creation in the log, the highest number each table had, so the blocks handed out start above it, and the first commit of its repository, which every journal that joins must share. Only an admin uploads, and only to a team whose log is empty."""
+    """Takes the first full copy of a journal that becomes the team's: every row as a creation in the log, the highest number each table had, so the blocks handed out start above it, and the first commit of its repository, which every journal that joins must share, and the team's name. Only an admin uploads, and only to a team whose log is empty."""
 
     def __init__(self, store: Store, log: ChangeLog, ranges: IdRanges, devices: Devices, details: TeamDetails) -> None:
         self.store, self.log, self.ranges, self.devices, self.details = store, log, ranges, devices, details
@@ -30,4 +30,5 @@ class UploadHandler:
             self.details.record_repository(request.repository)
             self.details.record_version(request.version)
             self.details.record_migration(request.migration)
+            self.details.record_name(request.team_name)
             return UploadAnswer(len(request.rows), self.log.head())

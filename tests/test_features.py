@@ -11583,6 +11583,52 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         team.close(server)
 
 
+def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_and_a_second_journal_finds_the_same_hub(tmp_path, template_journal, monkeypatch):
+    import re
+    import subprocess
+    from carried_sync import CarriedSync
+    from conftest import copied
+    from journal.models.environment_kind import EnvironmentKind
+    from journal.repositories.environment_owners import EnvironmentOwners
+    from journal.repositories.environments import Environments
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "acme"))
+    git("-C", str(tmp_path / "acme"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    git("clone", "-q", str(tmp_path / "acme"), str(tmp_path / "b"))
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    address = f"http://127.0.0.1:{server.server_address[1]}"
+    journals = [booted(copied(template_journal, tmp_path / name), monkeypatch) for name in ("acme", "b")]
+    carriers = [CarriedSync(journal).started() for journal in journals]
+    a, b = journals
+    try:
+        new = team.details.answer()
+        assert len(new.key) == 32 and 0 < new.number < 2 ** 21 and new.name == "", "a new team server answers its key and its number T before any journal has named it"
+        joined = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        named = team.details.answer()
+        assert (named.key, named.number, named.name) == (new.key, new.number, "acme"), "the first journal names the team after its checkout's folder, and the key and T stay as drawn"
+        [hub] = a.container.get(Environments).hubs(new.key)
+        assert (hub.name, hub.team_name, hub.kind, hub.team_key) == ("acme", "acme", EnvironmentKind.HUB, new.key), "the first journal makes the team's hub environment"
+        assert not a.container.get(EnvironmentOwners).owner_number(hub.row_id) and hub.row_id not in [row.row_id for row in a.container.get(Environments).working()], "the hub is the team's, owned by no one and no environment of this machine's own"
+        bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
+        joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
+        assert joined_b.code == 0, joined_b.error
+        assert [(row.row_id, row.key, row.kind) for row in b.container.get(Environments).hubs(new.key)] == [(hub.row_id, hub.key, EnvironmentKind.HUB)], "a later journal finds the same hub, and makes no second one"
+        assert [row.row_id for row in a.container.get(Environments).hubs(new.key)] == [hub.row_id], "and the first journal still holds one"
+    finally:
+        for carrier in carriers:
+            carrier.stop()
+        for journal in journals:
+            journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_server_has_the_team_hold_each_environment_before_any_message_in_it(tmp_path, template_journal, monkeypatch):
     import re
     import subprocess

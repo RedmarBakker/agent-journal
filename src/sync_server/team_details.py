@@ -12,13 +12,16 @@ VERSION = "version"
 MIGRATION = "migration"
 LOWEST_SEQUENCE = "lowest_sequence"
 VERSIONS = "versions"
+KEY = "key"
+NAME = "name"
+NUMBER = "number"
 EXACT = "exact"
 ANY = "any"
 VERSION_SHAPE = re.compile(r"\d+\.\d+\.\d+")
 
 
 class TeamDetails:
-    """What the team server knows of the journal it hosts: the first commit of its repository, which a joining checkout must share, the journal version the team is pinned to, which the first copy's journal sets and an admin moves, and the migration the team's rows are at, which the first copy sets: a journal on an older migration may neither push nor pull until it is upgraded; the lowest sequence a pull may go on from, below which a device takes the full copy; and whether a journal must run exactly the pinned version to push or pull, the default, or any version will do, as the admin sets it."""
+    """What the team server knows of the journal it hosts: the first commit of its repository, which a joining checkout must share, the journal version the team is pinned to, which the first copy's journal sets and an admin moves, and the migration the team's rows are at, which the first copy sets: a journal on an older migration may neither push nor pull until it is upgraded; the lowest sequence a pull may go on from, below which a device takes the full copy; and whether a journal must run exactly the pinned version to push or pull, the default, or any version will do, as the admin sets it; and the team's key and number T, both drawn when the server is made, T being 0 for a team from before them, and its name, which its first journal gives it."""
 
     def __init__(self, rows: TeamDetailRows, log: ChangeLog, accounts: Accounts) -> None:
         self.rows, self.log, self.accounts = rows, log, accounts
@@ -31,6 +34,9 @@ class TeamDetails:
             raise Refusal(f"{version} is not a journal version such as 4.20.0")
         self.rows.write(VERSION, version)
         self.log.wake()
+
+    def record_name(self, name: str) -> None:
+        self.rows.write(NAME, name)
 
     def record_migration(self, number: int) -> None:
         self.rows.write(MIGRATION, str(number))
@@ -66,4 +72,4 @@ class TeamDetails:
         return self.rows.value(VERSION)
 
     def answer(self) -> TeamSummary:
-        return TeamSummary(self.rows.value(REPOSITORY), self.log.head() > 0, self.version(), self.migration(), self.versions(), not self.accounts.is_empty())
+        return TeamSummary(self.rows.value(REPOSITORY), self.log.head() > 0, self.version(), self.migration(), self.versions(), not self.accounts.is_empty(), self.rows.value(KEY), self.rows.value(NAME), int(self.rows.value(NUMBER)))

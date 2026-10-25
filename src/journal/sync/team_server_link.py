@@ -82,8 +82,8 @@ class TeamServerLink:
     def full_copy(self) -> FullCopy:
         return FullCopy.parsed(**json.loads(self.sent(self.account.address(), "/copy", None, COPY_SECONDS)))
 
-    def upload(self, rows: list[CopiedRow], highest: dict, repository: str, version: str) -> UploadAnswer:
-        body = json.dumps({"rows": [row.__dict__ for row in rows], "highest": highest, "repository": repository, "version": version, "migration": self.schema.version()}).encode()
+    def upload(self, rows: list[CopiedRow], highest: dict, repository: str, version: str, team_name: str) -> UploadAnswer:
+        body = json.dumps({"rows": [row.__dict__ for row in rows], "highest": highest, "repository": repository, "version": version, "migration": self.schema.version(), "team_name": team_name}).encode()
         return UploadAnswer(**json.loads(self.sent(self.account.address(), "/upload", body, COPY_SECONDS)))
 
     def upgrade(self, rows: list[CopiedRow], highest: dict, base_sequence: int) -> UploadAnswer:

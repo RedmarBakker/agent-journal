@@ -2,6 +2,7 @@ from journal.db.query import Query
 from journal.support.actor import Actor
 from journal.models.all_models import AllModels
 from journal.models.environment import Environment
+from journal.models.environment_kind import EnvironmentKind
 from journal.support.missing_row import MissingRow
 from journal.repositories.repository import Repository
 
@@ -13,7 +14,10 @@ class Environments(Repository[Environment]):
         return self.matching(key=key)
 
     def working(self) -> list[Environment]:
-        return self.selected(self.query().filter(is_team_chat=False).order("id"))
+        return self.selected(self.query().filter(is_team_chat=False, kind=EnvironmentKind.LOCAL).order("id"))
+
+    def hubs(self, team_key: str) -> list[Environment]:
+        return self.matching(kind=EnvironmentKind.HUB, team_key=team_key)
 
     def team_chats(self) -> list[Environment]:
         return self.selected(self.query().filter(is_team_chat=True).order("id"))

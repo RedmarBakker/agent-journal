@@ -44,6 +44,29 @@ def test_the_server_migrates_its_own_schema_once_and_keeps_its_version(tmp_path)
     store.close()
 
 
+def test_a_new_team_server_draws_its_key_and_a_number_t_below_2_21_once_and_one_claimed_before_keeps_t_0(tmp_path):
+    from sync_server.db.team_detail_rows import TeamDetailRows
+    from sync_server.team_server import TeamServer
+    for name in ("first", "second", "old"):
+        (tmp_path / name).mkdir()
+    first, second = TeamServer(tmp_path / "first"), TeamServer(tmp_path / "second")
+    drawn = [team.details.answer() for team in (first, second)]
+    assert all(len(answer.key) == 32 and 0 < answer.number < 2 ** 21 for answer in drawn), "a new server draws a key and a number T above 0 and below 2^21"
+    assert drawn[0].key != drawn[1].key, "each server draws its own key"
+    ServerSchema(first.store).migrated()
+    assert first.details.answer() == drawn[0], "a second start draws nothing anew"
+    old = Store(tmp_path / "old" / "team.db")
+    old.script("CREATE TABLE schema_version (number INTEGER NOT NULL)")
+    for script in MIGRATIONS[:-1]:
+        old.script(script)
+    old.execute("INSERT INTO schema_version (number) VALUES (?)", (len(MIGRATIONS) - 1,))
+    Accounts(AccountRows(old)).create("ada@example.com", "Ada", PASSWORD, ADMIN, 1.0)
+    ServerSchema(old).migrated()
+    assert TeamDetailRows(old).value("number") == "0" and len(TeamDetailRows(old).value("key")) == 32, "a server claimed before keeps T = 0 and is given a key"
+    for store in (first.store, second.store, old):
+        store.close()
+
+
 def test_a_person_logs_in_a_device_which_can_be_revoked_and_a_wrong_password_is_refused(store):
     accounts, devices = people(store)
     admin = accounts.create("Ada@Example.com", "Ada", PASSWORD, ADMIN, 1.0)
