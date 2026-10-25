@@ -1,12 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-BdduUXPy.js
-<<<<<<<< HEAD:src/web/dist/assets/figure-BdduUXPy.js
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DpkUXwdH.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-DB5-c11S.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-wpNxQX4v.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-DiI9OS9F.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> a2d74baf3 (The Fold the plans button sits at the far right of the top bar, directly left of the full screen button, and the fitness value takes its place beside the mode buttons):src/web/dist/assets/figure-rbDKOrWp.js
-========
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-CyZWQM_7.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-DiI9OS9F.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 72b1aa354 (The fitness value shows in the top bar from the first tool use, a dash until it is measured, and the top bar's test mounts the bar):src/web/dist/assets/figure-6tj08-hz.js
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DXrnODTO.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-DiI9OS9F.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
