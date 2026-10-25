@@ -61,9 +61,13 @@ class ReaderJudge:
 
     def missing_progress(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
         seconds = (ended_at - output.creation_time).total_seconds()
-        if seconds < PROGRESS_SECONDS or reader.progress(lines).is_known():
+        if seconds < PROGRESS_SECONDS or reader.progress(lines).is_known() or not self.has_progress(lines):
             return []
         return [(f"the run took {seconds:.0f} seconds and {PROGRESS_MISSING}", self.progress_fix(output.command, lines))]
+
+    @staticmethod
+    def has_progress(lines: list[str]) -> bool:
+        return any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines)
 
     def missing_summary(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         if reader.variant(output.stage()).card_lines(lines) or not lines:
@@ -95,7 +99,7 @@ class ReaderJudge:
         files = OutputFiles(Path(output.folder))
         lines = files.lines()
         fixes = []
-        progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines)
+        progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and self.has_progress(lines)
         if progress_unshown:
             fixes.append(self.progress_fix(output.command, lines))
         summary = next((line for line in lines if SUMMARY_PATTERN.search(line)), "")

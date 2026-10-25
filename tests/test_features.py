@@ -12244,7 +12244,7 @@ def test_the_viewer_joins_a_team_and_shows_how_it_stands_and_a_refusal_is_its_li
     finally:
         (app.config.home / TEAM_FILE).unlink(missing_ok=True)
         team.close(server)
-def test_a_long_run_whose_reader_showed_no_progress_is_reported_with_the_tools_streaming_form(app: App):
+def test_a_long_run_whose_output_holds_no_progress_is_not_reported_for_showing_none(app: App):
     from journal.features.shell.support.output_log import OutputLog
     from journal.repositories.command_outputs import CommandOutputs
     from journal.repositories.reader_reports import ReaderReports
@@ -12263,9 +12263,7 @@ def test_a_long_run_whose_reader_showed_no_progress_is_reported_with_the_tools_s
     outputs.save(outputs.find(1).ended_with(0, started + 45), Actor.system())
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(1):
-        [report] = app.container.get(ReaderReports).unread("s1")
-    assert report.reader == "packages" and "the run took 45 seconds and its card showed no progress" in report.findings, report.findings
-    assert any("go test -json or -v" in fix for fix in report.fixes), "the fix names the streaming form of the tool it ran"
+        assert not app.container.get(ReaderReports).unread("s1"), "go test prints one line per package as each ends, so no percentage or count of a total exists to show"
 
 def test_the_reader_judge_weighs_only_a_run_whose_output_the_card_could_read():
     from journal.features.shell.support.reader_commands import ReaderCommands
@@ -14894,6 +14892,22 @@ def test_the_reader_judge_takes_only_a_bracketed_percentage_for_a_runs_progress(
     pytest = ["tests/test_a.py ..                 [ 40%]", "tests/test_b.py ...                [100%]", "5 passed in 0.12s"]
     assert not [miss for miss in judge.misses(reader, vitest) if "shows no progress" in miss], "a Duration line's shares are not a run's progress"
     assert [miss for miss in judge.misses(reader, pytest) if "shows no progress" in miss], "[ 40%] lines are progress the reader should show"
+
+
+def test_a_long_run_is_reported_for_showing_no_progress_only_when_its_output_holds_some(app: App):
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    judge = app.container.get(ReaderJudge)
+    reader = Reader("tests", "the test run", "passed|^ok")
+    began = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+    output = SimpleNamespace(creation_time=began, command="pytest")
+    ended = began + timedelta(seconds=45)
+    buffered = ["ok  \tshop/cart\t0.2s", "ok  \tshop/pay\t0.4s"]
+    pytest = ["tests/test_a.py ..                 [ 40%]", "tests/test_b.py ...                [100%]"]
+    assert not judge.missing_progress(reader, output, buffered, ended), "buffered go test output holds nothing to show, so no progress is asked for"
+    assert judge.missing_progress(reader, output, pytest, ended), "pytest's percentages are progress a long run's reader should show"
 
 
 def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_started_plans_first(app: App):
