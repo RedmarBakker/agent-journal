@@ -2,6 +2,10 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
+## 4.59.1
+
+- A plugin the journal switched off for a fault is named to the agent once, and again only when its fault changes, it is switched on or upgraded, or a day has passed, never at every turn.
+
 ## 4.59.0
 
 - **Worktree launches as dependable as version 3.** `journal claude --worktree <name>` works in `.claude/worktrees/<name>` on the branch `worktree-<name>`; a bare `--worktree` makes up a two-word name that no folder, branch, kept tip or environment of the team holds yet.
