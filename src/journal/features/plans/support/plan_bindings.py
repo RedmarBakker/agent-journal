@@ -7,11 +7,11 @@ from journal.models.task import Task
 from journal.repositories.environments import Environments
 from journal.repositories.links import Links
 from journal.repositories.scope import BOUND_LINK
-
-ENDED_LINK = "drive_ended"
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.support.row_labels import RowLabels
+
+ENDED_LINK = "drive_ended"
 
 
 class PlanBindings:
