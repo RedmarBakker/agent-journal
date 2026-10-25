@@ -43,6 +43,13 @@ class Agent(Scoped):
     research_uses: tuple[int, ...] = ()
     handover_uses: tuple[int, ...] = ()
     file_edit_uses: tuple[int, ...] = ()
+    checked_uses: tuple[int, ...] = ()
+    merge_uses: tuple[int, ...] = ()
+    read_merge_uses: tuple[int, ...] = ()
+    idle_slot_uses: tuple[int, ...] = ()
+    is_proof_read: bool = False
+    mode: str = ""
+    mode_started_use: int = 0
     inbox_position: int = 0
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
@@ -100,11 +107,28 @@ class Agent(Scoped):
     def researched(self) -> "Agent":
         return self.with_(research_uses=self.windowed((*self.research_uses, self.tool_uses)))
 
+    def in_mode(self, mode: str) -> "Agent":
+        return self if self.mode == mode else self.with_(mode=mode, mode_started_use=self.tool_uses)
+
+    def worker_checked(self) -> "Agent":
+        return self.with_(checked_uses=self.windowed((*self.checked_uses, self.tool_uses)))
+
+    def worker_merged(self) -> "Agent":
+        merged = self.worker_checked()
+        read = (*merged.read_merge_uses, merged.tool_uses) if merged.is_proof_read else merged.read_merge_uses
+        return merged.with_(merge_uses=merged.windowed((*merged.merge_uses, merged.tool_uses)), read_merge_uses=merged.windowed(read), is_proof_read=False)
+
+    def proof_read(self) -> "Agent":
+        return self.with_(is_proof_read=True)
+
+    def slot_left_idle(self) -> "Agent":
+        return self.with_(idle_slot_uses=self.windowed((*self.idle_slot_uses, self.tool_uses)))
+
     def windowed(self, uses: tuple[int, ...]) -> tuple[int, ...]:
         return tuple(use for use in uses if use > self.tool_uses - WORK_WINDOW_USES)
 
     def compacted(self) -> "Agent":
-        return self.with_(tool_uses=0, inbox_position=0)
+        return self.with_(tool_uses=0, mode_started_use=0, inbox_position=0)
 
     def message_arrived(self) -> "Agent":
         return self.with_(inbox_position=self.tool_uses)

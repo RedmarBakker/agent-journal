@@ -1740,6 +1740,8 @@ def test_the_builder_is_scored_against_its_ideal_and_told_the_measure_furthest_o
     handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
     edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
     low = "your fitness as the builder is"
+    for n in range(40):
+        said("PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"r{n}.md")})
     for n in range(6):
         assert low not in edit(f"a{n}.md") + edit(f"b{n}.md") + handover(), "a builder writing most of its work scores near its ideal and hears nothing"
     lines = "".join(handover() for _ in range(16))
@@ -1758,6 +1760,8 @@ def test_the_orchestrator_is_scored_against_its_ideal_and_told_when_it_writes_fa
     handover = lambda: said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker send 1 'the next job'"})
     edit = lambda name: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / name), "old_string": "x", "new_string": "y"})
     low = "your fitness as the orchestrator is"
+    for n in range(40):
+        said("PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"r{n}.md")})
     for n in range(5):
         assert low not in handover() + edit(f"c{n}.md"), "an orchestrator handing out about as much as it fixes itself hears nothing"
     lines = "".join(edit(f"d{n}.md") for n in range(12))
@@ -1768,11 +1772,51 @@ def test_the_orchestrator_is_scored_against_its_ideal_and_told_when_it_writes_fa
 def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_drifted():
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.features.workers.workers_profiles import WorkersProfiles
-    ideal = WorkersProfiles.BUILDER.scored(ToolUseCounts(file_edits=12, handovers=2, research_count=10, subagent_dispatches=1))
+    ideal = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=12, handovers=2, research_count=10, subagent_dispatches=1))
     assert (ideal.score, ideal.gaps) == (100, ()), "a builder inside every range scores 100"
-    drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
+    drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
     assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
-    assert not WorkersProfiles.SOLO.scored(ToolUseCounts(file_edits=2)).is_measured, "too few actions are not scored at all"
+    assert not WorkersProfiles.SOLO.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
+
+
+def test_an_orchestrator_that_merges_without_reading_proofs_scores_low_on_that_measure():
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    read = WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", handovers=4, checked=4, merges=4, read_merges=4, research_count=20))
+    unread = WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", handovers=4, checked=4, merges=4, read_merges=0, research_count=20))
+    assert read.score == 100 and unread.score < read.score, "merging with no proof read first costs score"
+    assert unread.gaps[0].label == "your merges that followed a read of the proofs among your merges" and unread.gaps[0].percent == 0, "and it is the measure named, worst first"
+
+
+def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_and_counts_only_those(app: App):
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.http.agents.agent_activity import AgentActivity
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    said = lambda kind, **body: hook(app, kind, **body)
+    read = lambda n: said("PreToolUse", tool_name="Read", tool_input={"file_path": str(app.config.root / f"m{n}.md")})
+    edit = lambda n: said("PreToolUse", tool_name="Edit", tool_input={"file_path": str(app.config.root / f"e{n}.md"), "old_string": "x", "new_string": "y"})
+    fitness = lambda: app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
+    for n in range(30):
+        edit(n)
+    for n in range(30):
+        read(n)
+    assert fitness()["mode"] == "builder" and fitness()["is_measured"], "a builder past fifty tool uses is scored"
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    assert not fitness()["is_measured"], "right after the switch there is no score"
+    for n in range(49):
+        read(100 + n)
+    assert not fitness()["is_measured"], "and none through forty-nine tool uses in the new mode"
+    read(200)
+    assert fitness()["mode"] == "orchestrator" and fitness()["is_measured"], "the fiftieth brings the score"
+    counted = ToolUseCounts.counted(app.container.get(Agents).current())
+    assert counted.mode_uses == 50 and counted.file_edits == 0, "and it counts only the uses made since the switch, none of the builder's edits"
+    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal task show 1"})
+    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker merge 1"})
+    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker merge 2"})
+    counted = ToolUseCounts.counted(app.container.get(Agents).current())
+    assert (counted.merges, counted.read_merges, counted.checked) == (2, 1, 2), "a merge counts as read only when a proof was read before it"
 
 
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
