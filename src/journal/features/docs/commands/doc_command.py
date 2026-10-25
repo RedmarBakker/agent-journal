@@ -7,6 +7,7 @@ from journal.console.command import Command, HELPER_KINDS, WORKER_KINDS
 from journal.support.caller import Caller
 from journal.support.outline import Outline
 from journal.features.docs.support.version3_doc import Version3Doc
+from journal.features.docs.support.hub_move import HubMove
 from journal.models.doc import Doc
 from journal.models.doc_edit_mode import DocEditMode
 from journal.models.link import Link
@@ -28,8 +29,8 @@ class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope) -> None:
-        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope = docs, revisions, clock, hub_rows, hub, account, links, scope
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, moving: HubMove) -> None:
+        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.moving = docs, revisions, clock, hub_rows, hub, account, links, scope, moving
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
@@ -108,9 +109,7 @@ class DocCommand(Command):
         if doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is on the hub already: journal doc mode {doc.id} {mode.value} changes who may edit it")
         owner = self.account.user_number()
-        with self.docs.writing():
-            self.doc_revisions.moved(doc, hub.row_id, caller.actor)
-            on_hub = self.docs.save(doc.put_on_hub(hub.row_id, mode, owner), caller.actor)
+        on_hub = self.moving.put(doc, hub.row_id, mode, owner, caller.actor)
         copy = self.copy_of(on_hub, caller) if args.keep_copy else None
         print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {copy.id} is a copy of it kept here" if copy else ""))
         return 0

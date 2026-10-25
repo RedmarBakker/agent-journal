@@ -652,6 +652,7 @@ def team_migration(tmp_path, name: str, scope, tasks, outgoing):
     from journal.repositories.doc_revisions import DocRevisions
     from journal.repositories.doc_scope import DocScope
     from journal.repositories.docs import Docs
+    from journal.features.docs.support.hub_move import HubMove
     from journal.repositories.environment_owners import EnvironmentOwners
     from journal.repositories.journal_backup import JournalBackup
     from journal.repositories.shared_tables import SharedTables
@@ -666,7 +667,8 @@ def team_migration(tmp_path, name: str, scope, tasks, outgoing):
     tables, scopes, account, visible = SharedTables(connection, bus), team_scopes(connection, bus, scope), TeamAccount(config), DocScope(scope.environments, scope)
     withdrawal = MigrationWithdrawal(outgoing, tables, environment_withdrawal(config, connection, bus, scope), scopes, ServiceHooks())
     owners = EnvironmentOwners(Links(connection, bus), Users(connection, bus), scope.environments)
-    return TeamMigration(account, TeamServerLink(account, Schema(connection, AllModels.MODELS)), scope.environments, owners, withdrawal, TeamPlacement(tables, scopes, account), Docs(connection, bus, scope, visible), DocRevisions(connection, bus, scope, Links(connection, bus), visible), tables, JournalBackup(connection), config)
+    docs, revisions = Docs(connection, bus, scope, visible), DocRevisions(connection, bus, scope, Links(connection, bus), visible)
+    return TeamMigration(account, TeamServerLink(account, Schema(connection, AllModels.MODELS)), scope.environments, owners, withdrawal, TeamPlacement(tables, scopes, account), docs, revisions, HubMove(docs, revisions), tables, JournalBackup(connection), config)
 
 
 def migration_withdrawn(tmp_path, name: str, scope, tasks, outgoing, actor) -> None:
