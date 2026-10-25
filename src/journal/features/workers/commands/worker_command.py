@@ -134,7 +134,7 @@ class WorkerCommand(Command):
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
             waiting = self.workers.checkable_workers()
-            raise Rejection((WorkersNudges.PLACES_FULL.create(n=waiting[0].id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
+            raise Rejection((WorkersNudges.PLACES_FULL.create(n=min(waiting, key=lambda worker: worker.silence.timeout.start).id) if waiting else WorkersNudges.WORKER_OVERFLOW.create(out=len(output))).rendered())
         if args.pool and self.pool_refusal(args):
             raise Rejection(self.pool_refusal(args))
         task = self.assignment(args.task, caller)
