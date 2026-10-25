@@ -262,8 +262,10 @@ def waiting_work_check(state: BaseState, event: ToolStarting, settings: Settings
 
 
 def free_place(worker: WorkerMention, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
+    if settings.value(WorkersOptions.MODE) != "orchestrator":
+        return ()
     tasks = data.part(TasksPart)
-    if settings.value(WorkersOptions.MODE) != "orchestrator" or not tasks.open_ids:
+    if not tasks.open_ids:
         return ()
     return (WorkersNudges.PLACE_FREE.create(n=worker.id, name=worker.name, count=tasks.open_count, tasks=tasks.open_next),)
 
