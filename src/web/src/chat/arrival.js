@@ -51,3 +51,44 @@ export function arriveAtOnce(el, {pane, follows, frame = requestAnimationFrame, 
     };
     frame(hold);
 }
+
+// how long a message waits after the one before it has come in, when several arrive together
+export const QUEUE_GAP_MS = 140;
+export const DEPART_MS = 220;
+
+// Turns that arrive together come in one after another: the first at once, each next a short gap after the one before it has finished, the
+// ones still waiting held off the page (display none) so the chat stays where it is. A reader who is away gets every turn at once.
+export function arrivalQueue({gap = QUEUE_GAP_MS, later = setTimeout} = {}) {
+    const waiting = [];
+    let running = false;
+    const finish = (item) => {
+        item.done();
+        later(next, gap);
+    };
+    function next() {
+        const item = waiting.shift();
+        running = Boolean(item);
+        if (!item) return;
+        item.el.style.display = item.display;
+        item.arrival(item.el, item.options, () => finish(item));
+    }
+    return (el, options, done, arrival = arrive) => {
+        if (!options.pane || !options.follows()) return done();
+        const item = {el, options, done, arrival, display: el.style.display};
+        if (!running) {
+            running = true;
+            return arrival(el, options, () => finish(item));
+        }
+        el.style.display = "none";
+        waiting.push(item);
+    };
+}
+
+// A turn that goes: its height closes while it fades, so the turns around it come together smoothly instead of jumping.
+export function depart(el, done, later = setTimeout) {
+    Object.assign(el.style, {boxSizing: "border-box", height: `${el.offsetHeight}px`, overflow: "hidden"});
+    void el.offsetHeight;
+    el.style.transition = `height ${DEPART_MS}ms ${EASE}, opacity ${DEPART_MS}ms ease-in, margin ${DEPART_MS}ms ${EASE}`;
+    Object.assign(el.style, {height: "0px", opacity: "0", marginTop: "0px", marginBottom: "0px"});
+    later(done, DEPART_MS);
+}

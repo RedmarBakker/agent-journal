@@ -1,5 +1,5 @@
 import {expect, test} from "vitest";
-import {FADE_MS, OWN_MS, PUSH_MS, arrive, arriveAtOnce} from "../src/chat/arrival.js";
+import {DEPART_MS, FADE_MS, OWN_MS, PUSH_MS, arrivalQueue, arrive, arriveAtOnce, depart} from "../src/chat/arrival.js";
 
 function stage(follows = () => true, arrival = arrive) {
     const log = [];
@@ -56,3 +56,48 @@ test("the user's own message shows the moment it is sent: there at its full size
     expect(OWN_MS).toBeLessThan(PUSH_MS);
 });
 
+
+test("turns that arrive together come in one after another with a gap, the waiting ones held off the page, and a reader who is away gets them at once", () => {
+    const timers = [];
+    const queue = arrivalQueue({gap: 100, later: (fn, ms) => timers.push([fn, ms])});
+    const started = [];
+    const turn = (name) => ({name, style: {}});
+    const arrival = (el, options, done) => {
+        started.push(el.name);
+        el.finish = done;
+    };
+    const options = {pane: {}, follows: () => true};
+    const [a, b, c] = ["a", "b", "c"].map(turn);
+    const finished = [];
+    [a, b, c].forEach((el) => queue(el, options, () => finished.push(el.name), arrival));
+    expect(started).toEqual(["a"]);
+    expect([b.style.display, c.style.display]).toEqual(["none", "none"]);
+    a.finish();
+    expect(finished).toEqual(["a"]);
+    expect(started).toEqual(["a"]);
+    expect(timers.map(([, ms]) => ms)).toEqual([100]);
+    timers.shift()[0]();
+    expect(started).toEqual(["a", "b"]);
+    expect(b.style.display).toBe("");
+    b.finish();
+    timers.shift()[0]();
+    expect(started).toEqual(["a", "b", "c"]);
+    const away = turn("d");
+    let arrived = false;
+    queue(away, {pane: {}, follows: () => false}, () => (arrived = true), arrival);
+    expect(arrived).toBe(true);
+    expect(away.style.display).toBeUndefined();
+});
+
+test("a turn that goes closes its height while it fades, and is let go once the time has passed", () => {
+    const el = {style: {}, offsetHeight: 48};
+    let gone = false;
+    const timers = [];
+    depart(el, () => (gone = true), (fn, ms) => timers.push([fn, ms]));
+    expect(el.style.height).toBe("0px");
+    expect(el.style.opacity).toBe("0");
+    expect(gone).toBe(false);
+    expect(timers[0][1]).toBe(DEPART_MS);
+    timers[0][0]();
+    expect(gone).toBe(true);
+});

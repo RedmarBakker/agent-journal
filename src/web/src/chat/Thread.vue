@@ -15,7 +15,7 @@ import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
 import {usePointerPresence} from "../composables/pointerPresence.js";
-import {arrive, arriveAtOnce} from "./arrival.js";
+import {arrivalQueue, arriveAtOnce, depart} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from "vue";
@@ -339,7 +339,9 @@ function restAtFoot() {
 // a message the user just sent, drawn before the journal has it, whose key is its placeholder's
 const isOwnSent = (el) => (el.dataset?.ref || el.querySelector?.("[data-ref]")?.dataset.ref || "").startsWith("pending:");
 const arrivalPane = () => ({pane: scroller.value, follows: () => settledOnce.value && !away.value});
-const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : arrive(el, arrivalPane(), done));
+const comeIn = arrivalQueue();
+const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : comeIn(el, arrivalPane(), done));
+const closeUp = (el, done) => (settledOnce.value && !away.value ? depart(el, done) : done());
 
 function watchScroll() {
     const s = scroller.value;
@@ -524,7 +526,7 @@ const {colleague, me} = useColleague();
                                 <p class="thread-empty">Nothing has been said here yet.</p>
                             </template>
                         </template>
-                        <TransitionGroup :name="settledOnce ? 'turn' : ''" @enter="growIn">
+                        <TransitionGroup :name="settledOnce ? 'turn' : ''" @enter="growIn" @leave="closeUp">
                             <Turn
                                 v-for="t in turns"
                                 :key="keyOf(t)"
@@ -601,15 +603,6 @@ const {colleague, me} = useColleague();
 .terminal-leave-to {
     opacity: 0;
     transform: translateY(14px);
-}
-
-.turn-leave-active {
-    position: absolute;
-    transition: opacity 0.16s ease-in;
-}
-
-.turn-leave-to {
-    opacity: 0;
 }
 
 .turn-move {
