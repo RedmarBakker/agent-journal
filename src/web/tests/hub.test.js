@@ -65,3 +65,19 @@ test("a hub task is named with its team on its card", () => {
     const host = mounted(HubBoard, {tasks: [{id: 57, title: "ship it", state: "open", environment_id: 5}, {id: 8, title: "local", state: "open", environment_id: 1}], environments: environments});
     expect([...host.querySelectorAll("[data-column=open] .card")].map((card) => card.textContent.trim())).toEqual(["acme task 57: ship it", "Task 8: local"]);
 });
+
+test("a hosted journal opens on the hub home with its documents, plans and board and lists no unshared environment", async () => {
+    const { default: HubPage } = await import("../src/pages/HubPage.vue");
+    const host = mounted(HubPage, {
+        environments,
+        docs: [{id: 1, table: "docs", title: "Handbook"}],
+        plans: [{id: 2, table: "plans", title: "Launch", environment_id: 5}, {id: 3, table: "plans", title: "Mine", environment_id: 1}],
+        tasks: [{id: 57, title: "ship it", state: "open", environment_id: 5}],
+        messages: [],
+    });
+    expect(host.querySelector("[data-hub-docs]").textContent).toContain("Handbook");
+    expect(host.querySelector("[data-hub-plans]").textContent).toContain("Plan 2: Launch");
+    expect(host.querySelector("[data-hub-plans]").textContent).not.toContain("Mine");
+    expect(host.querySelector("[data-column=open] .card").textContent).toContain("acme task 57");
+    expect(ownEnvironments(environments, {...people, hosted: true}).map((row) => row.name)).toEqual(["docs"]);
+});

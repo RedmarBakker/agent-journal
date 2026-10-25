@@ -19,7 +19,9 @@ export function teamGroups(rows, people) {
 }
 
 // The environments the sidebar lists apart from every team: the person's own.
-export const ownEnvironments = (rows, people) => sidebarEnvironments(rows, people).filter((row) => !isHub(row) && !isSession(row, people));
+// On a hosted journal only what is shared is listed: an environment that is not shared, not the hub and not a session never is.
+export const ownEnvironments = (rows, people) =>
+    sidebarEnvironments(rows, people).filter((row) => !isHub(row) && !isSession(row, people) && (!people.hosted || row.is_shared_with_team));
 
 export const inHub = (rows, hub) => rows.filter((row) => row.environment_id === hub.id);
 

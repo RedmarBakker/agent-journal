@@ -16,14 +16,25 @@ import WorkerHome from "./pages/WorkerHome.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SkillsPage from "./pages/SkillsPage.vue";
 import AgentProfilesPage from "./pages/AgentProfilesPage.vue";
-import {route} from "./route.js";
+import HubPage from "./pages/HubPage.vue";
+import {computed} from "vue";
+import {peek, route} from "./route.js";
+import {store} from "./state/store.js";
+import {rows} from "./sync/rows.js";
 
 defineProps({page: {type: String, required: true}});
+const hosted = computed(() => Boolean(store.people && store.people.hosted));
+const open = (row) => peek(row.table, row.id);
 </script>
 
 <template>
     <SwitchCase :value="page">
-        <template #home><Home /></template>
+        <template #home>
+            <template v-if="hosted">
+                <HubPage :environments="rows('environments')" :docs="rows('docs')" :plans="rows('plans')" :tasks="rows('tasks')" :messages="rows('messages')" @open="open" />
+            </template>
+            <template v-else><Home /></template>
+        </template>
         <template #settings><SettingsPage /></template>
         <template #search><SearchPage /></template>
         <template #attachments><AttachmentsPage /></template>
