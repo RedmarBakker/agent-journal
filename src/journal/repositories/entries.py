@@ -61,11 +61,11 @@ class Entries(ScopedRepository[Entry]):
     def recent_commands(self, session: str, window: int, count: int) -> list[str]:
         starts = self.query().filter(kind="ToolStarting", actor=Actor.agent(session))
         oldest = self.selected_ids(starts.order_descending("id").limit(1).offset(window - 1))
-        within = starts.filter_greater_equal("id", oldest[0]) if oldest else starts
-        commands = within.filter_present("data->call->command").filter_unequal("data->call->command", "")
+        window_starts = starts.filter_greater_equal("id", oldest[0]) if oldest else starts
+        commands = window_starts.filter_present("data->call->command").filter_unequal("data->call->command", "")
         first = self.selected_ids(commands.order_descending("id").limit(1).offset(count - 1))
         newest = commands.filter_greater_equal("id", first[0]) if first else commands
-        return [command for command, times in self.grouped_counts(newest, "data->call->command").items() for _ in range(times)]
+        return [command for command, run_count in self.grouped_counts(newest, "data->call->command").items() for _ in range(run_count)]
 
     def output_tool_starts(self, session: str, last: int = 500) -> list[Entry]:
         mentions = self.query().filter_alternatives(self.query().filter_containing("data", "outputs/"), self.query().filter_containing("data", "journal output read "))

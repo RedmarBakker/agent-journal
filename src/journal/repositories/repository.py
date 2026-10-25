@@ -341,13 +341,13 @@ class Repository(Generic[M]):
         return []
 
     def _rewritable(self, row: M) -> list[Query]:
-        return [self.query().filter(id=row.id), *(query for query, _ in self._held_reads(row))]
+        return [self.query().filter(id=row.id), *(query for query, _ in self._cached_reads(row))]
 
     def _prior(self, row: M) -> M:
-        held = self._held_reads(row)
-        return held[0][1] if held else self.find(row.row_id)
+        cached = self._cached_reads(row)
+        return cached[0][1] if cached else self.find(row.row_id)
 
-    def _held_reads(self, row: M) -> list[tuple[Query, M]]:
+    def _cached_reads(self, row: M) -> list[tuple[Query, M]]:
         reads = [(query, self.connection.stored_rows(query.tables(), *query.select())) for query in self._row_reads(row)]
         return [(query, rows[0]) for query, rows in reads if [cached_row.id for cached_row in rows] == [row.id]]
 
