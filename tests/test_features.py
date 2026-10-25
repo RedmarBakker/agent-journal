@@ -4221,7 +4221,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, 1, Actor.user(1))
     hook(app, "SessionStart")
 
-    # a worker's job on `model`, `lines` lines over `files` files, sent back `send_backs` times over `minutes`, merged now
+    # a worker's job on `model`, `lines` lines over `files` files, sent back `rejections` times over `minutes`, merged now
     def merged(name, model, lines, files, rejections, minutes):
         now = timing.time()
         start = now - minutes * 60
@@ -4235,7 +4235,7 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
         with app.container.get(Scope).environment(MAIN):
             return workers.find(worker.row_id)
 
-    small, large = dict(lines=20, files=1, send_backs=0, minutes=8), dict(lines=900, files=14, send_backs=2, minutes=150)
+    small, large = dict(lines=20, files=1, rejections=0, minutes=8), dict(lines=900, files=14, rejections=2, minutes=150)
     fits = {(size, model): merged(f"{size}-{model}", f"claude-{model}-5-5", **work).model_fit for size, work in (("small", small), ("large", large)) for model in ("haiku", "sonnet", "opus")}
     assert fits[("small", "haiku")].called_for.value == "fast" and fits[("large", "opus")].called_for.value == "strongest", "small work calls for the fast model, large for the strongest"
     assert fits[("small", "haiku")].points < fits[("large", "haiku")].points
