@@ -54,5 +54,6 @@ class WorkersNudges:
     SPLIT_ADVICE = Nudge("workers", "worker_quiet_split", "worker {{n}} quiet {{minutes}} min; split its job?", repeat=Timeout.seconds(0))
     SENT_BACK = Nudge("workers", "worker_sent_back", "worker {{n}} back on point {{point}}", repeat=Timeout.seconds(0))
     SENT_BACK_AGAIN = Nudge("workers", "worker_sent_back_again", "worker {{n}} back on point {{point}} again; earlier: {{earlier}}", repeat=Timeout.seconds(0))
-    SENT_BACK_REPEATEDLY = Nudge("workers", "worker_sent_back_repeatedly", "worker {{n}} back on point {{point}} {{times}} times; earlier: {{earlier}}", "change the target, the model or the worker", repeat=Timeout.seconds(0))
+    SENT_BACK_REPEATEDLY = Nudge("workers", "worker_sent_back_repeatedly", "worker {{n}} back on point {{point}} {{times}} times on {{model}}; earlier: {{earlier}}", "change the target or the worker, or send its next job on a stronger model: journal worker send {{n}} --model <model> \"<job>\"", repeat=Timeout.seconds(0))
+    COSTLY_SHAPED_WORK = Nudge("workers", "worker_costly_on_shaped_work", "worker {{n}} has spent ${{dollars}} on {{model}} for work its profile says is of a settled shape", "a cheaper model may do it: journal worker send {{n}} --model <model> \"<job>\"", repeat=Timeout.seconds(0))
     SUBAGENT_REUSE = Nudge("workers", "send_the_job_to_the_subagent", "{{count}} idle subagents already worked on files this job names:\n{{subagents}}", "send the job to one with its SendMessage line, or retire one with `journal subagent retire <n>`", repeat=Timeout.seconds(0))

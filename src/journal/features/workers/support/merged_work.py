@@ -5,14 +5,13 @@ from pathlib import PurePosixPath
 from journal.features.workers.support.tool_use_counts import NAMED_FILES
 from journal.features.workers.support.work_complexity import WorkComplexity
 from journal.models.edit import Edit
-from journal.models.worker import Worker
+from journal.models.worker import MERGED, SENT_BACK, Worker
 from journal.repositories.edits import Edits
 from journal.repositories.entries import Entries
 from journal.support.actor import Actor
 
-# the moves that start a worker's job, the send-back that hands it back, and the merge that ends it
+# the moves that start a worker's job
 STARTS = ("dispatched", "sent a job")
-SENT_BACK, MERGED = "sent back", "merged"
 TEST_FILE = re.compile(r"(^|/)tests?/|(^|/)test_[^/]+$|[^/]+_test\.\w+$|\.test\.\w+$|\.spec\.\w+$")
 
 

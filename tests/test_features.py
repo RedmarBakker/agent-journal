@@ -11200,7 +11200,7 @@ def test_a_task_sent_back_a_second_time_is_marked_with_the_first_reason_and_a_th
     lines = sent_back()
     assert lines[0] == "worker 1 back on point 1", lines
     assert lines[1] == "worker 1 back on point 1 again; earlier: the alias names are missing", "the second send-back says so, with the first reason"
-    assert lines[2] == "worker 1 back on point 1 3 times; earlier: the alias names are missing; the tests do not run. change the target, the model or the worker", "the third also tells the orchestrator to change the target, the model or the worker"
+    assert lines[2] == 'worker 1 back on point 1 3 times on sonnet; earlier: the alias names are missing; the tests do not run. change the target or the worker, or send its next job on a stronger model: journal worker send 1 --model <model> "<job>"', "the third names its model and tells the orchestrator to change the target, the worker or the model"
 
 
 def test_with_every_place_full_a_clocked_out_worker_is_named_as_the_work_to_check_and_a_refused_dispatch_says_the_same(app: App, monkeypatch):
@@ -11350,6 +11350,52 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
         for journal in journals:
             journal.runtime().stop()
         team.close(server)
+
+
+def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and_an_opus_worker_spending_much_on_settled_work_is_named_once(app: App, monkeypatch):
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.providers.claude import Claude
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.workers import Workers
+    started = []
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: started.append(worker))
+    kept_conversation(app, monkeypatch)
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    import subprocess
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
+    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
+    out = console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT)
+    assert out.code == 0, out.error
+    workers, branch = app.container.get(Workers), app.container.get(WorkerBranch)
+    console.run(["worker", "report", "1", "parser done"], Caller.agent("main", "w1", "claude"))
+    workers.save(workers.find(1).with_(resume="w-1"), USER.actor)
+    dispatched = workers.find(1)
+    assert dispatched.model == "sonnet" and dispatched.worktree, "a medior runs on its profile's model, here in a worktree"
+    sent = console.run(["worker", "send", "1", "the next part", "--model", "opus"], AGENT)
+    assert sent.code == 0, sent.error
+    again = started[-1]
+    assert again.model == "opus" and again.profile == "journal-medior" and again.resume == "w-1", "the next job runs on the model named, in its last session"
+    assert branch.place(again) == branch.place(dispatched) and again.branch == dispatched.branch, "in the same worktree"
+    listed = console.run(["worker", "list"], AGENT).output
+    assert "on opus, $0.00 spent, sent back 0 times on this task" in listed, listed
+    costly = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.worker_costly_on_shaped_work"]
+    runner = app.container.get(WorkerRunner)
+    runner.cost_recorded(workers.find(1), 1.5, Actor.system())
+    app.runtime().deferred.drain()
+    assert costly() == [], "under the setting's dollars nothing is said"
+    runner.cost_recorded(workers.find(1), 0.75, Actor.system())
+    app.runtime().deferred.drain()
+    assert costly() == ['worker 1 has spent $2.25 on opus for work its profile says is of a settled shape. a cheaper model may do it: journal worker send 1 --model <model> "<job>"'], costly()
+    runner.cost_recorded(workers.find(1), 3.0, Actor.system())
+    app.runtime().deferred.drain()
+    assert len(costly()) == 1, "it is said once"
+    assert "on opus, $5.25 spent" in console.run(["worker", "list"], AGENT).output, "the status names the spend so far"
+    assert Claude().worker_outcome('{"type":"result","result":"done","session_id":"w-1","total_cost_usd":0.42}\n', "").cost_dollars == 0.42, "the spend is read from the run's result line"
+    refused = console.run(["worker", "send", "1", "more", "--profile", "journal-researcher"], AGENT)
+    assert refused.code != 0 and "no worker profile" in refused.error, "a send names a worker profile"
 
 
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):

@@ -672,8 +672,10 @@ def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_sh
     assert said(short.reaching("s2")) == [], "to the agent that dispatched it alone"
     second = replace(short, earlier=("the alias names are missing",))
     assert said(second.reaching("s1")) == ["worker 3 back on point 2 again; earlier: the alias names are missing"], "the second send-back of a task says so, with the first reason"
-    third = replace(short, earlier=("the alias names are missing", "the tests do not run"))
-    assert said(third.reaching("s1")) == ["worker 3 back on point 2 3 times; earlier: the alias names are missing; the tests do not run. change the target, the model or the worker"], "the third also tells the orchestrator to change the target, the model or the worker"
+    third = replace(short, earlier=("the alias names are missing", "the tests do not run"), model="sonnet")
+    assert said(third.reaching("s1")) == ['worker 3 back on point 2 3 times on sonnet; earlier: the alias names are missing; the tests do not run. change the target or the worker, or send its next job on a stronger model: journal worker send 3 --model <model> "<job>"'], "the third names the model and tells the orchestrator to change the target, the worker or the model"
+    fourth = replace(short, earlier=("the alias names are missing", "the tests do not run", "the lexer"), model="sonnet")
+    assert said(fourth.reaching("s1")) == ["worker 3 back on point 2 again; earlier: the alias names are missing; the tests do not run; the lexer"], "the change is told once: a fourth is told as a send-back again"
     worker = WorkerMention(3, "Lady Lovelace", "s1")
     ended = lambda times, limit=False: WorkerUnfinished(environment_id=1, time=1.0, worker=worker, ref="workers:3", outcome="worker 3, ended", times=times, is_run_limit=limit).reaching("s1")
     assert said(ended(1), 3) == [], "a run that ends without clocking out is not told the first time: the journal asks the worker itself"

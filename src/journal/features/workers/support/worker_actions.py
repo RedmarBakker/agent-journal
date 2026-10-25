@@ -13,7 +13,7 @@ from journal.features.workers.support.merge_clash import MergeClash
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.models.worker import Worker
+from journal.models.worker import SENT_BACK, Worker
 from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
 from journal.providers.support.session_inbox import SessionInbox
@@ -43,7 +43,7 @@ CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "
 REBASE_NOTE = f"Your worktree could not be moved up to the project's branch: {{clashing}}. First {REBASE_STEPS}. Then: "
 JOB_MOVE = "sent a job"
-REDO_MOVE = "sent back"
+REDO_MOVE = SENT_BACK
 
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, a word informed while it runs, a stop, a retire."""
@@ -55,6 +55,10 @@ class WorkerActions:
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
             return self.relaunch(self.local(n), brief, dispatcher, actor, JOB_MOVE)
+
+    def send_on(self, n: int, brief: str, model: str, profile: str | None, dispatcher: str | None, actor: Actor) -> Worker:
+        with self.runner.lock(n):
+            return self.relaunch(self.local(n).with_(model=model, profile=profile), brief, dispatcher, actor, JOB_MOVE)
 
     def redo(self, n: int, brief: str, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -109,7 +113,7 @@ class WorkerActions:
         if not self.moves.is_remote_run(worker):
             self.resumable(worker)
         shortfall_lines = "; ".join((shortfall, *(f"point {number} is short too: {reason}" for number, reason in first_shortfalls)))
-        self.proofs.save(proof.short(self.failures.under(worker, shortfall_lines), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher or "", earlier), actor)
+        self.proofs.save(proof.short(self.failures.under(worker, shortfall_lines), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher or "", earlier, worker.model), actor)
         return task
 
     def unrun(self, n: int, point: int) -> str:

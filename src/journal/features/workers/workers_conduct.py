@@ -16,6 +16,7 @@ from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
+from journal.events.rows.worker_spent import WorkerSpent
 from journal.models.support.model_fit import TOO_STRONG
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_test_failed import WorkerTestFailed
@@ -51,6 +52,8 @@ LOAD_NAMED = 4
 RUN_LIMIT_CAUSE = ": run limit"
 # the most of an earlier reason a send-back line quotes
 SENT_BACK_REASON = 30
+# the send-back on one task at which the orchestrator is told, once, to change the target, the worker or the model
+STRUGGLE_SEND_BACKS = 3
 
 
 class WorkersConduct(Conduct):
@@ -97,6 +100,13 @@ class WorkersConduct(Conduct):
         failing = (WorkersNudges.WORKER_KEEPS_FAILING.create(n=event.worker.id, name=name, runs=event.runs),) if event.runs == settings.integer(WorkersOptions.FAILING_RUNS) else ()
         return self.none(*failed, *failing)
 
+    def on_worker_spent(self, event: WorkerSpent, settings: Settings) -> Transition:
+        if event.worker.is_other_dispatcher(event.session) or settings.value(WorkersOptions.MODE) != "orchestrator":
+            return self.none()
+        if not event.is_shaped_work_on_strongest() or not event.crossed(settings.decimal(WorkersOptions.COSTLY_SHAPED_WORK)):
+            return self.none()
+        return self.none(WorkersNudges.COSTLY_SHAPED_WORK.create(n=event.worker.id, model=event.model, dollars=f"{event.cost_dollars:.2f}"))
+
     def on_worker_model_mismatch(self, event: WorkerModelMismatch, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session) or settings.value(WorkersOptions.MODE) != "orchestrator":
             return self.none()
@@ -134,8 +144,8 @@ def sent_back_line(event: ProofShort) -> Nudge:
     if times == 1:
         return WorkersNudges.SENT_BACK.create(n=event.worker_id, point=event.point)
     earlier = "; ".join(reason[:SENT_BACK_REASON] for reason in event.earlier)
-    nudge = WorkersNudges.SENT_BACK_AGAIN if times == 2 else WorkersNudges.SENT_BACK_REPEATEDLY
-    return nudge.create(n=event.worker_id, point=event.point, times=times, earlier=earlier)
+    nudge = WorkersNudges.SENT_BACK_REPEATEDLY if times == STRUGGLE_SEND_BACKS else WorkersNudges.SENT_BACK_AGAIN
+    return nudge.create(n=event.worker_id, point=event.point, times=times, earlier=earlier, model=event.model)
 
 
 def quiet_line(worker, last: str, time: float) -> Nudge:

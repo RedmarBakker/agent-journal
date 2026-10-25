@@ -19,6 +19,7 @@ from journal.features.workers.support.worker_reports import WorkerReports
 from journal.support.actor import Actor
 from journal.models.worker import Worker
 from journal.models.worker_state import WorkerState
+from journal.models.model_tier import ModelTier
 from journal.providers.providers import Providers
 from journal.features.profiles.support.profile_files import ProfileFiles
 from journal.repositories.scope import Scope
@@ -152,7 +153,7 @@ class WorkerRunner:
         code = code or (ERROR_STATUS if ended.error else 0)
         outcome = ENDINGS.get(code, f"failed with code {code}: {{report}}").format(report=report, minutes=self.minutes()) if code else report
         current = self.workers.find(worker.row_id)
-        current = current.with_(resume=resume or current.resume)
+        current = self.cost_recorded(current.with_(resume=resume or current.resume), ended.cost_dollars, actor)
         if self.moves.is_remote(current):
             self.moves.ask(current, ENDED, asdict(WorkerEnd(outcome, current.resume, self.branch.leftover(current), self.branch.touched(current))), actor)
             self.moves.ended(current)
@@ -162,6 +163,18 @@ class WorkerRunner:
             return
         current = current.with_(touched_paths=self.branch.touched(current))
         self.reported(current, outcome, self.branch.summary(current), actor)
+
+    def cost_recorded(self, worker: Worker, cost: float, actor: Actor) -> Worker:
+        if not cost:
+            return worker
+        provider = self.providers.lookup(worker.provider)
+        return self.workers.save(worker.spent(cost, provider.tier(worker.model), self.profile_tier(worker), time.time()), actor)
+
+    def profile_tier(self, worker: Worker) -> ModelTier:
+        if worker.profile is None or not self.profiles.kind(worker.profile):
+            return ModelTier.UNKNOWN
+        provider = self.providers.lookup(worker.provider)
+        return provider.tier(provider.profile_model(self.profiles.read(worker.profile)))
 
     @staticmethod
     def awaits_report(current: Worker) -> bool:

@@ -4,7 +4,7 @@ from journal.features.workers.support.load_item import LoadItem
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.author import Author
 from journal.models.support.ref import Ref
-from journal.models.worker import Worker
+from journal.models.worker import MERGED, SENT_BACK, Worker
 from journal.repositories.messages import Messages
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
@@ -12,8 +12,7 @@ from journal.repositories.workers import Workers
 
 # a worker's moves that bring it to the orchestrator, and those that clear what it brought
 CLOCK_OUT, UNFINISHED, IDLE = "clocked out", "ended without clocking out", "reported"
-SENT_BACK = "sent back"
-CLEARING = (SENT_BACK, "merged", "released", "retired", "stopped", "sent a job")
+CLEARING = (SENT_BACK, MERGED, "released", "retired", "stopped", "sent a job")
 DISPATCHES = ("dispatched", "sent a job")
 
 

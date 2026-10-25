@@ -5,11 +5,12 @@ from journal.providers.support.json_line import JsonLine
 
 @dataclass(frozen=True)
 class ClaudeStreamRow(JsonLine):
-    """One line of a Claude Code worker's stream-json output, as far as the journal reads it: the session it names, its answer when it is the run's result line, and whether that answer is an error."""
+    """One line of a Claude Code worker's stream-json output, as far as the journal reads it: the session it names, its answer when it is the run's result line, whether that answer is an error, and what the run cost in dollars."""
 
     session: str | None
     answer: str | None
     is_error: bool
+    cost_dollars: float = 0.0
 
     @classmethod
     def blank(cls) -> "ClaudeStreamRow":
@@ -18,4 +19,4 @@ class ClaudeStreamRow(JsonLine):
     @classmethod
     def built(cls, data: dict) -> "ClaudeStreamRow":
         answer = data.get("result")
-        return cls(data.get("session_id") or None, None if answer is None else str(answer), bool(data.get("is_error")))
+        return cls(data.get("session_id") or None, None if answer is None else str(answer), bool(data.get("is_error")), float(data.get("total_cost_usd") or 0.0))

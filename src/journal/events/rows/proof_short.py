@@ -15,6 +15,7 @@ class ProofShort(RowEvent):
     shortfall: str
     dispatcher: str = ""
     earlier: tuple[str, ...] = ()
+    model: str = ""
 
     def is_reviewers(self) -> bool:
         return bool(self.actor) and Actor.parse(self.actor).kind == ActorKind.REVIEWER

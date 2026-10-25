@@ -95,6 +95,8 @@ class WorkerCommand(Command):
         line.add_argument("n", type=int)
         line.add_argument("brief")
         line.add_argument("--task", type=int, help="the task this job works on, which its plan then leaves to it")
+        line.add_argument("--model", help="the model it runs the job on from now, in the same session and worktree")
+        line.add_argument("--profile", help="the worker profile it works by from now, and its model unless --model names one")
         queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
@@ -129,8 +131,7 @@ class WorkerCommand(Command):
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
-        if self.profiles.kind(args.profile) != ProfileKind.WORKER:
-            raise Rejection(f"{args.profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
+        self.worker_profile(args.profile)
         output = self.workers.held_locally()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
@@ -211,6 +212,17 @@ class WorkerCommand(Command):
         agents = [] if caller.session is None else self.agents.global_matching(session=caller.session)
         return bool(agents) and self.tasks.holder(task) == Ref.build(agents[0])
 
+    def worker_profile(self, profile: str) -> None:
+        if self.profiles.kind(profile) != ProfileKind.WORKER:
+            raise Rejection(f"{profile} is no worker profile: name one with --profile, senior for a job that needs judgement or medior for one whose shape is settled; a subagent profile only reads, so send it with the Agent tool")
+
+    def staffing(self, args: Namespace) -> tuple[str, str | None]:
+        worker = self.workers.find(args.n)
+        if args.profile is None:
+            return args.model or worker.model, worker.profile
+        self.worker_profile(args.profile)
+        return args.model or self.model(args.profile, worker.provider), args.profile
+
     def model(self, profile: str, provider: str) -> str:
         return self.providers.lookup(provider).profile_model(self.profiles.read(profile))
 
@@ -228,10 +240,12 @@ class WorkerCommand(Command):
         holdings = self.tasks.holder_task_ids(Ref(Worker.table(), args.n))
         if args.task and holdings and args.task not in holdings:
             raise Rejection(f"worker {args.n} holds task {holdings[0]} until its work is merged or released: send it the next job on that task, or release it first")
-        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.send(args.n, args.brief, caller.session, caller.actor)
+        if caller.worker_number is not None and (args.model or args.profile):
+            raise Rejection("only the agent that dispatched a worker changes its model or its profile")
+        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.send_on(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)
-        print(f"worker {worker.id} {worker.name} told; it reports in the chat when it ends")
+        print(f"worker {worker.id} {worker.name} told, on {worker.model}; it reports in the chat when it ends")
         return 0
 
     def check(self, args: Namespace, caller: Caller) -> int:
@@ -330,6 +344,7 @@ class WorkerCommand(Command):
         workers = self.workers.scoped()
         for worker in workers:
             print(f"{worker.id:>4}  {worker.state:<10} {worker.name}: {CardDetail.shortened(worker.brief)}")
+            print(self.standing_line(worker))
             if not worker.is_running():
                 print(f"{'':>16}files: {worker.files_line()}")
         output = [str(worker.id) for worker in workers if worker.is_running()]
@@ -342,12 +357,17 @@ class WorkerCommand(Command):
         workers = self.workers.open_workers()
         for worker in workers:
             print(f"{worker.id:>4}  {worker.state:<10} {worker.name}: {CardDetail.shortened(worker.brief)}")
+            print(self.standing_line(worker))
         subagents = [] if caller.session is None else self.subagents.running_session_subagents(caller.session)
         for subagent in subagents:
             print(f"{subagent.id:>4}  {subagent.state:<10} {subagent.agent_type}: {subagent.task}")
         if not workers and not subagents:
             print("no worker or subagent to act on")
         return 0
+
+    @staticmethod
+    def standing_line(worker: Worker) -> str:
+        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} spent, sent back {worker.send_backs()} times on this task"
 
     def print_subagents(self, session: str | None) -> None:
         subagents = [] if session is None else self.subagents.session_subagents(session)

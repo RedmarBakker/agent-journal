@@ -248,7 +248,7 @@ class Claude(Provider):
             return WorkerOutcome(output.strip() or err.strip(), self.output_session(output, err))
         text, last = answers[-1]
         report = text.strip() or err.strip()
-        return WorkerOutcome(report, last.session or self.output_session(output, err), report if last.is_error else "")
+        return WorkerOutcome(report, last.session or self.output_session(output, err), report if last.is_error else "", sum(row.cost_dollars for _, row in answers))
 
     def refused(self, hook: Hook, decision: Decision) -> Response:
         if hook.kind == HookKind.PRE_TOOL_USE and hook.tool == SHELL_TOOL:
