@@ -18,6 +18,8 @@ from journal.models.scoped import Scoped
 
 # how many of its newest tool uses an agent's subagent dispatches, research, handovers and file edits are counted over
 WORK_WINDOW_USES = 50
+# how many of the newest merged jobs it handed out an agent's model fit is counted over
+MODEL_FITS_KEPT = 10
 
 @dataclass(frozen=True)
 
@@ -60,6 +62,7 @@ class Agent(Scoped):
     role: AgentRole = AgentRole.MAIN
     queued_lines: tuple[str, ...] = ()
     load: AgentLoad = AgentLoad()
+    model_fits: tuple[str, ...] = ()
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -135,6 +138,10 @@ class Agent(Scoped):
 
     def briefed(self) -> "Agent":
         return self.with_(briefed_uses=self.windowed((*self.briefed_uses, self.tool_uses)))
+
+    def model_fit_kept(self, worker: int, fit: str) -> "Agent":
+        kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
+        return self.with_(model_fits=(*kept, f"{worker}:{fit}")[-MODEL_FITS_KEPT:])
 
     def load_measured(self, load: AgentLoad) -> "Agent":
         return self.with_(load=replace(load, scaled_at=self.load.scaled_at))

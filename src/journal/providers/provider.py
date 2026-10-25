@@ -10,6 +10,7 @@ from typing import Callable, ClassVar, Iterator
 from journal.support.tool_call import ToolCall
 from journal.support.operation import Operation
 from journal.models.mcp_server import McpServer
+from journal.models.model_tier import ModelTier
 from journal.providers.support.agent_status import AgentStatus
 from journal.providers.support.context_file import ContextFile
 from journal.providers.support.hooks_ready import HooksReady
@@ -53,6 +54,7 @@ PATH_KEYS = ("file_path", "path", "notebook_path")
 
 VERSION_3_HOOKS = ("/.journal/src/hook.sh", "/.journal/hook.py", "/.journal/journal hook")
 
+
 class Provider(ABC):
     """One agent program, Claude Code or Codex: everything the journal knows about it, and nowhere else."""
 
@@ -66,6 +68,8 @@ class Provider(ABC):
     user_line_key: ClassVar[str] = ""
     inherited_markers: ClassVar[tuple[str, ...]]
     question_model: ClassVar[str]
+    # the words in a model's name that rank it among the program's models, fast, general or strongest
+    model_tiers: ClassVar[dict[str, ModelTier]] = {}
     settings_files: ClassVar[tuple[str, ...]]
     settings_extras: ClassVar[dict] = {}
     foreign_settings: ClassVar[tuple[str, ...]] = ()
@@ -81,6 +85,9 @@ class Provider(ABC):
 
     def __init__(self) -> None:
         self._status_files: dict[Path, ContextFile] = {}
+
+    def tier(self, model: str) -> ModelTier:
+        return next((tier for word, tier in self.model_tiers.items() if word in model.lower()), ModelTier.UNKNOWN)
 
     @abstractmethod
     def profile_model(self, profile: ProfileView) -> str: ...

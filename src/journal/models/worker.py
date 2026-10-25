@@ -6,6 +6,9 @@ from journal.events.rows.worker_mention import WorkerMention
 
 from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.worker_test_failed import WorkerTestFailed
+from journal.events.rows.worker_model_judged import WorkerModelJudged
+from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
+from journal.models.support.model_fit import ModelFit
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_ready import WorkerReady
@@ -37,7 +40,7 @@ RUN_LIMIT_REASON = "run limit"
 
 @dataclass(frozen=True)
 class Worker(Helper):
-    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, when its work was last merged and for which task, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
+    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, how its merged work fit the model it ran on, when its work was last merged and for which task, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     kind: str = "worker"
@@ -66,6 +69,7 @@ class Worker(Helper):
     edited_task: int = 0
     review_pending: bool = False
     failing_runs: int = 0
+    model_fit: ModelFit = ModelFit()
     review_queued_at: float = 0.0
     merged_at: float = 0.0
     merged_task: int = 0
@@ -88,6 +92,15 @@ class Worker(Helper):
     def failed_run(self, failed: int, time: float) -> "Worker":
         runs = self.failing_runs + 1
         return self.with_(failing_runs=runs).with_event(WorkerTestFailed(environment_id=self.environment_id, time=time, worker=self.mention(), failed=failed, runs=runs))
+
+    def model_measured(self, fit: ModelFit, send_backs: int, time: float) -> "Worker":
+        measured = self.with_(model_fit=fit)
+        if not fit.is_mismatch():
+            return measured
+        return measured.with_event(WorkerModelMismatch(environment_id=self.environment_id, time=time, worker=self.mention(), fit=fit.measured, model=self.model, points=fit.points, send_backs=send_backs))
+
+    def model_judged(self, verdict: str, reason: str, verifier_session: str, time: float) -> "Worker":
+        return self.with_(model_fit=self.model_fit.judged(verdict, reason)).with_event(WorkerModelJudged(environment_id=self.environment_id, time=time, worker=self.mention(), verdict=verdict, reason=reason, verifier_session=verifier_session))
 
     def passed_run(self) -> "Worker":
         return self.with_(failing_runs=0)

@@ -28,6 +28,7 @@ agent clock-in record --help
 agent clock-out record --help
 agent proof record --help
 agent verdict give --help
+agent verdict model --help
 agent review record --help
 agent reviewer add --help
 agent reviewer retire --help

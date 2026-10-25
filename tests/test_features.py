@@ -3912,6 +3912,72 @@ def test_the_orchestrator_reads_the_load_with_the_turns_sets_the_budget_as_the_s
     settings.set(WorkersOptions.TEST_COMMAND.key, WorkersOptions.TEST_COMMAND.default, Actor.user(1))
 
 
+def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_fast_verifier_and_a_mismatch_is_named_and_scored(app: App, monkeypatch):
+    from journal.features.verification.support.verifier_runner import VerifierRunner
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import MODEL_FIT_SHARE, WorkersProfiles
+    from journal.models.edit import Edit
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.models.worker import Worker
+    from journal.repositories.edits import Edits
+    from journal.repositories.links import Links
+    from journal.repositories.agents import Agents
+    from journal.repositories.verifiers import Verifiers
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    settings, workers, edits = app.container.get(SettingRows), app.container.get(Workers), app.container.get(Edits)
+    settings.set(WorkersOptions.MODE.key, "orchestrator", Actor.user(1))
+    settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, 1, Actor.user(1))
+    hook(app, "SessionStart")
+
+    # a worker's job on `model`, `lines` lines over `files` files, sent back `send_backs` times over `minutes`, merged now
+    def merged(name, model, lines, files, send_backs, minutes):
+        now = timing.time()
+        start = now - minutes * 60
+        steps = [("dispatched", start), *[move for back in range(send_backs) for move in (("clocked out", start + 60 + back), ("sent back", start + 90 + back))], ("clocked out", now - 30)]
+        with app.container.get(Scope).environment(MAIN):
+            worker = workers.save(Worker(environment_id=MAIN, name=name, model=model, session=f"ws-{name}", dispatcher="s1", brief="Change src/parser.py; done when its test passes", moves=WorkerMoves(tuple(steps))), Actor.system())
+            for n in range(files):
+                edits.save(Edit(environment_id=MAIN, session=f"ws-{name}", path=f"src/part_{n}.py" if n else "tests/test_parser.py", added=lines // files, removed=0, time=start + 120, new_text="x = 1"), Actor.system())
+            worker = workers.save(workers.find(worker.row_id).merged(now), Actor.system())
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            return workers.find(worker.row_id)
+
+    small, large = dict(lines=20, files=1, send_backs=0, minutes=8), dict(lines=900, files=14, send_backs=2, minutes=150)
+    fits = {(size, model): merged(f"{size}-{model}", f"claude-{model}-5-5", **work).model_fit for size, work in (("small", small), ("large", large)) for model in ("haiku", "sonnet", "opus")}
+    assert fits[("small", "haiku")].called_for.value == "fast" and fits[("large", "opus")].called_for.value == "strongest", "small work calls for the fast model, large for the strongest"
+    assert fits[("small", "haiku")].points < fits[("large", "haiku")].points
+    assert {key: fit.measured for key, fit in fits.items()} == {("small", "haiku"): "right", ("small", "sonnet"): "too strong", ("small", "opus"): "too strong", ("large", "haiku"): "too weak", ("large", "sonnet"): "too weak", ("large", "opus"): "right"}
+    answer = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"}, tool_use_id="fit-read")[1]
+    heard = "\n".join([*keystrokes, str(answer)])
+    small_opus = next(w.id for w in workers.global_matching(name="small-opus"))
+    assert f"worker {small_opus} ran on claude-opus-5-5 for work a cheaper model would have done" in heard, heard
+    assert "ran on claude-haiku-5-5 and was sent back 2 times: work like this needs a stronger model" in heard, heard
+    assert "ran on claude-haiku-5-5 for work" not in heard, "a fit is never named"
+    agent = app.container.get(Agents).session_agent("s1")
+    assert len(agent.model_fits) == 6 and sum(entry.endswith(":right") for entry in agent.model_fits) == 2, agent.model_fits
+    counts = ToolUseCounts.counted(agent)
+    assert MODEL_FIT_SHARE in WorkersProfiles.ORCHESTRATOR.measures and MODEL_FIT_SHARE.percent(counts) == 33 and MODEL_FIT_SHARE.closeness(counts) < 1.0, "the model fit part of the fitness counts the mismatches against"
+    with app.container.get(Scope).environment(MAIN):
+        sampled = next(w for w in workers.global_matching(name="large-opus"))
+        judging = [link.source for link in app.container.get(Links).all_matching(target=Ref.build(sampled), kind="verifies")]
+        verifier = app.container.get(Verifiers).find(judging[-1].id)
+    assert verifier.model == "haiku" and "## The diff" in verifier.brief and "Change src/parser.py" in verifier.brief and "journal verdict model" in verifier.brief, "a merge sampled is judged by a verifier on the fast model, handed the brief, the diff and the report"
+    answer = app.console().run(["verdict", "model", "too-strong", "one parser module and its test"], Caller.verifier("main", verifier.id, verifier.session, "claude"))
+    assert answer.code == 0, answer.error
+    with app.container.get(Scope).environment(MAIN):
+        judged = workers.find(sampled.row_id).model_fit
+    assert (judged.verdict, judged.reason, judged.fit()) == ("too strong", "one parser module and its test", "too strong"), "the verdict is recorded on the worker and counts over the measure"
+    assert f"{sampled.row_id}:too strong" in app.container.get(Agents).session_agent("s1").model_fits, "and among its dispatcher's model fits"
+    settings.set(WorkersOptions.MODE.key, WorkersOptions.MODE.default, Actor.user(1))
+    settings.set(WorkersOptions.MODEL_FIT_SAMPLE.key, WorkersOptions.MODEL_FIT_SAMPLE.default, Actor.user(1))
+
+
 def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_else_waits_in_order_and_one_past_the_waiting_cap_is_refused(app: App, tmp_path):
     import threading
     import time

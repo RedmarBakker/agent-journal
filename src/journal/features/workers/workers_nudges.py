@@ -33,6 +33,8 @@ class WorkersNudges:
     LOAD_CRITICAL = Nudge("workers", "load_critical", "your load is {{rho}}, critical: {{waiting}} wait, {{oldest}} the oldest", "ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out", repeat=Timeout.seconds(300))
     PLACE_OPENED = Nudge("workers", "place_opened", "your load stayed at {{rho}} for {{minutes}} minutes: one place more, {{places}} workers out at once", repeat=Timeout.seconds(0))
     PLACE_CLOSED = Nudge("workers", "place_closed", "your load stayed at {{rho}} for {{minutes}} minutes: one place fewer, {{places}} workers out at once", repeat=Timeout.seconds(0))
+    MODEL_TOO_STRONG = Nudge("workers", "model_too_strong", "worker {{n}} ran on {{model}} for work a cheaper model would have done", repeat=Timeout.seconds(0))
+    MODEL_TOO_WEAK = Nudge("workers", "model_too_weak", "worker {{n}} ran on {{model}} and was sent back {{send_backs}} times: work like this needs a stronger model", repeat=Timeout.seconds(0))
     TEST_RUN_FAILED = Nudge("workers", "worker_test_run_failed", "worker {{n}}: {{failed}} failed in its test run", repeat=Timeout.seconds(0))
     WORKER_KEEPS_FAILING = Nudge("workers", "worker_keeps_failing", "worker {{n}} failed {{runs}} test runs in a row", repeat=Timeout.seconds(0))
     WORKER_STOPPED_UNREPORTED = Nudge("workers", "worker_stopped_unreported", "worker {{n}} stopped before it reported{{cause}}", repeat=Timeout.seconds(0))

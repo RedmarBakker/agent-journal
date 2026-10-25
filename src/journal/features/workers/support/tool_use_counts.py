@@ -20,7 +20,7 @@ RESEARCH_WORKS = ("reading", "searching")
 
 @dataclass(frozen=True)
 class ToolUseCounts:
-    """What an agent's tool uses say about how it shares its work, kept on its row as it works: its handovers to workers in a row with no code edit of its own, when it last handed work over, and among its newest fifty its subagent dispatches, its own reads and searches, its handovers, its own file edits, its merges and those that followed a proof read and a test run, its sends to idle workers and its fresh dispatches while one sat idle, the handovers whose brief names a done-when and files, and the tool uses made while a clocked-out worker or an open task with a free place had waited too long; the work mode it is counted in and how many tool uses it has made in it; and its load as last measured, which the handling of the load is scored on."""
+    """What an agent's tool uses say about how it shares its work, kept on its row as it works: its handovers to workers in a row with no code edit of its own, when it last handed work over, and among its newest fifty its subagent dispatches, its own reads and searches, its handovers, its own file edits, its merges and those that followed a proof read and a test run, its sends to idle workers and its fresh dispatches while one sat idle, the handovers whose brief names a done-when and files, and the tool uses made while a clocked-out worker or an open task with a free place had waited too long; the work mode it is counted in and how many tool uses it has made in it; and its load as last measured, which the handling of the load is scored on, and how the models of its newest merged jobs fit them."""
 
     consecutive_handovers: int = 0
     last_handover_at: float = 0.0
@@ -39,6 +39,7 @@ class ToolUseCounts:
     mode_uses: int = WORK_WINDOW_USES
     window_uses: int = WORK_WINDOW_USES
     load: AgentLoad = AgentLoad()
+    model_fits: tuple[str, ...] = ()
 
     @classmethod
     def counted(cls, agent: Agent) -> "ToolUseCounts":
@@ -48,7 +49,7 @@ class ToolUseCounts:
                    merges=len(agent.windowed(agent.merge_uses)), prepared_merges=len(agent.windowed(agent.prepared_merge_uses)), reuses=len(agent.windowed(agent.reuse_uses)),
                    fresh_idle=len(agent.windowed(agent.fresh_idle_uses)), briefed=len(agent.windowed(agent.briefed_uses)),
                    late_workers=len(agent.windowed(agent.late_worker_uses)), late_tasks=len(agent.windowed(agent.late_task_uses)),
-                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.load)
+                   mode=agent.mode, mode_uses=agent.tool_uses - agent.mode_started_use, window_uses=min(agent.tool_uses, WORK_WINDOW_USES), load=agent.load, model_fits=agent.model_fits)
 
     @staticmethod
     def is_handover(call: RecordedCall) -> bool:

@@ -2429,3 +2429,16 @@ def test_the_orchestrators_fitness_scores_its_handling_of_its_load_never_the_loa
     assert scored.is_measured and scored.score < WorkersProfiles.ORCHESTRATOR.scored(counts).score
     assert any(line.startswith("the minutes your load stayed over the add-a-place level is 35 minutes, ideal 0-10 minutes") for line in scored.lines) or any("oldest" in line or "dispatches" in line for line in scored.lines), scored.lines
     assert LOAD_OVER.closeness(ToolUseCounts()) is None, "an unmeasured load is not counted"
+
+
+def test_merged_work_is_scored_for_complexity_and_set_against_the_tier_of_the_model_it_ran_on():
+    from journal.features.workers.support.work_complexity import WorkComplexity
+    from journal.models.model_tier import ModelTier
+    from journal.providers.claude import Claude
+    small, large = WorkComplexity(20, 1, 0, 15, 10, 1, True), WorkComplexity(600, 12, 2, 200, 120, 5, True)
+    assert small.points() < 4 <= 16 <= large.points() and (small.called_for(), large.called_for()) == (ModelTier.FAST, ModelTier.STRONGEST)
+    assert [small.fit(tier).measured for tier in (ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST)] == ["right", "too strong", "too strong"], "small work on a stronger model than it needs is too strong"
+    assert [large.fit(tier).measured for tier in (ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST)] == ["too weak", "too weak", "right"], "large work sent back again and again on a weaker model is too weak"
+    assert WorkComplexity(600, 12, 0, 200, 120, 5, True).fit(ModelTier.GENERAL).measured == "right", "on a weaker model with no send-backs it did the work"
+    assert WorkComplexity(20, 1, 0, 15, 10, 1, False).points() == small.points() + 1, "a brief that names no files makes the work harder"
+    assert small.fit(ModelTier.UNKNOWN).measured == "" and [Claude().tier(model) for model in ("claude-haiku-5-5", "sonnet", "claude-opus-5-5", "fable")] == [ModelTier.FAST, ModelTier.GENERAL, ModelTier.STRONGEST, ModelTier.UNKNOWN]

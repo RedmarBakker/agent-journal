@@ -170,6 +170,17 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal verdict model --help
+exit 0
+usage: journal verdict model [-h] {too-strong,right,too-weak} reason
+
+positional arguments:
+  {too-strong,right,too-weak}
+  reason
+
+options:
+  -h, --help            show this help message and exit
+
 $ agent: journal review record --help
 exit 0
 usage: journal review record [-h] report
@@ -1182,6 +1193,7 @@ workers.weight_repeat_send_back = 1.5
 workers.weight_idle_place = 0.5
 workers.recovery_full_score_minutes = 10
 workers.recovery_zero_score_minutes = 60
+workers.model_fit_sample = 5
 workers.solo_dispatches = 3
 workers.timeout_minutes = 60
 workers.mode = 'builder'  (the user sets it)
@@ -1648,6 +1660,8 @@ workers.dispatch_while_busy  [workers]  {{count}} tasks open, no worker: {{tasks
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
 workers.load_critical  [workers]  your load is {{rho}}, critical: {{waiting}} wait, {{oldest}} the oldest. ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out
 workers.load_rising  [workers]  your load is {{rho}}: {{waiting}} wait; clear {{oldest}} first, the oldest
+workers.model_too_strong  [workers]  worker {{n}} ran on {{model}} for work a cheaper model would have done
+workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent back {{send_backs}} times: work like this needs a stronger model
 workers.no_workers_when_solo  [workers]  you work solo: no worker is dispatched
 workers.now_orchestrating  [workers]  orchestrating: dispatch tasks, review and merge, run the suite
 workers.now_solo  [workers]  you now work solo. do every job yourself: no worker is dispatched

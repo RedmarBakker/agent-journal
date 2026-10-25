@@ -1,6 +1,7 @@
 from journal.features.workers.support.fitness_measure import FitnessMeasure
 from journal.features.workers.support.load_measure import LoadMeasure
 from journal.features.workers.support.mode_profile import ModeProfile
+from journal.models.support.model_fit import RIGHT
 
 FILE_EDIT_SHARE = FitnessMeasure("your own file edits among your edits and handovers", lambda counts: (counts.file_edits, counts.file_edits + counts.handovers), 0.6, 1.0, 3, "take the next task yourself and hand one out only when it is better done beside you")
 RESEARCH_SHARE = FitnessMeasure("your own reads and searches among them and your subagents", lambda counts: (counts.research_count, counts.research_count + counts.subagent_dispatches), 0.5, 1.0, 1, "read and search yourself; a subagent is for a job too wide for your own turns")
@@ -16,14 +17,15 @@ ORCHESTRATOR_EDIT_SHARE = FitnessMeasure("your own file edits among your tool us
 LOAD_OVER = LoadMeasure("the minutes your load stayed over the add-a-place level", 3, "clear what waits, oldest first, and ease the load before it holds over the level: turn the reviewer on or queue instead of dispatching")
 OLDEST_FIRST_SHARE = FitnessMeasure("your clearings that took the oldest waiting item first among your clearings", lambda counts: (counts.load.oldest_first, counts.load.clearings_counted), 0.8, 1.0, 2, "clear the worker or message that has waited longest first")
 CALM_DISPATCH_SHARE = FitnessMeasure("your dispatches into idle places while the load was low among them and the dispatches made while the queue grew under a high load", lambda counts: (counts.load.dispatches_for, counts.load.dispatches_for + counts.load.dispatches_against), 0.8, 1.0, 2, "while the queue grows under a high load, clear it before you dispatch more")
+MODEL_FIT_SHARE = FitnessMeasure("your merged jobs whose model fit the work among your newest merged jobs", lambda counts: (sum(1 for entry in counts.model_fits if entry.split(":", 1)[1] == RIGHT), len(counts.model_fits)), 0.7, 1.0, 2, "send small work on the fast model and keep the strongest for large work; work sent back again and again needs a stronger one")
 
 
 class WorkersProfiles:
-    """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; the orchestrator is also scored on its handling of its load, the minutes it stays over the add-a-place level, clearing the oldest first and not dispatching while the queue grows; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them."""
+    """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; the orchestrator is also scored on its handling of its load, the minutes it stays over the add-a-place level, clearing the oldest first and not dispatching while the queue grows, and on whether the models of its merged jobs fit them; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them."""
 
     BUILDER = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE))
-    ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, ORCHESTRATOR_EDIT_SHARE, LOAD_OVER, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE))
-    REVIEWED_ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, ORCHESTRATOR_EDIT_SHARE, LOAD_OVER, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE))
+    ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, ORCHESTRATOR_EDIT_SHARE, LOAD_OVER, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE, MODEL_FIT_SHARE))
+    REVIEWED_ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, ORCHESTRATOR_EDIT_SHARE, LOAD_OVER, OLDEST_FIRST_SHARE, CALM_DISPATCH_SHARE, MODEL_FIT_SHARE))
     SOLO = ModeProfile("solo", (SOLO_FILE_EDIT_SHARE, SOLO_RESEARCH_SHARE))
 
     ALL = (BUILDER, ORCHESTRATOR, SOLO)
