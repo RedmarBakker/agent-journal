@@ -2773,3 +2773,35 @@ def test_a_pinned_time_source_is_the_one_moment_of_the_clock_and_every_row_writt
     finally:
         source.unpin()
     assert abs(app.container.get(Clock).time() - timing.time()) < 5, "unpinned, the time source is the wall clock and the journal runs as before"
+
+
+def test_a_dispatch_at_a_load_over_the_line_gets_no_budget_line():
+    from pathlib import Path
+    from journal.features.workers.support.workers_data import WorkersData
+    from journal.features.workers.workers_conduct import budget_check
+    from journal.features.workers.workers_options import WorkersOptions
+    from journal.models.support.agent_load import AgentLoad
+    from journal.support.command_part import CommandPart
+    settings = SettingsValue({WorkersOptions.MODE.key: "builder", WorkersOptions.BUILDER_HANDOVER_LINES.key: 50, WorkersOptions.LOAD_TOLD_FROM.key: 0.8})
+    def told(rho):
+        line = "journal worker dispatch 1"
+        call = ToolCall.decoded("Bash", {"command": line}, Claude().operation("Bash", {"command": line}), (CommandPart(line, True, False, (), False, ""),))
+        load = AgentLoad(rho=rho, measured_at=1.0)
+        return budget_check(Ready(), ToolStarting(call=call).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), code_lines=0, workload=load)})), settings).nudges
+    assert told(0.4) != (), "under the line the builder is told to write the next piece itself"
+    assert told(0.96) == (), "over the line the budget line stays quiet, since the load line says the opposite"
+
+
+def test_the_fitness_of_each_mode_reads_the_load_the_orchestrator_by_its_level_and_the_builder_by_a_load_it_lets_stand():
+    from dataclasses import replace
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    from journal.models.support.agent_load import AgentLoad
+    def orchestrator(rho):
+        return WorkersProfiles.ORCHESTRATOR.scored(ToolUseCounts(mode="orchestrator", mode_uses=100, window_uses=100, handovers=20, load=AgentLoad(rho=rho, measured_at=1.0)))
+    assert orchestrator(0.3).score > orchestrator(0.95).score + 5, "an orchestrator at a low load scores well, at a high load poorly"
+    def builder(rho, handovers):
+        return WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", mode_uses=100, window_uses=100, file_edits=12, handovers=handovers, research_count=10, load=AgentLoad(rho=rho, measured_at=1.0)))
+    assert builder(0.9, 1).score >= builder(0.9, 0).score - 3, "at a high load one handover is not punished"
+    assert builder(0.3, 6).score < builder(0.3, 1).score, "several handovers at a low load are"
+    assert builder(1.1, 1).score < builder(0.3, 1).score, "writing on while the load climbs is"

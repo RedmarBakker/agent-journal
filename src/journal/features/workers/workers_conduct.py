@@ -445,7 +445,8 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
     if event.subagent:
         return state.none()
     mode, workers = str(settings.value(WorkersOptions.MODE)), event.data.part(WorkersPart)
-    return state.none(*(line for alignment in WorkersAlignments.ALL if (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
+    delegating = mode == "builder" and is_over_line(workers, settings)
+    return state.none(*(line for alignment in WorkersAlignments.ALL if not (delegating and alignment is WorkersAlignments.BUILDER) and (line := alignment.line(mode, workers, settings))), *fitness_lines(mode, workers, settings))
 
 
 def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
@@ -483,8 +484,12 @@ def capability_check(state: BaseState, event: ToolStarting, settings: Settings) 
     return state.none()
 
 
+def is_over_line(workers, settings: Settings) -> bool:
+    return workers.workload.is_measured() and workers.workload.rho >= settings.decimal(WorkersOptions.LOAD_TOLD_FROM)
+
+
 def budget_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
-    if event.subagent or settings.value(WorkersOptions.MODE) != "builder" or not any(part.text.startswith(HANDOVER_LINES) for part in event.call.parts):
+    if event.subagent or is_over_line(event.data.part(WorkersPart), settings) or settings.value(WorkersOptions.MODE) != "builder" or not any(part.text.startswith(HANDOVER_LINES) for part in event.call.parts):
         return state.none()
     budget, lines = settings.integer(WorkersOptions.BUILDER_HANDOVER_LINES), event.data.part(WorkersPart).code_lines
     return state.none(WorkersNudges.BUILDER_BUDGET.create(lines=lines, budget=budget)) if 0 < budget and lines < budget else state.none()

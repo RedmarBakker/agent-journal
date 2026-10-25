@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from journal.features.workers.support.fitness_measure import FitnessMeasure
 from journal.features.workers.support.interruption_measure import InterruptionMeasure
+from journal.features.workers.support.load_level_measure import LoadLevelMeasure
 from journal.features.workers.support.load_measure import LoadMeasure
 from journal.features.workers.support.queue_measure import QueueMeasure
 from journal.features.workers.support.fitness_score import FitnessScore
@@ -20,7 +21,7 @@ class ModeProfile:
     """A work mode's ideal agent written down as measures, and an agent's newest tool uses scored against it, once it has made as many in this mode as the score counts over: each measure inside its range counts whole, one outside counts less the further off it is, weighted, so a new mode is a new profile and nothing else."""
 
     mode: str
-    measures: tuple[FitnessMeasure | LoadMeasure | InterruptionMeasure | QueueMeasure | CodeShareMeasure, ...]
+    measures: tuple[FitnessMeasure | LoadMeasure | LoadLevelMeasure | InterruptionMeasure | QueueMeasure | CodeShareMeasure, ...]
 
     @staticmethod
     def weight(measure: object, counts: ToolUseCounts) -> int:
