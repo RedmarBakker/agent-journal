@@ -11891,6 +11891,23 @@ def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_sui
     assert len(broken()) == 1, "once the whole suite has passed, a later failure names no merge it passed after"
 
 
+def test_an_orchestrators_stop_is_refused_while_clocked_out_work_waits_and_told_to_wait_while_its_workers_are_out(app: App, monkeypatch):
+    workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    body = hook(app, "Stop")[1]
+    assert body.get("decision") == "block" and "worker 1 (Worker 1) are still out and no work waits to be checked" in body["reason"] and "journal worker wait 1" in body["reason"], body
+    again = hook(app, "Stop", stop_hook_active=True)[1]
+    assert "journal worker wait" not in again.get("reason", ""), "told to wait once: a stop right after the refusal is let through"
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    for active in (False, True):
+        held = hook(app, "Stop", stop_hook_active=active)[1]
+        assert held.get("decision") == "block" and "worker 1 (Worker 1) clocked out and their work waits for you" in held["reason"] and "journal worker wait" not in held["reason"], held
+    assert checked_and_merged(app).code == 0
+    assert "clocked out and their work waits" not in hook(app, "Stop")[1].get("reason", ""), "once its work is merged the stop names no worker"
+
+
 def test_a_worker_sent_a_new_job_naming_another_repository_gets_its_worktree_and_records_it(app: App, monkeypatch):
     root = workspace_made(app, ("platform", "mobile"))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")

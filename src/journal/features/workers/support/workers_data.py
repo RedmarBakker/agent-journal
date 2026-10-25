@@ -14,7 +14,7 @@ from journal.models.worker_todo import WorkerTodo
 
 @dataclass(frozen=True)
 class WorkersData:
-    """The workers feature's reading: the workers out and the idle workers whose report is not acted on, how many subagents of this session's rows are running, every subagent this session dispatched, the workers' worktrees, the clocked-out workers' work waiting to be checked, and, for a worker's own agent, its worker, the to-do items of the task it holds and its own outputs not yet ended; the merges the whole suite has not passed since; and the agent's own load as last measured."""
+    """The workers feature's reading: the workers out and the idle workers whose report is not acted on, how many subagents of this session's rows are running, every subagent this session dispatched, the workers' worktrees, the clocked-out workers' work waiting to be checked and those workers, and, for a worker's own agent, its worker, the to-do items of the task it holds and its own outputs not yet ended; the merges the whole suite has not passed since; and the agent's own load as last measured."""
 
     dispatched_workers: tuple[Worker, ...]
     idle_workers: tuple[Worker, ...]
@@ -26,6 +26,7 @@ class WorkersData:
     todos: tuple[WorkerTodo, ...] = ()
     unfinished_outputs: tuple[int, ...] = ()
     ready_work: tuple[ReadyWork, ...] = ()
+    delivered_workers: tuple[Worker, ...] = ()
     tool_uses: ToolUseCounts = ToolUseCounts()
     code_lines: int = 0
     load: AgentLoad = AgentLoad()
