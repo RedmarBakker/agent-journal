@@ -31,7 +31,9 @@ import MenuPanel from "../kit/MenuPanel.vue";
 import WorkerList from "../chat/WorkerList.vue";
 import {useEveryWorker, useWorkers} from "../composables/workers.js";
 import {useEveryVerifier} from "../composables/verifiers.js";
-import VerifierList from "../chat/VerifierList.vue";
+import {useEveryReviewer} from "../composables/reviewers.js";
+import AgentDropdown from "../chat/AgentDropdown.vue";
+import {newestFirst, reviewerEntry, verifierEntry} from "../domain/agentEntries.js";
 import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
@@ -148,6 +150,21 @@ function toggleVerifiers(e) {
     verifiersOpen.value = !verifiersOpen.value;
     if (verifiersOpen.value) refreshEveryVerifier();
 }
+
+const reviewersOpen = ref(false);
+const reviewersAnchor = ref(null);
+const {rows: everyReviewer, loaded: everyReviewerLoaded, refresh: refreshEveryReviewer} = useEveryReviewer(reviewersOpen);
+
+function toggleReviewers(e) {
+    reviewersAnchor.value = e.currentTarget;
+    reviewersOpen.value = !reviewersOpen.value;
+    if (reviewersOpen.value) refreshEveryReviewer();
+}
+
+const verifierEntries = computed(() => newestFirst(everyVerifier.value.map(verifierEntry)));
+const reviewerEntries = computed(() => newestFirst(everyReviewer.value.map(reviewerEntry)));
+const judging = computed(() => everyVerifier.value.filter((row) => row.state === "verifying").length);
+const reviewing = computed(() => everyReviewer.value.filter((row) => row.state === "reviewing").length);
 
 function toggleWorkers(e) {
     workersAnchor.value = e.currentTarget;
@@ -302,6 +319,15 @@ async function runBar(p) {
                 >
                     <Icon name="verifier" />
                 </button>
+                <button
+                    type="button"
+                    class="statusbar-helpers"
+                    v-tip:reviewers="{title: 'Reviewers', line: 'Agents the journal sends to test and check each worker\'s work. Opens the list.'}"
+                    :aria-expanded="reviewersOpen"
+                    @click.stop="toggleReviewers"
+                >
+                    <Icon name="reviewer" />
+                </button>
             </span>
             <template v-if="workersOpen">
                 <MenuPanel
@@ -333,7 +359,36 @@ async function runBar(p) {
                     @click.stop
                     @close="verifiersOpen = false"
                 >
-                    <VerifierList :rows="everyVerifier" :loading="!everyVerifierLoaded" @close="verifiersOpen = false" />
+                    <AgentDropdown
+                        title="Verifiers"
+                        table="verifiers"
+                        :entries="verifierEntries"
+                        :counts="judging ? `${judging} judging` : ''"
+                        none="No verifier has been sent here yet. The journal sends one when the agent dismisses a reader report."
+                        :loading="!everyVerifierLoaded"
+                        @close="verifiersOpen = false"
+                    />
+                </MenuPanel>
+            </template>
+            <template v-if="reviewersOpen">
+                <MenuPanel
+                    :anchor="reviewersAnchor"
+                    plain
+                    :min-width="300"
+                    :max-width="360"
+                    :height="workersHeight"
+                    :gap="12"
+                    @click.stop
+                    @close="reviewersOpen = false"
+                >
+                    <AgentDropdown
+                        title="Reviewers"
+                        :entries="reviewerEntries"
+                        :counts="reviewing ? `${reviewing} reviewing` : ''"
+                        none="No reviewer has been sent here yet. The journal sends one when a worker clocks out, in orchestrator mode with the reviewer on."
+                        :loading="!everyReviewerLoaded"
+                        @close="reviewersOpen = false"
+                    />
                 </MenuPanel>
             </template>
             <Btn
