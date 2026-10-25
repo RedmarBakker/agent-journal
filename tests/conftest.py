@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import tempfile
 from pathlib import Path
@@ -130,3 +131,5 @@ def pytest_collection_modifyitems(config, items):
     kept = [item for place, item in enumerate(items) if place % count == index]
     config.hook.pytest_deselected(items=[item for item in items if item not in kept])
     items[:] = kept
+    sys.__stdout__.write(f"collected {len(kept)} items\n")
+    sys.__stdout__.flush()

@@ -17,6 +17,8 @@ COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xp
 FAILURE_START = re.compile(r"^(=+ (FAILURES|ERRORS) =+|_{3,} .+ _{3,})$")
 SUMMARY_START = re.compile(r"^=+ short test summary info =+$")
 PERCENT = re.compile(r"\[\s*(\d+)%\]")
+COLLECTED = re.compile(r"collected (\d+) items?(?: / (\d+) deselected)?")
+RESULT_LINE = re.compile(r"^(?:tests/\S+ )?([.FEsxX]+)\s*(?:\[\s*\d+%\])?$")
 PROGRESS_SECONDS = 2.0
 
 
@@ -26,7 +28,7 @@ def shard_count() -> int:
 
 def started(index: int, count: int, folder: Path) -> tuple[subprocess.Popen, Path]:
     output = folder / f"shard-{index}.txt"
-    process = subprocess.Popen(PYTEST, cwd=ROOT, env={**os.environ, SHARD_VARIABLE: f"{index}/{count}"}, stdout=output.open("w"), stderr=subprocess.STDOUT)
+    process = subprocess.Popen(PYTEST, cwd=ROOT, env={**os.environ, SHARD_VARIABLE: f"{index}/{count}", "PYTHONUNBUFFERED": "1"}, stdout=output.open("w"), stderr=subprocess.STDOUT)
     return process, output
 
 
@@ -52,7 +54,13 @@ def failure_lines(text: str) -> list[str]:
 
 
 def shard_percent(output: Path) -> int:
-    found = PERCENT.findall(output.read_text())
+    text = output.read_text()
+    collected = COLLECTED.search(text)
+    total = int(collected[1]) - int(collected[2] or 0) if collected else 0
+    if total > 0:
+        done = sum(len(match[1]) for line in text.splitlines() if (match := RESULT_LINE.match(line)))
+        return min(100, 100 * done // total)
+    found = PERCENT.findall(text)
     return int(found[-1]) if found else 0
 
 
