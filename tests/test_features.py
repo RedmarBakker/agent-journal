@@ -16449,12 +16449,21 @@ def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_t
     assert app.console().run(["reminder", "create", "call the plumber", "--at", earlier], USER).code == 0
     assert "--at takes a local date and time" in app.console().run(["reminder", "create", "x", "--at", "tomorrow"], USER).error
     app.runtime().deferred.drain()
+    from journal.repositories.entries import NUDGE, Entries
     started = json.dumps(hook(app, "SessionStart")[1])
-    assert "call the plumber" in started and "water the plants" not in started, "a reminder that fell due while no agent ran is told at the session's start, one not due yet is quiet"
     app.runtime().deferred.drain()
+
+    def told(text: str) -> list:
+        with app.container.get(Scope).environment(MAIN):
+            return [entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "memory.reminder_due" and text in entry.data.get("line", "")]
+
+    first = told("call the plumber")
+    assert first and "water the plants" not in started and not told("water the plants"), "a reminder that fell due while no agent ran is told at the first event after it, the session's start unless a later event came first, and one not due yet is quiet"
     listed = app.console().run(["reminder", "list"], USER).text
     assert "call the plumber" not in listed and f"water the plants (at {later})" in listed, "a told reminder is struck, and the list shows a timed one with its moment"
-    assert "call the plumber" not in json.dumps(hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")[1]), "and it is told once"
+    hook(app, "PostToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_response="")
+    app.runtime().deferred.drain()
+    assert told("call the plumber") == first, "and it is never told again"
 
 
 def test_a_task_handed_to_a_worker_is_delegated_leaves_its_dispatcher_free_and_reopens_when_released(app: App):
