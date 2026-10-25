@@ -34,8 +34,8 @@ class ShellRecord:
         self.entries, self.log, self.outputs, self.views = entries, log, outputs, views
         self.events, self.agents, self.settings, self.scope, self.states = events, agents, settings, scope, states
 
-    def start(self, chain: str, command: str, folder: Path, ran_in: str, caller: Caller) -> int:
-        return self.log.start(chain, command, folder, ran_in, caller).row_id
+    def start(self, chain: str, command: str, folder: Path, caller: Caller, ran_in: str = "") -> int:
+        return self.log.start(chain, command, folder, caller, ran_in).row_id
 
     def started(self, chain: str, part: str, caller: Caller) -> None:
         self.record(caller, PART_START, {"chain": chain, "part": part, "doing": ActivityLabel.build(part)})

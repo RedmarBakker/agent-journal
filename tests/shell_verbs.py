@@ -24,7 +24,7 @@ class ShellVerbs:
         folder.split(line, parts)
         if not Chain.is_journal_line(line):
             with self.scope.environment(self.environment_id):
-                folder.numbered(self.record.start(folder.folder.name, "\n".join(p.text for p in parts if p.recorded), folder.folder, "", self.caller))
+                folder.numbered(self.record.start(folder.folder.name, "\n".join(p.text for p in parts if p.recorded), folder.folder, self.caller))
         return (folder.folder / "parts").read_text()
 
     def cap(self, line: str = "") -> str:

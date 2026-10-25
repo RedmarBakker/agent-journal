@@ -14,7 +14,7 @@ class OutputLog:
     def __init__(self, outputs: CommandOutputs, settings: SettingRows) -> None:
         self.outputs, self.settings = outputs, settings
 
-    def start(self, chain: str, command: str, folder: Path, ran_in: str, caller: Caller) -> CommandOutput:
+    def start(self, chain: str, command: str, folder: Path, caller: Caller, ran_in: str = "") -> CommandOutput:
         actor = caller.actor
         output = self.outputs.save(CommandOutput(chain=chain, command=command, session=caller.session, folder=str(folder), ran_in=ran_in), actor)
         for old in self.outputs.surplus(self.settings.integer(ShellOptions.OUTPUT_COUNT)):
