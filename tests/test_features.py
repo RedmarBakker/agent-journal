@@ -13852,7 +13852,7 @@ def test_a_plugin_holds_a_workers_clock_out_on_its_own_commit_before_the_journal
     folder = tmp_path / "echo"
     shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
     manifest = json.loads((folder / "journal-plugin.json").read_text())
-    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "hears": [*manifest["hears"], "worker_clocking_out"], "holds": [*manifest["holds"], "worker_clocking_out"]}))
+    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "hears": [*manifest["hears"], "worker_clocking_out", "worker_delivering"], "holds": [*manifest["holds"], "worker_clocking_out", "worker_delivering"]}))
     repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
     assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
     _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
@@ -13869,6 +13869,25 @@ def test_a_plugin_holds_a_workers_clock_out_on_its_own_commit_before_the_journal
     app.runtime().deferred.drain()
     heard = [json.loads(line) for line in (app.config.home / "plugin-data" / "echo" / "heard.jsonl").read_text().splitlines()]
     assert [line for line in heard if line["event"] == "worker_clocking_out"][-1]["data"]["window_ms"] == 180000, "the hold's window is the clock-out window setting"
+
+
+def test_a_plugin_holds_a_workers_work_after_its_tests_pass_and_before_it_reaches_the_agent(app: App, monkeypatch, tmp_path):
+    import shutil
+    folder = tmp_path / "echo"
+    shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
+    manifest = json.loads((folder / "journal-plugin.json").read_text())
+    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "hears": [*manifest["hears"], "worker_delivering"], "holds": [*manifest["holds"], "worker_delivering"]}))
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    (worktree / "untested.py").write_text("x = 1\n")
+    committed(app.config.root, "notes.md", "a later note\n")
+    held = proved_and_out(app, caller, "untested.py:1")
+    assert held.code != 0 and "your tests passed, but a plugin held your work before it reaches the agent" in held.error and "echo holds the delivery of worker/1-Worker-1: untested.py" in held.error, held.error
+    assert worker_row(app).state != WorkerState.DELIVERED and (worktree / "notes.md").is_file(), "the work was rebased before the hold, and the worker stays out"
+    (worktree / "untested.py").unlink()
+    (worktree / "tested.py").write_text("y = 2\n")
+    assert app.console().run(["clock-out", "the work is in"], caller).code == 0, "with nothing to hold, the work reaches the agent"
 
 
 def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_and_not_written_to_the_chat(app: App, tmp_path):

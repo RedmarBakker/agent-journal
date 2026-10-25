@@ -30,6 +30,8 @@ def answer(line: dict) -> str:
         return json.dumps({"v": 1, "answer": "refuse", "reason": f"echo refuses a forbidden tool{os.environ.get('ECHO_VIA', '')}"})
     if line["event"] == "tool_finished" and "notice" in json.dumps(data.get("input", {})):
         return json.dumps({"v": 1, "answer": "tell", "tell": "echo noticed the edit"})
+    if line["event"] == "worker_delivering" and any("untested" in path for path in data.get("files", [])):
+        return json.dumps({"v": 1, "answer": "refuse", "reason": f"echo holds the delivery of {data.get('branch')}: {', '.join(data.get('files'))}"})
     if line["event"] == "worker_clocking_out" and any("unjudged" in path for path in data.get("files", [])):
         return json.dumps({"v": 1, "answer": "refuse", "reason": f"echo holds the clock-out of {data.get('branch')}: {', '.join(data.get('files'))}"})
     if line["event"] == "worker_merging" and any("forbidden" in path for path in data.get("files", [])):

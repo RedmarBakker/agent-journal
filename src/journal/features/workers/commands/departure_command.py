@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from journal.console.command import WORKER_KINDS, Command
 from journal.engine.command_events import CommandEvents
 from journal.events.worker_clocking_out import WorkerClockingOut
+from journal.events.worker_delivering import WorkerDelivering
+from journal.events.worker_merging import WorkerMerging
 from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
@@ -25,6 +27,9 @@ from journal.repositories.workers import Workers
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
 
+
+TESTING_HELD = "your clock-out was held by a plugin before the journal rebased your work and ran your tests; fix what it found, then clock out again"
+DELIVERY_HELD = "your tests passed, but a plugin held your work before it reaches the agent that sent you; fix what it found, then clock out again, and the journal runs your tests again"
 
 class DepartureCommand(Command):
     """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later; a pool worker does the same on its teammate's machine, and pushes its branch to origin at every clock-out so the merge sees each finished task."""
@@ -55,7 +60,7 @@ class DepartureCommand(Command):
             raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof that stands: journal proof <point> \"<file:line, and the test that shows it>\", or journal proof <point> --not-done \"<why>\"")
         start_heads = self.branch.worktree_heads(worker)
         self.branch.commit_changes(worker, f"Task {task.id}: {task.title}")
-        self.plugin_check(worker, task)
+        self.plugin_check(WorkerClockingOut, worker, task, TESTING_HELD)
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}, and it clashes: {clashing}; {REBASE_STEPS}, then clock out again")
@@ -68,6 +73,7 @@ class DepartureCommand(Command):
             self.workers.save(self.workers.find(worker.id).rebased(f"its worktree rebased onto the project's branch at its clock-out, at {self.branch.project_heads(worker)}", datetime.now(timezone.utc).timestamp()), caller.actor)
         if self.is_journal_testing(worker):
             self.tested(worker, task, args.tests, caller)
+        self.plugin_check(WorkerDelivering, worker, task, DELIVERY_HELD)
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
         if worker.pool_request:
@@ -83,12 +89,12 @@ class DepartureCommand(Command):
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
 
-    def plugin_check(self, worker: Worker, task: Task) -> None:
+    def plugin_check(self, kind: type[WorkerMerging], worker: Worker, task: Task, held_line: str) -> None:
         if not worker.worktree or worker.pool_request:
             return
-        refusals = self.events.worker_clocking_out(self.branch.hold_event(WorkerClockingOut, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
+        refusals = self.events.worker_merging(self.branch.hold_event(kind, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
         if refusals:
-            raise Rejection("your clock-out was held by a plugin before the journal rebased your work; fix what it found, then clock out again\n" + "\n".join(refusals))
+            raise Rejection(held_line + "\n" + "\n".join(refusals))
 
     def is_journal_testing(self, worker: Worker) -> bool:
         return not worker.pool_request and self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
