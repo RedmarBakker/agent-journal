@@ -17,6 +17,9 @@ class Links(Repository[Link]):
     def link_rows(self, model: Model) -> list[Link]:
         return self.selected(self.touching(model).order("id"))
 
+    def of_kind(self, kind: str) -> list[Link]:
+        return self.selected(self.query().filter(kind=kind).order("id"))
+
     def targets(self, model: Model, kind: str) -> list[Ref]:
         return [link.target for link in self.selected(self.query().filter(source=Ref.build(model), kind=kind).order("id"))]
 

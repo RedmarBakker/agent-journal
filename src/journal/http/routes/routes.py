@@ -173,6 +173,7 @@ class Routes:
         get = self.container.get
         tasks, plans, questions = get(TaskController), get(PlanController), get(QuestionController)
         router.get(f"{API}/requests", get(RequestController).index)
+        router.get(f"{API}/requests/filed", get(RequestController).filed)
         self.resource(router, "tasks", tasks)
         self.acts(router, "tasks", tasks, "start", "finish", "reopen", "pause", "block", "unblock", "delete", "log")
         router.get(f"{API}/tasks/{{id}}/logs", tasks.logs)

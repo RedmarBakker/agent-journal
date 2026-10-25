@@ -1,4 +1,4 @@
-from journal.features.tasks.support.hub_filing import REQUESTED_OF
+from journal.features.tasks.support.hub_filing import REQUESTED_OF, TEAM_REQUEST
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.models.user import User
@@ -8,7 +8,7 @@ from journal.support.response import Response
 
 
 class RequestController:
-    """The requests filed for the signed-in person, newest first, from every environment, the hub's among them."""
+    """The requests filed for the signed-in person, and those the signed-in person filed with the state each has reached, newest first, from every environment, the hub's among them."""
 
     def __init__(self, tasks: Tasks, links: Links) -> None:
         self.tasks, self.links = tasks, links
@@ -16,3 +16,8 @@ class RequestController:
     def index(self, request: Request) -> Response:
         ids = [ref.id for ref in self.links.sources(User(id=int(request.actor.id)), REQUESTED_OF)]
         return Response.json({"rows": [ModelFields.build(task) for task in reversed(self.tasks.numbered_anywhere(ids))]})
+
+    def filed(self, request: Request) -> Response:
+        ids = sorted({link.source.id for kind in (REQUESTED_OF, TEAM_REQUEST) for link in self.links.of_kind(kind)})
+        mine = [task for task in self.tasks.numbered_anywhere(ids) if task.creator == request.actor]
+        return Response.json({"rows": [ModelFields.build(task) for task in reversed(mine)]})

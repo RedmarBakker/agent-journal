@@ -438,6 +438,11 @@ export class ApiClient {
         return this.get("/team/devices");
     }
 
+    // the requests this person filed, with the state each has reached
+    filedRequests() {
+        return this.get("/requests/filed");
+    }
+
     // the requests filed for this person, in every environment
     requests() {
         return this.get("/requests");

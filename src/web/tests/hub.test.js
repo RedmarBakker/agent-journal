@@ -106,7 +106,9 @@ test("the Requests page lists the requests filed for the person", async () => {
     const {api} = await import("../src/api/client.js");
     const {default: RequestsPage} = await import("../src/pages/RequestsPage.vue");
     vi.spyOn(api, "requests").mockResolvedValue({rows: [{id: 57, title: "review the plan"}]});
+    vi.spyOn(api, "filedRequests").mockResolvedValue({rows: [{id: 60, title: "check the copy", state: "done"}]});
     const host = mounted(RequestsPage, {});
     await new Promise((resolve) => setTimeout(resolve));
     expect(host.querySelector("[data-requests-page]").textContent).toContain("Task 57: review the plan");
+    expect(host.querySelector("[data-filed]").textContent).toContain("Task 60: check the copy · done");
 });
