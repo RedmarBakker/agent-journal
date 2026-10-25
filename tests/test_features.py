@@ -16434,6 +16434,9 @@ def test_a_reminder_set_for_a_moment_is_quiet_before_it_and_told_once_after_it_t
     from journal.engine.clock import Clock
 
     monkeypatch.setattr(Clock, "tick", lambda self, time: None)
+    monkeypatch.setattr(Clock, "_tick", lambda self, agent: None)
+    with app.container.get(Clock).tick_lock:
+        pass
 
     later = (datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
     earlier = (datetime.now() - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M")
