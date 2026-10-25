@@ -16342,7 +16342,7 @@ def test_a_long_run_whose_output_holds_no_progress_is_not_reported_for_showing_n
     app.container.get(OutputLog).start("quiet", "go test ./...", folder, Caller.agent("main", "s1", "claude"))
     outputs = app.container.get(CommandOutputs)
     outputs.save(outputs.find(1).backgrounded(), Actor.system())
-    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--about", "each package's end"], AGENT).code == 0
+    assert app.console().run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end"], AGENT).code == 0
     assert app.console().run(["output", "watch", "1", "--reader", "packages"], AGENT).code == 0
     started = outputs.find(1).creation_time.timestamp()
     outputs.save(outputs.find(1).ended_with(0, started + 45), Actor.system())
@@ -18801,7 +18801,7 @@ def test_a_reader_report_whose_finding_the_runs_output_bears_out_cannot_be_dismi
     from journal.repositories.reader_reports import ReaderReports
     hook(app, "SessionStart")
     console, outputs = app.console(), app.container.get(CommandOutputs)
-    assert console.run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--about", "each package's end"], AGENT).code == 0
+    assert console.run(["reader", "add", "packages", "--commands", "go test", "--pattern", "^(ok|FAIL)", "--summary", "^(FAIL|ok)\\s+(\\S+)", "--about", "each package's end"], AGENT).code == 0
 
     def ran(name: str, text: str) -> int:
         folder = app.config.root / name
@@ -19102,13 +19102,13 @@ def test_with_the_reviewer_on_a_reviewer_signs_off_work_that_passes_and_the_work
     console.run(["task", "create", "the lexer", "--brief", "the lexer splits the words"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         parser, lexer = sorted(tasks.scoped(), key=lambda row: row.id)[-2:]
-    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", str(parser.id), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    dispatched = console.run(["worker", "dispatch", "Lady Lovelace", "--task", str(parser.id), "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet", "--report", "each"], AGENT)
     assert dispatched.code == 0, dispatched.error
     with app.container.get(Scope).environment(MAIN):
         worker = max(workers.scoped(), key=lambda row: row.id)
         workers.save(worker.with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
         app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="c-1", command="python3 -m pytest tests/test_parser.py", session="w-1", ended=True, status=0, summary="3 passed in 0.4s"), Actor.worker(worker.id))
-    assert console.run(["worker", "queue", str(worker.id), str(lexer.id)], AGENT).code == 0
+    assert console.run(["worker", "queue", str(worker.id), str(lexer.id), "--report", "each"], AGENT).code == 0
     lovelace = Caller.worker("main", worker.id, "w-1", "claude")
 
     def clocked_out(proof: str):
@@ -19793,4 +19793,7 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     assert not kinds[CardKind.VERIFIERS]["shown"] and kinds[CardKind.SEQUENCES]["main"] and not kinds[CardKind.SEQUENCE_STEPS]["main"], "verifier marks start hidden; a sequence's steps are a detail of its start and finish"
     from journal.features.registry import Registry
     registry = app.container.get(Registry)
-    assert served == MarkKinds.served(registry.card_families(), registry.card_kinds()) == json.loads((Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json").read_text()), "the viewer's tests read the registry as it is served"
+    fixture = Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json"
+    if os.environ.get("MARKS_FREEZE") == "1":
+        fixture.write_text(json.dumps(served, indent=1) + "\n")
+    assert served == MarkKinds.served(registry.card_families(), registry.card_kinds()) == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"

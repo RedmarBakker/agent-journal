@@ -101,7 +101,7 @@
   },
   {
    "key": "filed",
-   "title": "Filed from your messages",
+   "title": "Tasks created from your messages",
    "icon": "inbox",
    "group": "work",
    "colouring": "none"
