@@ -1,5 +1,5 @@
 import {createApp, h, nextTick} from "vue";
-import {expect, test} from "vitest";
+import {expect, test, vi} from "vitest";
 import {threadTurns} from "../src/domain/thread.js";
 
 const lines = Array.from({length: 13}, (_, i) => `finding ${i + 1}`);
@@ -25,6 +25,36 @@ test("a card with thirteen lines opens thirteen rows under it on a click and clo
     host.querySelector(".mark").click();
     await nextTick();
     expect(host.querySelectorAll(".mark-line").length).toBe(0);
+    app.unmount();
+    host.remove();
+});
+
+test("a process card opens in one click to its summary and a terminal view fetched then, with a height of its own, and folds on a second", async () => {
+    window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+    const {default: Turn} = await import("../src/chat/Turn.vue");
+    const run = {...message, data: {kind: "card", output: 12, line: "pytest -q", summary: "3 failed, 1146 passed", detail: "FAILED test_b", lines: [], ending: "Failed", row: ""}};
+    const {turns} = threadTurns([run], []);
+    const readOutput = vi.fn().mockResolvedValue({lines: ["collecting", "FAILED test_b"], start: 0, next: 2});
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h(Turn, {turn: turns[0]})});
+    app.provide("scope", {...scope, api: {readOutput}});
+    app.directive("tip", {});
+    app.mount(host);
+    await nextTick();
+    expect(readOutput).not.toHaveBeenCalled();
+    expect(host.querySelector(".mark-terminal")).toBeNull();
+    host.querySelector(".mark").click();
+    await new Promise((done) => setTimeout(done, 0));
+    await nextTick();
+    expect(readOutput).toHaveBeenCalledWith(12);
+    expect(host.querySelector(".mark-summary").textContent).toBe("3 failed, 1146 passed");
+    expect(host.querySelector(".mark-terminal").textContent).toBe("collecting\nFAILED test_b");
+    expect(host.querySelector(".mark-more").classList.contains("open")).toBe(true);
+    expect(host.querySelector(".mark").hasAttribute("data-open")).toBe(true);
+    host.querySelector(".mark").click();
+    await nextTick();
+    expect(host.querySelector(".mark-more").classList.contains("open")).toBe(false);
     app.unmount();
     host.remove();
 });

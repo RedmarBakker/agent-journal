@@ -1,10 +1,7 @@
 import {createApp, h, nextTick} from "vue";
 import {expect, test} from "vitest";
-import {ui} from "../src/state/ui.js";
 import SubagentMark from "../src/chat/SubagentMark.vue";
 
-// these read a mark's second line, which the compact chat folds until a click
-ui.compactMarks = false;
 
 async function drawn(props) {
     const host = document.createElement("div");

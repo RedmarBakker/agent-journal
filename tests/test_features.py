@@ -19472,6 +19472,24 @@ def test_a_reader_finding_dismissed_three_times_for_one_command_is_not_raised_fo
     assert "N/M" in StreamingForm.advice("make"), "and any other command is told to count what has finished against the total"
 
 
+def test_a_summary_reader_turns_a_runs_output_into_its_summary_and_the_judge_names_a_long_run_without_one(app: App):
+    from datetime import datetime, timedelta, timezone
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import SUMMARY_READER_MISSING, ReaderJudge
+    pytest_like = Reader("tests", "the failures", r"^FAILED", summary_pattern=r"(?:([0-9]+ failed), )?([0-9]+ passed)")
+    assert pytest_like.summary(["FAILED a", "=== 3 failed, 1146 passed in 9s ==="]) == "3 failed, 1146 passed"
+    assert pytest_like.summary(["=== 12 passed in 1s ==="]) == "12 passed"
+    assert Reader("none", "x", "y").summary(["3 passed"]) == "", "a reader with no summary pattern gives no summary"
+    judge = app.container.get(ReaderJudge)
+    output = type("Output", (), {"creation_time": datetime.now(timezone.utc) - timedelta(seconds=90)})()
+    lines = ["FAILED a", "3 failed, 1146 passed in 9s"]
+    [(finding, fix)] = judge.missing_summary_reader(Reader("tests", "x", "y"), output, lines, datetime.now(timezone.utc))
+    assert SUMMARY_READER_MISSING in finding and "--summary" in fix and "3 failed, 1146 passed" in fix, "the finding says how to write one"
+    assert judge.missing_summary_reader(pytest_like, output, lines, datetime.now(timezone.utc)) == [], "a reader with a summary reader is not reported"
+    short = type("Output", (), {"creation_time": datetime.now(timezone.utc) - timedelta(seconds=5)})()
+    assert judge.missing_summary_reader(Reader("tests", "x", "y"), short, lines, datetime.now(timezone.utc)) == [], "a short run needs none"
+
+
 def test_the_next_task_is_offered_paused_then_blocked_then_open_by_priority_the_started_plans_first(app: App):
     from datetime import datetime, timezone
     from journal.features.tasks.support.next_open_task import NextOpenTask

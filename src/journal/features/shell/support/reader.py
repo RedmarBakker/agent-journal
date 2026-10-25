@@ -16,7 +16,8 @@ STEP_PREFIX = "step: "
 TOPIC_PREFIX = "topic: "
 FINISHED_PREFIX = "finished: "
 FAILED_PREFIX = "failed: "
-PREFIXES = (PROGRESS_PREFIX, LABEL_PREFIX, COMMANDS_PREFIX, STEP_PREFIX, TOPIC_PREFIX, FINISHED_PREFIX, FAILED_PREFIX)
+SUMMARY_PREFIX = "summary: "
+PREFIXES = (PROGRESS_PREFIX, LABEL_PREFIX, COMMANDS_PREFIX, STEP_PREFIX, TOPIC_PREFIX, FINISHED_PREFIX, FAILED_PREFIX, SUMMARY_PREFIX)
 SCRIPT_SECONDS = 30
 STAGE_VARIABLE = "JOURNAL_OUTPUT_STAGE"
 
@@ -37,6 +38,7 @@ class Reader:
     failed_pattern: str = ""
     script: str = ""
     stage: str = ACTIVE
+    summary_pattern: str = ""
 
     def revised(self, **changes: object) -> "Reader":
         return replace(self, **{name: value for name, value in changes.items() if value is not None})
@@ -50,7 +52,7 @@ class Reader:
         notes = [line.removeprefix("#").strip() for line in path.read_text().splitlines() if line.startswith("#") and not line.startswith("#!")]
         settings = {prefix: note.removeprefix(prefix) for note in notes for prefix in PREFIXES if note.startswith(prefix)}
         subject = next((note for note in notes if not note.startswith(PREFIXES)), "")
-        return cls(path.stem, subject, "", settings.get(PROGRESS_PREFIX, ""), settings.get(LABEL_PREFIX, ""), ReaderCommands.parsed(settings.get(COMMANDS_PREFIX, "")), settings.get(STEP_PREFIX, ""), settings.get(TOPIC_PREFIX, ""), settings.get(FINISHED_PREFIX, ""), settings.get(FAILED_PREFIX, ""), str(path))
+        return cls(path.stem, subject, "", settings.get(PROGRESS_PREFIX, ""), settings.get(LABEL_PREFIX, ""), ReaderCommands.parsed(settings.get(COMMANDS_PREFIX, "")), settings.get(STEP_PREFIX, ""), settings.get(TOPIC_PREFIX, ""), settings.get(FINISHED_PREFIX, ""), settings.get(FAILED_PREFIX, ""), str(path), summary_pattern=settings.get(SUMMARY_PREFIX, ""))
 
     @classmethod
     def patterned(cls, path: Path) -> "Reader":
@@ -58,10 +60,10 @@ class Reader:
         if len(lines) < 2:
             raise Rejection(f"reader {path.stem} needs two lines: '# what it picks', then its pattern")
         settings = {prefix: line.removeprefix(prefix) for line in lines[2:] for prefix in PREFIXES if line.startswith(prefix)}
-        return cls(path.stem, lines[0].removeprefix("#").strip(), lines[1], settings.get(PROGRESS_PREFIX, ""), settings.get(LABEL_PREFIX, ""), ReaderCommands.parsed(settings.get(COMMANDS_PREFIX, "")), settings.get(STEP_PREFIX, ""), settings.get(TOPIC_PREFIX, ""), settings.get(FINISHED_PREFIX, ""), settings.get(FAILED_PREFIX, ""))
+        return cls(path.stem, lines[0].removeprefix("#").strip(), lines[1], settings.get(PROGRESS_PREFIX, ""), settings.get(LABEL_PREFIX, ""), ReaderCommands.parsed(settings.get(COMMANDS_PREFIX, "")), settings.get(STEP_PREFIX, ""), settings.get(TOPIC_PREFIX, ""), settings.get(FINISHED_PREFIX, ""), settings.get(FAILED_PREFIX, ""), summary_pattern=settings.get(SUMMARY_PREFIX, ""))
 
     def settings(self) -> list[str]:
-        values = (self.progress_pattern, self.label, self.commands.text(), self.step_pattern, self.topic_pattern, self.finished_pattern, self.failed_pattern)
+        values = (self.progress_pattern, self.label, self.commands.text(), self.step_pattern, self.topic_pattern, self.finished_pattern, self.failed_pattern, self.summary_pattern)
         return [f"{prefix}{value}" for prefix, value in zip(PREFIXES, values) if value]
 
     def text(self) -> str:
@@ -79,6 +81,19 @@ class Reader:
     def variant(self, stage: str) -> "Reader":
         pattern = {FINISHED: self.finished_pattern, FAILED: self.failed_pattern}.get(stage, "")
         return replace(self, stage=stage, pattern=pattern or self.pattern)
+
+    # the summary of a finished run: what the last line matching the summary pattern holds, its groups joined or the whole match
+    def summary(self, lines: list[str]) -> str:
+        if not self.summary_pattern:
+            return ""
+        for line in reversed(lines):
+            found = re.search(self.summary_pattern, line)
+            if found:
+                return ", ".join(group.strip() for group in found.groups() if group) if found.groups() else found.group(0).strip()
+        return ""
+
+    def has_summary_reader(self) -> bool:
+        return bool(self.summary_pattern)
 
     def is_counting(self) -> bool:
         return bool(self.progress_pattern)

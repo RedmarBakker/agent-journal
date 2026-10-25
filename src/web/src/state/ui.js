@@ -5,7 +5,6 @@ import {AGENT_VIEW} from "../domain/orchestra.js";
 const AGENT_VIEW_KEY = "journal.agents.view";
 const DRAFTS_KEY = "journal.drafts";
 const THREAD_FEED_KEY = "journal.thread.feed";
-const COMPACT_MARKS_KEY = "journal.chat.compact";
 const keptView = remembered(AGENT_VIEW_KEY, {});
 
 export const ui = reactive({
@@ -23,7 +22,6 @@ export const ui = reactive({
     prefill: "",
     drafts: remembered(DRAFTS_KEY, {}),
     threadFeed: remembered(THREAD_FEED_KEY, null),
-    compactMarks: remembered(COMPACT_MARKS_KEY, true),
     litCard: 0,
     stopsOpen: 0,
 });
@@ -31,4 +29,3 @@ export const ui = reactive({
 kept(AGENT_VIEW_KEY, () => ui.agentView);
 kept(DRAFTS_KEY, () => ui.drafts);
 kept(THREAD_FEED_KEY, () => ui.threadFeed);
-kept(COMPACT_MARKS_KEY, () => ui.compactMarks);

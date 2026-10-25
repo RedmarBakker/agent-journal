@@ -46,6 +46,7 @@ class ReaderCommand(Command):
         addition.add_argument("--step", help="a pattern for one step, such as a test's dot, that moves the progress between two of its counts")
         addition.add_argument("--finished", help="a pattern for the lines it picks once the command finished, such as its summary; the pattern picks them while it runs")
         addition.add_argument("--failed", help="a pattern for the lines it picks once the command failed, such as its failures; the pattern picks them while it runs")
+        addition.add_argument("--summary", help="a pattern whose last match in the output is the summary its card shows once opened, a few words such as '(\\d+ failed), (\\d+ passed)': its groups are joined, or the whole match without any")
         addition.add_argument("--commands", help="the commands whose output it reads, comma-separated, such as pytest or dotnet test: a command moved to the background that runs one is told to watch it with this reader")
         self.verb(verbs, "list", "the project's readers, each with what it picks")
         self.verb(verbs, "remove", "take a reader away, with its files; an alias it read for runs with no reader, and a reader a plugin ships goes only with its plugin").add_argument("name")
@@ -68,8 +69,8 @@ class ReaderCommand(Command):
         writing = [command.strip() for command in (args.commands or "").split(",") if GitWrites.is_writing(command)]
         if writing:
             raise Rejection(f"{', '.join(writing)} is marked in the chat by the journal itself: git commit and git push get no reader of their own")
-        reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed)
-        for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern):
+        reader = (prior or Reader(args.name, args.about)).revised(subject=args.about, progress_pattern=args.progress, label=None if args.label is None else ActivityTitle.checked(args.label), commands=None if args.commands is None else ReaderCommands.parsed(args.commands), step_pattern=args.step, topic_pattern=args.topic, finished_pattern=args.finished, failed_pattern=args.failed, summary_pattern=args.summary)
+        for pattern in (args.pattern or "", reader.progress_pattern, reader.finished_pattern, reader.failed_pattern, reader.summary_pattern):
             re.compile(pattern)
         if args.script:
             self.readers.add_script(reader.revised(pattern=""), args.script.read_text())

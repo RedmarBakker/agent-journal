@@ -40,7 +40,6 @@ const emit = defineEmits(["pick", "open", "all"]);
             :note="hidden.length ? `${hidden.length} hidden` : ''"
             @click="emit('open', 'visible')"
         />
-        <PaneMenuToggle icon="list" :on="ui.compactMarks" @click="ui.compactMarks = !ui.compactMarks">Compact</PaneMenuToggle>
     </template>
     <template v-if="schemes.length">
         <PaneMenuLink icon="palette" label="Color scheme" @click="emit('open', 'schemes')" />

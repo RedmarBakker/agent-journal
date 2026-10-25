@@ -43,7 +43,7 @@ class OutputProcessCard(ProcessCard):
             return None
         view = self.views.view(output)
         part = CommandText.shown(self.watched_part(output))
-        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output)}
+        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), "summary": self.views.summary(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output)}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardKind.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
     def stored_contents(self, outputs: list[CommandOutput]) -> list[ProcessCardContents]:

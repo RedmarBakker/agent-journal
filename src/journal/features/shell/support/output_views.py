@@ -79,6 +79,13 @@ class OutputViews:
     def tally_lines(output: CommandOutput, tally: StepTally) -> tuple[str, ...]:
         return (tally.text(),) if output.ended and tally.is_known() else ()
 
+    def summary(self, output: CommandOutput) -> str:
+        files = OutputFiles(Path(output.folder))
+        watching = self.reader(output)
+        if not output.ended or watching is None or not files.is_stored():
+            return ""
+        return watching.summary(files.lines())
+
     def is_summary_missing(self, output: CommandOutput) -> bool:
         files = OutputFiles(Path(output.folder))
         watching = self.reader(output)

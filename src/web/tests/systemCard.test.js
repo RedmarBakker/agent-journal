@@ -1,10 +1,7 @@
 import {createApp, h, nextTick} from "vue";
 import {expect, test} from "vitest";
-import {ui} from "../src/state/ui.js";
 import {threadTurns} from "../src/domain/thread.js";
 
-// these read a mark's second line, which the compact chat folds until a click
-ui.compactMarks = false;
 
 globalThis.ResizeObserver ??= class {
     observe() {}
@@ -49,6 +46,8 @@ test("a system message is drawn as a card with its label and detail", async () =
     app.mount(host);
     await nextTick();
     const turn = host.querySelector(".thread-turn.card");
+    turn.querySelector(".mark").click();
+    await nextTick();
     const shown = {
         ref: turn.dataset.ref,
         label: turn.querySelector(".mark .head").textContent.trim(),
@@ -81,6 +80,8 @@ test("a plugin's card is drawn by its kind with the plugin's name on it, and its
         app.mount(host);
         await nextTick();
         const mark = host.querySelector(".thread-turn.card .mark");
+        mark.click();
+        await nextTick();
         const name = mark.querySelector(".head strong").textContent.trim();
         const shown = {label: mark.querySelector(".head").textContent.replace(name, "").trim(), name, detail: mark.querySelector(".detail")?.textContent.trim() || ""};
         app.unmount();

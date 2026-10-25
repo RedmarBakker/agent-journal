@@ -4,21 +4,21 @@ import ChatMarkStatus from "./ChatMarkStatus.vue";
 import Icon from "./Icon.vue";
 import TextDisplay from "./TextDisplay.vue";
 import {clock} from "../format/time.js";
-import {ui} from "../state/ui.js";
 
 defineOptions({inheritAttrs: false});
-const props = defineProps({mark: {type: Object, required: true}});
+const props = defineProps({mark: {type: Object, required: true}, open: {type: Boolean, default: undefined}});
 
 const attrs = useAttrs();
 const passed = computed(() => Object.fromEntries(Object.entries(attrs).filter(([name]) => name !== "onClick")));
-// in the compact chat a mark is one line: its second line shows once a click opens it, and a second click folds it again
+// a mark is one line: its second line shows once a click opens it, and a second click folds it again; a mark given `open` is opened by its owner
 const expanded = ref(false);
 const hasSecondLine = computed(() => Boolean(props.mark.detail || props.mark.command));
-const folded = computed(() => ui.compactMarks && hasSecondLine.value && !expanded.value);
-const tag = computed(() => (attrs.onClick || (ui.compactMarks && hasSecondLine.value) ? "button" : "span"));
+const owned = computed(() => props.open !== undefined);
+const folded = computed(() => (owned.value ? !props.open : hasSecondLine.value && !expanded.value));
+const tag = computed(() => (attrs.onClick || hasSecondLine.value || owned.value ? "button" : "span"));
 
 function clicked(event) {
-    if (folded.value) {
+    if (folded.value && !owned.value) {
         expanded.value = true;
         return;
     }
@@ -47,6 +47,7 @@ const tint = computed(() => ({
         :title="hover"
         :data-figure-mark="mark.key"
         :data-folded="folded ? '' : null"
+        :data-open="owned && open ? '' : null"
         @click="clicked"
     >
         <Icon :name="mark.icon || 'dot'" />
@@ -119,6 +120,15 @@ const tint = computed(() => ({
 
 button.mark {
     cursor: pointer;
+}
+
+.mark {
+    interpolate-size: allow-keywords;
+    transition: width 0.3s ease;
+}
+
+.mark[data-open] {
+    width: min(100%, 640px);
 }
 
 button.mark:hover {

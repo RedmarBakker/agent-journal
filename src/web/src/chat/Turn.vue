@@ -13,6 +13,7 @@ import {useTurnLinks} from "./turnLinks.js";
 import {go} from "../route.js";
 import {store} from "../state/store.js";
 import {useScope} from "../composables/scope.js";
+import {useOutputPages} from "../composables/outputPages.js";
 
 const props = defineProps({turn: Object});
 const emit = defineEmits(["reply", "edit", "grew"]);
@@ -33,10 +34,18 @@ const opened = ref(false);
 const cardMark = computed(() => ({...data.value, key: props.turn.key, detail: data.value.collapsed ? "" : data.value.detail, time: props.turn.time}));
 const lines = computed(() => (data.value.lines || []).filter(Boolean));
 
+const pages = useOutputPages((...page) => scope.api.readOutput(data.value.output, ...page));
+const opens = computed(() => !data.value.go && !data.value.row && Boolean(data.value.output || data.value.summary || lines.value.length));
+
+function toggle() {
+    opened.value = !opened.value;
+    if (opened.value && data.value.output) pages.poll().catch(() => {});
+}
+
 function markClick(data) {
     if (data.go) return {click: () => go(data.go)};
     if (data.row) return {click: () => openRef(data.row)};
-    return lines.value.length ? {click: () => (opened.value = !opened.value)} : {};
+    return opens.value ? {click: toggle} : {};
 }
 </script>
 
@@ -58,16 +67,28 @@ function markClick(data) {
         <template #card>
             <div :class="['thread-turn', 'card', {mine: data.side === 'user', docked: data.docked}]" :data-ref="turn.key">
                 <span class="mark-row">
-                    <ChatMark :mark="cardMark" v-on="markClick(data)">
-                        <template v-if="opened && lines.length">
-                            <ul class="mark-lines">
-                                <template v-if="data.line">
-                                    <li class="mark-line mark-command">{{ data.line }}</li>
-                                </template>
-                                <template v-for="line in lines" :key="line">
-                                    <li class="mark-line">{{ line }}</li>
-                                </template>
-                            </ul>
+                    <ChatMark :mark="cardMark" :open="opens ? opened : undefined" v-on="markClick(data)">
+                        <template v-if="opens">
+                            <div :class="['mark-more', {open: opened}]">
+                                <div class="mark-more-inner">
+                                    <template v-if="data.line">
+                                        <p class="mark-command">{{ data.line }}</p>
+                                    </template>
+                                    <template v-if="data.summary">
+                                        <p class="mark-summary">{{ data.summary }}</p>
+                                    </template>
+                                    <template v-if="data.output && pages.loaded.value">
+                                        <pre class="mark-terminal">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
+                                    </template>
+                                    <template v-else-if="!data.output">
+                                        <ul v-if="opened" class="mark-lines">
+                                            <template v-for="line in lines" :key="line">
+                                                <li class="mark-line">{{ line }}</li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                </div>
+                            </div>
                         </template>
                     </ChatMark>
                     <template v-if="data.output && !data.docked && !data.ending">
@@ -138,8 +159,49 @@ function markClick(data) {
     overflow-wrap: anywhere;
 }
 
+.mark-more {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+        grid-template-rows var(--move),
+        opacity var(--fade);
+}
+
+.mark-more.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+.mark-more-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .mark-command {
+    margin: 4px 0 0 22px;
+    color: var(--text-3);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.mark-summary {
+    margin: 4px 0 0 22px;
+    color: var(--text-2);
+    font-size: 11.5px;
+}
+
+.mark-terminal {
+    max-height: 240px;
+    margin: 6px 0 2px;
+    padding: 8px 10px;
+    overflow: auto;
+    border-radius: 6px;
+    background: #000;
+    color: #d6d6d6;
+    font: 11px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .mark-row {

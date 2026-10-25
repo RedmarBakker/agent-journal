@@ -33,7 +33,8 @@ PROGRESS_STALLED = "its progress stood still for"
 SUMMARY_MISSING = "the card ended with no line of its own"
 POOR_LINES = "the card showed lines too long"
 SINGLE_WORD = "the card showed a line of one word"
-FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING)
+SUMMARY_READER_MISSING = "its card had no summary reader"
+FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING)
 
 
 class ReaderJudge:
@@ -52,7 +53,7 @@ class ReaderJudge:
         if reader is None or reader.script or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
-        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines)]
+        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at)]
         kinds = self.dismissal_kinds(output.command, ended_at)
         shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
         if not shortfalls:
@@ -101,6 +102,13 @@ class ReaderJudge:
         if reader.variant(output.stage()).card_lines(lines) or not lines:
             return []
         return [(f"{SUMMARY_MISSING}; the run's last line was \"{lines[-1][:120]}\"", "give the reader a --finished and a --failed pattern for the summary line, or make the run print one")]
+
+    def missing_summary_reader(self, reader: Reader, output: CommandOutput, lines: list[str], ended_at: datetime) -> list[tuple[str, str]]:
+        seconds = (ended_at - output.creation_time).total_seconds()
+        if seconds < PROGRESS_SECONDS or reader.has_summary_reader() or not lines:
+            return []
+        last = next((line for line in reversed(lines) if SUMMARY_PATTERN.search(line)), lines[-1])
+        return [(f"the run took {seconds:.0f} seconds and {SUMMARY_READER_MISSING}", f"give the reader a --summary pattern that picks the figures of its summary line, \"{last[:120]}\", in a few words, such as --summary '(\\d+ failed), (\\d+ passed)'")]
 
     def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
