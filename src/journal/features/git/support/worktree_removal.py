@@ -29,9 +29,9 @@ class WorktreeRemoval:
     def refusal(self, tree: Worktree) -> str:
         if self.hosting.is_hosted():
             return "the hosted journal has no checkout, so it holds no worktree to remove"
-        held_elsewhere = next((refusal for environment in self.environments.matching(name=tree.name) if (refusal := self.hosts.refusal(environment, "remove"))), "")
-        if held_elsewhere:
-            return held_elsewhere
+        host_refusal = next((refusal for environment in self.environments.matching(name=tree.name) if (refusal := self.hosts.refusal(environment, "remove"))), "")
+        if host_refusal:
+            return host_refusal
         if tree.name == TEAM_CHAT:
             return "the Team chat's worktree belongs to the team's chat, never to a launch, so it is not removed this way"
         if not tree.path.is_dir():

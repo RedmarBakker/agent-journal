@@ -36,17 +36,17 @@ class WorkspaceWorktree(Worktree):
 
     def added(self) -> None:
         self.path.mkdir()
-        made: list[str] = []
+        worktree_repositories: list[str] = []
         for repository in self.repositories():
             source = self.root / repository
             exists = self.answered(["git", "-C", str(source), "rev-parse", "--verify", "--quiet", f"refs/heads/{self.branch}"]).returncode == 0
             added = self.answered(["git", "-C", str(source), "worktree", "add", "-q", *([str(self.path / repository), self.branch] if exists else ["-b", self.branch, str(self.path / repository)])])
             if added.returncode != 0:
-                for undone in made:
-                    self.answered(["git", "-C", str(self.root / undone), "worktree", "remove", "--force", str(self.path / undone)])
+                for added_repository in worktree_repositories:
+                    self.answered(["git", "-C", str(self.root / added_repository), "worktree", "remove", "--force", str(self.path / added_repository)])
                 shutil.rmtree(self.path, ignore_errors=True)
                 raise WorktreeFailure(self.name, f"the repository {repository} gave no worktree: {self.add_refusal(added.stderr.strip())}")
-            made.append(repository)
+            worktree_repositories.append(repository)
 
     def uncommitted(self) -> list[str]:
         return [f"{repository}/{line[3:]}" for repository in self.repositories() if (self.path / repository).is_dir() for line in self.inner_git(repository, "status", "--porcelain").stdout.splitlines() if line.strip()]

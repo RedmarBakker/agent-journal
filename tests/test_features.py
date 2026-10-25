@@ -6773,7 +6773,7 @@ def test_a_journal_standing_by_serves_the_moment_the_one_holding_the_project_is_
     first, second = InstanceGuard(app.config), InstanceGuard(Config.rooted(app.config.root))
     assert first.claimed() and not second.claimed(), "one journal holds the project; a second launch's stands by"
     served = threading.Event()
-    waiting = threading.Thread(target=lambda: (second.claimed_when_free(), served.set()), daemon=True)
+    waiting = threading.Thread(target=lambda: (second.blocking_claim(), served.set()), daemon=True)
     waiting.start()
     assert not served.wait(0.3), "it waits while the first holds the project"
     ended_at = time.monotonic()
@@ -6998,7 +6998,7 @@ def test_a_worktree_held_on_another_machine_is_launched_and_removed_only_there_a
     assert "keen-otter" not in {WorktreeNames(root).unused({environment.name for environment in environments.all()}) for _ in range(60)}, "a made-up name avoids every environment the team knows"
 
 
-def test_the_upgrade_tidies_what_older_launches_left_in_a_worktree_and_names_the_folders_moved_aside(app: App):
+def test_the_upgrade_tidies_what_older_launches_left_in_a_worktree_and_a_session_start_names_the_folders_moved_aside(app: App):
     import subprocess
     from journal.features.git.seeds.worktree_tidying import WorktreeTidying
     from journal.repositories.messages import Messages
@@ -7017,10 +7017,14 @@ def test_the_upgrade_tidies_what_older_launches_left_in_a_worktree_and_names_the
     app.container.get(WorktreeTidying).run()
     assert git("status", "--porcelain", cwd=folder).stdout == "" and "hook.sh" not in (folder / ".claude" / "settings.json").read_text(), "the journal's hooks leave the worktree's own settings, put back as committed"
     assert not [line for line in git("ls-files", "-v", cwd=folder).stdout.splitlines() if line.startswith("S ")], "the skip-worktree marks are cleared"
+    hook(app, "SessionStart")
+    app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         cards = [message.text for message in app.container.get(Messages).all() if "moved aside" in message.text]
     assert len(cards) == 1 and "quiet-heron.moved-aside-1700000000" in cards[0] and (root / ".claude" / "worktrees" / "quiet-heron.moved-aside-1700000000").is_dir(), "a folder moved aside is named once and kept"
     app.container.get(WorktreeTidying).run()
+    hook(app, "SessionStart", session_id="s2")
+    app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         assert len([message for message in app.container.get(Messages).all() if "moved aside" in message.text]) == 1, "and named only once"
 

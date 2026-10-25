@@ -5,7 +5,7 @@ from journal.sync.team_chat_branch import TEAM_CHAT
 
 LAUNCH_FOLDER = ".claude/worktrees"
 # a folder an older version moved aside, named <name>.moved-aside-<time>; it is no launch worktree
-MOVED_ASIDE = ".moved-aside-"
+RENAMED_TAG = ".moved-aside-"
 
 
 class LaunchWorktrees:
@@ -18,7 +18,7 @@ class LaunchWorktrees:
         folder = self.config.root / LAUNCH_FOLDER
         if not folder.is_dir():
             return []
-        return sorted(path.name for path in folder.iterdir() if path.is_dir() and path.name != TEAM_CHAT and MOVED_ASIDE not in path.name)
+        return sorted(path.name for path in folder.iterdir() if path.is_dir() and path.name != TEAM_CHAT and RENAMED_TAG not in path.name)
 
-    def left(self) -> list[Worktree]:
+    def orphan_worktrees(self) -> list[Worktree]:
         return [Worktree(self.config.root, name) for name in self.names() if not self.environments.matching(name=name)]

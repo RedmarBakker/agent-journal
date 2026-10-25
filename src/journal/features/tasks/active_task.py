@@ -35,7 +35,7 @@ class ActiveTask:
         for plan in self.plans.unapproved(task):
             plan.task_startable(task.id)
         holder = self.holder(caller)
-        self.tasks.worker_hold_check(task, holder, caller.actor)
+        self.tasks.guard_worker_task(task, holder, caller.actor)
         if task.state == TaskState.STARTED and self.tasks.holder(task) == holder:
             raise Rejection(f"task {task.id} is already in hand: it was started already")
         return self.tasks.holder_started(task.started(datetime.now(timezone.utc)), holder, caller.actor)

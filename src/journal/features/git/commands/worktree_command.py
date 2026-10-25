@@ -19,12 +19,12 @@ class WorktreeCommand(Command):
         self.verb(verbs, "remove", "remove a launch's worktree folder, keeping its branch and its last commit; refused while a session works in it or it holds uncommitted work").add_argument("name")
 
     def list(self, args: Namespace, caller: Caller) -> int:
-        names, left = self.worktrees.names(), {tree.name for tree in self.worktrees.left()}
+        names, orphan_names = self.worktrees.names(), {tree.name for tree in self.worktrees.orphan_worktrees()}
         if not names:
             print("no launch worktree: journal claude --worktree <name> makes one")
         for name in names:
             tree = self.removal.worktree(name)
-            print(f"{name}: on {tree.current_branch()}" + (f"; its environment is gone, journal worktree remove {name} removes it" if name in left else ""))
+            print(f"{name}: on {tree.current_branch()}" + (f"; its environment is gone, journal worktree remove {name} removes it" if name in orphan_names else ""))
         return 0
 
     def remove(self, args: Namespace, caller: Caller) -> int:

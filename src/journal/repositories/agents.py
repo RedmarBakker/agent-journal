@@ -88,7 +88,6 @@ class Agents(ScopedRepository[Agent]):
         return rows[0]
 
     def session_rows(self, session: str) -> list[Agent]:
-        """The session's agent, the first if two share it, or none."""
         return self.selected_globally(self.session_query(session))
 
     def session_query(self, session: str) -> Query:

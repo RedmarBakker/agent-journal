@@ -12,8 +12,8 @@ class WorktreeController:
         self.worktrees, self.removal, self.hosting = worktrees, removal, hosting
 
     def index(self, request: Request) -> Response:
-        left = [] if self.hosting.is_hosted() else self.worktrees.left()
-        return Response.json({"worktrees": [{"name": tree.name, "branch": tree.current_branch()} for tree in left]})
+        orphans = [] if self.hosting.is_hosted() else self.worktrees.orphan_worktrees()
+        return Response.json({"worktrees": [{"name": tree.name, "branch": tree.current_branch()} for tree in orphans]})
 
-    def removal_of(self, request: Request) -> Response:
+    def worktree_removal(self, request: Request) -> Response:
         return Response.json({"line": self.removal.removed(request.params["name"])})

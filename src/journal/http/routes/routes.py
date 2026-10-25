@@ -166,7 +166,7 @@ class Routes:
         router.post(f"{API}/environments/{{id}}/worktree-removal", environments.worktree_removal)
         worktrees = get(WorktreeController)
         router.get(f"{API}/worktrees", worktrees.index)
-        router.post(f"{API}/worktrees/{{name}}/removal", worktrees.removal_of)
+        router.post(f"{API}/worktrees/{{name}}/removal", worktrees.worktree_removal)
 
     def work(self, router: Router) -> None:
         get = self.container.get

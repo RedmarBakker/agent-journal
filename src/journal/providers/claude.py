@@ -274,10 +274,10 @@ class Claude(Provider):
         hooks = {kind: [block for block in blocks if not self.journal_paths(block)] for kind, blocks in (settings.get("hooks") or {}).items()}
         for kind, blocks in self.hook_block(command).items():
             hooks[kind] = [*hooks.get(kind, []), *blocks]
-        written = root / ".journal" / "runtime" / "worktree-settings" / "claude.json"
-        written.parent.mkdir(parents=True, exist_ok=True)
-        written.write_text(json.dumps({**settings, **self.settings_extras, "hooks": hooks, "statusLine": self.status_line(script)}, indent=2) + "\n")
-        Worktree.linked(folder / self.home / LOCAL_SETTINGS, written)
+        settings_path = root / ".journal" / "runtime" / "worktree-settings" / "claude.json"
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(json.dumps({**settings, **self.settings_extras, "hooks": hooks, "statusLine": self.status_line(script)}, indent=2) + "\n")
+        Worktree.linked(folder / self.home / LOCAL_SETTINGS, settings_path)
 
     def status_line(self, script: Path) -> dict:
         return {"type": "command", "command": shlex.join(["sh", str(script.with_name("status.sh"))]), "padding": 0}

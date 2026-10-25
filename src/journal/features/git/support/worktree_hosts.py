@@ -8,12 +8,12 @@ class WorktreeHosts:
     def __init__(self, account: TeamAccount) -> None:
         self.account = account
 
-    def here(self) -> str:
+    def local_machine(self) -> str:
         return self.account.device_name()
 
-    def elsewhere(self, environment: Environment) -> str:
-        return environment.worktree_host if environment.worktree_host and environment.worktree_host != self.here() else ""
+    def host_machine(self, environment: Environment) -> str:
+        return environment.worktree_host if environment.worktree_host and environment.worktree_host != self.local_machine() else ""
 
-    def refusal(self, environment: Environment, doing: str) -> str:
-        host = self.elsewhere(environment)
-        return f"the worktree of {environment.name} is on the machine {host}: {doing} it there" if host else ""
+    def refusal(self, environment: Environment, action: str) -> str:
+        host = self.host_machine(environment)
+        return f"the worktree of {environment.name} is on the machine {host}: {action} it there" if host else ""

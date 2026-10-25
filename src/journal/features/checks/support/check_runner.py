@@ -43,11 +43,11 @@ class CheckRunner:
 
     def stop(self, check: Check, actor: Actor) -> Check:
         with self.checks.writing():
-            running = self.checks.find(check.row_id)
-            stopped = self.checks.save(running.stopped(datetime.now(timezone.utc)), actor)
-        if running.progress is not None:
-            self.ended(running.progress.process)
-        return stopped
+            current_check = self.checks.find(check.row_id)
+            stopped_check = self.checks.save(current_check.stopped(datetime.now(timezone.utc)), actor)
+        if current_check.progress is not None:
+            self.ended(current_check.progress.process)
+        return stopped_check
 
     def finished(self, check: Check, started: float, actor: Actor) -> Check:
         report = self.config.home / "runtime" / "check-reports" / f"{check.id}.json"
@@ -57,7 +57,7 @@ class CheckRunner:
         elapsed = timing.time() - started
         with self.checks.writing():
             current = self.checks.find(check.row_id)
-            if not current.is_running_since(started):
+            if not current.has_run_start(started):
                 return current
             return self.checks.save(current.completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], datetime.now(timezone.utc), elapsed, self.report(report), ended.fault), actor)
 
@@ -83,9 +83,8 @@ class CheckRunner:
         return FinishedRun(code == 0, output, FAULTS.get(code, ""))
 
     def progressed(self, check: Check, started: float, progress: CheckProgress, actor: Actor) -> None:
-        """The run's progress on the check's row while the run is still the check's own; a run stopped meanwhile has its process group ended here."""
         with self.checks.writing():
-            if self.checks.find(check.row_id).is_running_since(started):
+            if self.checks.find(check.row_id).has_run_start(started):
                 self.checks.touch(check, actor, progress=progress)
                 return
         self.ended(progress.process)

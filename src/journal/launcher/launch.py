@@ -99,7 +99,7 @@ class Launch:
 
     def choice(self) -> Choice:
         menu = Menu(self.root, self.package / "journal.sh")
-        matched = self.unheld(menu, self.environment or self.worktree or self.resume_folder(menu) or self.fresh_name(menu))
+        matched = self.unheld(menu, self.environment or self.worktree or self.resume_folder(menu) or self.unused_name(menu))
         if not sys.stdin.isatty():
             menu.environment_rows(matched or self.default_environment(), menu.environments())
             return Choice(matched or self.default_environment(), "", self.stashed, self.is_skipping())
@@ -110,7 +110,7 @@ class Launch:
         return menu.choose(self.agent, matched, self.new or self.worktree_launch, self.stashed, self.is_skipping(), self.confirmed)
 
     # a bare --worktree with no conversation to carry on makes up a name no worktree, branch, kept tip or environment holds
-    def fresh_name(self, menu: Menu) -> str:
+    def unused_name(self, menu: Menu) -> str:
         if not self.worktree_launch or self.environment or RESUME_FLAGS & set(self.args):
             return ""
         return WorktreeNames(self.root).unused({row.name for row in menu.environments()})
@@ -119,9 +119,9 @@ class Launch:
     def unheld(self, menu: Menu, name: str) -> str:
         if not (self.worktree_launch and name):
             return name
-        held = {row.name for row in menu.environments() if row.working}
+        busy_names = {row.name for row in menu.environments() if row.working}
         candidate, number = name, 1
-        while candidate in held:
+        while candidate in busy_names:
             number += 1
             candidate = f"{name}-{number}"
         return candidate

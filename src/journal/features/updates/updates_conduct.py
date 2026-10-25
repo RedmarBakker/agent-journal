@@ -5,7 +5,7 @@ from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
 from journal.events.agent.session_started import SessionStarted
 from journal.events.agent.ticked import Ticked
-from journal.events.rows.launch_carried_over import LaunchCarriedOver
+from journal.events.rows.launch_takeover import LaunchTakeover
 from journal.events.feature_data import FeatureData
 from journal.features.updates.updates_nudges import UpdatesNudges
 from journal.features.updates.updates_part import UpdatesPart
@@ -20,8 +20,8 @@ class UpdatesConduct(Conduct):
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         return self.none(*release_lines(event.data))
 
-    def on_launch_carried_over(self, event: LaunchCarriedOver, settings: Settings) -> Transition:
-        return self.none(UpdatesNudges.LAUNCH_CARRIED_OVER.create(version=event.version, previous=event.previous))
+    def on_launch_takeover(self, event: LaunchTakeover, settings: Settings) -> Transition:
+        return self.none(UpdatesNudges.LAUNCH_TAKEOVER.create(version=event.version, previous=event.previous))
 
 
 def release_lines(data: FeatureData) -> list[Nudge]:

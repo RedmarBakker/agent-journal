@@ -43,7 +43,7 @@ class Check(Model):
     def is_running(self, moment: float) -> bool:
         return self.progress is not None and moment - self.progress.time < RUN_LIMIT_SECONDS
 
-    def is_running_since(self, started: float) -> bool:
+    def has_run_start(self, started: float) -> bool:
         return self.progress is not None and self.progress.time == started
 
     def stopped(self, time: datetime) -> "Check":

@@ -200,7 +200,7 @@ class Messages(ScopedRepository[Message]):
     def comments(self) -> list[Message]:
         return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK)).order("id"))
 
-    def comments_on(self, ref: Ref) -> list[Message]:
+    def row_comments(self, ref: Ref) -> list[Message]:
         return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK, target=str(ref))).order("id"))
 
     def comment_query(self, links: Query) -> Query:

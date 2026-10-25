@@ -78,7 +78,6 @@ class Plans(ScopedRepository[Plan]):
         return self.links.model_links("target", phases, PHASE_LINK)
 
     def plan_phases(self, plan: Plan) -> list[Phase]:
-        """The plan's phases in the order they were added, which is their numbers' order, read without their links."""
         linked = self.links.query().filter(target=Ref.build(plan), kind=PHASE_TASK_LINK).filter_ref("source", self.phases.query())
         return self.phases.selected(self.phases.query().filter_existing(linked).order("id"))
 
@@ -94,13 +93,12 @@ class Plans(ScopedRepository[Plan]):
     def phased(self, plan: Plan) -> list[PhaseTasks]:
         return self.phased_among(plan, [])
 
-    def phased_among(self, plan: Plan, known: list[Task]) -> list[PhaseTasks]:
-        """The plan's phases with their tasks, each task read only when it is not among the known ones."""
+    def phased_among(self, plan: Plan, plan_tasks: list[Task]) -> list[PhaseTasks]:
         phases = self.plan_phases(plan)
         links = self.phase_links(phases)
-        tasks = {task.id: task for task in known}
-        tasks.update((task.id, task) for task in self.tasks.numbered(link.source.id for link in links if link.source.id not in tasks))
-        return [PhaseTasks(number, phase, tuple(tasks[link.source.id] for link in links if link.target.id == phase.id and link.source.id in tasks)) for number, phase in enumerate(phases, 1)]
+        task_index = {task.id: task for task in plan_tasks}
+        task_index.update((task.id, task) for task in self.tasks.numbered(link.source.id for link in links if link.source.id not in task_index))
+        return [PhaseTasks(number, phase, tuple(task_index[link.source.id] for link in links if link.target.id == phase.id and link.source.id in task_index)) for number, phase in enumerate(phases, 1)]
 
     def phase_states(self, plan: Plan) -> list[PhaseStates]:
         phases = self.plan_phases(plan)

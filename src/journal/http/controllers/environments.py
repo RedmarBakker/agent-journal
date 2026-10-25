@@ -38,7 +38,7 @@ class EnvironmentController(Controller[Environment]):
         return [{**ModelFields.build(row), "worktree": self.worktree_badge(row)} for row in rows]
 
     def worktree_badge(self, environment: Environment) -> str:
-        host = self.hosts.elsewhere(environment)
+        host = self.hosts.host_machine(environment)
         return f"worktree on {host}" if host else next(iter(Worktree(self.config.root, environment.name).badges()), "")
 
     def store(self, request: Request) -> Response:

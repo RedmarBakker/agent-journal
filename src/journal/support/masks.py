@@ -19,7 +19,7 @@ class Masks:
         masks = self.current()
         return tuple(self.replaced(param, masks) if isinstance(param, str) and masks else param for param in params)
 
-    def holds_secret(self, params: tuple) -> bool:
+    def has_secret(self, params: tuple) -> bool:
         masks = self.current()
         return any(value in param for param in params if isinstance(param, str) for value in masks)
 

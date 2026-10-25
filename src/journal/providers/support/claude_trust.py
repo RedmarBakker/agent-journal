@@ -15,6 +15,6 @@ class ClaudeTrust:
         if projects.get(str(folder), {}).get("hasTrustDialogAccepted"):
             return
         projects[str(folder)] = {**projects.get(str(folder), {}), "hasTrustDialogAccepted": True}
-        written = self.state_file.with_name(f".{self.state_file.name}.{os.getpid()}.journal")
-        written.write_text(json.dumps(state, indent=2) + "\n")
-        written.replace(self.state_file)
+        staged_file = self.state_file.with_name(f".{self.state_file.name}.{os.getpid()}.journal")
+        staged_file.write_text(json.dumps(state, indent=2) + "\n")
+        staged_file.replace(self.state_file)

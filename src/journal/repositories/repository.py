@@ -321,21 +321,19 @@ class Repository(Generic[M]):
         return self.model(**{column.name: value for column in self.columns if (value := column.parsed(stored(column))) is not None})
 
     def _row_reads(self, row: M) -> list[Query]:
-        """The reads besides its id that a repository finds this row by and that answer with it alone while the cache holds them so."""
         return []
 
     def _rewritable(self, row: M) -> list[Query]:
-        stored = [query for query in self._row_reads(row) if [found.id for found in self.connection.stored_rows(query.tables(), *query.select())] == [row.id]]
-        return [self.query().filter(id=row.id), *stored]
+        cached_queries = [query for query in self._row_reads(row) if [cached_row.id for cached_row in self.connection.stored_rows(query.tables(), *query.select())] == [row.id]]
+        return [self.query().filter(id=row.id), *cached_queries]
 
     def _rewritten(self, reads: list[Query], row: M) -> None:
-        """The row's read by its id, and each other read the cache held with it alone, answer it as written once the write commits, as a load would return it, so the next read of it loads nothing; a row a secret was masked out of is loaded again instead."""
         values = {column.name: column.sql(getattr(row, column.name)) for column in self.columns}
-        if self.connection.holds_secret(tuple(values.values())):
+        if self.connection.has_secret(tuple(values.values())):
             return
-        written = self._parsed_row(lambda column: values[column.name])
+        new_row = self._parsed_row(lambda column: values[column.name])
         for query in reads:
-            self.connection.rewritten(query.tables(), *query.select(), [written])
+            self.connection.rewritten(query.tables(), *query.select(), [new_row])
 
     @staticmethod
     def _time() -> datetime:

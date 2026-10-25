@@ -9,7 +9,7 @@ from journal.support.card_kind import CardKind
 from journal.supervisor_link import SupervisorLink
 
 
-class CarriedLaunchNotice(Listener[ServerReplaced]):
+class LaunchTakeoverNotice(Listener[ServerReplaced]):
     """Each environment whose launch still runs when a newer journal server replaced the one it had is told so: a mark in its chat, and the moment on its agent's row, which the updates conduct says in one line at the agent's next hook."""
 
     def __init__(self, environments: Environments, supervisor: SupervisorLink, agents: Agents, scope: Scope, cards: MomentCards) -> None:
@@ -22,4 +22,4 @@ class CarriedLaunchNotice(Listener[ServerReplaced]):
             label = f"The journal now runs version {event.version}: a newer launch replaced the journal server on {event.previous} that this launch had"
             self.cards.show(environment.row_id, agent.session if agent else None, label, "bolt", shows=CardKind.UPDATES)
             if agent is not None:
-                self.agents.save(agent.carried_over(event.previous, event.version, event.time), Actor.system())
+                self.agents.save(agent.upgraded(event.previous, event.version, event.time), Actor.system())

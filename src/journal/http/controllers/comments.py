@@ -26,7 +26,7 @@ class CommentController(ShapedRowsController[Message]):
     def index(self, request: Request) -> Response:
         if "on" not in request.query:
             return super().index(request)
-        rows = self.repository.comments_on(self.row(str(request.query["on"])))
+        rows = self.repository.row_comments(self.row(str(request.query["on"])))
         return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows)))
 
     def rows(self) -> list[Message]:

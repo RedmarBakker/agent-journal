@@ -25,7 +25,7 @@ class ContextLimitCompaction(Job):
 
     def check(self, agent: Agent) -> bool:
         provider, environment = self.providers.lookup(agent.provider), agent.environment_id
-        if not provider.is_at_context_limit(self.supervisor.screen(environment)[-SCREEN_TAIL_CHARACTERS:]):
+        if not provider.has_context_limit_notice(self.supervisor.screen(environment)[-SCREEN_TAIL_CHARACTERS:]):
             self._compacted.discard(environment)
             return False
         if environment in self._compacted or self.turn.is_using_tools(agent):

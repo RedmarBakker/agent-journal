@@ -175,13 +175,13 @@ class Tasks(ScopedRepository[Task]):
             raise Rejection(f"task {counterpart.id} is in hand: finish it, or pause it with `journal task pause {counterpart.id} \"<why>\"`, before task {started.id} is started")
         self.handover(started, holder, actor)
 
-    def worker_hold_check(self, task: Task, holder: Ref | None, actor: Actor) -> None:
+    def guard_worker_task(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         owner = self.holder(task)
         if owner is not None and owner != holder and owner.type == WORKERS and not actor.is_user():
             raise Rejection(HOLDER_REFUSAL.format(task=task.id, worker=owner.id))
 
     def handover(self, task: Task, holder: Ref, actor: Actor) -> None:
-        self.worker_hold_check(task, holder, actor)
+        self.guard_worker_task(task, holder, actor)
         owner = self.holder(task)
         target = Ref.build(task)
         for link in self.links.all_matching(target=target, kind=CURRENT_TASK_LINK):

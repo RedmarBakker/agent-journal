@@ -47,7 +47,7 @@ PROMPT_CHARACTERS = 200
 # how many of the screen's last lines, blank ones aside, the provider's context-limit notice must stand on: the prompt box and its footer are drawn below it
 CONTEXT_LIMIT_LINES = 8
 # the mark the provider draws before a result or an error shown under the line that caused it
-RESULT_MARK = "⎿"
+OUTPUT_CORNER = "⎿"
 HOOK_SCRIPT = Path(__file__).resolve().parents[1] / "hooks" / "hook.sh"
 PATH_KEYS = ("file_path", "path", "notebook_path")
 
@@ -111,10 +111,10 @@ class Provider(ABC):
         with path.open("rb") as file:
             return sum(block.count(b"\n") for block in iter(lambda: file.read(COUNT_BYTES), b""))
 
-    def is_at_context_limit(self, screen: str) -> bool:
+    def has_context_limit_notice(self, screen: str) -> bool:
         notice = "".join(self.context_limit_notice.split())
-        lines = ["".join(line.split()).lstrip(RESULT_MARK) for line in Menu.plain(screen).splitlines() if line.strip()]
-        return bool(notice) and any(line.startswith(notice) for line in lines[-CONTEXT_LIMIT_LINES:])
+        screen_lines = ["".join(line.split()).lstrip(OUTPUT_CORNER) for line in Menu.plain(screen).splitlines() if line.strip()]
+        return bool(notice) and any(line.startswith(notice) for line in screen_lines[-CONTEXT_LIMIT_LINES:])
 
     @abstractmethod
     def subagent_transcript(self, project: Path, parent: str, agent_id: str) -> Path | None: ...
