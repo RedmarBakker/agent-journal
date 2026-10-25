@@ -2253,6 +2253,46 @@ def test_a_question_answered_under_a_pause_the_agent_owes_releases_the_wait_bene
     assert agents.session_agent("s1").is_overview_read is True and hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py"})[0] == 200, "oriented again, the agent goes on with its work"
 
 
+def test_a_phase_end_names_its_testing_commands_and_holds_the_next_phase_until_they_pass(app: App, monkeypatch):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.tasks import Tasks
+    monkeypatch.setattr(SupervisorLink, "runs", lambda self, environment_id: True)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    made = console.run(["template", "create", "Suite and replays at each phase end", "--brief", "run the suite and the replays at each phase end", "--applies-to", "plan", "--purpose", "testing", "--commands", "journal suite | python3 -m pytest tests/replays_run.py"], USER)
+    assert made.code == 0, made.error
+    console.run(["plan", "create", "p", "--brief", "b"], USER)
+    console.run(["plan", "add", "1", "p first"], USER)
+    console.run(["plan", "add", "1", "p second"], USER)
+    console.run(["plan", "phase", "1", "one", "--when", "w"], USER)
+    console.run(["plan", "phase", "1", "two", "--when", "w"], USER)
+    console.run(["plan", "todos", "1", "1", "1"], USER)
+    console.run(["plan", "todos", "1", "2", "2"], USER)
+    assert console.run(["plan", "testing", "1", "Suite and replays at each phase end"], USER).code == 0
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    console.run(["task", "complete", "1"], AGENT)
+    assert app.container.get(Tasks).find(2).state == "open", "the next phase does not start on its own while its testing commands have not passed"
+    status, body = hook(app, "Stop")
+    assert body.get("decision") == "block" and "phase 1 is complete, and its testing template runs journal suite and python3 -m pytest tests/replays_run.py" in body["reason"], "the phase end names both commands"
+    refused = console.run(["plan", "start", "1"], AGENT)
+    assert refused.code != 0 and "run journal suite and python3 -m pytest tests/replays_run.py" in refused.error and app.container.get(Tasks).find(2).state == "open", "the next phase's start is refused with no passing run"
+
+    def ran(command: str, status: int) -> None:
+        with app.container.get(Scope).environment(MAIN):
+            app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"chain-{command}-{status}", command=command, session="s1", ended=True, status=status), Actor.agent("s1"))
+
+    ran("journal suite", 0)
+    ran("python3 -m pytest tests/replays_run.py", 1)
+    still = console.run(["plan", "start", "1"], AGENT)
+    assert still.code != 0 and "run python3 -m pytest tests/replays_run.py" in still.error and "journal suite" not in still.error.split("run ", 1)[1], "a command whose newest run failed still holds the next phase"
+    ran("python3 -m pytest tests/replays_run.py", 0)
+    started = console.run(["plan", "start", "1"], AGENT)
+    assert started.code == 0 and app.container.get(Tasks).find(2).state == "started", "after a passing run of each the next phase starts"
+
+
 def test_a_plans_checkpoint_waits_for_the_user_and_in_auto_mode_is_no_stop(app: App, monkeypatch):
     from journal.features.plans.states.following_plan import FollowingPlan
     from journal.repositories.plans import Plans

@@ -19,13 +19,15 @@ class TemplateCommand(Command):
         creation.add_argument("--applies-to", default="", help="the kinds of row it is for, comma-separated, such as plan; empty means any")
         creation.add_argument("--purpose", default="", help="what it is used for, such as critique, or testing for a test template a worker dispatch names with --tests")
         creation.add_argument("--parts", default="", help="the outline a new item starts with: title: body | title: body")
+        creation.add_argument("--commands", default="", help="for a plan's testing template, the commands that must pass at each phase end before the next phase starts: command | command")
         self.verb(verbs, "show", "a template's instructions and outline").add_argument("n", type=int)
         self.verb(verbs, "list", "every template")
 
     def create(self, args: Namespace, caller: Caller) -> int:
         applies = tuple(k.strip() for k in args.applies_to.split(",") if k.strip())
         parts = tuple(p.strip() for p in args.parts.split("|") if p.strip())
-        template = self.templates.save(Template(title=args.title, targets=applies, purpose=args.purpose, brief=args.brief, parts=parts), caller.actor)
+        commands = tuple(c.strip() for c in args.commands.split("|") if c.strip())
+        template = self.templates.save(Template(title=args.title, targets=applies, purpose=args.purpose, brief=args.brief, parts=parts, commands=commands), caller.actor)
         print(f"template {template.id}: {template.title}")
         return 0
 
@@ -36,6 +38,8 @@ class TemplateCommand(Command):
         print(template.brief)
         for part in template.parts:
             print(f"- {part}")
+        for command in template.commands:
+            print(f"runs at each phase end: {command}")
         return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:

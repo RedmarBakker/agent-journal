@@ -15,6 +15,7 @@ from journal.features.tasks.support.waits import Waits
 from journal.features.workers.support.subagent_entries import SubagentEntries
 from journal.models.link import Link
 from journal.models.phase import Phase
+from journal.features.plans.support.phase_testing import PhaseTesting
 from journal.features.plans.support.plan_statuses import PlanStatuses
 from journal.models.plan import Plan
 from journal.models.plan_state import PlanState
@@ -36,10 +37,10 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
-        self.settings, self.drives, self.statuses = settings, drives, statuses
+        self.settings, self.drives, self.statuses, self.phase_testing = settings, drives, statuses, phase_testing
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -194,7 +195,10 @@ class PlanCommand(Command):
         return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator" and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
 
     def start(self, args: Namespace, caller: Caller) -> int:
-        plan = self.plans.start(self.plans.find(args.n), self.taking.holder(caller), caller.actor)
+        plan = self.plans.find(args.n)
+        if refusal := self.phase_testing.refusal(plan):
+            raise Rejection(refusal)
+        plan = self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0

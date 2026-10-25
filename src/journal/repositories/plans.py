@@ -219,6 +219,12 @@ class Plans(ScopedRepository[Plan]):
     def checkpoint_plans(self, plan: Plan) -> PhaseStates | None:
         return plan.checkpoint_phase(self.phase_states(plan))
 
+    def ended_phase(self, plan: Plan) -> PhaseStates | None:
+        return plan.ended_phase(self.phase_states(plan))
+
+    def phase_closed_at(self, phase: Phase) -> float:
+        return max(((task.finished_at or task.update_time).timestamp() for task in self.phase_tasks(phase)), default=0.0)
+
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)
         if plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan)):

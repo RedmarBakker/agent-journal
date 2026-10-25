@@ -9,7 +9,7 @@ TESTING = "testing"
 
 @dataclass(frozen=True)
 class Template(Model):
-    """Saved instructions and a starting outline for new items, written once and used many times. Project-wide."""
+    """Saved instructions and a starting outline for new items, written once and used many times, and for a plan's testing template the commands that run at each phase end. Project-wide."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("title", "purpose", "brief")
     title: str = ""
@@ -17,6 +17,7 @@ class Template(Model):
     purpose: str = ""
     brief: str = ""
     parts: tuple[str, ...] = ()
+    commands: tuple[str, ...] = ()
 
     def title_words(self) -> str:
         return self.title

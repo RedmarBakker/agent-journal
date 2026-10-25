@@ -23,7 +23,7 @@ from journal.features.tasks.tasks_part import TasksPart
 
 @dataclass(frozen=True)
 class FollowingPlan(PlanWork):
-    """Working with a current plan, for the plan's whole life. A finished task starts the next: the plans feature writes it and the state keeps the top as that task; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
+    """Working with a current plan, for the plan's whole life. A finished task starts the next: the plans feature writes it and the state keeps the top as that task; a task started outside the plan is the current task all the same, since only one task is current at a time. At a checkpoint the state has no current task: the stop waits for the user, or in auto mode is refused and the agent instructed to continue; at a phase end whose testing template's commands have not passed since its last task, the stop is refused with those commands to run, and once they pass the agent is instructed to begin the next phase. Popped when the plan is done, postponed or abandoned, and on resume when the plan is no longer the one started here."""
 
     name = "following_plan"
     title = "Following a plan"
@@ -47,13 +47,18 @@ class FollowingPlan(PlanWork):
             return super().on_stop(event, settings)
         if event.prior_refusal:
             return self.none()
-        if settings.value(TasksOptions.AUTO):
+        started = event.data.part(PlansPart).started
+        if started is not None and started.phase_commands:
+            return self.refuse(PlansNudges.PHASE_END_TESTS.create(n=self.plan_id, phase=self.phase, commands=" and ".join(started.phase_commands)))
+        if settings.value(TasksOptions.AUTO) or (started is not None and not started.is_checkpoint):
             return self.refuse(PlansNudges.PHASE_END.create(n=self.plan_id, phase=self.phase))
         return self.none(PlansNudges.CHECKPOINT_PHASE_END.create(n=self.plan_id, phase=self.phase))
 
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         if self.checkpoint_pause:
-            return self.none(PlansNudges.CHECKPOINT_PHASE_END.create(n=self.plan_id, phase=self.phase))
+            started = event.data.part(PlansPart).started
+            commands = started.phase_commands if started is not None else ()
+            return self.none(PlansNudges.PHASE_END_TESTS.create(n=self.plan_id, phase=self.phase, commands=" and ".join(commands)) if commands else PlansNudges.CHECKPOINT_PHASE_END.create(n=self.plan_id, phase=self.phase))
         return super().on_session_started(event, settings)
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:

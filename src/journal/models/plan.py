@@ -109,6 +109,9 @@ class Plan(Scoped):
                 return previous
         return None
 
+    def ended_phase(self, phases: list[PhaseStates]) -> PhaseStates | None:
+        return next((previous for previous, following in zip(phases, phases[1:]) if previous.is_finished() and following.has_tasks() and not following.has_work_started()), None)
+
     def title_words(self) -> str:
         return self.title
 

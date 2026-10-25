@@ -1532,6 +1532,7 @@ plans.next_write_held_until_the_review_is_in  [plans]  plan {{n}} readied due: 0
 plans.now_building  [plans]  you now work as the builder
 plans.phase_complete_at_a_checkpoint  [plans]  plan {{n}}: phase {{phase}} is complete, a checkpoint. wait for the user, then `journal plan start {{n}}`
 plans.phase_complete_go_on  [plans]  plan {{n}}: phase {{phase}} is complete. `journal plan start {{n}}` begins the next phase
+plans.phase_complete_run_its_tests  [plans]  plan {{n}}: phase {{phase}} is complete, and its testing template runs {{commands}}. run each and see it pass, then `journal plan start {{n}}` begins the next phase
 plans.plan_blocked  [plans]  plan {{n}} is blocked: {{why}}. `journal plan unblock {{n}}` opens it by hand
 plans.plan_done  [plans]  plan {{n}} done. run the final suite; merging to main and releasing wait for the user's word
 plans.plan_not_approved  [plans]  plan {{n}} is not approved. only the user approves it

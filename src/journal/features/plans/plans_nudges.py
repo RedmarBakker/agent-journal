@@ -15,6 +15,7 @@ class PlansNudges:
     PLAN_ABANDONED = Nudge("plans", "the_user_abandoned_the_plan", "the user abandoned plan {{n}}")
     PLAN_APPROVED = Nudge("plans", "the_user_approved_the_plan", "plan {{n}} approved", repeat=Timeout.seconds(0))
     CHECKPOINT_PHASE_END = Nudge("plans", "phase_complete_at_a_checkpoint", "plan {{n}}: phase {{phase}} is complete, a checkpoint", "wait for the user, then `journal plan start {{n}}`", repeat=Timeout.seconds(0))
+    PHASE_END_TESTS = Nudge("plans", "phase_complete_run_its_tests", "plan {{n}}: phase {{phase}} is complete, and its testing template runs {{commands}}", "run each and see it pass, then `journal plan start {{n}}` begins the next phase", repeat=Timeout.seconds(0))
     PHASE_END = Nudge("plans", "phase_complete_go_on", "plan {{n}}: phase {{phase}} is complete", "`journal plan start {{n}}` begins the next phase", repeat=Timeout.seconds(0))
     PLAN_BLOCKED = Nudge("plans", "plan_blocked", "plan {{n}} is blocked: {{why}}", "`journal plan unblock {{n}}` opens it by hand", repeat=Timeout.seconds(0))
     PLAN_REOPENED = Nudge("plans", "plan_reopened", "plan {{n}} is open again: {{why}}", "`journal plan start {{n}}` goes on with it", repeat=Timeout.seconds(0))
