@@ -6,11 +6,14 @@ from journal.events.models.created import Created
 from journal.events.models.deleted import Deleted
 from journal.events.models.model_event import ModelEvent
 from journal.events.models.updated import Updated
+from journal.models.all_models import AllModels
+from journal.models.environment import Environment
 from journal.models.model import Model
 from journal.models.outgoing_change import CREATED, DELETED, UPDATED, OutgoingChange
 from journal.repositories.links import Links
 from journal.support.actor import Actor
 from journal.repositories.outgoing_changes import OutgoingChanges
+from journal.repositories.shared_tables import SharedTables
 from journal.sync.team_account import TeamAccount
 from journal.services.service_event import CHANGE_QUEUED, ServiceEvent
 from journal.services.service_hooks import ServiceHooks
@@ -21,10 +24,10 @@ STAMP_COLUMNS = ("updated_at", "updater")
 
 
 class RecordOutgoingChange(Listener[ModelEvent]):
-    """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team and only when TeamPlacement sends it: a creation with all its columns, an update with the ones it changed, a deletion with none; a row an update moves into the team, which the server has never had, is sent whole as a creation, with every link that now joins it to a row of the team, and one an update takes out of it is withdrawn with its links, kept by whoever took it."""
+    """Every write to a shared row is queued for the team server in the write's own transaction, once this journal has joined a team and only when TeamPlacement sends it: a creation with all its columns, an update with the ones it changed, a deletion with none; a row an update moves into the team, which the server has never had, is sent whole as a creation, an environment with every row in it, its whole history, and every link that now joins one of them to a row of the team, and one an update takes out of it is withdrawn with its links, kept by whoever took it."""
 
-    def __init__(self, changes: OutgoingChanges, account: TeamAccount, placement: TeamPlacement, links: Links, hooks: ServiceHooks) -> None:
-        self.changes, self.account, self.placement, self.links, self.hooks = changes, account, placement, links, hooks
+    def __init__(self, changes: OutgoingChanges, account: TeamAccount, placement: TeamPlacement, links: Links, tables: SharedTables, hooks: ServiceHooks) -> None:
+        self.changes, self.account, self.placement, self.links, self.tables, self.hooks = changes, account, placement, links, tables, hooks
 
     def handle(self, event: ModelEvent) -> None:
         action = ACTIONS.get(type(event))
@@ -44,8 +47,14 @@ class RecordOutgoingChange(Listener[ModelEvent]):
         self.changes.commit_callback(partial(self.hooks.post, ServiceEvent(CHANGE_QUEUED)))
 
     def entered(self, event: Updated) -> None:
-        for row in (event.model, *(link for link in self.links.link_rows(event.model) if self.placement.is_sent(link))):
+        rows = [event.model, *self.contents(event.model)]
+        for row in [*rows, *(link for link in self.links.touching_any(rows) if self.placement.is_sent(link))]:
             self.queued(row, CREATED, None, event.actor)
+
+    def contents(self, row: Model) -> list[Model]:
+        if not isinstance(row, Environment):
+            return []
+        return [stored for model in AllModels.SCOPED if model.shared for stored in self.tables.rows(model.table()).all_matching(environment_id=row.row_id) if self.placement.is_sent(stored)]
 
     def queued(self, row: Model, action: str, names: tuple[str, ...] | None, actor: Actor) -> None:
         fields = Schema.team_values(row.team_ready(self.account.prefix()), names if action != CREATED else None)

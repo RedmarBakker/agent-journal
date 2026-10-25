@@ -12472,6 +12472,34 @@ def test_a_hub_task_is_driven_from_one_environment_at_a_time_a_second_drive_refu
         assert released.code == 0 and b.container.get(Tasks).find(hub_task.id).driver == "" and not team.leases.state(HubDrives.lease_name(Ref.build(hub_task)), lapsed).holder, released.error
 
 
+def test_sharing_an_environment_made_after_joining_sends_its_older_and_new_messages_and_tasks_whole_to_the_other_journal(tmp_path, template_journal, monkeypatch):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        assert a.console().run(["environment", "create", "lab"], USER).code == 0
+        lab = a.container.get(Environments).existing("lab")
+
+        def written(when: str) -> tuple:
+            with a.container.get(Scope).environment(lab.row_id):
+                return (a.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text=f"{when} word"), Actor.user(1)),
+                        a.container.get(Tasks).save(Task(environment_id=lab.row_id, title=f"{when} task", brief=f"the {when} brief"), Actor.user(1)))
+
+        older = written("older")
+        assert team.log.row("tasks", older[1].id) is None, "while the environment is Ada's own, its rows stay off the server"
+        shared = a.console().run(["environment", "share", "lab"], USER)
+        assert shared.code == 0, shared.error
+        newer = written("newer")
+        on_b = lambda: [b.container.get(Environments).keyed(lab.key), b.container.get(Messages).global_matching(environment_id=lab.row_id), b.container.get(Tasks).global_matching(environment_id=lab.row_id)]
+        assert synced(lambda: on_b()[0] and {message.text for message in on_b()[1]} >= {"older word", "newer word"} and {task.title for task in on_b()[2]} >= {"older task", "newer task"}), "the shared environment arrives on Bob's journal with its older and its new messages and tasks"
+        tasks_on_b = {task.title: task for task in on_b()[2]}
+        assert (tasks_on_b["older task"].brief, tasks_on_b["older task"].id) == ("the older brief", older[1].id), "each arrives whole, under its own number, not as the changed columns of an update"
+        assert on_b()[0][0].name == "ada-lab", "Bob's journal knows it by Ada's name for it"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
