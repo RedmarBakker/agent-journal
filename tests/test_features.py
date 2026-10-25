@@ -3436,6 +3436,31 @@ def test_a_messages_mentions_reach_the_viewer_as_refs(app: App):
     assert rows[-1]["mentions"] == ["plans:1", "tasks:2"]
 
 
+def hub_mentions_of(app: App, team: str) -> list[str]:
+    from journal.models.environment import Environment
+    from journal.repositories.environments import Environments
+    from journal.sync.team_account import TEAM_FILE
+    from journal.config import Config
+    home = app.container.get(Config).home
+    app.container.get(Environments).save(Environment(name="team", is_team_chat=True), Actor.system())
+    (home / TEAM_FILE).write_text(json.dumps({"team_name": team}))
+    try:
+        hook(app, "SessionStart")
+        app.console().run(["message", "send", "look at acme plan 12"], USER)
+        with urlopen(HttpRequest(f"http://127.0.0.1:{app.server().port}/journal/messages", headers={"X-Journal-Env": "main"}), timeout=5) as reply:
+            return json.loads(reply.read())["rows"][-1]["mentions"]
+    finally:
+        (home / TEAM_FILE).unlink()
+
+
+def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_acme_is_the_hub_plan(app: App):
+    assert hub_mentions_of(app, "acme") == ["team/plans:12"]
+
+
+def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_hub_plan(app: App):
+    assert hub_mentions_of(app, "beta") == []
+
+
 def test_a_server_set_up_in_claude_itself_is_removed_from_the_page_through_claudes_own_command(app: App, monkeypatch):
     import json as j
     from urllib.request import Request as R, urlopen

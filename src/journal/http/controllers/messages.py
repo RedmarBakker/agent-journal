@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from journal.db.query import Query
-from journal.features.messages.support.mentions import Mentions
+from journal.features.messages.support.hub_mentions import HubMentions
 from journal.sync.attachments import Attachments
 from journal.http.controllers.controller import Controller
 from journal.http.counts import Counts
@@ -29,8 +29,8 @@ class MessageController(Controller[Message]):
 
     repository: Messages
 
-    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts) -> None:
-        self.agents, self.environments, self.hosts = agents, environments, hosts
+    def __init__(self, messages: Messages, reactions: Reactions, attachments: Attachments, docking: Docking, agents: Agents, environments: Environments, hosts: Hosts, mentions: HubMentions) -> None:
+        self.agents, self.environments, self.hosts, self.mentions = agents, environments, hosts, mentions
         self.repository, self.reactions, self.attachments, self.docking = messages, reactions, attachments, docking
 
     def listed(self, listing: Listing) -> RowList:
@@ -58,7 +58,7 @@ class MessageController(Controller[Message]):
     def shown_page(self, rows: list[Message]) -> list[dict]:
         filed, commented, unanswered = self.repository.linked(Messages.SUBJECT_LINK, [m.row_id for m in rows]), self.repository.linked(Messages.COMMENT_LINK, [m.row_id for m in rows]), {m.id for m in self.repository.unanswered()}
         return [{**ModelFields.build(m), "answered": m.id not in unanswered, "filed": [ref.id for ref in filed.get(m.row_id, [])],
-                 "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in Mentions.found(m.text)]} for m in rows]
+                 "comments_on": [str(ref) for ref in commented.get(m.row_id, [])], "mentions": [str(ref) for ref in self.mentions.found(m.text)]} for m in rows]
 
     def store(self, request: Request) -> Response:
         message = Message(author=Author.USER, text=request.body.get("text", ""), reply_target=request.body.get("reply_target"), idempotency=request.body.get("idempotency", ""))

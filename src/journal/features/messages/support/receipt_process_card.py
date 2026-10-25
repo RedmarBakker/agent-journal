@@ -1,6 +1,6 @@
 from journal.chat.process_card import ProcessCard
 from journal.chat.process_card_contents import ProcessCardContents
-from journal.features.messages.support.mentions import Mentions
+from journal.features.messages.support.hub_mentions import HubMentions
 from journal.models.author import Author
 from journal.models.message import Message
 from journal.repositories.links import Links
@@ -14,13 +14,13 @@ class ReceiptProcessCard(ProcessCard):
 
     name = "receipt"
 
-    def __init__(self, messages: Messages, links: Links) -> None:
-        self.messages, self.links = messages, links
+    def __init__(self, messages: Messages, links: Links, mentions: HubMentions) -> None:
+        self.messages, self.links, self.mentions = messages, links, mentions
 
     def card_contents(self, message: Message) -> ProcessCardContents | None:
         if message.author != Author.USER:
             return None
-        reply_refs = {ref for reply in self.messages.replies(message) for ref in Mentions.found(reply.text)}
+        reply_refs = {ref for reply in self.messages.replies(message) for ref in self.mentions.found(reply.text)}
         receipt_refs = self.links.targets_except(message, Messages.SUBJECT_LINK, reply_refs)
         key = f"filed:{message.id}"
         if not receipt_refs:
