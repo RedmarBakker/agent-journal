@@ -11905,6 +11905,7 @@ def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_samp
 
 
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
+    import threading
     from journal.models.entry import Entry
     from journal.repositories.entries import Entries
     from journal.repositories.workers import Workers
@@ -11916,10 +11917,17 @@ def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_t
     console.run(["environment", "overview"], AGENT)
     dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
     quiet = lambda: [line for line in keystrokes if "quiet" in line]
+    for thread in [thread for thread in threading.enumerate() if thread.name == "worker-1"]:
+        thread.join(timeout=30)
+    app.runtime().deferred.drain()
+    worker, entries = workers.find(1), app.container.get(Entries)
+    assert worker.session, "the dispatched worker has its session once its run and the work after it have settled"
     call = {"command": 'journal task log 3260 "BLOCKED: commit gate failed on the suite"'}
-    app.container.get(Entries).save(Entry(environment_id=workers.find(1).environment_id, kind="ToolStarting", actor=Actor.agent(workers.find(1).session), data={"call": call}), Actor.system())
+    entries.save(Entry(environment_id=worker.environment_id, kind="ToolStarting", actor=Actor.agent(worker.session), data={"call": call}), Actor.system())
+    assert [entry.recorded_call().command for entry in entries.tool_starts(worker.session, 1)] == [call["command"]], "the newest tool start is read with its call"
     tick_after(app, 21 * 60)
     app.runtime().deferred.drain()
+    assert workers.find(1).session == worker.session, "the worker keeps its session through the tick"
     assert len(quiet()) == 1 and quiet()[0].endswith('worker 1 quiet 20 min; last: journal task log 3260 "BLOCKED: commit…'), "the first line names the worker's last tool call, ended on a whole word"
     tick_after(app, 41 * 60)
     app.runtime().deferred.drain()
