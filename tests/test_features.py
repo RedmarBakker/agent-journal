@@ -9882,6 +9882,15 @@ def test_a_reader_report_is_owed_a_read_and_then_a_fix_or_a_dismissal_each_count
     with app.container.get(Scope).environment(1):
         assert reports.find(other.id).dismissal == "the run prints nothing to count"
 
+def test_the_shipped_pytest_and_vitest_readers_pick_each_failed_test_its_assertion_line_and_the_summary():
+    from journal.features.shell.seeds.default_readers import SHIPPED
+    reader = lambda name: next(r for r in SHIPPED if r.name == name)
+    pytest_output = ["collected 3 items", "tests/x.py .F.", "=== FAILURES ===", "def test_a():", ">   assert 1 == 2", "E   assert 1 == 2", "E    +  where 1 = f()", "FAILED tests/x.py::test_a - assert 1 == 2", "=== 1 failed, 2 passed in 0.1s ==="]
+    assert reader("pytest").card_lines(pytest_output) == ["E   assert 1 == 2", "FAILED tests/x.py::test_a - assert 1 == 2", "=== 1 failed, 2 passed in 0.1s ==="]
+    vitest_output = [" RUN  v1.0.0", " FAIL  tests/x.test.js > suite > adds", "AssertionError: expected 1 to be 2 // Object.is equality", " ❯ tests/x.test.js:5:20", " Test Files  1 failed (1)", "      Tests  1 failed | 2 passed (3)"]
+    assert reader("vitest").card_lines(vitest_output) == [" FAIL  tests/x.test.js > suite > adds", "AssertionError: expected 1 to be 2 // Object.is equality", " Test Files  1 failed (1)", "      Tests  1 failed | 2 passed (3)"]
+
+
 def test_a_pytest_runs_bar_moves_with_each_test_between_the_percentages_it_prints_once_a_row():
     from journal.features.shell.seeds.default_readers import SHIPPED
     pytest = next(reader for reader in SHIPPED if reader.name == "pytest")

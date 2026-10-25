@@ -5,8 +5,10 @@ from journal.features.shell.support.reader_commands import ReaderCommands
 from journal.features.shell.support.readers import Readers
 
 SHIPPED = (
-    Reader("pytest", "the summary of a pytest run, or the error that stopped it", r"^(=+ )?([0-9]+ (passed|failed|errors?|deselected)\b|no tests ran)|^ERROR: .{1,70}$", r"\[ *([0-9]+)%\]", "Running tests", ReaderCommands(("pytest",)), r"[.FEsxX]", r"(\S+\.py)\b|-k\s+(\"[^\"]+\"|'[^']+'|\S+)",
+    Reader("pytest", "the failed tests of a pytest run with their assertion lines, its summary, or the error that stopped it", r"^FAILED |^ERROR |^E +(assert\b|\w*(Error|Exception)\b)|^(=+ )?([0-9]+ (passed|failed|errors?|deselected)\b|no tests ran)|^ERROR: .{1,70}$", r"\[ *([0-9]+)%\]", "Running tests", ReaderCommands(("pytest",)), r"[.FEsxX]", r"(\S+\.py)\b|-k\s+(\"[^\"]+\"|'[^']+'|\S+)",
            r"^(=+ )?[0-9]+ passed", r"^(=+ )?([0-9]+ (failed|errors?|deselected)\b|no tests ran)|^ERROR: .{1,70}$"),
+    Reader("vitest", "the failed tests of a vitest run with their assertion lines, and its totals", r"^\s*FAIL |^\s*(Assertion|Type|Reference)?Error\b|^\s*(Test Files|Tests)\s+[0-9]", "", "Running tests", ReaderCommands(("vitest",)),
+           finished_pattern=r"^\s*(Test Files|Tests)\s+[0-9]", failed_pattern=r"^\s*FAIL |^\s*Tests\s+[0-9]+ failed"),
     Reader("dotnet-test", "the failed tests and the totals of a dotnet test run", r"Failed |error |Passed!|Failed!|Total tests", "", "Running tests", ReaderCommands(("dotnet test",)), finished_pattern=r"Passed!|Total tests", failed_pattern=r"Failed |Failed!|error "),
     Reader("phpunit", "the failures and the totals of a phpunit or pest run", r"FAILURES!|ERRORS!|Tests: |FAIL |Failed asserting|OK \(", r"\( *([0-9]+)%\)", "Running tests", ReaderCommands(("phpunit", "pest", "artisan test")), r"[.FEWRSI]",
            finished_pattern=r"OK \(|Tests: ", failed_pattern=r"FAILURES!|ERRORS!|FAIL |Failed asserting|Tests: "),
@@ -14,10 +16,11 @@ SHIPPED = (
 
 
 RETIRED_LABELS = ("Tests", "Running the tests")
+RETIRED_PATTERNS = (r"^(=+ )?([0-9]+ (passed|failed|errors?|deselected)\b|no tests ran)|^ERROR: .{1,70}$",)
 
 
 class DefaultReaders(Seed):
-    """The readers the journal ships, for pytest, dotnet test and phpunit or pest, written into the project's readers at boot when a reader of that name is not there yet, or is still one shipped earlier, with an older label or a missing part, as working examples a test run is informed about."""
+    """The readers the journal ships, for pytest, vitest, dotnet test and phpunit or pest, written into the project's readers at boot when a reader of that name is not there yet, or is still one shipped earlier, with an older label or a missing part, as working examples a test run is informed about."""
 
     def __init__(self, config: Config, readers: Readers) -> None:
         self.config, self.readers = config, readers
@@ -32,7 +35,7 @@ class DefaultReaders(Seed):
         if not path.is_file():
             return False
         existing = self.readers.lookup(shipped.name)
-        return existing.label in RETIRED_LABELS or (existing.label == shipped.label and self.has_missing_pattern(existing, shipped))
+        return existing.label in RETIRED_LABELS or existing.pattern in RETIRED_PATTERNS or (existing.label == shipped.label and self.has_missing_pattern(existing, shipped))
 
     @staticmethod
     def has_missing_pattern(existing: Reader, default: Reader) -> bool:
