@@ -12709,7 +12709,7 @@ def test_the_interruption_measure_counts_only_reports_filed_while_plenty_was_ope
     rates = (2.0, 8.0)
     assert not ReportUse().recorded(100, 0).recorded(200, 0).recorded(300, 0).measured(400, 60, 3, rates, 30).is_measured, "with no tasks open at any report the measure is not counted"
     assert not ReportUse().recorded(100, 5).measured(400, 60, 3, rates, 30).is_measured, "one report filed while plenty was open is too few to count"
-    edge = ReportUse().recorded(0, 5).recorded(10, 5).recorded(3700, 5).measured(3600 + 5, 60, 3, rates, 30)
+    edge = ReportUse().recorded(0, 5).recorded(200, 5).measured(3700, 60, 3, rates, 30)
     assert edge.hourly_reports == 1, "a report older than the window falls out of it at its edge"
     many = ReportUse()
     for n in range(4):

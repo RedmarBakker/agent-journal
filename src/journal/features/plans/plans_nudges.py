@@ -6,7 +6,7 @@ class PlansNudges:
     """The nudges of the plans feature."""
 
     ALL_BLOCKED = "all its tasks left are blocked"
-    PLAN_TESTING_CHANGED = Nudge("plans", "the_plan_tests_another_way", "plan {{n}} now tests this way ({{title}}): {{testing}}", repeat=Timeout.seconds(0))
+    PLAN_TESTING_CHANGED = Nudge("plans", "the_plan_tests_another_way", "plan {{n}} now tests this way ({{template}}): {{testing}}", repeat=Timeout.seconds(0))
     PLAN_TESTING = Nudge("plans", "how_the_plan_tests", "plan {{n}} tests this way: {{testing}}", repeat=Timeout.seconds(0))
     BUILDER_MODE = Nudge("plans", "now_building", "you now work as the builder", repeat=Timeout.seconds(0))
     NEXT_PLAN_TASK = Nudge("plans", "next_task_of_the_plan", "plan {{n}}: task {{task}} is next. {{briefing}}", repeat=Timeout.seconds(0))
