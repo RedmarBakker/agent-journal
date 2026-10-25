@@ -3467,22 +3467,18 @@ def test_acme_plan_12_in_a_message_of_a_journal_whose_team_is_not_acme_names_no_
     assert hub_mentions_of(app, "beta") == ["plans:12"]
 
 
-def test_a_task_of_the_hub_environment_is_named_with_its_team_and_any_other_is_not(app: App):
-    import json
+def test_a_task_of_a_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task
     from journal.repositories.environments import Environments
     from journal.support.row_labels import RowLabels
-    from journal.sync.team_account import TEAM_FILE
-    home = app.config.home
-    hub = app.container.get(Environments).save(Environment(name="team", is_team_chat=True), Actor.system())
-    (home / TEAM_FILE).write_text(json.dumps({"team_name": "acme"}))
-    try:
-        labels = app.container.get(RowLabels)
-        assert labels.name("task", Task(id=57, environment_id=hub.row_id)) == "acme task 57"
-        assert labels.name("task", Task(id=58, environment_id=hub.row_id + 1000)) == "task 58"
-    finally:
-        (home / TEAM_FILE).unlink()
+    environments = app.container.get(Environments)
+    acme = environments.save(Environment.hub("k-acme", "acme"), Actor.system())
+    beta = environments.save(Environment.hub("k-beta", "beta"), Actor.system())
+    labels = app.container.get(RowLabels)
+    assert labels.name("task", Task(id=57, environment_id=acme.row_id)) == "acme task 57"
+    assert labels.name("task", Task(id=58, environment_id=beta.row_id)) == "beta task 58"
+    assert labels.name("task", Task(id=59, environment_id=acme.row_id + beta.row_id + 1000)) == "task 59"
 
 
 def test_a_server_set_up_in_claude_itself_is_removed_from_the_page_through_claudes_own_command(app: App, monkeypatch):
