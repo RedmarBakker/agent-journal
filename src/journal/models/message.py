@@ -150,9 +150,6 @@ class Message(Scoped):
     def is_main_unread(self) -> bool:
         return self.author == Author.USER and self.read_at is None and self.agent_role == AgentRole.MAIN
 
-    def mentioning_text(self) -> str:
-        return "" if self.data.get("card_type") else super().mentioning_text()
-
     @property
     def is_user_facing(self) -> bool:
         return self.author == Author.AGENT and not self.acknowledgement and not self.is_thought

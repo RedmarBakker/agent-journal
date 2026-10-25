@@ -93,6 +93,7 @@ def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.testing", value="Hand the tests over"), Actor.system())
     app.runtime().start()
     return app
 
@@ -1352,13 +1353,13 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
             last = named()[-1]
             app.container.get(Entries).save(last.with_(data={**last.data, "time": last.data["time"] - minutes * 60}), Actor.system())
 
-    hook(app, "Stop")
     app.runtime().deferred.drain()
     from journal.repositories.links import Links
-    assert not [link for link in app.container.get(Links).all() if link.source.type == "messages"], "the card the journal writes for a new report mentions nothing, so it never counts as acting on the report"
+    assert [link for link in app.container.get(Links).all() if link.source.type == "messages" and link.target.type == "reports"], "the card the journal writes for each new report mentions it"
+    hook(app, "Stop")
     lines = [entry.data["line"] for entry in named()]
     assert len(lines) == 1 and lines[0].startswith("report 1 has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
-    assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere"
+    assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere, while the journal's own card mentioning report 1 does not count"
     hook(app, "Stop")
     assert len(named()) == 1, "within the span the line is not said again"
     older_by(41)
