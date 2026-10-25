@@ -129,6 +129,7 @@ def team_answers() -> bool:
 
 
 def journals() -> None:
+    stop()
     wait(team_answers, "the team server to answer", 180)
     start_scratch("a")
     email, person = PEOPLE["a"]
