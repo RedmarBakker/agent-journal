@@ -136,6 +136,7 @@ export class Posing {
         this.gaze = null;
         this.posture = posture;
         this.sway = 0;
+        this.kneesApart = true;
         this.stride = stride;
         this.sky = null;
         this.throws = null;
@@ -281,6 +282,11 @@ export class Posing {
     // how far the legs of a seated figure swing, from -1 to 1
     swing(sway) {
         this.sway = sway;
+    }
+
+    // seated, the knees kept together straight ahead, not turned out apart, as on a swing or beside a telephone
+    kneesTogether() {
+        this.kneesApart = false;
     }
 
     shutEyes(open) {
@@ -658,7 +664,8 @@ const SEAT_LIFT = 0.2;
 // sitting on an edge, how far each thigh is raised from hanging, so it slopes down a little over the edge from the hips, and how far each
 // knee bends, so the shins hang straight down past the edge, as a person sits on a wall with the legs loose; and how far each thigh turns out
 // from straight ahead, the knees forward and apart and the feet hanging apart under them, so a figure seated facing the viewer shows its
-// thighs, which pointing straight at the viewer would vanish and leave it short-legged
+// thighs, which pointing straight at the viewer would vanish and leave it short-legged, unless its clip keeps the knees together (Posing
+// kneesTogether), as on the swing or at the telephone beside it
 const SEAT_THIGH = 66;
 const SEAT_SHIN = 68;
 export const SEAT_SPREAD = 16;
@@ -763,7 +770,7 @@ function restOnKnee(pose, side) {
 
 function seatedLegs(pose) {
     for (const [side, sign] of Object.entries(SIDES)) {
-        pose.turn(`thigh_${side}`, {x: -SEAT_THIGH, z: sign * SEAT_SPREAD});
+        pose.turn(`thigh_${side}`, {x: -SEAT_THIGH, z: pose.kneesApart ? sign * SEAT_SPREAD : 0});
         pose.bend(`shin_${side}`, SEAT_SHIN + sign * 9 * pose.sway);
         pose.turn(`foot_${side}`, {x: -sign * 5 * pose.sway + (side === "r" ? pose.tap : 0)});
     }
@@ -2522,6 +2529,7 @@ function phone_call(pose, stance, t) {
 // other hand, whose shoulder would then lift it off its seat, then takes up the handset to its ear, talks, nodding, and puts it back;
 // the other hand stays as the seat has it
 function seatedCall(pose, stance, t) {
+    pose.kneesTogether();
     const act = ACTS.phone_call;
     const {finger, dial, back, reach: reaching, lift, beside, behind} = act.seated;
     const u = onceTime(t, act.frames);
@@ -3185,6 +3193,7 @@ const ROPE_GRIP = [(ACTS.rope_swing.ties * FRAMED_HEIGHT) / 2 - SWING_HOLD.arm, 
 // swingAt), and rises off it at the end (acts.js offSwing)
 function rope_swing(pose, stance, t) {
     const pump = swingAt(t);
+    pose.kneesTogether();
     pose.lift("root", {z: SWING_HOLD.above * offSwing(t)});
     pose.standProp("rope_swing", new THREE.Vector3(0, 0, POSTURES.sit.drop * FRAMED_HEIGHT).sub(pose.carried(new THREE.Vector3())).toArray());
     breathe(pose, t);
