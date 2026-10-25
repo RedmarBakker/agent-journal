@@ -5,7 +5,9 @@ from journal.events.agent.compacting import Compacting
 from journal.events.agent.tool_finished import ToolFinished
 from journal.events.agent.tool_starting import ToolStarting
 from journal.models.agent import Agent
+from journal.models.worker import Worker
 from journal.repositories.agents import Agents
+from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.entries import Entries
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
@@ -20,7 +22,7 @@ from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.worker_line import WorkerLine
 from journal.support.tool_call import ToolCall
 
-# how long a clocked-out worker or an open task with a free place may wait for the orchestrator before the tool uses made meanwhile count against it
+# how long a clocked-out worker or an open task with a free place may wait for the orchestrator before the tool uses made meanwhile count against it; a worker's wait pauses while a run in its worktree goes on and counts again from its end
 ANSWER_SECONDS = 300
 # the worker command that takes a worker's work in
 MERGE_VERB = "merge"
@@ -29,8 +31,8 @@ MERGE_VERB = "merge"
 class ToolUses:
     """One tool-use counter per session, stored on the agent's row and carried on every tool event: a plain tool use of the agent's own moves it by one as its ToolStarting is placed; a journal command and a subagent's tool use leave it where it is and carry the unchanged number; a compaction sets it back to zero, with the inbox mark, since the agent after it is as good as new. An edit of a code file by the agent itself moves its count of code edits by one too. A plain tool use also carries how many times the agent has run its command's shape, counted here once for every listener."""
 
-    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows, tasks: Tasks, workers: Workers, branch: WorkerBranch, runs: TestRunFolder) -> None:
-        self.agents, self.entries, self.settings, self.tasks, self.workers, self.branch, self.runs = agents, entries, settings, tasks, workers, branch, runs
+    def __init__(self, agents: Agents, entries: Entries, settings: SettingRows, tasks: Tasks, workers: Workers, branch: WorkerBranch, runs: TestRunFolder, outputs: CommandOutputs) -> None:
+        self.agents, self.entries, self.settings, self.tasks, self.workers, self.branch, self.runs, self.outputs = agents, entries, settings, tasks, workers, branch, runs, outputs
 
     def counted(self, event: AgentEvent) -> AgentEvent:
         if not isinstance(event, (ToolStarting, ToolFinished, Compacting)):
@@ -70,6 +72,13 @@ class ToolUses:
             return agent.unchecked_merge()
         return agent.worker_merged(str(self.branch.place(workers[0]).resolve()), workers[0].clocked_out_at())
 
+    def has_unanswered(self, time: float) -> bool:
+        return any(worker.is_unanswered(time, ANSWER_SECONDS, self.tested_at(worker, time)) for worker in self.workers.checkable_workers())
+
+    def tested_at(self, worker: Worker, time: float) -> float:
+        runs = [run for run in self.outputs.ran_within(str(self.branch.folder(worker))) if run.creation_time.timestamp() >= worker.silence.timeout.start] if worker.worktree else []
+        return max((run.update_time.timestamp() if run.ended else time for run in runs), default=0.0)
+
     def has_late_task(self, time: float) -> bool:
         limit = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if limit > 0 and self.workers.dispatched_count() >= limit:
@@ -79,7 +88,7 @@ class ToolUses:
     def used(self, agent: Agent, call: RecordedCall, time: float) -> Agent:
         mode = str(self.settings.option(WorkersOptions.MODE))
         agent = agent.in_mode(mode).tool_used()
-        agent = agent.worker_waited() if mode == "orchestrator" and self.workers.has_unanswered(time, ANSWER_SECONDS) else agent
+        agent = agent.worker_waited() if mode == "orchestrator" and self.has_unanswered(time) else agent
         agent = agent.task_waited() if mode == "orchestrator" and self.has_late_task(time) else agent
         agent = agent.code_edited() if CodeFiles.has_code(call.edited_paths) else agent
         agent = agent.file_edited() if call.edited_paths else agent

@@ -2,6 +2,7 @@ from journal.features.feature import Feature
 from journal.features.workers.clock_conduct import ClockConduct
 from journal.features.workers.listeners.shortfall_return import ShortfallReturn
 from journal.features.workers.listeners.test_run_record import TestRunRecord
+from journal.features.workers.listeners.fitness_record import FitnessRecord
 from journal.features.workers.listeners.load_record import LoadRecord
 from journal.features.workers.listeners.wait_record import WaitRecord
 from journal.features.workers.listeners.model_fit_record import ModelFitRecord
@@ -71,7 +72,7 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch,)
     process_cards = (WorkerProcessCard, SubagentProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, LimitResumes, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, ModelFitRecord, WaitRecord)
+    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, LimitResumes, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, ModelFitRecord, WaitRecord, FitnessRecord)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)

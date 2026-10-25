@@ -1873,6 +1873,25 @@ def test_an_orchestrator_that_answers_a_clocked_out_worker_in_minutes_scores_hig
     assert answered.is_measured and answered.score >= 90 and not answered.gaps, "a worker clocked out two minutes ago is within the time to answer"
 
 
+@pytest.mark.parametrize("command, ran_in, ended", [("pytest -q", True, False), ("cd '{folder}' && journal suite", False, True)])
+def test_a_clocked_out_worker_whose_worktree_the_orchestrator_tests_does_not_count_as_waiting(app: App, command: str, ran_in: bool, ended: bool):
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.workers import Workers
+
+    def tested():
+        worker = app.container.get(Workers).save(clocked_out(app, timing.time() - 1200).with_(worktree=True), Actor.system())
+        folder = str(app.container.get(WorkerBranch).folder(worker))
+        app.container.get(CommandOutputs).save(CommandOutput(chain=f"test-{worker.id}", command=command.format(folder=folder), session="s1", ran_in=folder if ran_in else "", ended=ended), Actor.system())
+
+    scored = orchestrator_scored(app, tested)
+    assert scored.is_measured and not any(gap.label.startswith("your tool uses made while a clocked-out worker waited") for gap in scored.gaps), f"a worker whose worktree is under test, run in it or by a leading cd, is not waiting: {scored.gaps}"
+    from journal.models.worker import Worker
+    clocked = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1").delivered(100.0)
+    assert not clocked.is_unanswered(1300.0, 300, 1100.0) and clocked.is_unanswered(1500.0, 300, 1100.0), "the wait counts again from the end of the test run"
+
+
 def test_an_orchestrator_that_dispatches_fresh_workers_while_one_sits_idle_scores_low_on_reuse(app: App):
     from journal.models.worker import Worker
     from journal.models.worker_state import WorkerState
@@ -1905,6 +1924,17 @@ def test_a_mode_profile_scores_an_ideal_agent_whole_and_names_the_measures_that_
     drifted = WorkersProfiles.BUILDER.scored(ToolUseCounts(mode="builder", file_edits=2, handovers=10, research_count=1, subagent_dispatches=6))
     assert drifted.score < 40 and [gap.label for gap in drifted.gaps] == ["your own file edits among your edits and handovers", "your own reads and searches among them and your subagents"], "one far off scores low and names the heavier measure first"
     assert not WorkersProfiles.SOLO.scored(ToolUseCounts(mode="solo", file_edits=2)).is_measured, "too few actions are not scored at all"
+
+
+def test_a_measure_with_fewer_than_three_events_in_its_window_is_left_out_of_the_score():
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_profiles import PREPARED_MERGE_SHARE, WAIT_SHARE, WorkersProfiles
+    from journal.models.support.wait_use import WaitUse
+    two = ToolUseCounts(mode="orchestrator", merges=2, prepared_merges=0, research_count=20)
+    three = replace(two, merges=3)
+    assert PREPARED_MERGE_SHARE.closeness(two) is None and PREPARED_MERGE_SHARE.closeness(three) == 0.0, "two merges are too few to score, three are scored"
+    assert WorkersProfiles.ORCHESTRATOR.scored(two).score == 100 and WorkersProfiles.ORCHESTRATOR.scored(three).score < 100, "a measure left out costs nothing"
+    assert WAIT_SHARE.closeness(replace(two, waits=WaitUse(with_wait=1))) == 1.0, "the plans' waits are scored from one task"
 
 
 def test_an_orchestrator_that_merges_without_reading_proofs_or_running_tests_scores_low_on_that_measure():
@@ -1941,6 +1971,35 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     failed = sent.review_failed(900.0, 1)
     assert not failed.review_pending and type(failed.events[-1]).__name__ == "WorkerReviewFailed" and failed.events[-1].task == 1, "a failed review clears the worker's review and carries the event that tells the orchestrator"
     assert failed.is_unanswered(1300.0, 300), "and from then the work waits on the orchestrator"
+
+
+def test_every_fitness_score_is_kept_with_its_time_and_gaps_as_a_timeline_point_naming_what_moved_it(app: App):
+    from journal.features.workers.support.fitness_point import FitnessPoint
+    from journal.http.agents.agent_activity import AgentActivity
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import Entries
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+
+    def used(tool_name: str, **tool_input):
+        hook(app, "PreToolUse", tool_name=tool_name, tool_input=tool_input)
+        hook(app, "PostToolUse", tool_name=tool_name, tool_input=tool_input, tool_response="")
+
+    for n in range(30):
+        used("Edit", file_path=str(app.config.root / f"t{n}.md"), old_string="x", new_string="y")
+        used("Read", file_path=str(app.config.root / f"u{n}.md"))
+    for n in range(30):
+        used("Bash", command=f"journal worker send 1 'job {n}'")
+    app.runtime().deferred.drain()
+    points = [FitnessPoint.parsed(entry.data) for entry in app.container.get(Entries).all_matching(kind=FitnessPoint.KIND)]
+    moves = [point.moved for point in points]
+    assert moves[0] == "not scored yet: too few tool uses in this mode" and "first score in this mode" in moves, moves
+    assert any(move.startswith("your own file edits among your edits and handovers: ") and move.endswith("% of the ideal") for move in moves), "a point names the measure that moved the score"
+    shape = lambda point: (point.score, point.is_measured, point.gaps, point.parts)
+    assert all(points[n].at <= points[n + 1].at and shape(points[n]) != shape(points[n + 1]) for n in range(len(points) - 1)), "a point is kept only when the score, a gap or a measure moved"
+    fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
+    newest = fitness["timeline"][-1]
+    assert (newest["score"], newest["gaps"]) == (fitness["score"], fitness["lines"]) and newest["at"] > 0, "the status bar's row carries the timeline, the newest point the score it shows"
 
 
 def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_and_counts_only_those(app: App):
@@ -2008,6 +2067,10 @@ def test_a_merge_counts_as_checked_after_a_proof_read_and_a_test_run_in_the_work
     workers.save(workers.find(1).delivered(timing.time() + 60), Actor.system())
     said("journal worker merge 1")
     assert counted() == (4, 2), "a run made before the worker clocked out is not the test run before its merge"
+    said("journal task show 2")
+    said(f'(cd "{byron}" && python3 scripts/suite.py)')
+    said("journal worker merge 2")
+    assert counted() == (5, 3), "a leading cd into the worktree counts with the folder in quotes, as CommandOutputs.ran_within reads it"
 
 
 def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_load_and_the_unanswered_messages(app: App):
@@ -3939,6 +4002,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
     from types import SimpleNamespace
     from journal.config import Config
     from journal.features.workers.support.failed_runs import FailedRuns
+    from journal.features.workers.support.test_run_folder import TestRunFolder
     from journal.features.shell.support.readers import Readers
     from journal.models.command_output import CommandOutput
     from journal.models.support.worker_moves import WorkerMoves
@@ -3959,7 +4023,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         (folder / "0.out").write_text("\n".join(lines) + "\n")
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
-    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree))
+    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
         assert failed.under(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
@@ -4499,12 +4563,13 @@ def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_re
     from types import SimpleNamespace
     from journal.features.shell.support.readers import Readers
     from journal.features.workers.support.failed_runs import FailedRuns
+    from journal.features.workers.support.test_run_folder import TestRunFolder
     from journal.models.command_output import CommandOutput
     from journal.models.support.worker_moves import WorkerMoves
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     outputs = app.container.get(CommandOutputs)
-    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"))
+    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"), app.container.get(TestRunFolder))
     worker = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() - 100),)))
     proof = "parser.py:12, and the test tests/test_parser.py::test_reads passes"
     assert runs.unrun(worker, proof) == "no run of tests/test_parser.py::test_reads is recorded since worker 4 clocked out: run it before you trust the point", "no run: one line naming the test"
@@ -4515,6 +4580,11 @@ def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_re
     assert runs.unrun(worker, proof) == "", "with a run of the test's file in the worker's worktree no warning"
     later = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() + 100),)))
     assert runs.unrun(later, proof), "a run from before the clock-out does not count"
+    lexer = "lexer.py:4, and the test tests/test_lexer.py::test_tokens passes"
+    outputs.save(CommandOutput(chain="narrow", command=f'cd "{tmp_path / "tree"}" && python3 scripts/suite.py -k parser', folder=str(tmp_path / "o3")), Actor.system())
+    assert runs.unrun(worker, lexer), "a run narrowed to other tests does not run this one"
+    outputs.save(CommandOutput(chain="suite", command=f'cd "{tmp_path / "tree"}" && python3 scripts/suite.py', folder=str(tmp_path / "o4")), Actor.system())
+    assert runs.unrun(worker, lexer) == "", "a whole suite run started by a leading cd into the worktree runs every test in it"
 
 
 def test_a_due_start_of_a_check_that_a_run_started_meanwhile_starts_nothing(app: App):

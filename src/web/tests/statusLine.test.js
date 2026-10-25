@@ -46,6 +46,33 @@ test("the mode buttons read only their mode's name, and the fitness score is a b
     const {readFileSync} = await import("node:fs");
     const bar = readFileSync("src/layout/StatusBar.vue", "utf8");
     expect(bar).toContain("        label: one.label,\n");
-    expect(bar).toContain(`class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip"`);
+    expect(bar).toContain(`:class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]"\n                        v-tip:fitness="fitnessTip"`);
     expect(bar).toContain("title: `Fitness ${fitness.value.score} of 100`");
+});
+
+test("the fitness badge opens a timeline of the last hours whose every point names what moved it", async () => {
+    const {default: FitnessTimeline} = await import("../src/layout/FitnessTimeline.vue");
+    const now = Date.now() / 1000;
+    const points = [
+        {at: now - 3000, score: 100, is_measured: false, gaps: [], moved: "not scored yet: too few tool uses in this mode"},
+        {at: now - 2000, score: 92, is_measured: true, gaps: [], moved: "first score in this mode"},
+        {at: now - 1000, score: 61, is_measured: true, gaps: ["your merges are 0%, ideal 90-100%: read the proofs"], moved: "your merges: 100% to 0% of the ideal"},
+    ];
+    const host = window.document.createElement("div");
+    window.document.body.append(host);
+    const app = createApp(FitnessTimeline, {points, hours: 6, low: 70});
+    app.directive("tip", {});
+    app.mount(host);
+    await nextTick();
+    expect(host.querySelector(".fitness-timeline-heading").textContent).toBe("Fitness over the last 6 hours");
+    expect(host.querySelectorAll(".fitness-timeline-dot").length).toBe(2);
+    expect(host.querySelectorAll(".fitness-timeline-dot.low").length).toBe(1);
+    const moved = [...host.querySelectorAll(".fitness-timeline-point")].map((row) => row.textContent);
+    expect(moved[0]).toContain("your merges: 100% to 0% of the ideal");
+    expect(moved[0]).toContain("read the proofs");
+    expect(moved[2]).toContain("not scored yet");
+    const bar = (await import("node:fs")).readFileSync("src/layout/StatusBar.vue", "utf8");
+    expect(bar).toContain(`<FitnessTimeline :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS"`);
+    app.unmount();
+    host.remove();
 });

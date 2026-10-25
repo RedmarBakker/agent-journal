@@ -4,7 +4,6 @@ from dataclasses import asdict
 from journal.engine.support.stack_history import StackHistory
 from journal.engine.states.wait import Wait
 from journal.engine.states_catalogue import StatesCatalogue
-from journal.features.reviewing.reviewing_options import ReviewingOptions
 from journal.features.sequences.listeners.record_run_changes import RUN
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
@@ -38,24 +37,25 @@ from journal.support.subagent_dispatch import SubagentDispatch
 from journal.support.user_question import UserQuestion
 from journal.support.command_text import CommandText
 from journal.features.thinking.support.thinking_window import WORKING_STATES
-from journal.features.workers.support.tool_use_counts import ToolUseCounts
-from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.workers_profiles import WorkersProfiles
-from journal.features.workers.support.fitness_score import FitnessScore
+from journal.features.workers.support.fitness_point import FitnessPoint
+from journal.features.workers.support.fitness_scoring import FitnessScoring
 
 STATUS = {"Stop": "idle", "SessionStarted": "idle", "SessionEnded": "stopped", "Compacting": "compacting", "PromptSubmitted": "busy", "ToolStarting": "busy", "ToolFinished": "busy", "ToolFailed": "busy", "SubagentStarted": "busy", "SubagentEnded": "busy"}
 HISTORY_ENTRIES = 5
 TOOL_KINDS = ("ToolStarting", "ToolFinished")
 OPERATION_VERBS = {FileRead.kind: "reading a file", FileEdit.kind: "editing files", FileWrite.kind: "writing a file", SubagentDispatch.kind: "waiting for a subagent", SkillLoad.kind: "reading a skill", AgentMessage.kind: "messaging an agent", UserQuestion.kind: "asking you"}
 ENDED = "ended"
+# how far back the fitness timeline reaches, and the most points it reads
+TIMELINE_HOURS = 6
+TIMELINE_POINTS = 200
 
 
 class AgentActivity:
     """An agent with what it is doing, read from the newest few entries of its own session: its status from its latest hook, the current tool or shell part, its latest thought, what it waits for, its model and context, and the sequence it runs."""
 
-    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows) -> None:
+    def __init__(self, entries: Entries, states: StatesCatalogue, config: Config, providers: Providers, files: ProjectFiles, messages: Messages, current: CurrentWork, jobs: ScheduledJobs, numbers: DeveloperNumbers, registry: Registry, settings: SettingRows, scoring: FitnessScoring) -> None:
         self.entries, self.states, self.config, self.providers, self.files, self.messages, self.current = entries, states, config, providers, files, messages, current
-        self.jobs, self.numbers, self.registry, self.settings = jobs, numbers, registry, settings
+        self.jobs, self.numbers, self.registry, self.settings, self.scoring = jobs, numbers, registry, settings, scoring
 
     def page(self, agents: list[Agent]) -> list[dict]:
         return [self.row(item, [] if item.state == ENDED else self.session_entries(item.session)) for item in agents]
@@ -81,7 +81,6 @@ class AgentActivity:
         waiting_state, enabled = self.current.wait_text(agent)
         provider = self.providers.lookup(agent.provider)
         status = provider.status(agent.session, self.config.status_home)
-        fitness = self.fitness(agent)
         return {
             **ModelFields.build(agent),
             "status": "stopped" if agent.state == ENDED else self.status(agent.state, STATUS.get(kind, "idle")),
@@ -104,7 +103,7 @@ class AgentActivity:
             "trail": [self.trail_entry(e) for e in [e for e in entries if e.kind == StackHistory.KIND][-HISTORY_ENTRIES:]],
             "sequence_history": [{"time": e.created_at, "text": f"Sequence {e.data['n']}, {e.data['title']}: {e.data['what']}"} for e in reversed([e for e in entries if e.kind == RUN])][:HISTORY_ENTRIES],
             "jobs": self.scheduled(agent),
-            "fitness": {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines)} if fitness else None,
+            "fitness": self.fitness(agent),
             "load": self.load(agent),
             **self.rolling(),
         }
@@ -117,9 +116,16 @@ class AgentActivity:
         return {"rho": load.rho, "arrivals": load.arrivals, "clearings": load.clearings, "waiting": load.waiting, "wait_minutes": load.wait_minutes, "little": load.little,
                 "waiting_refs": list(load.waiting_refs), "over_minutes": load.over_minutes}
 
-    def fitness(self, agent: Agent) -> FitnessScore | None:
-        profile = (WorkersProfiles.reviewed_mode_profile if self.settings.option(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(str(self.settings.option(WorkersOptions.MODE)))
-        return profile.scored(ToolUseCounts.counted(agent)) if profile else None
+    def fitness(self, agent: Agent) -> dict | None:
+        fitness = self.scoring.scored(agent)
+        if fitness is None:
+            return None
+        return {"mode": fitness.mode, "score": fitness.score, "is_measured": fitness.is_measured, "lines": list(fitness.lines), "timeline": self.timeline(agent.session), "timeline_hours": TIMELINE_HOURS}
+
+    def timeline(self, session: str) -> list[dict]:
+        since = time.time() - TIMELINE_HOURS * 3600
+        points = [FitnessPoint.parsed(entry.data) for entry in reversed(self.entries.session_kind_newest(session, FitnessPoint.KIND, TIMELINE_POINTS))]
+        return [point.shown() for point in points if point.at >= since]
 
     def rolling(self) -> dict:
         if not self.registry.is_enabled(Faults):

@@ -32,6 +32,7 @@ import WorkerList from "../chat/WorkerList.vue";
 import {useEveryWorker, useWorkers} from "../composables/workers.js";
 import {useEveryVerifier} from "../composables/verifiers.js";
 import VerifierList from "../chat/VerifierList.vue";
+import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
 import {runPlan, setAuto} from "../actions/work.js";
@@ -77,7 +78,16 @@ const modeOptions = computed(() =>
 );
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
 const LOW_FITNESS = 70;
-const fitnessTip = computed(() => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: fitness.value.lines.length ? fitness.value.lines.join(" ") : "The agent works as this mode's ideal does."});
+const fitnessTip = computed(
+    () => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: `${fitness.value.lines.length ? fitness.value.lines.join(" ") : "The agent works as this mode's ideal does."} Opens the scores of the last hours.`}
+);
+const fitnessOpen = ref(false);
+const fitnessAnchor = ref(null);
+
+function toggleFitness(e) {
+    fitnessAnchor.value = e.currentTarget;
+    fitnessOpen.value = !fitnessOpen.value;
+}
 // the orchestrator's load, arrivals over clearings, shown beside the fitness and never scored, toned by workers.load_warn and workers.load_critical
 const load = computed(() => agent.value?.load || null);
 const loadLevel = computed(() => {
@@ -258,7 +268,15 @@ async function runBar(p) {
                     </Btn>
                 </template>
                 <template v-if="fitness">
-                    <span :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]" v-tip:fitness="fitnessTip">{{ fitness.score }}</span>
+                    <button
+                        type="button"
+                        :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]"
+                        v-tip:fitness="fitnessTip"
+                        :aria-expanded="fitnessOpen"
+                        @click.stop="toggleFitness"
+                    >
+                        {{ fitness.score }}
+                    </button>
                 </template>
                 <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
                 <button
@@ -297,6 +315,11 @@ async function runBar(p) {
                     @close="workersOpen = false"
                 >
                     <WorkerList :rows="everyWorker" :loading="!everyWorkerLoaded" @changed="refreshEveryWorker(), refreshWorkers()" @close="workersOpen = false" />
+                </MenuPanel>
+            </template>
+            <template v-if="fitnessOpen && fitness">
+                <MenuPanel :anchor="fitnessAnchor" plain :min-width="340" :max-width="380" :max-height="workersHeight" :gap="12" @click.stop @close="fitnessOpen = false">
+                    <FitnessTimeline :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
                 </MenuPanel>
             </template>
             <template v-if="verifiersOpen">
@@ -529,7 +552,9 @@ async function runBar(p) {
     color: var(--text-2);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
-    cursor: default;
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
 }
 
 .statusbar-fitness.low {

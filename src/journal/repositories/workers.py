@@ -54,9 +54,6 @@ class Workers(ScopedRepository[Worker]):
     def has_idle(self) -> bool:
         return self.counted(self.idle_query()) > 0
 
-    def has_unanswered(self, time: float, seconds: float) -> bool:
-        return any(worker.is_unanswered(time, seconds) for worker in self.checkable_workers())
-
     def running_pool_workers(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if worker.pool_request]
 

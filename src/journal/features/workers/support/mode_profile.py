@@ -30,4 +30,4 @@ class ModeProfile:
         score = round(100 * sum(measure.weight * closeness for measure, closeness in weighed) / sum(measure.weight for measure, _ in weighed))
         worst = sorted((pair for pair in weighed if pair[1] < 1.0), key=lambda pair: pair[1] * pair[0].weight - pair[0].weight)
         gaps = tuple(measure.gap(counts) for measure, _ in worst[:GAP_COUNT])
-        return FitnessScore(self.mode, score, gaps)
+        return FitnessScore(self.mode, score, gaps, parts=tuple((measure.label, round(100 * closeness)) for measure, closeness in weighed))

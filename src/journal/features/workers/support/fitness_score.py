@@ -11,6 +11,7 @@ class FitnessScore:
     score: int
     gaps: tuple[FitnessGap, ...] = ()
     is_measured: bool = True
+    parts: tuple[tuple[str, int], ...] = ()
 
     @property
     def lines(self) -> tuple[str, ...]:
