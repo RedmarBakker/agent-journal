@@ -2,6 +2,9 @@ from argparse import Namespace
 from datetime import datetime, timezone
 
 from journal.console.command import WORKER_KINDS, Command
+from journal.engine.command_events import CommandEvents
+from journal.events.worker_clocking_out import WorkerClockingOut
+from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
 from journal.features.workers.support.test_turns import TestTurns
@@ -30,9 +33,9 @@ class DepartureCommand(Command):
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs, events: CommandEvents) -> None:
         self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
-        self.turns, self.settings, self.logs = turns, settings, logs
+        self.turns, self.settings, self.logs, self.events = turns, settings, logs, events
 
     def arguments(self, verbs) -> None:
         record = self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof")
@@ -52,6 +55,7 @@ class DepartureCommand(Command):
             raise Rejection(f"point {', '.join(map(str, missing))} of task {task.id} has no proof that stands: journal proof <point> \"<file:line, and the test that shows it>\", or journal proof <point> --not-done \"<why>\"")
         start_heads = self.branch.worktree_heads(worker)
         self.branch.commit_changes(worker, f"Task {task.id}: {task.title}")
+        self.plugin_check(worker, task)
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"the journal committed your work and rebased it onto the project's branch, at {self.branch.project_heads(worker)}, and it clashes: {clashing}; {REBASE_STEPS}, then clock out again")
@@ -78,6 +82,13 @@ class DepartureCommand(Command):
             self.reports.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
+
+    def plugin_check(self, worker: Worker, task: Task) -> None:
+        if not worker.worktree or worker.pool_request:
+            return
+        refusals = self.events.worker_clocking_out(self.branch.hold_event(WorkerClockingOut, worker, task.id, self.settings.integer(PluginsOptions.CLOCK_OUT_WINDOW_SECONDS) * 1000))
+        if refusals:
+            raise Rejection("your clock-out was held by a plugin before the journal rebased your work; fix what it found, then clock out again\n" + "\n".join(refusals))
 
     def is_journal_testing(self, worker: Worker) -> bool:
         return not worker.pool_request and self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING

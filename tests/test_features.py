@@ -13842,6 +13842,30 @@ def test_a_plugin_hears_a_workers_merge_before_and_after_and_its_hold_refuses_it
     assert [line for line in heard if line["event"] == "worker_merging"][-1]["data"]["window_ms"] == 5000, "a plugin's window on a merge is cut to the setting"
 
 
+def test_a_plugin_holds_a_workers_clock_out_on_its_own_commit_before_the_journal_rebases_it(app: App, monkeypatch, tmp_path):
+    import shutil
+    folder = tmp_path / "echo"
+    shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
+    manifest = json.loads((folder / "journal-plugin.json").read_text())
+    (folder / "journal-plugin.json").write_text(json.dumps({**manifest, "hears": [*manifest["hears"], "worker_clocking_out"], "holds": [*manifest["holds"], "worker_clocking_out"]}))
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    (worktree / "unjudged.py").write_text("x = 1\n")
+    committed(app.config.root, "notes.md", "a later note\n")
+    held = proved_and_out(app, caller, "unjudged.py:1")
+    assert held.code != 0 and "held by a plugin before the journal rebased your work" in held.error and "echo holds the clock-out of worker/1-Worker-1: unjudged.py" in held.error, held.error
+    assert worker_row(app).state != WorkerState.DELIVERED and not (worktree / "notes.md").exists(), "the worker stays out and nothing was rebased"
+    assert git_run(worktree, "log", "-1", "--format=%s").stdout.strip() == "Task 1: the job 1", "the plugin judged the worker's own commit"
+    (worktree / "unjudged.py").unlink()
+    (worktree / "judged.py").write_text("y = 2\n")
+    out = app.console().run(["clock-out", "the work is in"], caller)
+    assert out.code == 0 and (worktree / "notes.md").is_file(), "with nothing to hold, the journal rebases and the clock-out goes through"
+    app.runtime().deferred.drain()
+    heard = [json.loads(line) for line in (app.config.home / "plugin-data" / "echo" / "heard.jsonl").read_text().splitlines()]
+    assert [line for line in heard if line["event"] == "worker_clocking_out"][-1]["data"]["window_ms"] == 180000, "the hold's window is the clock-out window setting"
+
+
 def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_and_not_written_to_the_chat(app: App, tmp_path):
     import shutil
     from journal.events.clock_ticked import ClockTicked

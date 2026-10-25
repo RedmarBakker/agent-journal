@@ -32,7 +32,7 @@ class PluginsFeature(Feature[PluginsData]):
     card_kinds = (MarkKind(CardKind.PLUGINS, "Plugin notes", "plugins"),)
     title = "Plugins"
     help = "Programs you install that hear the journal's events and answer them: refuse a tool, say a line to the agent, show a card or run journal commands, each as itself."
-    options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)
+    options = (PluginsOptions.PLUGIN_ANSWER_WINDOW, PluginsOptions.CLOCK_OUT_WINDOW_SECONDS, PluginsOptions.STREAK_LIMIT, PluginsOptions.IGNORE_MINUTES)
     process_cards = (PluginProcessCard,)
     listeners = (PluginAgentRelay, PluginRowRelay, PluginMergeRelay, PluginMomentCards, PluginQuestionCards, PluginProposalCard, PluginSettingsNotice, ReleaseUpgrade, PluginBrokenNotice)
     data = (PluginsDataReader,)

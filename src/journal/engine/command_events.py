@@ -1,4 +1,5 @@
 from journal.events.worker_merge_result import WorkerMergeResult
+from journal.events.worker_clocking_out import WorkerClockingOut
 from journal.events.worker_merging import WorkerMerging
 from journal.events.moments.worker_merge_refused import WorkerMergeRefused
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
@@ -32,6 +33,9 @@ class CommandEvents:
 
     def worker_merging(self, event: WorkerMerging) -> list[str]:
         return [answer.reason for answer in self.bus.dispatch(event) if isinstance(answer, Decision) and not answer.allowed]
+
+    def worker_clocking_out(self, event: WorkerClockingOut) -> list[str]:
+        return self.worker_merging(event)
 
     def worker_merge_result(self, event: WorkerMergeResult) -> None:
         self.bus.dispatch(event)

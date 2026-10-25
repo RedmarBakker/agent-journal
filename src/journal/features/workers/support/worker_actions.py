@@ -155,7 +155,7 @@ class WorkerActions:
         if worker.pool_request:
             self.branch.fetch_pool(worker)
         steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
-        self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or (), base=self.branch.base(worker), window_ms=self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
+        self.merge_gate(self.branch.hold_event(WorkerMerging, worker, task.id, self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
         steps.started(2)
         merged_total = self.branch.merged_lines(worker)

@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from journal.config import Config
+from journal.events.worker_merging import WorkerMerging
 from journal.features.workers.support.merge_clash import MergeClash
 from journal.features.workers.support.worker_repository import PROJECT_FOLDER, WorkerRepository
 from journal.models.worker import Worker
@@ -174,6 +175,9 @@ class WorkerBranch:
         if clashing:
             raise MergeClash(worker.id, clashing)
         return ", ".join(self.head(repository) for repository in pending)
+
+    def hold_event(self, kind: type[WorkerMerging], worker: Worker, task_id: int, window_ms: int) -> WorkerMerging:
+        return kind(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task_id, branch=self.name(worker), worktree=str(self.folder(worker)), repositories=worker.repositories, files=self.touched(worker) or (), base=self.base(worker), window_ms=window_ms)
 
     def base(self, worker: Worker) -> str:
         return self.git("rev-parse", "--abbrev-ref", "HEAD", cwd=self.checkout(worker)).stdout.strip()
