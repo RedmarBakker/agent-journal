@@ -1,6 +1,7 @@
 from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.repositories.edits import Edits
+from journal.repositories.entries import Entries
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.repositories.scope import Scope
 from journal.support.stage_times import StageTimes
@@ -20,14 +21,23 @@ from journal.repositories.workers import Workers
 from journal.repositories.subagents import Subagents
 
 
+# how much of the worker's last tool call a quiet line quotes
+LAST_CALL_CHARACTERS = 40
 ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes) -> None:
-        self.edits, self.checks, self.scope, self.stages = edits, checks, scope, stages
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries) -> None:
+        self.edits, self.checks, self.scope, self.stages, self.entries = edits, checks, scope, stages, entries
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
+
+    def last_call(self, session: str) -> str:
+        started = self.entries.tool_starts(session, 1)
+        call = started[0].recorded_call() if started else None
+        if call is None:
+            return "no tool call yet"
+        return (call.command or " ".join(filter(None, (call.work, *(call.edited_paths or call.read_paths)[:1]))) or "a tool")[:LAST_CALL_CHARACTERS]
 
     def is_unchecked(self, task_id: int) -> bool:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(self.tasks.find(task_id)), key=lambda proof: proof.row_id)}
@@ -50,5 +60,6 @@ class WorkersDataReader:
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
             "load": lambda: agent.load,
             "merge_check": lambda: self.checks.check(),
+            "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers if w.session},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

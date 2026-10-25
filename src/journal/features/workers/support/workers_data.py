@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from journal.models.support.agent_load import AgentLoad
 from pathlib import Path
@@ -30,3 +30,4 @@ class WorkersData:
     code_lines: int = 0
     load: AgentLoad = AgentLoad()
     merge_check: MergeCheck = MergeCheck()
+    last_calls: dict[int, str] = field(default_factory=dict)

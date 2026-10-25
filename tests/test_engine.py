@@ -655,6 +655,47 @@ def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what
     assert app.console().run(["clock-in"], babbage).code == 0 and app.container.get(SessionAgents).top("w1").task_id == task.id, "a worker sent back clocks in again"
 
 
+def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_short_line():
+    from journal.events.rows.proof_short import ProofShort
+    from journal.events.rows.worker_mention import WorkerMention
+    from journal.events.rows.worker_stopped import WorkerStopped
+    from journal.events.rows.worker_unfinished import WorkerUnfinished
+    settings = SettingsValue({})
+    said = lambda event: [n.rendered() for n in Ready().respond(event, settings).nudges]
+    short = ProofShort(environment_id=1, time=1.0, task_id=5, worker_id=3, point=2, shortfall="the tests", dispatcher="s1")
+    assert said(short.reaching("s1")) == ["worker 3 back on point 2"], "a worker sent back is told as one line with ids"
+    assert said(short.reaching("s2")) == [], "to the agent that dispatched it alone"
+    worker = WorkerMention(3, "Lady Lovelace", "s1")
+    ended = lambda times, session, limit=False: WorkerUnfinished(environment_id=1, time=1.0, worker=worker, ref="workers:3", outcome="worker 3, ended", times=times, has_session=session, is_run_limit=limit).reaching("s1")
+    assert said(ended(1, True)) == [], "a run that ends without clocking out is not told the first time: the journal asks the worker itself"
+    assert said(ended(2, True)) == ["worker 3 ended without clocking out"], "but the second time"
+    assert said(ended(1, False)) == ["worker 3 ended without clocking out"], "or at once when there is no session to ask in"
+    assert said(ended(2, True, True)) == ["worker 3 ended without clocking out: run limit"], "and it says when the run limit was the cause"
+    stopped = lambda limit: WorkerStopped(environment_id=1, time=1.0, worker=worker, ref="workers:3", outcome="worker 3, stopped", is_run_limit=limit).reaching("s1")
+    assert said(stopped(False)) == ["worker 3 stopped before it reported"] and said(stopped(True)) == ["worker 3 stopped before it reported: run limit"]
+
+
+def test_a_run_that_ended_without_clocking_out_is_asked_by_the_journal_itself_to_clock_out_once():
+    from journal.events.rows.worker_mention import WorkerMention
+    from journal.events.rows.worker_unfinished import WorkerUnfinished
+    from journal.features.workers.listeners.unfinished_clock_out import CLOCK_OUT_REQUEST, UnfinishedClockOut
+
+    class Actions:
+        def __init__(self) -> None:
+            self.sent = []
+
+        def send(self, n, brief, dispatcher, actor):
+            self.sent.append((n, brief, actor))
+
+    actions = Actions()
+    ask = UnfinishedClockOut(actions)
+    ended = lambda times, session: WorkerUnfinished(environment_id=1, time=1.0, worker=WorkerMention(3, "Lady Lovelace", "s1"), ref="workers:3", outcome="o", times=times, has_session=session)
+    ask.handle(ended(1, True))
+    ask.handle(ended(2, True))
+    ask.handle(ended(1, False))
+    assert actions.sent == [(3, CLOCK_OUT_REQUEST, Actor.system())] and "journal clock-out" in CLOCK_OUT_REQUEST, "the journal asks the worker to clock out, in its own words, the first time only, and only where there is a session to ask in"
+
+
 def test_a_worker_keeps_its_own_to_do_list_inside_its_task(app: App):
     from journal.http.controllers.tasks import TaskController
     from journal.models.support.ref import Ref

@@ -9,3 +9,4 @@ class WorkerStopped(RowResolved):
     """A worker was stopped before it reported."""
 
     worker: WorkerMention
+    is_run_limit: bool = False

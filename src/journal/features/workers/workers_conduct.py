@@ -10,6 +10,7 @@ from journal.engine.support.transition import Transition
 from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
+from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
@@ -43,6 +44,8 @@ INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 TEST_LINE_NAME = 60
 # the waiting items a load line names before it counts the rest
 LOAD_NAMED = 4
+# what a line says of a worker whose run hit the time limit
+RUN_LIMIT_CAUSE = ": run limit"
 
 
 class WorkersConduct(Conduct):
@@ -57,7 +60,7 @@ class WorkersConduct(Conduct):
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
-        silent = [WorkersNudges.SILENT_WORKER.create(n=w.id, name=w.name, minutes=w.silence.minutes()) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
+        silent = [quiet_line(w, workers.last_calls.get(w.id, ""), event.time) for w in workers.dispatched_workers if w.dispatcher == event.session and w.is_silent(event.time)]
         return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *silent)
 
     def on_worker_dispatched(self, event: WorkerDispatched, settings: Settings) -> Transition:
@@ -66,7 +69,9 @@ class WorkersConduct(Conduct):
     def on_worker_unfinished(self, event: WorkerUnfinished, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(WorkersNudges.RUN_UNFINISHED.create(n=event.worker.id, name=event.worker.name))
+        if event.times < 2 and event.has_session:
+            return self.none()
+        return self.none(WorkersNudges.RUN_UNFINISHED.create(n=event.worker.id, cause=RUN_LIMIT_CAUSE if event.is_run_limit else ""))
 
     def on_worker_delivered(self, event: WorkerDelivered, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
@@ -96,13 +101,24 @@ class WorkersConduct(Conduct):
     def on_worker_stopped(self, event: WorkerStopped, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):
             return self.none()
-        return self.none(WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, name=event.worker.name), *free_place(event.worker, event.data, settings))
+        return self.none(WorkersNudges.WORKER_STOPPED_UNREPORTED.create(n=event.worker.id, cause=RUN_LIMIT_CAUSE if event.is_run_limit else ""), *free_place(event.worker, event.data, settings))
+
+    def on_proof_short(self, event: ProofShort, settings: Settings) -> Transition:
+        if not event.dispatcher or event.dispatcher != event.session:
+            return self.none()
+        return self.none(WorkersNudges.SENT_BACK.create(n=event.worker_id, point=event.point))
 
     def on_worker_merged(self, event: WorkerMerged, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
 
     def on_worker_retired(self, event: WorkerRetired, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
+
+
+def quiet_line(worker, last: str, time: float) -> Nudge:
+    if worker.silence.is_split_due(time):
+        return WorkersNudges.SPLIT_ADVICE.create(n=worker.id, minutes=2 * worker.silence.minutes())
+    return WorkersNudges.SILENT_WORKER.create(n=worker.id, minutes=worker.silence.minutes(), last=last)
 
 
 def plan_lines(data: FeatureData, now: float, settings: Settings) -> tuple[Nudge, ...]:

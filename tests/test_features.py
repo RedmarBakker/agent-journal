@@ -11011,6 +11011,27 @@ def test_retiring_a_worker_the_dispatcher_waits_on_stops_it_and_ends_the_wait(ap
     assert sessions.top("s1").name != "awaiting", "and ends with the last"
 
 
+def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
+    from journal.repositories.workers import Workers
+    keystrokes = []
+    catch_typed(app, monkeypatch, keystrokes)
+    drive_the_clock(app, monkeypatch)
+    hook(app, "SessionStart")
+    console, workers = app.console(), app.container.get(Workers)
+    console.run(["environment", "overview"], AGENT)
+    dispatched(console, ["Mr. Harrison", "the clock", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    quiet = lambda: [line for line in keystrokes if "quiet" in line]
+    tick_after(app, 21 * 60)
+    app.runtime().deferred.drain()
+    assert len(quiet()) == 1 and "worker 1 quiet 20 min; last: " in quiet()[0], "the first line names the worker's last tool call"
+    tick_after(app, 41 * 60)
+    app.runtime().deferred.drain()
+    assert len(quiet()) == 2 and "worker 1 quiet 40 min; split its job?" in quiet()[1] and workers.find(1).silence.is_split_advised, "at forty minutes it is told once more, with the advice to split"
+    tick_after(app, 60 * 60)
+    app.runtime().deferred.drain()
+    assert len(quiet()) == 2, "and no more"
+
+
 def test_a_worker_quiet_for_twenty_minutes_is_named_to_its_dispatcher_once(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []
@@ -13503,9 +13524,9 @@ def test_every_nudge_to_an_orchestrator_follows_the_short_line_rules_of_report_1
     assert not named, f"a worker is named by its number alone, never also by its name: {named}"
     titled = [key for key, nudge in nudges.items() if "{{title}}" in nudge.title + nudge.brief and not key.startswith("triggers.")]
     assert not titled, f"a task, a plan or a check is given by its number, its title dropped; a trigger's words, which are the user's own, are the one exception: {titled}"
-    short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.dispatch_while_busy": 70, "workers.worker_place_free": 70, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
+    short = {"workers.work_ready": 40, "workers.check_reminder": 40, "workers.worker_quiet": 80, "workers.worker_quiet_split": 50, "workers.worker_sent_back": 40, "workers.run_unfinished": 50, "workers.worker_reported": 30, "workers.dispatch_while_busy": 70, "workers.worker_place_free": 70, "workers.worker_test_run_failed": 45, "workers.worker_keeps_failing": 50, "workers.now_orchestrating": 75,
              "shell.reader_report_to_read": 60, "tasks.wait_over": 70, "plans.the_user_approved_the_plan": 40}
-    values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, outcome="output 19248 passed")
+    values = dict(n=1113, task=3128, count=12, tasks="3175, 3178, 3189", minutes=20, reports=93, failed=3, runs=2, last="Read src/a.py", point=2, cause="", outcome="output 19248 passed")
     for key, limit in short.items():
         line = nudges[key].create(**values).rendered()
         assert len(line) <= limit and "Lady" not in line and "{{" not in line, f"{key} is said short: {line!r}"

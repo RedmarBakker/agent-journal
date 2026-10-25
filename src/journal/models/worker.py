@@ -29,6 +29,10 @@ from journal.support.rejection import Rejection
 from journal.support.timeout import Timeout
 
 SILENCE = Timeout.minutes(20)
+ENDED_UNFINISHED = "ended without clocking out"
+# how a run that went past the time limit says it was stopped
+RUN_LIMIT_END = "stopped after"
+RUN_LIMIT_REASON = "run limit"
 
 
 @dataclass(frozen=True)
@@ -115,7 +119,8 @@ class Worker(Helper):
         return self.contacted(time).moved(move, time).with_(review_pending=False, review_queued_at=0.0)
 
     def unfinished(self, time: float, text: str) -> "Worker":
-        return self.moved("ended without clocking out", time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out"))
+        times = sum(1 for word, _ in self.moves.steps if word == ENDED_UNFINISHED) + 1
+        return self.moved(ENDED_UNFINISHED, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out", times=times, has_session=bool(self.resume), is_run_limit=text.startswith(RUN_LIMIT_END)))
 
     def merged(self, task: int, time: float) -> "Worker":
         return self.moved("merged", time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
@@ -140,13 +145,13 @@ class Worker(Helper):
         return self.with_(silence=self.silence.started(time))
 
     def is_silent(self, time: float) -> bool:
-        return self.is_running() and self.silence.is_elapsed(time)
+        return self.is_running() and (self.silence.is_elapsed(time) or self.silence.is_split_due(time))
 
     def notified(self, text: str, time: float, sender: str) -> "Worker":
         return self.contacted(time).with_event(WorkerNotified(environment_id=self.environment_id, time=time, worker=self.mention(), text=text, sender=sender))
 
     def stopped(self, time: float, reason: str) -> "Worker":
-        return self.moved("stopped", time).with_(state=WorkerState.STOPPED, adopted=True, retire_reason=reason, token_hash="").with_event(WorkerStopped(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, stopped before it reported"))
+        return self.moved("stopped", time).with_(state=WorkerState.STOPPED, adopted=True, retire_reason=reason, token_hash="").with_event(WorkerStopped(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, stopped before it reported", is_run_limit=reason == RUN_LIMIT_REASON))
 
     def finished(self, time: float, reason: str) -> "Worker":
         retired = self.moved("retired", time).with_(adopted=True, retire_reason=reason).with_event(WorkerRetired(environment_id=self.environment_id, time=time, worker=self.mention()))

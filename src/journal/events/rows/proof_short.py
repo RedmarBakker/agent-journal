@@ -11,3 +11,4 @@ class ProofShort(RowEvent):
     worker_id: int
     point: int
     shortfall: str
+    dispatcher: str = ""

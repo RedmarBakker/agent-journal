@@ -9,3 +9,6 @@ class WorkerUnfinished(RowResolved):
     """A worker's run ended without its clocking out: never clocked in, died or ran out of time; its task stays assigned to it."""
 
     worker: WorkerMention
+    times: int = 1
+    has_session: bool = False
+    is_run_limit: bool = False

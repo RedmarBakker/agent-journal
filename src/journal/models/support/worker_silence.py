@@ -9,10 +9,11 @@ class WorkerSilence:
 
     timeout: Timeout
     is_reported: bool = False
+    is_split_advised: bool = False
 
     @classmethod
     def parsed(cls, data: dict) -> "WorkerSilence":
-        return cls(Timeout.parsed(data["timeout"]), bool(data["is_reported"]))
+        return cls(Timeout.parsed(data["timeout"]), bool(data["is_reported"]), bool(data.get("is_split_advised", False)))
 
     def started(self, time: float) -> "WorkerSilence":
         return WorkerSilence(self.timeout.started(time))
@@ -22,6 +23,12 @@ class WorkerSilence:
 
     def is_elapsed(self, time: float) -> bool:
         return not self.is_reported and self.timeout.is_elapsed(time)
+
+    def is_split_due(self, time: float) -> bool:
+        return self.is_reported and not self.is_split_advised and time - self.timeout.start >= 2 * self.timeout.amount
+
+    def split_advised(self) -> "WorkerSilence":
+        return replace(self, is_split_advised=True)
 
     def minutes(self) -> int:
         return int(self.timeout.amount // 60)
