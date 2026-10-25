@@ -8,6 +8,7 @@ class WorkersNudges:
     FITNESS_LOW = Nudge("workers", "work_mode_fitness_is_low", "your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}", "bring the measures named back into their range", repeat=Timeout.tool_uses(50))
     SOLO_ALIGNMENT = Nudge("workers", "solo_researches_itself", "you are solo: you sent more subagents than you read and searched yourself", "read and research this yourself; a subagent is for the rare job too wide to do in your own turns", repeat=Timeout.tool_uses(50))
     READINESS = Nudge("workers", "clock_in_first", "your writes wait until you clock in", "journal task show <n>, then journal clock-in", repeat=Timeout.seconds(0))
+    TEST_BUDGET_REFUSAL = Nudge("workers", "tests_go_through_a_turn", "you do not run {{command}} yourself: tests here run within a budget", "run them with journal tests turn", repeat=Timeout.seconds(0))
     TEST_HANDOVER = Nudge("workers", "tests_are_handed_over", "tests are handed over here, so you do not run {{command}}", "name the test that proves the point and the command that runs it in your proof; the agent that merges runs them", repeat=Timeout.seconds(0))
     OUTPUT_UNFINISHED = Nudge("workers", "own_output_running", "your output {{n}} still runs, and your run ends when you stop", "wait for it, then stop again", repeat=Timeout.seconds(0))
     OUTPUT_END = Nudge("workers", "own_output_ended", "output {{n}} ended with code {{status}}", "read it with journal output read {{n}} --summary", repeat=Timeout.seconds(0))

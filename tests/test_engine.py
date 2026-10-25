@@ -2124,6 +2124,36 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
     assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"
 
 
+def test_the_test_budget_choice_refuses_a_workers_direct_test_run_with_the_line_to_run_it_through_a_turn(app: App):
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.agent_token import AgentToken
+    hook(app, "SessionStart")
+    scope, workers, tasks = app.container.get(Scope), app.container.get(Workers), app.container.get(Tasks)
+    with scope.environment(1):
+        worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
+        tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
+        workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+
+    def worker_runs(command: str):
+        data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
+        request = HttpRequest(f"http://127.0.0.1:{app.server().port}/hooks/claude", data=data, method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main", "X-Journal-Actor": f"worker:{worker.id}", "X-Journal-Actor-Token": "tok"})
+        try:
+            with urlopen(request, timeout=5) as reply:
+                return reply.status, json.loads(reply.read())
+        except HTTPError as error:
+            return error.code, json.loads(error.read())
+    with scope.environment(1):
+        app.container.get(SettingRows).set("workers.testing", "Test budget", Actor.user(1))
+    for command in ("pytest tests/test_x.py", "npx vitest run"):
+        status, body = worker_runs(command)
+        assert status == 409 and "journal tests turn" in body["error"], f"{command} is refused with the line that names the turn"
+    assert worker_runs("git status")[0] == 200, "a command that runs no test passes"
+
+
 def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_held_by_the_users_unread_messages(app: App):
     from journal.models.agent_role import AgentRole
     from journal.models.author import Author

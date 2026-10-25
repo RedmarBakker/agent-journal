@@ -13,7 +13,7 @@ from journal.models.worker_state import WorkerState
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_part import WorkersPart
-from journal.features.workers.workers_options import MERGER_TESTING, WorkersOptions
+from journal.features.workers.workers_options import MERGER_TESTING, TEST_BUDGET, WorkersOptions
 from journal.features.shell.support.activity_label import TESTING, ActivityLabel
 
 
@@ -27,6 +27,8 @@ class ClockConduct(Conduct):
         tests = [part.text for part in event.call.parts if ActivityLabel.build(part.text) == TESTING]
         if rows and tests and settings.value(WorkersOptions.TESTING) == MERGER_TESTING:
             return self.refuse(WorkersNudges.TEST_HANDOVER.create(command=tests[0]))
+        if rows and tests and settings.value(WorkersOptions.TESTING) == TEST_BUDGET:
+            return self.refuse(WorkersNudges.TEST_BUDGET_REFUSAL.create(command=tests[0]))
         return self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:

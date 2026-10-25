@@ -197,3 +197,19 @@ describe("the Developer tab", () => {
         expect(inTab(sections, "developer")[0].groups.map((g) => g.key)).toEqual(["faults"]);
     });
 });
+
+test("the Test budget numbers show with the Workers settings, each with its default", () => {
+    const options = [
+        {name: "testing", title: "How workers test", abstract: "x", kind: "choice", default: "Hand the tests over", choices: ["Hand the tests over", "Run the tests it wrote", "Test budget"]},
+        {name: "test_runs", title: "Test runs at once", abstract: "x", kind: "number", default: 3},
+        {name: "test_waiting", title: "Turns that may wait", abstract: "x", kind: "text", default: ""},
+        {name: "tests_per_run", title: "Test ids in one run", abstract: "x", kind: "number", default: 20},
+        {name: "test_run_minutes", title: "Minutes a test run may take", abstract: "x", kind: "number", default: 10},
+        {name: "failing_runs", title: "Failing runs in a row", abstract: "x", kind: "number", default: 3},
+    ];
+    const spec = {features: [{name: "workers", title: "Workers", help: "x", default: true, fixed: false, options}], groups: [{key: "workers", title: "Workers", line: "x", section: "Project", tab: "system", lead: "workers"}]};
+    const rows = groupRows(catalog(spec, {}).flatMap((section) => section.groups)[0]);
+    const find = (label) => rows.find((row) => row.label === label);
+    expect(find("How workers test").options.map((option) => option.key)).toContain("Test budget");
+    expect(["Test runs at once", "Turns that may wait", "Test ids in one run", "Minutes a test run may take", "Failing runs in a row"].map((label) => find(label).value)).toEqual([3, "", 20, 10, 3]);
+});

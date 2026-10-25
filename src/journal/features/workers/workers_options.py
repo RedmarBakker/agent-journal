@@ -4,6 +4,7 @@ from journal.support.option_scope import OptionScope
 
 MERGER_TESTING = "Hand the tests over"
 WORKER_TESTING = "Run the tests it wrote"
+TEST_BUDGET = "Test budget"
 
 
 class WorkersOptions:
@@ -14,7 +15,12 @@ class WorkersOptions:
     FITNESS_THRESHOLD = Option("workers.fitness_threshold", "Lowest fitness before the measures off the ideal are listed", "The fitness score, from 0 to 100, against the ideal agent of its work mode, below which the agent sees its score and the measures furthest off the ideal; 0 turns this off", 70, unit="points")
     SOLO_DISPATCH_LIMIT = Option("workers.solo_dispatches", "Solo: remind after subagents over its own research", "Subagent dispatches beyond the solo agent's own reads and searches, among its last 50 tool uses, after which it is reminded to research itself; 0 never reminds", 3, unit="dispatches")
     CHECK_REMINDER_USES = Option("workers.check_reminder_uses", "Name work to check every", "Tool uses between the reminders, while the agent works on, of a worker's work that waits to be checked and merged", 25, unit="tool uses")
-    TESTING = Option("workers.testing", "How workers test", "Hand the tests over: a worker never runs a test or the suite, each proof names the test and the command that runs it, and the agent that merges runs them. Run the tests it wrote: a worker runs the tests it wrote, by name, never the full suite", MERGER_TESTING, kind="choice", choices=(MERGER_TESTING, WORKER_TESTING))
+    TESTING = Option("workers.testing", "How workers test", "Hand the tests over: a worker never runs a test or the suite, each proof names the test and the command that runs it, and the agent that merges runs them. Run the tests it wrote: a worker runs the tests it wrote, by name, never the full suite. Test budget: a worker tests only through journal tests turn, which gives its runs a turn within the budget below; a worker whose program has hooks has any other test run refused with that line, and a worker whose program has none is given the line alone", MERGER_TESTING, kind="choice", choices=(MERGER_TESTING, WORKER_TESTING, TEST_BUDGET))
+    TEST_RUNS = Option("workers.test_runs", "Test runs at once", "With the test budget, the most test runs going at a time across all workers; a worker's run waits for its turn", 3, unit="runs")
+    TEST_WAITING = Option("workers.test_waiting", "Turns that may wait", "With the test budget, the most turns that may wait for a free run; blank is no limit", "", kind="text", unit="turns")
+    TESTS_PER_RUN = Option("workers.tests_per_run", "Test ids in one run", "With the test budget, the most test ids one run may name", 20, unit="ids")
+    TEST_RUN_MINUTES = Option("workers.test_run_minutes", "Minutes a test run may take", "With the test budget, the minutes after which a run is stopped", 10, unit="min")
+    FAILING_RUNS = Option("workers.failing_runs", "Failing runs in a row", "With the test budget, the failing runs in a row of one worker after which it is told to stop and report", 3, unit="runs")
     WORKER_LIMIT = Option("workers.most_out", "Workers out at once", "The most workers out at a time; a dispatch past it is refused until one reports. 0 is no limit", 3, unit="workers")
     SUBAGENT_LIMIT = Option("workers.most_subagents", "Subagents running at once", "The most subagents running at a time; one more is held until one finishes. 0 is no limit", 5, unit="subagents")
     PROFILE_LIMIT = Option("workers.idle_kept", "Workers kept for reuse per profile", "The most workers of one profile kept out or idle for reuse; past it a dispatch of that profile is refused while one of them is idle, so the job goes to that one. Reviewers always start fresh. 0 is no limit", 8, unit="workers")
