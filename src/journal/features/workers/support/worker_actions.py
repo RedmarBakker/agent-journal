@@ -104,7 +104,7 @@ class WorkerActions:
         return task
 
     def unrun(self, n: int, point: int) -> str:
-        worker = self.local(n)
+        worker = self.delivered(n, "proofs to check")
         return self.failures.unrun(worker, self.open_proof(self.worker_task(worker), point).text)
 
     def open_proof(self, task: Task, point: int) -> Proof:
