@@ -4766,6 +4766,18 @@ def test_words_start_a_sequence_from_a_prompt_or_from_the_users_message(app: App
     said = " ".join(transmitted) + app.container.get(SupervisorLink).pending_lines(1)
     assert active.current("s1", 1).title == "Writing an update" and "See what the update covers" in said, "the user's message starts the update sequence, and the step goes to the agent: typed once it is quiet, or on its next tool use while its held stop keeps it at work"
 
+def test_a_sequence_starts_on_its_phrase_as_the_request_and_not_inside_a_longer_message():
+    from journal.models.trigger import Trigger
+    from journal.models.trigger_action import TriggerAction
+    from journal.features.sequences.shipped import UPDATE_PHRASES
+
+    update = Trigger(phrases=UPDATE_PHRASES, action=TriggerAction.SEQUENCE, text="Writing an update")
+    assert update.matches("give me an update") and update.matches("could you give me an update?"), "the request itself starts it"
+    assert not update.matches("update the plan and tell me") and not update.matches("please update me"), "the bare word update starts nothing"
+    assert not update.matches("relay the plan to the other agent so it can build it and send me a tldr when it is done with the first phase"), "a phrase inside a long message about something else starts nothing"
+    assert Trigger(phrases=("release",), action=TriggerAction.NUDGE).matches("when we release the build, check the notes first and then tag it"), "a nudge still matches its words anywhere"
+
+
 def test_a_subagent_dispatched_long_ago_in_the_session_stays_in_the_dropdown(app: App):
     hook(app, "SessionStart")
     hook(app, "PreToolUse", tool_name="Agent", tool_input={"description": "Herr Gropius draws", "model": "opus", "subagent_type": "journal-debugger", "prompt": "draw"})
