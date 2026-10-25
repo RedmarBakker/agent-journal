@@ -167,7 +167,7 @@ class WorkerRunner:
             self.close(current, outcome, actor)
             return
         current = current.with_(touched_paths=self.branch.touched(current))
-        self.reported(current, outcome, self.branch.summary(current), actor)
+        self.reported(current, outcome, ". ".join(part for part in (self.branch.summary(current), self.reports.queue_line(current)) if part), actor)
 
     def cost_recorded(self, worker: Worker, cost: float, actor: Actor) -> Worker:
         if not cost:

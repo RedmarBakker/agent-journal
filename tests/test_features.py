@@ -6299,7 +6299,7 @@ def test_a_cancelled_task_is_finished_and_never_counted_open(app: App):
         assert app.container.get(Tasks).unfinished_count() == 1, "only the task still open is counted"
 
 
-def test_a_worker_from_before_tokens_that_ends_has_its_commits_taken_in_and_its_leftovers_named(app: App):
+def test_a_worker_that_ends_without_clocking_out_has_its_commits_named_unchecked_never_taken_in_and_its_leftovers_named(app: App):
     import subprocess
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.support.actor import Actor as A
@@ -6320,9 +6320,9 @@ def test_a_worker_from_before_tokens_that_ends_has_its_commits_taken_in_and_its_
         worker = app.container.get(Workers).find(1)
         tokenless_run(app.container.get(WorkerRunner), worker, ["sh", "-c", "echo parsed > parser.txt && git add parser.txt && git commit -qm 'the parser' && echo half > notes.txt && echo the parser is written"], A.agent("s1"))
         report = next(m.text for m in app.container.get(Messages).scoped() if "Lady Lovelace reports" in m.text)
-    assert "the parser is written" in report and "its 1 commits were taken into this branch" in report and "the parser" in report.split("taken into this branch:")[1], "its commit is merged and named"
+    assert "the parser is written" in report and "its 1 commits wait on its branch, unchecked" in report and "the parser" in report.split("unchecked:")[1], "its commit is named, waiting to be checked"
     assert "(files: parser.txt)" in report, "the files its commits wrote are named in its report, as its own feed of edits"
-    assert (root / "parser.txt").exists(), "the worker's file is in the project now"
+    assert not (root / "parser.txt").exists(), "nothing unchecked is taken in by the end of its run (law L10)"
     assert "it left 1 files uncommitted in its worktree" in report and "notes.txt" in report, "what it never committed is named, not lost"
 
 def test_a_secret_row_holds_its_fields_and_its_values_live_in_a_private_file(app: App, tmp_path, monkeypatch):
@@ -12603,6 +12603,49 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
 
 
+def test_a_queued_worker_with_a_point_not_done_reports_at_once_and_its_finished_work_is_never_released_unasked(app: App, monkeypatch):
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    for title in ("the second job", "the third job"):
+        console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
+    committed(worktree, "notes1.md", "note 1\n")
+    assert "your next task, 2:" in proved_and_out(app, caller, "notes1.md:1").text
+    console.run(["proof", "1", "--not-done", "the readme has no second section to write"], caller)
+    out = console.run(["clock-out", "task 2 could not be done"], caller)
+    assert out.code == 0 and "clocked out of task 2" in out.text, "a point not done stops the queue: it reports at once instead of going on"
+    with app.container.get(Scope).environment(MAIN):
+        tasks = app.container.get(Tasks)
+        assert tasks.finished_task_ids(Ref("workers", 1)) == (1,) and [task.id for task in tasks.queue(Ref("workers", 1))] == [3]
+    refused = console.run(["worker", "release", "1"], AGENT)
+    assert refused.code == 1 and "finished task 1, which wait for the merge" in refused.error and "--drop" in refused.error, "a release never opens finished work again unasked"
+    assert console.run(["worker", "release", "1", "--drop"], AGENT).code == 0
+    with app.container.get(Scope).environment(MAIN):
+        assert [tasks.find(n).state for n in (1, 2, 3)] == ["open", "open", "open"] and not tasks.finished_task_ids(Ref("workers", 1)), "with --drop every task of its queue is open again"
+
+
+def test_a_queued_worker_whose_run_ends_without_a_clock_out_names_every_task_of_its_queue_and_merges_nothing(app: App, monkeypatch):
+    from journal.features.workers.support.worker_runner import WorkerRunner as Runner
+    from journal.repositories.messages import Messages
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    worker, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    for title in ("the second job", "the third job"):
+        console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
+    committed(worktree, "notes1.md", "note 1\n")
+    proved_and_out(app, caller, "notes1.md:1")
+    with app.container.get(Scope).environment(MAIN):
+        runner = app.container.get(Runner)
+        runner.reported(worker_row(app).with_(token_hash=""), "the run ended", runner.branch.summary(worker_row(app)) + ". " + runner.reports.queue_line(worker_row(app)), Actor.system())
+        report = next(m.text for m in app.container.get(Messages).all() if m.data.get("kind") == "report")
+    assert "finished, waiting for the merge: task 1; cut short: task 2; still queued: task 3" in report, report
+    assert "wait on its branch, unchecked" in report and not (app.config.root / "notes1.md").exists(), "nothing unchecked is taken in"
+
+
 def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in_the_list(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
@@ -12778,10 +12821,10 @@ def test_a_merge_refused_on_a_clash_records_for_the_orchestrator_the_files_and_t
     app.console().run(["worker", "check", "1", "1"], AGENT)
     checked = proofs()
     refused = app.console().run(["worker", "merge", "1"], AGENT)
-    line = "worker 1's work was not merged, since rebased onto the branch of"
-    assert refused.code != 0 and refused.error.startswith(line) and "conflict in platform/app.php" in refused.error and 'journal worker send 1 "rebase your branch onto the project\'s branch' in refused.error and refused.error.count("\n") == 1, refused.error
+    line = "worker 1's work was not merged: its branch clashes\nrebased onto the branch of"
+    assert refused.code != 0 and refused.error.startswith(line) and "conflict in platform/app.php" in refused.error and 'journal worker send 1 "rebase your branch onto the project\'s branch' in refused.error and refused.error.count("\n") == 3, refused.error
     cards = [(row["text"], json_module.loads(row["data"])) for row in app.container.get(Connection).all("SELECT text, data FROM messages WHERE text LIKE '%merge of task 1 refused%'")]
-    assert len(cards) == 1 and cards[0][1]["lines"][1] == refused.error.strip() and "platform/app.php" in cards[0][1]["lines"][0], "the line is recorded for the orchestrator as a card in its chat"
+    assert len(cards) == 1 and cards[0][1]["lines"][1] == refused.error.splitlines()[0] and "platform/app.php" in cards[0][1]["lines"][0], "the line is recorded for the orchestrator as a card in its chat"
     assert proofs() == checked and worker_row(app).state == WorkerState.DELIVERED and task_state() != "done", "the worker's proofs and task are kept"
 
 

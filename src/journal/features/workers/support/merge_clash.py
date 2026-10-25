@@ -8,4 +8,4 @@ class MergeClash(Rejection):
 
     def __init__(self, worker: int, clashing: str) -> None:
         self.clashing = clashing
-        super().__init__(f"worker {worker}'s work was not merged, since {clashing}: send it back to rebase with journal worker send {worker} \"{REBASE_JOB}\"; its proofs and its task are as they were")
+        super().__init__(f"worker {worker}'s work was not merged: its branch clashes\n{clashing}\nsend it back to rebase with journal worker send {worker} \"{REBASE_JOB}\"; its proofs and its task are as they were")

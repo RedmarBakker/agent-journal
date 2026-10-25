@@ -33,6 +33,13 @@ class WorkerReports:
         current, time = self.workers.find(worker.row_id), datetime.now(timezone.utc).timestamp()
         self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
+    # where every task of a worker's queue stands when its run ends without a clock-out: finished and waiting, cut short, still queued
+    def queue_line(self, worker: Worker) -> str:
+        holder = Ref.build(worker)
+        parts = (("finished, waiting for the merge", self.tasks.finished_task_ids(holder)), ("cut short", self.tasks.holder_task_ids(holder)), ("still queued", tuple(task.id for task in self.tasks.queue(holder))))
+        standings = [f"{label}: {', '.join(f'task {task_id}' for task_id in task_ids)}" for label, task_ids in parts if task_ids]
+        return "; ".join(standings) if self.tasks.finished_task_ids(holder) or self.tasks.queue(holder) else ""
+
     def posted(self, worker: Worker, text: str, actor: Actor) -> Message:
         message = self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{self.lead(worker)}{text}", data={"kind": Message.REPORT, "worker": worker.name, "worker_id": worker.id, "task": next(iter(self.tasks.holder_task_ids(Ref.build(worker))), 0)}), actor)
         self.links.save(Link(source=Ref.build(worker), target=Ref.build(message), kind=REPORTED), actor)

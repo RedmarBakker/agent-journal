@@ -241,6 +241,12 @@ class WorkerActions:
         return self.tasks.find(self.tasks.holder_task_ids(Ref.build(worker))[0])
 
     def release(self, n: int, actor: Actor) -> Worker:
+        finished = self.tasks.finished_task_ids(Ref.build(self.local(n)))
+        if finished:
+            raise Rejection(f"worker {n} finished {', '.join(f'task {task_id}' for task_id in finished)}, which wait for the merge with the rest of its queue: check and merge them, or release it with --drop, which opens them again and leaves their commits on its branch {self.branch.name(self.local(n))}")
+        return self.release_dropping(n, actor)
+
+    def release_dropping(self, n: int, actor: Actor) -> Worker:
         with self.runner.lock(n):
             worker = self.local(n)
             if worker.is_running():

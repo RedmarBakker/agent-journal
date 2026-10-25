@@ -88,7 +88,9 @@ class WorkerCommand(Command):
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
         dispatch.add_argument("--report", nargs="+", default=["each"], help="when it reports on a queue: each (after every task, the default), queue (once its queue is empty) or every <n> (after every n tasks)")
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
-        self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task").add_argument("n", type=int)
+        release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
+        release.add_argument("n", type=int)
+        release.add_argument("--drop", action="store_true", help="also open again the tasks of its queue it finished and that wait for the merge; their commits stay on its branch")
         self.verb(verbs, "merge", "take in a clocked-out worker's checked work, which closes its task").add_argument("n", type=int)
         check = self.verb(verbs, "check", "check one proof of a clocked-out worker, or send it back short")
         check.add_argument("n", type=int)
@@ -302,7 +304,7 @@ class WorkerCommand(Command):
         return 0
 
     def release(self, args: Namespace, caller: Caller) -> int:
-        worker = self.actions.release(args.n, caller.actor)
+        worker = self.actions.release_dropping(args.n, caller.actor) if args.drop else self.actions.release(args.n, caller.actor)
         print(f"worker {worker.id} {worker.name} released; its task is free again")
         return 0
 

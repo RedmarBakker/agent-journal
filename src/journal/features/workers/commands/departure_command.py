@@ -47,7 +47,7 @@ class DepartureCommand(Command):
             raise Rejection(f"your branch could not be moved up to the project's branch: {clashing}; {REBASE_STEPS}, then clock out again")
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
-        if not worker.pool_request and not worker.report_choice.is_due(len(self.tasks.finished_task_ids(holder)), len(waiting)):
+        if not worker.pool_request and not self.is_unfinished(task) and not worker.report_choice.is_due(len(self.tasks.finished_task_ids(holder)), len(waiting)):
             return self.moved_on(task, waiting[0], holder, caller)
         if worker.pool_request:
             self.push_branch(worker)
@@ -70,6 +70,11 @@ class DepartureCommand(Command):
         if outcome.returncode != 0:
             raise Rejection(f"your branch could not be pushed to origin for the agent that sent you: {outcome.stderr.strip()}; fix it and clock out again")
         self.moves.ended(worker)
+
+    # a point proved not done stops the queue: the worker reports at once instead of going on
+    def is_unfinished(self, task: Task) -> bool:
+        latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}
+        return any(proof.state == ProofState.UNFINISHED for proof in latest.values())
 
     def unproved(self, task: Task) -> list[int]:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}

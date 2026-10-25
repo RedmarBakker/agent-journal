@@ -158,7 +158,7 @@ class WorkerBranch:
         pending = self.pending(worker)
         blocked = self.blocking(pending, worker)
         if blocked:
-            raise Rejection(f"worker {worker.id}'s work was not merged, since {blocked}; its proofs and its task are as they were")
+            raise Rejection(f"worker {worker.id}'s work was not merged: something in the project stands in its way\n{blocked}\nits proofs and its task are as they were")
         clashing = self.clash(pending, worker)
         if clashing:
             raise MergeClash(worker.id, clashing)
@@ -312,11 +312,12 @@ class WorkerBranch:
             shutil.rmtree(folder)
         self.pruned(self.name(worker), [self.config.root / name for name in names] + [self.checkout(worker)])
 
+    # what a worker that ended without clocking out left: its commits, waiting on its branch unchecked, never taken in by its end
     def summary(self, worker: Worker) -> str:
         if not worker.worktree:
             return ""
-        parts = [part for part in (self.merge(worker), self.leftover(worker)) if part]
-        return ". ".join(parts)
+        waiting = "; ".join(f"{self.heading(repository, worker)} wait on its branch, unchecked: {self.listing(repository, worker)}" for repository in self.pending(worker))
+        return ". ".join(part for part in (waiting, self.leftover(worker)) if part)
 
     def leftover(self, worker: Worker) -> str:
         files = self.remaining(worker)
