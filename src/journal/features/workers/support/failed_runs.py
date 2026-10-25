@@ -8,7 +8,6 @@ from journal.models.worker import Worker
 from journal.repositories.command_outputs import CommandOutputs
 
 LIMIT = 40
-CLOCKED_OUT = "clocked out"
 # a test a proof names: a test file, with a test of it after ::, or the words after -k
 TEST_NAME = re.compile(r"[\w./-]*(?:test_\w+|\w+_test|\w+_run)\.py(?:::\w+)?|(?<=-k )[\w]+")
 
@@ -24,7 +23,7 @@ class FailedRuns:
         return "\n".join([reason, *lines]) if lines else reason
 
     def picked(self, worker: Worker) -> list[str]:
-        clocked_out = max((time for word, time in worker.moves.steps if word == CLOCKED_OUT), default=0.0)
+        clocked_out = worker.clocked_out_at()
         for output in self.outputs.ran_in(str(self.branch.folder(worker))):
             reader = self.readers.reading(output.command)
             if output.creation_time.timestamp() < clocked_out:
@@ -34,7 +33,7 @@ class FailedRuns:
         return []
 
     def unrun(self, worker: Worker, proof: str) -> str:
-        clocked_out = max((time for word, time in worker.moves.steps if word == CLOCKED_OUT), default=0.0)
+        clocked_out = worker.clocked_out_at()
         commands = [output.command for output in self.outputs.ran_in(str(self.branch.folder(worker))) if output.creation_time.timestamp() >= clocked_out]
         missing = next((test for test in TEST_NAME.findall(proof) if not any(test.split("::")[0] in command for command in commands)), "")
         return f"no run of {missing} is recorded since worker {worker.id} clocked out: run it before you trust the point" if missing else ""

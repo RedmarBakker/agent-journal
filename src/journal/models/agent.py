@@ -57,7 +57,8 @@ class Agent(Scoped):
     late_worker_uses: tuple[int, ...] = ()
     late_task_uses: tuple[int, ...] = ()
     is_proof_read: bool = False
-    is_test_run: bool = False
+    test_run_at: float = 0.0
+    test_run_folder: str = ""
     mode: str = ""
     mode_started_use: int = 0
     inbox_position: int = 0
@@ -123,15 +124,19 @@ class Agent(Scoped):
     def in_mode(self, mode: str) -> "Agent":
         return self if self.mode == mode else self.with_(mode=mode, mode_started_use=self.tool_uses)
 
-    def worker_merged(self) -> "Agent":
-        prepared = (*self.prepared_merge_uses, self.tool_uses) if self.is_proof_read and self.is_test_run else self.prepared_merge_uses
-        return self.with_(merge_uses=self.windowed((*self.merge_uses, self.tool_uses)), prepared_merge_uses=self.windowed(prepared), is_proof_read=False, is_test_run=False)
+    def worker_merged(self, place: str, clocked_out_at: float) -> "Agent":
+        tested = bool(self.test_run_folder) and self.test_run_folder == place and self.test_run_at >= clocked_out_at
+        prepared = (*self.prepared_merge_uses, self.tool_uses) if self.is_proof_read and tested else self.prepared_merge_uses
+        return self.unchecked_merge().with_(prepared_merge_uses=self.windowed(prepared))
+
+    def unchecked_merge(self) -> "Agent":
+        return self.with_(merge_uses=self.windowed((*self.merge_uses, self.tool_uses)), is_proof_read=False, test_run_at=0.0, test_run_folder="")
 
     def proof_read(self) -> "Agent":
         return self.with_(is_proof_read=True)
 
-    def tests_run(self) -> "Agent":
-        return self.with_(is_test_run=True)
+    def tests_run(self, folder: str, time: float) -> "Agent":
+        return self.with_(test_run_at=time, test_run_folder=folder)
 
     def worker_reused(self) -> "Agent":
         return self.with_(reuse_uses=self.windowed((*self.reuse_uses, self.tool_uses)))

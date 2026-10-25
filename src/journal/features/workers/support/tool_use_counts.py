@@ -13,7 +13,7 @@ SEND_COMMANDS = ("journal worker send",)
 DISPATCH_COMMANDS = ("journal worker dispatch",)
 MERGE_COMMANDS = ("journal worker merge",)
 PROOF_COMMANDS = ("journal task show",)
-TEST_COMMANDS = ("journal suite", "pytest", "python3 -m pytest", "npm test", "npx vitest", "go test", "phpunit", "cargo test")
+TEST_COMMANDS = ("journal suite", "scripts/suite.py", "pytest", "python3 -m pytest", "npm test", "npx vitest", "go test", "phpunit", "cargo test")
 DONE_WHEN = re.compile(r"done[- ]when", re.IGNORECASE)
 NAMED_FILES = re.compile(r"[\w-]+/[\w./-]+|\b[\w-]+\.(?:py|js|ts|vue|md|json|sh|php|go|css|html)\b|--changes")
 RESEARCH_WORKS = ("reading", "searching")
@@ -76,10 +76,6 @@ class ToolUseCounts:
     @staticmethod
     def is_proof_read(call: RecordedCall) -> bool:
         return call.command.startswith(PROOF_COMMANDS)
-
-    @staticmethod
-    def is_test_run(call: RecordedCall) -> bool:
-        return call.command.startswith(TEST_COMMANDS)
 
     @staticmethod
     def is_subagent_dispatch(call: RecordedCall) -> bool:

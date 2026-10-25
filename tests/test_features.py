@@ -1967,12 +1967,47 @@ def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_an
     assert fitness()["mode"] == "orchestrator" and fitness()["is_measured"], "the fiftieth brings the score"
     counted = ToolUseCounts.counted(app.container.get(Agents).current())
     assert counted.mode_uses == 50 and counted.file_edits == 0, "and it counts only the uses made since the switch, none of the builder's edits"
-    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal task show 1"})
-    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal suite tests/test_x.py"})
-    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker merge 1"})
-    said("PreToolUse", tool_name="Bash", tool_input={"command": "journal worker merge 2"})
-    counted = ToolUseCounts.counted(app.container.get(Agents).current())
-    assert (counted.merges, counted.prepared_merges) == (2, 1), "a merge counts as prepared only when a proof was read and a test run before it"
+
+
+def test_a_merge_counts_as_checked_after_a_proof_read_and_a_test_run_in_the_workers_worktree_made_after_its_clock_out(app: App, monkeypatch):
+    import subprocess
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.support.worker_branch import WorkerBranch
+    from journal.repositories.agents import Agents
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    console = app.console()
+    hook(app, "SessionStart")
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
+    for title in ("the parser", "the lexer"):
+        console.run(["task", "create", title, "--brief", "b"], AGENT)
+    for name, task in (("Lady Lovelace", "1"), ("Ada Byron", "2")):
+        out = console.run(["worker", "dispatch", name, "--task", task, "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--worktree", "--no-libraries"], AGENT)
+        assert out.code == 0, out.error
+    workers, branch = app.container.get(Workers), app.container.get(WorkerBranch)
+    for n in (1, 2):
+        workers.save(workers.find(n).delivered(timing.time()), Actor.system())
+    lovelace, byron = (branch.place(workers.find(n)) for n in (1, 2))
+    said = lambda command, folder=app.config.root: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": command}, cwd=str(folder))
+    counted = lambda: (lambda counts: (counts.merges, counts.prepared_merges))(ToolUseCounts.counted(app.container.get(Agents).current()))
+    said("journal task show 1")
+    said(f"(cd {lovelace} && git rebase -q development && python3 scripts/suite.py)")
+    said("journal worker merge 1")
+    assert counted() == (1, 1), "a suite run whose line changes into the worker's worktree after its clock-out counts the merge as checked"
+    said("journal task show 2")
+    said("journal suite")
+    said("journal worker merge 2")
+    assert counted() == (2, 1), "a test run in the project's own folder does not test the worker's worktree"
+    said("journal task show 2")
+    said("journal suite", byron)
+    said("journal worker merge 2")
+    assert counted() == (3, 2), "a run whose working folder is the worktree counts"
+    said("journal task show 1")
+    said("python3 -m pytest -q", lovelace)
+    workers.save(workers.find(1).delivered(timing.time() + 60), Actor.system())
+    said("journal worker merge 1")
+    assert counted() == (4, 2), "a run made before the worker clocked out is not the test run before its merge"
 
 
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):

@@ -42,8 +42,8 @@ ENDED_UNFINISHED = "ended without clocking out"
 RUN_LIMIT_END = "stopped after"
 LIMITED_MOVE = "stopped at the usage limit"
 RUN_LIMIT_REASON = "run limit"
-# the move that hands a worker a point back, and the one that takes its work in
-SENT_BACK, MERGED = "sent back", "merged"
+# the move that hands a worker a point back, the one that takes its work in, and its clock-out
+SENT_BACK, MERGED, CLOCKED_OUT = "sent back", "merged", "clocked out"
 
 
 @dataclass(frozen=True)
@@ -107,6 +107,9 @@ class Worker(Helper):
         total = self.cost_dollars + cost
         return self.with_(cost_dollars=total).with_event(WorkerSpent(environment_id=self.environment_id, time=time, worker=self.mention(), model=self.model, tier=tier, profile_tier=profile_tier, before_dollars=self.cost_dollars, cost_dollars=total))
 
+    def clocked_out_at(self) -> float:
+        return next((time for word, time in reversed(self.moves.steps) if word == CLOCKED_OUT), 0.0)
+
     def send_backs(self) -> int:
         return self.moves.counted_since(SENT_BACK, MERGED)
 
@@ -129,10 +132,10 @@ class Worker(Helper):
         return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention()))
 
     def delivered(self, time: float) -> "Worker":
-        return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
+        return self.contacted(time).moved(CLOCKED_OUT, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
 
     def review_requested(self, time: float, report: str) -> "Worker":
-        return self.contacted(time).moved("clocked out", time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
+        return self.contacted(time).moved(CLOCKED_OUT, time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
 
     def reviewed(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
         return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))

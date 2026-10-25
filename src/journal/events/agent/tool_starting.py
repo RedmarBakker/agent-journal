@@ -6,12 +6,13 @@ from journal.support.tool_call import ToolCall
 
 @dataclass(frozen=True)
 class ToolStarting(AgentEvent):
-    """The agent is about to run a tool; the one moment a blocking listener can refuse. The call is read once and passed on whole, with how many times the agent has run its command's shape, this run included, counted once when the hook is received."""
+    """The agent is about to run a tool; the one moment a blocking listener can refuse. The call is read once and passed on whole, with the folder it runs in, and how many times the agent has run its command's shape, this run included, counted once when the hook is received."""
 
     is_work = True
 
     call: ToolCall
     shape_runs: int = 0
+    folder: str = ""
 
     def shape_counted(self, runs: int) -> "ToolStarting":
         return replace(self, shape_runs=runs)

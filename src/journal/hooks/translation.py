@@ -29,7 +29,7 @@ class Translation:
     EVENTS = {
         HookKind.SESSION_START: lambda hook, calls: SessionStarted(source=hook.source, folder=hook.folder),
         HookKind.USER_PROMPT: lambda hook, calls: PromptSubmitted(prompt=hook.text),
-        HookKind.PRE_TOOL_USE: lambda hook, calls: ToolStarting(call=calls.build(hook)),
+        HookKind.PRE_TOOL_USE: lambda hook, calls: ToolStarting(call=calls.build(hook), folder=hook.folder),
         HookKind.POST_TOOL_USE: lambda hook, calls: ToolFinished(call=calls.build(hook), output=hook.output, response=hook.response),
         HookKind.POST_TOOL_USE_FAILURE: lambda hook, calls: ToolFailed(call=calls.build(hook), error=hook.error),
         HookKind.PRE_COMPACT: lambda hook, calls: Compacting(),
