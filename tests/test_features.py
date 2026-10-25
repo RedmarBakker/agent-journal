@@ -12655,6 +12655,20 @@ def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and
         assert not [m for m in app.container.get(Messages).all() if m.data.get("kind") == "report"], "no report and no merge for the end of a turn inside the queue"
 
 
+def test_a_worker_handed_its_next_queued_task_after_a_merge_starts_on_a_worktree_holding_the_latest_work(app: App, monkeypatch):
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
+    committed(worktree, "notes1.md", "note 1\n")
+    assert proved_and_out(app, caller, "notes1.md:1").code == 0
+    committed(app.config.root, "later.md", "merged on the project after the worker began\n")
+    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
+    merged = checked_and_merged(app)
+    assert merged.code == 0 and "it went straight on to task 2" in merged.text, merged.error
+    assert (worktree / "later.md").is_file() and (worktree / "notes1.md").is_file(), "the worktree holds the project's latest work and its own merged task before it starts the next"
+
+
 def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merge_then_takes_all_three(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks
