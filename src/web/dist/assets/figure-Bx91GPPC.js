@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-8OUJGgEJ.js
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DxCVAc08.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-BrHAqM6v.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-ufVQybQY.js";import{e as al}from"./tokens-CDlVDfIF.js";import"./tip-Cbu4cZ-W.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 67377dae8 (The viewer's bundle is built from the mode dropdown's and fitness badge's sources on development):src/web/dist/assets/figure-B6selR-R.js
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-61gfsz_4.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-B-HSFxyN.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
