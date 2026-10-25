@@ -8,13 +8,15 @@ from journal.support.card_kind import CardKind
 
 
 class PluginQuestionCards(Listener[PluginCardRequested]):
-    """A card a plugin's answer asks for is a moment card in the chat, or, with a key, a process card that a later card of the key replaces."""
+    """A card a plugin's answer asks for is a moment card in the chat, or, with a key, a process card that a later card of the key replaces, unless it says the same, which leaves the card where it is."""
 
     def __init__(self, cards: MomentCards, processes: ProcessCards, card: PluginProcessCard) -> None:
         self.cards, self.processes, self.card = cards, processes, card
 
     def handle(self, event: PluginCardRequested) -> None:
         if event.card_key:
-            self.processes.show_recent(self.card.card_contents(event))
+            contents = self.card.card_contents(event)
+            if not self.processes.is_unchanged(contents):
+                self.processes.show_recent(contents)
             return
         self.cards.show_fields(event.environment_id, None, event.label, event.data, Actor.plugin(event.plugin), CardKind.PLUGINS, event.detail)

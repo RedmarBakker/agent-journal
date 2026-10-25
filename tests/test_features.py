@@ -13133,6 +13133,32 @@ def test_a_plugin_card_raised_on_a_workers_merge_is_kept_in_the_merges_record_an
         assert len(shown()) == 1, "a card raised on any other moment still lands in the chat"
 
 
+def test_a_keyed_plugin_card_answered_again_unchanged_stays_where_it_is_and_a_changed_one_moves(app: App, tmp_path):
+    import shutil
+    from journal.features.plugins.support.plugin_answer import PluginAnswer
+    from journal.features.plugins.support.plugin_answers import PluginAnswers
+    from journal.features.plugins.support.plugin_card import PluginCard
+    from journal.repositories.messages import Messages
+    from journal.repositories.plugins import Plugins
+    folder = tmp_path / "echo"
+    shutil.copytree(Path(__file__).parent / "plugins" / "echo", folder)
+    assert app.console().run(["plugin", "install", str(folder), "--yes"], USER).code == 0
+    answers, plugin, console = app.container.get(PluginAnswers), app.container.get(Plugins).lookup("echo"), app.console()
+    cards = lambda: [m for m in app.container.get(Messages).rows() if m.data.get("plugin") == "echo"]
+    raised = lambda label, detail="line 3": answers.apply(plugin, PluginAnswer(cards=(PluginCard(kind="echoed", label=label, detail=detail, key="sins:a.py"),)), "main", MAIN)
+    with app.container.get(Scope).environment(MAIN):
+        raised("1 sin in a.py")
+        app.runtime().deferred.drain()
+        [first] = cards()
+        console.run(["message", "send", "hello"], USER)
+        raised("1 sin in a.py")
+        app.runtime().deferred.drain()
+        assert [m.id for m in cards()] == [first.id], "the same card answered again, with the user's message between, stays at its first place"
+        raised("2 sins in a.py", "lines 3, 4")
+        app.runtime().deferred.drain()
+        assert len(cards()) == 1 and cards()[0].id > first.id and cards()[0].text == "2 sins in a.py", "a changed card moves to the bottom"
+
+
 def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: App):
     import threading
     from journal.features.plugins.support.merge_queue import MergeQueue

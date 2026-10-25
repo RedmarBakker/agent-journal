@@ -42,6 +42,10 @@ class ProcessCards:
         roles = self.agents.session_roles(contents.session) if contents.session else []
         return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data=data), contents.actor)
 
+    def is_unchanged(self, contents: ProcessCardContents) -> bool:
+        older = self.messages.keyed(contents.key, contents.actor)
+        return bool(older) and older[0].text == contents.label and all(older[0].data.get(name) == value for name, value in CardDetail.parts(contents.detail).items())
+
     def show_recent(self, contents: ProcessCardContents) -> Message:
         older = self.messages.keyed(contents.key, contents.actor)
         if older and self.predates_user_message(older[0]):
