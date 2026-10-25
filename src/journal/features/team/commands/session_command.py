@@ -27,7 +27,7 @@ class SessionCommand(Command):
     def start(self, args: Namespace, caller: Caller) -> int:
         if args.plan:
             return self.driving(args, caller)
-        print(self.held_line(self.sessions.start(args.name, caller.actor)))
+        print(self.session_line(self.sessions.start(args.name, caller.actor)))
         return 0
 
     def driving(self, args: Namespace, caller: Caller) -> int:
@@ -36,9 +36,9 @@ class SessionCommand(Command):
         session = self.sessions.start(args.name, caller.actor)
         with self.scope.environment(session.row_id):
             driven = self.drives.drive(plan, caller.actor)
-        print(f"{self.held_line(session)}\n{self.drives.drive_line(driven)}")
+        print(f"{self.session_line(session)}\n{self.drives.drive_line(driven)}")
         return 0
 
     @staticmethod
-    def held_line(session: Environment) -> str:
+    def session_line(session: Environment) -> str:
         return f"session {session.team_name} is held by this machine, its host, on its branch {session.branch}"
