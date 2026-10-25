@@ -2,7 +2,7 @@
 
 What each release of agent-journal version 4 brought, newest first.
 
-## Unreleased
+## 4.59.0
 
 - **Worktree launches as dependable as version 3.** `journal claude --worktree <name>` works in `.claude/worktrees/<name>` on the branch `worktree-<name>`; a bare `--worktree` makes up a two-word name that no folder, branch, kept tip or environment of the team holds yet.
 - Nothing removes a launch worktree but you: deleting its environment, a worker's clean-up, a boot or a session's end leave it, its work and its branch alone. `journal worktree remove <name>`, or Remove worktree in Settings, Environments, removes one, refused while a session works in it or it holds uncommitted work; its branch and last commit stay, and a launch of its name makes it again from there.
