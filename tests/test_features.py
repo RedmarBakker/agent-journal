@@ -1321,7 +1321,7 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
 
     hook(app, "Stop")
     lines = [entry.data["line"] for entry in named()]
-    assert len(lines) == 1 and lines[0].startswith("report 1, What the login check found, has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
+    assert len(lines) == 1 and lines[0].startswith("report 1 has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
     assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere"
     hook(app, "Stop")
     assert len(named()) == 1, "within the span the line is not said again"

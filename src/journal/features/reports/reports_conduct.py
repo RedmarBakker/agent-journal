@@ -42,7 +42,7 @@ def unacted_lines(data: FeatureData, now: float, settings: Settings) -> tuple[Nu
     minutes = settings.integer(ReportsOptions.UNACTED_MINUTES)
     if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode or minutes <= 0:
         return ()
-    return tuple(replace(ReportsNudges.UNACTED.create(kind=row.kind, n=row.row_id, title=row.title), repeat=Timeout.minutes(repeat_minutes(row.row_id, now))) for row in data.part(ReportsPart).unacted if now - row.written_at >= minutes * 60)
+    return tuple(replace(ReportsNudges.UNACTED.create(kind=row.kind, n=row.row_id), repeat=Timeout.minutes(repeat_minutes(row.row_id, now))) for row in data.part(ReportsPart).unacted if now - row.written_at >= minutes * 60)
 
 
 def repeat_minutes(row_id: int, now: float) -> int:

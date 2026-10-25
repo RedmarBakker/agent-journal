@@ -18,7 +18,7 @@ class UnactedRows:
         written = [("report", row) for row in self.reports.unsettled()] + [("doc", row) for row in self.docs.unsettled()]
         unchanged = [(kind, row) for kind, row in written if (row.update_time - row.creation_time).total_seconds() < 1]
         linked = {ref for link in self.links.touching_any([row for _, row in unchanged]) if link.kind != REVISION_LINK for ref in (link.source, link.target)}
-        return tuple(UnactedRow(kind, row.row_id, row.title, row.creation_time.timestamp()) for kind, row in unchanged if Ref.build(row) not in linked and not self.is_opened(kind, row))
+        return tuple(UnactedRow(kind, row.row_id, row.creation_time.timestamp()) for kind, row in unchanged if Ref.build(row) not in linked and not self.is_opened(kind, row))
 
     def is_opened(self, kind: str, row: Model) -> bool:
         return any(run.command.split()[:4] == ["journal", kind, "show", str(row.row_id)] for run in self.outputs.started_with(f"journal {kind} show {row.row_id}"))

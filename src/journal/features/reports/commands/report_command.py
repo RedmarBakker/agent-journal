@@ -36,6 +36,9 @@ class ReportCommand(Command):
         display.add_argument("n", type=int)
         Outline.arguments(display)
         self.verb(verbs, "list", "every report here")
+        settling = self.verb(verbs, "settle", "sign a report off as needing no action, so it is no longer named as never acted on")
+        settling.add_argument("n", type=int)
+        settling.add_argument("--why", required=True, help="why it needs no action, kept on the report")
         self.verb(verbs, "changes", "what an update would cover now, by section, gathered since the last update the user read")
         self.verb(verbs, "recap", "write the update: your summary in one or two sentences over the rows the journal gathers; it is docked at the bottom of the chat").add_argument("summary")
         addition = self.verb(verbs, "item", "add a row to the latest update under a section")
@@ -113,6 +116,11 @@ class ReportCommand(Command):
     @staticmethod
     def item_lines(items: tuple[dict, ...]) -> list[str]:
         return [f"{n:>3}  {item['section']:<8} {item['ref']:<14} {item['title']}" + (f" ({item['note']})" if "note" in item else "") for n, item in enumerate(items, start=1)]
+
+    def settle(self, args: Namespace, caller: Caller) -> int:
+        report = self.reports.save(self.reports.find(args.n).settled(args.why), caller.actor)
+        print(f"report {report.id} signed off: {report.settled_reason}")
+        return 0
 
     def list(self, args: Namespace, caller: Caller) -> int:
         for report in self.reports.scoped():
