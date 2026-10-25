@@ -11515,8 +11515,8 @@ def test_a_rebase_conflict_in_an_inner_repository_merges_nothing_anywhere(app: A
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
     committed(folder, "README.md", "changed by the worker\n")
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
-    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
     assert proved_and_out(app, caller).code == 0
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
     project_head, platform_head = git_run(root, "rev-parse", "HEAD").stdout.strip(), git_run(root / "platform", "rev-parse", "HEAD").stdout.strip()
     refused = checked_and_merged(app)
     assert refused.code != 0 and "conflict in platform/app.php" in refused.error, refused.error
@@ -15273,12 +15273,28 @@ def test_a_worker_sent_a_job_while_its_branch_clashes_with_the_project_is_sent_i
     root = workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
     committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
-    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
     assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
     sent = app.console().run(["worker", "send", "1", "finish the job"], AGENT)
     assert sent.code == 0, sent.error
     brief = worker_row(app).brief
     assert "conflict in platform/app.php" in brief and "rebase your branch onto it" in brief and brief.endswith("finish the job"), brief
+
+
+def test_a_clock_out_moves_the_workers_branch_up_to_the_project_and_sends_a_clash_back_at_once(app: App, monkeypatch):
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    committed(root / "platform", "app.php", "<?php\n// the user's line\n")
+    refused = proved_and_out(app, caller, "platform/app.php:1")
+    assert refused.code != 0 and "conflict in platform/app.php" in refused.error and "rebase your branch onto it" in refused.error and "clock out again" in refused.error, refused.error
+    assert worker_row(app).state != WorkerState.DELIVERED, "the worker is still out, with the clash to resolve"
+    git_run(folder / "platform", "reset", "-q", "--hard", git_run(root / "platform", "rev-parse", "HEAD").stdout.strip())
+    committed(folder / "platform", "app.php", "<?php\n// the user's line\n// the worker's line\n")
+    committed(root / "platform", "notes.md", "a later note\n")
+    assert app.console().run(["clock-out", "the work is in"], caller).code == 0, "once it has no clash the clock-out goes through"
+    project_tip = git_run(root / "platform", "rev-parse", "HEAD").stdout.strip()
+    assert git_run(folder / "platform", "merge-base", "--is-ancestor", project_tip, "HEAD").returncode == 0, "and the worker's branch is moved up to the project's, the note committed meanwhile with it"
 
 
 def test_a_refused_claude_shell_command_is_swapped_for_one_that_prints_the_reason_never_a_red_hook_error(app: App):

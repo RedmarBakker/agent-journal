@@ -1,7 +1,7 @@
 from argparse import Namespace
 
 from journal.console.command import WORKER_KINDS, Command
-from journal.features.workers.support.worker_branch import WorkerBranch
+from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
 from journal.features.workers.support.worker_reports import WorkerReports
 from journal.models.proof_state import ProofState
@@ -16,7 +16,7 @@ from journal.support.rejection import Rejection
 
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof and its worktree has no uncommitted file."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash."""
 
     noun = "clock-out"
     default_verb = "record"
@@ -42,6 +42,9 @@ class DepartureCommand(Command):
         uncommitted = self.uncommitted(worker)
         if uncommitted:
             raise Rejection(f"your worktree has uncommitted files, which would be lost: {', '.join(uncommitted)}; commit them first")
+        clashing = self.clashing(worker)
+        if clashing:
+            raise Rejection(f"your branch could not be moved up to the project's branch: {clashing}; {REBASE_STEPS}, then clock out again")
         if worker.pool_request:
             self.push_branch(worker)
         if self.moves.is_remote(worker):
@@ -60,6 +63,9 @@ class DepartureCommand(Command):
     def unproved(self, task: Task) -> list[int]:
         latest = {proof.point: proof for proof in sorted(self.proofs.task_proofs(task), key=lambda proof: proof.row_id)}
         return [point for point in range(1, len(task.points()) + 1) if point not in latest or latest[point].state in (ProofState.SHORT, ProofState.STALE)]
+
+    def clashing(self, worker: Worker) -> str:
+        return "" if worker.pool_request else self.branch.rebased_onto_branch(worker)
 
     def uncommitted(self, worker: Worker) -> list[str]:
         if not worker.worktree:

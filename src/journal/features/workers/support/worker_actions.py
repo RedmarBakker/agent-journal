@@ -8,7 +8,7 @@ from journal.events.rows.worker_sent_on import WorkerSentOn
 from journal.events.moments.worker_work_merged import WorkerWorkMerged
 from journal.events.rows.worker_revived import WorkerRevived
 from journal.features.workers.support.failed_runs import FailedRuns
-from journal.features.workers.support.worker_branch import WorkerBranch
+from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
 from journal.models.worker import Worker
@@ -39,7 +39,7 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "
-REBASE_NOTE = "Your worktree could not be moved up to the project's branch: {clashing}. First rebase your branch onto it in your worktree, resolve each conflict keeping both sides' changes, and commit. Then: "
+REBASE_NOTE = f"Your worktree could not be moved up to the project's branch: {{clashing}}. First {REBASE_STEPS}. Then: "
 JOB_MOVE = "sent a job"
 REDO_MOVE = "sent back"
 

@@ -21,6 +21,8 @@ CHECKOUT_TIMEOUT_SECONDS = 600
 
 BUILD_SECONDS = 600
 
+# what a worker does when its branch clashes with the branch its work merges into
+REBASE_STEPS = "rebase your branch onto it in your worktree, resolve each conflict keeping both sides' changes, and commit"
 
 class WorkerBranch:
     """A worker's worktree and the branch it commits on: what it left there when it ended, and its commits taken into the branch the project is on, which on a shared journal is the branch of the worker's environment's own worktree, never the main checkout's. A project that holds repositories of its own inside it, ignored by its own, gives the worker a worktree of each one recorded on its row, inside its worktree and on the worker's branch; its commits are taken in from every repository or from none. A rebase that clashes only in folders the settings name as built from the sources takes the project's side of them and builds them again."""
