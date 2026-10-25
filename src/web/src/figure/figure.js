@@ -5101,6 +5101,7 @@ export const signColour = (screen) => {
 
 // the visor mesh every voice wears, the black screen its eyes are drawn on, and how lit it is before the eyes are gone from it
 const VISOR_MESH = "face_screen";
+
 const EYES_GONE = 0.05;
 // the visor as it is unlit: its eyes shown and its band dark
 const DARK_SCREEN = {eyes: 1, across: 0, open: 0, flash: 0, glow: 0};
