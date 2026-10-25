@@ -21,7 +21,7 @@ import {
     fallFloors,
     underWalker,
 } from "../domain/figureMotion.js";
-import {floorNamed, footingNow, footingOn, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors} from "../figure/floors.js";
+import {floorNamed, footingNow, footingOn, footingUnder, groundUnder, keptOnFloor, landingOn, latestFloors, readFloors, standsOrSits} from "../figure/floors.js";
 import {useFigureBody} from "../composables/figureBody.js";
 import {
     actOver,
@@ -723,8 +723,9 @@ function settle(spot, held = footingOn(spot)) {
     covering = agentWordsAt(spot, figureSize());
 }
 
-// Each frame the figure keeps to what it rests on as that moves (figure/floors.js groundUnder), falling with the bars under it or lifted by them;
-// when the ground went from under it, it goes at once, without waiting for its clip, as gravity does not, straight up or down to the
+// Each frame the figure keeps to what it rests on as that moves (figure/floors.js groundUnder), falling with the bars under it or lifted by them,
+// and from a bubble that went down or narrowed under it; one standing or seated on no floor it keeps takes the floor at its feet as they are
+// now (footingUnder), and with none there falls; when the ground went from under it, it goes at once, without waiting for its clip, as gravity does not, straight up or down to the
 // ground at home and on to its place there
 function watchFooting() {
     if (flight) return flyOn();
@@ -738,6 +739,8 @@ function watchFooting() {
         if (body.trip?.moves && legEnded(body.leg, body.walk.began, performance.now())) endLeg();
         return;
     }
+    if (!body.footing) body.footing = footingUnder(body.place);
+    if (!body.footing && standsOrSits(body.place)) return uprooted();
     if (!body.footing) return;
     sway();
     const ground = groundUnder(body.footing, body.place, figureSize());

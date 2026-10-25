@@ -114,18 +114,32 @@ export function footingOn(spot, floors = readFloors().floors) {
     const id = !spot.on ? null : spot.on === home?.element && docked && !spot.stays ? "home" : floorOf(spot.on);
     const floor = id && floorNamed(floors, id);
     if (!floor) return null;
-    return {id, dx: spot.x - floor.left, dy: spot.y - floor.top, posture: spot.posture, face: spot.face, home: id === "home"};
+    return {id, dx: spot.x - floor.left, dy: spot.y - floor.top, posture: spot.posture, face: spot.face, swings: Boolean(spot.swings), home: id === "home"};
 }
 
 // Where a footing's spot is now, carried along as its floor moves, or null when the ground went from under the figure: the floor left the
-// snapshot, as a bubble scrolls out of the chat, it carried the figure out of its world, a seated figure's legs turned the way it faces
-// included, as when the chat narrows beside it, or it carried a hanging figure's feet down onto the ground at home, where it lets go and
-// stands
-export function footingNow({id, dx, dy, posture, face}, figure, floors = latestFloors().floors) {
+// snapshot, as a bubble scrolls out of the chat or is replaced, it no longer runs under the feet of a figure standing or seated on it away
+// from home, as when the bubble narrowed, it carried the figure out of its world, a seated figure's legs turned the way it faces included, as when the
+// chat narrows beside it, or it carried a hanging figure's feet down onto the ground at home, where it lets go and stands
+export function footingNow({id, dx, dy, posture, face, swings, home}, figure, floors = latestFloors().floors) {
     const floor = floorNamed(floors, id);
     if (!floor) return null;
     const spot = {x: floor.left + dx, y: floor.top + dy, posture, face};
-    return holds(spot, figure, floors) ? {x: spot.x, y: spot.y} : null;
+    return (home || runsUnder(floor, spot, swings)) && holds(spot, figure, floors) ? {x: spot.x, y: spot.y} : null;
+}
+
+// whether a figure standing or seated at `spot` has its floor under its feet, between its ends; one hanging from it, swinging under it or
+// up a ladder over it holds on wherever it is
+export const standsOrSits = ({posture, swings, ladder}) => (posture === "stand" || posture === "sit") && !swings && !ladder;
+const runsUnder = (floor, spot, swings) => !standsOrSits({posture: spot.posture, swings}) || (spot.x >= floor.left && spot.x <= floor.right);
+
+// The footing of a figure resting at `spot` that keeps none, from the floors as they are now: the floor whose top is at its feet, within
+// CARRIED_WITHIN pixels, and runs under them, so a figure the page stood somewhere keeps to what is there; null when no floor is, and the
+// figure falls to the next floor below
+export function footingUnder(spot, floors = latestFloors().floors) {
+    if (!standsOrSits(spot)) return null;
+    const floor = floors.find((each) => Math.abs(each.top - spot.y) <= CARRIED_WITHIN && spot.x >= each.left && spot.x <= each.right);
+    return floor ? {id: floor.id, dx: spot.x - floor.left, dy: 0, posture: spot.posture, face: spot.face, home: floor.id === "home"} : null;
 }
 
 // Whether a figure resting at `spot` is held there: inside its world, and, hanging, with its feet clear of the ground at home, where a
@@ -153,12 +167,14 @@ export function groundUnder(footing, spot, figure, floors = latestFloors().floor
 }
 
 // the ground under a figure resting away from home, its footing's spot `now` (footingNow), null once gone: carried along through a burst,
-// flung once a fast one is over (groundUnder)
+// flung once a fast one is over, "dropping" when the floor a figure stands or sits on went down further than CARRIED_WITHIN pixels from
+// its feet in a frame, as a bubble laid out lower, and then the figure falls to the floor below (groundUnder)
 function awayUnder(footing, spot, now, floors) {
     const vy = now ? floorNamed(floors, footing.id).vy : 0;
     const rising = Boolean(now) && vy <= -FLUNG.rising && !spot.swings;
     if (!rising && footing.fast) return {spot: now ? {...spot, ...now} : spot, footing: {...footing, risen: 0, fast: false}, motion: "flung", speed: throwSpeed(footing.risen)};
     if (!now) return null;
+    if (standsOrSits(spot) && now.y - spot.y > CARRIED_WITHIN) return {spot: {...spot, ...now}, footing, motion: "dropping"};
     const burst = rising ? {risen: (footing.risen ?? 0) + Math.max(spot.y - now.y, 0), fast: Boolean(footing.fast) || vy <= -FLUNG.speed} : {risen: 0, fast: false};
     return {spot: {...spot, ...now}, footing: {...footing, ...burst}, motion: "carried"};
 }
