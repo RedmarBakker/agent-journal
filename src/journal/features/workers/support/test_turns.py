@@ -6,6 +6,7 @@ from pathlib import Path
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.shell_request import ShellRequest
 from journal.features.shell.support.shell_runner import EXIT, ShellRunner
+from journal.features.workers.support.test_run_result import TestRunResult
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.test_turn import TestTurn
@@ -13,6 +14,7 @@ from journal.models.worker import Worker
 from journal.repositories.command_outputs import CommandOutputs
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.test_turns import TestTurns as TurnRows
+from journal.repositories.workers import Workers
 from journal.support.actor import Actor
 from journal.support.caller import Caller
 from journal.support.rejection import Rejection
@@ -22,12 +24,13 @@ LAST_LINES = 10
 
 
 class TestTurns:
-    """The test budget: a worker's turn to run tests is a row, started through the shell runner in the worker's own worktree as soon as fewer runs go than the budget allows and it is first of those that wait, else it waits in order; one that would wait when the waiting cap is full is refused. Its result is what the project's reader for the command picks, and the turn ends when the run does, or, for a run moved to the background, when its output ends."""
+    """The test budget: a worker's turn to run tests is a row, started through the shell runner in the worker's own worktree as soon as fewer runs go than the budget allows and it is first of those that wait, else it waits in order; one that would wait when the waiting cap is full is refused. Its result is what the project's reader for the command picks, and the turn ends when the run does, or, for a run moved to the background, when its output ends; either way how the run ended is kept on its worker, its failed runs in a row counted and a passed one ending the count."""
 
     __test__ = False
 
-    def __init__(self, turns: TurnRows, runner: ShellRunner, branch: WorkerBranch, readers: Readers, settings: SettingRows, outputs: CommandOutputs) -> None:
+    def __init__(self, turns: TurnRows, runner: ShellRunner, branch: WorkerBranch, readers: Readers, settings: SettingRows, outputs: CommandOutputs, workers: Workers) -> None:
         self.turns, self.runner, self.branch, self.readers, self.settings, self.outputs = turns, runner, branch, readers, settings, outputs
+        self.workers = workers
         self.lock = threading.Lock()
 
     def take(self, worker: Worker, ids: str, caller: Caller) -> str:
@@ -64,8 +67,16 @@ class TestTurns:
             raise
         output = next((row for row in self.outputs.ran_in(request.cwd) if row.creation_time.timestamp() >= started), None)
         later = self.turns.find(turn.id)
-        self.turns.save(later.backgrounded(output.row_id) if output is not None and not output.ended else later.ended(), Actor.system())
+        if output is not None and not output.ended:
+            self.turns.save(later.backgrounded(output.row_id), Actor.system())
+            return text
+        self.turns.save(later.ended(), Actor.system())
+        self.recorded(later, TestRunResult.printed(text, self.readers.reading(turn.command)))
         return text
+
+    def recorded(self, turn: TestTurn, result: TestRunResult) -> None:
+        worker = self.workers.find(turn.worker)
+        self.workers.save(worker.passed_run() if result.is_passed() else worker.failed_run(result.failed, time.time()), Actor.system())
 
     def running(self) -> list[TestTurn]:
         return [turn for turn in self.turns.running() if turn.output == 0 or not self.outputs.find(turn.output).ended]

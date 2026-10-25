@@ -13,3 +13,6 @@ class TestTurns(ScopedRepository[TestTurn]):
 
     def running(self) -> list[TestTurn]:
         return self.selected_globally(self.query().filter(state=TestTurnState.RUNNING).order("id"))
+
+    def of_output(self, output: int) -> list[TestTurn]:
+        return self.selected_globally(self.query().filter(output=output).order("id").limit(1))

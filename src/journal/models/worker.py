@@ -5,6 +5,7 @@ from journal.models.support.worker_silence import WorkerSilence
 from journal.events.rows.worker_mention import WorkerMention
 
 from journal.events.rows.worker_reported import WorkerReported
+from journal.events.rows.worker_test_failed import WorkerTestFailed
 from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.events.rows.worker_stopped import WorkerStopped
 from journal.events.rows.worker_ready import WorkerReady
@@ -32,7 +33,7 @@ SILENCE = Timeout.minutes(20)
 
 @dataclass(frozen=True)
 class Worker(Helper):
-    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with; retired once stopped or acted on. It keeps each move it made with its time, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
+    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     kind: str = "worker"
@@ -60,6 +61,7 @@ class Worker(Helper):
     base: str = ""
     edited_task: int = 0
     review_pending: bool = False
+    failing_runs: int = 0
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session
@@ -75,6 +77,13 @@ class Worker(Helper):
 
     def reported(self, time: float, report: int) -> "Worker":
         return self.contacted(time).moved("reported", time).with_(state=WorkerState.REPORTED, adopted=False, pid=0).with_event(WorkerReported(environment_id=self.environment_id, time=time, worker=self.mention(), report=report, ref=self.mention().ref(), outcome=f"{self.mention().title()}, reported"))
+
+    def failed_run(self, failed: int, time: float) -> "Worker":
+        runs = self.failing_runs + 1
+        return self.with_(failing_runs=runs).with_event(WorkerTestFailed(environment_id=self.environment_id, time=time, worker=self.mention(), failed=failed, runs=runs))
+
+    def passed_run(self) -> "Worker":
+        return self.with_(failing_runs=0)
 
     def queue_drained(self, task_ids: list[int], time: float) -> "Worker":
         return self.with_event(WorkerQueueDrained(environment_id=self.environment_id, time=time, worker=self.mention(), tasks=f"tasks {', '.join(map(str, task_ids))} are open again"))

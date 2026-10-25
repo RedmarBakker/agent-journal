@@ -1150,6 +1150,7 @@ workers.test_waiting = ''
 workers.tests_per_run = 20
 workers.test_run_minutes = 10
 workers.failing_runs = 3
+workers.test_run_lines = True
 workers.check_reminder_uses = 25
 workers.most_out = 3
 workers.most_subagents = 5
@@ -1626,11 +1627,13 @@ workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. 
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}}, {{name}}, clocked out: task {{task}} is ready to check. journal task show {{task}}, then journal worker check {{n}} <point>, or --short "<what is missing>"
 workers.worker_clocked_in  [workers]  worker {{n}}, {{name}}, clocked in and is at work on its task
+workers.worker_keeps_failing  [workers]  worker {{n}}, {{name}}, failed {{runs}} test runs in a row. read its last run and send it what to change, or take the work back
 workers.worker_place_free  [workers]  worker {{n}}, {{name}}, is done; {{count}} tasks are open; next: {{tasks}}. send it its next job with journal worker send {{n}}, or dispatch another worker
 workers.worker_quiet  [workers]  worker {{n}}, {{name}}, has been quiet for {{minutes}} minutes. look at its transcript, notify it with `journal worker notify {{n}} "<text>"`, or stop it
 workers.worker_reported  [workers]  worker {{n}}, {{name}}, reported in the chat
 workers.worker_stopped_unreported  [workers]  worker {{n}}, {{name}}, stopped before it reported
-233 nudges
+workers.worker_test_run_failed  [workers]  worker {{n}}, {{name}}: {{failed}} failed in its test run
+235 nudges
 
 $ agent: journal worker list
 exit 0

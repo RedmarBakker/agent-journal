@@ -2227,3 +2227,45 @@ def test_a_worker_hook_without_its_worker_header_is_still_a_workers_and_never_he
     writes = [hook(app, "PreToolUse", session_id="w9", tool_name="Write", tool_input={"file_path": f"w{n}.py"}) for n in range(8)]
     assert all(status == 200 for status, _ in writes), "a worker's write is allowed with the user's messages unread"
     assert app.container.get(Agents).session_agent("w9").role == AgentRole.WORKER, "its session is a worker's, whatever its hook carried"
+
+
+def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one_short_line_and_once_when_it_keeps_failing():
+    from journal.features.workers.support.test_run_result import TestRunResult
+    from journal.features.workers.workers_conduct import WorkersConduct
+    from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
+    budget = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: True})
+    worker = Worker(id=3, environment_id=1, name="Lady Lovelace, keeper of the parser", dispatcher="s1")
+
+    # a run as the turn hands it back, ended with the runner's exit line, kept on the worker; what the orchestrator, session s1, hears of it
+    def ran(text: str, status: int, settings=budget, session: str = "s1") -> list[str]:
+        nonlocal worker
+        result = TestRunResult.printed(f"{text}\n__journal_exit {status}", None)
+        before = len(worker.events)
+        worker = worker.passed_run() if result.is_passed() else worker.failed_run(result.failed, 1.0)
+        told = []
+        for event in worker.events[before:]:
+            told += [n.rendered() for n in Ready().respond(event.reaching(session).with_data(FeatureData({})), settings, (WorkersConduct,)).nudges]
+        return told
+
+    assert ran("12 passed in 3.1s", 0) == [], "a passed run is never told"
+    failed = ran("tests/test_parser.py F..\n2 failed, 10 passed in 3.4s", 1)
+    assert failed == ["worker 3, Lady Lovelace, keeper of the parser: 2 failed in its test run"], failed
+    assert len(failed[0]) <= 120, "one short line"
+    assert worker.failing_runs == 1, "the count is kept on the worker"
+    assert ran("1 failed, 11 passed in 3s", 1) == ["worker 3, Lady Lovelace, keeper of the parser: 1 failed in its test run"]
+    third = ran("1 error in 2s", 1)
+    assert third[0] == "worker 3, Lady Lovelace, keeper of the parser: 1 failed in its test run"
+    assert third[1].startswith("worker 3, Lady Lovelace, keeper of the parser, failed 3 test runs in a row"), "told once on the third failure in a row"
+    assert ran("Traceback (most recent call last)", 1) == ["worker 3, Lady Lovelace, keeper of the parser: 1 failed in its test run"], "not again on the fourth, and a run that names no count failed one"
+    assert ran("12 passed in 3s", 0) == [] and worker.failing_runs == 0, "a passed run starts the count again"
+    for _ in range(2):
+        ran("1 failed", 1)
+    assert ran("1 failed", 1)[1].startswith("worker 3, Lady Lovelace, keeper of the parser, failed 3 test runs in a row"), "and the notice comes again after the reset"
+    quiet = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: False})
+    assert ran("12 passed", 0, quiet) == [] and ran("1 failed", 1, quiet) == [], "with the line off a failed run is not told"
+    assert ran("1 failed", 1, quiet) == []
+    notice = ran("1 failed", 1, quiet)
+    assert len(notice) == 1 and notice[0].startswith("worker 3, Lady Lovelace, keeper of the parser, failed 3 test runs in a row"), "the notice still comes"
+    assert ran("1 failed", 1, session="w9") == [], "only the agent that sent the worker hears of it"
+    handed = SettingsValue({WorkersOptions.TESTING.key: "Hand the tests over"})
+    assert ran("1 failed", 1, handed) == [], "without the test budget nothing is told"

@@ -27,6 +27,8 @@ class WorkersNudges:
     ORCHESTRATOR_MODE = Nudge("workers", "now_orchestrating", "you now work as the orchestrator", "hand every task you can to a worker with journal worker dispatch, review and merge what comes back, and run the full suite yourself; decide without waiting for the user except before a step that cannot be undone or reaches outside the project", repeat=Timeout.seconds(0))
     SOLO_MODE = Nudge("workers", "now_solo", "you now work solo", "do every job yourself: no worker is dispatched", repeat=Timeout.seconds(0))
     SOLO_DISPATCH = Nudge("workers", "no_workers_when_solo", "you work solo: no worker is dispatched", repeat=Timeout.seconds(0))
+    TEST_RUN_FAILED = Nudge("workers", "worker_test_run_failed", "worker {{n}}, {{name}}: {{failed}} failed in its test run", repeat=Timeout.seconds(0))
+    WORKER_KEEPS_FAILING = Nudge("workers", "worker_keeps_failing", "worker {{n}}, {{name}}, failed {{runs}} test runs in a row", "read its last run and send it what to change, or take the work back", repeat=Timeout.seconds(0))
     WORKER_STOPPED_UNREPORTED = Nudge("workers", "worker_stopped_unreported", "worker {{n}}, {{name}}, stopped before it reported", repeat=Timeout.seconds(0))
     SUBAGENT_OVERFLOW = Nudge("workers", "too_many_subagents", "{{running}} subagents are running, the most at once", "wait for one, or do it yourself", repeat=Timeout.seconds(0))
     WORKER_OVERFLOW = Nudge("workers", "too_many_workers", "{{out}} workers are out, the most at once", "`journal worker wait`, or send the job to one that reported", repeat=Timeout.seconds(0))
