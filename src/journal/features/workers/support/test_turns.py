@@ -1,4 +1,6 @@
 import os
+import re
+import shlex
 import threading
 import time
 from pathlib import Path
@@ -25,6 +27,7 @@ from journal.support.rejection import Rejection
 
 POLL_SECONDS = 0.2
 LAST_LINES = 10
+PASSED_COUNT = re.compile(r"\b(\d+) passed\b")
 
 
 class TestTurns:
@@ -41,12 +44,26 @@ class TestTurns:
     def take(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team: its tests run there, not through a turn here")
-        folder = str(self.branch.folder(worker))
-        turn = self.asked(worker, ids, f"{self.command(folder)} {ids}", folder)
-        if not self.waited(turn):
-            return "your turn was taken back: nothing ran"
-        text = self.ran(turn, caller, worker.environment_id)
-        return self.result(turn, text)
+        folder, ran = str(self.branch.folder(worker)), []
+        for batch in self.batches(ids):
+            turn = self.asked(worker, batch, f"{self.command(folder)} {batch}", folder)
+            if not self.waited(turn):
+                return "your turn was taken back: nothing ran"
+            ran.append((turn, self.ran(turn, caller, worker.environment_id)))
+        return self.joined(ran)
+
+    def batches(self, ids: str) -> list[str]:
+        words = shlex.split(ids)
+        tests = [shlex.join(words[i:i + 2]) if words[i] == "-k" else shlex.quote(words[i]) for i in range(len(words)) if i == 0 or words[i - 1] != "-k"]
+        size = max(self.settings.integer(WorkersOptions.TESTS_PER_RUN), 1)
+        return [" ".join(tests[start:start + size]) for start in range(0, len(tests), size)] or [""]
+
+    def joined(self, ran: list[tuple[TestTurn, str]]) -> str:
+        if len(ran) == 1:
+            return self.result(*ran[0])
+        passed = sum(int(count) for _, text in ran for count in PASSED_COUNT.findall(text))
+        failed = sum(TestRunResult.printed(text, self.readers.reading(turn.command)).failed for turn, text in ran)
+        return "\n".join([*(self.result(turn, text) for turn, text in ran), f"{len(ran)} runs: {passed} passed, {failed} failed"])
 
     def asked(self, worker: Worker, ids: str, command: str, folder: str) -> TestTurn:
         with self.lock:

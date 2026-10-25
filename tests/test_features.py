@@ -4059,6 +4059,46 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
     second.join(10)
 
 
+def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budget_and_comes_back_as_one_result_with_the_totals(app: App, tmp_path):
+    import threading
+    from types import SimpleNamespace
+    from journal.features.shell.support.readers import Readers
+    from journal.features.workers.support.test_turns import TestTurns
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.environments import Environments
+    from journal.repositories.test_turns import TestTurns as TurnRows
+    settings, scope = app.container.get(SettingRows), app.container.get(Scope)
+    lines, going, most = [], [], [0]
+
+    class Crew:
+        def find(self, number):
+            return Worker(id=number, environment_id=1, name=f"Worker {number}")
+
+        def save(self, row, actor):
+            return row
+
+    class Runner:
+        def run(self, request, caller, environment):
+            lines.append(request.line)
+            going.append(1)
+            most[0] = max(most[0], len(going))
+            outcome = b"FAILED tests/a.py::t - assert 1 == 2\n1 failed, 1 passed in 0.1s\n__journal_exit 1\n" if len(lines) == 1 else b"%d passed in 0.1s\n__journal_exit 0\n" % (2 if len(lines) == 2 else 1)
+            going.pop()
+            yield outcome
+
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
+    settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
+    settings.set(WorkersOptions.TESTS_PER_RUN.key, 2, Actor.user(1))
+    settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))
+    with scope.environment(1):
+        result = turns.take(SimpleNamespace(id=1, name="Worker 1", pool_request=0, environment_id=1), "a.py b.py c.py d.py e.py", SimpleNamespace())
+    assert lines == ["pytest -q a.py b.py", "pytest -q c.py d.py", "pytest -q e.py"], "five ids with two to a run are three runs, the ids kept whole"
+    assert most[0] == 1, "each run takes its own place in the budget"
+    assert "FAILED tests/a.py::t" in result and "2 passed" in result, "a failing first batch does not stop the others, and the result holds each batch's lines"
+    assert result.splitlines()[-1] == "3 runs: 4 passed, 1 failed", "with one line of totals"
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task

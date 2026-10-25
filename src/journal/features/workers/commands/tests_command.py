@@ -1,3 +1,4 @@
+import shlex
 from argparse import Namespace
 
 from journal.console.command import WORKER_KINDS, Command
@@ -22,5 +23,5 @@ class TestsCommand(Command):
     def turn(self, args: Namespace, caller: Caller) -> int:
         if caller.worker_number is None:
             raise Rejection("only a worker asks for a turn to run tests: the agent that sent it runs them itself")
-        print(self.turns.take(self.workers.find(caller.worker_number), " ".join(args.ids), caller))
+        print(self.turns.take(self.workers.find(caller.worker_number), shlex.join(args.ids), caller))
         return 0
