@@ -359,7 +359,7 @@
   },
   {
    "key": "task_moves",
-   "label": "Tasks started and finished",
+   "label": "Tasks started and completed",
    "family": "tasks",
    "main": true,
    "shown": true,
@@ -411,7 +411,7 @@
   },
   {
    "key": "filed",
-   "label": "Tasks created from your messages",
+   "label": "Filed from your messages",
    "family": "filed",
    "main": true,
    "shown": true,

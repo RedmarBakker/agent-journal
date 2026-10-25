@@ -91,7 +91,7 @@ task 2 is no request filed for you
 
 $ agent: journal task list --all
 exit 0
-   1  done     Write the footer
+   1  completed Write the footer
    2  cancelled Fix the cart total
 
 $ agent: journal todo --help
@@ -231,7 +231,7 @@ exit 0
 *   4  system Blocked task 2: Fix the cart total
 *   5  system Unblocked task 2: Fix the cart total
 *   6  system Task 1: Write the footer
-*   7  system Finished task 1: Write the footer
+*   7  system Completed task 1: Write the footer
 *   8  system Started task 2: Fix the cart total
 *   9  user  Please look at the footer
 
@@ -252,7 +252,7 @@ exit 0
    4  system Blocked task 2: Fix the cart total
    5  system Unblocked task 2: Fix the cart total
    6  system Task 1: Write the footer
-   7  system Finished task 1: Write the footer
+   7  system Completed task 1: Write the footer
    8  system Started task 2: Fix the cart total
    9  user  Please look at the footer
 
@@ -993,7 +993,7 @@ task 1: Write the footer The footer names the shop the footer names the shop
 task log 1: the footer has its links
 message 10: The footer is done
 message 9: Please look at the footer
-message 7: Finished task 1: Write the footer
+message 7: Completed task 1: Write the footer
 message 6: Task 1: Write the footer
 message 3: Resumed task 1: Write the footer
 message 2: Paused task 1: Write the footer
@@ -1208,6 +1208,17 @@ workers.fitness_threshold = 70
 workers.load_window_minutes = 30
 workers.load_half_life_minutes = 10
 workers.load_warn = 0.7
+workers.builder_load_ceiling = 0.5
+workers.own_share_full_score = 0.67
+workers.own_share_zero_score = 0.33
+workers.own_share_weight = 4
+workers.reviewers_most = 2
+workers.verifiers_most = 2
+workers.builder_lines_per_handover = 50
+workers.builder_may_dispatch = True  (the user sets it)
+workers.builder_may_queue = True  (the user sets it)
+workers.builder_may_subagents = True  (the user sets it)
+workers.solo_may_subagents = True  (the user sets it)
 workers.load_critical = 0.9
 workers.scale_up_at = 0.8
 workers.scale_down_at = 0.5
@@ -1714,6 +1725,8 @@ voices.say_you_are_back  [voices]  you are back in an earlier conversation. say 
 voices.the_voice_changed  [voices]  the user changed how you talk to them. from now on: {{voice}} Open your next chat line in the new voice, and say nothing else about it
 workers.act_on_the_reports  [workers]  {{reports_waiting}} reported and you have not acted on it. give it its next job, stop it, or mark it done
 workers.blocked_work_stands_still  [workers]  these blocked or paused tasks stand still: {{tasks}}; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move
+workers.builder_handover_budget  [workers]  you wrote {{lines}} lines since your last handover, under the {{budget}} one worker out is worth: write the next piece yourself
+workers.builder_load_over_ceiling  [workers]  your load is {{rho}}, over {{ceiling}}: {{queue}} wait; hand less out and take in what is back first, {{first}} the oldest
 workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
 workers.check_reminder  [workers]  worker {{n}} waits: task {{task}}
@@ -1726,6 +1739,7 @@ workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree.
 workers.load_critical  [workers]  your load is {{rho}}, critical: {{queue}} wait, {{first}} the oldest. ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out
 workers.load_rising  [workers]  your load is {{rho}}: {{queue}} wait; clear {{first}} first, the oldest
 workers.make_the_wait_a_block  [workers]  you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else
+workers.mode_may_not  [workers]  in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu
 workers.model_too_strong  [workers]  worker {{n}} ran on {{model}} for work a cheaper model would have done
 workers.model_too_weak  [workers]  worker {{n}} ran on {{model}} and was sent back {{send_backs}} times: work like this needs a stronger model
 workers.no_workers_when_solo  [workers]  you work solo: no worker is dispatched
@@ -1779,7 +1793,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-269 nudges
+272 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1917,7 +1931,7 @@ positional arguments:
 options:
   -h, --help     show this help message and exit
   --short SHORT  what is missing; the worker is sent it in its last session
-  --task TASK    a task of its queue it finished before the one it is on,
+  --task TASK    a task of its queue it completed before the one it is on,
                  which waits for the same merge; the one it is on when not
                  named
 
@@ -1961,8 +1975,8 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
-  --drop      also open again the tasks of its queue it finished and that wait
-              for the merge; their commits stay on its branch
+  --drop      also open again the tasks of its queue it completed and that
+              wait for the merge; their commits stay on its branch
 
 $ agent: journal worker complete --help
 exit 0
