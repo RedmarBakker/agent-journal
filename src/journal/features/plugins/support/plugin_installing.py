@@ -33,6 +33,10 @@ DOWNLOAD_SECONDS = 120
 STEP_SECONDS = 300
 
 
+# the list of files its source shipped, kept in the plugin's folder, so an upgrade removes the ones a newer source drops and keeps what the plugin built
+SHIPPED_FILE = ".shipped-files"
+
+
 class PluginInstalling:
     """A plugin taken in: a folder linked where it lies, or a git address fetched into the journal's plugins folder; its manifest read and checked, a preview of all it will run, and only then its row, its data folder, its skills and its aliases."""
 
@@ -55,6 +59,7 @@ class PluginInstalling:
             prior_data = (self.config.home / "plugin-data" / plugin.name).is_dir()
             if not linked:
                 shutil.copytree(folder, self.folders.folder(plugin), ignore=shutil.ignore_patterns(".git"))
+                self.shipped_record(self.folders.folder(plugin), folder)
             try:
                 self.required(plugin, environment)
                 self.prepare(plugin, environment)
@@ -142,7 +147,11 @@ class PluginInstalling:
         stored = target.with_name(f"{target.name}.before-upgrade")
         shutil.rmtree(stored, ignore_errors=True)
         shutil.copytree(target, stored, symlinks=True)
+        dropped = self.shipped_listed(target) - self.shipped_files(folder)
         shutil.copytree(folder, target, ignore=shutil.ignore_patterns(".git"), dirs_exist_ok=True)
+        for path in dropped:
+            (target / path).unlink(missing_ok=True)
+        self.shipped_record(target, folder)
         try:
             self.required(upgraded, environment)
             self.prepare(upgraded, environment)
@@ -153,6 +162,18 @@ class PluginInstalling:
                 self.services.start(plugin)
             raise
         shutil.rmtree(stored, ignore_errors=True)
+
+    @staticmethod
+    def shipped_files(source: Path) -> set[str]:
+        return {str(path.relative_to(source)) for path in source.rglob("*") if path.is_file() and ".git" not in path.relative_to(source).parts}
+
+    @staticmethod
+    def shipped_listed(target: Path) -> set[str]:
+        listing = target / SHIPPED_FILE
+        return set(listing.read_text().splitlines()) if listing.is_file() else set()
+
+    def shipped_record(self, target: Path, source: Path) -> None:
+        (target / SHIPPED_FILE).write_text("\n".join(sorted(self.shipped_files(source))))
 
     def enable(self, name: str, actor: Actor) -> Plugin:
         self.require_user(actor, "switches on")
