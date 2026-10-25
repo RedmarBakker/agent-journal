@@ -31,7 +31,7 @@ class CheckRunner:
 
     def run(self, check: Check, actor: Actor) -> Check:
         started = timing.time()
-        return self.finished(self.checks.save(check.started(started), actor), started, actor)
+        return self.finished(self.checks.rewritten(check, actor, lambda current: current.started(started)), started, actor)
 
     def start(self, check: Check, actor: Actor) -> Check:
         with self.checks.writing():
@@ -39,7 +39,7 @@ class CheckRunner:
             if current.is_running(timing.time()):
                 return current
             started = timing.time()
-            commenced = self.checks.save(current.started(started), actor)
+            commenced = self.checks.rewritten(current, actor, lambda row: row.started(started))
         threading.Thread(target=self.finished, args=(commenced, started, actor), name=f"check-{commenced.id}", daemon=True).start()
         return commenced
 
@@ -61,7 +61,7 @@ class CheckRunner:
             current = self.checks.find(check.row_id)
             if not current.has_run_start(started):
                 return current
-            return self.checks.save(current.completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], datetime.now(timezone.utc), elapsed, self.report(report), ended.fault), actor)
+            return self.checks.rewritten(current, actor, lambda row: row.completed(ended.passed, ended.output[-OUTPUT_CHARACTERS:], datetime.now(timezone.utc), elapsed, self.report(report), ended.fault))
 
     def executed(self, check: Check, report: Path, started: float, actor: Actor) -> FinishedRun:
         process = subprocess.Popen(check.command, shell=True, cwd=self.config.root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",

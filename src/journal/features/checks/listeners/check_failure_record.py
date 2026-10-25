@@ -14,4 +14,4 @@ class CheckFailureRecord(AgentListener[LineDelivered]):
     def handle(self, event: LineDelivered) -> None:
         if event.nudge not in (ChecksNudges.CHECK_FAILED.key, ChecksNudges.CHECK_FAILURE_REPEAT.key):
             return
-        self.checks.save(self.checks.find(int(event.values["n"])).failure_reported(event.time), Actor.system())
+        self.checks.rewritten(self.checks.find(int(event.values["n"])), Actor.system(), lambda check: check.failure_reported(event.time))
