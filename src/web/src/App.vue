@@ -26,6 +26,7 @@ import ChatWindow from "./layout/ChatWindow.vue";
 import ViewWindow from "./layout/ViewWindow.vue";
 import UpdateCover from "./layout/UpdateCover.vue";
 import UpgradeBand from "./layout/UpgradeBand.vue";
+import HiddenEnvironmentsCard from "./layout/HiddenEnvironmentsCard.vue";
 import BlockedNotice from "./layout/BlockedNotice.vue";
 import {drawnWide, followFullscreen, switching} from "./platform/fullscreen.js";
 import AppOverlays from "./AppOverlays.vue";
@@ -173,6 +174,7 @@ watch(
                 <div class="main">
                     <div class="bar"><TopBar /></div>
                     <UpgradeBand />
+                    <HiddenEnvironmentsCard />
                     <UpdateCover />
                     <BlockedNotice />
                     <StatusBar />
