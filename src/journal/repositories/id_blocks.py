@@ -15,16 +15,23 @@ class IdBlocks(Repository[IdBlock]):
         return self.save(IdBlock(row_table=table, first_number=first, last_number=last, next_number=first), Actor.system())
 
     def next_id(self, table: str) -> int:
-        blocks = self.all_matching(row_table=table)
-        if not blocks:
+        numbers = self.taken(table, 1)
+        if not numbers:
             raise NumberShortage(f"every row number this machine holds for {table} is used, and the team server gave no more")
-        block = blocks[0]
-        remainder = block.remainder()
-        if remainder.spare_count():
-            self.save(remainder, Actor.system())
-        else:
-            self.delete(block, Actor.system())
-        return block.next_number
+        return numbers[0]
+
+    def taken(self, table: str, count: int) -> list[int]:
+        numbers = []
+        for block in self.all_matching(row_table=table):
+            if len(numbers) == count:
+                break
+            share = min(count - len(numbers), block.spare_count())
+            numbers.extend(range(block.next_number, block.next_number + share))
+            if share < block.spare_count():
+                self.save(block.past(share), Actor.system())
+            else:
+                self.delete(block, Actor.system())
+        return numbers
 
     def clear(self) -> None:
         self.purged_rows(IdBlock, self.query(), Actor.system())

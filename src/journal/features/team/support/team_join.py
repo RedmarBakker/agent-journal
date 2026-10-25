@@ -2,13 +2,10 @@ import hashlib
 import socket
 import ssl
 import time
-from typing import Callable
 from datetime import datetime, timezone
 
 from journal.support.release import Release
 from journal.config import Config
-from journal.repositories.agents import Agents
-from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.id_blocks import IdBlocks
 from journal.repositories.journal_backup import JournalBackup
@@ -18,10 +15,8 @@ from journal.repositories.environment_owners import OWNER, EnvironmentOwners
 from journal.features.team.support.repository_identity import RepositoryIdentity
 from journal.models.environment import Environment
 from journal.models.link import Link
-from journal.models.task import Task
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
-from journal.repositories.messages import Messages
 from journal.models.outgoing_change import CREATED, OutgoingChange
 from journal.models.user import User
 from journal.models.worker import Worker
@@ -30,6 +25,9 @@ from journal.repositories.shared_tables import SharedTables
 from journal.support.actor import Actor
 from journal.support.rejection import Rejection
 from journal.sync.block_supply import BlockSupply
+from journal.sync.record_outgoing_change import RecordOutgoingChange
+from journal.sync.row_renumbering import RowRenumbering
+from journal.events.models.created import Created
 from journal.services.service_event import TEAM_DEPARTURE, TEAM_JOINED, ServiceEvent
 from journal.services.service_hooks import ServiceHooks
 from journal.sync.team_account import TeamAccount
@@ -54,21 +52,15 @@ TABLES = {folder: table for table, folder in FOLDERS.items()}
 
 
 class TeamJoin:
-    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, a team that holds a journal refused to a journal with tasks or messages of its own unless it asks to replace them, the code and password traded for this machine's token, and any row numbers stored from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and the Team chat, an environment named team owned by no one, stored when the journal holds one and made when it holds none, and the team's hub environment, named after the checkout's folder, which names the team on the server too; a team with one replaces this journal's shared rows with its copy, this journal stored as it was in a backup file beside it and the hook log emptied, and each of this machine's environments is found again in the copy by its key, keeping its own name, or made anew under its team name, every agent staying in its environment; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync service is told once it is done."""
+    """A journal joining its team's server: the server's own certificate authority checked against the fingerprint when it has one, the repository checked against the team's (but for the team server's own hosted journal, which has no checkout), the journal's version against the team's pinned one (or, where the team allows any version, its migration against the team's), with the line to install the team's version when they differ, the code and password traded for this machine's token, and any row numbers stored from an earlier team let go, since only this team's server hands out numbers here; then a team with no journal yet takes this one whole, every file under .journal/files with it, each environment given its team name, the person's name before its own, and the Team chat, an environment named team owned by no one, stored when the journal holds one and made when it holds none, and the team's hub environment, named after the checkout's folder, which names the team on the server too; a team with one is joined keeping every row of this journal's own, which are moved into the team's row number blocks with everything that names them, so the team's copy is laid in beside them and none of its rows takes the place of a kept one, this journal stored as it was in a backup file beside it, and each kept environment given its team name and owned by this person, and sent to the team with its owner unless the team holds it already; and adds this person's user row. No environment's name on this machine is ever changed by a join. The sync service is told once it is done."""
 
-    def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, backups: JournalBackup, config: Config, environments: Environments, agents: Agents, entries: Entries, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks, supply: BlockSupply, hooks: ServiceHooks, messages: Messages) -> None:
+    def __init__(self, account: TeamAccount, link: TeamServerLink, tables: SharedTables, outgoing: OutgoingChanges, identity: RepositoryIdentity, backups: JournalBackup, config: Config, environments: Environments, owners: EnvironmentOwners, links: Links, copy: JournalCopy, schema: Schema, hosting: Hosting, blocks: IdBlocks, supply: BlockSupply, hooks: ServiceHooks, renumbering: RowRenumbering, recording: RecordOutgoingChange) -> None:
         self.account, self.link, self.tables, self.outgoing, self.identity = account, link, tables, outgoing, identity
-        self.backups, self.config, self.environments, self.agents, self.entries = backups, config, environments, agents, entries
+        self.backups, self.config, self.environments = backups, config, environments
         self.owners, self.links, self.copy, self.schema, self.hosting, self.blocks, self.supply = owners, links, copy, schema, hosting, blocks, supply
-        self.hooks, self.messages = hooks, messages
+        self.hooks, self.renumbering, self.recording = hooks, renumbering, recording
 
     def join(self, url: TeamUrl, email: str, password: str, name: str) -> str:
-        return self.joined(url, email, password, name, self.history_refusal)
-
-    def join_replacing(self, url: TeamUrl, email: str, password: str, name: str) -> str:
-        return self.joined(url, email, password, name, lambda summary, url: "")
-
-    def joined(self, url: TeamUrl, email: str, password: str, name: str, guard: Callable[[TeamSummary, TeamUrl], str]) -> str:
         if self.account.is_joined():
             raise Rejection(f"this journal has joined the team at {self.account.address()} already: journal team status says how it stands")
         self.trusted(url)
@@ -78,8 +70,6 @@ class TeamJoin:
             raise Rejection(self.repository_refusal(summary, repository))
         if self.version_refusal(summary):
             raise Rejection(self.version_refusal(summary))
-        if guard(summary, url):
-            raise Rejection(guard(summary, url))
         login = self.login(url, summary, email or self.identity.person_email(), name or self.identity.person_name(), password)
         self.blocks.clear()
         address = url.address
@@ -90,7 +80,7 @@ class TeamJoin:
             self.team_chat_ready()
             self.environments.save(Environment.hub(summary.key, self.team_name()), Actor.system())
         self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION, "team_key": summary.key, "team_number": summary.number})
-        outcome = self.downloaded(login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
+        outcome = self.downloaded(prefix, login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
         self.hooks.post(ServiceEvent(TEAM_JOINED))
         return outcome
 
@@ -116,13 +106,6 @@ class TeamJoin:
             return ""
         tag = Release.tagged(summary.version)
         return f"the team runs journal version {summary.version} and this journal {VERSION}: install {summary.version} first with curl -fsSL {ReleaseInstaller.script_path(REPOSITORY, tag)} | AGENT_JOURNAL_REF={tag} sh, then join again"
-
-    def history_refusal(self, summary: TeamSummary, url: TeamUrl) -> str:
-        tasks, messages = self.tables.rows(Task.table()).stored_count(), self.messages.message_count()
-        if not summary.has_rows or not tasks + messages:
-            return ""
-        return (f"this journal holds {tasks} tasks and {messages} messages of its own, and the team at {url.address} holds a journal already, which a join would put in place of this one: "
-                f"join from a fresh clone of the repository, or take the team's journal in place of this one, this journal kept in a backup file beside it, with: journal team join --replace-mine '{url.invitation(url.code, url.fingerprint) if url.is_invitation() else url.address}'")
 
     def claim_refusal(self, url: TeamUrl) -> str:
         self.trusted(url)
@@ -173,31 +156,33 @@ class TeamJoin:
             self.link.upload_file(FilePlace(TABLES[path.parent.parent.name], int(path.parent.name), path.name), path.read_bytes())
         return len(files)
 
-    def downloaded(self, account_id: int, name: str) -> str:
-        self.supply.refill()
+    def downloaded(self, prefix: str, account_id: int, name: str) -> str:
         copy = self.link.full_copy()
         backup = self.config.home / time.strftime(BACKUP_NAME)
         self.backups.write(backup)
-        local_environments = self.environments.working()
-        local_agents = {environment.key: self.agents.global_matching(environment_id=environment.row_id) for environment in local_environments}
-        self.outgoing.clear()
-        self.entries.clear()
-        self.copy.replace_whole(copy.rows)
+        kept = [environment.key for environment in self.environments.working()]
+        team_keys = {row.fields.get("key") for row in copy.rows if row.row_table == Environment.table()}
+        self.renumbering.renumbered(account_id)
+        self.copy.laid_beside(copy.rows)
         self.account.record_sequence(copy.head)
+        self.claim_environments(prefix, account_id)
+        for key in kept:
+            self.namesakes_renamed(self.environments.keyed(key)[0])
+        self.stamp_workers()
+        self.outgoing.clear()
+        for key in kept:
+            if key not in team_keys:
+                self.entered(self.environments.keyed(key)[0])
         self.add_user(account_id, name)
-        for environment in local_environments:
-            team_row = self.reowned(environment)
-            for agent in local_agents[environment.key]:
-                self.agents.save(agent.with_(environment_id=team_row.row_id), Actor.system())
-        return f"joined the team: {len(copy.rows)} rows downloaded, and this journal as it was kept in {backup.name}"
+        return f"joined the team: {len(copy.rows)} of the team's rows downloaded beside this journal's own, which keep their place under the team's row numbers, and this journal as it was kept in {backup.name}"
 
-    def reowned(self, environment: Environment) -> Environment:
+    def namesakes_renamed(self, environment: Environment) -> None:
         for namesake in self.environments.namesakes(environment.name, environment.key):
             self.environments.save(namesake.with_(name=f"{namesake.name}-{namesake.row_id}"), Actor.system())
-        keyed_rows = self.environments.keyed(environment.key)
-        if keyed_rows:
-            return self.environments.save(keyed_rows[0].with_(name=environment.name), Actor.system())
-        return self.environments.save(Environment(name=environment.name, branch=environment.branch, key=environment.key).team_ready(self.account.prefix()), Actor.system())
+
+    def entered(self, environment: Environment) -> None:
+        for row in (environment, *self.links.model_links("target", [environment], OWNER)):
+            self.recording.handle(Created(model=row, actor=Actor.system()))
 
     def add_user(self, account_id: int, name: str) -> None:
         users = self.tables.rows(User.table())

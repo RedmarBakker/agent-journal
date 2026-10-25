@@ -1,4 +1,5 @@
 from journal.db.schema import Schema
+from journal.models.environment import Environment
 from journal.models.outgoing_change import DELETED, OutgoingChange
 from journal.models.setting import Setting
 from journal.repositories.shared_tables import SharedTables
@@ -8,7 +9,7 @@ from sync_server.copied_row import CopiedRow
 
 
 class JournalCopy:
-    """This journal's shared rows as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never in the copy either way: this machine's own are stored through it."""
+    """This journal's shared rows as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds; and the team's full copy taken in place of them: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never in the copy either way: this machine's own are stored through it."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes) -> None:
         self.tables, self.scopes = tables, scopes
@@ -29,6 +30,33 @@ class JournalCopy:
     def replace_whole(self, rows: tuple[CopiedRow, ...]) -> None:
         with self.tables.transaction():
             self.rebuilt(rows, {})
+
+    def laid_beside(self, rows: tuple[CopiedRow, ...]) -> None:
+        kept = {environment.key: environment.row_id for environment in self.tables.rows(Environment.table()).rows()}
+        same = {row.row: kept[row.fields.get("key")] for row in rows if row.row_table == Environment.table() and row.fields.get("key") in kept}
+        tables: dict[str, list[tuple[int, dict]]] = {table: [] for table in self.tables.names()}
+        for row in rows:
+            if row.row_table in tables and not (row.row_table == Environment.table() and row.row in same):
+                tables[row.row_table].append((row.row, self.placed(row.fields, same)))
+        team_settings = {(fields.get("environment_id"), fields.get("key")) for _, fields in tables[Setting.table()]}
+        with self.tables.transaction():
+            settings = self.tables.rows(Setting.table())
+            for setting in settings.rows():
+                if self.scopes.is_team(setting.key) and (setting.environment_id, setting.key) in team_settings:
+                    settings.delete(setting, Actor.system())
+            for table, table_rows in tables.items():
+                self.tables.rows(table).restored(table_rows)
+
+    @staticmethod
+    def placed(fields: dict, same: dict[int, int]) -> dict:
+        placed = dict(fields)
+        if fields.get("environment_id") in same:
+            placed["environment_id"] = same[fields["environment_id"]]
+        for end in ("source", "target"):
+            table, _, number = str(fields.get(end, "")).rpartition(":")
+            if table == Environment.table() and number.isdigit() and int(number) in same:
+                placed[end] = f"{table}:{same[int(number)]}"
+        return placed
 
     def rebuilt(self, rows: tuple[CopiedRow, ...], local: dict[tuple[str, int], dict]) -> None:
         machine_settings = self.machine_settings()

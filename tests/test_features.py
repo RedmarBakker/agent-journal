@@ -11437,7 +11437,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         from journal.repositories.messages import Messages
         with b.container.get(Scope).environment(MAIN):
             b.container.get(Messages).save(Message(environment_id=MAIN, author=Author.SYSTEM, text="the journal is ready", data={"kind": "card"}), Actor.system())
-            b.container.get(Tasks).save(Task(environment_id=MAIN, title="b's own, before joining"), Actor.user(1))
+            bobs_own = b.container.get(Tasks).save(Task(environment_id=MAIN, title="b's own, before joining"), Actor.user(1))
         b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
         before_refusal = [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()]
         major, minor, patch = (int(n) for n in VERSION.split("."))
@@ -11447,12 +11447,9 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
             assert refused_join.error.startswith(f"the team runs journal version {VERSION} and this journal {other}: install {VERSION} first with curl -fsSL"), "a join from a newer or an older journal is refused with the line to install the team's version"
         monkeypatch.setattr("journal.features.team.support.team_join.VERSION", VERSION)
         assert [(row.name, row.key, row.team_name) for row in b.container.get(Environments).rows()] == before_refusal and not b.container.get(TeamAccount).is_joined(), "a refused join leaves every environment as it was"
-        kept = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
-        assert "this journal holds 1 tasks and 0 messages" in kept.error and not b.container.get(TeamAccount).is_joined(), "a journal with its own history is never replaced by the team's unless it asks, and the journal's own marks are no history of its own"
-        assert f"journal team join --replace-mine '{bob_url}'" in kept.error, "the refusal gives the whole command with the invitation quoted, ready to copy into zsh"
-        joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined_b.code == 0 and "joined the team" in joined_b.text, joined_b.error
-        assert [row.title for row in b.container.get(Tasks).global_matching()] == [row.title for row in a.container.get(Tasks).global_matching()], "the joining journal holds exactly the team's tasks, its own replaced"
+        assert sorted(row.title for row in b.container.get(Tasks).global_matching()) == sorted([*(row.title for row in a.container.get(Tasks).global_matching()), bobs_own.title]), "a journal with its own history joins with no refusal, holding the team's tasks and keeping its own"
         bob_names = {row.name: row for row in b.container.get(Environments).rows()}
         assert bob_names["main"].team_name == "bob-main" and bob_names["ada-main"].key == ada_here.key, "Bob's machine keeps its own main, known to the team as bob-main, and knows Ada's by her name, matched by its key"
         assert list((tmp_path / "b" / ".journal").glob("journal-before-team-*.db")), "the journal as it was is kept in a backup"
@@ -11678,7 +11675,7 @@ def test_a_journal_joins_an_empty_team_whole_a_clone_joins_with_an_invitation_an
         team.close(server)
 
 
-def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a_second_finds_the_same_hub_and_each_keeps_its_account_under_the_teams_key(tmp_path, template_journal, monkeypatch):
+def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a_second_keeps_its_own_rows_and_finds_the_same_hub_and_each_keeps_its_account_under_the_teams_key(tmp_path, template_journal, monkeypatch):
     import re
     import subprocess
     from carried_sync import CarriedSync
@@ -11688,6 +11685,15 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
     from journal.repositories.environments import Environments
     from journal.console.support.hub_rows import HubRows
     from journal.db.connection import Connection
+    from journal.models.author import Author
+    from journal.models.link import Link
+    from journal.models.message import Message
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    from journal.sync.attachments import Attachments
     from journal.sync.sync_desk import SyncDesk
     from journal.sync.team_account import TEAM_FILE, TeamAccount
     from sync_server.team_server import TeamServer
@@ -11715,10 +11721,27 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
         [hub] = a.container.get(Environments).hubs()
         assert (hub.name, hub.team_name, hub.kind, hub.team_key) == ("acme", "acme", EnvironmentKind.HUB, new.key), "the first journal makes the team's hub environment"
         assert not a.container.get(EnvironmentOwners).owner_number(hub.row_id) and hub.row_id not in [row.row_id for row in a.container.get(Environments).working()], "the hub is the team's, owned by no one and no environment of this machine's own"
+        b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
+        assert b.console().run(["environment", "create", "lab"], USER).code == 0
+        lab = b.container.get(Environments).existing("lab")
+        with b.container.get(Scope).environment(lab.row_id):
+            own_task = b.container.get(Tasks).save(Task(environment_id=lab.row_id, title="Bob's own, before joining"), Actor.user(1))
+            own_message = b.container.get(Messages).save(Message(environment_id=lab.row_id, author=Author.USER, text="Bob's note before joining"), Actor.user(1))
+        b.container.get(Links).save(Link(source=Ref.build(own_task), target=Ref.build(own_message), kind="mentions"), Actor.user(1))
+        b.container.get(Attachments).store("messages", own_message.id, "note.txt", b"kept")
         bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         joined_b = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined_b.code == 0, joined_b.error
         assert [(row.row_id, row.key, row.kind, row.team_key) for row in b.container.get(Environments).hubs()] == [(hub.row_id, hub.key, EnvironmentKind.HUB, new.key)], "a later journal finds the same hub, and makes no second one"
+        kept_lab = b.container.get(Environments).existing("lab")
+        [kept_task] = b.container.get(Tasks).global_matching(title=own_task.title)
+        [kept_message] = [message for message in b.container.get(Messages).global_matching(environment_id=kept_lab.row_id) if message.text == own_message.text]
+        assert kept_lab.key == lab.key and (kept_task.environment_id, kept_message.environment_id) == (kept_lab.row_id, kept_lab.row_id), "a journal with its own rows joins with no refusal and keeps its environment, task and message, each in its environment"
+        blocks = team.store.all("SELECT row_table, first_number, last_number FROM id_blocks WHERE device_id = ?", (int(b.container.get(TeamAccount).device()),))
+        assert all(any(block["row_table"] == table and block["first_number"] <= number <= block["last_number"] for block in blocks) for table, number in (("environments", kept_lab.row_id), ("tasks", kept_task.id), ("messages", kept_message.id))), "its own rows are renumbered into the team's blocks for this device"
+        assert b.container.get(Links).connecting(kept_task, kept_message) and kept_task.creator == Actor.user(2), "the link between them is renumbered with them, and the person's stamp names their team account"
+        assert b.container.get(Attachments).path("messages", kept_message.id, "note.txt").read_bytes() == b"kept", "a kept message's file moves to its new number"
+        assert {task.title for task in a.container.get(Tasks).global_matching()} <= {task.title for task in b.container.get(Tasks).global_matching()}, "the team's rows are laid in beside the kept ones, none in place of one"
         assert [row.row_id for row in a.container.get(Environments).hubs()] == [hub.row_id], "and the first journal still holds one"
         assert [journal.container.get(HubRows).number("acme:12") for journal in journals] == [12, 12], "each journal reads acme:12 by the team's name on its hub"
         accounts = [journal.container.get(TeamAccount) for journal in journals]
@@ -11788,7 +11811,7 @@ def test_a_journal_joined_and_given_an_environment_by_commands_run_with_no_serve
         alone = App(Config(copied(template_journal, tmp_path / "b"), port=0))
         alone.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
         console = alone.console_without_server()
-        joined = console.run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        joined = console.run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined.code == 0 and "joined the team" in joined.text, joined.error
         made = console.run(["environment", "create", "lab"], USER)
         assert made.code == 0, made.error
@@ -11865,7 +11888,7 @@ def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_
         claimed = a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
         assert claimed.code == 0, claimed.error
         bob_url = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
-        joined = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        joined = b.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined.code == 0, joined.error
         assert a.console().run(["environment", "create", "docs"], USER).code == 0
         docs = a.container.get(Environments).existing("docs")

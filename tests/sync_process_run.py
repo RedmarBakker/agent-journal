@@ -146,7 +146,7 @@ def test_from_a_launch_file_naming_the_journal_alone_its_boot_starts_the_sync_se
         assert joined.code == 0, joined.text + joined.error
         invitation = ada.console().run(["team", "invite", "bob@example.com"], USER).text
         bob_url = re.search(r"(http\S+/join\?code=\S+)", invitation).group(1)
-        joined_bob = bob.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery", "--replace-mine"], USER)
+        joined_bob = bob.console().run(["team", "join", bob_url, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined_bob.code == 0, joined_bob.text + joined_bob.error
         # the claim's launcher would start the Team chat's agent as a supervisor with no journal of its own: the test starts that supervisor itself below
         monkeypatch.setattr(AgentLauncher, "start", lambda self, environment, agent: 1)

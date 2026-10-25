@@ -2164,7 +2164,7 @@ options:
 $ agent: journal team join --help
 exit 0
 usage: journal team join [-h] [--email EMAIL] [--name NAME]
-                         [--password PASSWORD] [--replace-mine]
+                         [--password PASSWORD]
                          url
 
 positional arguments:
@@ -2179,9 +2179,6 @@ options:
                        user.name when left out
   --password PASSWORD  filled in by the journal command's own prompt; never
                        type it on a command line
-  --replace-mine       take the team's journal in place of this one, which
-                       holds tasks or messages of its own; this one is kept in
-                       a backup file beside it
 
 $ agent: journal team login --help
 exit 0

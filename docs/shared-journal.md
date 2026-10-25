@@ -37,9 +37,9 @@ A password has at least 12 characters mixing three of lower case, upper case, di
 characters or more, and never holds the name of your email.
 
 The first journal to join becomes the team's: its rows and files are uploaded, and an environment named team is
-made, the Team chat. Every journal after it downloads the team's copy; what it held before is kept in a backup
-file beside it. A journal that holds tasks or messages of its own is refused, since the team's copy would take
-its place; `--replace-mine` takes the team's on purpose. A journal must run the team's version to join; if it does not, the refusal prints the line that
+made, the Team chat, with the team's hub. Every journal after it downloads the team's copy beside what it holds
+already: its own tasks, messages and environments are kept, moved under the team's row numbers so no row of the
+team's takes their place, and a backup of it as it was is kept beside it. A journal must run the team's version to join; if it does not, the refusal prints the line that
 installs it.
 
 The admin invites a person in Settings, Team, or with `journal team invite <email>`, which gives their

@@ -22,5 +22,5 @@ class IdBlock(Model):
     def size(self) -> int:
         return self.last_number - self.first_number + 1
 
-    def remainder(self) -> "IdBlock":
-        return self.with_(next_number=self.next_number + 1)
+    def past(self, count: int) -> "IdBlock":
+        return self.with_(next_number=self.next_number + count)
