@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:src/web/dist/assets/figure-887I76Tf.js
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-CtCdvEPL.js";import{e as al}from"./tokens-CDlVDfIF.js";import"./tip-Bd9Ky0iZ.js";import"./preload-helper-Dp1pzeXC.js";/**
-========
-import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-B_bvq03_.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-C1O8A6eX.js";import"./preload-helper-Dp1pzeXC.js";/**
->>>>>>>> 13d968818 (The viewer's bundle is built from the chat mark registry's sources on development):src/web/dist/assets/figure-BqUdeNtD.js
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-DxCVAc08.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-BrHAqM6v.js";import"./preload-helper-Dp1pzeXC.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
