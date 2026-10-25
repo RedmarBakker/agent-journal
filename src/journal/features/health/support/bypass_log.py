@@ -1,5 +1,5 @@
 from journal.config import Config
-from journal.features.record.support.bypass import Bypass
+from journal.features.health.support.bypass import Bypass
 
 LOG = "bypass.log"
 TAKEN = "bypass.log.taken"

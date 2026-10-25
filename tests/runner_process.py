@@ -171,7 +171,7 @@ def test_the_runner_agrees_with_the_shell_on_every_line_of_the_corpus(tmp_path: 
 
 def test_a_journal_that_takes_the_line_and_never_answers_is_gone_around_and_the_line_runs_in_the_shell(tmp_path: Path):
     import socket
-    from journal.features.record.support.bypass_log import BypassLog
+    from journal.features.health.support.bypass_log import BypassLog
     silent = socket.socket()
     silent.bind(("127.0.0.1", 0))
     silent.listen(8)

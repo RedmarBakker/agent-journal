@@ -1,8 +1,8 @@
 from journal.chat.moment_cards import MomentCards
-from journal.events.agent_event import AgentEvent
+from journal.events.agent.agent_event import AgentEvent
 from journal.events.listener import Listener
-from journal.features.record.support.bypass import HOOK, SHELL, Bypass
-from journal.features.record.support.bypass_log import BypassLog
+from journal.features.health.support.bypass import HOOK, SHELL, Bypass
+from journal.features.health.support.bypass_log import BypassLog
 from journal.support.card_kind import CardKind
 
 

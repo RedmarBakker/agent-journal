@@ -144,7 +144,7 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
     from journal.hooks.receiver import GUARD_FAILED
     from journal.repositories.messages import Messages
     from journal.events.moments.fault_moment import FaultMoment
-    from journal.features.record.listeners.fault_cards import FaultCards
+    from journal.features.health.listeners.fault_cards import FaultCards
     app.container.get(Bus).listen(ToolStarting, Raising())
     app.container.get(Bus).listen(FaultMoment, app.container.get(FaultCards))
     status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Write", "tool_input": {}})
@@ -161,8 +161,8 @@ def test_a_guard_that_raises_fails_open_and_is_reported_loudly(app: App):
 
 
 def test_the_hooks_and_lines_that_went_around_the_journal_are_named_once_in_the_chat_and_cleared(app: App):
-    from journal.events.agent_event import AgentEvent
-    from journal.features.record.listeners.bypass_notice import BypassNotice
+    from journal.events.agent.agent_event import AgentEvent
+    from journal.features.health.listeners.bypass_notice import BypassNotice
     from journal.repositories.messages import Messages
     app.container.get(Bus).listen(AgentEvent, app.container.get(BypassNotice))
     log = app.config.home / "runtime" / "bypass.log"
