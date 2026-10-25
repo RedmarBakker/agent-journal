@@ -1753,7 +1753,7 @@ def test_the_orchestrator_is_reminded_of_every_started_plan_and_told_once_of_one
     plans = app.container.get(Plans)
     release, billing = plans.rows()[-2:]
     for plan in (release, billing):
-        plans.save(plan.with_(state=PlanState.STARTED), USER)
+        plans.save(plan.with_(state=PlanState.STARTED), Actor.user(1))
     lines = lambda key: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == key]
 
     hook(app, "Stop")
