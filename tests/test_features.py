@@ -12646,7 +12646,7 @@ def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
     b.container.get(Connection).execute("UPDATE environments SET key = lower(hex(randomblob(16)))")
     carriers = [CarriedSync(journal).started() for journal in (a, b)]
     tables = a.container.get(SharedTables)
-    held = {table: tables.highest_number(table) for table in tables.names()}
+    held = {table: tables.highest_number(table, 1 << 62) for table in tables.names()}
     try:
         assert a.console().run(["team", "join", address, "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
         invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
@@ -12688,8 +12688,8 @@ def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, held):
         assert a.container.get(TeamAccount).is_on_hub(), "a new team server is on the hub, and the join says so"
-        floors = {row["row_table"]: row["highest"] for row in team.store.all("SELECT row_table, highest FROM id_floors")}
-        assert all(floors.get(table, 0) >= number for table, number in held.items()), "the team's numbers start above every number Ada's journal had given, her own rows' too, though only the hub's were sent"
+        blocks = team.store.all("SELECT row_table, first_number FROM id_blocks")
+        assert blocks and all(block["first_number"] > held.get(block["row_table"], 0) for block in blocks), "the team's numbers start above every number Ada's journal had given, her own rows' too, though only the hub's were sent"
         own, hub_task = ada_tasks(a)
         assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "a task in the hub reaches the other journal"
         assert team.log.row("tasks", own.id) is None and not b.container.get(Tasks).global_matching(id=own.id), "a task in Ada's own environment, written before it, never reaches the team server or Bob"

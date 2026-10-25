@@ -11,10 +11,11 @@ from journal.sync.team_account import TeamAccount
 from journal.sync.team_placement import TeamPlacement
 from journal.support.actor import Actor
 from sync_server.copied_row import CopiedRow
+from sync_server.id_ranges import TEAM_NUMBER_SHIFT
 
 
 class JournalCopy:
-    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds, of its rows sent or not, so the team's blocks start above every number this journal has given; and a team's full copy taken in place of the rows sent to that team, every row TeamPlacement places in no team kept as it is: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never taken from the copy either way, this machine's own kept as they are."""
+    """This journal's rows TeamPlacement sends to the team, as the team server takes them in a full copy, each row's stored values with every field stamped with the row's update time and the highest number each shared table holds below 2^32, of its rows sent or not, for a team of number 0, so its blocks start above every number this journal has given, and none for a team of its own number, whose blocks start at T * 2^32, above every such number; and a team's full copy taken in place of the rows sent to that team, every row TeamPlacement places in no team kept as it is: whole when a journal first joins, whose numbers mean nothing to the team, laid in beside this journal's own rows when it joins a team with a journal, the team's environment a kept one shares a key with left out and its rows put in the kept one, and a kept setting of the team's scope giving way to the team's own; and at an upgrade of the same team the rows stored on this machine alone untouched, the fields a row keeps on this machine alone, as an environment's name, stored on the rows it still holds, and this machine's waiting writes laid on top, so what it has not sent yet still shows here; either way in one transaction, so nothing reading the journal in the meantime sees it half filled, its rows written straight in without the events of new rows, so a copy of the whole team takes seconds, not the database's write lock for a minute. A setting of one machine or one person is never taken from the copy either way, this machine's own kept as they are."""
 
     def __init__(self, tables: SharedTables, scopes: SettingScopes, placement: TeamPlacement) -> None:
         self.tables, self.scopes, self.placement = tables, scopes, placement
@@ -35,8 +36,10 @@ class JournalCopy:
                 numbers.setdefault(row.row_table, []).append(row.row)
         return [f"{table}:{row.row_id}" for table, ids in numbers.items() for row in self.tables.rows(table).numbered(ids)]
 
-    def highest(self) -> dict:
-        return {table: self.tables.highest_number(table) for table in self.tables.names()}
+    def highest(self, team_number: int) -> dict:
+        if team_number:
+            return {}
+        return {table: self.tables.highest_number(table, 1 << TEAM_NUMBER_SHIFT) for table in self.tables.names()}
 
     def replace(self, rows: tuple[CopiedRow, ...], waiting: list[OutgoingChange], account: TeamAccount) -> None:
         with self.tables.transaction():

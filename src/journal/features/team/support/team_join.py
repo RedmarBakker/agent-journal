@@ -84,7 +84,7 @@ class TeamJoin:
             self.team_chat_ready(summary.key)
             self.environments.save(Environment.hub(summary.key, self.team_name()), Actor.system())
         self.account.write({"address": address, "token": login.token, "device": login.device_id, "account_id": login.account_id, "role": login.role, "sequence": 0, "team_version": summary.version or VERSION, "team_key": summary.key, "team_number": summary.number, "on_hub": summary.on_hub, "home": True})
-        outcome = self.downloaded(prefix, login.account_id, login.name) if summary.has_rows else self.uploaded(repository)
+        outcome = self.downloaded(prefix, login.account_id, login.name) if summary.has_rows else self.uploaded(repository, summary.number)
         self.hooks.post(ServiceEvent(TEAM_JOINED))
         return outcome
 
@@ -114,7 +114,7 @@ class TeamJoin:
             return self.added_beside(url, account, link.full_copy())
         name = self.free_team_name()
         self.environments.save(Environment.hub(summary.key, name), Actor.system())
-        answer = link.upload(self.copy.team_rows(summary.key), self.copy.highest(), repository, VERSION, name)
+        answer = link.upload(self.copy.team_rows(summary.key), self.copy.highest(summary.number), repository, VERSION, name)
         account.record_sequence(answer.head)
         return f"joined the team at {url.address} beside this journal's other teams, as its first journal: its hub {name} uploaded"
 
@@ -178,9 +178,9 @@ class TeamJoin:
             raise Rejection(f"the server at {address} does not hold the certificate the fingerprint names: check the join line, or the address")
         self.account.root_path().write_text(certificate)
 
-    def uploaded(self, repository: str) -> str:
+    def uploaded(self, repository: str, team_number: int) -> str:
         rows = self.copy.rows()
-        answer = self.link.upload(rows, self.copy.highest(), repository, VERSION, self.team_name())
+        answer = self.link.upload(rows, self.copy.highest(team_number), repository, VERSION, self.team_name())
         self.account.record_sequence(answer.head)
         files = self.upload_files()
         self.supply.refill()
