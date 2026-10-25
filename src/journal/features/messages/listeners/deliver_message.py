@@ -13,7 +13,7 @@ DELIVERED = (Created, SyncedCreation)
 
 
 class DeliverMessage(Listener[ModelEvent]):
-    """A message the user leaves is typed into the live agent's terminal by number: the engine's own delivery, no state's to change. A message pulled from the team, as a teammate's in the Team chat, is typed into this machine's agent there just the same."""
+    """A message the user leaves is typed into the live agent's terminal by number: the engine's own delivery, no state's to change. A message pulled from the team, as a teammate's in the Team chat or a session, is typed into this machine's agent there just the same, naming the person who wrote it."""
 
     def __init__(self, agents: Agents, nudger: Nudger, supervisor: SupervisorLink, scope: Scope) -> None:
         self.agents, self.nudger, self.supervisor, self.scope = agents, nudger, supervisor, scope
@@ -26,6 +26,6 @@ class DeliverMessage(Listener[ModelEvent]):
             agent = self.agents.current()
         if agent is None:
             return
-        line = self.nudger.deliver(agent, MessagesNudges.NEW_MESSAGE.create(n=message.id))
+        line = self.nudger.deliver(agent, MessagesNudges.arrival(message))
         if line:
             self.supervisor.type(message.environment_id, line)

@@ -1589,3 +1589,8 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - **The host is the holder.** Hosts counts the sessions this machine holds as its own, beside the hubs and the Team chat, which every journal still writes in; a session another machine holds is asked of its host as any other environment is.
 - **The Team chat is the session with no branch.** Environments.team_chats is the sessions with no branch, and the SingleTeamChat seed and the join's team_chat_ready read only those, so a session of its own, which has a branch, is never dropped as a duplicate Team chat or renamed to it. Environments.session_rows finds sessions of their own by name.
 - **Open.** The branch is named on the row; making it, its worktree and pushing it are not done here. No release or stop of a session yet.
+
+## A member's message in a session reaches its agent (task 3130)
+
+- **As in the Team chat.** A person's message in any session is a teammate's (EnvironmentOwners.is_teammate already covers every session), stamped with the writer's name, and DeliverMessage hears it pulled as it hears a local one, in the session's environment on the machine that runs its agent. The line typed to that agent now names the writer, "new message 57 from Bob" (MessagesNudges.TEAMMATE_MESSAGE, chosen by MessagesNudges.arrival), and `journal message read` names him as before.
+- **The agent runs on the holder.** StartRule asks SessionLeases.start_refusal: a session's agent starts only on the machine holding its lease. TeamChat.start_refusal now asks Environment.is_team_chat, the session with no branch of its own, so the Team chat claim governs the Team chat alone.

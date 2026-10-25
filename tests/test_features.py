@@ -13765,6 +13765,31 @@ def test_a_session_started_on_each_of_two_journals_is_a_hub_session_with_its_own
         assert not b_hosts.is_host(session(b, "review")), "a refused start leaves the session to the machine holding it"
 
 
+def test_a_message_bob_writes_in_a_session_ada_holds_reaches_the_agent_of_the_session_on_adas_machine_named_as_his(tmp_path, template_journal, monkeypatch):
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+
+    def session(journal):
+        sessions = journal.container.get(Environments).session_rows(["review"])
+        return sessions[0] if sessions else None
+
+    def lines() -> list[str]:
+        return [entry.data.get("line") for entry in a.container.get(Entries).global_matching(kind=NUDGE) if entry.data.get("session") == "s9"]
+
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _):
+        assert a.console().run(["session", "start", "review"], USER).code == 0
+        assert posted(a, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200, "the session's agent runs on Ada's machine, which holds it"
+        assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
+        with b.container.get(Scope).environment(session(b).row_id):
+            message = b.container.get(Messages).save(Message(environment_id=session(b).row_id, author=Author.USER, text="the release notes are ready"), Actor.user(2))
+        assert message.data.get(Message.TEAMMATE) == "Bob", "Bob writes in the session as one of its people"
+        assert synced(lambda: f"new message {message.id} from Bob" in lines()), lines()
+        assert a.container.get(Messages).find(message.id).sender.startswith("Bob, one of the people you work for"), "and the agent reads it as his"
+
+
 def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied

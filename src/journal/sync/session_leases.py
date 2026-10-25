@@ -38,6 +38,11 @@ class SessionLeases:
     def hosted(self) -> list[Environment]:
         return self.environments.session_rows(self.account.held_sessions())
 
+    def start_refusal(self, environment: Environment) -> str:
+        if not environment.is_session() or environment.is_team_chat() or environment.team_name in self.account.held_sessions():
+            return ""
+        return f"the agent of session {environment.team_name} runs on the machine that holds it: journal session start {environment.team_name} takes it once that machine lets it go"
+
     def renew(self) -> None:
         if time.monotonic() - self.renewed_at < RENEW_SECONDS:
             return

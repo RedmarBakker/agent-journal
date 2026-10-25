@@ -38,6 +38,9 @@ class Environment(Model):
     def is_session(self) -> bool:
         return self.kind == EnvironmentKind.SESSION
 
+    def is_team_chat(self) -> bool:
+        return self.is_session() and self.branch is None
+
     def is_shared(self) -> bool:
         return self.is_personal() and bool(self.team_key)
 
