@@ -1,7 +1,7 @@
 <script setup>
 import {pinnedNotices} from "../domain/notices.js";
 import {agent} from "../composables/leadAgent.js";
-import {DEFAULT_HIDDEN} from "../domain/chatVisibility.js";
+import {defaultHidden} from "../domain/chatVisibility.js";
 import AgentGrid from "../agents/AgentGrid.vue";
 import {computed} from "vue";
 import SwitchCase from "../kit/SwitchCase.vue";
@@ -23,7 +23,7 @@ defineProps({
     view: {type: String, required: true},
     flush: Boolean,
     feed: {type: Object, default: null},
-    hidden: {type: Array, default: () => DEFAULT_HIDDEN},
+    hidden: {type: Array, default: () => defaultHidden()},
     level: {type: String, default: DEFAULT_LEVEL},
     floating: Boolean,
 });

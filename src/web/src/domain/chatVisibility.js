@@ -1,91 +1,69 @@
-export const VISIBILITY_GROUPS = [
-    {
-        title: "Agent",
-        kinds: [
-            {key: "thoughts", label: "Summaries of the agent's words", icon: "bot"},
-            {key: "skills", label: "Skills the agent loads", icon: "book"},
-            {key: "agents", label: "Agents talking to each other", icon: "agents"},
-            {key: "subagents", label: "Subagents", icon: "agents"},
-            {key: "workers", label: "Workers", icon: "agents"},
-            {key: "compactions", label: "Conversation compacted", icon: "gauge"},
-            {key: "made", label: "Documents the agent made", icon: "docs"},
-            {key: "searches", label: "Searches the agent ran", icon: "search"},
-            {key: "stuck", label: "Agent stuck", icon: "warn"},
-            {key: "acknowledgements", label: "Acknowledged reminders", icon: "check"},
-        ],
-    },
-    {
-        title: "Reminders",
-        kinds: [
-            {key: "rules", label: "Rules", icon: "rules"},
-            {key: "facts", label: "Facts", icon: "pins"},
-            {key: "reminders", label: "Reminders", icon: "reminders"},
-        ],
-    },
-    {
-        title: "Work",
-        kinds: [
-            {key: "commands", label: "Long commands and outputs", icon: "terminal"},
-            {key: "commits", label: "Commits", icon: "branch"},
-            {key: "worktrees", label: "Worktrees", icon: "branch"},
-            {key: "checks", label: "Checks passing and failing", icon: "check"},
-            {key: "questions", label: "Questions asked and answered", icon: "questions"},
-            {key: "filed", label: "Filed from your messages", icon: "inbox"},
-            {key: "task_moves", label: "Tasks started, finished, paused and blocked", icon: "todos"},
-            {key: "conflicts", label: "Your edits a colleague's newer edit replaced", icon: "warn"},
-        ],
-    },
-    {
-        title: "The journal",
-        kinds: [
-            {key: "sequences", label: "Sequences starting and finishing", icon: "list"},
-            {key: "sequence_steps", label: "Every step of a sequence", icon: "list"},
-            {key: "triggers", label: "Triggers", icon: "bolt"},
-            {key: "menus", label: "Menus the journal answered", icon: "bolt"},
-            {key: "suggestions", label: "Suggestions", icon: "bulb"},
-            {key: "verifiers", label: "Dismissals a verifier checked", icon: "verifier"},
-            {key: "plugins", label: "Plugin notes", icon: "plug"},
-            {key: "phones", label: "Phones paired", icon: "phone"},
-            {key: "requests", label: "Requests filed for you", icon: "inbox"},
-            {key: "updates", label: "The journal server replaced by a newer launch", icon: "bolt"},
-            {key: "faults", label: "The journal's own faults", icon: "warn"},
-            {key: "visitors", label: "Visitor comments", icon: "chat"},
-        ],
-    },
-];
+import {store} from "../state/store.js";
 
-// Which choice above shows or hides each kind of turn the chat draws.
-const TURN_KINDS = {thought: "thoughts", receipt: "filed", visitor: "visitors"};
-// Which choice above shows or hides a message by the kind in its metadata: a worker's report is the workers' talk.
-const MESSAGE_KINDS = {report: "workers"};
-// The kinds the agents-talking choice hides together: the agent's dispatches, sends and the reports and marks that come back.
-const AGENT_TALK = ["subagents", "workers"];
-export const HIDDEN_KEY = "chat_hidden";
-export const DEFAULT_HIDDEN = ["acknowledgements", "sequence_steps", "conflicts"];
+// The chat mark kinds and their groups as the server registers them (MarkKinds), served with the manifest the viewer boots from:
+// each kind's label, icon and group, whether it is one of the group's main marks, whether it is shown until hidden, the viewer's
+// turn kinds and message kinds it covers, and the other kinds hiding it hides too.
+const registry = () => store.spec?.marks || {groups: [], kinds: []};
+const kinds = () => registry().kinds;
+const keysOf = (rows) => rows.map((kind) => kind.key);
 
-export const turnKind = (kind) => TURN_KINDS[kind];
+// the marks the chat hides until the user shows them
+export const defaultHidden = () => keysOf(kinds().filter((kind) => !kind.shown));
+
+// every chat mark kind, which the Only chat preset hides all at once, leaving the user's and the agent's words, the docks and the pins
+export const allMarks = () => keysOf(kinds());
+
+const turnKind = (kind) => kinds().find((row) => row.turns.includes(kind))?.key;
+const messageKind = (kind) => kinds().find((row) => row.messages.includes(kind))?.key || "";
 
 export const kindOf = (turn) => {
-    if (turn.kind === "message") return turn.acknowledgement ? "acknowledgements" : MESSAGE_KINDS[turn.data?.kind] || "";
+    if (turn.kind === "message") return messageKind(turn.acknowledgement ? "acknowledgement" : turn.data?.kind);
     return turn.data?.shows || turnKind(turn.kind) || "";
 };
 
-const isAgentTalk = (hidden, kind) => hidden.includes("agents") && AGENT_TALK.includes(kind);
+const isCovered = (hidden, kind) => kinds().some((row) => hidden.includes(row.key) && row.covers.includes(kind));
 
-export const visibleIn = (hidden) => (turn) => !hidden.includes(kindOf(turn)) && !isAgentTalk(hidden, kindOf(turn));
+export const visibleIn = (hidden) => (turn) => !hidden.includes(kindOf(turn)) && !isCovered(hidden, kindOf(turn));
 
+const groupKinds = (group) => kinds().filter((kind) => kind.group === group.key);
+const detailsOf = (group) => keysOf(groupKinds(group).filter((kind) => !kind.main));
+const without = (hidden, keys) => hidden.filter((key) => !keys.includes(key));
+
+// Each group as Show in chat lists it: off when every one of its kinds is hidden, main only when exactly its details are, and its kinds
+// with whether each shows.
 export const visibilityChoices = (hidden) =>
-    VISIBILITY_GROUPS.map((group) => ({...group, kinds: group.kinds.map((kind) => ({...kind, on: !hidden.includes(kind.key)}))}));
+    registry().groups.map((group) => {
+        const keys = keysOf(groupKinds(group));
+        const shown = without(keys, hidden);
+        const details = detailsOf(group);
+        return {
+            ...group,
+            on: shown.length > 0,
+            details: details.length > 0,
+            mainOnly: details.length > 0 && shown.length === keys.length - details.length && details.every((key) => hidden.includes(key)),
+            kinds: groupKinds(group).map((kind) => ({...kind, on: !hidden.includes(kind.key)})),
+        };
+    });
 
-// every chat mark kind, which the Only chat preset hides all at once, leaving the user's and the agent's words, the docks and the pins
-export const ALL_MARKS = VISIBILITY_GROUPS.flatMap((group) => group.kinds.map((kind) => kind.key));
+// the marks hidden once a group's switch is flipped: all of its kinds shown, or all of them hidden
+export const groupSwitched = (hidden, group) => {
+    const keys = keysOf(groupKinds(group));
+    return group.on ? [...without(hidden, keys), ...keys] : without(hidden, keys);
+};
+
+// the marks hidden once a group shows only its main marks, or shows its details again
+export const mainOnlyToggled = (hidden, group) => {
+    const keys = keysOf(groupKinds(group));
+    return group.mainOnly ? without(hidden, keys) : [...without(hidden, keys), ...detailsOf(group)];
+};
 
 // the presets the Show in chat menu offers, each the marks it hides
-export const PRESETS = [
-    {key: "chat", label: "Only chat", icon: "chat", hidden: ALL_MARKS},
-    {key: "context", label: "Chat with context", icon: "list", hidden: DEFAULT_HIDDEN},
+export const presets = () => [
+    {key: "chat", label: "Only chat", icon: "chat", hidden: allMarks()},
+    {key: "context", label: "Chat with context", icon: "list", hidden: defaultHidden()},
 ];
 
-export const presetOf = (hidden) => PRESETS.find((preset) => preset.hidden.length === hidden.length && preset.hidden.every((key) => hidden.includes(key)))?.key ?? "";
+export const presetOf = (hidden) =>
+    presets().find((preset) => preset.hidden.length === hidden.length && preset.hidden.every((key) => hidden.includes(key)))?.key ?? "";
 
 export const toggled = (hidden, key) => (hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key]);

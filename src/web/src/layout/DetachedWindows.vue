@@ -1,6 +1,6 @@
 <script setup>
 import {pinnedNotices} from "../domain/notices.js";
-import {DEFAULT_HIDDEN} from "../domain/chatVisibility.js";
+import {defaultHidden} from "../domain/chatVisibility.js";
 import {computed, ref} from "vue";
 import FloatWindow from "../kit/FloatWindow.vue";
 import Toast from "../kit/Toast.vue";
@@ -71,7 +71,7 @@ function away(id) {
                     :level="levelOf(f)"
                     :flush="!!f.flush"
                     :feed="f.feed || null"
-                    :hidden="f.hide || DEFAULT_HIDDEN"
+                    :hidden="f.hide || defaultHidden()"
                     @feed="(feed) => tune(f.id, {feed})"
                 />
             </FloatWindow>
@@ -87,7 +87,7 @@ function away(id) {
             :levels="menuLevels"
             :chat="menuFloat.view === 'chat'"
             :agents="menuFloat.view === 'agents'"
-            :hidden="menuFloat.hide || DEFAULT_HIDDEN"
+            :hidden="menuFloat.hide || defaultHidden()"
             @verbosity="(id, verbosity) => tune(id, {verbosity})"
             @hide="(id, hide) => tune(id, {hide})"
             :flushable="menuFlushable"

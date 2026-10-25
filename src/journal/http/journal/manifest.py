@@ -5,6 +5,7 @@ from journal.config import Config
 from journal.features.feature import Feature
 from journal.features.registry import Registry
 from journal.http.journal.journal_facts import JournalFacts
+from journal.support.mark_kinds import MarkKinds
 from journal.version import VERSION
 
 DIST = Path(__file__).resolve().parents[3] / "web" / "dist" / "index.html"
@@ -13,13 +14,13 @@ SYSTEM_GROUPS = [{"key": "project", "title": "Project", "line": "Settings for th
 
 
 class Manifest:
-    """What the viewer boots from: the journal's project, version and build, and every feature that means something in this project, with its switch, its words and its options, in the groups the settings page shows."""
+    """What the viewer boots from: the journal's project, version and build, and every feature that means something in this project, with its switch, its words and its options, in the groups the settings page shows, and the chat's mark kinds."""
 
     def __init__(self, config: Config, registry: Registry) -> None:
         self.config, self.registry = config, registry
 
     def assembled(self, environment: str) -> JournalFacts:
-        return JournalFacts(self.config.root.name, environment, VERSION, self.build(), self.features(), self.groups())
+        return JournalFacts(self.config.root.name, environment, VERSION, self.build(), self.features(), self.groups(), MarkKinds.served())
 
     def features(self) -> list[dict]:
         return [{"name": f.name, "title": f.title, "help": f.help, "default": f.default, "fixed": f.fixed,

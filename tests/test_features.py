@@ -18913,3 +18913,14 @@ def test_a_worker_at_rest_past_the_set_hours_is_retired_by_the_hourly_cleanup_an
     assert folder.is_dir(), "one at rest for less than the set four hours keeps it"
     cleanup.tick(timing.time() + 5 * 3600)
     assert not folder.is_dir() and worker_row(app).adopted, "one at rest past them, with nothing unmerged, is retired and its worktree deleted"
+
+
+def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_manifest_as_the_viewers_tests_read_it(app):
+    from journal.support.card_kind import CardKind
+    from journal.support.mark_kinds import MarkKinds
+    served = got(app, "/journal/manifest", {"X-Journal-Env": "main"})[1]["marks"]
+    groups, kinds = {group["key"] for group in served["groups"]}, {kind["key"]: kind for kind in served["kinds"]}
+    assert set(CardKind) <= set(kinds) and all(kind["group"] in groups for kind in kinds.values()), "every kind a card names is registered, each in a registered group"
+    assert {"thoughts", "visitors", "acknowledgements", "agents"} <= set(kinds) and "receipt" in kinds[CardKind.FILED]["turns"], "the turn kinds only the viewer draws are registered the same way"
+    assert not kinds[CardKind.VERIFIERS]["shown"] and kinds[CardKind.SEQUENCES]["main"] and not kinds[CardKind.SEQUENCE_STEPS]["main"], "verifier marks start hidden; a sequence's steps are a detail of its start and finish"
+    assert served == MarkKinds.served() == json.loads((Path(__file__).parents[1] / "src" / "web" / "tests" / "fixtures" / "markKinds.json").read_text()), "the viewer's tests read the registry as it is served"
