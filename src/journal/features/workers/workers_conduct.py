@@ -60,10 +60,7 @@ class WorkersConduct(Conduct):
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        return Transition.merged(self, [crew_stop(self, event, settings), self.lines_at_stop(event, settings)])
-
-    def lines_at_stop(self, event: Stop, settings: Settings) -> Transition:
-        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))
+        return Transition.merged(self, [crew_stop(self, event, settings), self.none(*stop_lines(event, settings))])
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
@@ -144,6 +141,10 @@ def quiet_line(worker, last: str, time: float) -> Nudge:
     if worker.silence.is_split_due(time):
         return WorkersNudges.SPLIT_ADVICE.create(n=worker.id, minutes=2 * worker.silence.minutes())
     return WorkersNudges.SILENT_WORKER.create(n=worker.id, minutes=worker.silence.minutes(), last=last)
+
+
+def stop_lines(event: Stop, settings: Settings) -> tuple[Nudge, ...]:
+    return (*report_mentions(event.data), *check_reminders(event.data, event.time), *plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))
 
 
 def crew_stop(state: BaseState, event: Stop, settings: Settings) -> Transition:
