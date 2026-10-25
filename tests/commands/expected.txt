@@ -625,6 +625,10 @@ $ agent: journal check run 1
 exit 0
 check 1 passed: The cart adds up
 
+$ agent: journal check stop 1
+exit 1
+check 1 is not running
+
 $ agent: journal check edit 1 --title 'The cart sums its lines'
 exit 0
 check 1: The cart sums its lines

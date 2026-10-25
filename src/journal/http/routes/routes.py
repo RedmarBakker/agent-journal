@@ -185,7 +185,7 @@ class Routes:
         self.acts(router, "questions", questions, "answer")
         checks, sequences, triggers = get(CheckController), get(SequenceController), get(TriggerController)
         self.resource(router, "checks", checks)
-        self.acts(router, "checks", checks, "run")
+        self.acts(router, "checks", checks, "run", "stop")
         self.listed(router, "sequences", sequences)
         self.acts(router, "sequences", sequences, "starts", "steps")
         self.resource(router, "triggers", triggers)

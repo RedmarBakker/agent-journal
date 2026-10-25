@@ -29,6 +29,8 @@ the next pass clears it.
 - `journal check create "<title>" --command "<shell>" --every <minutes> --brief "<what it checks and what a failure means>"`;
   `--every 0` runs by hand only.
 - `journal check run <n>` runs it now and prints the tail on failure. `journal check list` shows how each last went.
+- `journal check stop <n>` force stops a running check: its command ends at once, and the run is recorded as stopped,
+  neither passed nor failed, so nothing is reported and it can be run again.
 - `journal check edit <n> [--title] [--command] [--brief] [--every]` changes the fields you name on a check and leaves the rest.
 - `journal check remove <n>` retires a check: it runs no more and leaves the list, and a task or plan that waited on it
   alone opens again.

@@ -3,6 +3,7 @@ import {api} from "../api/client.js";
 
 export function useCheckRun(check) {
     const asked = ref(false);
+    const stopping = ref(false);
 
     async function run() {
         asked.value = true;
@@ -13,5 +14,14 @@ export function useCheckRun(check) {
         }
     }
 
-    return {asked, run};
+    async function stop() {
+        stopping.value = true;
+        try {
+            await api.act("checks", check().id, "stop");
+        } finally {
+            stopping.value = false;
+        }
+    }
+
+    return {asked, run, stopping, stop};
 }

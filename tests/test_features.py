@@ -582,6 +582,44 @@ def test_a_check_edited_runs_its_new_command(app: App):
     assert app.container.get(CheckRunner).run(check, Actor.system()).last_passed is True
 
 
+def test_a_running_check_is_force_stopped_by_command_and_by_its_button_and_runs_again(app: App):
+    """A check that sleeps is stopped by journal check stop and by the route the viewer's Stop button posts to: its process group is gone within a second, its run is recorded as stopped, neither passed nor failed, and nothing is reported."""
+    import threading
+    from journal.features.checks.support.check_runner import CheckRunner
+    from journal.repositories.checks import Checks
+    from journal.support.process_check import ProcessCheck
+    checks, runner, console = app.container.get(Checks), app.container.get(CheckRunner), app.console()
+    console.run(["check", "create", "Sleeper", "--command", "sleep 30"], USER)
+
+    def started() -> int:
+        runner.start(checks.find(1), Actor.system())
+        deadline = timing.time() + 5
+        while not (progress := checks.find(1).progress) or not progress.process:
+            assert timing.time() < deadline, "the run records its process group"
+            timing.sleep(0.05)
+        return progress.process
+
+    def ended(process: int) -> None:
+        deadline = timing.time() + 1
+        while ProcessCheck.is_running(process):
+            assert timing.time() < deadline, "the command's process is gone within a second"
+            timing.sleep(0.02)
+        for thread in [thread for thread in threading.enumerate() if thread.name == "check-1"]:
+            thread.join(5)
+        check = checks.find(1)
+        assert (check.last_stopped, check.last_passed, check.progress, check.verdict()) == (True, None, None, "stopped"), "recorded as stopped, and the run's own thread, ending after, records no failure over it"
+
+    process = started()
+    assert console.run(["check", "stop", "1"], USER).text.startswith("check 1 stopped")
+    ended(process)
+    process = started()
+    assert posted(app, "/journal/checks/1/stop", {}, {"X-Journal-Env": "main"})[0] == 200
+    ended(process)
+    assert "is not running" in console.run(["check", "stop", "1"], USER).error
+    console.run(["check", "edit", "1", "--command", "true"], USER)
+    assert runner.run(checks.find(1), Actor.system()).verdict() == "passed", "free to run again"
+
+
 def test_the_same_check_three_times_is_named(app: App):
     hook(app, "SessionStart")
     for _ in range(2):

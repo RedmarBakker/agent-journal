@@ -18,7 +18,7 @@ const state = computed(() => checkState(props.resource, now.value));
 const last = computed(() => state.value.last);
 const command = ref(props.resource.command || "");
 const every = ref(Number(props.resource.interval || 0));
-const {asked, run} = useCheckRun(() => props.resource);
+const {asked, run, stopping, stop} = useCheckRun(() => props.resource);
 const output = ref(null);
 const passes = computed(() => state.value.runs.filter((r) => r.ok).length);
 
@@ -53,22 +53,19 @@ async function save(key, value) {
                 <span class="since">
                     <template v-if="state.verdict === 'running'">started {{ seconds(state.elapsed) }} ago</template>
                     <template v-else-if="last.time">
-                        {{ last.ok ? "passed" : "failed" }} {{ age(last.time) }} in
+                        {{ last.stopped ? "stopped" : last.ok ? "passed" : "failed" }} {{ age(last.time) }} in
                         {{ seconds(last.took) }}
                     </template>
                     <template v-else>press Run to check now</template>
                 </span>
             </div>
             <span class="grow" />
-            <Btn
-                kind="primary"
-                small
-                :busy="asked || state.verdict === 'running'"
-                :disabled="asked || state.verdict === 'running'"
-                @click="run"
-            >
-                Run now
-            </Btn>
+            <template v-if="state.verdict === 'running'">
+                <Btn class="check-stop" kind="danger" small :busy="stopping" @click="stop">Stop</Btn>
+            </template>
+            <template v-else>
+                <Btn class="check-run" kind="primary" small :busy="asked" @click="run">Run now</Btn>
+            </template>
         </div>
         <template v-if="state.verdict === 'running'">
             <CheckProgress :state="state" />

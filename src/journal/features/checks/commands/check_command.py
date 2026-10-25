@@ -28,6 +28,7 @@ class CheckCommand(Command):
         edit.add_argument("--brief")
         edit.add_argument("--every", type=int, help="minutes; 0 runs it by hand only")
         self.verb(verbs, "run", "run a check now").add_argument("n", type=int)
+        self.verb(verbs, "stop", "force stop a running check: its command ends at once, and the run is recorded as stopped, neither passed nor failed").add_argument("n", type=int)
         self.verb(verbs, "list", "every check and how it last went")
         self.verb(verbs, "remove", "retire a check: it runs no more and leaves the list, and a task or plan that waited on it alone opens again").add_argument("n", type=int)
 
@@ -45,15 +46,19 @@ class CheckCommand(Command):
 
     def run(self, args: Namespace, caller: Caller) -> int:
         completed = self.runner.run(self.checks.find(args.n), caller.actor)
-        print(f"check {completed.id} {'passed' if completed.last_passed else 'failed'}: {completed.title}")
+        print(f"check {completed.id} {completed.verdict()}: {completed.title}")
         if not completed.last_passed:
             print(completed.last_output.strip())
         return 0 if completed.last_passed else 1
 
+    def stop(self, args: Namespace, caller: Caller) -> int:
+        stopped = self.runner.stop(self.checks.find(args.n), caller.actor)
+        print(f"check {stopped.id} stopped: {stopped.title}; it can be run again")
+        return 0
+
     def list(self, args: Namespace, caller: Caller) -> int:
         for check in self.checks.all():
-            state = {True: "passed", False: "failed", None: "not run"}[check.last_passed]
-            print(f"{check.id:>4}  {state:<8} {check.title}")
+            print(f"{check.id:>4}  {check.verdict():<8} {check.title}")
         return 0
 
     def remove(self, args: Namespace, caller: Caller) -> int:

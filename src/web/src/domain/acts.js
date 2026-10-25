@@ -21,7 +21,7 @@ const ACTS = {
         ...(isClosed(r) ? [] : [act("abandon", "Abandon", {danger: true})]),
     ],
     notices: (r) => (isClosed(r) ? [] : [act("close", "Close")]),
-    checks: () => [act("run", "Run now")],
+    checks: (r) => (r.progress ? [act("stop", "Stop", {danger: true})] : [act("run", "Run now")]),
     shares: (r) => [...(!r.approved && !r.stopped_at ? [act("approve", "Accept")] : []), ...(r.stopped_at ? [] : [act("stop", "Stop sharing", {danger: true})])],
     facts: () => [DELETE],
     rules: () => [DELETE],

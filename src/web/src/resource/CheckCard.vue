@@ -13,7 +13,7 @@ const props = defineProps({resource: Object});
 const now = useNow();
 const state = computed(() => checkState(props.resource, now.value));
 const every = computed(() => Number(props.resource.interval || 0));
-const {asked, run} = useCheckRun(() => props.resource);
+const {asked, run, stopping, stop} = useCheckRun(() => props.resource);
 
 </script>
 
@@ -24,15 +24,12 @@ const {asked, run} = useCheckRun(() => props.resource);
             <span class="verdict">{{ VERDICTS[state.verdict] }}</span>
             <span class="n">#{{ resource.id }}</span>
             <span class="grow" />
-            <Btn
-                kind="primary"
-                small
-                :busy="asked || state.verdict === 'running'"
-                :disabled="asked || state.verdict === 'running'"
-                @click.stop="run"
-            >
-                Run
-            </Btn>
+            <template v-if="state.verdict === 'running'">
+                <Btn class="check-stop" kind="danger" small :busy="stopping" @click.stop="stop">Stop</Btn>
+            </template>
+            <template v-else>
+                <Btn class="check-run" kind="primary" small :busy="asked" @click.stop="run">Run</Btn>
+            </template>
         </div>
         <span class="title">{{ resource.title }}</span>
         <code class="command">{{ resource.command || "no command yet" }}</code>

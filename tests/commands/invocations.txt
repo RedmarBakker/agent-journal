@@ -117,6 +117,7 @@ agent collection rename 1 "The checkout"
 agent check create "The cart adds up" --command "exit 0" --brief "the cart's test passes" --every 0
 agent check list
 agent check run 1
+agent check stop 1
 agent check edit 1 --title "The cart sums its lines"
 agent check dock 1
 agent check undock 1
