@@ -2218,6 +2218,7 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
         worker = workers.save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1", token_hash=AgentToken.hashed("tok")), Actor.system())
         tasks.handover(tasks.save(Task(environment_id=1, title="the parser", brief="the parser reads"), Actor.system()), Ref.build(worker), Actor.system())
         workers.save(workers.find(worker.id).ready(1.0), Actor.worker(worker.id))
+        app.container.get(SettingRows).set("workers.testing", "The journal runs them", Actor.user(1))
 
     def worker_runs(command: str):
         data = json.dumps({"hook_event_name": "PreToolUse", "session_id": "w1", "tool_name": "Bash", "tool_input": {"command": command}}).encode()
@@ -2229,8 +2230,12 @@ def test_how_workers_test_sets_whether_a_worker_may_run_a_test_command(app: App)
             return error.code, json.loads(error.read())
     for command in ("pytest tests/test_x.py", "npm test", "npx vitest run", "journal suite"):
         status, body = worker_runs(command)
-        assert status == 409 and "tests are handed over" in body["error"] and "proof" in body["error"], f"{command} is refused by default"
+        assert status == 409 and "the journal runs your tests" in body["error"] and "--tests" in body["error"], f"{command} is refused while the journal runs the tests"
     assert worker_runs("git status")[0] == 200, "a command that runs no test passes"
+    with scope.environment(1):
+        app.container.get(SettingRows).set("workers.testing", "Hand the tests over", Actor.user(1))
+    status, body = worker_runs("pytest tests/test_x.py")
+    assert status == 409 and "tests are handed over" in body["error"] and "proof" in body["error"], "with Hand the tests over a worker's test command is refused too"
     with scope.environment(1):
         app.container.get(SettingRows).set("workers.testing", "Run the tests it wrote", Actor.user(1))
     assert worker_runs("pytest tests/test_x.py")[0] == 200, "with Run the tests it wrote a worker's test command passes"

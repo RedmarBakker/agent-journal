@@ -42,9 +42,9 @@ from journal.features.workers.support.worker_libraries import WorkerLibraries
 from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_nudges import WorkersNudges
-from journal.features.workers.workers_options import MERGER_TESTING, TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 from journal.features.workers.workers_profiles import WorkersProfiles
-from journal.features.templates.shipped import BUDGET_TESTS, SCOPED_TESTS, ZERO_TESTS
+from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
@@ -57,6 +57,8 @@ ASSIGNMENT_REFUSALS = {
 }
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
+
+TEST_COMMAND_MISSING = "the journal runs each worker's tests with the project's test command, and none is set: set it with journal tests command \"<the command, without the tests>\" --proof \"<the arguments that run one test that passes>\", then dispatch again"
 
 class WorkerCommand(Command):
     noun = "worker"
@@ -134,11 +136,13 @@ class WorkerCommand(Command):
     def provider_default(self, caller: Caller) -> str:
         return self.providers.default().name if caller.provider is None else caller.provider
 
+    def is_test_command_missing(self) -> bool:
+        return self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING and not str(self.settings.option(WorkersOptions.TEST_COMMAND)).strip()
+
     @staticmethod
     def testing_title(mode: str, title: str) -> str:
-        if mode == MERGER_TESTING:
-            return ZERO_TESTS.title
-        return BUDGET_TESTS.title if mode == TEST_BUDGET else title or SCOPED_TESTS.title
+        fixed = {MERGER_TESTING: ZERO_TESTS.title, TEST_BUDGET: BUDGET_TESTS.title, JOURNAL_TESTING: JOURNAL_TESTS.title}
+        return fixed.get(mode) or title or SCOPED_TESTS.title
 
     def testing_template(self, title: str) -> Template:
         mode = self.settings.option(WorkersOptions.TESTING)
@@ -151,6 +155,8 @@ class WorkerCommand(Command):
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
+        if self.is_test_command_missing():
+            raise Rejection(TEST_COMMAND_MISSING)
         if args.pool and args.report and ReportChoice.argument(args.report).tasks != 1:
             raise Rejection(POOL_REFUSAL)
         self.worker_profile(args.profile)

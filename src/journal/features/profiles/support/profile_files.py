@@ -7,7 +7,7 @@ from journal.providers.support.profile_view import ProfileView
 from journal.providers.providers import Providers
 from journal.repositories.setting_rows import SettingRows
 from journal.features.profiles.profiles_options import ProfilesOptions
-from journal.features.workers.workers_options import MERGER_TESTING, TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TESTING, TEST_BUDGET, WorkersOptions
 
 PREFIX = "journal-"
 UNPREFIXED = ("researcher", "planner", "debugger", "senior", "medior")
@@ -23,6 +23,7 @@ WRITES = ("You write: change what the job needs and nothing beyond it. Find what
           "write a second way. Write the test that proves your change and name it in a proof. " + TURN)
 TEST_HANDOVER = "Never run a test, the suite or the viewer build: write the tests that prove each point and name each, with the command that runs it, in your proof; the agent that merges runs them."
 TESTS_TURN = "Run tests only with journal tests turn, which gives your run its turn within the test budget; any other test run is refused where you have hooks, and where you have none you keep to this yourself; name each test you ran in its proof."
+JOURNAL_TESTING_INSTRUCTION = "Never run a test, the suite or the viewer build yourself: write the tests that prove each point, and clock out with journal clock-out \"<report>\" --tests \"<the arguments the project's test command takes to run them>\". The journal runs them in your worktree; a failing run refuses the clock-out with its failing lines, so fix them and clock out again."
 TESTS_RUN = "Run the tests you wrote, by name, never the full suite; name each in its proof with the command that runs it."
 
 
@@ -69,7 +70,7 @@ class ProfileFiles:
 
     def worker_instructions(self, name: str) -> str:
         profile = self.read(name)
-        tests = {MERGER_TESTING: TEST_HANDOVER, TEST_BUDGET: TESTS_TURN}.get(self.settings.option(WorkersOptions.TESTING), TESTS_RUN)
+        tests = {MERGER_TESTING: TEST_HANDOVER, TEST_BUDGET: TESTS_TURN, JOURNAL_TESTING: JOURNAL_TESTING_INSTRUCTION}.get(self.settings.option(WorkersOptions.TESTING), TESTS_RUN)
         body = profile["body"] if profile["shipped"] else f"{TURN}\n\n{profile['body']}"
         return f"{body}\n\n{tests}"
 

@@ -66,6 +66,42 @@ class TestTurns:
         failed = sum(TestRunResult.printed(text, self.readers.reading(turn.command)).failed for turn, text in ran)
         return "\n".join([*(self.result(turn, text) for turn, text in ran), f"{len(ran)} runs: {passed} passed, {failed} failed"])
 
+    def checked(self, worker: Worker, ids: str, caller: Caller) -> tuple[TestTurn, str]:
+        folder = str(self.branch.folder(worker))
+        turn = self.asked(worker, ids, f"{self.command(folder)} {ids}", folder)
+        if not self.waited(turn):
+            raise Rejection("your test run was taken back before it ran: clock out again")
+        self.turns.save(self.turns.find(turn.id).with_run_event(time.time()), Actor.system())
+        limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, time.time()))
+        limit.start()
+        try:
+            _, text = self.whole_run(turn.command, turn.folder, caller, worker.environment_id)
+            self.recorded(turn, TestRunResult.printed(text, self.readers.reading(turn.command)))
+        finally:
+            limit.cancel()
+            self.turns.save(self.turns.find(turn.id).ended().with_run_event(time.time()), Actor.system())
+        return self.turns.find(turn.id), self.result(turn, text)
+
+    def proved(self, line: str, folder: str, caller: Caller, environment: int) -> tuple[int, str]:
+        output, text = self.whole_run(line, folder, caller, environment)
+        code = output.status if output is not None else self.exit_code(text)
+        return code, "\n".join([line for line in text.splitlines() if not line.startswith(EXIT)][-LAST_LINES:])
+
+    def whole_run(self, line: str, folder: str, caller: Caller, environment: int):
+        started = time.time()
+        text = b"".join(self.runner.run(ShellRequest(line=line, cwd=folder, shell="bash", environment=dict(os.environ)), caller, environment)).decode(errors="replace")
+        output = next((row for row in self.outputs.ran_in(folder) if row.creation_time.timestamp() >= started), None)
+        moved = output is not None and not output.ended
+        while output is not None and not output.ended:
+            time.sleep(POLL_SECONDS)
+            output = self.outputs.find(output.row_id)
+        return output, self.printed(output, text) if moved else text
+
+    @staticmethod
+    def exit_code(text: str) -> int:
+        codes = [line.split()[-1] for line in text.splitlines() if line.startswith(EXIT)]
+        return int(codes[-1]) if codes and codes[-1].lstrip("-").isdigit() else 1
+
     def asked(self, worker: Worker, ids: str, command: str, folder: str) -> TestTurn:
         with self.lock:
             waiting, cap = self.turns.waiting(), self.waiting_cap()
@@ -106,8 +142,8 @@ class TestTurns:
             return text
         text = self.printed(output, text) if moved else text
         limit.cancel()
-        self.turns.save(later.ended(), Actor.system())
         self.recorded(later, TestRunResult.printed(text, self.readers.reading(turn.command)))
+        self.turns.save(self.turns.find(turn.id).ended(), Actor.system())
         return text
 
     def awaited(self, output, started: float):

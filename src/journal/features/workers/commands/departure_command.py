@@ -4,13 +4,19 @@ from datetime import datetime, timezone
 from journal.console.command import WORKER_KINDS, Command
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import DELIVERED, PoolWorkerMoves
+from journal.features.workers.support.test_turns import TestTurns
 from journal.features.workers.support.worker_reports import WorkerReports
+from journal.features.workers.workers_options import JOURNAL_TESTING, WorkersOptions
+from journal.models.task_log import TaskLog
+from journal.models.test_outcome import TestOutcome
 from journal.models.proof_state import ProofState
 from journal.models.support.ref import Ref
 from journal.models.task import Task
 from journal.models.task_state import TaskState
 from journal.models.worker import Worker
 from journal.repositories.proofs import Proofs
+from journal.repositories.setting_rows import SettingRows
+from journal.repositories.task_logs import TaskLogs
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.support.caller import Caller
@@ -18,17 +24,20 @@ from journal.support.rejection import Rejection
 
 
 class DepartureCommand(Command):
-    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later."""
+    """journal clock-out "<report>": a worker's one report, accepted only once every point of its task's brief has a valid proof, its worktree has no uncommitted file and its branch has been moved up to the branch its work merges into, a clash there sent back to it at once with the files that clash, and, while the journal runs the tests, the tests it names have passed in its worktree, a failing run sent back to it at once with its failing lines. A worker on a queue whose report choice is not yet due finishes the task instead, which waits for the merge with the rest, and goes straight on to its next queued task in the same session, its report kept for later."""
 
     noun = "clock-out"
     default_verb = "record"
     callers = {"record": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves) -> None:
+    def __init__(self, workers: Workers, tasks: Tasks, proofs: Proofs, reports: WorkerReports, branch: WorkerBranch, moves: PoolWorkerMoves, turns: TestTurns, settings: SettingRows, logs: TaskLogs) -> None:
         self.workers, self.tasks, self.proofs, self.reports, self.branch, self.moves = workers, tasks, proofs, reports, branch, moves
+        self.turns, self.settings, self.logs = turns, settings, logs
 
     def arguments(self, verbs) -> None:
-        self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof").add_argument("report")
+        record = self.verb(verbs, "record", "hand in your work with your report, once each point of your brief has a proof")
+        record.add_argument("report")
+        record.add_argument("--tests", default="", help="the arguments the project's test command takes to run the tests that prove your work; the journal runs them before your clock-out stands")
 
     def record(self, args: Namespace, caller: Caller) -> int:
         if caller.worker_number is None:
@@ -47,6 +56,8 @@ class DepartureCommand(Command):
         clashing = self.clashing(worker)
         if clashing:
             raise Rejection(f"your branch could not be moved up to the project's branch: {clashing}; {REBASE_STEPS}, then clock out again")
+        if self.is_journal_testing(worker):
+            self.tested(worker, task, args.tests, caller)
         holder = Ref(Worker.table(), worker.id)
         waiting = self.tasks.queue(holder)
         if not worker.pool_request and not self.is_unfinished(task) and not self.is_blocked(waiting) and not worker.report_choice.is_due(len(self.tasks.finished_task_ids(holder)), len(waiting)):
@@ -59,6 +70,17 @@ class DepartureCommand(Command):
             self.reports.delivered(worker, args.report, caller.actor)
         print(f"worker {worker.id} clocked out of task {task.id}; the agent that sent you checks each proof")
         return 0
+
+    def is_journal_testing(self, worker: Worker) -> bool:
+        return not worker.pool_request and self.settings.option(WorkersOptions.TESTING) == JOURNAL_TESTING
+
+    def tested(self, worker: Worker, task: Task, tests: str, caller: Caller) -> None:
+        if not tests.strip():
+            raise Rejection(f"name the tests that prove your work: journal clock-out \"<report>\" --tests \"<the arguments {self.turns.command(str(self.branch.folder(worker)))} takes to run them>\"; the journal runs them in your worktree before your clock-out stands")
+        turn, run_lines = self.turns.checked(worker, tests.strip(), caller)
+        if turn.outcome != TestOutcome.PASSED:
+            raise Rejection(f"your tests did not pass, so your clock-out does not stand: fix them and clock out again\n{run_lines}")
+        self.logs.save(TaskLog.build(task, f"tests passed at clock-out: {turn.command}", datetime.now(timezone.utc).timestamp()), caller.actor)
 
     def moved_on(self, worker: Worker, task: Task, next_task: Task, caller: Caller) -> int:
         holder = Ref(Worker.table(), worker.id)

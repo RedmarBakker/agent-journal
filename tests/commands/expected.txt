@@ -143,13 +143,16 @@ options:
 
 $ agent: journal clock-out record --help
 exit 0
-usage: journal clock-out record [-h] report
+usage: journal clock-out record [-h] [--tests TESTS] report
 
 positional arguments:
   report
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help     show this help message and exit
+  --tests TESTS  the arguments the project's test command takes to run the
+                 tests that prove your work; the journal runs them before your
+                 clock-out stands
 
 $ agent: journal proof record --help
 exit 0
@@ -645,7 +648,7 @@ report 1 signed off: it was read and needs no action
 
 $ agent: journal template create 'Find what is missing' --brief 'Read the plan against its goal' --applies-to plan --purpose critique
 exit 0
-template 13: Find what is missing
+template 14: Find what is missing
 
 $ agent: journal template list
 exit 0
@@ -655,13 +658,14 @@ exit 0
    4  Challenge the approach (for plan, critique)
    5  No tests (for worker, testing)
    6  Test budget (for worker, testing)
-   7  Scoped tests (for worker, testing)
-   8  Full suite (for worker, testing)
-   9  Never run tests (for plan, testing)
-  10  Tests at each phase end (for plan, testing)
-  11  Scoped tests after each task (for plan, testing)
-  12  Test throughout (for plan, testing)
-  13  Find what is missing (for plan, critique)
+   7  The journal tests (for worker, testing)
+   8  Scoped tests (for worker, testing)
+   9  Full suite (for worker, testing)
+  10  Never run tests (for plan, testing)
+  11  Tests at each phase end (for plan, testing)
+  12  Scoped tests after each task (for plan, testing)
+  13  Test throughout (for plan, testing)
+  14  Find what is missing (for plan, critique)
 
 $ agent: journal template show 1
 exit 0
@@ -1246,6 +1250,7 @@ workers.tests_per_run = 20
 workers.test_run_minutes = 10
 workers.failing_runs = 3
 workers.test_command = ''
+workers.test_command_proof = ''
 workers.test_run_lines = True
 workers.check_reminder_uses = 25
 workers.most_out = 3
@@ -1328,7 +1333,7 @@ default: True; set by the user, on the Settings page
 $ user: journal settings set tasks.auto false
 exit 0
 tasks.auto = False
-created: setting 5
+created: setting 6
 
 $ agent: journal environment list
 exit 0
@@ -1461,12 +1466,12 @@ Talk like a good butler: polite, calm and to the point. Use my title and name wh
 $ user: journal voice choose butler
 exit 0
 voice: butler
-created: setting 6
+created: setting 7
 
 $ user: journal voice address --title Sir --name Jesse
 exit 0
 the agent calls you Sir Jesse
-created: setting 7
+created: setting 8
 
 $ agent: journal skill list
 exit 0
@@ -1753,6 +1758,7 @@ workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop
 workers.task_names_another_without_a_wait  [workers]  task {{task}} names task {{other}}, still open, and does not wait on it. journal task block {{task}} --on task:{{other}}
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
+workers.the_journal_runs_the_tests  [workers]  the journal runs your tests here, so you do not run {{command}}. name them when you clock out: journal clock-out "<report>" --tests "<the arguments the test command takes>"
 workers.tiny_job_dropped_the_fitness  [workers]  worker {{n}} reported {{seconds}} seconds after its job's start with no other task open, which cost your fitness {{points}} points at once: do a job this small yourself, and hand a worker only work worth its start
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
@@ -1773,7 +1779,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-268 nudges
+269 nudges
 
 $ agent: journal worker list
 exit 0
@@ -2545,6 +2551,19 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
+
+$ agent: journal tests command --help
+exit 0
+usage: journal tests command [-h] --proof PROOF line
+
+positional arguments:
+  line           the command without the tests, such as journal suite or
+                 vendor/bin/phpunit
+
+options:
+  -h, --help     show this help message and exit
+  --proof PROOF  the arguments that run one test that passes, such as
+                 tests/test_cli.py -k version
 
 $ agent: journal supervision health
 exit 0

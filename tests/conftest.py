@@ -80,10 +80,11 @@ def bus() -> Bus:
 
 @pytest.fixture(scope="session")
 def template_journal(tmp_path_factory) -> Path:
-    """One journal booted for the whole run, its schema made and its seeds drawn, the user's first name set, so no test's journal asks git for it, and its main environment made, as the user would make it first; a test that boots a journal starts from a copy of it, which boots in a hundredth of the time."""
+    """One journal booted for the whole run, its schema made and its seeds drawn, the user's first name set, so no test's journal asks git for it, workers' tests handed over, so no test needs a test command set to send a worker, and its main environment made, as the user would make it first; a test that boots a journal starts from a copy of it, which boots in a hundredth of the time."""
     root = tmp_path_factory.mktemp("template")
     app = App(Config(root, port=0))
     app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key=VoicesOptions.NAME.key, value="Jesse"), Actor.system())
+    app.container.get(SettingRows).save(Setting(environment_id=PROJECT, key="workers.testing", value="Hand the tests over"), Actor.system())
     app.runtime().start()
     app.container.get(Environments).lookup("main")
     app.runtime().stop()

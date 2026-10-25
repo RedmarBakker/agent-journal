@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
+from journal.events.rows.clock_out_test_run_changed import ClockOutTestRunChanged
 from journal.models.scoped import Scoped
 from journal.models.test_outcome import TestOutcome
 from journal.models.test_turn_state import TestTurnState
@@ -39,3 +40,6 @@ class TestTurn(Scoped):
 
     def failed_run(self, failed: int) -> "TestTurn":
         return self.with_(outcome=TestOutcome.FAILED, failed=failed)
+
+    def with_run_event(self, time: float) -> "TestTurn":
+        return self.with_event(ClockOutTestRunChanged(environment_id=self.environment_id, time=time, turn=self.row_id))

@@ -37,6 +37,7 @@ def journal(tmp_path: Path, monkeypatch, request):
     app = main_journal(Config(tmp_path / "journal", port=0))
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
+    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.testing", value="Hand the tests over"), Actor.system())
     with app.container.get(Scope).environment(MAIN):
         yield [app, request.param]
     app.runtime().stop()

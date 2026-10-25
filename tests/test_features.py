@@ -93,7 +93,6 @@ def booted(root: Path, patch: pytest.MonkeyPatch) -> App:
     app.container.get(SettingRows).save(Setting(environment_id=0, key="features.skills", value=False), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="delivery.batch_seconds", value=0), Actor.system())
     app.container.get(SettingRows).save(Setting(environment_id=0, key="plugins.hold_window_ms", value=2000), Actor.system())
-    app.container.get(SettingRows).save(Setting(environment_id=0, key="workers.testing", value="Hand the tests over"), Actor.system())
     app.runtime().start()
     return app
 
@@ -1353,9 +1352,13 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
             last = named()[-1]
             app.container.get(Entries).save(last.with_(data={**last.data, "time": last.data["time"] - minutes * 60}), Actor.system())
 
-    app.runtime().deferred.drain()
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
     from journal.repositories.links import Links
-    assert [link for link in app.container.get(Links).all() if link.source.type == "messages" and link.target.type == "reports"], "the card the journal writes for each new report mentions it"
+    from journal.repositories.messages import Messages
+    with app.container.get(Scope).environment(MAIN):
+        card = next(message for message in app.container.get(Messages).all() if message.data.get("card_type"))
+        app.container.get(Links).save(Link(source=Ref.build(card), target=Ref("reports", 1), kind="mentions"), Actor.agent("s1"))
     hook(app, "Stop")
     lines = [entry.data["line"] for entry in named()]
     assert len(lines) == 1 and lines[0].startswith("report 1 has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
@@ -10053,6 +10056,39 @@ def test_a_brief_reads_as_its_points_and_proofs_and_to_do_items_are_rows_of_thei
     assert all(isinstance(moved.events[-1], kind) and moved.state == state for moved, kind, state in moves), "each state change of a worker carries its event"
 
 
+def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_run_lets_it_stand(app: App, monkeypatch):
+    from journal.models.worker_state import WorkerState
+    from journal.repositories.messages import Messages
+    from journal.repositories.task_logs import TaskLogs
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    settings, console = app.container.get(SettingRows), app.console()
+    settings.set("workers.testing", "The journal runs them", Actor.user(1))
+    for argv in (["init", "-q", "-b", "main"], ["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "start"]):
+        subprocess.run(["git", *argv], cwd=app.config.root, capture_output=True, timeout=30)
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the job 1", "--brief", "the job"], AGENT)
+    refused = console.run(["worker", "dispatch", "Worker 1", "--task", "1", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet", "--worktree", "--no-libraries"], AGENT)
+    assert refused.code != 0 and "journal tests command" in refused.error, "no worker is sent while the project's test command is not set"
+    failed_proof = console.run(["tests", "command", "test", "--proof", "1 = 2"], AGENT)
+    assert failed_proof.code != 0 and "is not set" in failed_proof.error and not settings.option(WorkersOptions.TEST_COMMAND), "a test command whose proof run fails is not set"
+    assert console.run(["tests", "command", "test", "--proof", "1 = 1"], AGENT).code == 0
+    assert (settings.option(WorkersOptions.TEST_COMMAND), settings.option(WorkersOptions.TEST_COMMAND_PROOF)) == ("test", "1 = 1"), "a passing proof sets the command and keeps what proved it"
+    worker, folder, caller = worktree_worker(app, monkeypatch, "the job")
+    assert console.run(["proof", "1", "a.py:1, test_a passes"], caller).code == 0
+    assert "--tests" in console.run(["clock-out", "done"], caller).error, "a clock-out names the tests the journal is to run"
+    red = console.run(["clock-out", "done", "--tests", "1 = 2"], caller)
+    with app.container.get(Scope).environment(MAIN):
+        assert red.code != 0 and "did not pass" in red.error and app.container.get(Workers).find(worker.id).state != WorkerState.DELIVERED, "a failing run refuses the clock-out in the worker's own session, and nothing is reported"
+    assert console.run(["clock-out", "done", "--tests", "1 = 1"], caller).code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Workers).find(worker.id).state == WorkerState.DELIVERED, "a passing run lets the clock-out stand"
+        assert any(log.line == "tests passed at clock-out: test 1 = 1" for log in app.container.get(TaskLogs).logs(app.container.get(Tasks).find(1))), "the task records the run that passed, for the agent checking the proofs"
+        cards = [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("test-run:")]
+    assert [(card.text, card.data["active"], card.session) for card in cards] == [("Worker 1, Worker 1: 1 of its tests failed", False, "s1"), ("Worker 1, Worker 1: its tests passed", False, "s1")], "each run is a card in the chat of the agent that sent the worker, ending failed or passed"
+
+
 def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_stands(app: App, monkeypatch):
     import subprocess
     from journal.features.workers.support.worker_runner import WorkerRunner
@@ -13592,6 +13628,7 @@ def test_a_keyed_plugin_card_answered_again_unchanged_stays_where_it_is_and_a_ch
 
 def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: App):
     import threading
+    import time
     from journal.features.plugins.support.merge_queue import MergeQueue
     console = app.console()
     hook(app, "SessionStart")

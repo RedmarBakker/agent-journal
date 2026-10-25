@@ -44,6 +44,12 @@ BUDGET_TESTS = Template(
     purpose=TESTING,
     brief="Run tests only with journal tests turn, which gives your run its turn within the test budget; name each test you ran in your proof.",
 )
+JOURNAL_TESTS = Template(
+    title="The journal tests",
+    targets=("worker",),
+    purpose=TESTING,
+    brief="Run no tests yourself. Write the tests that prove your change, and name them when you clock out with --tests, as the arguments the project's test command takes: the journal runs them in your worktree, and your clock-out stands only once they pass.",
+)
 SCOPED_TESTS = Template(
     title="Scoped tests",
     targets=("worker",),
@@ -80,5 +86,5 @@ PLAN_FULL_TESTS = Template(
     purpose=TESTING,
     brief="Run the full suite whenever it helps, and after every task at least.",
 )
-SHIPPED = (FUNCTIONAL, FIND_MISTAKES, FIND_GAPS, CHALLENGE, ZERO_TESTS, BUDGET_TESTS, SCOPED_TESTS, FULL_SUITE, PLAN_ZERO_TESTS, PLAN_PHASE_TESTS, PLAN_SCOPED_TESTS, PLAN_FULL_TESTS)
+SHIPPED = (FUNCTIONAL, FIND_MISTAKES, FIND_GAPS, CHALLENGE, ZERO_TESTS, BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, FULL_SUITE, PLAN_ZERO_TESTS, PLAN_PHASE_TESTS, PLAN_SCOPED_TESTS, PLAN_FULL_TESTS)
 PLAN_TESTING_TEMPLATES = (PLAN_ZERO_TESTS, PLAN_PHASE_TESTS, PLAN_SCOPED_TESTS, PLAN_FULL_TESTS)

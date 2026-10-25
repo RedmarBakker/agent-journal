@@ -42,11 +42,13 @@
       "answer": null,
       "typed": [
         "[journal] wait over: worker 1, Lady Lovelace, clocked out",
-        "[journal] worker 1 ready: task 3"
+        "[journal] worker 1 ready: task 3",
+        "[journal] worker 1 reported 0 seconds after its job's start with no other task open, which cost your fitness 30 points at once: do a job this small yourself, and hand a worker only work worth its start"
       ],
       "nudges": [
         "tasks.wait_over",
-        "workers.work_ready"
+        "workers.work_ready",
+        "workers.tiny_job_dropped_the_fitness"
       ],
       "stack": [
         "idle"
