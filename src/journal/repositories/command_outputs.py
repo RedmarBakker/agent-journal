@@ -17,6 +17,9 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
             raise MissingRow(self.table, chain)
         return rows[-1]
 
+    def ran_in(self, folder: str) -> list[CommandOutput]:
+        return self.selected(self.query().filter(ran_in=folder).order_descending("id"))
+
     def background(self, session: str) -> list[CommandOutput]:
         return [o for o in self.selected(self.query().filter(session=session, moved=True, ended=False).order("id")) if self.is_running(Path(o.folder))]
 

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from journal.events.rows.worker_reused import WorkerReused
 from journal.events.rows.worker_revived import WorkerRevived
+from journal.features.workers.support.failed_runs import FailedRuns
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
@@ -43,9 +44,9 @@ REDO_MOVE = "sent back"
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, a word informed while it runs, a stop, a retire."""
 
-    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves) -> None:
+    def __init__(self, workers: Workers, runner: WorkerRunner, providers: Providers, inbox: SessionInbox, branch: WorkerBranch, tasks: Tasks, proofs: Proofs, events: CommandEvents, account: TeamAccount, moves: PoolWorkerMoves, failures: FailedRuns) -> None:
         self.workers, self.runner, self.providers, self.inbox, self.branch, self.tasks, self.proofs, self.events = workers, runner, providers, inbox, branch, tasks, proofs, events
-        self.account, self.moves = account, moves
+        self.account, self.moves, self.failures = account, moves, failures
 
     def send(self, n: int, brief: str, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
@@ -95,7 +96,7 @@ class WorkerActions:
         proof = self.open_proof(task, point)
         if not self.moves.is_remote_run(worker):
             self.resumable(worker)
-        self.proofs.save(proof.short(shortfall, datetime.now(timezone.utc).timestamp(), task.id, worker.id), actor)
+        self.proofs.save(proof.short(self.failures.under(worker, shortfall), datetime.now(timezone.utc).timestamp(), task.id, worker.id), actor)
         return task
 
     def open_proof(self, task: Task, point: int) -> Proof:

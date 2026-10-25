@@ -63,7 +63,7 @@ class ShellRunner:
             folder = OutputFiles(self.config.home / "runtime" / "outputs" / f"{time.time_ns()}-{threading.get_ident()}")
             folder.split(request.line, Chain.parts(request.line))
             if not cap.is_whole() and not cap.is_direct():
-                folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, caller))
+                folder.numbered(self.record.start(folder.folder.name, "\n".join(Chain.self_parts(posted.line)), folder.folder, request.cwd, caller))
         self.slow.measured(SHELL, SETUP_ROUTE, (time.perf_counter() - began) * 1000)
         output_text: queue.Queue = queue.Queue()
         ended: list[int] = []

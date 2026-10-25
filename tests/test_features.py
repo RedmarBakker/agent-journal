@@ -3690,6 +3690,46 @@ def test_a_request_filed_for_a_person_is_a_card_in_their_main_chat_on_their_list
     assert [(row["title"], row["state"]) for row in controller.filed(SimpleNamespace(actor=Actor.user(1))).body["rows"]] == [("review the plan", "done")], "and the requester's page reads it done once the recipient finished it"
 
 
+def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_run_printed_cut_at_forty_lines(app: App, tmp_path):
+    import time
+    from types import SimpleNamespace
+    from journal.config import Config
+    from journal.features.workers.support.failed_runs import FailedRuns
+    from journal.features.shell.support.readers import Readers
+    from journal.models.command_output import CommandOutput
+    from journal.models.support.worker_moves import WorkerMoves
+    from journal.models.worker import Worker
+    from journal.repositories.command_outputs import CommandOutputs
+    config, outputs = app.container.get(Config), app.container.get(CommandOutputs)
+    config.readers.mkdir(parents=True, exist_ok=True)
+    reader = config.readers / "worktree-pytest.pattern"
+    reader.write_text("# a pytest run's failed tests and assertions\n^FAILED|^E \ncommands: pytest\n")
+    worktree = tmp_path / "worker-tree"
+
+    def run(name, lines, ran_in=str(worktree), status=1):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "parts").write_text("R\n")
+        (folder / "0.out").write_text("\n".join(lines) + "\n")
+        return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
+
+    failed = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: worktree))
+    before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
+    try:
+        assert failed.under(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
+        run("short", ["collected 2 items", "FAILED tests/x.py::test_a - assert 1 == 2", "E   assert 1 == 2", "1 failed"])
+        assert failed.under(before, "the tests fail").splitlines() == ["the tests fail", "FAILED tests/x.py::test_a - assert 1 == 2", "E   assert 1 == 2"], "the failure rides under the reason as the reader picks it"
+        run("elsewhere", ["FAILED tests/y.py::test_b"], ran_in=str(tmp_path / "other-tree"))
+        assert "tests/y.py" not in failed.under(before, "the tests fail"), "a run in another folder is not the worker's"
+        run("long", [f"FAILED tests/x.py::test_{n}" for n in range(45)])
+        lines = failed.under(before, "the tests fail").splitlines()
+        assert len(lines) == 1 + 40 + 1 and lines[-1] == "and 5 more lines", "a long failure is cut at forty lines with the count of the rest"
+        after = Worker(moves=WorkerMoves((("clocked out", time.time() + 100),)))
+        assert failed.under(after, "the tests fail") == "the tests fail", "a run from before the worker's last clock-out is left out"
+    finally:
+        reader.unlink()
+
+
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
     from journal.models.environment import Environment
     from journal.models.task import Task
