@@ -65,16 +65,22 @@ def pass_time(app, seconds: float) -> None:
 
 
 def tick_after(app, silent: float) -> list:
-    """A tick so many seconds after the held moment, once what came before it has settled on the worker thread, as the clock gives it, one tick at a time with the runtime's own, its answers handed back; the clock is held again after it."""
+    """A tick so many seconds after the held moment, the agent silent all that time."""
+    return tick_at(app, silent, silent)
+
+
+def tick_at(app, later: float, silence_seconds: float) -> list:
+    """A tick so many seconds after the held moment, once what came before it has settled on the worker thread, as the clock gives it, its answers handed back; the moment is set and the clock held again inside the tick lock, so the runtime's own tick never takes the moment for its own."""
     from journal.events.agent.ticked import Ticked
     app.runtime().deferred.drain()
     clock = app.container.get(Clock)
     environment = app.container.get(Environments).lookup("main").id
-    clock.driven_at = clock.held_at + silent
-    try:
-        return clock.ticked(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=silent))
-    finally:
-        clock.driven_at = clock.held_at
+    with clock.tick_lock:
+        clock.driven_at = clock.held_at + later
+        try:
+            return clock.ticked(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=silence_seconds))
+        finally:
+            clock.driven_at = clock.held_at
 
 
 class Replay:

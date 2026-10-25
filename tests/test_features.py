@@ -50,7 +50,7 @@ from journal.features.tasks.states.working import Working
 from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
-from tests.replay import catch_typed, drive_the_clock, tick_after
+from tests.replay import catch_typed, drive_the_clock, tick_after, tick_at
 from tests.in_process import got, posted
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
@@ -11770,12 +11770,10 @@ def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_pla
 
 
 def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_plan_and_quiets_the_line_until_the_interval_or_the_next_phase(app: App, monkeypatch):
-    from journal.engine.clock import Clock
-    from journal.events.agent.ticked import Ticked
-    from journal.events.bus import Bus
     from journal.repositories.entries import NUDGE, Entries
     from journal.repositories.plans import Plans
     monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    drive_the_clock(app, monkeypatch)
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
     console.run(["plan", "create", "release", "--brief", "ship"], USER)
@@ -11788,12 +11786,10 @@ def test_the_orchestrator_is_asked_for_its_priorities_its_answer_is_kept_on_the_
     console.run(["plan", "approve", "1"], USER)
     console.run(["plan", "start", "1"], AGENT)
     settings.set("workers.mode", "orchestrator", Actor.user(1))
-    now = timing.time()
     asked = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.reprioritise"]
 
     def ticked(minutes: float) -> list[str]:
-        monkeypatch.setattr(Clock, "time", lambda self, at=now + minutes * 60: at)
-        app.container.get(Bus).dispatch(Ticked(session="s1", environment_id=MAIN, time=now + minutes * 60, silence_seconds=1.0))
+        tick_at(app, minutes * 60, 1.0)
         app.runtime().deferred.drain()
         return asked()
 
@@ -11948,8 +11944,8 @@ def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_t
     app.runtime().deferred.add(held.wait)
     clock, environment = app.container.get(Clock), app.container.get(Environments).lookup("main").id
 
-    def side_by_side(span_start: float, minutes: int) -> None:
-        clock.driven_at = span_start + minutes * 60
+    def side_by_side(minutes: int) -> None:
+        clock.driven_at = clock.held_at + minutes * 60
         start = threading.Barrier(2)
         tick = lambda: (start.wait(), clock.ticked(Ticked(session="s1", environment_id=environment, time=clock.driven_at, silence_seconds=minutes * 60)))
         threads = [threading.Thread(target=tick) for _ in range(2)]
@@ -11960,11 +11956,11 @@ def test_a_quiet_worker_is_named_once_at_twenty_and_once_at_forty_minutes_when_t
         clock.driven_at = clock.held_at
 
     try:
-        for hour in range(1, 21):
-            worker, span_start = workers.find(1), clock.held_at + hour * 3600
-            workers.touch(worker, Actor.system(), silence=worker.silence.started(span_start))
-            side_by_side(span_start, 21)
-            side_by_side(span_start, 41)
+        for _ in range(20):
+            worker = workers.find(1)
+            workers.touch(worker, Actor.system(), silence=worker.silence.started(clock.held_at))
+            side_by_side(21)
+            side_by_side(41)
     finally:
         held.set()
     app.runtime().deferred.drain()
