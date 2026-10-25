@@ -26,5 +26,8 @@ class Hosts:
     def is_host(self, environment: Environment) -> bool:
         return environment.key in self.keys()
 
+    def waiting_notice(self, environment: Environment) -> str:
+        return self.sessions.waiting_notice(environment)
+
     def ask(self, environment: Environment, kind: str, body: dict, actor: Actor) -> None:
         self.link.ask_host(environment.key, kind, body, actor.number())

@@ -19,7 +19,7 @@ import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from "vue";
 import {markSeen} from "../sync/seen.js";
-import {sendMessage, token} from "./outbox.js";
+import {onOutboxNotice, sendMessage, token} from "./outbox.js";
 import {usePromised} from "../composables/promised.js";
 import Icon from "../kit/Icon.vue";
 import {openInChat, route} from "../route.js";
@@ -78,6 +78,8 @@ watch(
     {immediate: true}
 );
 const editing = ref(null);
+const sessionNotice = ref("");
+onOutboxNotice((text) => (sessionNotice.value = text));
 const dumps = computed(() => rows("dumps"));
 const dumpFiling = computed(() => dumps.value.filter((d) => !d.completed_at).sort((a, b) => a.id - b.id)[0] || null);
 
@@ -463,6 +465,7 @@ const {colleague, me} = useColleague();
                         {{ held || missed ? `${held || missed} new` : "Newest" }}
                     </button>
                 </Transition>
+                <p v-if="sessionNotice" class="thread-notice" data-session-notice>{{ sessionNotice }}</p>
                 <template v-if="editing">
                     <div class="thread-answering">
                         <span class="thread-answering-label">Editing message {{ editing.id }}</span>
@@ -889,6 +892,12 @@ const {colleague, me} = useColleague();
     border-radius: 8px;
     background: var(--raised);
     font-size: 12px;
+}
+
+.thread-notice {
+    margin: 0 0 6px;
+    font-size: 12.5px;
+    color: var(--text-2);
 }
 
 .thread-answering-label {

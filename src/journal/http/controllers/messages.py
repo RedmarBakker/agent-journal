@@ -59,7 +59,7 @@ class MessageController(Controller[Message]):
         environment = self.environments.find(self.repository.scope.id)
         if not self.hosts.is_host(environment):
             self.hosts.ask(environment, HostDesk.MESSAGE, message.host_fields(), request.actor)
-            return Response.json({"idempotency": message.idempotency}, 202)
+            return Response.json({"idempotency": message.idempotency, "notice": self.hosts.waiting_notice(environment)}, 202)
         return Response.json(self.shown(self.repository.posted(message, request.actor)), 201)
 
     def sent(self, request: Request) -> Response:

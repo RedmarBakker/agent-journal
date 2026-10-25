@@ -15,7 +15,7 @@ RENEW_SECONDS = 30
 
 
 class SessionLeases:
-    """The sessions this machine holds: journal session start takes the team server's lease named for the session, refused while another machine holds it and, with the server unreachable, refused saying so before anything is written; then makes the session on the team's hub, with a branch of its own, or finds it, and records it held here, so this machine is its host. A held lease is renewed with the sync, and one another machine has taken since is let go here."""
+    """The sessions this machine holds: journal session start takes the team server's lease named for the session, refused while another machine holds it and, with the server unreachable, refused saying so before anything is written; then makes the session on the team's hub, with a branch of its own, or finds it, and records it held here, so this machine is its host. A held lease is renewed with the sync, and one another machine has taken since is let go here; a lease its holder has not renewed for the server's minute and a half is taken by the next start, and a message written meanwhile is told so and waits for the session's next holder."""
 
     def __init__(self, account: TeamAccount, link: TeamServerLink, environments: Environments) -> None:
         self.account, self.link, self.environments = account, link, environments
@@ -45,6 +45,15 @@ class SessionLeases:
         if not environment.is_session() or environment.is_team_chat() or environment.team_name in self.account.held_sessions():
             return ""
         return f"the agent of session {environment.team_name} runs on the machine that holds it: journal session start {environment.team_name} takes it once that machine lets it go"
+
+    def waiting_notice(self, environment: Environment) -> str:
+        if not environment.is_session() or environment.is_team_chat():
+            return ""
+        lease = TeamRequests.reached(lambda: self.link.lease_state(self.lease_name(environment.team_name)))
+        if lease.holder and not lease.is_lapsed:
+            return ""
+        holder = f"held by {lease.holder}, offline since {time.strftime('%H:%M', time.localtime(lease.renewed_at))}" if lease.holder else "held by no one"
+        return f"session {environment.team_name} is {holder}: your message waits on the team server and reaches the session's agent once a machine holds it; journal session start {environment.team_name} claims it"
 
     def renew(self) -> None:
         if time.monotonic() - self.renewed_at < RENEW_SECONDS:

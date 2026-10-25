@@ -13374,6 +13374,13 @@ def test_the_first_journal_to_join_a_new_team_makes_its_hub_and_names_the_team_a
 @contextmanager
 def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
     """Ada's and Bob's journals of one repository joined to a team server in this process, on the hub or, for a team from before it, not."""
+    with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub) as (team, a, b, held, _):
+        yield team, a, b, held
+
+
+@contextmanager
+def carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
+    """The same, with the sync carrying each journal, Ada's first, so a test can take one offline."""
     import subprocess
     from carried_sync import CarriedSync
     from conftest import copied
@@ -13403,7 +13410,7 @@ def two_team_journals(tmp_path, template_journal, monkeypatch, on_hub: bool):
         invitation = re.search(r"(http\S+/join\?code=\S+)", a.console().run(["team", "invite", "bob@example.com"], USER).text).group(1)
         joined = b.console().run(["team", "join", invitation, "--email", "bob@example.com", "--name", "Bob", "--password", "correct horse battery"], USER)
         assert joined.code == 0, joined.error
-        yield team, a, b, held
+        yield team, a, b, held, carriers
     finally:
         for carrier in carriers:
             carrier.stop()
@@ -14009,6 +14016,38 @@ def test_a_session_drives_a_hub_plan_whose_tasks_read_as_its_work_and_change_on_
     finally:
         journal.runtime().stop()
         team.close(server)
+
+
+def test_a_message_in_a_session_whose_holder_is_offline_tells_its_writer_waits_and_reaches_the_agent_of_the_machine_that_claims_it_after_a_minute_and_a_half(tmp_path, template_journal, monkeypatch):
+    import time as clock
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    bob = replace(USER, person=2)
+
+    def session(journal):
+        sessions = journal.container.get(Environments).session_rows(["review"])
+        return sessions[0] if sessions else None
+
+    def lines() -> list[str]:
+        return [entry.data.get("line") for entry in b.container.get(Entries).global_matching(kind=NUDGE) if entry.data.get("session") == "s9"]
+
+    with carried_team_journals(tmp_path, template_journal, monkeypatch, on_hub=True) as (team, a, b, _, carriers):
+        assert a.console().run(["session", "start", "review"], USER).code == 0
+        assert synced(lambda: session(b) is not None), "the session reaches Bob's journal"
+        carriers[0].carrier.stop()
+        now = clock.time()
+        monkeypatch.setattr(team.clock, "time", lambda: now + 89)
+        early = b.console().run(["session", "start", "review"], bob)
+        assert early.code == 1 and "session:review is held by Ada" in early.error, "no claim before the holder has been away a minute and a half"
+        monkeypatch.setattr(team.clock, "time", lambda: now + 91)
+        status, answer = posted(b, "/journal/messages", {"text": "the release notes are ready", "idempotency": "bob-1"}, {"X-Journal-Env": "review"})
+        assert status == 202 and "session review is held by Ada, offline since" in answer["notice"], answer
+        assert not b.container.get(Messages).global_matching(idempotency="bob-1"), "the message waits on the team server, made nowhere yet"
+        claimed = b.console().run(["session", "start", "review"], bob)
+        assert claimed.code == 0, claimed.error
+        assert posted(b, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s9"}, {"X-Journal-Env": "review"})[0] == 200
+        assert synced(lambda: any(line.startswith("new message") and line.endswith("from Bob") for line in lines())), lines()
 
 
 def test_a_session_started_with_the_team_server_stopped_is_refused_saying_it_cannot_be_reached_and_makes_no_session(tmp_path, template_journal, monkeypatch):

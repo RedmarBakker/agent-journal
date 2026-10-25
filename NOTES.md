@@ -1599,3 +1599,9 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 
 - **As a local environment does.** HubDrives drives from an environment of this machine's own or a session it holds (SessionLeases.is_hosted_session), never the hub or the Team chat; the session is bound like any environment, its reads take the hub plan and its tasks, and every change is made on the hub rows, nothing in the session.
 - **A binding never leaves the machine.** A link from a hub row to a session has both its ends in one team, so it would have been sent; TeamPlacement now places bound_to and drive_ended links (MACHINE_LINKS) in no team by their kind, whatever their ends.
+
+## A session whose holder is offline (task 3155)
+
+- **The message waits.** A message posted in a session this journal does not host is asked of its host through the team server, as any environment's is, and the server keeps it until a machine hosting the session pulls; since the host is the lease's holder, the next machine to hold the session makes it, as the person who wrote it, and its agent hears it named.
+- **The writer is told.** The 202 answer to that post carries a notice, Hosts.waiting_notice from SessionLeases: "session review is held by Ada, offline since 10:42: your message waits on the team server and reaches the session's agent once a machine holds it; journal session start review claims it", or held by no one; nothing while the holder renews. The viewer's outbox hands it to the thread, which shows it above the composer.
+- **The claim.** journal session start takes the session's lease with the server's lapse, so another machine's start is refused for a minute and a half after the holder's last renewal and takes it after, as the Team chat's claim does.

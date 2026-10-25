@@ -78,6 +78,7 @@ async function messageNumber(server, record) {
     if (!record.asked) {
         const message = await server.create("messages", {text: record.text, reply_target: record.reply_target, idempotency: record.id});
         if (message.id) return message.id;
+        if (message.notice) noticed(message.notice);
         record.asked = true;
         await stored(record);
     }
@@ -115,6 +116,8 @@ function flush(env, origin) {
     });
 }
 
+let noticed = () => {};
+
 function report(ids) {
     if (ids.length) changed(ids);
 }
@@ -126,6 +129,11 @@ const here = () => `${location.origin}${api.base}`;
 
 export function onOutboxChange(fn) {
     changed = fn;
+}
+
+// a message asked of a session whose holder is offline is answered with what happens to it, which the thread shows its writer
+export function onOutboxNotice(fn) {
+    noticed = fn;
 }
 
 export function startOutbox(env) {
