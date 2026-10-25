@@ -1,3 +1,4 @@
+from journal.repositories.tasks import Tasks
 from datetime import datetime, timezone
 
 from journal.features.reviewing.support.review_routing import ReviewRouting
@@ -19,8 +20,8 @@ REPORTED = "reported"
 class WorkerReports:
     """A worker's report, filed the one way: as a message in the chat in the worker's name, linked from the worker, and the worker marked reported, or, for a clock-out, marked clocked out and its work sent to the journal's reviewer when the review routing is on, a pool worker's aside, whose work is on another machine."""
 
-    def __init__(self, workers: Workers, messages: Messages, links: Links, routing: ReviewRouting) -> None:
-        self.workers, self.messages, self.links, self.routing = workers, messages, links, routing
+    def __init__(self, workers: Workers, messages: Messages, links: Links, routing: ReviewRouting, tasks: Tasks) -> None:
+        self.workers, self.messages, self.links, self.routing, self.tasks = workers, messages, links, routing, tasks
 
     def file(self, worker: Worker, text: str, actor: Actor) -> Message:
         message = self.posted(worker, text, actor)
@@ -33,7 +34,7 @@ class WorkerReports:
         self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
     def posted(self, worker: Worker, text: str, actor: Actor) -> Message:
-        message = self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{self.lead(worker)}{text}", data={"kind": Message.REPORT, "worker": worker.name, "worker_id": worker.id}), actor)
+        message = self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{self.lead(worker)}{text}", data={"kind": Message.REPORT, "worker": worker.name, "worker_id": worker.id, "task": next(iter(self.tasks.holder_task_ids(Ref.build(worker))), 0)}), actor)
         self.links.save(Link(source=Ref.build(worker), target=Ref.build(message), kind=REPORTED), actor)
         return message
 

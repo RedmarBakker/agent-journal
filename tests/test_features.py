@@ -12515,6 +12515,20 @@ def checked_and_merged(app: App, n: int = 1):
     return console.run(["worker", "merge", str(n)], AGENT)
 
 
+def test_a_workers_report_names_its_task_and_its_clock_out_writes_no_second_mark(app: App, monkeypatch):
+    from journal.repositories.messages import Messages
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    committed(worktree, "notes.md", "the notes\n")
+    assert proved_and_out(app, caller, "notes.md:1").code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        messages = app.container.get(Messages).all()
+        reports = [m for m in messages if m.data.get("kind") == "report"]
+        assert reports and reports[-1].data["task"] == 1 and reports[-1].data["worker_id"] == 1, "the report names the worker and the task it reports on"
+        assert not [m for m in messages if m.text.endswith("finished, ready to check")], "the clock-out writes no second mark beside the report's card"
+
+
 def test_a_merge_lets_go_of_the_merged_task_alone_and_a_worker_already_on_a_queued_task_keeps_it(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks

@@ -23,7 +23,7 @@ class WorkerCards(Listener[ModelEvent]):
             return
         worker = event.model
         standing = self.card.standing(worker)
-        if worker.state in (WorkerState.READY, WorkerState.MERGED) or (worker.state == WorkerState.DISPATCHED and worker.reuse_count):
+        if worker.state in (WorkerState.READY, WorkerState.MERGED, WorkerState.DELIVERED) or (worker.state == WorkerState.DISPATCHED and worker.reuse_count):
             return
         actor = Actor.agent(worker.dispatcher) if worker.dispatcher else Actor.system()
         if worker.state == WorkerState.DISPATCHED or standing.text == FAILED:

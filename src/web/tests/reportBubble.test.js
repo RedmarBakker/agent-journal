@@ -35,7 +35,8 @@ async function drawn(turn) {
     const shown = {report: host.querySelector(".thread-turn").classList.contains("report"), card: card ? card.textContent : "", bubbleShown: bubble.style.display !== "none"};
     if (card) {
         card.click();
-        shown.opened = peeked.at(-1);
+        await nextTick();
+        shown.expanded = host.querySelector(".report-card-report")?.textContent || "";
     }
     app.unmount();
     host.remove();
@@ -48,15 +49,14 @@ test("a worker's report is told from the agent's own words by the worker it name
     expect(reportOf(own)).toBe(null);
 });
 
-test("a report in the chat is a small card with its worker and task, no report text, and a click opens the report", async () => {
+test("a report in the chat is one card saying whose report on which task, and a click expands it to the report", async () => {
     const [report, own] = threadTurns(messages, []).turns;
     const shown = await drawn(report);
     expect(shown.report).toBe(true);
-    expect(shown.card).toContain("Lady Montagu");
-    expect(shown.card).toContain("task 12, Fix the footer");
+    expect(shown.card).toContain("Report from worker 7, Lady Montagu, on task 12");
     expect(shown.card).not.toContain("the footer is fixed");
     expect(shown.bubbleShown).toBe(false);
-    expect(shown.opened).toBe("workers/7");
+    expect(shown.expanded).toBe("the footer is fixed");
     expect((await drawn(own)).report).toBe(false);
 });
 

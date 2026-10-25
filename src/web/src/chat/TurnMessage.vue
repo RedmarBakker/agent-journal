@@ -108,7 +108,7 @@ async function drop() {
             <TurnBriefMarker :time="turn.time" />
         </template>
         <template v-if="report">
-            <ReportCard :worker="report.worker" :worker-id="report.workerId" :message-id="turn.id" :task="reportedTask" :time="turn.time" />
+            <ReportCard :worker="report.worker" :worker-id="report.workerId" :message-id="turn.id" :task-id="turn.data.task || reportedTask?.id || 0" :text="report.text" :time="turn.time" />
         </template>
         <div v-show="bubbled && !opening && !report" ref="bubble" class="thread-bubble md" data-figure-bubble :data-figure-mark="turn.key" @click="resourceComment && openComment()">
             <template v-if="fromMain">
