@@ -12199,44 +12199,58 @@ def test_a_read_only_hub_document_is_edited_by_its_author_or_an_admin_alone_on_a
         team.close(server)
 
 
-def test_a_read_only_hub_document_copied_locally_never_syncs_and_a_free_one_attached_is_edited_in_place_on_the_hub(app: App, tmp_path):
-    from journal.models.environment import Environment
+def test_a_read_only_hub_document_copied_locally_never_syncs_and_a_free_one_attached_is_edited_in_place_on_the_hub(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from conftest import copied
     from journal.repositories.doc_revisions import DocRevisions
     from journal.repositories.docs import Docs
     from journal.repositories.environments import Environments
     from journal.repositories.links import Links
     from journal.repositories.outgoing_changes import OutgoingChanges
-    hook(app, "SessionStart")
-    server, account = joined_team(app)
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
     try:
-        hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
-        console, docs, queue = app.console(), app.container.get(Docs), app.container.get(OutgoingChanges)
+        assert journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER).code == 0
+        journal.container.get(Environments).lookup("main")
+        console, docs, queue = journal.console(), journal.container.get(Docs), journal.container.get(OutgoingChanges)
+        titled = lambda title, copy=False: next(doc for doc in docs.global_matching(title=title) if doc.is_copy == copy)
         page = tmp_path / "doc.md"
         page.write_text("# Notes\n\nthe first words\n")
         for title in ("Locked", "Open"):
             assert console.run(["doc", "create", title, "--file", str(page)], USER).code == 0
-        assert console.run(["doc", "share", "1", "--mode", "read_only"], USER).code == 0 and console.run(["doc", "share", "2", "--mode", "free"], USER).code == 0
-        copied = console.run(["doc", "copy", "1"], USER)
-        assert copied.code == 0 and "kept on this machine" in copied.text, copied.error
-        copy = next(doc for doc in docs.all() if doc.is_copy)
-        assert copy.title == "Locked" and copy.environment_id == 1 and copy.id != 1, "a copy is a document of this environment"
-        assert "read-only" in console.run(["doc", "attach", "1"], USER).error, "a read-only document cannot be edited in place, so it is copied"
-        queue_before = len(queue.all())
+        assert console.run(["doc", "share", str(titled("Locked").id), "--mode", "read_only"], USER).code == 0
+        assert console.run(["doc", "share", str(titled("Open").id), "--mode", "free"], USER).code == 0
+        locked, free = titled("Locked"), titled("Open")
+        copied_doc = console.run(["doc", "copy", str(locked.id)], USER)
+        assert copied_doc.code == 0 and "kept on this machine" in copied_doc.text, copied_doc.error
+        copy = titled("Locked", copy=True)
+        assert copy.id != locked.id and copy.environment_id != locked.environment_id, "a copy is a document of this environment, the hub's staying on the hub"
+        assert "read-only" in console.run(["doc", "attach", str(locked.id)], USER).error, "a read-only document cannot be edited in place, so it is copied"
+        queued = lambda table, ids: [change for change in queue.all() if change.row_table == table and change.row in ids]
         page.write_text("# Notes\n\nmy own words\n")
         assert console.run(["doc", "update", str(copy.id), "--file", str(page)], USER).code == 0
-        assert docs.find(copy.id).body.endswith("my own words\n") and docs.find(1).body.endswith("the first words\n"), "editing the copy leaves the hub's as it was"
-        assert len(queue.all()) == queue_before and not [change for change in queue.all() if change.row_table in ("docs", "doc_revisions") and change.row == copy.id], "the copy's edits are never queued for the server"
-        assert not [change for change in queue.all() if change.row_table == "doc_revisions" and change.row in {revision.id for revision in app.container.get(DocRevisions).document_revisions(copy)}], "nor its revisions"
-        attached = console.run(["doc", "attach", "2"], USER)
+        assert docs.find(copy.id).body.endswith("my own words\n") and docs.find(locked.id).body.endswith("the first words\n"), "editing the copy leaves the hub's as it was"
+        assert not queued("docs", {copy.id}), "the copy's edits are never queued for the server"
+        assert not queued("doc_revisions", {revision.id for revision in journal.container.get(DocRevisions).document_revisions(copy)}), "nor its revisions"
+        attached = console.run(["doc", "attach", str(free.id)], USER)
         assert attached.code == 0, attached.error
-        assert len(app.container.get(Links).all_matching(kind="attached_to")) == 1 and console.run(["doc", "attach", "2"], USER).code == 1, "a document is attached to an environment once"
+        assert len(journal.container.get(Links).all_matching(kind="attached_to")) == 1 and console.run(["doc", "attach", str(free.id)], USER).code == 1, "a document is attached to an environment once"
         page.write_text("# Notes\n\nedited in place\n")
-        assert console.run(["doc", "update", "2", "--file", str(page)], USER).code == 0
-        assert docs.find(2).environment_id == hub.row_id and docs.find(2).body.endswith("edited in place\n"), "the edit is made to the hub's document"
-        assert [change for change in queue.all() if change.row_table == "docs" and change.row == 2], "and it is queued for the server"
+        assert console.run(["doc", "update", str(free.id), "--file", str(page)], USER).code == 0
+        assert docs.find(free.id).environment_id == free.environment_id and docs.find(free.id).body.endswith("edited in place\n"), "the edit is made to the hub's document"
+        assert queued("docs", {free.id}), "and it is queued for the server"
     finally:
-        server.shutdown()
-        server.server_close()
+        journal.runtime().stop()
+        team.close(server)
 
 
 def test_the_messages_and_etiquette_skills_teach_a_colleagues_comment():
