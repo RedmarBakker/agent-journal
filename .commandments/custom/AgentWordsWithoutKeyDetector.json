@@ -11,12 +11,16 @@
                 "fileMatches": "(^|/)journal/features/[^/]+/listeners/"
             },
             {
-                "textMatches": "author=Author\\.AGENT"
+                "descendant": {
+                    "name": "AGENT"
+                }
             }
         ],
         "reject": [
             {
-                "textMatches": "idempotency="
+                "descendant": {
+                    "name": "idempotency"
+                }
             },
             {
                 "testCode": true

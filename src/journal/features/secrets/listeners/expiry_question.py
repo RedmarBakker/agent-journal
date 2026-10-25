@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from journal.events.agent.ticked import Ticked
 from journal.events.agent_listener import AgentListener
 from journal.support.actor import Actor
@@ -8,6 +6,7 @@ from journal.models.message import Message
 from journal.repositories.messages import Messages
 from journal.repositories.secrets import Secrets
 from journal.support.time_source import TimeSource
+from journal.support.voice_key import VoiceKey
 
 
 class ExpiryQuestion(AgentListener[Ticked]):
@@ -20,5 +19,6 @@ class ExpiryQuestion(AgentListener[Ticked]):
     def handle(self, event: Ticked) -> None:
         time = self.time_source.moment()
         for secret in self.secrets.expired_logins(time):
-            self.messages.save(Message(author=Author.AGENT, text=f"Your login to {secret.title} has run out: log in again with the Log in button on the Secrets page.\n\nsecret {secret.id}"), Actor.system())
+            key = VoiceKey.create("expiry", f"secrets:{secret.id}", str(secret.session_expires))
+            self.messages.recorded(Message(author=Author.AGENT, text=f"Your login to {secret.title} has run out: log in again with the Log in button on the Secrets page.\n\nsecret {secret.id}", idempotency=key), Actor.system())
             self.secrets.save(secret.with_(questioned_at=time), Actor.system())

@@ -35,6 +35,14 @@ class Entries(ScopedRepository[Entry]):
         for boundary in self.selected_globally(self.query().filter(kind=NUDGE).order_descending("id").limit(1).offset(stored)):
             self._purged(self.query().filter(kind=NUDGE).filter_less_equal("id", boundary.row_id))
 
+    def keyed(self, key: str) -> list[Entry]:
+        return self.selected(self.query().filter(idempotency=key).limit(1)) if key else []
+
+    def recorded(self, entry: Entry, actor: Actor) -> Entry:
+        with self.writing():
+            prior = self.keyed(entry.idempotency)
+            return prior[0] if prior else self.save(entry, actor)
+
     def last_prompt(self, session: str) -> datetime | None:
         rows = self.selected(self.query().filter(kind="PromptSubmitted", actor=Actor.agent(session)).order_descending("id").limit(1))
         return rows[0].created_at if rows else None

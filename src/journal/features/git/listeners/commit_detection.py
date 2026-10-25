@@ -12,7 +12,6 @@ from journal.events.agent.tool_finished import ToolFinished
 from journal.hooks.agent_event_post import AgentEventPost
 from journal.features.git.support.head_commit import FORMAT, HeadCommit
 from journal.events.agent_listener import AgentListener
-from journal.support.actor import Actor
 from journal.repositories.tasks import Tasks as TaskRows
 from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
@@ -23,7 +22,6 @@ from journal.features.tasks.support.next_open_task import NextOpenTask
 from journal.support.decision import Decision
 from journal.support.time_source import TimeSource
 
-COMMIT = "commit"
 COMMIT_WINDOW_SECONDS = 60
 RECENT_TOOL_STARTS = 3
 TRAILER = re.compile(r"^Journal: (?:tasks|todos) done ((?:\d+(?:[ ,]+(?:and +)?)?)+)\s*(.*)$", re.MULTILINE)
@@ -50,10 +48,8 @@ class CommitDetection(AgentListener[ToolFinished]):
         if not commit_call and not self.head_moved(folder):
             return None
         head = self.head(folder)
-        actor = Actor.agent(event.session)
-        if not head or head.sha in self.detected or not (commit_call or self.is_agents(event, head)):
+        if not head or not (commit_call or self.is_agents(event, head)) or not self.is_new(head.sha):
             return None
-        self.detected.add(head.sha)
         committed = GitFacts.commit(folder, event.environment_id, event.session)
         if committed is not None:
             self.announcer.announce(committed)
@@ -97,8 +93,15 @@ class CommitDetection(AgentListener[ToolFinished]):
         delivered = subprocess.run(["git", "log", "--format=%H%x00%B%x01", "ORIG_HEAD..HEAD"], cwd=self.config.root, capture_output=True, text=True, timeout=5)
         if delivered.returncode != 0:
             return None
-        decisions = [self.commit(event, sha, body) for sha, _, body in (entry.strip().partition("\0") for entry in delivered.stdout.split("\x01") if entry.strip()) if self.trailer_tasks(body)]
+        delivered_commits = (entry.strip().partition("\0") for entry in delivered.stdout.split("\x01") if entry.strip())
+        decisions = [self.commit(event, sha, body) for sha, _, body in delivered_commits if self.trailer_tasks(body) and self.is_new(sha)]
         return next((decision for decision in decisions if decision), None)
+
+    def is_new(self, sha: str) -> bool:
+        if sha in self.detected:
+            return False
+        self.detected.add(sha)
+        return True
 
     def trailer_tasks(self, body: str) -> list[int]:
         numbers = [int(n) for rows in TRAILER.finditer(body) for n in re.findall(r"\d+", rows.group(1))]

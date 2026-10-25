@@ -15,6 +15,7 @@ from journal.features.faults.faults_options import FaultsOptions
 LAUNCH_HEADER = "x-journal-launch"
 ACTOR_HEADER = "x-journal-actor"
 ACTOR_TOKEN_HEADER = "x-journal-actor-token"
+FIRING_HEADER = "x-journal-hook-id"
 
 
 class HookController:
@@ -25,7 +26,7 @@ class HookController:
         self.arrivals.record_arrival(request.environment)
         parsed = Hook.parse(request.body, request.environment, request.params["agent"], request.headers.get(LAUNCH_HEADER, ""))
         stamp = request.headers.get(REQUEST_TIME_HEADER)
-        stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds)
+        stamped = (parsed.stamped(int(request.request_at * 1000)) if stamp else parsed).boot_delayed(request.boot_wait_seconds).fired(request.headers.get(FIRING_HEADER, ""))
         hook = self.sender_stamped(stamped, request)
         if hook.subagent and hook.kind == HookKind.PRE_TOOL_USE:
             return self.announce(hook)

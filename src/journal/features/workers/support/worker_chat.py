@@ -18,13 +18,13 @@ class WorkerChat:
     def __init__(self, messages: Messages, workers: Workers, providers: Providers, branch: WorkerBranch, agents: Agents) -> None:
         self.messages, self.workers, self.providers, self.branch, self.agents = messages, workers, providers, branch, agents
 
-    def instruction(self, worker: Worker, text: str, actor: Actor) -> Message:
-        return self.messages.save(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, agent_role=AgentRole.WORKER), actor)
+    def instruction(self, worker: Worker, text: str, key: str, actor: Actor) -> Message:
+        return self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.USER, text=text, session=worker.conversation() or None, agent_role=AgentRole.WORKER, idempotency=key), actor)
 
-    def sent(self, worker: WorkerMention, text: str, actor: Actor) -> Message:
+    def sent(self, worker: WorkerMention, text: str, key: str, actor: Actor) -> Message:
         roles = self.agents.session_roles(worker.dispatcher) if worker.dispatcher else []
-        message = Message.outgoing(worker.title(), text, worker.dispatcher, worker.ref())
-        return self.messages.save(message.with_(agent_role=roles[0]) if roles else message, actor)
+        message = Message.outgoing(worker.title(), text, worker.dispatcher, worker.ref()).with_(idempotency=key)
+        return self.messages.recorded(message.with_(agent_role=roles[0]) if roles else message, actor)
 
     def read(self, worker: Worker) -> Worker:
         if not worker.conversation() or self.is_agent_session(worker):

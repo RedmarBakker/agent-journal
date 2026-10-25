@@ -7,7 +7,7 @@ from journal.events.feature_data import FeatureData
 
 @dataclass(frozen=True, kw_only=True)
 class AgentEvent(Event):
-    """Something the agent did, as its hook reported it or the journal saw it. One subclass per kind; features listen to these, never to raw hooks."""
+    """Something the agent did, as its hook reported it, with that hook's key, or as the journal saw it. One subclass per kind; features listen to these, never to raw hooks."""
 
     answers_hook: ClassVar[bool] = True
     has_lines: ClassVar[bool] = True
@@ -24,6 +24,7 @@ class AgentEvent(Event):
     subagent: str = ""
     boot_wait_seconds: float = 0.0
     tool_use: int = 0
+    hook_key: str = ""
 
     @property
     def content(self) -> str:
@@ -46,6 +47,9 @@ class AgentEvent(Event):
 
     def counted(self, tool_use: int) -> Self:
         return replace(self, tool_use=tool_use)
+
+    def hooked(self, key: str) -> Self:
+        return replace(self, hook_key=key)
 
     def boot_delayed(self, seconds: float) -> Self:
         return replace(self, boot_wait_seconds=seconds)

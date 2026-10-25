@@ -195,7 +195,7 @@ class Claude(Provider):
         if arrived is None:
             return []
         matched = SENDER_NAME_PATTERN.search(arrived[1]) or SENDER_ADDRESS_PATTERN.search(arrived[1])
-        return [PeerMessage(sender=matched[1] if matched else "another session", text=arrived[2].strip())]
+        return [PeerMessage(sender=matched[1] if matched else "another session", text=arrived[2].strip(), transcript_time=row.timestamp)]
 
     def interactive_command(self, choice: Choice, status: StatusLine, args: tuple[str, ...]) -> list[str]:
         skipped = [flag for flag in self.prompt_flags if choice.prompt_flags and flag not in args]

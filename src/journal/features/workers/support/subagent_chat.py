@@ -21,8 +21,8 @@ class SubagentChat:
     def __init__(self, config: Config, messages: Messages, subagents: Subagents, agents: Agents, workers: Workers, providers: Providers, branch: WorkerBranch) -> None:
         self.config, self.messages, self.subagents, self.agents, self.workers, self.providers, self.branch = config, messages, subagents, agents, workers, providers, branch
 
-    def instruction(self, subagent: Subagent, text: str, actor: Actor) -> Message:
-        return self.messages.save(Message(environment_id=subagent.environment_id, author=Author.USER, text=text, session=subagent.session, agent_role=AgentRole.SUBAGENT), actor)
+    def instruction(self, subagent: Subagent, text: str, key: str, actor: Actor) -> Message:
+        return self.messages.recorded(Message(environment_id=subagent.environment_id, author=Author.USER, text=text, session=subagent.session, agent_role=AgentRole.SUBAGENT, idempotency=key), actor)
 
     def read(self, subagent: Subagent) -> Subagent:
         if not subagent.session:
@@ -32,7 +32,7 @@ class SubagentChat:
         if blocks.time == subagent.transcript_bytes:
             return subagent
         if not subagent.transcript_bytes:
-            self.instruction(subagent, subagent.brief.strip(), Actor.agent(subagent.dispatcher))
+            self.instruction(subagent, subagent.brief.strip(), VoiceKey.create("brief", subagent.session, subagent.brief.strip()), Actor.agent(subagent.dispatcher))
         for i, text in enumerate(blocks.texts):
             self.turn(subagent, text, VoiceKey.placed(subagent.session, subagent.transcript_bytes, i))
         return self.subagents.save(subagent.with_(transcript_bytes=blocks.time), Actor.agent(subagent.dispatcher))

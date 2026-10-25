@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from journal.events.agent.prompt_submitted import PromptSubmitted
 from journal.events.agent_listener import AgentListener
 from journal.support.actor import Actor
@@ -8,6 +6,7 @@ from journal.models.message import TERMINAL_LINE, Message
 from journal.repositories.messages import Messages
 from journal.repositories.scheduled_jobs import ScheduledJobs
 from journal.support.typed_lines import TypedLines
+from journal.support.voice_key import VoiceKey
 from journal.sync.team_account import TeamAccount
 from journal.support.time_source import TimeSource
 
@@ -26,15 +25,15 @@ class RecordTypedPrompt(AgentListener[PromptSubmitted]):
     def handle(self, event: PromptSubmitted) -> None:
         if not event.is_users or not event.prompt.strip() or self.lines.contains(event.environment_id, event.prompt):
             return
-        text, now = event.prompt.strip(), self.time_source.moment()
+        text, now, key = event.prompt.strip(), self.time_source.moment(), VoiceKey.hooked("typed", event.hook_key)
         earlier = self.messages.prompt_repeats(text)
         if self.is_scheduled(event.session, text, now.timestamp()) or any(now.timestamp() - message.creation_time.timestamp() >= SCHEDULE_SECONDS for message in earlier):
             for message in earlier:
                 if not message.is_scheduled_prompt:
                     self.messages.save(message.scheduled(), Actor.system())
-            self.messages.save(Message(text=text, read_at=now).scheduled(), Actor.system())
+            self.messages.recorded(Message(text=text, read_at=now, idempotency=key).scheduled(), Actor.system())
             return
-        self.messages.save(Message(author=Author.USER, text=text, read_at=now, data={"kind": TERMINAL_LINE}), Actor.user(self.account.user_number()))
+        self.messages.recorded(Message(author=Author.USER, text=text, read_at=now, data={"kind": TERMINAL_LINE}, idempotency=key), Actor.user(self.account.user_number()))
 
     def is_scheduled(self, session: str, text: str, moment: float) -> bool:
         return any(job.prompt.strip() == text and job.is_running(moment) for job in self.jobs.session_jobs(session))

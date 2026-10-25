@@ -4,6 +4,7 @@ from journal.features.workers.support.subagent_chat import SubagentChat
 from journal.repositories.subagents import Subagents
 from journal.support.actor import Actor
 from journal.support.agent_message import AgentMessage
+from journal.support.voice_key import VoiceKey
 
 
 class SubagentMessageRecord(AgentListener[ToolStarting]):
@@ -19,4 +20,4 @@ class SubagentMessageRecord(AgentListener[ToolStarting]):
         if event.subagent or not isinstance(operation, AgentMessage):
             return
         for subagent in self.subagents.session_subagent(event.session, operation.receiver):
-            self.chat.instruction(subagent, operation.text, Actor.agent(event.session))
+            self.chat.instruction(subagent, operation.text, VoiceKey.hooked("instruction", event.hook_key), Actor.agent(event.session))

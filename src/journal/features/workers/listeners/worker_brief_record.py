@@ -3,6 +3,7 @@ from journal.events.rows.worker_dispatched import WorkerDispatched
 from journal.features.workers.support.worker_chat import WorkerChat
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.voice_key import VoiceKey
 
 
 class WorkerBriefRecord(Listener[WorkerDispatched]):
@@ -13,4 +14,4 @@ class WorkerBriefRecord(Listener[WorkerDispatched]):
 
     def handle(self, event: WorkerDispatched) -> None:
         sender = Actor.agent(event.worker.dispatcher) if event.worker.dispatcher else Actor.system()
-        self.chat.instruction(self.workers.find(event.worker.id), event.brief, sender)
+        self.chat.instruction(self.workers.find(event.worker.id), event.brief, VoiceKey.create("brief", event.worker.ref(), f"{event.time}\n{event.brief}"), sender)

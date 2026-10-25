@@ -15,6 +15,7 @@ INDEXES = (
     Index("entries_by_kind", "entries", "kind, id"),
     Index("entries_by_kind_actor_time", "entries", "environment_id, kind, actor, created_at"),
     Index("entries_by_kind_id", "entries", "environment_id, kind, id"),
+    Index("entries_by_key", "entries", "environment_id, idempotency"),
     Index("entries_by_session_kind", "entries", f"environment_id, kind, {ENTRIES.expression('data->session')}, id"),
     PartialIndex("entries_dispatches", "entries", "environment_id, id", condition=DISPATCHES.clause()),
     Index("environments_key", "environments", "key", unique=True),

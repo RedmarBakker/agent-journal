@@ -20798,3 +20798,131 @@ def test_the_checks_page_lists_the_repositorys_git_hooks_by_name_with_whether_th
     (root / "tools" / "hooks" / "post-commit").write_text("#!/bin/sh\necho done\n")
     os.chmod(root / "tools" / "hooks" / "post-commit", 0o755)
     assert [hook["name"] for hook in got(app, "/journal/git-hooks", {"X-Journal-Env": "main"})[1]] == ["post-commit"], "core.hooksPath names the folder git uses"
+
+
+def test_a_hook_sent_again_is_answered_from_its_entry_and_reaches_no_listener(app: App):
+    from journal.repositories.entries import Entries
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    fired = lambda kind, firing, **body: posted(app, "/hooks/claude", {"hook_event_name": kind, "session_id": "s1", **body}, {"X-Journal-Env": "main", "X-Journal-Hook-Id": firing})
+    refused = [fired("PreToolUse", "71-1", tool_name="Bash", tool_input={"command": "journal message read 3 | head -3"}) for _ in range(2)]
+    assert [status for status, _ in refused] == [409, 409] and all("no pipe after `journal message read`" in body["error"] for _, body in refused), "a refused hook sent again is refused again with the reason its entry recorded"
+    message = {"to": "code-commandments-12", "message": "the fix is in"}
+    for _ in range(2):
+        fired("PostToolUse", "72-1", tool_name="SendMessage", tool_input=message, tool_response={})
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        entries = app.container.get(Entries)
+        assert [len(entries.keyed(f"hook:s1:{kind}:{firing}")) for kind, firing in (("PreToolUse", "71-1"), ("PostToolUse", "72-1"))] == [1, 1], "a hook is one entry however often its script sends it"
+        assert [m.text for m in app.container.get(Messages).scoped() if m.data.get("sent_to")] == ["the fix is in"], "and its listeners hear it once, so the message it sent is one row"
+
+
+def test_a_message_from_another_agent_read_twice_from_the_transcript_is_one_row(app: App):
+    from journal.events.agent.peer_message import PeerMessage
+    from journal.events.bus import Bus
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    arrived = lambda at: app.container.get(Bus).dispatch(PeerMessage(sender="code-commandments-12", text="the fix is on main", transcript_time=at).placed("s1", MAIN, "claude", None, 0.0))
+    arrived("2026-10-26T09:00:00Z")
+    arrived("2026-10-26T09:00:00Z")
+    arrived("2026-10-26T09:30:00Z")
+    with app.container.get(Scope).environment(MAIN):
+        texts = [m.text for m in app.container.get(Messages).scoped() if m.data.get("peer") == "code-commandments-12"]
+    assert texts == ["the fix is on main", "the fix is on main"], "a message is known by its time in the transcript, its sender and its words: read again it is one row, sent again later it is a second"
+
+
+def test_a_message_the_agent_sent_heard_twice_from_its_hook_is_one_row(app: App):
+    from journal.events.agent.tool_finished import ToolFinished
+    from journal.features.messages.listeners.outgoing_message_record import OutgoingMessageRecord
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    sent = ToolFinished(call=Claude().call("SendMessage", {"to": "code-commandments-12", "message": "thank you"}, frozenset()), output="").placed("s1", MAIN, "claude", None, 0.0)
+    record = app.container.get(OutgoingMessageRecord)
+    with app.container.get(Scope).environment(MAIN):
+        for event in (sent.hooked("hook:s1:PostToolUse:73-1"), sent.hooked("hook:s1:PostToolUse:73-1"), sent.hooked("hook:s1:PostToolUse:74-1")):
+            record.handle(event)
+        assert [m.text for m in app.container.get(Messages).scoped() if m.data.get("sent_to")] == ["thank you", "thank you"], "the send is keyed by the hook it came by: heard twice it is one row, sent again it is a second"
+
+
+def test_a_message_to_a_subagent_heard_twice_from_its_hook_is_one_row_in_its_chat(app: App):
+    from journal.events.agent.tool_starting import ToolStarting
+    from journal.features.workers.listeners.subagent_message_record import SubagentMessageRecord
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    hook(app, "PreToolUse", tool_name="Agent", tool_input={"subagent_type": "journal-researcher", "description": "map the hooks", "prompt": "read", "model": "sonnet"}, tool_use_id="t-1")
+    hook(app, "PostToolUse", tool_name="Agent", tool_input={}, tool_response={"isAsync": True, "agentId": "a9"}, tool_use_id="t-1")
+    app.runtime().deferred.drain()
+    starting = ToolStarting(call=Claude().call("SendMessage", {"to": "a9", "message": "one more"}, frozenset())).placed("s1", MAIN, "claude", None, 0.0).hooked("hook:s1:PreToolUse:75-1")
+    record = app.container.get(SubagentMessageRecord)
+    with app.container.get(Scope).environment(MAIN):
+        record.handle(starting)
+        record.handle(starting)
+        assert [m.text for m in app.container.get(Messages).all() if m.session == "a9" and m.text == "one more"] == ["one more"], "the message to the subagent is keyed by its hook, so a hook heard twice writes it once"
+
+
+def test_a_note_and_a_job_given_to_a_worker_heard_twice_are_one_row_each(app: App, monkeypatch):
+    from journal.events.rows.worker_dispatched import WorkerDispatched
+    from journal.events.rows.worker_notified import WorkerNotified
+    from journal.features.workers.listeners.worker_brief_record import WorkerBriefRecord
+    from journal.features.workers.listeners.worker_note_record import WorkerNoteRecord
+    from journal.repositories.messages import Messages
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    hook(app, "SessionStart")
+    dispatched(app.console(), ["Mr. Wedgwood", "the vase", "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    worker = app.container.get(Workers).find(1)
+    note = WorkerNotified(environment_id=MAIN, time=50.0, worker=worker.mention(), text="a blue glaze", sender=AGENT.actor.stamp)
+    job = worker.pending(WorkerDispatched, 60.0)
+    with app.container.get(Scope).environment(MAIN):
+        messages = app.container.get(Messages)
+        briefs = lambda: [m for m in messages.all() if m.text == worker.brief]
+        before = len(briefs())
+        for _ in range(2):
+            app.container.get(WorkerNoteRecord).handle(note)
+            app.container.get(WorkerBriefRecord).handle(job)
+        assert len([m for m in messages.all() if m.text == "a blue glaze"]) == 2, "a note is one message in the worker's chat and one sent card in the dispatcher's, however often its event is heard"
+        assert len(briefs()) == before + 1, "a job sent at one moment is one message of its chat, however often its event is heard"
+
+
+def test_a_prompt_typed_once_and_heard_twice_from_its_hook_is_one_message(app: App):
+    from journal.events.agent.prompt_submitted import PromptSubmitted
+    from journal.features.messages.listeners.record_typed_prompt import RecordTypedPrompt
+    from journal.repositories.messages import Messages
+    hook(app, "SessionStart")
+    typed = PromptSubmitted(prompt="fix the footer").placed("s1", MAIN, "claude", None, 0.0)
+    record = app.container.get(RecordTypedPrompt)
+    with app.container.get(Scope).environment(MAIN):
+        for event in (typed.hooked("hook:s1:UserPromptSubmit:76-1"), typed.hooked("hook:s1:UserPromptSubmit:76-1"), typed.hooked("hook:s1:UserPromptSubmit:77-1")):
+            record.handle(event)
+        assert [m.text for m in app.container.get(Messages).scoped() if m.text == "fix the footer"] == ["fix the footer", "fix the footer"], "a typed prompt is keyed by its hook: heard twice it is one message, typed again it is a second"
+
+
+def test_a_commit_is_one_card_whichever_session_sees_it_and_a_merge_read_twice_acts_on_its_trailer_once(app: App, monkeypatch):
+    import subprocess
+    from journal.events.moments.git_committed import GitCommitted
+    from journal.features.git.listeners.commit_card import CommitCard
+    from journal.repositories.messages import Messages
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    root = app.config.root
+    git = lambda *argv: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *argv], cwd=root, capture_output=True, text=True, timeout=30)
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "the footer")
+    hook(app, "SessionStart")
+    committed = lambda session: posted(app, "/hooks/claude", {"hook_event_name": "PostToolUse", "session_id": session, "tool_name": "Bash", "tool_input": {"command": "git commit -m x"}, "tool_response": {}}, {"X-Journal-Env": "main"})
+    committed("s1")
+    posted(app, "/hooks/claude", {"hook_event_name": "SessionStart", "session_id": "s2"}, {"X-Journal-Env": "main"})
+    committed("s2")
+    cards = lambda: [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "commits"]
+    assert len(cards()) == 1 and cards()[0].startswith("Committed "), "a commit is one card in its environment, whichever session read the head"
+    sha = git("rev-parse", "HEAD").stdout.strip()
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(CommitCard).handle(GitCommitted(environment_id=MAIN, session="s2", sha=sha, branch="main", subject="the footer", files=0))
+    assert len(cards()) == 1, "the card is known by the commit's key in the environment, never by the session that announced it"
+    app.console().run(["task", "create", "the parser", "--brief", "the parser reads"], AGENT)
+    app.console().run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    git("checkout", "-q", "-b", "side")
+    git("commit", "-q", "--allow-empty", "-m", "more of the parser\n\nJournal: tasks done 1")
+    git("checkout", "-q", "main")
+    git("merge", "-q", "--no-ff", "--no-edit", "side")
+    merged = [posted(app, "/hooks/claude", {"hook_event_name": "PostToolUse", "session_id": "s2", "tool_name": "Bash", "tool_input": {"command": "git merge side"}, "tool_response": {}}, {"X-Journal-Env": "main"})[1] for _ in range(2)]
+    assert "task 1 is worker 1's" in json.dumps(merged[0]) and "task 1 is worker 1's" not in json.dumps(merged[1]), "a merged commit's trailer is acted on once, by the same check as a commit read at the head"

@@ -1,6 +1,9 @@
+from journal.events.agent.peer_message import PeerMessage
+from journal.events.agent_listener import AgentListener
 from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
+from journal.support.voice_key import VoiceKey
 
 
 # @sin StoredCheckOutsideFunnelDetector
@@ -59,3 +62,17 @@ def subject_link_through_funnel(links, message, task, actor) -> None:
 def question_by_its_words(messages, text: str, key: str, actor) -> None:
     asks = "?" not in text
     messages.recorded(Message(text=text, idempotency=key, data={"asks": asks}), actor)
+
+
+class PeerRecord(AgentListener[PeerMessage]):
+    def handle(self, event: PeerMessage) -> None:
+        self.unkeyed(event)
+        self.keyed(event)
+
+    # @sin StoredCheckOutsideFunnelDetector
+    def unkeyed(self, event: PeerMessage) -> None:
+        self.messages.save(Message.agent_message(event.sender, event.text, event.session, event.time, False), event.actor)
+
+    # @righteous StoredCheckOutsideFunnelDetector
+    def keyed(self, event: PeerMessage) -> None:
+        self.messages.recorded(Message.agent_message(event.sender, event.text, event.session, event.time, False).with_(idempotency=VoiceKey.hooked("peer", event.hook_key)), event.actor)

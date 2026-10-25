@@ -39,7 +39,7 @@ UNBOUND_SESSION = "unbound_session"
 
 
 class Receiver:
-    """Translates a hook into its agent event, records it as an entry, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the listeners that receive sent agents' events, the state machine alone, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
+    """Translates a hook into its agent event, records it as an entry under the hook's key, a hook sent again being answered from that entry and reaching no listener, runs the blocking listeners at once and merges their decisions into the answer, and passes the rest to the deferred worker after the reply. A hook that does not include its environment's launch id, or that claims a worker, a verifier or a reviewer without that agent's proof, is recorded and reported, and reaches no listener; a verified worker's, verifier's or reviewer's hook is recorded and answered by the listeners that receive sent agents' events, the state machine alone, under that agent's own conduct, so none of the main agent's conduct blocks it and no recording listener posts it as the main agent's."""
 
     def __init__(self, environments: Environments, entries: Entries, translation: Translation, bus: Bus, deferred: ListenerQueue, scope: Scope, transcript: TranscriptTurns, agents: Agents, slow: SlowRequests, launches: LaunchFiles, worker_hooks: WorkerHooks, names: EnvironmentNames, stages: StageTimes, nudger: Nudger, sessions: SessionAgents, checker_hooks: CheckerHooks, time_source: TimeSource) -> None:
         self.time_source = time_source
@@ -54,6 +54,9 @@ class Receiver:
         hook = self.worker_hooks.attributed(raw_hook)
         environment = self.names.resolved(hook.environment)
         with self.scope.environment(environment.row_id):
+            hook_entries = self.entries.keyed(hook.key())
+            if hook_entries:
+                return self.replayed(hook_entries[0])
             if not self.is_accepted(hook, environment):
                 return self.unbound(hook, environment)
             self.worker_hooks.bind(hook, environment)
@@ -88,10 +91,14 @@ class Receiver:
         return decision
 
     def recorded(self, hook: Hook, environment: Environment, event: AgentEvent) -> Entry:
-        return self.entries.save(Entry(environment_id=environment.row_id, kind=type(event).__name__, actor=Actor.agent(hook.session), data={**hook.stored(), **event.recorded()}), Actor.agent(hook.session))
+        return self.entries.recorded(Entry(environment_id=environment.row_id, kind=type(event).__name__, actor=Actor.agent(hook.session), data={**hook.stored(), **event.recorded()}, idempotency=hook.key()), Actor.agent(hook.session))
+
+    @staticmethod
+    def replayed(entry: Entry) -> Decision:
+        return Decision.refuse(entry.data["refused"]) if entry.data.get("refused") else Decision()
 
     def unbound(self, hook: Hook, environment: Environment) -> Decision:
-        self.entries.save(Entry(environment_id=environment.row_id, kind=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}), Actor.agent(hook.session))
+        self.entries.recorded(Entry(environment_id=environment.row_id, kind=UNBOUND_SESSION, actor=Actor.agent(hook.session), data={**hook.stored(), "launch": hook.launch}, idempotency=hook.key()), Actor.agent(hook.session))
         if hook.kind == HookKind.SESSION_START:
             self.bus.dispatch(SessionUnbound(environment_id=environment.row_id, session=hook.session, environment=environment.name))
         return Decision()

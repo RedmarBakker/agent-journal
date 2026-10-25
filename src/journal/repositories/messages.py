@@ -127,11 +127,11 @@ class Messages(ScopedRepository[Message]):
         return self.selected(self.query().filter(idempotency=key).order("id").limit(1))
 
     def posted(self, message: Message, actor: Actor) -> Message:
-        return self.recorded(message.arrived(), actor) if message.idempotency else self.save(message.arrived(), actor)
+        return self.recorded(message.arrived(), actor)
 
     def recorded(self, message: Message, actor: Actor) -> Message:
         with self.writing():
-            prior = self.sent_with(message.idempotency)
+            prior = self.sent_with(message.idempotency) if message.idempotency else []
             return prior[0] if prior else self.save(message, actor)
 
     def window(self, chat: Query, last: int, previous: int = 0, following: int = 0) -> list[Message]:

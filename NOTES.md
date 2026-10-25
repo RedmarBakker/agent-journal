@@ -197,6 +197,15 @@ supervisor. `v3.bak/` is the old tree and is the guide, never imported.
   `refresh` once a second through `GET /cards/active`. A card's data says which kind it is
   (`card_type`). Docking stays a placement of a message, not a change to its card. "Mark" and "live"
   are on the project's banned-word list, so the code says card, moment and process.
+- A row recorded from a source that can repeat is keyed where it is built and stored through its
+  repository's keyed funnel (tasks 3422 and 3453, 2026-10-26): `Messages.recorded`, `Entries.recorded`,
+  `ScheduledJobs.recorded`, `Links.linked`, the commit card by its key in the environment. The hook script
+  names each firing (`X-Journal-Hook-Id`, its pid and first start), the same when it sends it again, so a
+  hook is one entry under `Hook.key()`. A hook sent again is answered from that entry, its refusal or a
+  go-on, and reaches no listener. The event carries the key as `hook_key` for the rows it brings
+  (`VoiceKey.hooked`). A hook without the header is unkeyed, as before. `StoredCheckOutsideFunnelDetector`
+  flags a recorder that decides by its own check, or a listener on the agent's events that saves a
+  message with no key.
 
 ## Skills (built as proposed)
 

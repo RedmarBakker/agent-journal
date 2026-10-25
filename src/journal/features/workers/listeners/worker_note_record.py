@@ -3,6 +3,7 @@ from journal.events.rows.worker_notified import WorkerNotified
 from journal.features.workers.support.worker_chat import WorkerChat
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.voice_key import VoiceKey
 
 
 class WorkerNoteRecord(Listener[WorkerNotified]):
@@ -12,6 +13,6 @@ class WorkerNoteRecord(Listener[WorkerNotified]):
         self.chat, self.workers = chat, workers
 
     def handle(self, event: WorkerNotified) -> None:
-        actor = Actor.parse(event.sender)
-        self.chat.instruction(self.workers.find(event.worker.id), event.text, actor)
-        self.chat.sent(event.worker, event.text, actor)
+        actor, note = Actor.parse(event.sender), f"{event.time}\n{event.text}"
+        self.chat.instruction(self.workers.find(event.worker.id), event.text, VoiceKey.create("note", event.worker.ref(), note), actor)
+        self.chat.sent(event.worker, event.text, VoiceKey.create("sent", event.worker.ref(), note), actor)

@@ -44,3 +44,6 @@ class MomentCards:
 
     def is_shown(self, key: str, actor: Actor) -> bool:
         return bool(self.messages.keyed(key, actor))
+
+    def is_key_shown(self, key: str) -> bool:
+        return bool(self.messages.with_key(key))
