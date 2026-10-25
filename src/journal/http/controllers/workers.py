@@ -78,8 +78,8 @@ class WorkerController(Controller[Worker]):
         holdings, reports = self.tasks.worker_task_holdings(rows), self.reports.lasts(rows)
         views = self.task_views(rows, holdings)
         agent_ids = self.agents.session_numbers({w.session for w in rows})
-        former_tasks, queues = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows)
-        return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])],
+        former_tasks, queues, finished = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.tasks.finished_ids(rows)
+        return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "finished": finished.get(w.row_id, []),
                  "holds": [*([views[w.row_id].task_id] if w.row_id in views else []), *(task.id for task in queues.get(w.row_id, []))], "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
 
     def task_views(self, rows: list[Worker], holdings: dict[int, int]) -> dict[int, WorkerTaskView]:

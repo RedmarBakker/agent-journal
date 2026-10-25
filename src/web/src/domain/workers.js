@@ -83,8 +83,12 @@ export function workerReportsWhen(row) {
     return tasks === 1 ? "Reports after each task" : tasks ? `Reports after every ${tasks} tasks` : "Reports when its queue is empty";
 }
 
-// where a worker stands in its queue: the task it works on among the tasks it holds, and when it reports
-export const workerQueueLine = (row) => ((row.holds || []).length > 1 ? `Task 1 of ${row.holds.length}, ${workerReportsWhen(row).replace(/^R/, "r")}` : "");
+// where a worker stands in its queue: the task it works on after those it finished, among all of them, and when it reports
+export function workerQueueLine(row) {
+    const finished = (row.finished || []).length;
+    const total = finished + (row.holds || []).length;
+    return total > 1 ? `Task ${finished + 1} of ${total}, ${workerReportsWhen(row).replace(/^R/, "r")}` : "";
+}
 
 export const workerReport = (row) => row.report || "";
 

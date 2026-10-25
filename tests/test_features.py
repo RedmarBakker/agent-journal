@@ -10370,6 +10370,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
     [shown] = page["rows"]
     assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
+    assert shown["finished"] == [], "and the tasks it finished on its queue, none yet, for its place in it"
     babbage = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)

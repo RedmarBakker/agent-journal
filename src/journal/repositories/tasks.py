@@ -310,6 +310,13 @@ class Tasks(ScopedRepository[Task]):
         worker_tasks = {worker: task for task, worker in holdings.items()}
         return {link.source.id: link.target.id for link in self.links.model_links("source", workers, WORKED_LINK) if worker_tasks.get(link.source.id) != link.target.id}
 
+    # the numbers of the tasks each of the workers finished on its queue, in the order it finished them
+    def finished_ids(self, workers: list[Model]) -> dict[int, list[int]]:
+        finished: dict[int, list[int]] = {}
+        for link in sorted(self.links.model_links("source", workers, FINISHED_LINK), key=lambda link: link.row_id):
+            finished.setdefault(link.source.id, []).append(link.target.id)
+        return finished
+
     # the tasks queued for each of the workers, in the order they were queued
     def queues(self, workers: list[Model]) -> dict[int, list[Task]]:
         links = self.links.model_links("source", workers, QUEUED_LINK)

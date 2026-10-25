@@ -228,12 +228,12 @@ test("a worker's queued tasks count as to-dos not yet done in the To-dos count, 
 test("a worker with three queued tasks shows its report choice and its place in the queue in the worker list and the inspector", async () => {
     const {workerEntry} = await import("../src/domain/agentEntries.js");
     const api = {env: () => "", act: vi.fn(), workerTranscript: vi.fn(async () => ({total: 0, first: 1, turns: []}))};
-    const queued = {...worker("clocked in"), report_choice: {tasks: 0}, holds: [7, 8, 9], queue: [{id: 8, title: "b"}, {id: 9, title: "c"}]};
-    expect(workerEntry(queued).work).toBe("Task 1 of 3, reports when its queue is empty · Write the parser.");
+    const queued = {...worker("clocked in"), report_choice: {tasks: 0}, holds: [8, 9], finished: [7], queue: [{id: 9, title: "c"}]};
+    expect(workerEntry(queued).work).toBe("Task 2 of 3, reports when its queue is empty · Write the parser.");
     expect(workerEntry({...queued, report_choice: {tasks: 2}}).work).toContain("reports after every 2 tasks");
     const host = mount(WorkerPage, {resource: queued}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await flush();
-    expect([...host.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim())).toContain("Task 1 of 3, reports when its queue is empty");
+    expect([...host.querySelectorAll(".quiet > span")].map((fact) => fact.textContent.trim())).toContain("Task 2 of 3, reports when its queue is empty");
     app.unmount();
     const single = mount(WorkerPage, {resource: {...worker("clocked in"), report_choice: {tasks: 1}, holds: [7]}}, {scope: {env: "", api, rows: () => [], holding: async () => {}}});
     await flush();
