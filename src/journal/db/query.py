@@ -174,6 +174,9 @@ class Query:
     def maximum(self, column: str, empty_value) -> tuple[str, tuple]:
         return self._read(f"COALESCE(MAX({self.expression(column)}), {Condition.literal(empty_value)}) AS value")
 
+    def minimum(self, column: str, empty_value) -> tuple[str, tuple]:
+        return self._read(f"COALESCE(MIN({self.expression(column)}), {Condition.literal(empty_value)}) AS value")
+
     def repeated(self, column: str, minimum: int) -> tuple[str, tuple]:
         text, params = self._read(f"{self.expression(column)} AS value")
         return f"SELECT value FROM ({text}) WHERE value != '' GROUP BY value HAVING COUNT(*) >= ?", (*params, minimum)

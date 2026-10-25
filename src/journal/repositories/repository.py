@@ -39,7 +39,7 @@ MATCH_ROWS = 40
 
 
 class Repository(Generic[M]):
-    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted. A change takes the row as it was from a read the cache holds of it alone, before it reads the row by its number, and a new row leaves its read by its number held. While its rows are listed, it and every other repository read none but them, save a count."""
+    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted. A change takes the row as it was from a read the cache holds of it alone, before it reads the row by its number. While its rows are listed, it and every other repository read none but them, save a count."""
 
     model: type[M]
 
@@ -293,7 +293,6 @@ class Repository(Generic[M]):
         cursor = self.connection.execute(*self.query().insert(**values))
         created = stamped.with_(id=cursor.lastrowid)
         self.stored()
-        self._rewritten([self.query().filter(id=created.id)], created)
         self.bus.dispatch(Created(model=created, actor=actor))
         return created
 

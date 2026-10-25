@@ -65,7 +65,8 @@ class Entries(ScopedRepository[Entry]):
         commands = window_starts.filter_present("data->call->command").filter_unequal("data->call->command", "")
         first = self.selected_ids(commands.order_descending("id").limit(1).offset(count - 1))
         newest = commands.filter_greater_equal("id", first[0]) if first else commands
-        return [command for command, run_count in self.grouped_counts(newest, "data->call->command").items() for _ in range(run_count)]
+        highest, lowest = self.maximum(newest, "data->call->command", ""), self.minimum(newest, "data->call->command", "")
+        return [highest] * self.counted(newest) if highest == lowest else [highest, lowest]
 
     def output_tool_starts(self, session: str, last: int = 500) -> list[Entry]:
         mentions = self.query().filter_alternatives(self.query().filter_containing("data", "outputs/"), self.query().filter_containing("data", "journal output read "))
