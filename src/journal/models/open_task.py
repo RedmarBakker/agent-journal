@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class OpenTask:
-    """A task to offer next named by its number, title and brief, with the plan it is next in when a plan holds it, and its state: paused, blocked or open."""
+    """A task to offer next named by its number and brief, with the plan it is next in when a plan holds it, and its state: paused, blocked or open."""
 
     id: int
     title: str
@@ -15,7 +15,7 @@ class OpenTask:
         plan = f"plan {self.plan_id}: " if self.plan_id else ""
         brief = f". brief: {self.brief}" if self.brief else ""
         if self.state == "paused":
-            return f"{plan}task {self.id}, {self.title} is paused, and paused work comes first: can you go on with it now? journal task resume {self.id}"
+            return f"{plan}task {self.id} is paused, and paused work comes first: can you go on with it now? journal task resume {self.id}"
         if self.state == "blocked":
-            return f"{plan}task {self.id}, {self.title} is blocked: has what it waits on arrived? journal task show {self.id}"
-        return f"{plan}task {self.id}, {self.title} is next{brief}"
+            return f"{plan}task {self.id} is blocked: has what it waits on arrived? journal task show {self.id}"
+        return f"{plan}task {self.id} is next{brief}"

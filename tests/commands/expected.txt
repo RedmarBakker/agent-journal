@@ -74,7 +74,7 @@ task 1 is not driven from this machine
 $ agent: journal task complete 1 --how 'the footer names the shop'
 exit 0
 task 1 done
-task 2, Fix the cart total is next. brief: The total adds the tax once, and rounds to cents
+task 2 is next. brief: The total adds the tax once, and rounds to cents
 
 $ agent: journal task start 2
 exit 0
