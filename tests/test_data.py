@@ -692,8 +692,8 @@ def test_a_withdrawn_change_is_never_read_as_a_deletion_or_an_update_and_a_queue
     with scope_b.environment(1):
         assert [(task.id, task.title) for task in tasks_b.rows()] == [(kept.id, "kept")], "a withdrawal deletes no row and changes none"
     assert TeamChange.logged(LoggedChange("tasks", kept.id, "withdrawn", USER.stamp, 1, 1, kept_by="all")).kept_by == "all", "the keeper crosses from the server's log to the journal"
-    update, withdrawal = OutgoingChange(row_table="tasks", row=kept.id, action="updated", fields={"title": "x"}), OutgoingChange(row_table="tasks", row=kept.id, action="withdrawn", kept_by="owner")
-    assert update.merged(withdrawal).payload() | {"local_number": 0} == {"row_table": "tasks", "row": kept.id, "action": "withdrawn", "actor": "", "fields": {}, "changed_at": {}, "local_number": 0, "kept_by": "owner"}, "a withdrawal queued after an update is sent alone, with its keeper"
+    update, withdrawal = OutgoingChange(id=5, row_table="tasks", row=kept.id, action="updated", fields={"title": "x"}), OutgoingChange(row_table="tasks", row=kept.id, action="withdrawn", kept_by="owner")
+    assert update.merged(withdrawal).payload() == {"row_table": "tasks", "row": kept.id, "action": "withdrawn", "actor": "", "fields": {}, "changed_at": {}, "local_number": 5, "kept_by": "owner"}, "a withdrawal queued after an update is sent alone in the queued change's place, with its keeper"
     assert update.with_(action="created").merged(withdrawal) is None, "a row withdrawn before it was ever sent is sent not at all"
 
 
