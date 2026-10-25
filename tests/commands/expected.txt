@@ -94,6 +94,16 @@ exit 0
    1  completed Write the footer
    2  cancelled Fix the cart total
 
+$ agent: journal task priorities --help
+exit 0
+usage: journal task priorities [-h] {confirm}
+
+positional arguments:
+  {confirm}
+
+options:
+  -h, --help  show this help message and exit
+
 $ agent: journal todo --help
 exit 0
 usage: journal todo [-h] {add,check,list} ...
@@ -1179,6 +1189,9 @@ skills.after_compaction = journal | etiquette
 briefing.look_commands = journal plan show current | journal task list | journal message unread | journal worker open | journal question list | journal reader list | journal task show current
 memory.stale_after = 7
 tasks.auto = True  (the user sets it)
+tasks.wait_out_seconds = 20
+tasks.priority_remind_tasks = 5
+tasks.priority_block_tasks = 10
 tasks.first_nudge_after = 25
 tasks.name_every = 25
 tasks.log_after = 50
@@ -1195,6 +1208,7 @@ sequences.stale_after = 25
 sequences.say_every = 10
 usage.check_minutes = 15
 workers.idle_hours = 4
+workers.fitness_level_step = 5
 workers.merge_window_seconds = 180
 workers.merge_limit = 2
 workers.builder_handovers = 2
@@ -1553,6 +1567,7 @@ faults.slow_job_to_fix  [faults]  the background job {{job}} took {{seconds}} se
 faults.slow_requests_to_fix  [faults]  a slow requests report is ready: {{count}} over budget, the worst {{route}} at {{ms}} ms. read it with journal developer slowest; something may be wrong
 git.branch_in_use  [git]  the branch {{branch}} is in use by the environment {{environment}}, whose agent runs on it. work on another branch or in a worktree of its own
 git.worker_task_refusal  [git]  task {{task}} is worker {{worker}}'s, so the commit leaves it open. journal worker merge {{worker}} once its proofs are checked
+health.went_through_unchecked  [health]  while the journal did not answer, {{kinds}}: {{commands}}. check them, and run again what ran unrecorded
 hydration.read_the_hydrated_chat  [hydration]  this environment's chat was filled from the earlier conversation {{session}}, which this session carries on. read it with journal message recent, then record what it holds that is still true or still open as facts, reminders and tasks
 laws.bind_the_job  [laws]  the dispatch binds the agent to no concrete job. give it a description and a bounded prompt
 laws.cap_the_output  [laws]  that result was {{lines}} lines. cap output with grep, head or tail
@@ -1651,6 +1666,7 @@ shell.drop_line_time_limit  [shell]  {{command}} needs no time limit wrapper her
 shell.folder_change_refused  [shell]  cd {{target}} would move your shell for every later command. use a subshell, ( cd {{target}} && … ), or give the command the folder (git -C, npm --prefix, an absolute path)
 shell.give_the_reader_a_topic  [shell]  {{command}} has run with {{count}} different arguments. give the reader {{reader}} a --topic pattern over the command line, such as the files or the -k it names
 shell.guessed_a_reader  [shell]  reading it with {{reader}}: {{about}}. it stays when you do nothing more; write your own with `journal reader add <name> --commands "{{command}}" ...`
+shell.journal_command_piped_into_a_filter  [shell]  journal {{command}} piped into {{filter}} hides the lines the journal speaks. run it on its own and read all of its answer
 shell.journal_command_runs_alone  [shell]  You cannot mix journal commands with other commands.
 shell.make_its_reader  [shell]  no reader reads {{command}} yet. `journal reader add <name> --commands "{{command}}" --pattern '<failures and summary>' --progress '<percent or count of a total>' --label 'Running tests'`
 shell.moved_to_the_background  [shell]  moved to the background as output {{n}}
@@ -1683,6 +1699,7 @@ shell.writes_held_soon_until_read_through_a_reader  [shell]  reader due for {{co
 skills.read_the_skill_first  [skills]  read the {{skill}} skill before anything else: {{path}}. every other tool waits until you have
 skills.read_the_skill_now  [skills]  read the {{name}} skill now: {{path}}
 skills.stopped_owing  [skills]  you stopped with the {{skills}} skill still to read. read it first, or `journal stuck "<why>"`
+tasks.await_only_what_ends_soon  [tasks]  {{what}} runs {{left}}, too long to wait for while task {{n}} is open. carry on with task {{n}} instead; you are informed when it ends
 tasks.blocked_task_asked_about  [tasks]  blocked, with nothing that opens it by itself: {{tasks}}. `journal task unblock <n>` once what it waits on has come
 tasks.carry_on  [tasks]  {{name}} is in hand, {{logged}}: carry on
 tasks.check_in_after_quiet  [tasks]  nothing has happened for half an hour. carry on, take the next task, or say so in one line
@@ -1691,11 +1708,14 @@ tasks.check_the_wait  [tasks]  you have waited {{minutes}} min on {{what}}: chec
 tasks.closed_by_commit  [tasks]  commit {{sha}} closed {{tasks}}
 tasks.deferred_work_is_a_task  [tasks]  work deferred in words, not filed: `journal task create` it
 tasks.fix_the_broken_wait  [tasks]  {{waits}}. fix it with `journal task block <n> --until "<command>"`, or `journal task unblock <n>`
+tasks.give_tasks_their_priority  [tasks]  {{count}} open tasks you made sit at the default priority: {{tasks}}. give each its priority with `journal task edit <n> --priority <level>`, or `journal task priorities confirm` if they are all normal
 tasks.log_first_at_stop  [tasks]  {{name}}, {{logged}}: log where it stands first. {{log_command}} "<where it stands>"
 tasks.log_where_it_stands  [tasks]  {{edits}} edits since you logged {{name}}: say where it stands. {{log}} "<where it stands>"
 tasks.next_task_holds_the_stop  [tasks]  tasks are open, and auto mode is on: task {{n}} next. carry on with it
-tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, task {{n}} is next. work on it meanwhile, or end your turn if you need what you wait for
+tasks.next_task_while_waiting  [tasks]  while you wait for {{what}}, task {{n}} is next. work on it meanwhile; you are informed when the wait ends
+tasks.no_stop_while_waiting  [tasks]  {{what}} still runs, {{left}}, and task {{n}} is open. carry on with task {{n}}; you are informed when the wait ends
 tasks.not_stuck_with_work_left  [tasks]  {{count}} tasks are open, in progress or paused, so you are not stuck. go on with them, or wait on what you started with journal await
+tasks.park_the_wait  [tasks]  {{what}} has about {{seconds}} seconds left, too long to wait. park it and carry on with task {{n}}; you are informed when it ends
 tasks.paused_task_asked_about  [tasks]  task {{n}} is paused: {{why}}. `journal task resume {{n}}` if it can go on now
 tasks.paused_task_named_at_close  [tasks]  task {{n}} is paused: {{why}}. `journal task resume {{n}}` if it can go on now
 tasks.paused_tasks_still_open  [tasks]  paused tasks: {{tasks}}. resume one that can go on with `journal task resume <n>`
@@ -1708,6 +1728,8 @@ tasks.task_opened  [tasks]  task {{n}} is open. `journal task start {{n}}` takes
 tasks.task_points_changed  [tasks]  task {{n}} changed: point {{points}} of its brief rewritten. read it again with `journal task show {{n}}`, and prove a rewritten point again if you proved it
 tasks.task_reopened  [tasks]  task {{n}} is open again: {{reason}}. `journal task start {{n}}` takes it up
 tasks.task_still_open  [tasks]  {{name}} is still open: log where it stands or finish it
+tasks.tasks_wait_for_their_priority  [tasks]  {{count}} open tasks you made sit at the default priority: {{tasks}}. your next write waits. `journal task edit <n> --priority <level>` on them, or `journal task priorities confirm`
+tasks.wait_it_out  [tasks]  {{what}} has about {{seconds}} seconds left. wait it out: `journal await` ends when it does
 tasks.wait_over  [tasks]  wait over: {{outcome}}
 tasks.work_left_holds_the_stop  [tasks]  tasks are left: {{tasks}}. take one or resume a paused one; journal stuck "<why>" when every task left is truly blocked
 tasks.write_held_until_logged  [tasks]  {{edits}} edits since you logged {{name}}. {{log}} "<what was decided or done>" before any other write
@@ -1778,6 +1800,7 @@ workers.too_many_subagents  [workers]  {{running}} subagents are running, the mo
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you but is number {{place}} in worker {{n}}'s queue. put it first: journal worker queue {{n}} {{task}} --first
 workers.wait_for_running_workers  [workers]  {{workers}} are still out and no work waits to be checked. wait for them with journal worker wait {{numbers}}
+workers.work_mode_fitness_fell  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses, fallen past a mark: {{gaps}}. bring the measures named back into their range
 workers.work_mode_fitness_is_low  [workers]  your fitness as the {{mode}} is {{score}} of 100 over your last 50 tool uses: {{gaps}}. bring the measures named back into their range
 workers.work_ready  [workers]  worker {{n}} ready: task {{task}}
 workers.worker_costly_on_shaped_work  [workers]  worker {{n}} has spent ${{dollars}} on {{model}} for work its profile says is of a settled shape. a cheaper model may do it: journal worker send {{n}} --model <model> "<job>"
@@ -1793,7 +1816,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-272 nudges
+281 nudges
 
 $ agent: journal worker list
 exit 0

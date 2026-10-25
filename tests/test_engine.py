@@ -254,7 +254,8 @@ def test_one_task_in_hand_pause_resume_and_await(app: App):
     assert isinstance(app.container.get(SessionAgents).top("s1"), Ready), "paused: nothing in hand"
     assert console.run(["task", "resume", "1"], AGENT).code == 0 and app.container.get(SessionAgents).top("s1").task_id == 1
     assert console.run(["await", "the deploy to finish", "--until", "false"], AGENT).code == 0
-    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and hook(app, "Stop")[1] == {}, "waiting is quiet at a stop"
+    stopped = hook(app, "Stop")[1]
+    assert app.container.get(SessionAgents).top("s1").name == "awaiting" and stopped.get("decision") == "block" and "task 2 is open" in stopped["reason"], "a stop while waiting on what it cannot estimate is refused while task 2 is open"
     hook(app, "PreToolUse", tool_name="Read", tool_input={})
     assert app.container.get(SessionAgents).top("s1").task_id == 1, "working again lifts the wait"
 
@@ -1572,7 +1573,9 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     assert pushed.pushed == ExternalWait.opened("the build", "command_outputs:4,checks:2", 100.0), "journal await pushes the wait on the work"
     assert Working(task_id=7).respond(ImpasseReport(reason="the login", time=1.0), auto, (TasksConduct,)).pushed == Impasse(reason="the login"), "journal stuck pushes Stuck"
     waiting = pushed.pushed
-    assert waiting.respond(Stop(time=130.0).with_data(of()), auto).refusal is None and waiting.respond(Ticked(silence_seconds=10.0, time=130.0).with_data(of()), auto).nudges == (), "quiet at a stop and on an early tick"
+    held = waiting.respond(Stop(time=130.0).with_data(of()), auto).refusal
+    assert held is not None and held.rendered().startswith("the build still runs, for a time the journal cannot estimate yet, and task 9 is open") and "carry on with task 9" in held.rendered(), "in auto mode a stop while a task is open is refused during a wait as without one"
+    assert waiting.respond(Stop(time=130.0).with_data(of()), manual).refusal is None and waiting.respond(Ticked(silence_seconds=10.0, time=130.0).with_data(of()), auto).nudges == (), "out of auto mode a stop is fine, and an early tick is quiet"
     meanwhile = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), auto)
     assert meanwhile.target == replace(waiting, next_task_reported=True) and meanwhile.nudges[0].rendered().startswith("while you wait for the build, task 9 is next"), "in auto mode the next task is named once after a minute"
     assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), manual).nudges == (), "out of auto mode it is not"
@@ -1584,6 +1587,17 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     assert not quick.popped and quick.target == replace(waiting, decided=True) and quick.nudges[0].rendered().startswith("the build has about 1 seconds left"), "a run at 90% is waited out"
     step = waiting.respond(Ticked(silence_seconds=1.0, time=110.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 1 / 5)})), manual)
     assert step.popped, "a merge in step 1 of 5 is parked"
+    assert waiting.respond(Stop(time=109.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 0.9), "checks:2": WaitProgress(100.0, 0.9)})), auto).refusal is None, "a wait estimated short lets the stop through"
+    from journal.features.tasks.support.wait_progress_reader import WaitProgressReader
+    assert WaitProgressReader.finished_share(["step 1/5: asking the plugins"]) == 0.0 and WaitProgressReader.finished_share(["running tests [ 50%] 3 of 6 finished"]) == 0.5, "a step begun counts the steps before it as done, a count its finished share"
+    assert WaitProgress(100.0, 0.5, last_seconds=300.0).remaining_seconds(160.0) == 240.0 and WaitProgress(100.0, 0.5, last_seconds=30.0).remaining_seconds(160.0) == 60.0, "the last passing run of the same command gives the estimate while the run is within it, then its progress"
+    from journal.events.agent.tool_starting import ToolStarting
+    conducted = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.SHORT_WAIT_SECONDS.key: 20, TasksOptions.PRIORITY_REMIND_TASKS.key: 99})
+    awaiting = lambda line, progress: waiting.respond(ToolStarting(call=shell(line), time=105.0).with_data(estimated(progress)), conducted, (TasksConduct,)).refusal
+    refused = awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0)})
+    assert refused is not None and refused.rendered().startswith("the merge of worker 3 runs for a time the journal cannot estimate yet, too long to wait for while task 9 is open"), "an await on a process that does not end soon is refused while a task is open"
+    assert awaiting("journal await 'the merge of worker 3' --output 4", {"command_outputs:4": WaitProgress(100.0, 0.0, last_seconds=10.0)}) is None, "one that ends within the setting's seconds may be awaited"
+    assert waiting.respond(ToolStarting(call=shell("journal await 'the merge of worker 3' --output 4"), time=105.0).with_data(FeatureData({"tasks": replace(tasks, next_open=None)})), conducted, (TasksConduct,)).refusal is None, "with no task open a long process may be awaited"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
     assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered().startswith("you have waited 5 min on the build: check it"), "every five quiet minutes the agent is asked to look"
     assert looked.target.respond(Ticked(silence_seconds=400.0, time=500.0).with_data(of()), auto).nudges == (), "and not again before five more"

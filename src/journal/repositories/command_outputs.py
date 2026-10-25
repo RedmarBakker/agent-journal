@@ -17,12 +17,12 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
             raise MissingRow(self.table, chain)
         return rows[-1]
 
-    def ran_within(self, folder: str) -> list[CommandOutput]:
+    def tree_runs(self, folder: str) -> list[CommandOutput]:
         query = self.query()
         cd_prefixes = [query.filter_prefix("command", f"{lead}cd {quote}{folder}") for lead in ("", "(") for quote in ("", '"', "'")]
         return self.selected(query.filter_alternatives(query.filter_prefix("ran_in", folder), *cd_prefixes).order("id"))
 
-    def ran_in(self, folder: str) -> list[CommandOutput]:
+    def folder_runs(self, folder: str) -> list[CommandOutput]:
         return self.selected(self.query().filter(ran_in=folder).order_descending("id"))
 
     def background(self, session: str) -> list[CommandOutput]:
@@ -79,6 +79,10 @@ class CommandOutputs(ScopedRepository[CommandOutput]):
 
     def previous_run(self, output: CommandOutput) -> CommandOutput | None:
         rows = self.selected(self.query().filter(command=output.command, ended=True).filter_less("id", output.row_id).order_descending("id").limit(1))
+        return rows[0] if rows else None
+
+    def previous_passing_run(self, output: CommandOutput) -> CommandOutput | None:
+        rows = self.selected(self.query().filter(command=output.command, ended=True, status=0).filter_less("id", output.row_id).order_descending("id").limit(1))
         return rows[0] if rows else None
 
     def reader_outputs(self, reader: str, last: int = 50) -> list[CommandOutput]:

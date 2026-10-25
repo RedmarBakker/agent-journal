@@ -88,6 +88,7 @@ const SYSTEM_TURNS = {
             title: card.detail || card.command,
             row: card.row,
             visitor: card.visitor,
+            proof_task: card.proof_task || 0,
         },
     }),
     peer: (card) => ({kind: "message", data: {peer: card.peer, sent_to: card.sent_to, failure: card.failure || ""}}),

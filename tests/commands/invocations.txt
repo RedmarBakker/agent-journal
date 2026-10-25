@@ -21,6 +21,7 @@ agent task start 2
 agent task cancel 2 --why "the tax rates changed"
 agent task decline 2 --why "not this quarter"
 agent task list --all
+agent task priorities --help
 agent todo --help
 agent todo add --help
 agent todo check --help

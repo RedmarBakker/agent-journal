@@ -56,7 +56,7 @@ class WorkersDataReader:
             "worktrees": lambda: tuple(WorkerWorktree(self.branch.folder(w).name, w.row_id, w.name) for w in (*self.workers.open_workers(), *facts.idle_workers)),
             "session_workers": lambda: tuple(self.workers.session_worker(agent.session)) if agent.role.is_sent() else (),
             "delivered_workers": lambda: tuple(self.workers.checkable_workers()),
-            "delivered_runs": lambda: tuple((output.row_id, worker.row_id) for worker in facts.delivered_workers if worker.worktree for output in self.outputs.ran_within(str(self.branch.folder(worker)))),
+            "delivered_runs": lambda: tuple((output.row_id, worker.row_id) for worker in facts.delivered_workers if worker.worktree for output in self.outputs.tree_runs(str(self.branch.folder(worker)))),
             "ready_work": lambda: tuple(ReadyWork(w.id, w.name, task, w.silence.timeout.start) for w in self.workers.checkable_workers() for task in self.tasks.holder_task_ids(Ref.build(w))[:1] if self.is_unchecked(task)),
             "unfinished_outputs": lambda: tuple(output.row_id for worker in facts.session_workers for output in self.outputs.unfinished(Actor.worker(worker.id))),
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),

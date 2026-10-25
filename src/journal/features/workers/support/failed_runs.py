@@ -26,7 +26,7 @@ class FailedRuns:
 
     def picked(self, worker: Worker) -> list[str]:
         delivered_at = worker.delivery_time()
-        for output in reversed(self.outputs.ran_within(str(self.branch.folder(worker)))):
+        for output in reversed(self.outputs.tree_runs(str(self.branch.folder(worker)))):
             reader = self.readers.reading(output.command)
             if output.creation_time.timestamp() < delivered_at:
                 return []

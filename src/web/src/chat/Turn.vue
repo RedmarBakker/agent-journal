@@ -80,8 +80,11 @@ function markClick(data) {
                                     <template v-if="data.output && pages.loaded.value">
                                         <pre class="mark-terminal">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
                                     </template>
-                                    <template v-else-if="!data.output">
-                                        <ul v-if="opened" class="mark-lines">
+                                    <template v-if="data.proof_task">
+                                        <button type="button" class="mark-proofs" @click.stop="openRef(`tasks:${data.proof_task}`)">Open task {{ data.proof_task }} and its proofs</button>
+                                    </template>
+                                    <template v-if="!data.output && opened">
+                                        <ul class="mark-lines">
                                             <template v-for="line in lines" :key="line">
                                                 <li class="mark-line">{{ line }}</li>
                                             </template>
@@ -177,6 +180,17 @@ function markClick(data) {
 .mark-more-inner {
     min-height: 0;
     overflow: hidden;
+}
+
+.mark-proofs {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
 }
 
 .mark-command {

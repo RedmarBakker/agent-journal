@@ -17,4 +17,4 @@ class RunHistory(CommandOutputs):
         return [run for run in self.latest(count) if accepts(run)]
 
     def recent_commands(self, folder: str, moment: float) -> list[str]:
-        return [run.command for run in self.ran_within(folder) if run.creation_time.timestamp() >= moment]
+        return [run.command for run in self.tree_runs(folder) if run.creation_time.timestamp() >= moment]

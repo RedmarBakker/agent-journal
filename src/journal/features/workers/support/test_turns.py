@@ -75,7 +75,9 @@ class TestTurns:
         limit = threading.Timer(self.limit_seconds(), self.stopped, (turn, time.time()))
         limit.start()
         try:
-            _, text = self.whole_run(turn.command, turn.folder, caller, worker.environment_id)
+            output, text = self.whole_run(turn.command, turn.folder, caller, worker.environment_id)
+            if output is not None:
+                self.turns.save(self.turns.find(turn.id).with_(output=output.row_id), Actor.system())
             self.recorded(turn, TestRunResult.printed(text, self.readers.reading(turn.command)))
         finally:
             limit.cancel()
@@ -90,7 +92,7 @@ class TestTurns:
     def whole_run(self, line: str, folder: str, caller: Caller, environment: int):
         started = time.time()
         text = b"".join(self.runner.run(ShellRequest(line=line, cwd=folder, shell="bash", environment=dict(os.environ)), caller, environment)).decode(errors="replace")
-        output = next((row for row in self.outputs.ran_in(folder) if row.creation_time.timestamp() >= started), None)
+        output = next((row for row in self.outputs.folder_runs(folder) if row.creation_time.timestamp() >= started), None)
         moved = output is not None and not output.ended
         while output is not None and not output.ended:
             time.sleep(POLL_SECONDS)
@@ -169,7 +171,7 @@ class TestTurns:
         self.workers.save(worker.passed_run() if summary.is_passed() else worker.failed_run(summary.failed, time.time()), Actor.system())
 
     def run_output(self, turn: TestTurn, started: float):
-        return next((row for row in self.outputs.ran_in(turn.folder) if row.creation_time.timestamp() >= started), None)
+        return next((row for row in self.outputs.folder_runs(turn.folder) if row.creation_time.timestamp() >= started), None)
 
     def stopped(self, turn: TestTurn, started: float) -> None:
         with self.scope.environment(turn.environment_id):
@@ -184,7 +186,7 @@ class TestTurns:
             self.turns.save(turn.ended(), Actor.system())
             if turn.state == TestTurnState.RUNNING:
                 with self.scope.environment(turn.environment_id):
-                    output = next(iter(self.outputs.ran_in(turn.folder)), None)
+                    output = next(iter(self.outputs.folder_runs(turn.folder)), None)
                     if output is not None and not output.ended:
                         OutputFiles(Path(output.folder)).stop("journal: this test run was stopped, its worker ended")
 

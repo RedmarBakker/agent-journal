@@ -76,7 +76,7 @@ class ToolUses:
         return any(worker.is_unanswered(time, ANSWER_SECONDS, self.tested_at(worker, time)) for worker in self.workers.checkable_workers())
 
     def tested_at(self, worker: Worker, time: float) -> float:
-        runs = [run for run in self.outputs.ran_within(str(self.branch.folder(worker))) if run.creation_time.timestamp() >= worker.silence.timeout.start] if worker.worktree else []
+        runs = [run for run in self.outputs.tree_runs(str(self.branch.folder(worker))) if run.creation_time.timestamp() >= worker.silence.timeout.start] if worker.worktree else []
         return max((run.update_time.timestamp() if run.ended else time for run in runs), default=0.0)
 
     def has_late_task(self, time: float) -> bool:

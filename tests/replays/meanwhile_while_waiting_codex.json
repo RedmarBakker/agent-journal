@@ -33,7 +33,7 @@
       "name": "a minute and a half",
       "answer": null,
       "typed": [
-        "[journal] while you wait for the build, task 2 is next. work on it meanwhile, or end your turn if you need what you wait for"
+        "[journal] while you wait for the build, task 2 is next. work on it meanwhile; you are informed when the wait ends"
       ],
       "nudges": [
         "tasks.next_task_while_waiting"

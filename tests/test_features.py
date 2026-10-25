@@ -10098,6 +10098,7 @@ def test_the_journal_runs_a_workers_named_tests_at_clock_out_and_only_a_passing_
         assert any(log.line == "tests passed at clock-out: test 1 = 1" for log in app.container.get(TaskLogs).logs(app.container.get(Tasks).find(1))), "the task records the run that passed, for the agent checking the proofs"
         cards = [message for message in app.container.get(Messages).all() if str(message.data.get("key", "")).startswith("test-run:")]
     assert [(card.text, card.data["active"], card.session) for card in cards] == [("Worker 1, Worker 1: 1 of its tests failed", False, "s1"), ("Worker 1, Worker 1: its tests passed", False, "s1")], "each run is a card in the chat of the agent that sent the worker, ending failed or passed"
+    assert [(card.data["line"], card.data["summary"], card.data["proof_task"]) for card in cards] == [("test 1 = 2", "1 failed", 1), ("test 1 = 1", "passed", 1)], "each card opens to the command it ran and how it ended, its run's output when one was kept, and offers the worker's task with its proofs"
 
 
 def test_a_worker_clocks_out_with_its_report_once_each_point_has_a_proof_that_stands(app: App, monkeypatch):

@@ -1,3 +1,5 @@
+import re
+import shlex
 from journal.events.rows.task_wait_ended import TaskWaitEnded
 from journal.features.tasks.support.task_succession import TaskSuccession
 from journal.engine.conduct import Conduct
@@ -14,8 +16,11 @@ from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
+from journal.features.tasks.support.wait_estimate import WaitEstimate
+from journal.models.command_output import CommandOutput
 
 POLL_REPEAT_COMMANDS = 3
+WAITED_OUTPUT = re.compile(r"--output[ =](\d+)")
 
 
 class TasksConduct(Conduct):
@@ -28,7 +33,7 @@ class TasksConduct(Conduct):
         return self.push(Impasse(reason=event.reason))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [polling_check(self, event), impasse_check(self, event), priorities_check(self, event, settings)])
+        return Transition.merged(self, [polling_check(self, event), impasse_check(self, event), priorities_check(self, event, settings), wait_check(self, event, settings)])
 
     def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
         return self.none(TasksNudges.TASK_REOPENED.create(n=event.task_id, reason=event.reason))
@@ -58,6 +63,18 @@ def polling_check(state: BaseState, event: ToolStarting) -> Transition:
     if len(last) < POLL_REPEAT_COMMANDS or any(older != command for older in last):
         return state.none()
     return state.none(TasksNudges.STOP_POLLING.create(times=POLL_REPEAT_COMMANDS, command=command))
+
+
+def wait_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    tasks = event.data.part(TasksPart)
+    if event.subagent or not event.call.is_journal_noun("await") or not settings.value(TasksOptions.AUTO) or tasks.next_open is None:
+        return state.none()
+    wait_line = event.call.journal_text("await")
+    estimate = WaitEstimate.create([f"{CommandOutput.table()}:{n}" for n in WAITED_OUTPUT.findall(wait_line)], tasks.wait_progress, event.time)
+    if estimate.is_short(settings):
+        return state.none()
+    arguments = shlex.split(wait_line)
+    return state.refuse(TasksNudges.WAIT_REFUSAL.create(what=arguments[2] if len(arguments) > 2 else "the process", left=estimate.seconds_text(), n=tasks.next_open.id))
 
 
 def impasse_check(state: BaseState, event: ToolStarting) -> Transition:

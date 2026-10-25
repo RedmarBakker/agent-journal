@@ -6,6 +6,7 @@ from journal.engine.states.wait import Wait
 from journal.events.agent.wait_request import WaitRequest
 from journal.engine.support.settings import Settings
 from journal.engine.support.transition import Transition
+from journal.events.agent.stop import Stop
 from journal.events.agent.ticked import Ticked
 from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.row_pending import RowPending
@@ -15,6 +16,7 @@ from journal.support.timeout import Timeout
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
+from journal.features.tasks.support.wait_estimate import WaitEstimate
 from journal.features.tasks.support.wait_progress import WaitProgress
 from journal.models.open_task import OpenTask
 
@@ -24,7 +26,7 @@ CHECK_REMINDER = Timeout.minutes(5)
 
 @dataclass(frozen=True)
 class ExternalWait(Wait):
-    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. Stopping is fine; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check."""
+    """The agent waits for something outside its control, named in words and by the rows that end it, table:id each: outputs, checks, tasks or questions, and whatever a feature above tasks adds. Each row resolving is reported and the last pops the wait with the result of each. The wait ends when the agent uses any tool outside the journal. A stop while a task is open is refused in auto mode, as it is with no wait, unless the wait is estimated short; a run it waits on with progress to read is estimated at the first tick that can: a short wait is waited out, a long one is parked, the wait ending, and the agent carries on with the next task; with nothing to estimate by, in auto mode the next task is named once after a minute, and every five idle minutes the agent is asked to check."""
 
     name = "awaiting"
     title = "Waiting"
@@ -56,6 +58,13 @@ class ExternalWait(Wait):
     def remaining_seconds(self, progress: Mapping[str, WaitProgress], moment: float) -> float | None:
         estimates = [seconds for ref in self.targets() if ref in progress and (seconds := progress[ref].remaining_seconds(moment)) is not None]
         return max(estimates) if estimates else None
+
+    def on_stop(self, event: Stop, settings: Settings) -> Transition:
+        tasks = event.data.part(TasksPart)
+        estimate = WaitEstimate.create(self.targets(), tasks.wait_progress, event.time)
+        if not settings.value(TasksOptions.AUTO) or tasks.next_open is None or estimate.is_short(settings):
+            return self.none()
+        return self.refuse(TasksNudges.WAIT_STOP.create(what=self.focus, left=estimate.seconds_text(), n=tasks.next_open.id))
 
     def estimated(self, remaining: float, next_open: OpenTask | None, settings: Settings) -> Transition:
         seconds = round(remaining)
