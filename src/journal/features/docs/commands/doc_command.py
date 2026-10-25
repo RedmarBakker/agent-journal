@@ -1,6 +1,7 @@
 from argparse import Namespace
 from pathlib import Path
 
+from journal.console.support.hub_rows import HubRows
 from journal.console.command import Command, HELPER_KINDS, WORKER_KINDS
 from journal.support.caller import Caller
 from journal.support.outline import Outline
@@ -16,8 +17,8 @@ class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock) -> None:
-        self.docs, self.doc_revisions, self.clock = docs, revisions, clock
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows) -> None:
+        self.docs, self.doc_revisions, self.clock, self.hub_rows = docs, revisions, clock, hub_rows
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of the project, the same in every environment")
@@ -29,7 +30,7 @@ class DocCommand(Command):
         update.add_argument("--file", required=True, help="a markdown file holding its whole new text; ## headings are its sections")
         update.add_argument("--abstract", default=None, help="a new one line that says what it is")
         display = self.verb(verbs, "show", "a document: its outline, then one section at a time")
-        display.add_argument("n", type=int)
+        display.add_argument("n", help="the document's number, or a team's name and number such as acme:31")
         Outline.arguments(display)
         self.verb(verbs, "list", "every document of the project")
         self.verb(verbs, "revisions", "a document's revisions: number, when, who and what changed").add_argument("n", type=int)
@@ -54,7 +55,7 @@ class DocCommand(Command):
         return 0
 
     def show(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.find(args.n)
+        doc = self.docs.find(self.hub_rows.number(args.n))
         print("\n".join([*filter(None, (f"doc {doc.id}: {doc.title}", doc.abstract)), *Outline.build(doc.body).summary(args)]))
         return 0
 

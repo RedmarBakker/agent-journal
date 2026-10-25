@@ -2,6 +2,7 @@ from argparse import Namespace
 from dataclasses import replace
 from datetime import datetime, timezone
 
+from journal.console.support.hub_rows import HubRows
 from journal.console.command import SUBAGENT_KINDS, Command
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_testing import PlanTesting
@@ -27,9 +28,9 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
-        self.rounds, self.taking, self.plan_testing = rounds, taking, testing
+        self.rounds, self.taking, self.plan_testing, self.hub_rows = rounds, taking, testing, hub_rows
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -73,7 +74,7 @@ class PlanCommand(Command):
         Waits.arguments(block, "plan")
         self.verb(verbs, "unblock", "what the plan waited on came: it is started again").add_argument("n", type=int)
         self.verb(verbs, "cancel", "a plan given up, with the tasks that are its alone; one another live plan holds stays").add_argument("n", type=int)
-        self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, or current for the started plan")
+        self.verb(verbs, "show", "a plan and its tasks").add_argument("n", help="the plan's number, a team's name and number such as acme:12, or current for the started plan")
         self.verb(verbs, "list", "every plan here")
         testing = self.verb(verbs, "testing", "how the plan's agent is told to test, by a plan testing template's title, or none")
         testing.add_argument("n", type=int)
@@ -221,7 +222,7 @@ class PlanCommand(Command):
                 print("no plan is started")
                 return 0
             args.n = started.id
-        plan = self.plans.find(int(args.n))
+        plan = self.plans.find(self.hub_rows.number(args.n))
         print(f"plan {plan.id} {plan.state}: {plan.title}")
         if plan.state == PlanState.STARTED and (phases := self.plans.phase_states(plan)):
             current = phases[plan.current_phase(phases) - 1]

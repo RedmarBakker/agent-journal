@@ -27,6 +27,9 @@ class TeamAccount:
     def is_joined(self) -> bool:
         return (self.config.home / TEAM_FILE).is_file()
 
+    def team_name(self) -> str:
+        return str(self.contents().get("team_name", ""))
+
     def device(self) -> str:
         return str(self.contents().get("device", ""))
 
