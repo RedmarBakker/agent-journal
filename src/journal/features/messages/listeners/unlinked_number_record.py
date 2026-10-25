@@ -15,14 +15,14 @@ from journal.support.listener_queue import ListenerQueue
 
 
 class UnlinkedNumberRecord(Listener[Created]):
-    """The numbers of the main agent's chat message that name a row without its kind before them are kept on its row, each as the row it most likely is, worked out on the deferred worker after the hook has answered, so its conduct can ask it to link them."""
+    """The numbers of the main agent's chat message, never a thought, that name a row without its kind before them are kept on its row, each as the row it most likely is, worked out on the deferred worker after the hook has answered, so its conduct can ask it to link them."""
 
     def __init__(self, deferred: ListenerQueue, agents: Agents, rows: Rows, scope: Scope) -> None:
         self.deferred, self.agents, self.rows, self.scope = deferred, agents, rows, scope
 
     def handle(self, event: Created) -> None:
         message = event.model
-        if not isinstance(message, Message) or message.author != Author.AGENT or message.agent_role != AgentRole.MAIN or not message.session:
+        if not isinstance(message, Message) or message.author != Author.AGENT or message.agent_role != AgentRole.MAIN or not message.session or message.is_thought:
             return
         self.deferred.add(partial(self.recorded, message))
 

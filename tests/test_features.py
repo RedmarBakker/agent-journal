@@ -9123,6 +9123,10 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
         said(f"task {parser} is done")
     app.runtime().deferred.drain()
     assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "b.py"})[1]), "a number with its kind before it is told nothing"
+    with app.container.get(Scope).environment(MAIN):
+        messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=f"Now checking {lexer} again", data={"kind": Message.THOUGHT}), Actor.agent("s1"))
+    app.runtime().deferred.drain()
+    assert "with no kind of row before them" not in json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "c.py"})[1]), "a thought is a summary of the agent's words, never asked to be linked"
 
 
 def test_messages_between_sessions_reach_the_chat_both_ways_named_by_their_agents(app: App):
