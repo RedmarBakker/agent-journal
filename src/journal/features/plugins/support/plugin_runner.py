@@ -9,6 +9,7 @@ from journal.features.plugins.support.plugin_fault import PluginFault
 from journal.features.plugins.support.window_missed import WindowMissed
 from journal.features.plugins.support.plugin_folders import PluginFolders
 from journal.features.plugins.support.plugin_settings import PluginSettings
+from journal.support.login_path import LoginPath
 from journal.support.plugin_tokens import PluginTokens
 from journal.features.plugins.support.protocol import Protocol
 from journal.models.plugin import Plugin
@@ -20,10 +21,10 @@ SOCKET_FAILURES = (ConnectionRefusedError, FileNotFoundError, BrokenPipeError, C
 
 
 class PluginRunner:
-    """Runs a plugin's program for one event: the line on its input, in its own folder and process group, with a clean environment that names the journal and the plugin, and at most the time it is given; a plugin with a service is asked on its socket first, and its program answers when the socket is gone or drops the connection, the supervisor starting the service again by its restart rule."""
+    """Runs a plugin's program for one event: the line on its input, in its own folder and process group, with a clean environment that names the journal and the plugin and has the user's login shell's PATH, and at most the time it is given; a plugin with a service is asked on its socket first, and its program answers when the socket is gone or drops the connection, the supervisor starting the service again by its restart rule."""
 
-    def __init__(self, config: Config, folders: PluginFolders, tokens: PluginTokens, protocol: Protocol, settings: PluginSettings) -> None:
-        self.config, self.folders, self.tokens, self.protocol, self.settings = config, folders, tokens, protocol, settings
+    def __init__(self, config: Config, folders: PluginFolders, tokens: PluginTokens, protocol: Protocol, settings: PluginSettings, login_path: LoginPath) -> None:
+        self.config, self.folders, self.tokens, self.protocol, self.settings, self.login_path = config, folders, tokens, protocol, settings, login_path
 
     def ask(self, plugin: Plugin, environment: str, line: str, window: float) -> PluginAnswer:
         subscribed = self.folders.socket(plugin, environment)
@@ -72,7 +73,7 @@ class PluginRunner:
         settings.write_text(json.dumps(plugin.settings))
         port = self.config.port_file.read_text().strip() if self.config.port_file.is_file() else str(self.config.port)
         return {key: os.environ[key] for key in PASSED_VARIABLES if key in os.environ} | {
-            "PATH": os.pathsep.join([str(self.config.home / "bin"), "/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]),
+            "PATH": os.pathsep.join([str(self.config.home / "bin"), self.login_path.value()]),
             "JOURNAL_ROOT": str(self.config.root),
             "JOURNAL_URL": f"http://127.0.0.1:{port}",
             "JOURNAL_ENV": environment,

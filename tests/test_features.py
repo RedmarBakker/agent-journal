@@ -5655,6 +5655,17 @@ def echo(app, name="echo", **manifest):
     return app.container.get(Plugins).save(Plugin(name=name, source=str(folder), manifest=PluginManifest.parsed(json.loads((folder / "journal-plugin.json").read_text()) | manifest)), Actor.user(1))
 
 
+def test_a_plugins_processes_run_with_the_path_the_users_login_shell_has(app: App, tmp_path, monkeypatch):
+    from journal.features.plugins.support.plugin_runner import PluginRunner
+    shell = tmp_path / "login-shell"
+    shell.write_text('#!/bin/sh\nprintf "%s" "noise journal-path-start:/home/me/.nvm/bin:/usr/bin:journal-path-end"\n')
+    shell.chmod(0o755)
+    monkeypatch.setenv("SHELL", str(shell))
+    plugin = echo(app)
+    path = app.container.get(PluginRunner).environment(plugin, "main")["PATH"]
+    assert path == f"{app.config.home / 'bin'}:/home/me/.nvm/bin:/usr/bin", "a tool the user's shell finds, as nvm's node, is found by the plugin's service and commands too"
+
+
 def echo_heard(app, name="echo") -> list[str]:
     file = app.config.home / "plugin-data" / name / "heard.jsonl"
     return [json.loads(line)["event"] for line in file.read_text().splitlines()] if file.is_file() else []
