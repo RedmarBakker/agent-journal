@@ -9,6 +9,10 @@ from journal.support.outline import Outline
 from journal.features.docs.support.version3_doc import Version3Doc
 from journal.models.doc import Doc
 from journal.models.doc_edit_mode import DocEditMode
+from journal.models.link import Link
+from journal.models.support.ref import Ref
+from journal.repositories.links import Links
+from journal.repositories.scope import Scope
 from journal.support.rejection import Rejection
 from journal.repositories.docs import Docs
 from journal.repositories.doc_revisions import DocRevisions
@@ -16,12 +20,15 @@ from journal.engine.clock import Clock
 from journal.sync.team_account import TeamAccount
 
 
+ATTACHED = "attached_to"
+
+
 class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount) -> None:
-        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account = docs, revisions, clock, hub_rows, hub, account
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope) -> None:
+        self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope = docs, revisions, clock, hub_rows, hub, account, links, scope
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
@@ -51,6 +58,10 @@ class DocCommand(Command):
         changing = self.verb(verbs, "mode", "change who may edit a document on the hub; only whoever put it there or an admin may")
         changing.add_argument("n", type=int)
         changing.add_argument("mode", choices=(DocEditMode.READ_ONLY.value, DocEditMode.FREE.value))
+        copying = self.verb(verbs, "copy", "save a hub document as a document of this environment that stays on this machine: it never syncs, and the hub's stays as it is")
+        copying.add_argument("n", type=int)
+        attaching = self.verb(verbs, "attach", "attach a hub document that is free to edit to this environment: it is edited in place, on the hub")
+        attaching.add_argument("n", type=int)
         imported = self.verb(verbs, "import", "bring in the documents version 3 kept, each folder's doc.md; one titled as a document here already is left")
         imported.add_argument("folder", help="version 3's project/doc folder")
 
@@ -104,10 +115,31 @@ class DocCommand(Command):
         print(f"doc {on_hub.id} is on the {hub.team_name} hub, {mode.value.replace('_', '-')}" + (f"; doc {doc.id} stays here" if args.keep_copy else ""))
         return 0
 
-    def mode(self, args: Namespace, caller: Caller) -> int:
-        doc = self.docs.find(args.n)
+    def copy(self, args: Namespace, caller: Caller) -> int:
+        doc = self.on_hub(args.n)
+        copy = self.docs.save(doc.local_copy(), caller.actor)
+        print(f"doc {copy.id}: a copy of doc {doc.id}, kept on this machine")
+        return 0
+
+    def attach(self, args: Namespace, caller: Caller) -> int:
+        doc = self.on_hub(args.n)
+        if doc.edit_mode != DocEditMode.FREE:
+            raise Rejection(f"doc {doc.id} is read-only on the hub, so it cannot be edited in place here: journal doc copy {doc.id} saves a copy of it")
+        environment = Ref("environments", self.scope.id)
+        if self.links.all_matching(source=Ref.build(doc), target=environment, kind=ATTACHED):
+            raise Rejection(f"doc {doc.id} is attached to this environment already")
+        self.links.save(Link(source=Ref.build(doc), target=environment, kind=ATTACHED), caller.actor)
+        print(f"doc {doc.id} is attached here, and edited in place on the hub")
+        return 0
+
+    def on_hub(self, number: int) -> Doc:
+        doc = self.docs.find(number)
         if not doc.is_on_hub():
             raise Rejection(f"doc {doc.id} is not on the hub: journal doc share {doc.id} puts it there")
+        return doc
+
+    def mode(self, args: Namespace, caller: Caller) -> int:
+        doc = self.on_hub(args.n)
         self.docs.save(doc.with_(edit_mode=DocEditMode(args.mode)), caller.actor)
         print(f"doc {doc.id} is {args.mode.replace('_', '-')} on the hub")
         return 0

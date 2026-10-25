@@ -18,10 +18,14 @@ class DocRevision(Scoped):
     body: str = ""
     change: str = ""
     closes_at: float = 0.0
+    is_copy: bool = False
 
     @classmethod
     def build(cls, doc: Doc, number: int, change: str, closes_at: float) -> "DocRevision":
-        return cls(environment_id=doc.environment_id, number=number, title=doc.title, abstract=doc.abstract, body=doc.body, change=change, closes_at=closes_at)
+        return cls(environment_id=doc.environment_id, is_copy=doc.is_copy, number=number, title=doc.title, abstract=doc.abstract, body=doc.body, change=change, closes_at=closes_at)
+
+    def is_withheld(self) -> bool:
+        return self.is_copy
 
     def is_open(self, time: float) -> bool:
         return time < self.closes_at

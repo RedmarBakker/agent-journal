@@ -25,6 +25,9 @@ class Model:
     updater: Actor | None = None
     events: tuple = field(default=(), compare=False, metadata={"column": False})
 
+    def is_withheld(self) -> bool:
+        return False
+
     def local_ready(self) -> "Model":
         return self
 

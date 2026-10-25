@@ -16,6 +16,7 @@ class Doc(Scoped):
     body: str = ""
     edit_mode: DocEditMode = DocEditMode.LOCAL
     owner: int = 0
+    is_copy: bool = False
 
     def is_on_hub(self) -> bool:
         return self.edit_mode != DocEditMode.LOCAL
@@ -25,6 +26,12 @@ class Doc(Scoped):
 
     def copy_on_hub(self, hub_id: int, mode: DocEditMode, owner: int) -> "Doc":
         return Doc(environment_id=hub_id, title=self.title, abstract=self.abstract, body=self.body, edit_mode=mode, owner=owner)
+
+    def local_copy(self) -> "Doc":
+        return Doc(title=self.title, abstract=self.abstract, body=self.body, is_copy=True)
+
+    def is_withheld(self) -> bool:
+        return self.is_copy
 
     def is_edited_from(self, prior: "Doc") -> bool:
         return (self.title, self.abstract, self.body, self.edit_mode, self.owner, self.environment_id) != (prior.title, prior.abstract, prior.body, prior.edit_mode, prior.owner, prior.environment_id)
