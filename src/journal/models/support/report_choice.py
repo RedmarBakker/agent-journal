@@ -8,9 +8,9 @@ POOL_REFUSAL = "a pool worker reports after each task for now: it pushes its bra
 
 @dataclass(frozen=True)
 class ReportChoice:
-    """When a worker on a queue reports to its dispatcher: after each task (1), after every so many tasks, or once its queue is empty (0)."""
+    """When a worker on a queue reports to its dispatcher: once its queue is empty (0, the default, which with nothing queued is after its one task), after each task (1), or after every so many tasks."""
 
-    tasks: int = 1
+    tasks: int = 0
 
     @classmethod
     def parsed(cls, data: dict) -> "ReportChoice":

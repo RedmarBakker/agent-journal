@@ -16,6 +16,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.proof_short import ProofShort
 from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.quick_report_dropped import QuickReportDropped
+from journal.events.rows.tiny_job_dropped import TinyJobDropped
 from journal.events.rows.worker_limited import WorkerLimited
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
@@ -96,6 +97,11 @@ class WorkersConduct(Conduct):
         if event.agent_session != event.session:
             return self.none()
         return self.none(WorkersNudges.QUICK_REPORT.create(n=event.worker, open=event.open_tasks, points=event.points))
+
+    def on_tiny_job_dropped(self, event: TinyJobDropped, settings: Settings) -> Transition:
+        if event.agent_session != event.session:
+            return self.none()
+        return self.none(WorkersNudges.TINY_JOB.create(n=event.worker, seconds=event.seconds, points=event.points))
 
     def on_worker_limited(self, event: WorkerLimited, settings: Settings) -> Transition:
         if event.worker.is_other_dispatcher(event.session):

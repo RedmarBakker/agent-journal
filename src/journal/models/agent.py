@@ -14,6 +14,7 @@ from journal.events.rows.places_scaled import PlacesScaled
 from journal.models.agent_role import AgentRole
 from journal.models.support.agent_load import AgentLoad
 from journal.events.rows.quick_report_dropped import QuickReportDropped
+from journal.events.rows.tiny_job_dropped import TinyJobDropped
 from journal.models.support.queue_use import QueueUse
 from journal.models.support.report_use import ReportUse
 from journal.models.support.wait_use import WaitUse
@@ -165,6 +166,9 @@ class Agent(Scoped):
 
     def quick_report_dropped(self, use: ReportUse, time: float, worker: int, open_tasks: int) -> "Agent":
         return self.with_(report_use=use).with_event(QuickReportDropped(environment_id=self.environment_id, time=time, agent_session=self.session, worker=worker, open_tasks=open_tasks, points=use.drop_points))
+
+    def tiny_job_dropped(self, use: ReportUse, time: float, worker: int, seconds: int) -> "Agent":
+        return self.with_(report_use=use).with_event(TinyJobDropped(environment_id=self.environment_id, time=time, agent_session=self.session, worker=worker, seconds=seconds, points=use.drop_points))
 
     def load_measured(self, load: AgentLoad) -> "Agent":
         return self.with_(load=replace(load, scaled_at=self.load.scaled_at))

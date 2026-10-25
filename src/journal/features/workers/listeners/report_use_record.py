@@ -14,6 +14,8 @@ from journal.models.support.ref import Ref
 from journal.models.worker import Worker
 from journal.support.actor import Actor
 
+# a job over within this many seconds of its start is one a worker should not have been given when nothing else was open
+TINY_JOB_SECONDS = 60
 
 class ReportUseRecord(Listener[WorkerDelivered]):
     """Each report a worker files at its clock-out is kept on its dispatcher's row with the tasks open for workers at that moment, which the fitness weighs; one filed within minutes of its job's start while plenty was open also costs the dispatcher a drop at once; the fitness is measured and its point kept right then, with no tool use of the dispatcher needed. Only a clock-out counts, the report a worker chooses: a start failure, a timeout or a stop files no clock-out, and one with a point proved not done is a worker that is stuck, left out too."""
@@ -31,9 +33,12 @@ class ReportUseRecord(Listener[WorkerDelivered]):
         use = rows[0].report_use.recorded(event.time, open_tasks)
         agent = self.agents.find(rows[0].row_id)
         seconds = event.time - worker.job_start_time()
-        if self.is_quick(seconds, open_tasks):
+        if seconds <= TINY_JOB_SECONDS and not open_tasks:
+            cause = f"worker {worker.id} reported after {seconds:.0f} seconds with no other task open, a job to do yourself"
+            saved = self.agents.save(agent.tiny_job_dropped(self.measuring.measured(use.dropped(event.time, self.settings.integer(WorkersOptions.TINY_JOB_DROP), cause), event.time), event.time, worker.id, round(seconds)), Actor.system())
+        elif self.is_quick(seconds, open_tasks):
             cause = f"worker {worker.id} reported after {seconds:.0f} seconds with {open_tasks} tasks open"
-            saved = self.agents.save(agent.quick_report_dropped(self.measuring.measured(use.dropped(event.time, self.settings.integer(WorkersOptions.QUICK_REPORT_DROP), cause), event.time), event.time, worker.id, open_tasks), Actor.system())
+            saved = self.agents.save(agent.quick_report_dropped(self.measuring.measured(use.dropped(event.time, self.quick_points(seconds), cause), event.time), event.time, worker.id, open_tasks), Actor.system())
         else:
             saved = self.agents.save(agent.with_(report_use=self.measuring.measured(use, event.time)), Actor.system())
         self.points.recorded(saved, event.time)
@@ -42,6 +47,12 @@ class ReportUseRecord(Listener[WorkerDelivered]):
     def has_unfinished_point(self, worker: Worker) -> bool:
         task_ids = self.tasks.holder_task_ids(Ref.build(worker))
         return bool(task_ids) and any(proof.state == ProofState.UNFINISHED for proof in self.proofs.task_proofs(self.tasks.find(task_ids[0])))
+
+    # whole within the first minute, falling straight to half at the quick window's end
+    def quick_points(self, seconds: float) -> int:
+        window_seconds = self.settings.decimal(WorkersOptions.QUICK_REPORT_MINUTES) * 60
+        share = 1.0 if seconds <= TINY_JOB_SECONDS else 1.0 - 0.5 * (seconds - TINY_JOB_SECONDS) / max(window_seconds - TINY_JOB_SECONDS, 1.0)
+        return round(self.settings.integer(WorkersOptions.QUICK_REPORT_DROP) * share)
 
     def is_quick(self, seconds: float, open_tasks: int) -> bool:
         return seconds <= self.settings.decimal(WorkersOptions.QUICK_REPORT_MINUTES) * 60 and open_tasks >= self.settings.integer(WorkersOptions.PLENTY_OPEN)

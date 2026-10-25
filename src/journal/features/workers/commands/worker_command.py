@@ -88,7 +88,7 @@ class WorkerCommand(Command):
         dispatch.add_argument("--pool", action="store_true", help="to the team's pool: a teammate's machine with a free worker slot runs it in a worktree cut from your environment's head, which is pushed to origin first; with --worktree, a profile the team allows its pool, and no --model")
         dispatch.add_argument("--needs-secrets", action="store_true", help="the job uses secrets kept on this machine, so it cannot go to the pool")
         dispatch.add_argument("--fresh", action="store_true", help="a fresh worker even though one back already worked on the same files")
-        dispatch.add_argument("--report", nargs="+", default=["each"], help="when it reports on a queue: each (after every task, the default), queue (once its queue is empty) or every <n> (after every n tasks)")
+        dispatch.add_argument("--report", nargs="+", help="when it reports on a queue: queue (once its queue is empty, the default), each (after every task) or every <n> (after every n tasks)")
         dispatch.add_argument("--task", type=int, required=True, help="the task it works on: an open one with a brief, or the one you hold; it is the worker's alone until merged or released")
         release = self.verb(verbs, "release", "let a worker go whose run ended without clocking out, which frees its task")
         release.add_argument("n", type=int)
@@ -151,7 +151,7 @@ class WorkerCommand(Command):
     def dispatch(self, args: Namespace, caller: Caller) -> int:
         if self.starts.hosted_refusal():
             raise Rejection(self.starts.hosted_refusal())
-        if args.pool and ReportChoice.argument(args.report).tasks != 1:
+        if args.pool and args.report and ReportChoice.argument(args.report).tasks != 1:
             raise Rejection(POOL_REFUSAL)
         self.worker_profile(args.profile)
         output = self.workers.held_locally()
@@ -168,11 +168,18 @@ class WorkerCommand(Command):
             raise Rejection("a worker writes: name what it changes with --changes; a job that only reads, searches, researches or reviews goes to a subagent with the Agent tool")
         links, copies = self.library_names(args)
         testing = self.testing_template(args.tests)
-        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=args.model or self.model(args.profile, provider), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=ReportChoice.argument(args.report))
+        worker = Worker(name=args.name, brief="\n\n".join(part for part in (task.brief, args.brief, f"You change: {args.changes}", f"How you test: {testing.brief}") if part), provider=provider, model=args.model or self.model(args.profile, provider), profile=args.profile, worktree=args.worktree, library_links=links, library_copies=copies, dispatcher=caller.session, report_choice=self.report_choice(args))
         worker = self.workers.save(worker.contacted(moment), caller.actor)
         if args.pool:
             return self.pooled(worker, task, args, caller, moment)
         return self.launched(worker, task, caller)
+
+    # the report choice named, else the queue's end, but after each task for a pool worker, which takes one task per request
+    @staticmethod
+    def report_choice(args: Namespace) -> ReportChoice:
+        if args.report:
+            return ReportChoice.argument(args.report)
+        return ReportChoice(1) if args.pool else ReportChoice()
 
     def launched(self, worker: Worker, task: Task, caller: Caller) -> int:
         try:

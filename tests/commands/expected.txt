@@ -1220,8 +1220,9 @@ workers.interruption_window_minutes = 60
 workers.interruptions_full_score_per_hour = 2
 workers.interruptions_zero_score_per_hour = 8
 workers.plenty_open_tasks = 3
-workers.quick_report_minutes = 1
+workers.quick_report_minutes = 3
 workers.quick_report_drop_points = 20
+workers.tiny_job_drop_points = 30
 workers.drop_recovery_minutes = 30
 workers.small_task_points = 2
 workers.large_task_points = 5
@@ -1752,6 +1753,7 @@ workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop
 workers.task_names_another_without_a_wait  [workers]  task {{task}} names task {{other}}, still open, and does not wait on it. journal task block {{task}} --on task:{{other}}
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn
+workers.tiny_job_dropped_the_fitness  [workers]  worker {{n}} reported {{seconds}} seconds after its job's start with no other task open, which cost your fitness {{points}} points at once: do a job this small yourself, and hand a worker only work worth its start
 workers.too_many_subagents  [workers]  {{running}} subagents are running, the most at once. wait for one, or do it yourself
 workers.too_many_workers  [workers]  {{out}} workers are out, the most at once. `journal worker wait`, or send the job to one that reported
 workers.unblocking_task_waits_in_a_queue  [workers]  task {{task}} unblocks you but is number {{place}} in worker {{n}}'s queue. put it first: journal worker queue {{n}} {{task}} --first
@@ -1771,7 +1773,7 @@ workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{poi
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
 workers.worker_waits_for_the_usage_limit  [workers]  worker {{n}} stopped at the usage limit and goes on by itself at {{at}}
-267 nudges
+268 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1843,8 +1845,8 @@ options:
   --fresh               a fresh worker even though one back already worked on
                         the same files
   --report REPORT [REPORT ...]
-                        when it reports on a queue: each (after every task,
-                        the default), queue (once its queue is empty) or every
+                        when it reports on a queue: queue (once its queue is
+                        empty, the default), each (after every task) or every
                         <n> (after every n tasks)
   --task TASK           the task it works on: an open one with a brief, or the
                         one you hold; it is the worker's alone until merged or

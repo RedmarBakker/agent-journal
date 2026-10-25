@@ -4701,13 +4701,13 @@ def test_a_task_put_first_in_a_workers_queue_is_the_next_one_sent_and_one_in_ano
         for number in (1, 2):
             workers.save(workers.find(number).with_(token_hash="h", session=f"w-{number}").ready(1.0), Actor.system())
     queue = lambda number: [task.id for task in tasks.queue(Ref.build(workers.find(number)))]
-    assert console.run(["worker", "queue", "1", "2", "3", "4"], AGENT).code == 0
-    assert console.run(["worker", "queue", "2", "6"], AGENT).code == 0
-    first = console.run(["worker", "queue", "1", "4", "--first"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "3", "4", "--report", "each"], AGENT).code == 0
+    assert console.run(["worker", "queue", "2", "6", "--report", "each"], AGENT).code == 0
+    first = console.run(["worker", "queue", "1", "4", "--first", "--report", "each"], AGENT)
     assert first.code == 0 and "queue: task 4, task 2, task 3" in first.text, first.error or first.text
     with app.container.get(Scope).environment(MAIN):
         assert queue(1) == [4, 2, 3], "the fourth task is first in the queue"
-    moved = console.run(["worker", "queue", "2", "3", "--first"], AGENT)
+    moved = console.run(["worker", "queue", "2", "3", "--first", "--report", "each"], AGENT)
     assert moved.code == 0 and "queue: task 3, task 6" in moved.text, moved.error or moved.text
     with app.container.get(Scope).environment(MAIN):
         assert queue(2) == [3, 6] and queue(1) == [4, 2], "a task in another worker's queue moves to the head of this one"
@@ -10387,11 +10387,11 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
         workers.save(workers.find(1).with_(token_hash="h", session="w-1").ready(1.0), Actor.system())
     console.run(["task", "create", "the docs"], AGENT)
     console.run(["task", "create", "the help page"], AGENT)
-    queued = console.run(["worker", "queue", "1", "2", "3"], AGENT)
+    queued = console.run(["worker", "queue", "1", "2", "3", "--report", "each"], AGENT)
     assert queued.code == 0 and "queue: task 2, task 3" in queued.text, queued.error
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
-    assert "only an open task" in console.run(["worker", "queue", "1", "2"], AGENT).error, "a task already delegated waits in no second queue"
+    assert "only an open task" in console.run(["worker", "queue", "1", "2", "--report", "each"], AGENT).error, "a task already delegated waits in no second queue"
     status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
     [shown] = page["rows"]
     assert shown["task"]["task_id"] == 1 and shown["queue"] == [{"id": 2, "title": "the docs"}, {"id": 3, "title": "the help page"}], "the worker's answer names its task and its queue, for its inspector"
@@ -10419,7 +10419,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     with app.container.get(Scope).environment(MAIN):
         tasks.release(Ref.build(workers.find(1)), Actor.system())
         workers.save(workers.find(1).with_(state=WorkerState.UNFINISHED), Actor.system())
-    started = console.run(["worker", "queue", "1", "3"], AGENT)
+    started = console.run(["worker", "queue", "1", "3", "--report", "each"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         assert "it went straight on to task 3 from its queue" in started.text and tasks.holder(tasks.find(3)) is not None, "a task queued to an idle worker that holds none starts it at once"
     with app.container.get(Scope).environment(MAIN):
@@ -12775,7 +12775,7 @@ def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_drops_th
     console = app.console()
     for n in (2, 3):
         console.run(["task", "create", f"job {n}", "--brief", f"1. job {n} done when it is in"], AGENT)
-    queued = console.run(["worker", "queue", "1", "2", "3"], AGENT)
+    queued = console.run(["worker", "queue", "1", "2", "3", "--report", "each"], AGENT)
     assert queued.code == 0 and "--report queue fits better" in queued.text, queued.text
     with app.container.get(Scope).environment(MAIN):
         agents = app.container.get(Agents)
@@ -12809,6 +12809,24 @@ def test_a_session_with_no_reports_and_no_queues_scores_as_it_did_before_the_new
     counts = ToolUseCounts(file_edits=6, handovers=4, research_count=5, subagent_dispatches=1, mode="builder", mode_uses=60)
     before = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE)).scored(counts)
     assert WorkersProfiles.BUILDER.scored(counts) == before, "a measure with no data is absent, so the score is unchanged"
+
+
+def test_a_tiny_job_with_nothing_open_costs_more_and_a_quick_report_scales_with_how_quick_it_was(app: App, monkeypatch):
+    from journal.features.workers.listeners.report_use_record import ReportUseRecord
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import NUDGE, Entries
+    record = app.container.get(ReportUseRecord)
+    assert record.quick_points(30) == 20 and record.quick_points(120) == 15 and record.quick_points(180) == 10, "whole within the first minute, falling straight to half at three minutes"
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    committed(worktree, "notes1.md", "note 1\n")
+    assert proved_and_out(app, caller, "notes1.md:1").code == 0
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        use = app.container.get(Agents).session_rows(AGENT.session)[0].report_use
+        lines = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.tiny_job_dropped_the_fitness"]
+    assert use.drop_points == 30 and "a job to do yourself" in use.drop_cause, "a job over within a minute with nothing else open costs the larger drop"
+    assert len(lines) == 1 and "do a job this small yourself" in lines[0], lines
 
 
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
@@ -12936,18 +12954,18 @@ def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in
     kept_conversation(app, monkeypatch)
     console = app.console()
     hook(app, "SessionStart")
-    for n, report in ((1, []), (2, ["--report", "queue"]), (3, ["--report", "every", "3"])):
+    for n, report in ((1, []), (2, ["--report", "each"]), (3, ["--report", "every", "3"])):
         console.run(["task", "create", f"the job {n}", "--brief", f"job {n}: done when it is in"], AGENT)
         sent = console.run(["worker", "dispatch", f"Worker {n}", "--task", str(n), "--changes", "the files of its task", "--profile", "journal-medior", "--model", "sonnet", *report], AGENT)
         assert sent.code == 0, sent.error
     with app.container.get(Scope).environment(MAIN):
         workers = app.container.get(Workers)
-        assert [workers.find(n).report_choice.label() for n in (1, 2, 3)] == ["each", "queue", "every 3"], "each is the default; queue and every n are kept as chosen"
+        assert [workers.find(n).report_choice.label() for n in (1, 2, 3)] == ["queue", "each", "every 3"], "the queue's end is the default; each and every n are kept as chosen"
     console.run(["task", "create", "the job 4", "--brief", "job 4: done when it is in"], AGENT)
     queued = console.run(["worker", "queue", "1", "4", "--report", "every", "2"], AGENT)
     assert queued.code == 0 and "it reports every 2" in queued.text, queued.error
     listed = console.run(["worker", "list"], AGENT).text
-    assert "reports every 2" in listed and "reports queue" in listed and "reports every 3" in listed
+    assert "reports every 2" in listed and "reports each" in listed and "reports every 3" in listed
     console.run(["task", "create", "the pooled job", "--brief", "the pooled job: done when it is in"], AGENT)
     pooled = console.run(["worker", "dispatch", "Worker 9", "--task", "5", "--changes", "the files of its task", "--profile", "journal-medior", "--worktree", "--no-libraries", "--pool", "--report", "queue"], AGENT)
     assert pooled.code != 0 and "a pool worker reports after each task for now" in pooled.error, pooled.error
@@ -12959,7 +12977,7 @@ def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in
     from journal.db.connection import Connection
     app.container.get(Connection).execute("UPDATE sent_agents SET report_choice = NULL WHERE id = 3")
     with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Workers).find(3).report_choice.label() == "each", "a row from before the choice, or from a teammate's older version, reads as each"
+        assert app.container.get(Workers).find(3).report_choice.label() == "queue", "a row from before the choice, or from a teammate's older version, reads as the default, which with nothing queued reports after its one task"
 
 
 def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
