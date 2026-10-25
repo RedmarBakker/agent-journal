@@ -76,6 +76,7 @@ export function startWords(sequence) {
     const trigger = rows("triggers").find((t) => (sequence.trigger_ids || []).includes(t.id));
     if (trigger) return `When the trigger on ${wordsText(trigger.phrases)} matches`;
     if (!sequence.trigger_event) return "Only when you or the agent start it";
+    if (sequence.trigger_event === "plan.reviewed") return "When every reviewer of a plan in review is back";
     const table = sequence.trigger_event.split(".")[0];
     return `When a ${(meta(table)?.title || table).toLowerCase()} is created`;
 }

@@ -21,6 +21,17 @@ UPDATE_WRITING = Sequence(
         "Tell the user in one short line that the update is docked above the chat, with the report's reference on a line of its own, like report 3; talk about the work, never about rows or commands",
     ),
 )
+PLAN_REVIEW_APPLYING = Sequence(
+    title="Applying a plan's reviews",
+    trigger_event="plan.reviewed",
+    end_condition=("ready", "approved", "started", "done"),
+    steps=(
+        PLAIN_WRITING + "Read what each reviewer of the plan found, whole, and note every finding with the phase it belongs in",
+        "Compile the findings into one report linked to the plan: write them by phase to a markdown file with a summary first, then `journal report create \"<title>\" --file <path> --about plans:<plan n>`",
+        "Put each finding into the plan: a new task with `journal plan add <plan n> \"<title>\" --brief \"<done when>\"` placed with `journal plan todos <plan n> <phase> <tasks>`, or a wider brief on the task it belongs to with `journal task edit <n> --brief \"<brief>\"`",
+        "Mark the plan ready again with `journal plan ready <plan n> --changed \"<what the round changed, in one line>\"`, then tell the user in one or two plain lines what the reviews found, with the report's reference on a line of its own, like report 3",
+    ),
+)
 INSTRUCTION_FILES_CHECK = Sequence(
     title="Checking the instruction files",
     steps=(
@@ -43,4 +54,4 @@ INSTRUCTION_CHECK_PHRASES = ("check the instruction files", "check agents.md", "
                   "controleer de instructiebestanden", "controleer agents.md", "tegenstrijdigheden in de instructies")
 SEQUENCE_PHRASES = {UPDATE_WRITING.title: UPDATE_PHRASES, INSTRUCTION_FILES_CHECK.title: INSTRUCTION_CHECK_PHRASES}
 RETIRED = ("Sort dumped files",)
-SHIPPED = (PLAN_BUILDING, UPDATE_WRITING, INSTRUCTION_FILES_CHECK, DOCUMENT_SORTING)
+SHIPPED = (PLAN_BUILDING, PLAN_REVIEW_APPLYING, UPDATE_WRITING, INSTRUCTION_FILES_CHECK, DOCUMENT_SORTING)

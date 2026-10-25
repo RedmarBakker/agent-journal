@@ -33,6 +33,7 @@ describe("when a sequence starts", () => {
         expect(startedBy(3).map((s) => s.id)).toEqual([1]);
         expect(startWords(store.rows.sequences[0])).toBe("When the trigger on “force push” matches");
         expect(startWords({trigger_event: "tasks.created", trigger_ids: []})).toBe("When a task is created");
+        expect(startWords({trigger_event: "plan.reviewed", trigger_ids: []})).toBe("When every reviewer of a plan in review is back");
         expect(startWords({trigger_event: "", trigger_ids: []})).toBe("Only when you or the agent start it");
     });
 });

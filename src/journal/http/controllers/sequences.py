@@ -21,7 +21,7 @@ class SequenceController(Controller[Sequence]):
         return [{**ModelFields.build(s), "trigger_ids": [t.id for t in self.triggers.starting(s.title)]} for s in rows]
 
     def starts(self, request: Request) -> Response:
-        sequence, value = self.repository.find(request.number("id")), str(request.body.get("trigger_event", ""))
+        sequence, value = self.repository.find(request.number("id")).unlocked(), str(request.body.get("trigger_event", ""))
         if value.startswith(TRIGGER):
             self.triggers.save(self.triggers.find(int(value.removeprefix(TRIGGER))).with_(action=TriggerAction.SEQUENCE, text=sequence.title), request.actor)
             return Response.json(self.shown(self.repository.save(sequence.with_(trigger_event=""), request.actor)))
@@ -32,6 +32,6 @@ class SequenceController(Controller[Sequence]):
         return Response.json(self.shown(self.repository.save(sequence.with_(trigger_event=value), request.actor)))
 
     def steps(self, request: Request) -> Response:
-        sequence = self.repository.find(request.number("id"))
+        sequence = self.repository.find(request.number("id")).unlocked()
         steps = tuple(str(step).strip() for step in request.body.get("steps", []) if str(step).strip())
         return Response.json(self.shown(self.repository.save(sequence.with_(steps=steps), request.actor)))

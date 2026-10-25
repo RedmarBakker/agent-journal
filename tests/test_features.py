@@ -51,7 +51,7 @@ from journal.repositories.subagents import Subagents
 
 from tests.old_columns import old_columns
 from tests.replay import catch_typed, drive_the_clock, tick_after, tick_at
-from tests.in_process import got, posted
+from tests.in_process import answered, got, posted
 from tests.main_journal import main_journal
 from journal.features.plugins.plugins_options import PluginsOptions
 from journal.features.shell.shell_nudges import ShellNudges
@@ -3891,8 +3891,23 @@ def test_a_plan_in_review_waits_for_its_reviewers_before_it_is_ready_or_approved
     hook(app, "SubagentStop", agent_id="r1")
     app.runtime().deferred.drain()
     assert app.container.get(Plans).find(1).reviewers == 0, "the reviewer back, the plan says so without anything else changing it"
+    from journal.features.sequences.support.run_tracker import RunTracker
+    from journal.repositories.agents import Agents
+    reviewing = lambda: [run for run in app.container.get(RunTracker).runs(app.container.get(Agents).session_agent("s1")) if run.title == "Applying a plan's reviews"]
+    assert len(reviewing()) == 1 and reviewing()[0].subject == "plans:1", "the last reviewer back starts the sequence that applies the reviews, about the plan"
     assert console.run(["plan", "ready", "1", "--changed", "task 1 reworded"], AGENT).code == 0, "the reviewer back, its findings in, the plan is ready again"
     assert console.run(["plan", "approve", "1"], USER).code == 0
+
+
+def test_a_shipped_sequence_is_locked_and_cannot_be_changed_or_deleted(app: App):
+    from journal.repositories.sequences import Sequences
+    hook(app, "SessionStart")
+    reviewing = next(s for s in app.container.get(Sequences).all() if s.title == "Applying a plan's reviews")
+    assert reviewing.locked and reviewing.trigger_event == "plan.reviewed", "the review sequence ships locked and starts when a plan's reviewers are back"
+    for method, path, body in (("POST", f"sequences/{reviewing.id}/steps", {"steps": ["one step"]}), ("POST", f"sequences/{reviewing.id}/starts", {"trigger_event": ""})):
+        status, refused = answered(app, method, f"/journal/{path}", json.dumps(body).encode() if body is not None else b"", {"X-Journal-Env": "main"})
+        assert status != 200 and "is locked" in json.dumps(refused), (path, refused)
+    assert app.container.get(Sequences).find(reviewing.id).steps == reviewing.steps, "nothing was written"
 
 
 def test_a_task_of_a_plan_not_yet_started_is_not_offered_at_a_stop(app: App):

@@ -58,7 +58,13 @@ async function save() {
             <span class="steps-title">Steps</span>
             <span class="steps-count">{{ draft.open ? draft.steps.length : steps.length }}</span>
             <span class="grow" />
-            <template v-if="!draft.open">
+            <template v-if="resource.locked">
+                <span class="locked" title="This sequence comes with the journal and cannot be changed or deleted">
+                    <Icon name="lock" :size="12" />
+                    Locked, comes with the journal
+                </span>
+            </template>
+            <template v-else-if="!draft.open">
                 <Btn small @click="edit">
                     <Icon name="pencil" :size="12" />
                     Edit steps
@@ -73,7 +79,7 @@ async function save() {
                     </span>
                     <div class="stop-body">
                         <span class="stop-title">Starts</span>
-                        <StartsOn :resource="resource" bare />
+                        <StartsOn :resource="resource" bare :locked="resource.locked" />
                     </div>
                 </li>
                 <template v-for="(text, i) in steps" :key="`${i}-${text}`">
@@ -144,6 +150,14 @@ async function save() {
 </template>
 
 <style scoped>
+.locked {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-3);
+    font-size: 12px;
+}
+
 .sequence-steps {
     margin-top: 24px;
 }

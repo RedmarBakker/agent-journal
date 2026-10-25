@@ -14,6 +14,7 @@ from journal.features.sequences.listeners.deleted_sequence_run_end import Delete
 from journal.features.sequences.listeners.record_run_changes import RecordRunChanges
 from journal.features.sequences.listeners.step_command_match import StepCommandMatch
 from journal.features.sequences.listeners.creation_start import CreationStart
+from journal.features.sequences.listeners.reviewed_plan_start import ReviewedPlanStart
 from journal.features.sequences.listeners.abandoned_run_card import AbandonedRunCard
 from journal.features.sequences.sequences_conduct import SequencesConduct
 from journal.features.sequences.seeds.builtin_sequences import BuiltinSequences
@@ -29,7 +30,7 @@ class Sequences(Feature[SequencesData]):
     title = "Sequences"
     help = "Steps the agent follows one at a time."
     commands = (SequenceCommand,)
-    listeners = (CreationStart, SessionRunTransfer, StepCommandMatch, DeletedSequenceRunEnd, DeletedRowRunEnd, CancelledRowRunEnd, RecordRunChanges, AbandonedRunCard)
+    listeners = (CreationStart, ReviewedPlanStart, SessionRunTransfer, StepCommandMatch, DeletedSequenceRunEnd, DeletedRowRunEnd, CancelledRowRunEnd, RecordRunChanges, AbandonedRunCard)
     data = (SequencesDataReader,)
     conduct = (SequencesConduct,)
     seeds = (BuiltinSequences,)

@@ -8,7 +8,7 @@ import ChoiceList from "../kit/ChoiceList.vue";
 import FormField from "../kit/FormField.vue";
 import Segmented from "../kit/Segmented.vue";
 
-const props = defineProps({resource: Object, bare: Boolean});
+const props = defineProps({resource: Object, bare: Boolean, locked: Boolean});
 const MODES = [
     {key: "hand", label: "Only when you or the agent start it"},
     {key: "event", label: "When a record is made"},
@@ -48,18 +48,20 @@ const triggerChoices = computed(() =>
             <h3>When it starts</h3>
         </template>
         <p class="sentence">{{ startWords(resource) }}.</p>
-        <FormField label="How this sequence starts">
-            <Segmented fill wrap :options="MODES" :value="mode" @pick="pickMode" />
-        </FormField>
-        <template v-if="mode === 'event'">
-            <FormField label="Record that starts this sequence when one is made">
-                <ChoiceList :choices="kindChoices" @pick="(table) => save(`${table}.created`)" />
+        <template v-if="!locked">
+            <FormField label="How this sequence starts">
+                <Segmented fill wrap :options="MODES" :value="mode" @pick="pickMode" />
             </FormField>
-        </template>
-        <template v-if="mode === 'trigger'">
-            <FormField label="Trigger that starts this sequence">
-                <ChoiceList stacked :choices="triggerChoices" @pick="save" />
-            </FormField>
+            <template v-if="mode === 'event'">
+                <FormField label="Record that starts this sequence when one is made">
+                    <ChoiceList :choices="kindChoices" @pick="(table) => save(`${table}.created`)" />
+                </FormField>
+            </template>
+            <template v-if="mode === 'trigger'">
+                <FormField label="Trigger that starts this sequence">
+                    <ChoiceList stacked :choices="triggerChoices" @pick="save" />
+                </FormField>
+            </template>
         </template>
         <template v-if="error">
             <p class="error">{{ error }}</p>
