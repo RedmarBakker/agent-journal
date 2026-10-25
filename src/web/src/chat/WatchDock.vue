@@ -7,6 +7,8 @@ import {useScope} from "../composables/scope.js";
 import {undock} from "../actions/docking.js";
 import {useColleague} from "../composables/colleague.js";
 import {createdAt} from "../domain/row.js";
+import {elapsed} from "../format/time.js";
+import {useSharedNow} from "../composables/now.js";
 import {useOutputPages} from "../composables/outputPages.js";
 
 const SHOWN_LINES = 6;
@@ -20,6 +22,9 @@ const STATE_TONES = {running: "var(--tone-work)", good: "var(--tone-good)", bad:
 const runState = computed(() => (card.value.ending ? card.value.tone || "good" : "running"));
 const lines = computed(() => (card.value.lines?.length ? card.value.lines : [card.value.detail]).filter(Boolean).slice(-SHOWN_LINES));
 const width = computed(() => `${Math.round((card.value.fraction || 0) * 100)}%`);
+
+const now = useSharedNow();
+const ranFor = computed(() => (card.value.began_at ? elapsed((card.value.ended_at || now.value) - card.value.began_at) : ""));
 
 const opened = ref(false);
 const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
@@ -48,6 +53,9 @@ watch(
                 <Dot solid :size="8" :kind="runState" :pulsing="runState === 'running'" />
             </span>
             <button type="button" class="watch-dock-label" :aria-expanded="opened" :title="[card.line, opened ? 'Fold the output' : 'Show the whole output'].filter(Boolean).join('\n\n')" @click="toggle">{{ message.text }}</button>
+            <template v-if="ranFor">
+                <span class="watch-dock-figure watch-dock-timer">{{ ranFor }}</span>
+            </template>
             <template v-if="card.count">
                 <span class="watch-dock-figure">{{ card.count }}</span>
             </template>

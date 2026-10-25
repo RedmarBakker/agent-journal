@@ -43,7 +43,7 @@ class OutputProcessCard(ProcessCard):
             return None
         view = self.views.view(output)
         part = CommandText.shown(self.watched_part(output))
-        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.dock_state(output)}
+        data = {"kind": "card", "output": output.id, "line": part, "reader": output.watch_reader, "poor_line": self.views.poor_line(output, view), "empty_card": self.views.is_empty_card(output, view), "silent": view.silent, "summary_missing": self.views.is_summary_missing(output), **self.progress(output, view).fields(), **self.run_times(output), **self.dock_state(output)}
         return ProcessCardContents(self.name, output.environment_id, OutputView.key(output.row_id), self.title(output, part), data, Actor.system(), CardKind.COMMANDS, not output.ended, self.views.card_text(output, view), output.session)
 
     def stored_contents(self, outputs: list[CommandOutput]) -> list[ProcessCardContents]:
@@ -52,10 +52,15 @@ class OutputProcessCard(ProcessCard):
     def refresh(self, message: Message) -> dict:
         output = self.outputs.find(message.data["output"])
         view = self.views.view(output)
-        return {**self.progress(output, view).fields(), **CardDetail.parts(self.views.card_text(output, view)), "active": not output.ended}
+        return {**self.progress(output, view).fields(), **CardDetail.parts(self.views.card_text(output, view)), **self.run_times(output), "active": not output.ended}
 
     def progress(self, output: CommandOutput, view: OutputView) -> CardProgress:
         return CardProgress(self.outcome(output), view.figure, view.fraction, view.ending, self.views.count(output), view.is_counting)
+
+    @staticmethod
+    def run_times(output: CommandOutput) -> dict:
+        began = {"began_at": output.creation_time.timestamp()}
+        return {**began, "ended_at": output.update_time.timestamp()} if output.ended else began
 
     def dock_state(self, output: CommandOutput) -> dict:
         cards = self.messages.keyed(OutputView.key(output.row_id), Actor.system())

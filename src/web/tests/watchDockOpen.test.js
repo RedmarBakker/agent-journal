@@ -135,3 +135,27 @@ test("a chat mark of a counting run draws its empty bar before any progress", as
     await flush();
     expect(host.querySelector(".progress")).not.toBeNull();
 });
+
+test("a docked card of a running command counts its run up each second from its start time without a request, and shows the total once it ends", async () => {
+    vi.useFakeTimers({toFake: ["setInterval", "clearInterval", "Date"]});
+    vi.setSystemTime(new Date(1000 * 1000));
+    const read = vi.spyOn(api, "readOutput");
+    const host = document.createElement("div");
+    document.body.append(host);
+    const message = ref({...watched, data: {...watched.data, began_at: 1000 - 84}});
+    app = createApp({render: () => h(WatchDock, {message: message.value})});
+    app.directive("tip", {});
+    app.mount(host);
+    await flush();
+    expect(host.querySelector(".watch-dock-timer").textContent).toBe("1m 24s");
+    vi.advanceTimersByTime(3000);
+    await flush();
+    expect(host.querySelector(".watch-dock-timer").textContent).toBe("1m 27s");
+    message.value = {...watched, data: {...watched.data, began_at: 1000 - 84, ended_at: 1000 + 10}};
+    await flush();
+    vi.advanceTimersByTime(5000);
+    await flush();
+    expect(host.querySelector(".watch-dock-timer").textContent).toBe("1m 34s");
+    expect(read).not.toHaveBeenCalled();
+    vi.useRealTimers();
+});
