@@ -30,6 +30,7 @@ const now = useSharedNow();
 const ranFor = computed(() => (card.value.began_at ? elapsed((card.value.ended_at || now.value) - card.value.began_at) : ""));
 
 const opened = ref(false);
+const shown = ref(false);
 const pages = useOutputPages((...page) => scope.api.readOutput(card.value.output, ...page));
 
 const takeDown = () => undock(scope, props.message);
@@ -40,7 +41,10 @@ async function read() {
 
 function toggle() {
     opened.value = !opened.value;
-    if (opened.value) read();
+    if (opened.value) {
+        shown.value = true;
+        read();
+    }
 }
 
 watch(
@@ -67,19 +71,23 @@ watch(
             </template>
             <CloseButton title="Take the watched output down from above the chat" @click="takeDown" />
         </template>
-        <template v-if="opened && colleague">
-            <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
-        </template>
-        <template v-else-if="opened && pages.loaded.value">
-            <pre class="watch-dock-output" @scroll="pages.older($event.target)">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
-        </template>
-        <template v-else-if="opened">
-            <ul class="watch-dock-lines">
-                <template v-for="line in lines" :key="line">
-                    <li>{{ line }}</li>
+        <div :class="['watch-dock-more', {open: opened}]">
+            <div class="watch-dock-more-inner">
+                <template v-if="shown && colleague">
+                    <p class="watch-dock-elsewhere">This output stays on {{ colleague }}'s machine; its card shows how it goes.</p>
                 </template>
-            </ul>
-        </template>
+                <template v-else-if="shown && pages.loaded.value">
+                    <pre class="watch-dock-output" @scroll="pages.older($event.target)">{{ pages.lines.value.join("\n") || "It printed nothing yet." }}</pre>
+                </template>
+                <template v-else-if="shown">
+                    <ul class="watch-dock-lines">
+                        <template v-for="line in lines" :key="line">
+                            <li>{{ line }}</li>
+                        </template>
+                    </ul>
+                </template>
+            </div>
+        </div>
         <template v-if="card.fraction > 0">
             <div class="watch-dock-bar" :data-figure-bar="card.ending ? endedTone : ''" :data-figure-began="createdAt(message)">
                 <div class="watch-dock-fill" :style="{width, background: STATE_TONES[runState]}" :data-figure-progress="card.ending ? null : ''"></div>
@@ -89,6 +97,25 @@ watch(
 </template>
 
 <style scoped>
+.watch-dock-more {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+        grid-template-rows var(--move),
+        opacity var(--fade);
+}
+
+.watch-dock-more.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+}
+
+.watch-dock-more-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .watch-dock-state {
     display: flex;
     flex: none;
