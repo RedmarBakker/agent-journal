@@ -41,6 +41,11 @@ class AdminHandler:
         self.details.record_versions(rule)
         return self.details.answer()
 
+    def moved_to_hub(self, token: str) -> TeamSummary:
+        self.devices.admin(token)
+        self.details.record_on_hub()
+        return self.details.answer()
+
     def tie(self, token: str, tied: bool) -> TeamSummary:
         self.devices.admin(token)
         self.details.record_repository_tie(tied)

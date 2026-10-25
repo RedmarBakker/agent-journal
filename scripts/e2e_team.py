@@ -22,10 +22,10 @@ SERVER = os.environ.get("E2E_SERVER") or sys.exit("set E2E_SERVER to the test se
 REMOTE = f"root@{SERVER}"
 BRANCH = Path(__file__).resolve().parents[1]
 WORK = Path("/tmp/e2e-team")
-FOLDERS = {"a": "acme", "b": "acme-bob"}
-PORTS = {"a": 8531, "b": 8532}
+FOLDERS = {"a": "acme", "b": "acme-bob", "c": "pre", "d": "pre-dan"}
+PORTS = {"a": 8531, "b": 8532, "c": 8533, "d": 8534}
 PASSWORD = "e2e-Password-4711!"
-PEOPLE = {"a": ("ada@e2e.test", "Ada"), "b": ("bob@e2e.test", "Bob")}
+PEOPLE = {"a": ("ada@e2e.test", "Ada"), "b": ("bob@e2e.test", "Bob"), "c": ("cara@e2e.test", "Cara"), "d": ("dan@e2e.test", "Dan")}
 PACKAGE = ("src/sync_server", "src/journal", "src/supervisor", "src/sync_service", "src/journal.py", "src/journal.sh", "src/web/dist", "install.sh", "docker/team-server")
 PYTHON = shutil.which("python3.14") or sys.executable
 
@@ -49,8 +49,13 @@ def deploy() -> None:
         raise SystemExit(shipped.stderr.decode())
     commit = run(["git", "-C", str(BRANCH), "rev-parse", "HEAD"]).stdout.strip()
     remote(f"cd /opt/agent-journal && docker build -q -f docker/team-server/Dockerfile --build-arg COMMIT={commit} -t agent-journal-team . ", timeout=1800)
-    remote("docker run -d --name team --restart unless-stopped -p 80:80 -e TEAM_PLAIN_HTTP=1 -v team-data:/data agent-journal-team")
+    started()
     print(f"team server started at http://{SERVER}")
+
+
+# a fresh team server from the image built last, its data wiped
+def started() -> None:
+    remote("docker rm -f team >/dev/null 2>&1; docker volume rm team-data >/dev/null 2>&1; docker run -d --name team --restart unless-stopped -p 80:80 -e TEAM_PLAIN_HTTP=1 -v team-data:/data agent-journal-team")
 
 
 def environment(name: str) -> dict:
@@ -61,6 +66,12 @@ def environment(name: str) -> dict:
 def journal(name: str, *words: str) -> str:
     done = run(["sh", str(WORK / FOLDERS[name] / ".journal/src/journal.sh"), *words], env=environment(name), cwd=WORK / FOLDERS[name], timeout=120)
     return (done.stdout + done.stderr).strip()
+
+
+def posted(name: str, path: str, body: dict, environment_name: str) -> dict:
+    request = urllib.request.Request(f"http://127.0.0.1:{PORTS[name]}/journal{path}", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": environment_name})
+    with urllib.request.urlopen(request, timeout=20) as reply:
+        return json.loads(reply.read())
 
 
 def api(name: str, path: str, environment_name: str = "main") -> dict:
@@ -129,10 +140,13 @@ def stop() -> None:
         run(["sh", "-c", f"kill $(lsof -t -nP -iTCP:{port} -sTCP:LISTEN) 2>/dev/null; pkill -f 'sync_service {WORK / FOLDERS[name]}' 2>/dev/null; true"])
 
 
+def server_python(program: str) -> str:
+    return subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE, "docker exec -i team python -"], input=program, capture_output=True, text=True, timeout=60).stdout
+
+
 def server_rows() -> list[dict]:
     program = "import json, sqlite3\nc = sqlite3.connect('/data/team/team.db')\nprint(json.dumps([[t, n, json.loads(f)] for t, n, f in c.execute('select row_table, row, fields from rows where is_deleted = 0')]))\n"
-    done = subprocess.run(["ssh", "-o", "BatchMode=yes", REMOTE, "docker exec -i team python -"], input=program, capture_output=True, text=True, timeout=60)
-    return [{"table": t, "id": n, **f} for t, n, f in json.loads(done.stdout)]
+    return [{"table": t, "id": n, **f} for t, n, f in json.loads(server_python(program))]
 
 
 def waiting_for(found, seconds: int = 90):
@@ -303,12 +317,48 @@ def check_drive_to_done() -> str:
     return f"{'OK' if ok else 'FAIL'}: hub task {number} driven from a's main by journal commands, as its agent runs them (drive: {drive.splitlines()[0] if drive else 'nothing'}; start: {started.splitlines()[0] if started else 'nothing'}; complete: {completed.splitlines()[0] if completed else 'nothing'}): reached b {reached}, b shows it driven by {PEOPLE['a'][1]} {driven_on_b}, b shows it done {done_on_b}, the hosted journal shows it {on_hosted.get('state', 'absent')} driven by {on_hosted.get('driver') or 'nobody'}"
 
 
-def check_pre_hub_copy() -> str:
-    return "WAITS: needs a copy of a pre-hub team journal and the migration of phase 2; not run yet"
+def joined_pair(first: str, second: str) -> None:
+    for name in (first, second):
+        run(["sh", "-c", f"kill $(lsof -t -nP -iTCP:{PORTS[name]} -sTCP:LISTEN) 2>/dev/null; pkill -f 'sync_service {WORK / FOLDERS[name]}' 2>/dev/null; true"])
+    start_scratch(first)
+    email, person = PEOPLE[first]
+    journal(first, "team", "join", f"http://{SERVER}", "--email", email, "--name", person, f"--password={PASSWORD}")
+    url = next(word for word in journal(first, "team", "invite", PEOPLE[second][0]).split() if word.startswith("http"))
+    start_scratch(second, clone_of=first)
+    email, person = PEOPLE[second]
+    journal(second, "team", "join", url, "--email", email, "--name", person, f"--password={PASSWORD}")
+
+
+def server_environments() -> list[dict]:
+    return [row for row in server_rows() if row["table"] == "environments"]
+
+
+# a team made the old way on a fresh team server, every row synced, then moved to the hub by journal team migrate; it leaves the team server holding this team, so it runs last
+def check_pre_hub_migration() -> str:
+    started()
+    wait(team_answers, "the fresh team server to answer", 180)
+    server_python("import sqlite3\nc = sqlite3.connect('/data/team/team.db')\nc.execute(\"DELETE FROM team_details WHERE name = 'hub'\")\nc.commit()\n")
+    joined_pair("c", "d")
+    journal("c", "task", "create", f"Cara's own task {STAMP}", "--brief", "stays hers")
+    journal("d", "task", "create", f"Dan's own task {STAMP}", "--brief", "stays his")
+    journal("c", "environment", "create", "lab")
+    journal("c", "environment", "share", "lab")
+    posted("c", "/messages", {"text": f"lab chat {STAMP}"}, "lab")
+    synced_old_way = waiting_for(lambda: any(row.get("team_name") == "cara-main" for row in server_environments()) and stored("d", "SELECT id FROM tasks WHERE title = ?", (f"Cara's own task {STAMP}",)))
+    migrated = journal("c", "team", "migrate")
+    hub_on = lambda name: bool(stored(name, "SELECT id FROM environments WHERE kind = 'hub'"))
+    task_on = lambda name, title: bool(stored(name, "SELECT id FROM tasks WHERE title = ?", (title,)))
+    chat_on = lambda name: bool(stored(name, "SELECT id FROM messages WHERE text = ?", (f"lab chat {STAMP}",)))
+    settled = waiting_for(lambda: hub_on("c") and hub_on("d") and not [row for row in server_environments() if row.get("kind") not in ("hub", "session") and not (row.get("kind") == "local" and row.get("team_key"))], 150)
+    kept = {"c's own task": task_on("c", f"Cara's own task {STAMP}"), "d's own task": task_on("d", f"Dan's own task {STAMP}"), "c's lab chat": chat_on("c"), "the shared lab chat on d": chat_on("d"), "the hub on c": hub_on("c"), "the hub on d": hub_on("d")}
+    held = [row.get("team_name") for row in server_environments()]
+    gone = not task_on("d", f"Cara's own task {STAMP}")
+    ok = bool(synced_old_way) and bool(settled) and all(kept.values()) and gone
+    return f"{'OK' if ok else 'FAIL'}: a team made the old way synced c's own environment and task to the server and to d {bool(synced_old_way)}; journal team migrate on c said: {migrated.splitlines()[0] if migrated else 'nothing'}; kept: {kept}; c's own task gone from d {gone}; environments on the server: {held}"
 
 
 CHECKS = (("team key and hub", check_team_key_and_hub), ("hub write reaches the other journal and the server", check_hub_write), ("a personal task never reaches the server", check_personal_task),
-          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("the hosted journal's hub home lists no environment that is not shared", check_hosted_hub_home), ("a hub document in each edit mode is edited from both journals, a read-only one refused to the other", check_hub_documents), ("a hub task driven from a to done shows driven and done on b and the hosted journal", check_drive_to_done), ("a pre-hub team journal migrates", check_pre_hub_copy))
+          ("a shared chat reaches the other journal, and unsharing takes it back", check_share_and_unshare), ("the server holds only team rows", check_server_holds_only_team_rows), ("the hosted journal starts and a sign-in finds the hub", check_hosted_journal), ("the hosted journal's hub home lists no environment that is not shared", check_hosted_hub_home), ("a hub document in each edit mode is edited from both journals, a read-only one refused to the other", check_hub_documents), ("a hub task driven from a to done shows driven and done on b and the hosted journal", check_drive_to_done), ("a pre-hub team journal migrates", check_pre_hub_migration))
 
 
 def checks() -> None:

@@ -112,6 +112,9 @@ class TeamServerLink:
     def remove_person(self, account_id: int) -> str:
         return str(json.loads(self.posted("/people/remove", {"account_id": account_id})).get("name", ""))
 
+    def move_to_hub(self) -> TeamSummary:
+        return TeamSummary(**json.loads(self.posted("/team/hub", {})))
+
     def tie_repository(self, tied: bool) -> TeamSummary:
         return TeamSummary(**json.loads(self.posted("/team/repository", {"tied": tied})))
 

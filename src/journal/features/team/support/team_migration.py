@@ -59,6 +59,8 @@ class TeamMigration:
             self.hub_move.put(doc, hub.row_id, DocEditMode.FREE, doc.owner, actor)
         self.withdrawal.withdraw(plan.withdrawals, actor)
         self.let_go(plan, actor)
+        self.link.move_to_hub()
+        self.account.record_on_hub()
         return backup
 
     def let_go(self, plan: MigrationPlan, actor: Actor) -> None:

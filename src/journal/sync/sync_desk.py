@@ -1,5 +1,6 @@
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -33,10 +34,12 @@ from sync_server.sync_answer import SyncAnswer
 
 # the longest one side of the sync waits for the other's lock before that is a fault
 LOCK_SECONDS = 120
+# how often a journal of a team not on the hub asks its team server whether a migration has moved the team there
+HUB_ASK_SECONDS = 60
 
 
 class SyncDesk:
-    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease, the leases of the hub rows this machine drives and of the sessions it holds and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and every environment placed in the team before the key was known given it, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
+    """The journal server's side of the team sync, which writes everything the sync brings and takes, so synced rows are written, cached and dispatched in the server alone: the query a pull asks with, the queue's next batch and the files waiting to go, a pull's answer applied past the sequence this journal holds with the host desk's requests, a push's result taking its batch off the queue and putting right the edits the server rejected, the team's full copy laid in, the Team chat lease, the leases of the hub rows this machine drives and of the sessions it holds and the row number blocks kept up, the team's key and number recorded for an account from before teams had them, and a migration to the hub learnt once a minute while the team is not on it, and every environment placed in the team before the key was known given it, and the upgrade's finish. Its locks keep one answer applied at a time and nothing of this journal's going out while the team's copy is laid in."""
 
     def __init__(self, account: TeamAccount, outgoing: OutgoingChanges, incoming: IncomingChanges, rejected: RejectedEdits, status: SyncStatus, uploads: PendingUploads, attachments: Attachments, chat: TeamChat, upgrade: TeamUpgrade, copy: JournalCopy, supply: BlockSupply, queries: PullQueries, host: HostDesk, offset: ClockOffset, link: TeamServerLink, environments: Environments, drives: HubDrives, sessions: SessionLeases) -> None:
         self.account, self.outgoing, self.incoming, self.rejected, self.status = account, outgoing, incoming, rejected, status
@@ -44,6 +47,7 @@ class SyncDesk:
         self.supply, self.queries, self.host, self.offset, self.link, self.environments = supply, queries, host, offset, link, environments
         self.drives, self.sessions = drives, sessions
         self.applying, self.sending = threading.Lock(), threading.RLock()
+        self.hub_asked_at = 0.0
 
     @staticmethod
     @contextmanager
@@ -64,6 +68,7 @@ class SyncDesk:
         self.sessions.renew()
         self.refill()
         self.keyed()
+        self.hub_learnt()
 
     def keyed(self) -> None:
         if self.account.team_key() != UNKNOWN_TEAM_KEY:
@@ -72,6 +77,13 @@ class SyncDesk:
         if summary.key:
             self.account.record_team(summary.key, summary.number)
             self.environments.keys_learnt(summary.key, Actor.system())
+
+    def hub_learnt(self) -> None:
+        if self.account.is_on_hub() or time.monotonic() - self.hub_asked_at < HUB_ASK_SECONDS:
+            return
+        self.hub_asked_at = time.monotonic()
+        if self.link.summary(self.account.address()).on_hub:
+            self.account.record_on_hub()
 
     def refill(self) -> None:
         self.supply.refill()

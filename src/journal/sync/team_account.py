@@ -48,6 +48,9 @@ class TeamAccount:
     def is_on_hub(self) -> bool:
         return bool(self.contents().get("on_hub", False))
 
+    def record_on_hub(self) -> None:
+        self.write({**self.contents(), "on_hub": True})
+
     def team_number(self) -> int:
         return int(self.contents().get("team_number", 0))
 
