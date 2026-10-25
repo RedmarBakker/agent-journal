@@ -151,7 +151,7 @@ class TaskCommand(Command):
 
     def log(self, args: Namespace, caller: Caller) -> int:
         task = self.readable(args.n, caller)
-        if caller.kind == CallerKind.MAIN_AGENT and not task.is_started():
+        if caller.kind == CallerKind.MAIN_AGENT and not task.is_started() and not self.tasks.is_driven(task):
             raise Rejection(f"{self.labels.name('task', task)} is not in hand, and a log line is read only while a task runs. Put what it has to know in its brief: read it with journal task show {task.id}, then journal task edit {task.id} --brief \"<the whole brief>\"")
         self.logs.save(TaskLog.build(task, args.line, self.clock.time()), caller.actor)
         print(f"{self.labels.name('task', task)} logged")

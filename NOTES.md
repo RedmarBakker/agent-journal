@@ -1572,3 +1572,7 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 ## Driving offline (task 3151)
 
 - **Refused before anything is written.** A drive asks the team server for the row's lease before it binds the row or names its driver, and a release asks before it unbinds, both through TeamRequests.reached, so with the server away each is refused with "the team server could not be reached: ..." and the links stay as they were. An edit of a hub row made offline is queued like any other and sent once the server answers again; nothing in the drive code holds it.
+
+## A driven hub task is the environment's task in hand (task 3152)
+
+- **What it changes.** A main agent's write never needed a task (the user's ruling, test_a_write_needs_no_task), so driving changes nothing there. What needs a task in hand is the log line: `journal task log <n>` from the main agent is refused for a task that is not started, unless the environment in scope drives it (Tasks.is_driven, from Scope.bound), so a driving agent logs on the hub row with no local task, and after the release the refusal holds again. A log line and a proof take their task's environment, so both land on the hub row; a worker proves on the hub task it holds as on any other.

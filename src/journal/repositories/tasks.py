@@ -150,6 +150,9 @@ class Tasks(ScopedRepository[Task]):
     def current(self, agent: Agent) -> Task | None:
         return self.holder_task(Ref.build(agent))
 
+    def is_driven(self, task: Task) -> bool:
+        return Ref.build(task) in self.scope.bound()
+
     def holder_task(self, holder: Ref) -> Task | None:
         held = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
         tasks = self.selected(self.query().filter_listed("state", [TaskState.STARTED, TaskState.DELEGATED]).filter_existing(held).order("id"))

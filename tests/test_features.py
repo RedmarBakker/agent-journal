@@ -13415,6 +13415,60 @@ def test_with_the_team_server_stopped_a_drive_and_a_release_are_refused_saying_i
         team.close(server)
 
 
+def test_a_driven_hub_task_is_the_environments_task_its_agent_writing_with_none_of_its_own_its_log_and_a_proof_landing_on_the_hub_row_and_after_release_a_log_line_refused_again(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from conftest import copied
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.models.task import Task
+    from journal.models.worker import Worker
+    from journal.repositories.environments import Environments
+    from journal.repositories.links import Links
+    from journal.repositories.proofs import PROOF_LINK, Proofs
+    from journal.repositories.task_logs import TaskLogs
+    from journal.repositories.tasks import CURRENT_TASK_LINK, Tasks
+    from journal.repositories.workers import Workers
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    try:
+        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        console, links = journal.console(), journal.container.get(Links)
+        main, hub = journal.container.get(Environments).existing("main"), journal.container.get(Environments).hubs()[0]
+        assert hook(journal, "SessionStart")[0] == 200
+        console.run(["environment", "overview"], AGENT)
+        with journal.container.get(Scope).environment(hub.row_id):
+            task = journal.container.get(Tasks).save(Task(environment_id=hub.row_id, title="the footer", brief="the footer names the shop"), Actor.user(1))
+        assert console.run(["task", "drive", str(task.id)], USER).code == 0
+        written = hook(journal, "PreToolUse", tool_name="Write", tool_input={"file_path": "footer.html"})
+        assert written[0] == 200 and console.run(["task", "show", "current"], AGENT).text.strip() == "no task is in hand", "the agent writes while it drives the hub task, holding no local task"
+        logged = console.run(["task", "log", str(task.id), "the footer has its links"], AGENT)
+        assert logged.code == 0, logged.error
+        lines = journal.container.get(TaskLogs).logs(task)
+        assert [(line.line, line.environment_id, line.task_id) for line in lines] == [("the footer has its links", hub.row_id, task.id)], "the log line lands on the hub row"
+        worker = journal.container.get(Workers).save(Worker(environment_id=main.row_id, name="Mr. Hooke", brief="write the footer"), Actor.system())
+        links.save(Link(source=Ref.build(worker), target=Ref.build(task), kind=CURRENT_TASK_LINK), Actor.system())
+        proved = console.run(["proof", "record", "1", "footer.html:3, test_footer_names_the_shop"], Caller.worker("main", worker.id, None, "claude"))
+        assert proved.code == 0, proved.error
+        proofs = [journal.container.get(Proofs).find(ref.id) for ref in links.sources(task, PROOF_LINK)]
+        assert [(proof.point, proof.environment_id) for proof in proofs] == [(1, hub.row_id)], "the proof lands on the hub row"
+        assert console.run(["task", "release", str(task.id)], USER).code == 0
+        refused = console.run(["task", "log", str(task.id), "one more line"], AGENT)
+        assert refused.code == 1 and "is not in hand" in refused.error, "released, the hub task is no longer the environment's task in hand"
+    finally:
+        journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied
