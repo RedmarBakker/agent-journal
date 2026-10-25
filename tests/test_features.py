@@ -1038,14 +1038,27 @@ def test_a_failing_check_is_told_once_over_several_turns_and_not_at_all_while_st
     assert not any("check 2" in line for line in keystrokes)
 
 
-def test_a_busy_orchestrator_with_open_tasks_is_told_to_dispatch_them_every_two_minutes(app: App):
+def test_the_open_tasks_line_is_short_with_many_tasks_and_said_again_only_when_the_count_changes(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    for n in range(36):
+        app.console().run(["task", "create", f"a task with a long title number {n}"], USER)
+    use = lambda name: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1])
+    line = "36 tasks are open with no worker; next: 1, 2, 3"
+    assert len(line) <= 120 and sum(line in use(f"{n}.py") for n in range(3)) == 1, "36 open tasks are the count and three numbers, said once"
+    app.console().run(["task", "create", "one more"], USER)
+    assert "37 tasks are open with no worker; next: 1, 2, 3" in use("again.py"), "said again when the count changes"
+
+
+def test_a_busy_orchestrator_with_open_tasks_is_told_to_dispatch_them_once_a_stretch_of_tool_uses(app: App):
     hook(app, "SessionStart")
     app.console().run(["environment", "overview"], AGENT)
     app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
     app.console().run(["task", "create", "the footer"], USER)
     use = lambda name: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": name})[1])
     told = [use(f"{n}.py") for n in range(3)]
-    assert sum("no worker has them" in line and "task 1 (the footer)" in line for line in told) == 1, "the reminder rides one tool use, then waits two minutes"
+    assert sum("1 tasks are open with no worker; next: 1" in line for line in told) == 1, "the reminder rides one tool use, then waits its stretch"
 
 
 def test_the_slow_request_tools_start_switched_off_in_a_project(app: App):

@@ -1587,7 +1587,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     from journal.features.workers.states.soloing import Soloing
     from journal.models.open_task import OpenTask
     settings = lambda mode: SettingsValue({WorkersOptions.MODE.key: mode, TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.FIRST_DELAY.key: 25})
-    tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_summary="task 3 (the footer), task 4 (the margin)")
+    tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_next="task 3 (the footer), task 4 (the margin)")
     started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda plan: FeatureData({"plans": PlansData((), plan, 0), "tasks": tasks})
     from journal.engine.states_catalogue import StatesCatalogue
@@ -1618,7 +1618,7 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     stop = Orchestrating().respond(Stop().with_data(of(None)), settings("orchestrator"))
     assert stop.refusal is not None and "task 3 (the footer), task 4 (the margin)" in stop.refusal.rendered() and "dispatch a worker" in stop.refusal.rendered(), "the orchestrator's stop is held with the tasks to dispatch"
     from dataclasses import replace as replaced
-    all_blocked = FeatureData({"plans": PlansData((), None, 0), "tasks": replaced(tasks, open_ids=(), open_summary="", blocked=(5, 8))})
+    all_blocked = FeatureData({"plans": PlansData((), None, 0), "tasks": replaced(tasks, open_ids=(), open_next="", blocked=(5, 8))})
     held = Orchestrating().respond(Stop().with_data(all_blocked), settings("orchestrator"))
     told = held.refusal.rendered()
     assert "tasks 5, 8" in told and "truly blocked" in told and "report what you decided" in told and "journal stuck" in told, "an orchestrator whose every task is blocked may not stop: it checks them, decides what it can, waits on its workers or says it is stuck"

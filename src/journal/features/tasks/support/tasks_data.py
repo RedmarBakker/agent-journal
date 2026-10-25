@@ -20,6 +20,6 @@ class TasksData:
     next_open: OpenTask | None
     last_commands: tuple[str, ...]
     open_ids: tuple[int, ...] = ()
-    open_summary: str = ""
+    open_next: str = ""
     started_ids: tuple[int, ...] = ()
     agent_tasks: tuple[int, ...] = ()

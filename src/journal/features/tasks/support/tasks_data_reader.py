@@ -37,7 +37,7 @@ class TasksDataReader:
             "next_open": lambda: self.next_open(),
             "last_commands": lambda: self.last_commands(agent),
             "open_ids": lambda: tuple(t.row_id for t in self.tasks.open_tasks()),
-            "open_summary": lambda: self.summary(self.tasks.open_tasks()),
+            "open_next": lambda: ", ".join(str(t.row_id) for t in self.tasks.open_tasks()[:3]),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.with_state(TaskState.STARTED)),
             "agent_tasks": lambda: self.tasks.holder_task_ids(self.workers.agent_holder(agent)),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)

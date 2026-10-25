@@ -4,4 +4,4 @@ from journal.features.workers.workers_nudges import WorkersNudges
 
 
 def orchestrate(tasks: TasksData) -> Nudge:
-    return WorkersNudges.ORCHESTRATE.create(count=len(tasks.open_ids), tasks=tasks.open_summary)
+    return WorkersNudges.ORCHESTRATE.create(count=len(tasks.open_ids), tasks=tasks.open_next)
