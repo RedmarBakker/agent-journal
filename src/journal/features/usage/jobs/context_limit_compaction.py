@@ -1,3 +1,4 @@
+from journal.chat.turn import Turn
 from journal.engine.job import Job
 from journal.models.agent import Agent
 from journal.providers.providers import Providers
@@ -9,12 +10,12 @@ SCREEN_TAIL_CHARACTERS = 8192
 
 
 class ContextLimitCompaction(Job):
-    """Twice a second each live agent's screen is read through the supervisor's mirror, and an agent its provider stopped at the context limit, waiting for someone to compact, has the compact command typed into its terminal, once while the notice stays on the screen."""
+    """Twice a second each live agent's screen is read through the supervisor's mirror, and an agent its provider stopped at the context limit, waiting for someone to compact, has the compact command typed into its terminal, once while the notice stays on the screen. The notice counts only on the screen's last lines and only while the agent is not using tools: the provider's pre-request limit fires no stop hook, so the turn is over when its latest move is a stop, a failed turn or the prompt itself."""
 
     interval_seconds = 0.5
 
-    def __init__(self, agents: Agents, providers: Providers, supervisor: SupervisorLink, scope: Scope) -> None:
-        self.agents, self.providers, self.supervisor, self.scope = agents, providers, supervisor, scope
+    def __init__(self, agents: Agents, providers: Providers, supervisor: SupervisorLink, turn: Turn, scope: Scope) -> None:
+        self.agents, self.providers, self.supervisor, self.turn, self.scope = agents, providers, supervisor, turn, scope
         self._compacted: set[int] = set()
 
     def tick(self, time: float) -> None:
@@ -27,7 +28,7 @@ class ContextLimitCompaction(Job):
         if not provider.is_at_context_limit(self.supervisor.screen(environment)[-SCREEN_TAIL_CHARACTERS:]):
             self._compacted.discard(environment)
             return False
-        if environment in self._compacted:
+        if environment in self._compacted or self.turn.is_using_tools(agent):
             return False
         self._compacted.add(environment)
         self.supervisor.choose(environment, provider.compact_command)

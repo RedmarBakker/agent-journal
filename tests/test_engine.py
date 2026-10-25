@@ -1898,7 +1898,7 @@ def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_
         assert any('chose "Trust all and continue"' in m.text for m in app.container.get(Messages).scoped()), "and a card in the chat says so"
 
 
-def test_an_agent_stopped_at_the_context_limit_has_compact_typed_once_and_an_ordinary_stop_has_nothing(app: App, monkeypatch):
+def test_an_agent_stopped_at_the_context_limit_has_compact_typed_once_and_an_ordinary_stop_or_a_mention_has_nothing(app: App, monkeypatch):
     from journal.features.usage.jobs.context_limit_compaction import ContextLimitCompaction
     from journal.supervisor_link import SupervisorLink
     transmitted = []
@@ -1910,18 +1910,24 @@ def test_an_agent_stopped_at_the_context_limit_has_compact_typed_once_and_an_ord
     (app.config.home / "runtime" / "inboxes").mkdir(parents=True, exist_ok=True)
     (app.config.home / "runtime" / "inboxes" / "main").write_text(json.dumps({"socket": "/tmp/none.sock", "protocol": 1, "screen": str(screens / "main.out")}))
     prompt = "\r\n──────\r\n❯ \r\n──────\r\n  agent-journal · main\r\n"
-    (screens / "main.out").write_text("⏺ Done, the footer is in.\r\n" + prompt)
-    job.tick(0.0)
+    notice = "  ⎿  \x1b[31mContext\x1b[1Climit reached\x1b[39m · /compact or /clear to continue\r\n"
+    limited = "> go on with the footer\r\n" + notice + prompt
+    shown = lambda text: [(screens / "main.out").write_text(text), job.tick(0.0)]
+    shown("⏺ Done, the footer is in.\r\n" + prompt)
     assert transmitted == [], "an ordinary stop has nothing typed"
-    limited = "⏺ Reading the rest.\r\n  ⎿  \x1b[31mContext\x1b[1Climit reached\x1b[39m · /compact or /clear to continue\r\n" + prompt
-    (screens / "main.out").write_text(limited)
+    shown(notice + "".join(f"⏺ line {n} of the reply\r\n" for n in range(8)) + prompt)
+    assert transmitted == [], "the notice higher on the screen, above the reply that came after it, is a mention"
+    shown("⏺ The colleague's agent stopped with Context limit reached · /compact or /clear to continue\r\n" + prompt)
+    assert transmitted == [], "words that merely quote the notice inside a line of the agent's are a mention"
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    shown(limited)
+    assert transmitted == [], "the notice arriving while the agent uses tools, its turn not over, is a mention"
+    hook(app, "UserPromptSubmit", prompt="go on with the footer")
+    shown(limited)
     job.tick(0.0)
-    job.tick(0.0)
-    assert transmitted == [{"verb": "type", "name": "agent", "line": "/compact", "after": 0.0}], "a stop at the context limit has /compact typed into the front, once while the notice stays"
-    (screens / "main.out").write_text("✻ Compacting conversation… (4s)\r\n" + prompt)
-    job.tick(0.0)
-    (screens / "main.out").write_text(limited)
-    job.tick(0.0)
+    assert transmitted == [{"verb": "type", "name": "agent", "line": "/compact", "after": 0.0}], "a prompt stopped at the context limit, which fires no stop hook, has /compact typed into the front, once while the notice stays"
+    shown("✻ Compacting conversation… (4s)\r\n" + prompt)
+    shown(limited)
     assert len(transmitted) == 2, "the next stop at the limit is a new occurrence and is compacted again"
 
 
