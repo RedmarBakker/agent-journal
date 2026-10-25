@@ -139,6 +139,7 @@ class WorkerActions:
         if worker.pool_request:
             self.branch.fetch_pool(worker)
         self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or (), base=self.branch.base(worker), window_ms=self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
+        worker = self.gated(n, task)
         commit = self.merge_commit(worker, task)
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
@@ -154,6 +155,12 @@ class WorkerActions:
             self.workers.save(self.workers.find(worker.id).queue_emptied(datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_work_merged(WorkerWorkMerged(environment_id=worker.environment_id, worker=worker.id, name=worker.name, dispatcher=worker.dispatcher, task=task.id, next_task=next_task, time=datetime.now(timezone.utc).timestamp()))
         return MergeOutcome(closed, worktree_line, next_line)
+
+    def gated(self, n: int, task: Task) -> Worker:
+        worker = self.delivered(n, "work to merge")
+        if self.worker_task(worker).id != task.id:
+            raise Rejection(f"worker {worker.id} moved on to task {self.worker_task(worker).id} while the plugins were asked about task {task.id}: nothing was merged")
+        return worker
 
     def merge_commit(self, worker: Worker, task: Task) -> str:
         try:

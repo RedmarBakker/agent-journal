@@ -12550,6 +12550,31 @@ def test_a_merge_lets_go_of_the_merged_task_alone_and_a_worker_already_on_a_queu
         assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.find(3).state == "delegated", "and the merge hands it no second task: the next stays queued"
 
 
+def test_a_merge_run_again_while_the_first_waits_on_the_plugins_never_writes_the_worker_back_over_its_next_job(app: App, monkeypatch):
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.models.support.ref import Ref
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    committed(worktree, "notes.md", "the notes\n")
+    assert proved_and_out(app, caller, "notes.md:1").code == 0
+    console.run(["task", "create", "the second job", "--brief", "the second job: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2"], AGENT).code == 0
+    gate = WorkerActions.merge_gate
+    def merged_beside(actions, event):
+        monkeypatch.setattr(WorkerActions, "merge_gate", gate)
+        assert console.run(["worker", "merge", "1"], AGENT).code == 0, "the run beside it merges while the first still waits on the plugins"
+    monkeypatch.setattr(WorkerActions, "merge_gate", merged_beside)
+    late = checked_and_merged(app)
+    assert late.code == 1 and "only a worker that clocked out" in late.error, late.error
+    with app.container.get(Scope).environment(MAIN):
+        worker, tasks = app.container.get(Workers).find(1), app.container.get(Tasks)
+        assert worker.state == "dispatched" and worker.brief.startswith("Your next task, 2"), "the late run writes nothing: the worker stays on its next job"
+        assert tasks.find(1).state == "done" and tasks.holder_task_ids(Ref("workers", 1)) == (2,)
+
+
 def test_a_workspace_worker_gets_worktrees_of_the_repositories_its_brief_names_as_whole_words_in_any_case(app: App, monkeypatch):
     workspace_made(app, ("platform", "mobile", "docs"))
     worker, folder, _ = worktree_worker(app, monkeypatch, "fix the Platform invoices and their docstrings")
