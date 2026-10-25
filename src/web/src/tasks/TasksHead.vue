@@ -64,7 +64,7 @@ defineExpose({focusSearch: () => search.value?.focus()});
         <template v-if="!single">
             <Btn small title="Keys (?)" @click="show('keys', $event.currentTarget)">?</Btn>
         </template>
-        <Btn small title="Close the tasks (Esc)" @click="emit('close')"><Icon name="close" :size="13" /></Btn>
+        <Btn small aria-label="Close the tasks (Esc)" @click="emit('close')"><Icon name="close" :size="13" /></Btn>
         <template v-if="menu">
             <MenuPanel :anchor="menu.el" :min-width="240" align="right" @close="menu = null">
                 <SwitchCase :value="menu.kind">

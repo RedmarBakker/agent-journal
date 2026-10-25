@@ -41,10 +41,11 @@ test("a docked output is titled in words, keeps its command in its tooltip, not 
     host.querySelector(".watch-dock-label").click();
     await flush();
     expect(read).toHaveBeenCalledWith(12);
+    expect(host.querySelector(".watch-dock-more").classList.contains("open")).toBe(true);
     expect(host.querySelector(".watch-dock-output").textContent).toBe("collecting\nFAILED test_b\n[ 40%] test_c");
     host.querySelector(".watch-dock-label").click();
     await flush();
-    expect(host.querySelector(".watch-dock-output")).toBeNull();
+    expect(host.querySelector(".watch-dock-more").classList.contains("open")).toBe(false);
 });
 
 test("an open dock asks for the lines after the last it holds, and adds them to its output", async () => {

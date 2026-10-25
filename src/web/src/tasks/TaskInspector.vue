@@ -68,7 +68,7 @@ watch(
             <Btn small title="Previous task (K)" @click="emit('step', -1)"><Icon name="up" :size="13" /></Btn>
             <Btn small title="Next task (J)" @click="emit('step', 1)"><Icon name="down" :size="13" /></Btn>
             <template v-if="!single">
-                <Btn small title="Close the task (Esc)" @click="emit('close')"><Icon name="close" :size="13" /></Btn>
+                <Btn small aria-label="Close the task (Esc)" @click="emit('close')"><Icon name="close" :size="13" /></Btn>
             </template>
         </div>
         <Transition name="swap" mode="out-in">
