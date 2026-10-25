@@ -12,7 +12,7 @@ SHIPPED = (
     Reader("dotnet-test", "the failed tests and the totals of a dotnet test run", r"Failed |error |Passed!|Failed!|Total tests", "", "Running tests", ReaderCommands(("dotnet test",)), finished_pattern=r"Passed!|Total tests", failed_pattern=r"Failed |Failed!|error "),
     Reader("phpunit", "the failures and the totals of a phpunit or pest run", r"FAILURES!|ERRORS!|Tests: |FAIL |Failed asserting|OK \(", r"\( *([0-9]+)%\)", "Running tests", ReaderCommands(("phpunit", "pest", "artisan test")), r"[.FEWRSI]",
            finished_pattern=r"OK \(|Tests: ", failed_pattern=r"FAILURES!|ERRORS!|FAIL |Failed asserting|Tests: "),
-    Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", "", "Merging a worker's work", ReaderCommands(("journal worker merge",)),
+    Reader("worker-merge", "a worker merge: the task it closed and the commit, the next task the worker went on to, or why it was not merged: a plugin's hold with its sins, a clash or a refusal", r"^step [0-9]+/[0-9]+: |^task [0-9]+ done: [^;]{1,90}$|^it went |^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$", r"^step ([0-9]+)/([0-9]+): ", "Merging a worker's work", ReaderCommands(("journal worker merge",)),
            finished_pattern=r"^task [0-9]+ done: [^;]{1,90}$", failed_pattern=r"^worker [0-9]+'s work was not merged: [^;,]{1,60}$|^worker [0-9]+ is [^;]{1,80}$|carries [0-9]+ sins?:?$"),
 )
 

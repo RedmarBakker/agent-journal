@@ -19,6 +19,7 @@ from journal.features.workers.support.worker_launch import WorkerLaunch
 from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
+from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.support.report_choice import ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
@@ -271,7 +272,7 @@ class WorkerCommand(Command):
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:
-        outcome = self.actions.merge(args.n, caller.actor)
+        outcome = self.actions.merge(args.n, caller.actor, MergeSteps(print))
         print(f"task {outcome.task.id} done: {outcome.task.outcome}")
         print(outcome.worktree or "it had no worktree")
         if outcome.finished:

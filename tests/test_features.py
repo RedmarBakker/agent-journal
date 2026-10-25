@@ -12610,6 +12610,8 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
     assert console.run(["worker", "check", "1", "1", "--task", "2"], AGENT).code == 0
     merged = console.run(["worker", "merge", "1"], AGENT)
     assert merged.code == 0 and "task 3 done" in merged.text and "closed with it, from its queue: task 1, task 2" in merged.text, merged.error
+    steps = [line.split(":")[0] for line in merged.text.splitlines() if line.startswith("step ")]
+    assert steps == [f"step {n}/5" for n in range(1, 6)], "the merge tells each step as it starts, in order, numbered of the whole"
     with app.container.get(Scope).environment(MAIN):
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
 
@@ -13504,6 +13506,7 @@ def test_a_watch_or_wait_through_a_reader_is_refused_on_an_output_its_reader_doe
 def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_merged_here(app: App, monkeypatch):
     from journal.features.workers.jobs.worker_watch import WorkerWatch
     from journal.features.workers.seeds.workers_seed import WorkersSeed
+    from journal.features.workers.support.merge_steps import MergeSteps
     from journal.features.workers.support.worker_actions import WorkerActions
     from journal.repositories.workers import Workers
     from journal.support.rejection import Rejection
@@ -13525,7 +13528,7 @@ def test_a_worker_from_another_machine_is_never_watched_signalled_stopped_or_mer
     with pytest.raises(Rejection, match="runs on another machine of the team"):
         actions.stop(7, "stop", Actor.user(1))
     with pytest.raises(Rejection, match="runs on another machine of the team"):
-        actions.merge(7, Actor.user(1))
+        actions.merge(7, Actor.user(1), MergeSteps.unseen())
     assert workers.find(7) == pulled
     (app.config.home / TEAM_FILE).unlink()
     assert actions.local(7).id == 7, "a journal in no team runs every worker it holds, whichever machine started it"

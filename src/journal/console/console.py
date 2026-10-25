@@ -1,6 +1,9 @@
 import argparse
 from dataclasses import replace
 import io
+import queue
+
+from journal.console.support.streamed_output import StreamedOutput
 from journal.console.support.chained_line import ChainedLine
 from journal.console.support.kind_verbs import KindVerbs
 
@@ -65,9 +68,15 @@ class Console:
         return parser
 
     def run(self, argv: list[str], caller: Caller) -> Outcome:
-        output, err = io.StringIO(), io.StringIO()
+        return self.run_into(argv, caller, io.StringIO())
+
+    # a command whose printed lines a reply streams as they are printed, such as a merge that waits on the plugins
+    def run_streamed(self, argv: list[str], caller: Caller, pieces: queue.Queue) -> Outcome:
+        return self.run_into(argv, caller, StreamedOutput(pieces))
+
+    def run_into(self, argv: list[str], caller: Caller, output: io.StringIO) -> Outcome:
         with self.scope.environment(self.names.resolved(caller.environment).row_id):
-            return self.captured(argv, caller, output, err)
+            return self.captured(argv, caller, output, io.StringIO())
 
     def with_verb(self, argv: list[str]) -> list[str]:
         command = self.commands.get(argv[0]) if argv else None

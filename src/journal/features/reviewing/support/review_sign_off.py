@@ -1,4 +1,5 @@
 from journal.features.reviewing.support.point_verdict import PointVerdict
+from journal.features.workers.support.merge_steps import MergeSteps
 from journal.features.reviewing.support.review_report import ReviewReport
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.support.actor import Actor
@@ -20,5 +21,5 @@ class ReviewSignOff:
         return self.merged(worker, actor)
 
     def merged(self, worker: int, actor: Actor) -> str:
-        outcome = self.actions.merge(worker, actor)
+        outcome = self.actions.merge(worker, actor, MergeSteps.unseen())
         return "; ".join(part for part in (f"signed off: task {outcome.task.id} closed", outcome.worktree, outcome.next_task) if part)

@@ -1751,6 +1751,29 @@ def test_the_shim_posts_its_environment_and_the_words_and_reads_the_exit_code_of
     assert tasks[0]["creator"] == "agent:abc", "the shell's own session, read from its environment, names the agent"
 
 
+def test_a_background_journal_command_streams_each_line_it_prints_before_it_ends(server, monkeypatch):
+    import threading
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.support.rejection import Rejection
+    released = threading.Event()
+    def merge(actions, n, actor, steps):
+        steps.started(1)
+        released.wait(5)
+        raise Rejection("held by the test")
+    monkeypatch.setattr(WorkerActions, "merge", merge)
+    environment = b"\0".join([b"CLAUDECODE=1", b"CLAUDE_CODE_SESSION_ID=abc", b"JOURNAL_ENV=main"])
+    words = b"".join(word + b"\0" for word in (b"worker", b"merge", b"3"))
+    request = HttpRequest(f"http://127.0.0.1:{server.port}/cli/run", data=environment + b"\0\0" + words, method="POST", headers={"Content-Type": "application/octet-stream", "X-Journal-Env": "main"})
+    began = time.monotonic()
+    with urlopen(request, timeout=10) as reply:
+        first = reply.readline().decode()
+        early = time.monotonic() - began < 3
+        released.set()
+        rest = reply.read().decode().splitlines()
+    assert early and first.startswith("step 1/5: asking the plugins about its branch"), "the step reaches the shell while the merge still waits"
+    assert rest[-2:] == ["held by the test", "__journal_exit 1"], rest
+
+
 def test_a_part_that_changed_files_rolls_through_each_file_with_its_counts_adding_up():
     """Each changed file gets an editing item with the lines so far, half a second each or less so ten fit 2.5 seconds, the last a second more."""
     from journal.http.agents.bar_row import BarRow

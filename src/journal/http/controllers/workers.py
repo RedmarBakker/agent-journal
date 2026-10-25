@@ -1,4 +1,5 @@
 from journal.models.worker_state import WorkerState
+from journal.features.workers.support.merge_steps import MergeSteps
 from journal.db.query import Query
 from journal.features.workers.support.worker_actions import WorkerActions
 from journal.features.workers.support.worker_reports import WorkerReports
@@ -36,7 +37,7 @@ class WorkerController(Controller[Worker]):
         return Response.json(self.shown(self.repository.find(request.number("id"))))
 
     def merge(self, request: Request) -> Response:
-        self.actions.merge(request.number("id"), request.actor)
+        self.actions.merge(request.number("id"), request.actor, MergeSteps.unseen())
         return Response.json(self.shown(self.repository.find(request.number("id"))))
 
     def release(self, request: Request) -> Response:

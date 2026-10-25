@@ -19,6 +19,7 @@ from journal.providers.providers import Providers
 from journal.providers.support.session_inbox import SessionInbox
 from journal.models.support.ref import Ref
 from journal.features.workers.support.merge_outcome import MergeOutcome
+from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
@@ -140,7 +141,7 @@ class WorkerActions:
             raise Rejection(f"point {point} of task {task.id} has no proof to check: only a point proved, or proved again, is checked")
         return proofs[-1]
 
-    def merge(self, n: int, actor: Actor) -> MergeOutcome:
+    def merge(self, n: int, actor: Actor, steps: MergeSteps) -> MergeOutcome:
         worker = self.delivered(n, "work to merge")
         task = self.worker_task(worker)
         finished = tuple(self.tasks.find(task_id) for task_id in self.tasks.finished_task_ids(Ref.build(worker)))
@@ -149,12 +150,15 @@ class WorkerActions:
         latest = self.latest_proofs(task)
         if worker.pool_request:
             self.branch.fetch_pool(worker)
+        steps.started(1, f", for up to {self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS)} seconds")
         self.merge_gate(WorkerMerging(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), repositories=worker.repositories, files=self.branch.touched(worker) or (), base=self.branch.base(worker), window_ms=self.settings.integer(WorkersOptions.MERGE_WINDOW_SECONDS) * 1000))
         worker = self.gated(n, task)
+        steps.started(2)
         commit = self.merge_commit(worker, task)
         unfinished = [f"point {proof.point} ({proof.text})" for proof in latest.values() if proof.state == ProofState.CHECKED_UNFINISHED]
         merged = f"worker {worker.id}'s work merged as {commit}" if commit else f"worker {worker.id}'s work taken in, with no commit to merge"
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
+        steps.started(3)
         closed = self.tasks.save(task.finished_by_merge(datetime.now(timezone.utc), outcome, worker.id), actor)
         self.tasks.release_task(Ref.build(worker), task.id, actor)
         closed_queue = tuple(self.tasks.save(queued_task.finished_by_merge(datetime.now(timezone.utc), merged, worker.id), actor) for queued_task in finished)
@@ -162,7 +166,9 @@ class WorkerActions:
         self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
         self.moves.cleared(worker)
+        steps.started(4)
         worktree_line = self.merged_worktree_line(self.workers.find(worker.id))
+        steps.started(5)
         next_line, next_task = self.send_next(worker.id, actor, WorkerSentOn)
         if not next_task:
             self.workers.save(self.workers.find(worker.id).queue_emptied(datetime.now(timezone.utc).timestamp()), actor)

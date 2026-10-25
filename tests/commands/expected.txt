@@ -1931,13 +1931,15 @@ options:
 
 $ agent: journal worker release --help
 exit 0
-usage: journal worker release [-h] n
+usage: journal worker release [-h] [--drop] n
 
 positional arguments:
   n
 
 options:
   -h, --help  show this help message and exit
+  --drop      also open again the tasks of its queue it finished and that wait
+              for the merge; their commits stay on its branch
 
 $ agent: journal worker complete --help
 exit 0
