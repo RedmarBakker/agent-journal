@@ -69,7 +69,8 @@ const workersOpen = ref(false);
 const {rows: everyWorker, loaded: everyWorkerLoaded, refresh: refreshEveryWorker} = useEveryWorker(workersOpen);
 const workersAnchor = ref(null);
 
-const fitness = computed(() => (agent.value?.fitness?.is_measured ? agent.value.fitness : null));
+const fitness = computed(() => agent.value?.fitness || null);
+const fitnessShown = computed(() => (fitness.value.is_measured ? fitness.value.score : "–"));
 const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
@@ -80,7 +81,11 @@ const modeOptions = computed(() =>
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
 const LOW_FITNESS = 70;
 const fitnessTip = computed(
-    () => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: "Opens the measures furthest off this mode's ideal and the scores of the last hours."}
+    () =>
+        fitness.value &&
+        (fitness.value.is_measured
+            ? {title: `Fitness ${fitness.value.score} of 100`, line: "Opens the measures furthest off this mode's ideal and the scores of the last hours."}
+            : {title: "Fitness not measured yet", line: "The agent has not made enough tool uses in this mode to be scored. Opens the scores of the last hours."})
 );
 const fitnessOpen = ref(false);
 const fitnessAnchor = ref(null);
@@ -286,12 +291,12 @@ async function runBar(p) {
                 <template v-if="fitness">
                     <button
                         type="button"
-                        :class="['statusbar-fitness', {low: fitness.score < LOW_FITNESS}]"
+                        :class="['statusbar-fitness', {low: fitness.is_measured && fitness.score < LOW_FITNESS}]"
                         v-tip:fitness="fitnessTip"
                         :aria-expanded="fitnessOpen"
                         @click.stop="toggleFitness"
                     >
-                        {{ fitness.score }}
+                        {{ fitnessShown }}
                     </button>
                 </template>
                 <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
