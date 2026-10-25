@@ -136,6 +136,10 @@ def waiting_for(found, seconds: int = 90):
 STAMP = str(int(time.time()))
 
 
+def is_shared(row: dict) -> bool:
+    return row.get("kind") == "local" and bool(row.get("team_key"))
+
+
 def hubs(name: str) -> list[dict]:
     return [row for row in api(name, "/environments")["rows"] if row["kind"] == "hub"]
 
@@ -172,16 +176,16 @@ def check_personal_task() -> str:
 def check_share_and_unshare() -> str:
     journal("a", "environment", "share", "main")
     journal("a", "message", "send", f"shared chat {STAMP}")
-    shared = waiting_for(lambda: next((row for row in api("b", "/environments")["rows"] if row["name"] == "ada-main" and row.get("is_shared_with_team")), None))
+    shared = waiting_for(lambda: next((row for row in api("b", "/environments")["rows"] if row["name"] == "ada-main" and is_shared(row)), None))
     seen = bool(shared) and waiting_for(lambda: any(f"shared chat {STAMP}" in str(row.get("text")) for row in api("b", "/messages", "ada-main")["rows"]))
     journal("a", "environment", "unshare", "main")
-    gone = waiting_for(lambda: not next((row for row in api("b", "/environments")["rows"] if row["name"] == "ada-main"), {}).get("is_shared_with_team"))
+    gone = waiting_for(lambda: not is_shared(next((row for row in api("b", "/environments")["rows"] if row["name"] == "ada-main"), {})))
     return f"{'OK' if shared and seen and gone else 'FAIL'}: a shared main: b lists it shared {bool(shared)}, reads its chat {bool(seen)}; after unshare b lists it shared {not gone}"
 
 
 def check_server_holds_only_team_rows() -> str:
     environments = [row for row in server_rows() if row["table"] == "environments"]
-    personal = [row.get("team_name") for row in environments if row.get("kind") != "hub" and not row.get("is_shared_with_team") and not row.get("is_team_chat")]
+    personal = [row.get("team_name") for row in environments if row.get("kind") not in ("hub", "session") and not is_shared(row)]
     return f"{'OK' if not personal else 'FAIL (waits on the migration task)'}: environments on the server: {[row.get('team_name') for row in environments]}; not the team's: {personal}"
 
 
