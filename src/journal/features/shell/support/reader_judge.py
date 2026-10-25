@@ -37,12 +37,13 @@ POOR_LINES = "the card showed lines too long"
 SINGLE_WORD = "the card showed a line of one word"
 SUMMARY_READER_MISSING = "its card had no summary reader"
 MIXED_TITLE = "its title was given to runs that do different things"
+SINGLE_WORD_TITLE = "its card is titled by a bare word"
 TOTAL_MISSING = "the run prints a counter and no total"
 SUITES_COUNTED = "its progress counts suites, not tests"
 SILENT_RUN = "the run printed nothing for"
 SILENT_RUN_FIX = ("the command held its output back, which no reader can show: run it unbuffered, with stdbuf -oL before it, python -u or PYTHONUNBUFFERED=1 for Python, "
                   "go test -json in place of -v, or a runner that prints its count of tests before the first one and a line as each ends")
-FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
+FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, SINGLE_WORD_TITLE, TOTAL_MISSING, SUITES_COUNTED, SILENT_RUN)
 # the newest runs of a reader looked through for one title given to different work
 MIXED_RUNS = 6
 TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
@@ -71,6 +72,12 @@ class ReaderJudge:
         if not shortfalls:
             return None
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
+
+    def one_word_title_report(self, output: CommandOutput, title: str) -> ReaderReport | None:
+        if self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE):
+            return None
+        reader = output.watch_reader
+        return ReaderReport(environment_id=output.environment_id, reader=reader, output=output.id, command=output.command, session=output.session, findings=(f'{SINGLE_WORD_TITLE}: "{title}"',), fixes=("give the reader a label that says what runs, such as 'Running the rename tool', and a --topic that names it: journal reader add " + (reader or "<name>") + " --label ... --topic ...",))
 
     def dismissal_kinds(self, command: str, time: datetime) -> set[str]:
         limit = self.settings.integer(ShellOptions.DISMISSAL_LIMIT)

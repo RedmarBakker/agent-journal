@@ -15,6 +15,9 @@ class ReaderReports(ScopedRepository[ReaderReport]):
     def open_with_finding(self, command: str, finding: str) -> list[ReaderReport]:
         return [report for report in self.selected(self.query().filter(command=command).filter_null("dismissal").order("id")) if any(finding in text for text in report.findings)]
 
+    def open_with_output_finding(self, output: int, finding: str) -> list[ReaderReport]:
+        return [report for report in self.selected(self.query().filter(output=output).order("id")) if any(finding in text for text in report.findings)]
+
     def unread(self, session: str) -> list[ReaderReport]:
         return self.selected(self.query().filter(session=session).filter_null("dismissal").filter_null("read_at").order_descending("id").limit(RECENT_REPORTS))
 

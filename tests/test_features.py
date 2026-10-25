@@ -20457,3 +20457,26 @@ def test_a_forced_rebase_moves_a_running_workers_worktree_and_keeps_its_changes_
     with pytest.raises(RuntimeError):
         app.console().run(["worker", "rebase", "1", "--force"], AGENT)
     assert not worker_row(app).edit_lock, "a rebase that fails still frees the worker's writes"
+
+
+def test_a_card_titled_by_a_bare_word_raises_one_report_naming_its_reader_and_a_reader_labelled_so_is_refused(app: App):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    refused = app.console().run(["reader", "add", "renamer", "--pattern", "renamed", "--about", "the renames", "--label", "Running"], AGENT)
+    assert refused.code != 0 and "single word" in refused.error and "--topic" in refused.error and "Running the rename tool" in refused.error
+    assert app.console().run(["reader", "add", "renamer", "--pattern", "renamed", "--about", "the renames", "--label", "Running the rename tool"], AGENT).code == 0
+    folder = app.config.root / "run"
+    folder.mkdir()
+    (folder / "parts").write_text("R-\n")
+    (folder / "0.part").write_text("pytest -q")
+    (folder / "0.out").write_text("renamed a\n")
+    outputs, reports = app.container.get(CommandOutputs), app.container.get(ReaderReports)
+    output = outputs.save(CommandOutput(chain="run", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("renamer", "Running"), Actor.system())
+    outputs.save(outputs.find(output.id), Actor.system())
+    found = reports.open_with_output_finding(output.id, "bare word")
+    assert len(found) == 1 and found[0].reader == "renamer" and "--topic" in found[0].fixes[0], "one report names the reader, however often the card is written"
+    whole = outputs.save(CommandOutput(chain="run2", command="pytest -q", session="s1", folder=str(folder)).backgrounded().watched("renamer", "Running the rename tool"), Actor.system())
+    assert reports.open_with_output_finding(whole.id, "bare word") == [], "a title of a whole phrase raises none"
