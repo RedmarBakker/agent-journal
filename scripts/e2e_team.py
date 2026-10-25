@@ -169,7 +169,8 @@ def check_personal_task() -> str:
     journal("a", "environment", "unshare", "main")
     journal("a", "task", "create", f"personal task {STAMP}", "--brief", "stays here")
     time.sleep(40)
-    on_b = [environment for environment in ("ada-main", "main", "team", hubs("b")[0]["name"]) if f"personal task {STAMP}" in titles("b", environment)]
+    present = {row["name"] for row in api("b", "/environments")["rows"]}
+    on_b = [environment for environment in ("ada-main", "main", "team", hubs("b")[0]["name"]) if environment in present and f"personal task {STAMP}" in titles("b", environment)]
     on_server = any(row.get("title") == f"personal task {STAMP}" for row in server_rows())
     return f"{'OK' if not on_b and not on_server else 'FAIL'}: a task in a's own environment: seen on b in {on_b or 'no environment'}, held by the server {on_server}"
 
