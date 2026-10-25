@@ -1101,7 +1101,8 @@ def test_a_full_copy_of_thousands_of_rows_and_the_writes_waiting_on_it_is_laid_i
     statements = sum(query.runs for query in tasks.connection.queries.statements.values())
     assert statements <= 6 * len(tables.names()), f"a copy of 3000 rows takes a few statements per table, not one per row: {statements}"
     assert heard.events == [], "no row of the copy or of the writes waiting on it goes through the events of a pulled row"
-    assert len(tasks.numbered(range(1, 4001))) == 3000 and tasks.find(5).title == "renamed here" and tasks.numbered([7]) == [] and tasks.find(4000).title == "made here", "the copy is laid in with this machine's waiting update, deletion and creation on top"
+    laid = {task.id: task.title for task in tables.rows("tasks").numbered(range(1, 4001))}
+    assert len(laid) == 3000 and laid[5] == "renamed here" and 7 not in laid and laid[4000] == "made here", "the copy is laid in with this machine's waiting update, deletion and creation on top"
 
 
 def test_the_migration_preview_writes_nothing_and_names_what_the_run_withdraws_and_the_servers_backup_brings_the_earlier_rows_back(tmp_path):
