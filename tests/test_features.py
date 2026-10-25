@@ -2010,6 +2010,30 @@ def test_a_merge_counts_as_checked_after_a_proof_read_and_a_test_run_in_the_work
     assert counted() == (4, 2), "a run made before the worker clocked out is not the test run before its merge"
 
 
+def test_a_prompt_the_sessions_scheduler_sent_is_a_scheduled_prompt_out_of_the_load_and_the_unanswered_messages(app: App):
+    from datetime import datetime, timedelta, timezone
+    from journal.features.workers.support.load_items import LoadItems
+    from journal.models.author import Author
+    from journal.models.message import Message
+    from journal.models.scheduled_job import ScheduledJob
+    from journal.repositories.messages import Messages
+    from journal.repositories.scheduled_jobs import ScheduledJobs
+    hook(app, "SessionStart")
+    since = datetime.now(timezone.utc) - timedelta(minutes=1)
+    app.container.get(ScheduledJobs).save(ScheduledJob(environment_id=MAIN, session="s1", job_id="0a1b2c3d", cron="*/30 * * * *", prompt="Check the journal is healthy; say nothing when it is", recurring=True), Actor.agent("s1"))
+    hook(app, "UserPromptSubmit", prompt="Check the journal is healthy; say nothing when it is")
+    hook(app, "UserPromptSubmit", prompt="what is left on the parser?")
+    app.runtime().deferred.drain()
+    messages = app.container.get(Messages)
+    recorded = {message.text: message for message in messages.selected(messages.main_chat().order("id"))}
+    scheduled, asked = recorded["Check the journal is healthy; say nothing when it is"], recorded["what is left on the parser?"]
+    assert (scheduled.author, scheduled.data.get("kind")) == (Author.SYSTEM, Message.SCHEDULED_PROMPT), "the scheduler's prompt is recorded as a scheduled prompt, not the user's"
+    assert asked.author == Author.USER, "a prompt the user typed is still theirs"
+    waiting = {item.ref for item in app.container.get(LoadItems).message_items(since)}
+    assert f"messages:{scheduled.row_id}" not in waiting and f"messages:{asked.row_id}" in waiting, f"the scheduled prompt is not a message waiting on the orchestrator: {waiting}"
+    assert scheduled.row_id not in {message.row_id for message in messages.unanswered()}, "and it is never reminded as unanswered"
+
+
 def test_a_journal_line_typed_as_a_prompt_gets_no_repeat_of_itself(app: App):
     """A prompt that is a journal line already says its words, so its hook adds no line it carries."""
     hook(app, "SessionStart")

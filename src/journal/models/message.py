@@ -17,6 +17,7 @@ class Message(Scoped):
     text_fields: ClassVar[tuple[str, ...]] = ("text",)
 
     THOUGHT = "thought"
+    SCHEDULED_PROMPT = "scheduled prompt"
     REPORT = "report"
     PEER = "peer"
     COLLEAGUE_NAME = "colleague"

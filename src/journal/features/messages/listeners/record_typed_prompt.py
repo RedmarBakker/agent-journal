@@ -6,18 +6,26 @@ from journal.support.actor import Actor
 from journal.models.author import Author
 from journal.models.message import TERMINAL_LINE, Message
 from journal.repositories.messages import Messages
+from journal.repositories.scheduled_jobs import ScheduledJobs
 from journal.support.typed_lines import TypedLines
 from journal.sync.team_account import TeamAccount
 
 
 class RecordTypedPrompt(AgentListener[PromptSubmitted]):
-    """What the user types in the agent's terminal reaches the chat as their message, already read by the agent it was typed to; the journal's own lines stay out."""
+    """What the user types in the agent's terminal reaches the chat as their message, already read by the agent it was typed to; the journal's own lines stay out, and a prompt the session's own scheduler sent, the prompt of one of its running jobs, is the system's scheduled prompt, never a user message waiting on an answer."""
 
-    def __init__(self, messages: Messages, lines: TypedLines, account: TeamAccount) -> None:
-        self.account = account
+    def __init__(self, messages: Messages, lines: TypedLines, account: TeamAccount, jobs: ScheduledJobs) -> None:
+        self.account, self.jobs = account, jobs
         self.messages, self.lines = messages, lines
 
     def handle(self, event: PromptSubmitted) -> None:
         if not event.is_users or not event.prompt.strip() or self.lines.contains(event.environment_id, event.prompt):
             return
-        self.messages.save(Message(author=Author.USER, text=event.prompt.strip(), read_at=datetime.now(timezone.utc), data={"kind": TERMINAL_LINE}), Actor.user(self.account.user_number()))
+        text, now = event.prompt.strip(), datetime.now(timezone.utc)
+        if self.is_scheduled(event.session, text, now.timestamp()):
+            self.messages.save(Message(author=Author.SYSTEM, text=text, read_at=now, data={"kind": Message.SCHEDULED_PROMPT}), Actor.system())
+            return
+        self.messages.save(Message(author=Author.USER, text=text, read_at=now, data={"kind": TERMINAL_LINE}), Actor.user(self.account.user_number()))
+
+    def is_scheduled(self, session: str, text: str, moment: float) -> bool:
+        return any(job.prompt.strip() == text and job.is_running(moment) for job in self.jobs.session_jobs(session))
