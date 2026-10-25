@@ -4687,6 +4687,26 @@ def test_a_plugin_is_upgraded_with_its_changes_shown_switched_off_and_removed(ap
     assert plugins.all() == [] and not data.exists(), "purged with its data"
 
 
+def test_a_plugin_upgrade_keeps_the_files_the_plugin_built_and_an_upgrade_to_the_same_version_changes_nothing(app: App, tmp_path):
+    import shutil
+    import subprocess
+    from journal.features.plugins.support.plugin_folders import PluginFolders
+    from journal.repositories.plugins import Plugins
+    source = tmp_path / "echo-source"
+    shutil.copytree(Path(__file__).parent / "plugins" / "echo", source)
+    for line in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "echo"]):
+        subprocess.run(["git", "-C", str(source), *line], check=True, capture_output=True, timeout=30)
+    console, plugins = app.console(), app.container.get(Plugins)
+    assert console.run(["plugin", "install", f"file://{source}", "--yes"], USER).code == 0
+    built = app.container.get(PluginFolders).folder(plugins.lookup("echo")) / "bin" / "release"
+    built.parent.mkdir()
+    built.write_text("built on install")
+    shown = console.run(["plugin", "upgrade", "echo"], USER).text
+    assert "bin/release" not in shown, "a file the plugin built is not shown as removed"
+    assert console.run(["plugin", "upgrade", "echo", "--yes"], USER).code == 0
+    assert built.read_text() == "built on install", "and the upgrade keeps it"
+
+
 def test_only_the_user_installs_or_switches_on_a_plugin(app: App, tmp_path):
     import shutil
     from journal.repositories.messages import Messages

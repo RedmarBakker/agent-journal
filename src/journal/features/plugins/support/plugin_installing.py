@@ -141,18 +141,18 @@ class PluginInstalling:
         target = self.folders.folder(plugin)
         stored = target.with_name(f"{target.name}.before-upgrade")
         shutil.rmtree(stored, ignore_errors=True)
-        target.rename(stored)
-        shutil.copytree(folder, target, ignore=shutil.ignore_patterns(".git"))
+        shutil.copytree(target, stored, symlinks=True)
+        shutil.copytree(folder, target, ignore=shutil.ignore_patterns(".git"), dirs_exist_ok=True)
         try:
             self.required(upgraded, environment)
             self.prepare(upgraded, environment)
         except Rejection:
-            shutil.rmtree(target)
+            shutil.rmtree(target, ignore_errors=True)
             stored.rename(target)
             if plugin.enabled:
                 self.services.start(plugin)
             raise
-        shutil.rmtree(stored)
+        shutil.rmtree(stored, ignore_errors=True)
 
     def enable(self, name: str, actor: Actor) -> Plugin:
         self.require_user(actor, "switches on")

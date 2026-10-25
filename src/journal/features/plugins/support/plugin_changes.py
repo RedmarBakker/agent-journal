@@ -10,7 +10,7 @@ CHANGE_LINES = 400
 
 
 class PluginChanges:
-    """What changes between two states of a plugin: in its manifest, and in its code, file by file."""
+    """What changes between two states of a plugin: in its manifest, and in its code, file by file over the files its source ships; a file only the installed folder holds was built on install and is not a change."""
 
     @staticmethod
     def plain(manifest) -> dict:
@@ -32,7 +32,7 @@ class PluginChanges:
 
     @staticmethod
     def code(old: Path, new: Path) -> list[str]:
-        files = sorted({p.relative_to(root) for root in (old, new) for p in root.rglob("*") if p.is_file() and ".git" not in p.relative_to(root).parts})
+        files = sorted(p.relative_to(new) for p in new.rglob("*") if p.is_file() and ".git" not in p.relative_to(new).parts)
         lines: list[str] = []
         for file in files:
             previous, following = PluginChanges.text(old / file), PluginChanges.text(new / file)
