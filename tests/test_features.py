@@ -11743,6 +11743,43 @@ def test_a_worker_is_sent_its_next_job_on_another_model_in_the_same_worktree_and
     assert refused.code != 0 and "no worker profile" in refused.error, "a send names a worker profile"
 
 
+def test_a_merge_whose_worker_is_sampled_for_its_model_fit_is_clean_and_the_sample_judges_the_worker_with_no_reader_report_looked_up(app: App, monkeypatch):
+    from journal.features.verification.support.verifier_dispatch import VERIFIES
+    from journal.features.verification.support.verifier_runner import VerifierRunner
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    from journal.repositories.reader_reports import ReaderReports
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.verifiers import Verifiers
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    monkeypatch.setattr(VerifierRunner, "start", lambda self, verifier, resume="": verifier)
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    settings.set("workers.model_fit_sample", 1, Actor.user(1))
+    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
+    assert console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT).code == 0
+    workers = app.container.get(Workers)
+    assert not app.container.get(ReaderReports).all(), "no reader report has the worker's number"
+    workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(1.0), Actor.system())
+    lovelace = Caller.worker("main", 1, "w-1", "claude")
+    assert console.run(["proof", "1", "parser.py:3, test_reads_the_grammar passes"], lovelace).code == 0
+    assert console.run(["clock-out", "the parser reads the grammar"], lovelace).code == 0
+    assert console.run(["worker", "check", "1", "1"], AGENT).code == 0
+    merged = console.run(["worker", "merge", "1"], AGENT)
+    app.runtime().deferred.drain()
+    assert merged.code == 0, merged.error
+    worker, task = workers.find(1), app.container.get(Tasks).find(1)
+    assert worker.state == WorkerState.MERGED and task.is_closed(), f"the work is in, the task closed and the worker merged, never released: {worker.state}"
+    verifiers = app.container.get(Verifiers).all()
+    assert len(verifiers) == 1 and app.container.get(Links).targets(verifiers[0], VERIFIES) == [Ref.build(worker)], "the model-fit sample sent a verifier on the merged worker"
+    app.container.get(Verifiers).save(verifiers[0].with_(session="v-1"), Actor.system())
+    cards = [message for message in app.container.get(Messages).all() if message.data.get("icon") == "verifier"]
+    assert cards and cards[-1].data["row"] == "workers:1" and "judging whether worker 1's model fit its work" in cards[-1].text, [message.text for message in cards]
+
+
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []
