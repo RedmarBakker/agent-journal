@@ -18,7 +18,7 @@ DISPATCHES = ("dispatched", "sent a job")
 
 
 class LoadItems:
-    """What has waited on the orchestrator since `start`, read from the rows it is about: a worker's clock-out, weighted more when it comes back after a send-back, its end without clocking out, and its idle place while a task is open, each cleared by its next send-back, merge, release, retirement, stop or job; a user's message, cleared by the agent's first reply to it; with the times the orchestrator dispatched or sent a job."""
+    """What has waited on the orchestrator since `start`, read from the rows it is about: a worker's clock-out, weighted more when it comes back after a send-back, its end without clocking out, and its idle place while a task outside any plan is open, each cleared by its next send-back, merge, release, retirement, stop or job; a user's message, cleared by the agent's first reply to it; with the times the orchestrator dispatched or sent a job."""
 
     def __init__(self, workers: Workers, messages: Messages, tasks: Tasks, settings: SettingRows, reactions: Reactions) -> None:
         self.workers, self.messages, self.tasks, self.settings, self.reactions = workers, messages, tasks, settings, reactions
@@ -26,7 +26,7 @@ class LoadItems:
     def read(self, start: float) -> tuple[list[LoadItem], list[float]]:
         window_start = datetime.fromtimestamp(start, timezone.utc)
         workers = self.workers.selected(self.workers.query().filter_greater_equal("updated_at", window_start).order("id"))
-        idle_weight = self.settings.decimal(WorkersOptions.WEIGHT_IDLE_PLACE) if self.tasks.open_count() else 0.0
+        idle_weight = self.settings.decimal(WorkersOptions.WEIGHT_IDLE_PLACE) if self.tasks.unplanned_open_count() else 0.0
         items = [item for worker in workers for item in self.worker_items(worker, idle_weight) if item.cleared_at == 0.0 or item.cleared_at >= start]
         dispatches = [time for worker in workers for word, time in worker.moves.steps if word in DISPATCHES and time >= start]
         return [*items, *self.message_items(window_start)], dispatches

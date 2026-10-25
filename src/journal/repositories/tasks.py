@@ -150,6 +150,9 @@ class Tasks(ScopedRepository[Task]):
     def open_count(self) -> int:
         return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES))
 
+    def unplanned_open_count(self) -> int:
+        return self.counted(self.free_query(TaskState.OPEN, tuple(state.value for state in PlanState)))
+
     def has_stale_open(self, moment: datetime) -> bool:
         return self.counted(self.free_query(TaskState.OPEN, UNAPPROVED_PLAN_STATES).filter_less_equal("updated_at", moment)) > 0
 

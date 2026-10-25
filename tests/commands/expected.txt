@@ -1240,6 +1240,9 @@ workers.load_window_minutes = 30
 workers.load_half_life_minutes = 10
 workers.load_warn = 0.7
 workers.builder_load_ceiling = 0.5
+workers.load_told_from = 0.8
+workers.load_told_step = 0.05
+workers.load_drain_tool_uses = 25
 workers.own_share_full_score = 0.67
 workers.own_share_zero_score = 0.33
 workers.own_share_weight = 4
@@ -1768,7 +1771,6 @@ workers.act_on_the_reports  [workers]  {{reports_waiting}} reported and you have
 workers.blocked_work_stands_still  [workers]  these blocked or paused tasks stand still: {{tasks}}; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move
 workers.branch_keeps_clashing  [workers]  worker {{n}}'s branch went back to rebase {{clashes}} times in a row, as merges landed under it; it clashes in {{clashing}}. merge the other workers' work in an order that lets it catch up, or hold their merges until it is ready
 workers.builder_handover_budget  [workers]  you wrote {{lines}} lines since your last handover, under the {{budget}} one worker out is worth: write the next piece yourself
-workers.builder_load_over_ceiling  [workers]  your load is {{rho}}, over {{ceiling}}: {{queue}} wait; hand less out and take in what is back first, {{first}} the oldest
 workers.builder_takes_the_next_task  [workers]  you are the builder: you handed work out {{limit}} times in a row with no code of your own between. take the next task yourself, and hand one to a worker only when it is better done beside you
 workers.check_blocked_tasks  [workers]  tasks {{tasks}} are paused or blocked. resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided
 workers.check_reminder  [workers]  worker {{n}} waits: task {{task}}
@@ -1778,8 +1780,8 @@ workers.could_it_be_reused  [workers]  can worker {{n}} be reused?. if so, `jour
 workers.delegate_the_task  [workers]  {{name}} is in hand and you orchestrate; {{logged}}. hand it to a worker with journal worker dispatch "<Name>" --task <n>, and review its report
 workers.dispatch_while_busy  [workers]  {{count}} tasks open, no worker: {{tasks}}
 workers.file_is_the_workers  [workers]  that file is in worker {{n}}'s worktree. `journal worker send {{n}} "<job>"`, or wait for its report and merge
-workers.load_critical  [workers]  your load is {{rho}}, critical: {{queue}} wait, {{first}} the oldest. ease it: turn the reviewer on, queue work with journal worker queue instead of dispatching, or lower workers.most_out
-workers.load_rising  [workers]  your load is {{rho}}: {{queue}} wait; clear {{first}} first, the oldest
+workers.load_drain  [workers]  your load is {{rho}}, more arrives than you clear: {{queue}} wait, {{first}} the oldest. drain it: dispatch workers, or hand the work out better
+workers.load_rising  [workers]  your load is {{rho}}, past {{mark}}: {{queue}} wait; clear {{first}} first, the oldest
 workers.make_the_wait_a_block  [workers]  you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else
 workers.mode_may_not  [workers]  in {{mode}} mode you may not {{act}}: the user turned it off in the mode's menu
 workers.model_too_strong  [workers]  worker {{n}} ran on {{model}} for work a cheaper model would have done

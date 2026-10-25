@@ -49,6 +49,7 @@ from journal.features.workers.workers_alignments import WorkersAlignments
 from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.support.fitness_levels import FitnessLevels
+from journal.features.workers.support.load_levels import LoadLevels
 from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
@@ -493,17 +494,18 @@ HANDOVER_LINES = ("journal worker dispatch", "journal worker queue")
 
 
 
+DRAINING = 1.0
+
+
 def crowd_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
     crowd = event.data.part(WorkersPart).workload
     mode = settings.value(WorkersOptions.MODE)
     if not crowd.is_measured() or not crowd.waiting_refs or event.subagent or mode not in ("orchestrator", "builder"):
         return state.none()
     values = {"rho": crowd.rho, "queue": crowd.waiting_text(CROWD_LINE_ITEMS), "first": crowd.oldest()}
-    if mode == "builder":
-        ceiling = settings.decimal(WorkersOptions.BUILDER_CEILING)
-        return state.none(WorkersNudges.BUILDER_CROWDED.create(**values, ceiling=ceiling)) if crowd.rho >= ceiling else state.none()
-    if crowd.rho >= settings.decimal(WorkersOptions.WORKLOAD_CRITICAL_RATIO):
-        return state.none(WorkersNudges.CROWDED_CRITICAL.create(**values))
-    if crowd.rho >= settings.decimal(WorkersOptions.WORKLOAD_WARNING_RATIO):
-        return state.none(WorkersNudges.CROWDED_RISING.create(**values))
-    return state.none()
+    start, step = settings.decimal(WorkersOptions.LOAD_TOLD_FROM), settings.decimal(WorkersOptions.LOAD_TOLD_STEP)
+    mark = LoadLevels.standing(crowd.rho, start, step)
+    if crowd.rho >= DRAINING:
+        span = Timeout.tool_uses(settings.integer(WorkersOptions.LOAD_DRAIN_TOOL_USES))
+        return state.none(WorkersNudges.LOAD_DRAIN.create(**values)) if mark > crowd.told_level or (span.amount and span.started(0).is_period_start(event.tool_use)) else state.none()
+    return state.none(WorkersNudges.LOAD_RISING.create(**values, mark=mark)) if mark > crowd.told_level else state.none()

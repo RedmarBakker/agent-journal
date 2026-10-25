@@ -2407,38 +2407,60 @@ def test_a_workers_moves_and_the_users_messages_are_the_items_its_load_counts():
     assert reader.worker_items(Worker(id=9, environment_id=1, name="w", moves=WorkerMoves((("reported", 50.0),))), 0.0) == [], "with no task open an idle place is no item"
 
 
-def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest_and_with_the_ways_to_ease_it_when_critical():
+def test_the_load_is_told_at_each_mark_from_its_start_once_and_drained_past_one_every_so_many_tool_uses():
     from pathlib import Path
+    from journal.features.workers.support.load_levels import LoadLevels
     from journal.features.workers.support.workers_data import WorkersData
     from journal.features.workers.workers_conduct import crowd_check
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
-    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.WORKLOAD_WARNING_RATIO.key: 0.7, WorkersOptions.WORKLOAD_CRITICAL_RATIO.key: 0.9})
-    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
-    assert told(0.6) == [], "under the warning level nothing is said"
-    rising = told(0.74)
-    assert rising == ["your load is 0.74: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"] and len(rising[0]) <= 120, rising
-    critical = told(0.93)
-    assert critical[0].startswith("your load is 0.93, critical: worker 12, message 553, worker 15 wait, worker 12 the oldest") and "turn the reviewer on" in critical[0] and "queue work" in critical[0] and "lower workers.most_out" in critical[0]
-    assert told(0.8, tuple(f"workers:{n}" for n in range(10)))[0].startswith("your load is 0.8: worker 0, worker 1, worker 2, worker 3 and 6 more wait")
-    assert told(0.8, ()) == [], "with nothing waiting there is nothing to clear, so nothing is said"
-    assert [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())})), settings).nudges] == [], "an unmeasured load says nothing"
+    assert [LoadLevels.standing(rho, 0.8, 0.05) for rho in (0.79, 0.8, 0.83, 0.85, 0.99, 1.02)] == [0.0, 0.8, 0.8, 0.85, 0.95, 1.0]
+    settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_TOLD_FROM.key: 0.8, WorkersOptions.LOAD_TOLD_STEP.key: 0.05, WorkersOptions.LOAD_DRAIN_TOOL_USES.key: 25})
+    def told(rho, told_level=0.0, use=1, refs=("workers:12", "messages:553", "workers:15")):
+        load = AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0, told_level=told_level)
+        event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).counted(use).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load)}))
+        return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
+    assert told(0.79) == [], "under the first mark nothing is said"
+    assert told(0.8) == ["your load is 0.8, past 0.8: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"]
+    assert told(0.83, 0.8) == [], "the mark it stands on was told"
+    assert told(0.85, 0.8)[0].startswith("your load is 0.85, past 0.85: "), "the next mark is told"
+    assert told(0.82, 0.85) == [] and told(0.85, 0.8) != [], "a fall lets the marks above be told again"
+    assert told(1.02, 0.95, use=3)[0].startswith("your load is 1.02, more arrives than you clear: worker 12, message 553, worker 15 wait, worker 12 the oldest. drain it: dispatch workers")
+    assert told(1.02, 1.0, use=3) == [] and told(1.02, 1.0, use=25) != [], "past one it repeats every 25 tool uses"
+    assert told(0.98, 0.95, use=25) == [], "back under 1.0 no drain line comes"
+    assert told(0.9, 0.0, refs=()) == [], "with nothing waiting there is nothing to clear, so nothing is said"
 
 
-def test_the_builder_is_told_to_hand_less_out_over_its_own_ceiling_and_the_solo_agent_is_told_nothing():
+def test_the_builder_is_told_at_the_same_marks_and_the_solo_agent_is_told_nothing():
     from pathlib import Path
     from journal.features.workers.support.workers_data import WorkersData
     from journal.features.workers.workers_conduct import crowd_check
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     def told(mode, rho):
-        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.BUILDER_CEILING.key: 0.5, WorkersOptions.WORKLOAD_WARNING_RATIO.key: 0.7, WorkersOptions.WORKLOAD_CRITICAL_RATIO.key: 0.9})
+        settings = SettingsValue({WorkersOptions.MODE.key: mode, WorkersOptions.LOAD_TOLD_FROM.key: 0.8, WorkersOptions.LOAD_TOLD_STEP.key: 0.05, WorkersOptions.LOAD_DRAIN_TOOL_USES.key: 25})
         load = AgentLoad(rho=rho, waiting_refs=("workers:12",), waiting_items=1, measured_at=1.0)
         event = ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), workload=load)}))
         return [n.rendered() for n in crowd_check(Ready(), event, settings).nudges]
-    assert told("builder", 0.4) == [], "under its ceiling the builder is told nothing"
-    assert told("builder", 0.6) == ["your load is 0.6, over 0.5: worker 12 wait; hand less out and take in what is back first, worker 12 the oldest"], told("builder", 0.6)
+    assert told("builder", 0.6) == [] and told("builder", 0.8) != []
     assert told("solo", 0.95) == [], "the solo agent's load is counted and never spoken of"
+
+
+def test_tasks_added_to_a_plan_leave_the_load_where_it_was(app: App):
+    from journal.models.link import Link
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.tasks import PLAN_LINK
+    plans, tasks, links, actor = app.container.get(Plans), app.container.get(Tasks), app.container.get(Links), Actor.system()
+    with app.container.get(Scope).environment(1):
+        plan = plans.save(Plan(environment_id=1, title="p", state=PlanState.APPROVED), actor)
+        before = tasks.unplanned_open_count()
+        for number in range(10):
+            task = tasks.save(Task(environment_id=1, title=f"t{number}"), actor)
+            links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), actor)
+        assert tasks.unplanned_open_count() == before, "ten tasks in a plan are no arrival"
+        tasks.save(Task(environment_id=1, title="loose"), actor)
+        assert tasks.unplanned_open_count() == before + 1
 
 
 def test_each_work_mode_keeps_its_own_load_so_a_switch_neither_resets_nor_mixes_them():
