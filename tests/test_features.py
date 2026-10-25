@@ -18830,14 +18830,18 @@ def drafted_plan(app: App, caller: Caller, title: str) -> int:
 
 
 def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_approval_choice_names(app: App):
-    from journal.db.connection import Connection
+    from journal.models.plan import Plan
+    from journal.repositories.plans import Plans
+    from journal.support.actor_kind import ActorKind
     from journal.features.workers.support.plan_approval import PlanApproval
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     settings.set("workers.mode", "orchestrator", Actor.user(1))
-    own, users, others = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan"), drafted_plan(app, AGENT, "a worker's plan")
-    app.container.get(Connection).execute("UPDATE plans SET creator = ? WHERE id = ?", (Actor.worker(3).stamp, others))
+    own, users = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan")
+    with app.container.get(Scope).environment(MAIN):
+        others = app.container.get(Plans).save(Plan(environment_id=MAIN, title="a worker's plan", brief="the goal").ready(), Actor.worker(3)).id
+        assert app.container.get(Plans).find(others).creation_actor.kind == ActorKind.WORKER, "the plan is the worker's, saved with its actor"
     approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
     choose = lambda approval: settings.set("workers.orchestrator_plan_approval", approval.value, Actor.user(1))
     choose(PlanApproval.ALL)
