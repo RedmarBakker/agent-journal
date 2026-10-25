@@ -20,6 +20,7 @@ from journal.models.worker import Worker
 from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.features.workers.support.merge_steps import MergeSteps
+from journal.features.workers.support.report_fitting import ReportFitting
 from journal.models.support.report_choice import POOL_REFUSAL, ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
@@ -62,8 +63,8 @@ class WorkerCommand(Command):
     background_verbs = frozenset({"merge"})
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets) -> None:
-        self.targets = targets
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask, targets: WaitTargets, fitting: ReportFitting) -> None:
+        self.targets, self.fitting = targets, fitting
         self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
@@ -301,6 +302,9 @@ class WorkerCommand(Command):
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports {worker.report_choice.label()}")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:
             print(self.actions.next_job(worker.id, caller.actor))
+        advice = self.fitting.advice(self.workers.find(worker.id), time.time())
+        if advice:
+            print(advice)
         return 0
 
     def drain(self, args: Namespace, caller: Caller) -> int:

@@ -12738,6 +12738,41 @@ def test_a_quick_report_line_is_said_once_in_its_cooldown_and_a_stuck_workers_cl
         assert not use.reports and not use.drop_points, "a worker that clocks out stuck did not choose to interrupt, so its report costs nothing"
 
 
+def test_the_report_choice_that_fits_is_read_from_one_definition_of_task_size(app: App):
+    from journal.features.workers.support.report_fit import ReportFit
+    from journal.features.workers.support.task_sizes import TaskSizes
+    from journal.models.support.report_choice import ReportChoice
+    from journal.models.task import Task
+    fit = ReportFit(app.container.get(TaskSizes))
+    small = [Task(title=f"small {n}", brief="1. one thing") for n in range(3)]
+    large = [Task(title=f"large {n}", brief="1. a\n2. b\n3. c\n4. d\n5. e") for n in range(4)]
+    assert fit.better(ReportChoice(1), small) == ReportChoice(0), "several small tasks reported each fit reporting at the queue's end"
+    assert fit.better(ReportChoice(0), large) == ReportChoice(2), "a long queue of large tasks reported at its end fits reporting every two"
+    assert fit.better(ReportChoice(5), small) == ReportChoice(0), "every five beyond three tasks fits the queue's end"
+    assert fit.better(ReportChoice(1), small[:1]) is None and fit.better(ReportChoice(0), small) is None, "a choice that fits is left alone"
+
+
+def test_a_queue_whose_report_choice_does_not_fit_is_told_what_fits_and_drops_the_fitness_once(app: App, monkeypatch):
+    from journal.models.support.report_use import ReportUse
+    from journal.repositories.agents import Agents
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    worktree_worker(app, monkeypatch, "1. the readme")
+    console = app.console()
+    for n in (2, 3):
+        console.run(["task", "create", f"job {n}", "--brief", f"1. job {n} done when it is in"], AGENT)
+    queued = console.run(["worker", "queue", "1", "2", "3"], AGENT)
+    assert queued.code == 0 and "--report queue fits better" in queued.text, queued.text
+    with app.container.get(Scope).environment(MAIN):
+        agents = app.container.get(Agents)
+        use = agents.session_rows(AGENT.session)[0].report_use
+        assert use.drop_points == 10 and "where queue fits" in use.drop_cause, "the misfit costs a drop with its cause"
+        agents.save(agents.session_rows(AGENT.session)[0].with_(report_use=ReportUse(drop_at=1.0, drop_points=20, unrecovered_points=20, drop_cause="a quick report")), Actor.system())
+    console.run(["task", "create", "job 4", "--brief", "1. job 4"], AGENT)
+    console.run(["worker", "queue", "1", "4"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        assert app.container.get(Agents).session_rows(AGENT.session)[0].report_use.drop_cause == "a quick report", "while another cause's drop recovers, the misfit adds none: one cause, one drop"
+
+
 def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     from journal.features.workers.support.worker_actions import WorkerActions
