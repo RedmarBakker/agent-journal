@@ -97,12 +97,14 @@ class TestTurns:
             limit.cancel()
             self.turns.save(self.turns.find(turn.id).ended(), Actor.system())
             raise
-        output = self.awaited(self.run_output(turn, started), started)
+        output = self.run_output(turn, started)
+        moved = output is not None and not output.ended
+        output = self.awaited(output, started) if moved else output
         later = self.turns.find(turn.id)
         if output is not None and not output.ended:
             self.turns.save(later.backgrounded(output.row_id), Actor.system())
             return text
-        text = self.printed(output) if output is not None else text
+        text = self.printed(output, text) if moved else text
         limit.cancel()
         self.turns.save(later.ended(), Actor.system())
         self.recorded(later, TestRunResult.printed(text, self.readers.reading(turn.command)))
@@ -117,8 +119,9 @@ class TestTurns:
         return output
 
     @staticmethod
-    def printed(output) -> str:
-        return "\n".join([*OutputFiles(Path(output.folder)).lines(), f"{EXIT} {output.status}", ""])
+    def printed(output, text: str) -> str:
+        files = OutputFiles(Path(output.folder))
+        return "\n".join([*files.lines(), f"{EXIT} {output.status}", ""]) if files.is_stored() else text
 
     def recorded(self, turn: TestTurn, result: TestRunResult) -> None:
         later = self.turns.find(turn.id)
