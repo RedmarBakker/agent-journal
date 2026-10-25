@@ -85,6 +85,10 @@ $ agent: journal task cancel 2 --why 'the tax rates changed'
 exit 0
 task 2 cancelled
 
+$ agent: journal task decline 2 --why 'not this quarter'
+exit 1
+task 2 is no request filed for you
+
 $ agent: journal task list --all
 exit 0
    1  done     Write the footer
@@ -583,6 +587,10 @@ positional arguments:
 options:
   -h, --help  show this help message and exit
 
+$ agent: journal doc settle 1 --why 'it holds what the project keeps knowing'
+exit 0
+doc 1 signed off: it holds what the project keeps knowing
+
 $ agent: journal report create 'What the cart test found' --body 'The total adds the tax twice' --about tasks:2
 exit 0
 report 1: What the cart test found, about tasks:2
@@ -630,6 +638,10 @@ Report 1: What the cart test found undocked
 $ agent: journal report drop 1
 exit 0
 update 2: item 1 taken out
+
+$ agent: journal report settle 1 --why 'it was read and needs no action'
+exit 0
+report 1 signed off: it was read and needs no action
 
 $ agent: journal template create 'Find what is missing' --brief 'Read the plan against its goal' --applies-to plan --purpose critique
 exit 0
@@ -1537,6 +1549,7 @@ pausing.resumed  [pausing]  the user resumed you: carry on where you stopped
 pins.pin_claimed_unmade  [pins]  you told the user a link is pinned, but no pin was made in the last minute. pin it now with `journal notice create "<what it is>" --link "<url>" --label "<Open ...>"`, or tell the user where to find it instead
 pins.pin_the_link  [pins]  {{url}} is not pinned. pin it if the user will come back to it: `journal notice create "<what it is>" --link "{{url}}" --label "<Open ...>"`
 plans.approved_unstarted  [plans]  plan {{n}} is approved and not started. `journal plan start {{n}}` begins its first task
+plans.drive_ended  [plans]  {{name}} is driven from here no longer: {{why}}. its writes here are refused; `journal {{noun}} drive {{n}}` takes it again once it is free
 plans.how_the_plan_tests  [plans]  plan {{n}} tests this way: {{testing}}
 plans.next_task_of_the_plan  [plans]  plan {{n}}: task {{task}} is next. {{briefing}}
 plans.next_write_held_until_the_review_is_in  [plans]  plan {{n}} readied due: 0{{reports}}. your next write waits until it is readied
@@ -1721,7 +1734,7 @@ workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} 
 workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times on {{model}}; earlier: {{earlier}}. change the target or the worker, or send its next job on a stronger model: journal worker send {{n}} --model <model> "<job>"
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-253 nudges
+259 nudges
 
 $ agent: journal worker list
 exit 0
@@ -1816,7 +1829,7 @@ options:
 
 $ agent: journal worker queue --help
 exit 0
-usage: journal worker queue [-h] n tasks [tasks ...]
+usage: journal worker queue [-h] [--first] n tasks [tasks ...]
 
 positional arguments:
   n
@@ -1824,6 +1837,9 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
+  --first     put the tasks at the head of the queue, in the order given,
+              taking one from another worker's queue if it is there, so the
+              first is the next one sent
 
 $ agent: journal worker notify --help
 exit 0

@@ -109,6 +109,7 @@ agent doc copy 1
 agent doc attach 1
 agent doc unshare 1
 agent doc import --help
+agent doc settle 1 --why "it holds what the project keeps knowing"
 agent report create "What the cart test found" --body "The total adds the tax twice" --about tasks:2
 agent report list
 agent report show 1
@@ -119,6 +120,7 @@ agent report changes
 agent report dock 1
 agent report undock 1
 agent report drop 1
+agent report settle 1 --why "it was read and needs no action"
 agent template create "Find what is missing" --brief "Read the plan against its goal" --applies-to plan --purpose critique
 agent template list
 agent template show 1
