@@ -1,6 +1,6 @@
 export const AGENT_VIEWS = ["chat", "feed", "terminal"];
 export const PANEL_VIEWS = ["waiting", "questions", "tasks"];
-export const VIEWS = [...AGENT_VIEWS, ...PANEL_VIEWS, "agents", "side"];
+export const VIEWS = [...AGENT_VIEWS, ...PANEL_VIEWS, "agents", "side", "reviewer"];
 export const HEADER = 34;
 export const INSPECTOR_FEED = {lines: 5, flush: true, headers: false, collapse: false, editsOnly: false, removals: true, capped: false, columns: false};
 

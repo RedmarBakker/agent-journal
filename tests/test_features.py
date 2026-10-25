@@ -15883,6 +15883,8 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     status, body = reviewer_hook(reviewer, "PreToolUse", tool_name="Write", tool_input={"file_path": "parser.py", "content": "x"}, tool_use_id="t-write")
     assert status == 409 and "you change no file" in body["error"], "it changes no file"
     assert reviewer_hook(reviewer, "PreToolUse", tool_name="Bash", tool_input={"command": "python3 -m pytest tests/test_parser.py"}, tool_use_id="t-test")[0] == 200, "it runs the tests"
+    reviewer_hook(reviewer, "PostToolUse", tool_name="Bash", tool_input={"command": "python3 -m pytest tests/test_parser.py"}, tool_response={"stdout": "2 passed"}, tool_use_id="t-test")
+    app.runtime().deferred.drain()
     assert "your review is not given yet" in str(reviewer_hook(reviewer, "Stop")[1]), "it may not stop before its report"
     reviewing = Caller.reviewer("main", reviewer.id, reviewer.session, "claude")
     assert reviewing.actor.stamp == f"reviewer:{reviewer.id}" and console.run(["worker", "merge", "1"], reviewing).code != 0, "the reviewer never merges"
@@ -15893,6 +15895,11 @@ def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_
     with app.container.get(Scope).environment(MAIN):
         reviewed, sent = reviewers.find(reviewer.id), workers.find(1)
     assert reviewed.state == ReviewerState.REVIEWED and not reviewed.token_hash and not sent.review_pending and sessions.top(reviewer.session).name == "ended", "the report ends the review and the reviewer's session"
+    with app.container.get(Scope).environment(MAIN):
+        from journal.repositories.messages import Messages
+        messages = app.container.get(Messages)
+        steps = [message.text for message in messages.selected(messages.agent_chat(reviewer.session).order("id")) if message.data.get("kind") == "review_step"]
+    assert steps == ["Started reviewing worker 1, Lady Lovelace", "Ran python3 -m pytest tests/test_parser.py: passed", "Point 1 passed", "Point 2 short: the alias names are missing", f"Handed its report on worker 1, Lady Lovelace, to the agent: {report}"], ("the reviewer pane's steps, in order: the review started, the test it ran, each point and the report", steps)
     [line] = told("reviewing.work_reviewed")
     assert f"reviewer {reviewer.id} reviewed worker 1, Lady Lovelace, on task 1:" in line and report in line, "its one report reaches the orchestrator with each point and the tests run"
     assert not told("workers.work_ready"), "the orchestrator is told of the review alone, never of the clock-out"

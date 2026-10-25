@@ -15,7 +15,7 @@ from journal.support.rejection import Rejection
 
 
 class ReviewCommand(Command):
-    """journal review "<report>": a reviewer's one report on the worker's work it reviews, one short line per point, passed or short with why, and the tests it ran; it reaches the agent that sent the worker, in the chat too, and ends the reviewer's session."""
+    """journal review "<report>": a reviewer's one report on the worker's work it reviews, one short line per point, passed or short with why, and the tests it ran; it reaches the agent that sent the worker, in the chat too, is shown point by point in the reviewer pane, and ends the reviewer's session."""
 
     noun = "review"
     default_verb = "record"

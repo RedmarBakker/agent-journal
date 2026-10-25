@@ -8,6 +8,7 @@ class CardKind(StrEnum):
     SUBAGENTS = "subagents"
     WORKERS = "workers"
     VERIFIERS = "verifiers"
+    REVIEWERS = "reviewers"
     COMPACTIONS = "compactions"
     CREATED = "made"
     IMPASSE = "stuck"

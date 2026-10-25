@@ -21,7 +21,8 @@ import PaneGrid from "../kit/PaneGrid.vue";
 import PaneTabs from "../kit/PaneTabs.vue";
 import SplitOffer from "../kit/SplitOffer.vue";
 import TourStep from "../kit/TourStep.vue";
-import {useHomeViews} from "../composables/homeViews.js";
+import {reviewing, useHomeViews} from "../composables/homeViews.js";
+import {REVIEWER_VIEW, reviewerOpened, reviewerShut} from "../domain/reviewer.js";
 import {usePaneLayout} from "../composables/paneLayout.js";
 import {usePaneDrag} from "../composables/paneDrag.js";
 import {useDetached} from "../composables/detached.js";
@@ -67,6 +68,21 @@ const {floats, detach, bringBack} = useDetached();
 const grid = ref(null);
 watch(grid, (g) => (stage.value = g ? g.element : null));
 onUnmounted(() => (stage.value = null));
+// the reviewer pane opens beside the chat while the reviewer is on, stays shut once closed until the reviewer is turned on again, and goes when it is off
+const reviewerClosed = ref(false);
+watch(
+    () => opened.value.has(REVIEWER_VIEW),
+    (now, was) => was && !now && reviewing.value && (reviewerClosed.value = true)
+);
+watch(
+    reviewing,
+    (on) => {
+        const change = on ? !reviewerClosed.value && reviewerOpened(layout.value) : reviewerShut(layout.value);
+        reviewerClosed.value = reviewerClosed.value && on;
+        if (change) apply(change);
+    },
+    {immediate: true}
+);
 const offer = ref(null);
 const menu = ref(null);
 

@@ -8,7 +8,8 @@ import {PAGE, takeEntries} from "./rows.js";
 import {barOn} from "../composables/settings.js";
 import {loadPhones} from "../composables/phones.js";
 import {checkTunnel} from "../composables/shares.js";
-import {pageOf} from "./paging.js";
+import {RECENT, pageOf} from "./paging.js";
+import {reviewSteps} from "../domain/reviewer.js";
 
 const LIVE = 5;
 const BUSY_EVERY = 500;
@@ -17,6 +18,14 @@ const ASK_EVERY = 1500;
 const newest = () => (store.entries.length ? store.entries[store.entries.length - 1].id : 0);
 const polledTo = {env: "", id: 0};
 const busy = () => Boolean(store.bar && store.bar.length) || isActive(agent.value && agent.value.status);
+
+// the steps of every reviewer the journal sent here, read from each one's own chat, its newest steps
+function readReviewSteps() {
+    return api
+        .list("reviewers", {limit: 20})
+        .then((got) => Promise.all((got.rows || []).filter((row) => row.session).map((row) => api.chat(row.session, {limit: RECENT}))))
+        .then(reviewSteps);
+}
 
 function pollEntries() {
     if (polledTo.env !== api.env()) Object.assign(polledTo, {env: api.env(), id: newest()});
@@ -83,7 +92,8 @@ export const POLLERS = Object.freeze({
     "workers.index": {read: () => api.list("workers", {limit: pageOf("workers")}).then((got) => got.rows || []), every: 5000},
     "workers.every": {read: () => api.list("workers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "verifiers.every": {read: () => api.list("verifiers", {limit: 200}).then((got) => got.rows || []), every: 5000},
-    "workers.holding": {read: ({tasks}) => (tasks.length ? api.list("workers", {tasks}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({tasks}) => tasks.join(",")},
+    "reviewer.steps": {read: readReviewSteps, every: 3000},
+    "workers.holding": {read: ({tasks}) => (tasks.length ? api.list("workers", {tasks, limit: pageOf("workers")}).then((got) => got.rows || []) : Promise.resolve([])), every: 5000, by: ({tasks}) => tasks.join(",")},
     "plugin.dashboard": {read: ({plugin}) => api.pluginDashboard(plugin), every: 10000, by: ({plugin, board}) => `${plugin}:${board}`},
     "plan.timeline": {read: ({scope, plan}) => scope.api.planTimeline(plan), every: 15000, by: ({scope, plan}) => `${scope.env}:${plan}`},
     "reader.elsewhere": {read: heldElsewhere, every: 5000, by: ({scope, table, id}) => `${scope.env}:${table}:${id}`},
