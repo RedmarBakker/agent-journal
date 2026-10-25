@@ -3704,6 +3704,8 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
     config.readers.mkdir(parents=True, exist_ok=True)
     reader = config.readers / "worktree-pytest.pattern"
     reader.write_text("# a pytest run's failed tests and assertions\n^FAILED|^E \ncommands: pytest\n")
+    readers = app.container.get(Readers)
+    readers.default_choice("worktree-pytest")
     worktree = tmp_path / "worker-tree"
 
     def run(name, lines, ran_in=str(worktree), status=1):
@@ -3713,7 +3715,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         (folder / "0.out").write_text("\n".join(lines) + "\n")
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
-    failed = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: worktree))
+    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
         assert failed.under(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
@@ -3727,7 +3729,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         after = Worker(moves=WorkerMoves((("clocked out", time.time() + 100),)))
         assert failed.under(after, "the tests fail") == "the tests fail", "a run from before the worker's last clock-out is left out"
     finally:
-        reader.unlink()
+        readers.removed("worktree-pytest")
 
 
 def test_a_task_of_a_hub_environment_is_named_with_its_own_team_and_any_other_is_not(app: App):
