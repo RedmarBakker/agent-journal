@@ -11882,10 +11882,11 @@ def test_an_environment_its_owner_shares_is_every_members_with_its_chat_open_to_
         message = written(b, on_b.id, "from Bob in docs", bob.actor)
         assert not message.is_comment() and message.data.get(Message.TEAMMATE) == "Bob", "Bob writes in its chat as in the Team chat, his message reaching its agent"
         assert eventually(lambda: "from Bob in docs" in texts(a, docs.id)), "and Ada's journal holds what Bob wrote"
+        chat = sorted(texts(a, docs.id))
         unshared = a.console().run(["environment", "unshare", "docs"], USER)
         assert unshared.code == 0, unshared.error
-        assert eventually(lambda: not keyed(b, docs.key).is_shared_with_team), "unsharing takes it out of every other member's sidebar"
-        assert written(b, on_b.id, "after the unshare", bob.actor).is_comment(), "and Bob comments there again"
+        assert eventually(lambda: keyed(b, docs.key) is None and texts(b, on_b.id) == []), "unsharing withdraws the environment and its chat from every other member's journal"
+        assert not a.container.get(Environments).existing("docs").is_shared_with_team and sorted(texts(a, docs.id)) == chat, "while the owner's environment and chat stay as they were"
     finally:
         for carrier in carriers:
             carrier.stop()
