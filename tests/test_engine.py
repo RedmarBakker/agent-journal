@@ -647,7 +647,7 @@ def test_a_worker_clocks_in_on_its_task_and_the_main_agent_is_not_told_back_what
     assert app.console().run(["clock-in"], babbage).code == 0
     assert app.container.get(SessionAgents).top("w1").task_id == task.id, "clocking in moves the worker to Working on its task"
     with scope.environment(1):
-        assert tasks.find(task.id).state == "delegated", "and keeps the task delegated to it"
+        assert tasks.find(task.id).delegated, "and keeps the task delegated to it"
     assert not any("clocked in" in line for line in typed), "the main agent dispatched the worker, so it is not told the worker is at work"
     assert "a worker clocks in once each time it is sent" in app.console().run(["clock-in"], babbage).error
     with scope.environment(1):
@@ -670,11 +670,11 @@ def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_sh
     short = ProofShort(environment_id=1, time=1.0, task_id=5, worker_id=3, point=2, shortfall="the tests", dispatcher="s1")
     assert said(short.reaching("s1")) == ["worker 3 back on point 2"], "a worker sent back is told as one line with ids"
     assert said(short.reaching("s2")) == [], "to the agent that dispatched it alone"
-    second = replace(short, earlier=("the alias names are missing",))
+    second = replace(short, prior_shortfalls=("the alias names are missing",))
     assert said(second.reaching("s1")) == ["worker 3 back on point 2 again; earlier: the alias names are missing"], "the second send-back of a task says so, with the first reason"
-    third = replace(short, earlier=("the alias names are missing", "the tests do not run"), model="sonnet")
+    third = replace(short, prior_shortfalls=("the alias names are missing", "the tests do not run"), model="sonnet")
     assert said(third.reaching("s1")) == ['worker 3 back on point 2 3 times on sonnet; earlier: the alias names are missing; the tests do not run. change the target or the worker, or send its next job on a stronger model: journal worker send 3 --model <model> "<job>"'], "the third names the model and tells the orchestrator to change the target, the worker or the model"
-    fourth = replace(short, earlier=("the alias names are missing", "the tests do not run", "the lexer"), model="sonnet")
+    fourth = replace(short, prior_shortfalls=("the alias names are missing", "the tests do not run", "the lexer"), model="sonnet")
     assert said(fourth.reaching("s1")) == ["worker 3 back on point 2 again; earlier: the alias names are missing; the tests do not run; the lexer"], "the change is told once: a fourth is told as a send-back again"
     worker = WorkerMention(3, "Lady Lovelace", "s1")
     ended = lambda times, limit=False: WorkerUnfinished(environment_id=1, time=1.0, worker=worker, ref="workers:3", outcome="worker 3, ended", times=times, is_run_limit=limit).reaching("s1")
@@ -1565,7 +1565,7 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     from journal.events.agent.impasse_report import ImpasseReport
     from journal.events.agent.ticked import Ticked
     from journal.events.rows.row_resolved import RowResolved
-    auto, manual = SettingsValue({TasksOptions.AUTO.key: True}), SettingsValue({TasksOptions.AUTO.key: False})
+    auto, manual = SettingsValue({TasksOptions.AUTO.key: True, TasksOptions.SHORT_WAIT_SECONDS.key: 20}), SettingsValue({TasksOptions.AUTO.key: False, TasksOptions.SHORT_WAIT_SECONDS.key: 20})
     tasks = TasksData(current_task=7, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(9, "the next one", "", 0), last_commands=())
     of = lambda: FeatureData({"tasks": tasks})
     pushed = Working(task_id=7).respond(WaitRequest(focus="the build", end_refs="command_outputs:4,checks:2", time=100.0), auto, (TasksConduct,))
@@ -1576,6 +1576,14 @@ def test_a_declared_wait_pushes_expecting_which_asks_on_the_ticks_and_pops_when_
     meanwhile = waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), auto)
     assert meanwhile.target == replace(waiting, next_task_reported=True) and meanwhile.nudges[0].rendered().startswith("while you wait for the build, task 9 is next"), "in auto mode the next task is named once after a minute"
     assert waiting.respond(Ticked(silence_seconds=70.0, time=170.0).with_data(of()), manual).nudges == (), "out of auto mode it is not"
+    from journal.features.tasks.support.wait_progress import WaitProgress
+    estimated = lambda progress: FeatureData({"tasks": replace(tasks, wait_progress=progress)})
+    slow = waiting.respond(Ticked(silence_seconds=1.0, time=101.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 0.01)})), manual)
+    assert slow.popped and slow.nudges[0].rendered().startswith("the build has about 99 seconds left, too long to wait") and "park it and carry on with task 9" in slow.nudges[0].rendered(), "a run at 1% a second is parked, naming the seconds left"
+    quick = waiting.respond(Ticked(silence_seconds=1.0, time=109.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 0.9)})), manual)
+    assert not quick.popped and quick.target == replace(waiting, decided=True) and quick.nudges[0].rendered().startswith("the build has about 1 seconds left"), "a run at 90% is waited out"
+    step = waiting.respond(Ticked(silence_seconds=1.0, time=110.0).with_data(estimated({"command_outputs:4": WaitProgress(100.0, 1 / 5)})), manual)
+    assert step.popped, "a merge in step 1 of 5 is parked"
     looked = meanwhile.target.respond(Ticked(silence_seconds=310.0, time=410.0).with_data(of()), auto)
     assert looked.target == replace(meanwhile.target, check_reminder=meanwhile.target.check_reminder.started(410.0)) and looked.nudges[0].rendered().startswith("you have waited 5 min on the build: check it"), "every five quiet minutes the agent is asked to look"
     assert looked.target.respond(Ticked(silence_seconds=400.0, time=500.0).with_data(of()), auto).nudges == (), "and not again before five more"
@@ -2382,7 +2390,7 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
-    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
+    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), crowd=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
     assert told(0.6) == [], "under the warning level nothing is said"
     rising = told(0.74)
     assert rising == ["your load is 0.74: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"] and len(rising[0]) <= 120, rising
@@ -2518,7 +2526,7 @@ def test_a_wait_written_in_words_is_told_to_be_a_block_and_blocked_work_that_sta
     assert worded("journal task log 5 'the parser reads every rule'") == [], "a log line with no wait in it is not"
     assert worded("journal task log 5 'waiting for the API key'", builder) == [], "only the orchestrator is told"
     assert [n.key for n in text_wait_lines("I am blocked on the deploy until it lands", settings)] == ["workers.make_the_wait_a_block"], "a reply that says it waits is told the same"
-    tasks = lambda held, open_count=10: FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=tuple(held), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), open_count=open_count, held_since=held)})
+    tasks = lambda held, open_count=10: FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=tuple(held), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), open_count=open_count, last_moves=held)})
     held = lambda data, time: [n.rendered() for n in unmoved_task_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
     still = "these blocked or paused tasks stand still: 3, 5; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"
     assert held(tasks({3: 1000.0, 5: 1200.0}), 1000.0 + 59 * 60) == [], "blocked work that moved within the hour is not named"

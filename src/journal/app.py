@@ -51,7 +51,7 @@ class App:
         self.container.bind(Router, lambda: Routes(self.container).mount(self.container.call(Router)))
         self.container.bind(Console, self._console)
         self.container.bind(StaticFiles, lambda: StaticFiles(Path(__file__).resolve().parents[1] / "web" / "dist"))
-        self.container.bind(Registry, lambda: Registry(Standard.FEATURES, self.container.get(SettingRows)))
+        self.container.bind(Registry, lambda: Registry(Standard.FEATURES, self.container.get(SettingRows), StandardCommands.COMMANDS))
         self.container.bind(FeatureRegistry, lambda: self.container.get(Registry))
         self.container.bind(DataReaders, lambda: DataReaders({DemandsPart.name: self.container.get(DemandsReader), StopRefusalsPart.name: self.container.get(StopRefusalsReader), **{getattr(reader, "source", feature).name: self.container.get(reader) for feature in Standard.FEATURES for reader in feature.data}}, self.container.get(Scope), self.container.get(StageTimes)))
         self.container.bind(ProcessCardPoll, lambda: ProcessCardPoll(self.container.get(Messages), {RowProcessCard.name: self.container.get(RowProcessCard), **{card.name: self.container.get(card) for feature in Standard.FEATURES for card in feature.process_cards}}))

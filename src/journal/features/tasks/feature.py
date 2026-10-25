@@ -25,6 +25,7 @@ from journal.features.tasks.listeners.impasse_card import ImpasseCard
 from journal.features.tasks.listeners.reply_task_links import ReplyTaskLinks
 from journal.features.tasks.listeners.request_arrival_card import RequestArrivalCard
 from journal.features.tasks.listeners.request_outcome_card import RequestOutcomeCard
+from journal.features.tasks.tasks_demands import TasksDemands
 from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
@@ -40,14 +41,15 @@ class Tasks(Feature[TasksData]):
     help = "A task is one unit of work with a life; a stop with one in hand is told to carry on, and its log is asked for as the edits mount."
     states = (Ready, Working, Impasse, ExternalWait)
     commands = (TaskCommand, WaitCommand, ImpasseCommand)
-    options = (TasksOptions.AUTO, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
+    demands = (TasksDemands.PRIORITIES,)
+    options = (TasksOptions.AUTO, TasksOptions.SHORT_WAIT_SECONDS, TasksOptions.PRIORITY_REMIND_TASKS, TasksOptions.PRIORITY_BLOCK_TASKS, TasksOptions.FIRST_DELAY, TasksOptions.TASK_REMINDER_INTERVAL, TasksOptions.LOG_LIMIT, TasksOptions.LOG_AGE_LIMIT, TasksOptions.BLOCK_BATCH)
     seeds = (LeftWaitChecks,)
     listeners = (ClearWaits, ReleaseWaits, DeleteEndedWaitChecks, WaitCycleCheck, TaskMoveCards, ImpasseCard, EndedAgentTasks, ReplyTaskLinks, RequestArrivalCard, RequestOutcomeCard, PulledTaskMoves)
     conduct = (TasksConduct, TaskEditConduct)
     worker_conduct = (TaskEditConduct,)
     data = (TasksDataReader,)
 
-    nudges = (TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.TASK_QUEUE, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
+    nudges = (TasksNudges.PRIORITIES_REMINDER, TasksNudges.PRIORITIES_REFUSAL, TasksNudges.TASK_CHANGED, TasksNudges.TASK_POINTS_CHANGED, TasksNudges.BLOCKED_REVIEW, TasksNudges.TASK_QUEUE, TasksNudges.PAUSE_WAIT_END, TasksNudges.TASK_CONTINUATION, TasksNudges.STOP_LOG_REQUEST, TasksNudges.OPEN_TASK, TasksNudges.UNLOGGED_TASK, TasksNudges.NEXT_TASK, TasksNudges.PAUSED_TASKS, TasksNudges.POSTPONED_WORK, TasksNudges.COMMIT_CLOSURE, TasksNudges.STOP_POLLING, TasksNudges.LOG_REQUEST, TasksNudges.LOG_EDIT_BLOCK, TasksNudges.CURRENT_TASK_REMINDER, TasksNudges.PAUSED_TASK_REMINDER, TasksNudges.PAUSED_TASK_CLOSURE_REMINDER, TasksNudges.WAIT_CHECK, TasksNudges.IDLE_CHECK, TasksNudges.WAIT_END, TasksNudges.WAIT_NEXT_TASK, TasksNudges.WAIT_SHORT, TasksNudges.WAIT_LONG, TasksNudges.TASK_REOPENED, TasksNudges.BROKEN_WAIT, TasksNudges.BLOCKED_TASK_REMINDER, TasksNudges.IMPASSE_REFUSAL, TasksNudges.TASK_OPENED)
 
     skill = Skill("tasks", 'Declare, log and finish the current work; load it when you start or are asked to', """
 # Tasks
@@ -56,7 +58,9 @@ A task is one unit of work with a lifecycle: open, started, done. Only one is cu
 needs no task; file one for work that is an item of its own, that waits, or that the user should see tracked.
 
 - `journal task create "<title>" --brief "<what and where to start>"` files one; add `--start` to start it at once, and
-  `--from <message n>` when it comes from one of the user's messages.
+  `--from <message n>` when it comes from one of the user's messages. Add `--priority low|high|critical` when the task is not
+  normal: a task left at the default priority is asked about once five of yours sit there, and at ten your next write waits
+  until each has its priority from `journal task edit <n> --priority <level>`, or `journal task priorities confirm` says normal is right.
 - `journal task edit <n> --title "<title>" --brief "<what and done when>"` writes either or both anew: the title when the
   first one was wrong, the brief when the user corrects a task or a plan's review changes it. Read the brief first with
   `journal task show <n>`: `--brief` replaces it whole. A revision is never written as a log line. Add `--from <message n>` when

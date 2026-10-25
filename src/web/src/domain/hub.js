@@ -38,7 +38,7 @@ export const driverLine = (row) => (row.driver ? `Driven by ${row.driver}, ${row
 
 export const BOARD_COLUMNS = [
     {key: "open", title: "Open", states: ["open"]},
-    {key: "started", title: "In progress", states: ["started", "delegated"]},
+    {key: "started", title: "In progress", states: ["started"]},
     {key: "waiting", title: "Waiting", states: ["paused", "blocked"]},
     {key: "done", title: "Completed", states: ["completed"]},
 ];

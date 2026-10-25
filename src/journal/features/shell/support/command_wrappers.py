@@ -18,7 +18,7 @@ OPERATORS = frozenset({"|", "||", "&&", ";", "&", ">", ">>", "<", ">&", "<&", "(
 
 
 class CommandWrappers:
-    """The command a wrapper runs, which a line is named for: sudo, time and timeout, npx and bundle exec, nix develop -c, and a container's command through docker run, docker compose run or exec, and kubectl exec."""
+    """The command a wrapper runs, which a line is named for: sudo, time and timeout, npx, npm exec with or without --prefix <folder> and bundle exec, nix develop -c, and a container's command through docker run, docker compose run or exec, and kubectl exec."""
 
     @classmethod
     def inner(cls, part: str) -> str:
@@ -51,6 +51,8 @@ class CommandWrappers:
             return command[1:] if command and DURATION.match(command[0]) else command
         if len(tokens) > 1 and (program, tokens[1]) in PREFIX_SUBCOMMANDS:
             return cls.past_flags(tokens[2:])
+        if program == "npm":
+            return cls.npm_exec(tokens[1:])
         if program == "nix" and tokens[1:2] == ["develop"]:
             return next((tokens[index + 1:] for index, token in enumerate(tokens) if token in ("-c", "--command")), None)
         if program == "docker":
@@ -58,6 +60,11 @@ class CommandWrappers:
         if program == "kubectl" and tokens[1:2] == ["exec"] and "--" in tokens:
             return cls.unshelled(tokens[tokens.index("--") + 1:])
         return None
+
+    @classmethod
+    def npm_exec(cls, tokens: list[str]) -> list[str] | None:
+        exec_tokens = cls.past_flags(tokens)
+        return cls.past_flags(exec_tokens[1:]) or None if exec_tokens[:1] == ["exec"] else None
 
     @classmethod
     def container_command(cls, tokens: list[str]) -> list[str] | None:

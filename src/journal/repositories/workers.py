@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from journal.db.connection import Connection
 from journal.db.query import Query
 from journal.events.bus import Bus
@@ -42,13 +43,16 @@ class Workers(ScopedRepository[Worker]):
     def idle_query(self) -> Query:
         return self.query().filter(state=WorkerState.REPORTED, adopted=False)
 
+    def unfinished_accepted(self, dispatcher: str, accepts: Callable[[Worker], bool]) -> list[Worker]:
+        return [worker for worker in self.matching(state=WorkerState.UNFINISHED, dispatcher=dispatcher) if accepts(worker)]
+
     def queued_reviews(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.DELIVERED, review_pending=True).filter_greater("review_queued_at", 0).order("review_queued_at"))
 
     def limit_passed(self, time: float) -> list[Worker]:
         return self.selected_globally(self.query().filter(state=WorkerState.LIMITED).filter_less_equal("resumes_at", time).order("id"))
 
-    def merged_since(self, time: float) -> list[Worker]:
+    def recently_merged(self, time: float) -> list[Worker]:
         return self.selected(self.query().filter_greater("merged_at", time).order("merged_at"))
 
     def checkable_workers(self) -> list[Worker]:
@@ -60,7 +64,7 @@ class Workers(ScopedRepository[Worker]):
     def running_pool_workers(self) -> list[Worker]:
         return [worker for worker in self.running_workers() if worker.pool_request]
 
-    def held_locally(self) -> list[Worker]:
+    def local_workers(self) -> list[Worker]:
         return [*self.running_locally(), *(worker for worker in self.checkable_workers() if not worker.pool_request)]
 
     def running_locally(self) -> list[Worker]:

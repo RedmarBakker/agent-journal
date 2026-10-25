@@ -215,6 +215,14 @@ describe("the tasks dialog's rules", () => {
         expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["Blocked", 2, "Open", "Completed", 3]);
     });
 
+    test("grouped by status, the tasks in progress, the agent's and the workers', come first, then the ones queued for a worker", () => {
+        const all = [task(1, "open"), task(2, "queued", {delegated: true}), task(3, "agent's own", {state: "started"}), task(4, "worker's", {state: "started", delegated: true}), task(5, "blocked", {state: "blocked", waits: ["tasks:1"]})];
+        store.rows = {tasks: all, plans: [], questions: []};
+        const lines = boardLines("status", {shown: all, all, plans: [], folded: {}});
+        expect(lines.map((l) => (l.type === "head" ? l.label : l.task.id))).toEqual(["In progress", 3, 4, "With a worker", 2, "Blocked", 5, "Open", 1]);
+        expect(nextAct(all[3])).toBe(null);
+    });
+
     test("grouped by plan, only tasks without a plan are under not in a plan, even when their plan row is not loaded", () => {
         const all = [task(1, "in loaded", {plan_id: 31}), task(2, "in unloaded", {plan_id: 1028}), task(3, "loose a"), task(4, "loose b")];
         const lines = boardLines("plan", {shown: all, all, plans: [plan], folded: {}});

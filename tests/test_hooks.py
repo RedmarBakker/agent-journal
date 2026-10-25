@@ -178,6 +178,18 @@ def test_the_hooks_and_lines_that_went_around_the_journal_are_named_once_in_the_
     app.container.get(ListenerQueue).drain()
     assert len([m for m in app.container.get(Messages).scoped() if m.text.startswith("The journal did not answer in time")]) == 1, "named once: the next answer says nothing more"
 
+def test_the_agent_is_told_in_one_line_on_its_next_hook_what_went_through_unchecked_while_the_journal_did_not_answer(app: App):
+    log = app.config.home / "runtime" / "bypass.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("1761393836 hook claude\n1761393837 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
+    status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
+    line = json.dumps(body)
+    assert status == 200 and "2 hooks let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded" in line and "git status" in line and "run again what ran unrecorded" in line, line
+    app.container.get(ListenerQueue).drain()
+    again = json.dumps(post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})[1])
+    assert "went through unchecked" not in again and "ran in the shell itself" not in again, "the line is said once"
+
+
 def post_command(app, argv: list[str], headers: dict | None = None, session: str | None = None, body: dict | None = None) -> dict:
     request = HttpRequest(f"http://127.0.0.1:{app.server().port}/cli", data=json.dumps({"argv": argv, "env": "main", "session": session, **(body or {})}).encode(), method="POST", headers={"Content-Type": "application/json", **(headers or {})})
     try:
@@ -241,6 +253,14 @@ def test_every_way_into_the_console_checks_a_workers_kind(app: App):
         with urlopen(request, timeout=5) as reply:
             return reply.read().decode()
     assert "a worker may not run the alias journal greet" in shim("greet") and "__journal_exec" not in shim("greet"), "an alias is never a worker's"
+    from journal.models.alias import Alias
+    from journal.repositories.aliases import Aliases
+    from journal.features.aliases.support.worker_alias_line import WorkerAliasLine
+    with app.container.get(Scope).environment(1):
+        app.container.get(Aliases).save(Alias(name="peek", line="echo peeked", worker_access=True), Actor.system())
+    assert "__journal_exec echo peeked" in shim("peek") and "may not run" not in shim("peek"), "an alias declared for workers is a worker's to run"
+    line = WorkerAliasLine(app.container.get(Workers), type("Branch", (), {"base": lambda self, worker: "development"})())
+    assert line.argv(["sins", "--branch"], Caller.worker("main", worker.id, None, "claude")) == ["sins", "--branch", "development"] and line.argv(["sins", "--branch", "main"], Caller.worker("main", worker.id, None, "claude")) == ["sins", "--branch", "main"], "a bare --branch gets the worker's base and a named one is kept"
     assert "a worker may not run journal message send" in shim("message", "send", "hi"), "the shim's route checks the worker's kind"
     assert "a worker may not run journal task dock" in shim("task", "dock", "1"), "and the row verbs, which no worker is declared for"
     assert "a worker may not run journal message send" in post_command(app, ["message", "send", "hi"], {"X-Journal-Env": "main"}, body={"worker": worker.id, "actor_token": "tok"})["error"], "and so does the JSON route"

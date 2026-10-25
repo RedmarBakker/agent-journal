@@ -8,6 +8,7 @@ from journal.engine.conduct import Conduct
 from journal.engine.safety_conduct import SafetyConduct
 from journal.engine.demand_conduct import DemandConduct
 from journal.engine.demand import Demand
+from journal.console.command import Command
 from journal.features.feature import Feature
 from journal.engine.nudge import Nudge
 from journal.features.support.service import Service
@@ -23,8 +24,8 @@ ROLE_DEMANDS = {AgentRole.MAIN: lambda feature: feature.demands, AgentRole.WORKE
 class Registry:
     """Every feature, and whether each is on in an environment. The catalogue, the bus and the console are filled from here at boot."""
 
-    def __init__(self, features: tuple[type[Feature], ...], settings: SettingRows) -> None:
-        self.features, self.settings = features, settings
+    def __init__(self, features: tuple[type[Feature], ...], settings: SettingRows, standard_commands: tuple[type[Command], ...] = ()) -> None:
+        self.features, self.settings, self.standard_commands = features, settings, standard_commands
         self._by_name = {feature.name: feature for feature in features}
         self._by_state = {state.name: feature for feature in features for state in feature.states}
 
@@ -60,6 +61,10 @@ class Registry:
 
     def is_background_verb(self, noun: str, verb: str) -> bool:
         return any(command.noun == noun and verb in command.background_verbs for feature in self.features for command in feature.commands)
+
+    def uncut_verbs(self) -> tuple[str, ...]:
+        commands = [*self.standard_commands, *(command for feature in self.features for command in feature.commands)]
+        return tuple(f"{command.noun} {verb}" for command in commands for verb in sorted(command.uncut_verbs))
 
     def card_families(self) -> list[CardFamily]:
         return [*MarkKinds.FAMILIES, *(family for feature in self.features for family in feature.card_families)]

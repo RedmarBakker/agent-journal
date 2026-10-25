@@ -25,7 +25,7 @@ class MergeChecks:
         return self.checked(runs) if any(run.status != 0 and run.update_time.timestamp() > pass_time for run in runs) else MergeCheck()
 
     def checked(self, runs: list[CommandOutput]) -> MergeCheck:
-        merged = tuple(self.workers.merged_since(self.last_pass_time(runs)))
+        merged = tuple(self.workers.recently_merged(self.last_pass_time(runs)))
         failed = next((run.row_id for run in runs if run.status != 0 and merged and run.update_time.timestamp() > merged[0].merged_at), 0)
         return MergeCheck(merged, failed)
 

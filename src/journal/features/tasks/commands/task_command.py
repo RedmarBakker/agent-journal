@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from journal.console.command import HELPER_KINDS, SUBAGENT_KINDS, WORKER_KINDS, Command
 from journal.console.support.hub_choice import HubChoice
-from journal.features.tasks.support.hub_filing import HubFiling
+from journal.features.tasks.support.hub_filer import HubFiler
 from journal.support.caller import Caller
 from journal.support.row_labels import RowLabels
 from journal.support.caller_kind import CallerKind
@@ -39,12 +39,13 @@ LIST_ROWS = 20
 
 class TaskCommand(Command):
     noun = "task"
+    uncut_verbs = frozenset({"show", "start", "resume", "complete"})
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling, drives: HubDrives, account: TeamAccount, destination: RowDestination) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filer: HubFiler, drives: HubDrives, account: TeamAccount, destination: RowDestination) -> None:
         self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
-        self.check, self.labels, self.hub, self.filing, self.drives, self.account = check, labels, hub, filing, drives, account
+        self.check, self.labels, self.hub, self.filer, self.drives, self.account = check, labels, hub, filer, drives, account
         self.destination = destination
 
     def arguments(self, verbs) -> None:
@@ -67,7 +68,7 @@ class TaskCommand(Command):
         creation.add_argument("--to", default="", help="file it in the hub as a request for this person")
         creation.add_argument("--to-team", action="store_true", help="file it in the hub as a request for the whole team")
         creation.add_argument("--issue", action="store_true", help="file it in the hub as an issue on the board")
-        creation.add_argument("--priority", default="normal", help="low, normal, high, critical or a number")
+        creation.add_argument("--priority", default="", help="low, normal, high, critical or a number; unnamed, the task is normal and is asked about with the others of the default priority")
         creation.add_argument("--start", action="store_true", help="start it at once")
         creation.add_argument("--from", dest="message", type=int, default=0, help="the user's message it was filed from")
         self.verb(verbs, "start", "take a task in hand").add_argument("n", type=int)
@@ -97,14 +98,16 @@ class TaskCommand(Command):
         driving.add_argument("n", type=int)
         driving.add_argument("--take-over", action="store_true", help="take it from whoever drove it last, once their lease has lapsed, 15 minutes after its last renewal")
         self.verb(verbs, "release", "let a hub task you drive go, so anyone may drive it").add_argument("n", type=int)
+        priorities = self.verb(verbs, "priorities", "the open tasks you made at the default priority: confirm says normal is right for each")
+        priorities.add_argument("action", choices=("confirm",))
         self.verb(verbs, "show", "a task whole: its title, state, plan and phase, brief and every log line in order").add_argument("n", help="the task's number, or current for the task in hand")
         self.verb(verbs, "list", "every task here not closed, and how many are done or cancelled").add_argument("--all", action="store_true", help="every task, the closed ones too")
 
     def create(self, args: Namespace, caller: Caller) -> int:
-        person, team = self.filing.person(args), self.filing.team(args)
+        person, team = self.filer.person(args), self.filer.team(args)
         with self.hub.writing_in(team):
-            task = self.tasks.save(Task(title=args.title, brief=args.brief, priority=TaskPriority.parsed(args.priority)), caller.actor)
-            self.filing.link(task, args, person, team, caller.actor)
+            task = self.tasks.save(self.created(args), caller.actor)
+            self.filer.link(task, args, person, team, caller.actor)
             self.message_link(args.message, task, caller)
             if args.start:
                 task = self.taking.start(task, caller)
@@ -112,6 +115,11 @@ class TaskCommand(Command):
             line = f"{self.labels.name('task', task)} {task.state}" + (f" (from message {args.message})" if args.message else "")
         print("\n".join(filter(None, [line + self.destination.phrase(task), unfiled])))
         return 0
+
+    @staticmethod
+    def created(args: Namespace) -> Task:
+        task = Task(title=args.title, brief=args.brief)
+        return task.prioritised(TaskPriority.parsed(args.priority)) if args.priority else task
 
     def message_link(self, message: int, task: Task, caller: Caller) -> None:
         if message:
@@ -132,13 +140,18 @@ class TaskCommand(Command):
         print("\n".join(filter(None, [f"{self.labels.name('task', task)} brief written anew", self.reminder.line(old_task)])))
         return 0
 
+    def priorities(self, args: Namespace, caller: Caller) -> int:
+        confirmed = [self.tasks.save(task.priority_confirmed(), caller.actor) for task in self.tasks.unprioritised()]
+        print(f"{len(confirmed)} open tasks confirmed at normal priority" + (f": {', '.join(str(task.id) for task in confirmed)}" if confirmed else ""))
+        return 0
+
     def edit(self, args: Namespace, caller: Caller) -> int:
         if not args.title and not args.brief and not args.priority and args.message:
             return self.message_linked(args, caller)
         if not args.title and not args.brief and not args.priority:
             raise Rejection("name what changes: --title \"<title>\", --brief \"<the whole brief>\", --priority <level>, --from <message>, or several")
         task = self.tasks.find(args.n)
-        priority_task = task.with_(priority=TaskPriority.parsed(args.priority)) if args.priority else task
+        priority_task = task.prioritised(TaskPriority.parsed(args.priority)) if args.priority else task
         new_task = self.tasks.save(priority_task.edited(args.title or task.title, args.brief or task.brief, self.clock.time()), caller.actor)
         self.message_link(args.message, new_task, caller)
         summary = f"{self.labels.name('task', task)} edited: {' and '.join(name for name, value in (('title', args.title), ('brief', args.brief), ('priority', args.priority)) if value)} written anew"
@@ -213,7 +226,7 @@ class TaskCommand(Command):
 
     def decline(self, args: Namespace, caller: Caller) -> int:
         task = self.tasks.find(args.n)
-        if not self.filing.is_for(task, self.account.user_number()):
+        if not self.filer.is_addressed(task, self.account.user_number()):
             raise Rejection(f"{self.labels.name('task', task)} is no request filed for you")
         declined = self.tasks.save(task.declined(self._time(), args.why), caller.actor)
         self.logs.save(TaskLog.build(declined, args.why, self.clock.time()), caller.actor)
@@ -243,8 +256,8 @@ state: {task.state}
         if plan is None:
             return "plan: none"
         phases = self.plans.phase_states(plan)
-        held = {ref.id for ref in self.links.targets(task, PHASE_LINK)}
-        phase = next((p for p in phases if p.phase.id in held), None)
+        phase_ids = {ref.id for ref in self.links.targets(task, PHASE_LINK)}
+        phase = next((p for p in phases if p.phase.id in phase_ids), None)
         return f"plan {plan.id}: {plan.title}" + (f", phase {phase.number} of {len(phases)}: {phase.phase.title}" if phase else "")
 
     def list(self, args: Namespace, caller: Caller) -> int:

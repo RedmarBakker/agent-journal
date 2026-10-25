@@ -40,6 +40,8 @@ class Task(Scoped):
     block_reason: str = ""
     driver: str = ""
     driver_agent: str = ""
+    delegated: bool = False
+    priority_set: bool = False
 
     def creation_events(self) -> tuple[TaskOpened, ...]:
         return (TaskOpened(environment_id=self.environment_id, title=self.title),) if self.state == TaskState.OPEN else ()
@@ -61,7 +63,7 @@ class Task(Scoped):
         return self.is_closed()
 
     def is_assignable(self) -> bool:
-        return self.state == TaskState.OPEN and bool(self.brief.strip())
+        return self.state == TaskState.OPEN and not self.delegated and bool(self.brief.strip())
 
     def waiting_reason(self) -> str:
         return self.block_reason or self.pause_reason
@@ -93,12 +95,21 @@ class Task(Scoped):
         event = TaskStarted(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, plan_id=plan_id, prior_state=self.state)
         return self.with_(state=TaskState.STARTED, started_at=time, pause_reason="", block_reason="").with_event(event)
 
-    def delegated(self, time: datetime) -> "Task":
+    def prioritised(self, level: int) -> "Task":
+        return self.with_(priority=level, priority_set=True)
+
+    def priority_confirmed(self) -> "Task":
+        return self.with_(priority_set=True)
+
+    def delegate(self, time: datetime) -> "Task":
         event = TaskDelegated(environment_id=self.environment_id, time=time.timestamp(), task_id=self.row_id, title=self.title, brief=self.brief)
-        return self.with_(state=TaskState.DELEGATED, started_at=self.started_at or time, pause_reason="", block_reason="").with_event(event)
+        return self.with_(state=TaskState.OPEN, delegated=True, pause_reason="", block_reason="").with_event(event)
+
+    def worker_started(self, time: datetime) -> "Task":
+        return self.with_(state=TaskState.STARTED, delegated=True, started_at=self.started_at or time, pause_reason="", block_reason="")
 
     def released(self, time: float) -> "Task":
-        return self.with_(state=TaskState.OPEN, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
+        return self.with_(state=TaskState.OPEN, delegated=False, block_reason="").with_event(TaskReleased(environment_id=self.environment_id, time=time, task_id=self.row_id, reason="its worker let it go"))
 
     def paused(self, reason: str, time: datetime) -> "Task":
         if self.state != TaskState.STARTED:
@@ -146,7 +157,6 @@ class Task(Scoped):
 # a change pulled from the team, by the state it reached, replayed on the row as it stood here, so it carries the events the same change made here would
 PULLED_MOVES: dict[TaskState, Callable[[Task, Task, datetime], Task]] = {
     TaskState.STARTED: lambda previous, task, time: previous.started(time),
-    TaskState.DELEGATED: lambda previous, task, time: previous.delegated(time),
     TaskState.COMPLETED: lambda previous, task, time: previous.completed(time, task.outcome),
     TaskState.CANCELLED: lambda previous, task, time: previous.cancelled(time, task.outcome),
     TaskState.PAUSED: lambda previous, task, time: previous.closed(task, time, "paused"),

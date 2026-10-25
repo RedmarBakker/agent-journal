@@ -59,6 +59,7 @@ from journal.features.tasks.tasks_nudges import TasksNudges
 from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.briefing.briefing_options import BriefingOptions
 from journal.features.messages.messages_nudges import MessagesNudges
+from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import WorkersOptions
 
 AGENT = Caller.agent("main", "s1", "claude")
@@ -2002,8 +2003,8 @@ def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparat
     unprepared = ToolUseCounts(mode="orchestrator", merges=4, prepared_merges=0, research_count=20)
     assert WorkersProfiles.ORCHESTRATOR.scored(unprepared).score < 100 and WorkersProfiles.reviewed_mode_profile("orchestrator").scored(unprepared).score == 100, "with the reviewer on, merges with no proof read or test run of its own cost the orchestrator nothing"
     assert WorkersProfiles.reviewed_mode_profile("builder") is WorkersProfiles.BUILDER, "the other modes are measured as they were"
-    data = type("Workers", (), {"tool_uses": unprepared})()
-    values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, ReviewingOptions.REVIEWER.key: False}
+    data = type("Workers", (), {"tool_uses": unprepared, "fitness_level": 100})()
+    values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, FitnessOptions.LEVEL_STEP.key: 5, ReviewingOptions.REVIEWER.key: False}
     assert fitness_lines("orchestrator", data, Settings(values)), "with the reviewer off a low score is told as today"
     assert not fitness_lines("orchestrator", data, Settings({**values, ReviewingOptions.REVIEWER.key: True})), "and with it on the merge measure no longer lowers it"
     worker = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1")
@@ -4111,19 +4112,20 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         (folder / "0.out").write_text("\n".join(lines) + "\n")
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
-    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers))
+    from journal.repositories.run_history import RunHistory
+    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree), TestRunFolder(readers), app.container.get(RunHistory))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
-        assert failed.under(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
+        assert failed.with_output(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
         run("short", ["collected 2 items", "FAILED tests/x.py::test_a - assert 1 == 2", "E   assert 1 == 2", "1 failed"])
-        assert failed.under(before, "the tests fail").splitlines() == ["the tests fail", "FAILED tests/x.py::test_a - assert 1 == 2", "E   assert 1 == 2"], "the failure rides under the reason as the reader picks it"
+        assert failed.with_output(before, "the tests fail").splitlines() == ["the tests fail", "FAILED tests/x.py::test_a - assert 1 == 2", "E   assert 1 == 2"], "the failure rides under the reason as the reader picks it"
         run("elsewhere", ["FAILED tests/y.py::test_b"], ran_in=str(tmp_path / "other-tree"))
-        assert "tests/y.py" not in failed.under(before, "the tests fail"), "a run in another folder is not the worker's"
+        assert "tests/y.py" not in failed.with_output(before, "the tests fail"), "a run in another folder is not the worker's"
         run("long", [f"FAILED tests/x.py::test_{n}" for n in range(45)])
-        lines = failed.under(before, "the tests fail").splitlines()
+        lines = failed.with_output(before, "the tests fail").splitlines()
         assert len(lines) == 1 + 40 + 1 and lines[-1] == "and 5 more lines", "a long failure is cut at forty lines with the count of the rest"
         after = Worker(moves=WorkerMoves((("clocked out", time.time() + 100),)))
-        assert failed.under(after, "the tests fail") == "the tests fail", "a run from before the worker's last clock-out is left out"
+        assert failed.with_output(after, "the tests fail") == "the tests fail", "a run from before the worker's last clock-out is left out"
     finally:
         readers.removed("worktree-pytest")
 
@@ -4675,7 +4677,8 @@ def test_checking_a_point_whose_proof_names_a_test_warns_when_no_run_of_it_is_re
     from journal.models.worker import Worker
     from journal.repositories.command_outputs import CommandOutputs
     outputs = app.container.get(CommandOutputs)
-    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"), app.container.get(TestRunFolder))
+    from journal.repositories.run_history import RunHistory
+    runs = FailedRuns(outputs, app.container.get(Readers), SimpleNamespace(folder=lambda worker: tmp_path / "tree"), app.container.get(TestRunFolder), app.container.get(RunHistory))
     worker = Worker(id=4, moves=WorkerMoves((("clocked out", time.time() - 100),)))
     proof = "parser.py:12, and the test tests/test_parser.py::test_reads passes"
     assert runs.unrun(worker, proof) == "no run of tests/test_parser.py::test_reads is recorded since worker 4 clocked out: run it before you trust the point", "no run: one line naming the test"
@@ -4742,7 +4745,7 @@ def test_a_task_put_first_in_a_workers_queue_is_the_next_one_sent_and_one_in_ano
     assert moved.code == 0 and "queue: task 3, task 6" in moved.text, moved.error or moved.text
     with app.container.get(Scope).environment(MAIN):
         assert queue(2) == [3, 6] and queue(1) == [4, 2], "a task in another worker's queue moves to the head of this one"
-        assert tasks.find(3).state == TaskState.DELEGATED
+        assert tasks.find(3).delegated
     babbage = Caller.worker("main", 1, "w-1", "claude")
     console.run(["proof", "1", "notes.md:1, written"], babbage)
     console.run(["clock-out", "the notes are written"], babbage)
@@ -6879,6 +6882,8 @@ def test_a_trailing_tail_or_head_is_taken_off_the_line_and_kept_as_the_cut_to_ap
 
 def test_output_is_shown_whole_for_journal_commands_by_its_ends_for_a_read_and_its_last_characters_otherwise(app: App):
     from journal.repositories.command_outputs import CommandOutputs
+    libraries = app.config.root / "src" / "web" / "node_modules"
+    libraries.mkdir(parents=True, exist_ok=True)
     hook(app, "SessionStart")
     console = app.console()
     cap = lambda line: ShellVerbs(app).cap(line)
@@ -6900,7 +6905,7 @@ def test_output_is_shown_whole_for_journal_commands_by_its_ends_for_a_read_and_i
               "ls src/journal/features/*/states", 'grep -rn foo "src/my dir"', "git checkout -- src/journal/app.py", "git restore src/journal/app.py", "git mv src/journal/a.py src/journal/b.py",
               "find src -name '*.pyc' -delete", "find src -name '*.py' | xargs rm", "perl -pi -e 's/a/b/' src/journal/app.py", "python3 - src/journal/app.py <<'EOF'\nfrom pathlib import Path\nPath(sys.argv[1]).write_text('x')\nEOF"]
     assert [line for line in direct if cap(line) != "direct 0"] == [], "report 30: every read or write of the project's code goes direct"
-    ends = ["ls .journal", "cat ./.journal/runtime/server.log", "find .journal -name '*.log'", f"cat {root}-v3/src/journal/app.py", "grep -rn foo src/web/node_modules", "cat src/web/package-lock.json",
+    ends = ["ls .journal", "cat ./.journal/runtime/server.log", "find .journal -name '*.log'", f"cat {root}-v3/src/journal/app.py", f"grep -rn foo {libraries}", "cat src/web/package-lock.json",
             'grep -rn "config.json" ~/.claude', "cat $HOME/other/app.py", "sqlite3 .journal/journal.db \"select path from edits where path like '%.py'\"", "tail -f src/web/dev.log"]
     assert [line for line in ends if cap(line) != "ends 8000"] == [], "report 30: a read of the journal's folder, of something outside the project or of what is not its code is shown by its ends"
     hints = ["sed -i '' 's/a/b/' .journal/config.json", "echo x >> .journal/notes.md"]
@@ -9953,7 +9958,7 @@ def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_g
     assert dispatched.code == 0, dispatched.error
     assert console.run(["task", "start", "3"], AGENT).code == 0
     queued = console.run(["worker", "queue", "1", "3"], AGENT)
-    assert queued.code == 0 and "task 3" in queued.text and tasks.find(3).state == "delegated", queued.error
+    assert queued.code == 0 and "task 3" in queued.text and tasks.find(3).delegated, queued.error
     from journal.models.support.ref import Ref
     with app.container.get(Scope).environment(MAIN):
         assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.holder(tasks.find(3)) is None, "a task the caller held goes to the busy worker's queue, let go from the caller's hands"
@@ -10456,7 +10461,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     queued = console.run(["worker", "queue", "1", "2", "3", "--report", "each"], AGENT)
     assert queued.code == 0 and "queue: task 2, task 3" in queued.text, queued.error
     with app.container.get(Scope).environment(MAIN):
-        assert [tasks.find(n).state for n in (2, 3)] == [TaskState.DELEGATED, TaskState.DELEGATED] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
+        assert [tasks.find(n).delegated for n in (2, 3)] == [True, True] and tasks.holder(tasks.find(2)) is None, "tasks queued for a busy worker are delegated to it at once, though it holds only its current one"
     assert "only an open task" in console.run(["worker", "queue", "1", "2", "--report", "each"], AGENT).error, "a task already delegated waits in no second queue"
     status, page = got(app, "/journal/workers?ids=1", {"X-Journal-Env": "main"})
     [shown] = page["rows"]
@@ -10477,7 +10482,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     assert [mark for mark in marks if "work on task 1 merged" in mark] == ["Worker 1, Mr. Babbage: work on task 1 merged; it went on to task 2"], "a merge that sends the worker on is one mark naming both tasks"
     assert not [mark for mark in marks if mark.startswith("Completed task 1") or mark.endswith("merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
     with app.container.get(Scope).environment(MAIN):
-        assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).state == TaskState.DELEGATED, "the merge sends the worker its next queued task by itself; the one after waits"
+        assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).delegated, "the merge sends the worker its next queued task by itself; the one after waits"
     given = console.run(["worker", "drain", "1"], AGENT)
     with app.container.get(Scope).environment(MAIN):
         assert "task 3 given back" in given.text and tasks.find(3).state == TaskState.OPEN and tasks.holder(tasks.find(2)) is not None, "drain gives back what waits, never the task in hand"
@@ -12694,8 +12699,8 @@ def test_a_merge_lets_go_of_the_merged_task_alone_and_a_worker_already_on_a_queu
     assert merged.code == 0, merged.error
     with app.container.get(Scope).environment(MAIN):
         assert tasks.find(1).state == "completed", "the merged task is closed"
-        assert tasks.holder_task_ids(Ref("workers", 1)) == (2,) and tasks.find(2).state == "delegated", "the task the worker went on to stays its own, never let go by the merge of the one before"
-        assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.find(3).state == "delegated", "and the merge hands it no second task: the next stays queued"
+        assert tasks.holder_task_ids(Ref("workers", 1)) == (2,) and tasks.find(2).delegated, "the task the worker went on to stays its own, never let go by the merge of the one before"
+        assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.find(3).delegated, "and the merge hands it no second task: the next stays queued"
 
 
 def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_and_reports_once(app: App, monkeypatch):
@@ -13017,6 +13022,147 @@ def test_a_queued_worker_with_a_point_not_done_reports_at_once_and_its_finished_
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["open", "open", "open"] and not tasks.finished_task_ids(Ref("workers", 1)), "with --drop every task of its queue is open again"
 
 
+def pool_worker_on_a_queue(app: App, monkeypatch, report: list[str]):
+    """A pool worker on task 1 with task 2 queued behind it, its branch pushes recorded; its folder, its caller and the pushes."""
+    from journal.features.workers.commands.departure_command import DepartureCommand
+    from journal.repositories.workers import Workers
+    pushes = []
+    monkeypatch.setattr(DepartureCommand, "push_branch", lambda self, worker: pushes.append(worker.id))
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    app.console().run(["task", "create", "the follow-up", "--brief", "the follow-up: done when it is in"], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        workers.save(workers.find(1).with_(pool_request=41), Actor.system())
+    assert app.console().run(["worker", "queue", "1", "2", *report], AGENT).code == 0
+    return worktree, caller, pushes
+
+
+def test_a_pool_worker_with_the_default_choice_moves_on_after_its_first_task_and_reports_once_after_the_second(app: App, monkeypatch):
+    worktree, caller, pushes = pool_worker_on_a_queue(app, monkeypatch, [])
+    committed(worktree, "notes1.md", "note\n")
+    assert "your next task, 2:" in proved_and_out(app, caller, "notes1.md:1").text, "it moves on after the first task"
+    committed(worktree, "notes2.md", "note\n")
+    last = proved_and_out(app, caller, "notes2.md:1")
+    assert "clocked out of task 2" in last.text, "and reports once, after the second"
+    assert pushes == [1, 1], "its branch is pushed at every clock-out, the one that moved on too"
+
+
+def test_a_pool_worker_dispatched_with_report_each_reports_after_each_task(app: App, monkeypatch):
+    worktree, caller, pushes = pool_worker_on_a_queue(app, monkeypatch, ["--report", "each"])
+    committed(worktree, "notes1.md", "note\n")
+    out = proved_and_out(app, caller, "notes1.md:1")
+    assert "clocked out of task 1" in out.text and "your next task" not in out.text, "it reports after its first task"
+    assert pushes == [1]
+
+
+def test_npm_exec_is_labelled_by_the_program_it_runs_and_one_title_given_to_different_work_raises_a_report(tmp_path):
+    from types import SimpleNamespace
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_judge import MIXED_TITLE, ReaderJudge
+    assert ActivityLabel.line_label("npm --prefix src/web exec -- vitest run tests/a.test.js") == "testing" and ActivityLabel.line_label("npm exec -- vitest run") == "testing", "npm exec runs the program after it"
+    assert ActivityLabel.line_label("npm --prefix src/web run build") == "building", "and npm --prefix <folder> run build is still a build"
+
+    def run(number: int, command: str, text: str) -> SimpleNamespace:
+        folder = tmp_path / f"run-{number}"
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text(command)
+        (folder / "0.out").write_text(text)
+        return SimpleNamespace(command=command, ended=True, folder=str(folder), watch_title="Building the viewer")
+
+    reader = Reader("viewer-build", "the viewer", label="Building the viewer")
+    same = [run(1, "npm run build", "built in 3s\n"), run(2, "npm --prefix src/web run build", "built in 4s\n")]
+    mixed = [run(3, "npm --prefix src/web exec -- vitest run", " Tests  4 passed\n"), *same]
+    judge = lambda runs: ReaderJudge(None, None, None, None, None, SimpleNamespace(reader_ended=lambda name, last: runs))
+    assert judge(same).mixed_title(reader, same[0]) == [], "runs of one program under one title raise nothing"
+    found = judge(mixed).mixed_title(reader, mixed[0])
+    assert len(found) == 1 and MIXED_TITLE in found[0][0] and "vitest" in found[0][0] and "npm" in found[0][0], "one title on a test run and a build is raised as a report"
+
+
+@pytest.mark.parametrize("lines, fraction", [
+    (["starting", "12/40 files", "13/40 files"], 13 / 40),
+    (["[3/10] building", "[4/10] building"], 4 / 10),
+    (["Step 3/10: installing"], 3 / 10),
+    (["working: 3 of 10"], 3 / 10),
+    (["done (3 of 10)"], 3 / 10),
+    (["item 3 out of 10 done"], 3 / 10),
+    (["collected 40 items", "PASSED tests/a", "PASSED tests/b", "PASSED tests/c", "PASSED tests/d"], 4 / 40),
+    (["Found 12 servers", "Deployed web-1", "Deployed web-2", "Deployed web-3"], 3 / 12),
+    (["Deploying to 8 hosts", "host-a ok", "host-b ok"], 2 / 8),
+])
+def test_a_run_printing_a_count_of_a_total_in_any_common_form_gets_a_progress_pattern_that_reads_its_fraction(lines, fraction):
+    from journal.features.shell.support.reader import Reader
+    from journal.features.shell.support.reader_guess import ReaderGuess
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    progress, step = ReaderGuess.progress_patterns(lines)
+    reader = Reader("counted", "the counted runs", ".", progress_pattern=progress, step_pattern=step)
+    assert reader.progress(lines).fraction() == pytest.approx(fraction), "the guessed pattern reads the run's own fraction"
+    assert "--progress" in ReaderJudge.progress_fix("a command", lines), "and the report's fix suggests a --progress pattern"
+
+
+def test_a_run_printing_only_a_counter_raises_the_demand_for_its_total_which_a_later_run_printing_one_clears(app: App):
+    from journal.features.shell.support.output_log import OutputLog
+    from journal.features.shell.support.reader_judge import TOTAL_MISSING
+    from journal.models.reader_report import CLEARED_VERDICT
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.reader_reports import ReaderReports
+    hook(app, "SessionStart")
+    outputs, reports = app.container.get(CommandOutputs), app.container.get(ReaderReports)
+
+    def ended_run(number: int, text: str) -> None:
+        folder = app.config.root / f"run-{number}"
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("loader run")
+        (folder / "0.out").write_text(text)
+        app.container.get(OutputLog).start(f"run-{number}", "loader run", folder, Caller.agent("main", "s1", "claude"))
+        outputs.save(outputs.find(number).backgrounded(), Actor.system())
+        if number == 1:
+            assert app.console().run(["reader", "add", "loader", "--commands", "loader run", "--pattern", "^(processed|collected)", "--about", "the loader's count"], AGENT).code == 0
+        assert app.console().run(["output", "watch", str(number), "--reader", "loader"], AGENT).code == 0
+        outputs.save(outputs.find(number).ended_with(0, outputs.find(number).creation_time.timestamp() + 5), Actor.system())
+        app.runtime().deferred.drain()
+
+    ended_run(1, "processed 10\nprocessed 20\nprocessed 30\n")
+    with app.container.get(Scope).environment(1):
+        [demand] = [report for report in reports.unread("s1") if any(TOTAL_MISSING in finding for finding in report.findings)]
+    assert demand.output == 1 and "total" in demand.fixes[0], "a counter with no total anywhere raises the demand to print the total"
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    with app.container.get(Scope).environment(1):
+        assert app.container.get(ReaderJudge).run_findings(demand), "a dismissal of the demand is checked against the run's own output, which still shows no total"
+    ended_run(2, "collected 40 items\nprocessed 10\nprocessed 20\nprocessed 30\n")
+    with app.container.get(Scope).environment(1):
+        assert reports.find(demand.id).verdict == CLEARED_VERDICT and not reports.unread("s1"), "a later run that prints a total clears it"
+
+
+def test_the_fifth_default_priority_task_gives_a_line_the_tenth_holds_a_write_and_setting_the_priorities_lifts_it(app: App):
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    read = lambda: json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
+    write = lambda: hook(app, "PreToolUse", tool_name="Write", tool_input={"file_path": "a.py", "content": "x"})
+    for number in range(1, 5):
+        console.run(["task", "create", f"task {number}"], AGENT)
+    assert "default priority" not in read(), "four tasks at the default are not asked about"
+    console.run(["task", "create", "task 5"], AGENT)
+    assert "5 open tasks you made sit at the default priority: 1, 2, 3, 4, 5" in read(), "the fifth names them all"
+    assert "default priority" not in read(), "and says it once"
+    for number in range(6, 10):
+        console.run(["task", "create", f"task {number}"], AGENT)
+    assert write()[0] == 200, "nine hold nothing"
+    console.run(["task", "create", "task 10"], AGENT)
+    status, body = write()
+    assert status == 409 and "10 open tasks you made sit at the default priority" in body["error"] and "your next write waits" in body["error"], body
+    console.run(["task", "create", "task 11", "--priority", "high"], AGENT)
+    assert write()[0] == 409, "a task given its priority on creation is not one of them, but the ten still hold"
+    for number in range(1, 6):
+        assert console.run(["task", "edit", str(number), "--priority", "low"], AGENT).code == 0
+    assert write()[0] == 200, "five given their priority bring the rest under the line"
+    assert console.run(["task", "priorities", "confirm"], AGENT).code == 0 and "default priority" not in read() and write()[0] == 200, "confirming the others clears them"
+
+
 def test_a_queued_worker_whose_run_ends_without_a_clock_out_names_every_task_of_its_queue_and_merges_nothing(app: App, monkeypatch):
     from journal.features.workers.support.worker_runner import WorkerRunner as Runner
     from journal.repositories.messages import Messages
@@ -13056,7 +13202,7 @@ def test_dispatch_and_queue_take_a_report_choice_kept_on_the_worker_and_shown_in
     assert "reports every 2" in listed and "reports each" in listed and "reports every 3" in listed
     console.run(["task", "create", "the pooled job", "--brief", "the pooled job: done when it is in"], AGENT)
     pooled = console.run(["worker", "dispatch", "Worker 9", "--task", "5", "--changes", "the files of its task", "--profile", "journal-medior", "--worktree", "--no-libraries", "--pool", "--report", "queue"], AGENT)
-    assert pooled.code != 0 and "a pool worker reports after each task for now" in pooled.error, pooled.error
+    assert "a pool worker reports after each task" not in pooled.error, "a pool worker takes the dispatcher's own report choice, not one fixed for it"
     for bad in (["every", "1"], ["every", "0"], ["every", "-1"], ["every", "abc"], ["some"]):
         refused = console.run(["worker", "queue", "2", "4", "--report", *bad], AGENT)
         assert refused.code != 0 and f"--report takes each, queue or every <n> of two or more, not '{' '.join(bad)}'" in refused.error, refused.error
@@ -16494,11 +16640,21 @@ def test_a_task_handed_to_a_worker_is_delegated_leaves_its_dispatcher_free_and_r
     first = tasks.save(Task(environment_id=MAIN, title="for the worker", brief="do it"), Actor.system())
     second = tasks.save(Task(environment_id=MAIN, title="for the agent", brief="do it"), Actor.system())
     tasks.handover(first, Ref(WORKERS, worker.id), Actor.system())
-    assert tasks.find(first.id).state == TaskState.DELEGATED, "a task handed to a worker is delegated"
+    assert tasks.find(first.id).delegated, "a task handed to a worker is delegated"
     assert app.console().run(["task", "start", str(second.id)], AGENT).code == 0, "and the agent that handed it over is free to start another"
     assert tasks.holder_task(Ref(WORKERS, worker.id)).id == first.id, "the worker holds it as its task in hand"
+    assert tasks.find(first.id).state == TaskState.OPEN, "a task handed to a worker keeps the state it has, open until the worker takes it up"
+    from journal.features.tasks.active_task import ActiveTask
+    from journal.support.caller import Caller
+    taking, babbage = app.container.get(ActiveTask), Caller.worker("main", worker.id, None, "claude")
+    taking.start(tasks.find(first.id), babbage)
+    assert tasks.find(first.id).state == TaskState.STARTED and tasks.find(first.id).delegated, "the worker starts it as any task is started, and it stays delegated"
+    tasks.save(tasks.find(first.id).paused("waiting for a file", datetime.now(timezone.utc)), Actor.system())
+    assert tasks.find(first.id).state == TaskState.PAUSED and tasks.find(first.id).delegated, "and it is paused the same way"
+    assert [task.id for task in tasks.other_started_tasks(None)] == [second.id], "a worker's task in progress is not another task the agent has started, only the agent's own is"
+    tasks.save(tasks.find(first.id).worker_started(datetime.now(timezone.utc)), Actor.system())
     tasks.release(Ref(WORKERS, worker.id), Actor.system())
-    assert tasks.find(first.id).state == TaskState.OPEN, "releasing the worker opens it again"
+    assert tasks.find(first.id).state == TaskState.OPEN and not tasks.find(first.id).delegated, "releasing the worker opens it again, no longer delegated"
     tasks.handover(tasks.find(first.id), Ref(WORKERS, worker.id), Actor.system())
     tasks.save(tasks.find(first.id).completed(datetime.now(timezone.utc), "merged"), Actor.system())
     assert tasks.find(first.id).state == TaskState.COMPLETED, "merging the worker's work finishes it"
@@ -16849,7 +17005,7 @@ def test_a_pool_dispatch_pushes_the_base_and_a_machine_with_a_free_slot_runs_it_
         offered = team.host_requests.waiting(team.devices.device(bob).id, PullQuery(0, 0, (), PoolSlots(1, 1), VERSION))
         assert [(request.kind, request.body["worker"], request.body["task"], request.body["profile"]) for request in offered] == [("pool_worker", "Lady Lovelace", 1, "journal-medior")], "the pool is asked with the worker's name, task and profile, offered to a teammate's machine with a free slot"
         worker = app.container.get(Workers).all()[0]
-        assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).state == "delegated", "the worker keeps the request's number and holds its task, though nothing runs here"
+        assert worker.pool_request == offered[0].id and app.container.get(Tasks).find(1).delegated, "the worker keeps the request's number and holds its task, though nothing runs here"
         with app.container.get(Scope).environment(MAIN):
             assert app.container.get(Workers).running_locally() == [], "a pool worker does not count against the workers out on this machine"
         from journal.features.workers.support.pool_lockfiles import PoolLockfiles
@@ -17468,7 +17624,7 @@ def test_a_task_waiting_on_a_task_delegated_to_a_worker_opens_when_that_tasks_wo
     with app.container.get(Scope).environment(MAIN):
         worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
         tasks.handover(tasks.find(1), Ref.build(worker), Actor.system())
-        assert tasks.find(1).state == TaskState.DELEGATED
+        assert tasks.find(1).delegated
     blocked = console.run(["task", "block", "2", "after the feature", "--on", "task:1"], AGENT)
     assert blocked.code == 0, blocked.error
     with app.container.get(Scope).environment(MAIN):
@@ -17487,7 +17643,7 @@ def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when
     hook(app, "SessionStart")
     console = app.console()
     console.run(["environment", "overview"], AGENT)
-    none_left = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "delegated"]}, "is": 0})
+    none_left = json.dumps({"count": "tasks", "where": {"state": ["open", "started", "paused"]}, "is": 0})
     assert made(console.run(["reminder", "create", "release 4.48.0", "--on", "task_completed", "--when", none_left, "--once"], USER)) == 1
     assert made(console.run(["fact", "create", "the changelog is written per task", "--on", "task_completed"], USER)) == 1
     console.run(["task", "create", "the parser"], USER)
@@ -17705,6 +17861,51 @@ def test_a_test_run_piped_into_a_filter_is_refused_and_a_whole_run_or_another_pi
         assert status == 409 and "hides the lines its reader reads" in body["error"] and "journal suite" in body["error"], line
     for line in ("python3 -m pytest -q tests/x.py", "git log --oneline | head -3", "npm test | tee out.txt", "grep -n 'a|b' src/x.py"):
         assert bash(line)[0] == 200, line
+
+
+def test_a_journal_command_that_hands_the_agent_its_next_step_is_refused_when_cut_and_one_not_declared_still_runs_piped(app: App):
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    bash = lambda line: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": line})
+    for line in ("journal sequence next 2>&1 | tail -4", "journal task show 3 | head -5", "journal message unread | grep hi", "(journal environment overview | cut -c1-80)", "journal worker merge 2 | tail -1"):
+        status, body = bash(line)
+        assert status == 409 and "hides the lines the journal speaks" in body["error"] and "run it on its own" in body["error"], line
+    for line in ("journal sequence next", "journal task list | tail -4", "journal message list | head -3", "git log | tail -3"):
+        assert bash(line)[0] == 200, line
+
+
+def test_an_outward_route_is_left_out_of_the_points_and_a_reader_add_tries_two_runs_at_once_and_the_older_ones_after(app: App, tmp_path):
+    from types import SimpleNamespace
+    from journal.support.listener_queue import ListenerQueue
+    from journal.features.faults.support.developer_tally import DeveloperTally
+    from journal.features.faults.support.slow_requests import SlowRequests
+    from journal.features.shell.support.reader_backfill import ReaderBackfill
+    from journal.models.support.request_loads import RequestLoads
+    from journal.models.timing import Timing
+    from journal.repositories.reader_reports import ReaderReports
+    app.container.get(SettingRows).set("faults.count_loads", True, Actor.user(1))
+    slow, tally = app.container.get(SlowRequests), app.container.get(DeveloperTally)
+    for path in ("/cli/plugin upgrade", "/journal/plans"):
+        slow.windowed("developer.requests", f"POST {path}", Timing(method="POST", route=path, ms=40, time=0.0, loads=RequestLoads()))
+    assert [part["name"] for part in tally.point_parts() if "plugin upgrade" in part["name"]] == [], "the plugin upgrade, which reaches outside, is no part of the points"
+    assert any(part["name"] == "POST /journal/plans" for part in tally.point_parts()), "and an ordinary answer still is"
+    runs = []
+    for number in range(5):
+        folder = tmp_path / f"run-{number}"
+        folder.mkdir()
+        (folder / "parts").write_text("R-\n")
+        (folder / "0.part").write_text("make all")
+        (folder / "0.out").write_text("built app\n")
+        runs.append(SimpleNamespace(id=number + 1, folder=str(folder), command="make all", session="s1"))
+    tried = []
+    judge = SimpleNamespace(stored_runs=lambda reader: runs, misses=lambda reader, lines: tried.append(1) or (["it picks no line of the run"] if len(tried) == 3 else []))
+    reports = app.container.get(ReaderReports)
+    backfill = ReaderBackfill(judge, reports, app.container.get(ListenerQueue), app.container.get(Scope))
+    backfill.queue_trial(SimpleNamespace(name="builds"), 2, MAIN)
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        raised = [report for report in reports.all() if report.reader == "builds"]
+    assert len(tried) == 3 and [report.output for report in raised] == [5], "the runs after the two tried at once are tried later, and the one that misses raises a report"
 
 
 def test_draining_a_worker_queue_writes_one_mark_and_no_unblocked_mark_per_task(app: App, monkeypatch):
@@ -19878,3 +20079,15 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
     if os.environ.get("MARKS_FREEZE") == "1":
         fixture.write_text(json.dumps(served, indent=1) + "\n")
     assert served == MarkKinds.served(registry.card_families(), registry.card_kinds()) == json.loads(fixture.read_text()), "the viewer's tests read the registry as it is served (re-freeze with MARKS_FREEZE=1 when the change is meant)"
+
+
+
+def test_a_fitness_that_falls_past_a_mark_is_told_once_and_a_rise_lets_the_marks_above_be_told_again():
+    from journal.features.workers.support.fitness_levels import FitnessLevels
+
+    told, said = 100, []
+    for score in (100, 96, 95, 91, 80, 90, 84):
+        said.append(FitnessLevels.is_fall(score, told, 5))
+        told = FitnessLevels.standing(score, 5)
+    assert said == [False, False, True, False, True, False, True], "100 to 96 nothing, 96 to 95 one, 95 to 91 nothing, 91 to 80 one, 80 to 90 nothing, 90 to 84 one"
+    assert FitnessLevels.is_fall(80, 100, 5) and not FitnessLevels.is_fall(94, 90, 5), "a fall past several marks is one fall"

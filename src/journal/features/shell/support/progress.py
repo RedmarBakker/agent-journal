@@ -24,10 +24,17 @@ class Progress:
         hits = [(number, match) for number, line in enumerate(lines) if (match := rows.search(line)) and cls.figures(match)]
         if not hits:
             return cls.empty()
+        total_text = hits[-1][1].groupdict().get("total")
+        if total_text and step:
+            return cls(min(cls.finished_items(re.compile(step), lines[hits[-1][0] + 1:]), int(total_text)), int(total_text), label)
         figures = cls.figures(hits[-1][1])
         total = figures[1] if len(figures) > 1 else PERCENT
         stepped = cls.stepped(re.compile(step), lines, hits) if step else 0.0
         return cls(min(int(figures[0] + stepped), total), total, label)
+
+    @staticmethod
+    def finished_items(step_pattern: re.Pattern, later_lines: list[str]) -> int:
+        return sum(1 for line in later_lines if step_pattern.search(line))
 
     @staticmethod
     def figures(match: re.Match) -> list[int]:

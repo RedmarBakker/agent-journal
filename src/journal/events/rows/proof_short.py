@@ -13,8 +13,8 @@ class ProofShort(RowEvent):
     worker_id: int
     point: int
     shortfall: str
-    dispatcher: str = ""
-    earlier: tuple[str, ...] = ()
+    dispatcher: str | None = None
+    prior_shortfalls: tuple[str, ...] = ()
     model: str = ""
 
     def is_reviewers(self) -> bool:

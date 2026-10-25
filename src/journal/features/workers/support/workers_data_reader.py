@@ -11,7 +11,6 @@ from journal.features.workers.support.worker_resumes import WorkerResumes
 from journal.features.workers.support.worker_worktree import WorkerWorktree
 from journal.features.workers.support.ready_work import ReadyWork
 from journal.models.agent import Agent
-from journal.models.worker_state import WorkerState
 from journal.models.support.ref import Ref
 from journal.repositories.command_outputs import CommandOutputs
 from journal.models.proof_state import ProofState
@@ -63,10 +62,11 @@ class WorkersDataReader:
             "todos": lambda: tuple(item for worker in facts.session_workers for task_id in self.tasks.holder_task_ids(Ref.build(worker)) for item in self.todos.task_items(self.tasks.find(task_id))),
             "tool_uses": lambda: ToolUseCounts.counted(agent),
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
-            "load": lambda: agent.load,
+            "crowd": lambda: agent.load,
+            "fitness_level": lambda: agent.data.get("fitness_level", 100),
             "merge_check": lambda: self.checks.failure(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
-            "resumable": lambda: tuple(w.id for w in self.workers.matching(state=WorkerState.UNFINISHED, dispatcher=agent.session) if self.resumes.is_resumable(w)),
+            "resumable": lambda: tuple(w.id for w in self.workers.unfinished_accepted(agent.session, self.resumes.is_resumable)),
             "queues": lambda: {worker: tuple(task.row_id for task in tasks) for worker, tasks in self.tasks.queues(self.workers.scoped()).items()},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

@@ -5,7 +5,7 @@ from dataclasses import replace
 from typing import Iterator
 
 from journal.console.command import SUBAGENT_KINDS, WORKER_KINDS
-from journal.support.caller_kind import CallerKind
+from journal.features.aliases.support.worker_alias_line import WorkerAliasLine
 from journal.models.alias import Alias
 from journal.console.console import Console
 from journal.features.aliases.support.alias_lines import AliasLines
@@ -33,8 +33,8 @@ EXEC = "__journal_exec"
 class CliController:
     """The shim posts an argv here; the server runs it on the console it already has loaded and answers with the outcome, or with the line an alias stands for, which the shim runs itself. A command from a shell whose launch id is not its environment's is not accepted as the running agent's."""
 
-    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, accounts: TeamAccounts, background: BackgroundCommands) -> None:
-        self.accounts, self.background = accounts, background
+    def __init__(self, console: Console, tokens: PluginTokens, subagents: SubagentCommands, launches: LaunchFiles, providers: Providers, aliases: AliasLines, identity: AgentIdentity, accounts: TeamAccounts, background: BackgroundCommands, worker_lines: WorkerAliasLine) -> None:
+        self.accounts, self.background, self.worker_lines = accounts, background, worker_lines
         self.console, self.tokens, self.subagents, self.launches, self.providers, self.aliases = console, tokens, subagents, launches, providers, aliases
         self.identity = identity
 
@@ -49,7 +49,7 @@ class CliController:
         variables = replace(self.providers.caller_variables(posted.environment), environment=request.environment)
         alias = self.aliases.called(posted.argv)
         if alias is not None and self.is_known(variables):
-            return self.alias_answer(alias, posted.argv, self.caller(variables, posted.argv, request).kind)
+            return self.alias_answer(alias, posted.argv, self.caller(variables, posted.argv, request))
         if self.is_known(variables) and self.background.is_background_command(posted.argv):
             return StreamResponse("text/plain", self.streamed(variables, posted.argv, request))
         outcome = self.outcome(variables, posted.argv, request) if self.is_known(variables) else self.token_refusal(variables)
@@ -61,29 +61,28 @@ class CliController:
 
     # a background command's printed lines go out as they are printed, into the output its shell line writes, its errors and exit line once it ends
     def streamed(self, variables: CallerVariables, argv: list[str], request: Request) -> Iterator[bytes]:
-        pieces: queue.Queue = queue.Queue()
+        lines: queue.Queue = queue.Queue()
         outcomes: list[Outcome] = []
         caller, context = self.caller(variables, argv, request), contextvars.copy_context()
-        threading.Thread(target=context.run, args=(self.performed, argv, caller, pieces, outcomes), name="cli-stream", daemon=True).start()
-        printed = ""
-        while (piece := pieces.get()) is not None:
-            printed += piece
-            yield piece.encode()
+        threading.Thread(target=context.run, args=(self.performed, argv, caller, lines, outcomes), name="cli-stream", daemon=True).start()
+        streamed_text = ""
+        while (text := lines.get()) is not None:
+            streamed_text += text
+            yield text.encode()
         outcome = outcomes[0]
-        rest = outcome.text[len(printed):] + outcome.error
-        yield self.ending(rest or ("\n" if printed and not printed.endswith("\n") else ""), outcome.code)
+        remainder = outcome.text[len(streamed_text):] + outcome.error
+        yield self.ending(remainder or ("\n" if streamed_text and not streamed_text.endswith("\n") else ""), outcome.code)
 
-    def performed(self, argv: list[str], caller: Caller, pieces: queue.Queue, outcomes: list[Outcome]) -> None:
+    def performed(self, argv: list[str], caller: Caller, lines: queue.Queue, outcomes: list[Outcome]) -> None:
         try:
-            outcomes.append(self.console.run_streamed(argv, caller, pieces))
+            outcomes.append(self.console.run_streamed(argv, caller, lines))
         finally:
-            pieces.put(None)
+            lines.put(None)
 
-    @staticmethod
-    def alias_answer(alias: Alias, argv: list[str], kind: CallerKind) -> StreamResponse:
-        if kind in WORKER_KINDS | SUBAGENT_KINDS:
-            return StreamResponse("text/plain", iter([f"a {kind} may not run the alias journal {argv[0]}: an alias is the main agent's own shell line\n{EXIT} 1\n".encode()]))
-        return StreamResponse("text/plain", iter([f"{EXEC} {alias.terminal_line(argv[1:])}\n{EXIT} 0\n".encode()]))
+    def alias_answer(self, alias: Alias, argv: list[str], caller: Caller) -> StreamResponse:
+        if caller.kind in WORKER_KINDS | SUBAGENT_KINDS and not (alias.worker_access and caller.kind in WORKER_KINDS):
+            return StreamResponse("text/plain", iter([f"a {caller.kind} may not run the alias journal {argv[0]}: an alias is the main agent's own shell line\n{EXIT} 1\n".encode()]))
+        return StreamResponse("text/plain", iter([f"{EXEC} {alias.terminal_line(self.worker_lines.argv(argv, caller)[1:])}\n{EXIT} 0\n".encode()]))
 
     def is_known(self, variables: CallerVariables) -> bool:
         plugin_proof = variables.plugin is None or self.tokens.matches(variables.plugin, variables.token)

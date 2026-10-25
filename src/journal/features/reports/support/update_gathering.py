@@ -34,7 +34,7 @@ class UpdateGathering:
             *(self.item("need", question, question.text) for question in self.questions.open()),
             *(self.item("need", plan, plan.title_words()) for plan in self.plans.matching(state=PlanState.READY)),
             *(self.item("done", task, task.title_words()) for task in self.tasks.recent_completions(start, end)),
-            *(self.item("doing", task, task.title_words()) for state in (TaskState.STARTED, TaskState.DELEGATED) for task in self.tasks.with_state(state)),
+            *(self.item("doing", task, task.title_words()) for task in self.tasks.with_state(TaskState.STARTED)),
             *(self.item("plans", plan, plan.title_words()) for plan in self.plans.matching(state=PlanState.STARTED)),
             *(self.item("commits", commit, self.commit_title(commit)) for commit in self.messages.recent_commits(start, end, COMMITS_SHOWN)),
             *(self.item("also", row, row.title_words()) for row in (*self.docs.recent_docs(start, end), *self.reports.recent_reports(start, end))),

@@ -31,7 +31,7 @@ from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
 from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
-from journal.features.workers.workers_profiles import WorkersProfiles
+from journal.features.workers.support.orchestrator_mode import OrchestratorMode
 from journal.support.caller_kind import CallerKind
 CURRENT = "current"
 
@@ -40,9 +40,11 @@ APPROVAL_REFUSAL = "only the user approves this plan: ask, then wait for their w
 
 class PlanCommand(Command):
     noun = "plan"
+    uncut_verbs = frozenset({"start", "show", "priorities"})
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination, orchestrator: OrchestratorMode) -> None:
+        self.orchestrator = orchestrator
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
         self.settings, self.drives, self.statuses, self.phase_testing, self.destination = settings, drives, statuses, phase_testing, destination
@@ -214,13 +216,10 @@ class PlanCommand(Command):
         plan = self.plans.find(args.n)
         if refusal := self.phase_testing.refusal(plan):
             raise Rejection(refusal)
-        plan = self.plans.opened(plan, caller.actor) if self.is_orchestrating() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
+        plan = self.plans.opened(plan, caller.actor) if self.orchestrator.is_set() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0
-
-    def is_orchestrating(self) -> bool:
-        return self.settings.option(WorkersOptions.MODE) == WorkersProfiles.ORCHESTRATOR.mode
 
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
@@ -281,9 +280,9 @@ class PlanCommand(Command):
         started = self.statuses.started()
         if not started:
             print("no plan is started")
-        now = time.time()
+        moment = time.time()
         for status in started:
-            print(f"started: {status.line(now)}")
+            print(f"started: {status.line(moment)}")
             self.shown(self.plans.find(status.plan_id))
         return 0
 

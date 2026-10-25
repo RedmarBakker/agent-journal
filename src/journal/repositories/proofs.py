@@ -1,6 +1,7 @@
 from journal.db.connection import Connection
 from journal.events.bus import Bus
 from journal.models.proof import Proof
+from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.linked_rows import LinkedRows
 from journal.repositories.links import Links
@@ -20,6 +21,9 @@ class Proofs(ScopedRepository[Proof], LinkedRows):
 
     def task_proofs(self, task: Task) -> list[Proof]:
         return sorted(self.children(task), key=lambda proof: proof.point)
+
+    def short_proofs(self, task: Task) -> list[Proof]:
+        return [proof for proof in self.children(task) if proof.state == ProofState.SHORT]
 
     def changed_point_proofs(self, task: Task, points: tuple[int, ...]) -> list[Proof]:
         return [proof for proof in self.children(task) if proof.point in points]

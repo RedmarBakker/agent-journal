@@ -6,6 +6,9 @@ from journal.repositories.repository import Repository
 class Users(Repository[User]):
     model = User
 
+    def with_name(self, name: str) -> list[User]:
+        return self.matching(name=name)
+
     def email_match(self, email: str) -> User:
         rows = self.matching(email=email)
         if not rows:

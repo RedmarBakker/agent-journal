@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from journal.support.rejection import Rejection
 
 CHOICES = "each, queue or every <n> of two or more"
-POOL_REFUSAL = "a pool worker reports after each task for now: it pushes its branch at each clock-out and takes one task per request, so --report queue and --report every are refused with --pool"
 
 
 @dataclass(frozen=True)
@@ -26,7 +25,7 @@ class ReportChoice:
             return cls(int(values[1]))
         raise Rejection(f"--report takes {CHOICES}, not '{' '.join(values)}'")
 
-    def is_due(self, finished: int, queued: int) -> bool:
+    def is_report_due(self, finished: int, queued: int) -> bool:
         if not queued:
             return True
         return bool(self.tasks) and finished + 1 >= self.tasks

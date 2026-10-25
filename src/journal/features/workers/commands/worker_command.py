@@ -21,7 +21,7 @@ from journal.providers.providers import Providers
 from journal.support.rejection import Rejection
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.features.workers.support.report_fitting import ReportFitting
-from journal.models.support.report_choice import POOL_REFUSAL, ReportChoice
+from journal.models.support.report_choice import ReportChoice
 from journal.repositories.messages import Messages
 from journal.repositories.scope import Scope
 from journal.repositories.subagents import Subagents
@@ -46,6 +46,7 @@ from journal.features.workers.workers_options import JOURNAL_TESTING, MERGER_TES
 from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.templates.shipped import BUDGET_TESTS, JOURNAL_TESTS, SCOPED_TESTS, ZERO_TESTS
 
+DELEGATED_REFUSAL = "task {n} is delegated to a worker already: send that worker the next job, or release it first"
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
 ASSIGNMENT_REFUSALS = {
     TaskState.COMPLETED: "task {n} is {state}: a worker is started only on an open task or one you hold",
@@ -53,7 +54,6 @@ ASSIGNMENT_REFUSALS = {
     TaskState.BLOCKED: "task {n} is {state}: unblock it before a worker takes it",
     TaskState.STARTED: "task {n} is started in another's hands: a worker is started only on an open task or one you hold",
     TaskState.PAUSED: "task {n} is {state} in another's hands: a worker is started only on an open task or one you hold",
-    TaskState.DELEGATED: "task {n} is delegated to a worker already: send that worker the next job, or release it first",
 }
 
 EMPTY_CHANGES = ("", "none", "nothing", "no files", "n/a", "-", "read only", "read-only", "nothing, it only reads")
@@ -62,6 +62,7 @@ TEST_COMMAND_MISSING = "the journal runs each worker's tests with the project's 
 
 class WorkerCommand(Command):
     noun = "worker"
+    uncut_verbs = frozenset({"merge", "check", "wait"})
     background_verbs = frozenset({"merge"})
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
@@ -157,10 +158,8 @@ class WorkerCommand(Command):
             raise Rejection(self.starts.hosted_refusal())
         if self.is_test_command_missing():
             raise Rejection(TEST_COMMAND_MISSING)
-        if args.pool and args.report and ReportChoice.argument(args.report).tasks != 1:
-            raise Rejection(POOL_REFUSAL)
         self.worker_profile(args.profile)
-        output = self.workers.held_locally()
+        output = self.workers.local_workers()
         maximum = self.settings.integer(WorkersOptions.WORKER_LIMIT)
         if maximum and len(output) >= maximum:
             waiting = self.workers.checkable_workers()
@@ -180,12 +179,10 @@ class WorkerCommand(Command):
             return self.pooled(worker, task, args, caller, moment)
         return self.launched(worker, task, caller)
 
-    # the report choice named, else the queue's end, but after each task for a pool worker, which takes one task per request
+    # the report choice named, else the queue's end
     @staticmethod
     def report_choice(args: Namespace) -> ReportChoice:
-        if args.report:
-            return ReportChoice.argument(args.report)
-        return ReportChoice(1) if args.pool else ReportChoice()
+        return ReportChoice.argument(args.report) if args.report else ReportChoice()
 
     def launched(self, worker: Worker, task: Task, caller: Caller) -> int:
         try:
@@ -241,6 +238,8 @@ class WorkerCommand(Command):
             plan.task_startable(task.id)
         if self.is_holder(task, caller) or task.is_assignable():
             return task
+        if task.delegated and not task.state.is_closed():
+            raise Rejection(DELEGATED_REFUSAL.format(n=n))
         raise Rejection(ASSIGNMENT_REFUSALS.get(task.state, EMPTY_BRIEF_REFUSAL).format(n=n, state=task.state))
 
     def is_holder(self, task: Task, caller: Caller) -> bool:
@@ -277,7 +276,7 @@ class WorkerCommand(Command):
             raise Rejection(f"worker {args.n} holds task {holdings[0]} until its work is merged or released: send it the next job on that task, or release it first")
         if caller.worker_number is not None and (args.model or args.profile):
             raise Rejection("only the agent that dispatched a worker changes its model or its profile")
-        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.send_on(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
+        worker = self.actions.peer_send(args.n, args.brief, caller.worker_number, caller.actor) if caller.worker_number is not None else self.actions.resend(args.n, args.brief, *self.staffing(args), caller.session, caller.actor)
         if args.task:
             self.tasks.handover(self.tasks.find(args.task), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} told, on {worker.model}; it reports in the chat when it ends")
@@ -294,7 +293,7 @@ class WorkerCommand(Command):
         return 0
 
     def merge(self, args: Namespace, caller: Caller) -> int:
-        outcome = self.actions.merge(args.n, caller.actor, MergeSteps(print))
+        outcome = self.actions.merge(args.n, caller.actor, MergeSteps(lambda line: print(line)))
         print(f"task {outcome.task.id} done: {outcome.task.outcome}")
         print(outcome.worktree or "it had no worktree")
         if outcome.finished:
@@ -308,9 +307,9 @@ class WorkerCommand(Command):
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
         if args.report:
-            worker = self.actions.chose_report(worker.id, ReportChoice.argument(args.report), caller.actor)
+            worker = self.actions.set_report_choice(worker.id, ReportChoice.argument(args.report), caller.actor)
         for n in reversed(args.tasks) if args.first else args.tasks:
-            self.tasks.let_go(self.tasks.find(n), self.taking.holder(caller), caller.actor)
+            self.tasks.drop_holder(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it; it reports {worker.report_choice.label()}")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:

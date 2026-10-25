@@ -1518,3 +1518,15 @@ def test_a_migration_that_raises_is_rolled_back_reported_retried_next_boot_and_t
     later = MigrationFailures()
     second_run = Migrator(connection, schema, (Makes(9001, "first_made"), Makes(9002, "second_made"), Makes(9003, "third_made")), later).run()
     assert [m.number for m in second_run] == [9002] and not later.rows and "second_made" in tables(), "it was left unrecorded, so the next boot runs it again"
+
+
+def test_the_delegated_flag_migration_gives_every_delegated_task_the_state_it_really_has(connection):
+    from journal.db.migrations.delegated_flag import DelegatedFlag
+    for number, state in ((1, "delegated"), (2, "delegated"), (3, "open"), (4, "delegated")):
+        connection.execute("INSERT INTO tasks (id, environment_id, title, state, created_at, creator) VALUES (?, 1, 't', ?, '2026-10-25', 'system')", (number, state))
+    connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('workers:1', 'tasks:1', 'in_hand', '2026-10-25', 'system')")
+    connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('workers:2', 'tasks:2', 'queued_for', '2026-10-25', 'system')")
+    connection.execute("INSERT INTO links (source, target, kind, created_at, creator) VALUES ('workers:3', 'tasks:4', 'finished_unmerged', '2026-10-25', 'system')")
+    DelegatedFlag().apply(connection)
+    rows = {row["id"]: (row["state"], row["delegated"]) for row in connection.all("SELECT id, state, delegated FROM tasks")}
+    assert rows == {1: ("started", 1), 2: ("open", 1), 3: ("open", 0), 4: ("open", 1)}, "held in hand is started, queued or finished and not merged is open, all flagged, and the rest not flagged"

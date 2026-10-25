@@ -24,8 +24,7 @@ class EndedAgentTasks(AgentListener[SessionStarted]):
         starting = self.agents.session_agent(event.session)
         moment = datetime.fromtimestamp(event.time, timezone.utc)
         ended = self.agents.ended_main_query(event.environment_id).filter_unequal("id", starting.id)
-        for task in self.tasks.agent_held(TaskState.STARTED, ended):
+        for task in self.tasks.agents_tasks(TaskState.STARTED, ended):
             self.tasks.save(task.paused(ENDED_REASON, moment), Actor.system())
-        for task in self.tasks.agent_held(TaskState.PAUSED, self.agents.query().filter(id=starting.id)):
-            if task.pause_reason == ENDED_REASON:
-                self.tasks.save(task.started(moment), Actor.system())
+        for task in self.tasks.agents_paused_with(ENDED_REASON, self.agents.query().filter(id=starting.id)):
+            self.tasks.save(task.started(moment), Actor.system())

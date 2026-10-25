@@ -4,13 +4,13 @@ from pathlib import Path
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_commands import ReaderCommands
-from journal.features.shell.support.reader_judge import COUNT_PATTERN, PERCENT_PATTERN, SUMMARY_PATTERN, ReaderJudge
+from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountForms
+from journal.features.shell.support.reader_judge import SUMMARY_PATTERN, ReaderJudge
 from journal.features.shell.support.readers import Readers
 from journal.models.command_output import CommandOutput
 from journal.support.command_shape import CommandShape
 
 PERCENT_PROGRESS = r"(\d+)%"
-COUNT_PROGRESS = r"(\d+)\s*/\s*(\d+)"
 FAILURE_PATTERN = re.compile(r"\b(?:FAILED|FAIL|ERROR|Traceback)\b|\bfailed\b|\berror:", re.IGNORECASE)
 
 
@@ -38,13 +38,14 @@ class ReaderGuess:
         return next((reader for reader in self.readers.all() if any(program_text.split()[0] == program for program_text in reader.commands.programs) and not self.judge.misses(reader, lines)), None)
 
     @staticmethod
-    def progress_pattern(lines: list[str]) -> str:
+    def progress_patterns(lines: list[str]) -> tuple[str, str]:
         if any(PERCENT_PATTERN.search(line) for line in lines):
-            return PERCENT_PROGRESS
-        return COUNT_PROGRESS if any(COUNT_PATTERN.search(line) for line in lines) else ""
+            return PERCENT_PROGRESS, ""
+        form = CountForms.form(lines)
+        return (form.progress, form.step) if form else ("", "")
 
     def built(self, name: str, lines: list[str]) -> Reader | None:
-        progress = self.progress_pattern(lines)
+        progress, step = self.progress_patterns(lines)
         summary = f"(?i:{SUMMARY_PATTERN.pattern})" if any(SUMMARY_PATTERN.search(line) for line in lines) else ""
         failures = f"(?i:{FAILURE_PATTERN.pattern})" if any(FAILURE_PATTERN.search(line) for line in lines) else ""
         patterns = [pattern for pattern in (failures, summary) if pattern]
@@ -52,4 +53,4 @@ class ReaderGuess:
             return None
         subject = " and ".join(word for word, present in (("progress", progress), ("failure lines", failures), ("summary", summary)) if present)
         return Reader(re.sub(r"[^a-z0-9]+", "-", f"{name} output".lower()).strip("-"), f"the {subject} of {name} runs, written from a run's own output", "|".join(f"(?:{pattern})" for pattern in patterns),
-                      progress_pattern=progress, commands=ReaderCommands((name,)), finished_pattern=summary, failed_pattern=failures)
+                      progress_pattern=progress, step_pattern=step, commands=ReaderCommands((name,)), finished_pattern=summary, failed_pattern=failures)

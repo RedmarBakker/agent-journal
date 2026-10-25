@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from journal.features.shell.support.card_line import CardLine
+from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountForms
 from journal.features.shell.support.output_files import OutputFiles
 from journal.features.shell.support.progress_stalls import ProgressStalls
 from journal.features.shell.support.reader import Reader
@@ -11,6 +12,7 @@ from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.streaming_form import StreamingForm
 from journal.models.command_output import ACTIVE, FAILED, FINISHED, CommandOutput
 from journal.repositories.command_outputs import CommandOutputs
+from journal.repositories.run_history import RunHistory
 from journal.models.reader_report import ReaderReport
 from journal.support.command_shape import CommandShape
 from journal.features.shell.shell_options import ShellOptions
@@ -25,8 +27,6 @@ STALL_SECONDS = 20
 QUOTED_LINES = 3
 # the newest runs looked through for a stored output of the command a new reader reads
 NEWEST_RUNS = 200
-COUNT_PATTERN = re.compile(r"\b(\d+)\s*/\s*(\d+)\b")
-PERCENT_PATTERN = re.compile(r"\[\s*(\d+)%\]")
 SUMMARY_PATTERN = re.compile(r"\b\d+\s+(?:passed|failed|skipped|errors?|tests?|warnings?|deselected)\b|\b(?:tests?|ran|finished|built|done)\b.*\b(?:in|took)\s+[\d.]+\s*m?s\b", re.IGNORECASE)
 PROGRESS_MISSING = "its card showed no progress"
 PROGRESS_STALLED = "its progress stood still for"
@@ -34,18 +34,24 @@ SUMMARY_MISSING = "the card ended with no line of its own"
 POOR_LINES = "the card showed lines too long"
 SINGLE_WORD = "the card showed a line of one word"
 SUMMARY_READER_MISSING = "its card had no summary reader"
-FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING)
+MIXED_TITLE = "its title was given to runs that do different things"
+TOTAL_MISSING = "the run prints a counter and no total"
+FINDING_KINDS = (POOR_LINES, SINGLE_WORD, PROGRESS_MISSING, PROGRESS_STALLED, SUMMARY_MISSING, SUMMARY_READER_MISSING, MIXED_TITLE, TOTAL_MISSING)
+# the newest runs of a reader looked through for one title given to different work
+MIXED_RUNS = 6
+TEST_TOTALS = re.compile(r"\b\d+\s+(?:passed|failed|tests?)\b|^\s*Tests?\s+\d+|^\s*Test Files\b", re.IGNORECASE)
+BUILD_LINE = re.compile(r"\bbuilt in\b|\bbuild (?:succeeded|complete|finished)\b", re.IGNORECASE)
 
 
 class ReaderJudge:
     """Judges what a reader showed of a run once it ended: lines short and readable, its progress shown while a long run went, and a summary at the end; whatever falls short becomes a report with its evidence and the fix for that tool."""
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, stalls: ProgressStalls, reports: ReaderReports, settings: SettingRows, history: RunHistory) -> None:
         self.readers, self.outputs, self.stalls, self.reports, self.settings = readers, outputs, stalls, reports, settings
+        self.history = history
 
-    def latest_stored_run(self, reader: Reader) -> CommandOutput | None:
-        runs = self.outputs.latest(NEWEST_RUNS)
-        return next((run for run in runs if reader.commands.is_shown_run(run.command) and OutputFiles(Path(run.folder)).is_stored()), None)
+    def stored_runs(self, reader: Reader) -> list[CommandOutput]:
+        return self.history.latest_accepted(NEWEST_RUNS, lambda run: reader.commands.is_shown_run(run.command) and OutputFiles(Path(run.folder)).is_stored())
 
     def report(self, output: CommandOutput, ended_at: datetime) -> ReaderReport | None:
         reader = self.readers.found(output.watch_reader)
@@ -53,7 +59,7 @@ class ReaderJudge:
         if reader is None or reader.script or not files.is_stored() or reader.commands.programs and not reader.commands.is_shown_run(output.command):
             return None
         lines = files.lines()
-        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at)]
+        candidates = [*self.poor_lines(reader, output, lines), *self.single_word_lines(reader, output, lines), *self.missing_progress(reader, output, lines, ended_at), *self.stalled_progress(output), *self.missing_summary(reader, output, lines), *self.missing_summary_reader(reader, output, lines, ended_at), *self.mixed_title(reader, output), *self.missing_total(lines)]
         kinds = self.dismissal_kinds(output.command, ended_at)
         shortfalls = [shortfall for shortfall in candidates if not any(kind in shortfall[0] for kind in kinds)]
         if not shortfalls:
@@ -96,7 +102,7 @@ class ReaderJudge:
 
     @staticmethod
     def has_progress(lines: list[str]) -> bool:
-        return any(PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line) for line in lines)
+        return CountForms.has_total(lines)
 
     def missing_summary(self, reader: Reader, output: CommandOutput, lines: list[str]) -> list[tuple[str, str]]:
         if reader.variant(output.stage()).card_lines(lines) or not lines:
@@ -110,13 +116,40 @@ class ReaderJudge:
         last = next((line for line in reversed(lines) if SUMMARY_PATTERN.search(line)), lines[-1])
         return [(f"the run took {seconds:.0f} seconds and {SUMMARY_READER_MISSING}", f"give the reader a --summary pattern that picks the figures of its summary line, \"{last[:120]}\", in a few words, such as --summary '(\\d+ failed), (\\d+ passed)'")]
 
+    @staticmethod
+    def prints_total(self, output: CommandOutput) -> bool:
+        files = OutputFiles(Path(output.folder))
+        return files.is_stored() and CountForms.has_total(files.lines())
+
+    @staticmethod
+    def missing_total(lines: list[str]) -> list[tuple[str, str]]:
+        if not CountForms.lacks_total(lines):
+            return []
+        return [(f"{TOTAL_MISSING}, so no progress can be worked out", "make the run print its total as well, such as 'collected 40 items' before the first, or a count of a total on each line, 12/40, so the reader can show how far it has come")]
+
+    def mixed_title(self, reader: Reader, output: CommandOutput) -> list[tuple[str, str]]:
+        runs = self.history.reader_ended(reader.name, MIXED_RUNS)
+        programs = sorted({name.split()[0] for run in runs if (name := CommandShape.command_name(run.command))})
+        kinds = sorted({kind for run in runs if (kind := self.work_kind(run))})
+        if len(programs) < 2 and len(kinds) < 2:
+            return []
+        kinds_text = f"the programs {', '.join(programs)}" if len(programs) > 1 else f"runs that print {' and '.join(kinds)}"
+        return [(f"{MIXED_TITLE}: \"{output.watch_title or reader.label}\" named for {kinds_text}", "narrow the reader's --commands to the one program it reads, and give the other run a reader of its own with a title that says what it does")]
+
+    @staticmethod
+    def work_kind(run: CommandOutput) -> str:
+        files = OutputFiles(Path(run.folder))
+        lines = files.lines() if files.is_stored() else []
+        if any(TEST_TOTALS.search(line) for line in lines):
+            return "test totals"
+        return "a build line" if any(BUILD_LINE.search(line) for line in lines) else ""
+
     def misses(self, reader: Reader, lines: list[str]) -> list[str]:
         misses = []
         if lines and not any(reader.variant(stage).card_lines(lines) for stage in (ACTIVE, FINISHED, FAILED)):
             misses.append(f"it picks no line of the run, whose last lines were {self.quoted(lines[-QUOTED_LINES:])}")
-        progress_lines = [line for line in lines if PERCENT_PATTERN.search(line) or COUNT_PATTERN.search(line)]
-        if progress_lines and not reader.progress(lines).is_known():
-            misses.append(f"it shows no progress, though the run printed {self.quoted(progress_lines[-QUOTED_LINES:])}: {self.progress_fix('', lines)}")
+        if CountForms.has_total(lines) and not reader.progress(lines).is_known():
+            misses.append(f"it shows no progress, though the run printed {self.quoted(CountForms.progress_lines(lines)[-QUOTED_LINES:])}: {self.progress_fix('', lines)}")
         summary = next((line for line in reversed(lines) if SUMMARY_PATTERN.search(line)), "")
         if summary and summary not in reader.variant(FINISHED).card_lines(lines):
             misses.append(f"it does not end on a line of its own, though the run printed the summary {self.quoted([summary])}: give it a --finished pattern that picks it")
@@ -138,6 +171,8 @@ class ReaderJudge:
         progress_unshown = any(PROGRESS_MISSING in finding for finding in report.findings) and not reader.progress(lines).is_known() and self.has_progress(lines)
         if progress_unshown:
             fixes.append(self.progress_fix(output.command, lines))
+        if any(TOTAL_MISSING in finding for finding in report.findings) and CountForms.lacks_total(lines):
+            fixes.append(f"{TOTAL_MISSING}: make it print its total as well, so the reader can work out how far it has come")
         if any(PROGRESS_STALLED in finding for finding in report.findings) and self.stalls.longest_seconds(output.row_id) > STALL_SECONDS:
             fixes.append(f"{PROGRESS_STALLED} {self.stalls.longest_seconds(output.row_id):.0f} seconds while the run went on: make it print its progress as it goes")
         summary = next((line for line in lines if SUMMARY_PATTERN.search(line)), "")
@@ -150,6 +185,7 @@ class ReaderJudge:
     def progress_fix(command: str, lines: list[str]) -> str:
         if any(PERCENT_PATTERN.search(line) for line in lines):
             return "the run prints a percentage: give the reader --progress '\\[\\s*(\\d+)%\\]'"
-        if any(COUNT_PATTERN.search(line) for line in lines):
-            return "the run prints a count of a total: give the reader --progress '(\\d+)/(\\d+)'"
+        form = CountForms.form(lines)
+        if form is not None:
+            return form.advice
         return StreamingForm.advice(CommandShape.command_name(command))

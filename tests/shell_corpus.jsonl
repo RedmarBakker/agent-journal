@@ -745,7 +745,7 @@
 {"line": "corepack enable && corepack prepare pnpm@9 --activate", "parts": ["corepack enable", "corepack prepare pnpm@9 --activate"], "reading": {"work": "corepack", "reader": "", "needs": "", "cut": "", "label": "running corepack"}}
 {"line": "npm run -s lint | head -20; npm run -s typecheck", "parts": ["npm run -s lint | head -20", "npm run -s typecheck"], "reading": {"work": "npm run -s", "reader": "", "needs": "", "cut": "", "label": "checking code"}}
 {"line": "npx -y serve -s build -l 5000", "parts": ["npx -y serve -s build -l 5000"], "reading": {"work": "npx serve", "reader": "", "needs": "", "cut": "", "label": "running serve"}}
-{"line": "npm exec -- tsc -p tsconfig.build.json && npm run copy:assets", "parts": ["npm exec -- tsc -p tsconfig.build.json", "npm run copy:assets"], "reading": {"work": "npm run copy:assets", "reader": "", "needs": "", "cut": "", "label": "running npm"}}
+{"line": "npm exec -- tsc -p tsconfig.build.json && npm run copy:assets", "parts": ["npm exec -- tsc -p tsconfig.build.json", "npm run copy:assets"], "reading": {"work": "npm run copy:assets", "reader": "build", "needs": "", "cut": "", "label": "checking code"}}
 {"line": "pip install -r requirements.txt && pytest -q", "parts": ["pip install -r requirements.txt", "pytest -q"], "reading": {"work": "pytest", "reader": "install", "needs": "", "cut": "", "label": "installing"}}
 {"line": "pytest -k \"login and not slow\" -x -q && echo passed", "parts": ["pytest -k \"login and not slow\" -x -q", "echo passed"], "reading": {"work": "pytest", "reader": "pytest", "needs": "", "cut": "", "label": "testing"}}
 {"line": "pytest tests/test_api.py::test_create -vv; pytest -k 'a or b' -q", "parts": ["pytest tests/test_api.py::test_create -vv", "pytest -k 'a or b' -q"], "reading": {"work": "pytest", "reader": "pytest", "needs": "", "cut": "", "label": "testing"}}
@@ -16864,3 +16864,5 @@
 {"line": "DEBUG=* node index.js 2>&1 | head -50", "parts": ["DEBUG=* node index.js 2>&1 | head -50"], "reading": {"work": "index.js head", "reader": "", "needs": "", "cut": "head -50", "label": "running a script"}}
 {"line": "time python scripts/benchmark.py", "parts": ["time python scripts/benchmark.py"], "reading": {"work": "benchmark.py", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
 {"line": "xvfb-run -a python scripts/screenshot.py", "parts": ["xvfb-run -a python scripts/screenshot.py"], "reading": {"work": "screenshot.py", "reader": "", "needs": "", "cut": "", "label": "running a script"}}
+{"line": "npm --prefix src/web exec -- vitest run tests/reportBubble.test.js", "parts": ["npm --prefix src/web exec -- vitest run tests/reportBubble.test.js"], "reading": {"work": "vitest", "reader": "vitest", "needs": "", "cut": "", "label": "testing"}}
+{"line": "npm --prefix src/web run build", "parts": ["npm --prefix src/web run build"], "reading": {"work": "npm run build", "reader": "build", "needs": "", "cut": "", "label": "building"}}

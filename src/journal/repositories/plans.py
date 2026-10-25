@@ -78,7 +78,7 @@ class Plans(ScopedRepository[Plan]):
         return sum(self.unassigned_count(plan) for plan in (*self.approved(), *self.running_plans()))
 
     def unassigned_count(self, plan: Plan) -> int:
-        return self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.OPEN))
+        return self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.OPEN, delegated=False))
 
     def blocked_count(self, plan: Plan) -> int:
         return self.tasks.counted(self.plan_task_query(plan).filter(state=TaskState.BLOCKED))
@@ -186,11 +186,11 @@ class Plans(ScopedRepository[Plan]):
         return self.first_task(plan, TaskState.PAUSED, self.tasks.query()) or self.next_task(plan)
 
     def started_task(self, plan: Plan) -> Task | None:
-        started = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED).order("id").limit(1))
+        started = self.tasks.selected(self.plan_task_query(plan).filter(state=TaskState.STARTED, delegated=False).order("id").limit(1))
         return started[0] if started else None
 
     def next_task(self, plan: Plan) -> Task | None:
-        startable = self.tasks.query().filter(state=TaskState.OPEN).filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
+        startable = self.tasks.query().filter(state=TaskState.OPEN, delegated=False).filter_unlisted("id", sorted(self.waiting_task_ids(plan))).filter_absent(self.worker_holdings())
         return self.first_task(plan, TaskState.OPEN, startable)
 
     # the order a plan's work is taken up in: a paused task first, then a blocked one to check, then the next open one
@@ -235,7 +235,7 @@ class Plans(ScopedRepository[Plan]):
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)
         task = self.resumable(plan)
-        if task is None or self.is_done(plan):
+        if task is None or self.is_complete(plan):
             return self.opened(plan, actor)
         following = task.plan_started(time, plan.row_id)
         self.tasks.assign_holder(following, holder, actor)
@@ -245,9 +245,9 @@ class Plans(ScopedRepository[Plan]):
 
     def opened(self, plan: Plan, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc).timestamp()
-        return self.save(plan.finished(time) if self.is_done(plan) else plan.started_without_task(time), actor)
+        return self.save(plan.finished(time) if self.is_complete(plan) else plan.started_without_task(time), actor)
 
-    def is_done(self, plan: Plan) -> bool:
+    def is_complete(self, plan: Plan) -> bool:
         return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
     def postpone(self, plan: Plan, actor: Actor) -> Plan:

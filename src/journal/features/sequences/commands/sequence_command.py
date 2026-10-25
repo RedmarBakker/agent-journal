@@ -15,6 +15,7 @@ from journal.features.sequences.sequences_nudges import SequencesNudges
 
 class SequenceCommand(Command):
     noun = "sequence"
+    uncut_verbs = frozenset({"run", "follow", "next"})
 
     def __init__(self, sequences: Sequences, active: RunTracker, scope: Scope, announcer: Announcer) -> None:
         self.sequences, self.running, self.scope, self.announcer = sequences, active, scope, announcer

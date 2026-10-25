@@ -59,7 +59,7 @@ At a mark of the context window, writes wait until you decide what must be retai
   is JSON: `{"count": "<table>", "where": {"<field>": <value or [values]>}, "is" | "at_least" | "at_most": <number>}`,
   several joined as `{"all": [...]}` or `{"any": [...]}`. For a reminder to release once every task is done:
   `journal reminder create "Release 4.48.0" --on task_completed --when '{"count": "tasks", "where": {"state":
-  ["open", "started", "delegated"]}, "is": 0}' --once`. A field with set values, such as a task's state, refuses
+  ["open", "started", "paused"]}, "is": 0}' --once`. A field with set values, such as a task's state, refuses
   a value it never has. When its moment comes you are informed
   `reminder <n> is for this moment: journal reminder read <n>`; read it and act on it.
 - Read this skill before any `journal fact`, `rule`, `reminder` or `memory` command: those commands wait until you have.

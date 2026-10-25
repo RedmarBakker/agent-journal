@@ -36,8 +36,10 @@ class ArrivalCommand(Command):
         if not holdings:
             raise Rejection(f"worker {worker.id} holds no task: a worker clocks in on the task it was sent on")
         moment, task = datetime.now(timezone.utc), self.tasks.find(holdings[0])
-        if task.state != TaskState.DELEGATED:
-            self.tasks.save(task.delegated(moment), caller.actor)
+        if not task.delegated:
+            task = self.tasks.save(task.delegate(moment), caller.actor)
+        if task.state != TaskState.STARTED:
+            self.tasks.save(task.worker_started(moment), caller.actor)
         if self.moves.is_remote(worker):
             self.moves.ask(worker, READY, {}, caller.actor)
         else:

@@ -10,6 +10,7 @@ from journal.features.shell.support.output_process_card import OutputProcessCard
 from journal.features.shell.support.readers import Readers
 from journal.engine.support.lazy_facts import LazyFacts
 from journal.config import Config
+from journal.features.registry import Registry
 from journal.models.agent import Agent
 from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
@@ -30,8 +31,8 @@ RECENT_MOVES = 10
 class ShellDataReader:
     """Reads the shell feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields ShellData names."""
 
-    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports) -> None:
-        self.reports = reports
+    def __init__(self, outputs: CommandOutputs, entries: Entries, readers: Readers, card: OutputProcessCard, aliases: Aliases, config: Config, environments: Environments, scope: Scope, stages: StageTimes, reports: ReaderReports, registry: Registry) -> None:
+        self.reports, self.registry = reports, registry
         self.outputs, self.entries, self.readers, self.card, self.aliases, self.config, self.environments = outputs, entries, readers, card, aliases, config, environments
         self.scope, self.stages = scope, stages
 
@@ -49,16 +50,12 @@ class ShellDataReader:
             "watch": lambda: self.watch(agent),
             "aliases": lambda: tuple(self.aliases.rows()),
             "unwatched_commands": lambda: self.unwatched_commands(agent),
-            "watch_command": lambda: self.watch_command(agent),
             "unread_reports": lambda: tuple(report.id for report in self.reports.unread(agent.session)),
             "unfixed_reports": lambda: tuple(report.id for report in self.reports.unrevised(agent.session, self.readers.revisions())),
             "refuted_reports": lambda: tuple(self.reports.refuted(agent.session, self.readers.revisions())),
+            "uncut_verbs": lambda: self.registry.uncut_verbs(),
             "home": lambda: str(Worktree(self.config.root, self.environments.find(agent.environment_id).name).folder),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
-
-    def watch_command(self, agent: Agent) -> str:
-        watched = self.outputs.watched(agent.session)
-        return CommandShape.command_name(watched[0].command) if watched else ""
 
     def unwatched_commands(self, agent: Agent) -> tuple[str, ...]:
         lines = [output.command for output in self.outputs.recent_unwatched_moves(agent.session, RECENT_MOVES)]

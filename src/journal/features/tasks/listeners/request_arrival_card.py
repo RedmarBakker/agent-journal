@@ -1,6 +1,6 @@
 from journal.events.listener import Listener
 from journal.events.models.created import Created
-from journal.features.tasks.support.hub_filing import REQUESTED_OF
+from journal.features.tasks.support.hub_filer import REQUESTER_LINK
 from journal.features.tasks.support.request_cards import RequestCards
 from journal.models.link import Link
 from journal.repositories.tasks import Tasks
@@ -17,7 +17,7 @@ class RequestArrivalCard(Listener[Created]):
     def handle(self, event: Created) -> None:
         link = event.model
         person = self.account.user_number()
-        if not (isinstance(link, Link) and link.kind == REQUESTED_OF and link.target.id == person):
+        if not (isinstance(link, Link) and link.kind == REQUESTER_LINK and link.target.id == person):
             return
-        for task in self.tasks.numbered_anywhere([link.source.id]):
+        for task in self.tasks.tasks_numbered([link.source.id]):
             self.cards.show(person, task, f"{self.labels.name('task', task)} is a request for you: {task.title}")

@@ -10,7 +10,7 @@ ARGS = "{args}"
 
 @dataclass(frozen=True)
 class Alias(Model):
-    """A name for a command line of the project, run as journal <name> with its arguments passed on: the line, the reader that reads its output, what it does, the variables put before it, the plugin that shipped it, empty for one the agent or the user made, and whether a run moves to the background the moment it starts."""
+    """A name for a command line of the project, run as journal <name> with its arguments passed on: the line, the reader that reads its output, what it does, the variables put before it, the plugin that shipped it, empty for one the agent or the user made, whether a run moves to the background the moment it starts, and whether a worker may run it, which a plugin declares of an alias that only reads."""
 
     name: str = ""
     line: str = ""
@@ -19,6 +19,7 @@ class Alias(Model):
     variables: dict = field(default_factory=dict)
     plugin: str = ""
     background: bool = False
+    worker_access: bool = False
 
     def command(self, args: str) -> str:
         assignments = " ".join(f"{key}={shlex.quote(str(value))}" for key, value in self.variables.items())

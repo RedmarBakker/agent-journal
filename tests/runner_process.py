@@ -184,6 +184,6 @@ def test_a_journal_that_takes_the_line_and_never_answers_is_gone_around_and_the_
     silent.close()
     assert ran.returncode == 0 and ran.stdout == "went around\n" and time.monotonic() - began < 5, (ran.returncode, ran.stdout, ran.stderr, time.monotonic() - began)
     assert cwd.read_text().strip() == str(tmp_path.resolve()), "the agent's own pwd still lands in its file"
-    bypasses = BypassLog(Config(tmp_path)).taken()
+    bypasses = BypassLog(Config(tmp_path)).removed()
     assert [bypass.described().split(" ", 1)[1] for bypass in bypasses] == ["ran in the shell itself: echo went around"], "the miss is noted, and the journal reads it back as the agent's own command"
     assert not (tmp_path / ".journal" / "runtime" / "bypass.log").exists(), "taken once, the log is cleared"

@@ -42,7 +42,7 @@ class WorkerController(Controller[Worker]):
         return Response.json(self.shown(self.repository.find(request.number("id"))))
 
     def report_choice(self, request: Request) -> Response:
-        return Response.json(self.shown(self.actions.chose_report(request.number("id"), ReportChoice.argument(str(request.body.get("choice", "each")).split()), request.actor)))
+        return Response.json(self.shown(self.actions.set_report_choice(request.number("id"), ReportChoice.argument(str(request.body.get("choice", "each")).split()), request.actor)))
 
     def release(self, request: Request) -> Response:
         return Response.json(self.shown(self.actions.release(request.number("id"), request.actor)))
@@ -63,7 +63,7 @@ class WorkerController(Controller[Worker]):
         if "tasks" not in request.query:
             return super().index(request)
         numbers = {int(n) for n in str(request.query["tasks"]).split(",") if n.strip().isdigit()}
-        rows = self.repository.numbered(sorted(self.tasks.workers_of(numbers)))
+        rows = self.repository.numbered(sorted(self.tasks.task_workers(numbers)))
         return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=Counts(all=len(rows), open=len([w for w in rows if w.is_active()]), unread=0)))
 
     def open_rows(self, query: Query) -> Query:
@@ -84,7 +84,12 @@ class WorkerController(Controller[Worker]):
         agent_ids = self.agents.session_numbers({w.session for w in rows})
         former_tasks, queues, finished = self.tasks.earlier_tasks(rows, holdings), self.tasks.queues(rows), self.tasks.finished_ids(rows)
         return [{**self.worker_fields(w), "task": views.get(w.row_id, WorkerTaskView()), "earlier_task": former_tasks.get(w.row_id), "queue": [{"id": task.id, "title": task.title} for task in queues.get(w.row_id, [])], "finished": finished.get(w.row_id, []),
-                 "holds": [*([views[w.row_id].task_id] if w.row_id in views else []), *(task.id for task in queues.get(w.row_id, []))], "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
+                 "holds": self.all_task_ids(w.row_id, views, queues), "agent": agent_ids.get(w.session, 0), "report": reports[w.row_id]} for w in rows]
+
+    @staticmethod
+    def all_task_ids(row_id: int, views: dict[int, WorkerTaskView], queues: dict) -> list[int]:
+        current = [views[row_id].task_id] if row_id in views else []
+        return current + [task.id for task in queues.get(row_id, [])]
 
     def task_views(self, rows: list[Worker], holdings: dict[int, int]) -> dict[int, WorkerTaskView]:
         numbers = {w.row_id for w in rows}

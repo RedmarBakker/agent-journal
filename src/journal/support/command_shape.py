@@ -187,6 +187,21 @@ class CommandShape:
             return cls.plain_shape(cls.looped(part))
         return cls.plain_shape(cls.working(part))
 
+    # npm [--prefix <folder>] exec [--] vitest run is vitest run: the program it starts, which a run is known by
+    @staticmethod
+    def npm_exec(tokens: list[str]) -> list[str]:
+        if tokens[0].rsplit("/", 1)[-1] != "npm":
+            return []
+        index = 1
+        while index < len(tokens) and tokens[index].startswith("-"):
+            index += 2 if tokens[index] in VALUED_MANAGER_FLAGS else 1
+        if tokens[index:index + 1] != ["exec"]:
+            return []
+        index += 1
+        while index < len(tokens) and tokens[index].startswith("-"):
+            index += 1
+        return tokens[index:]
+
     @classmethod
     def plain_shape(cls, part: str) -> str:
         script = SCRIPT_PATTERN.match(cls.inner(part))
@@ -195,6 +210,9 @@ class CommandShape:
         tokens = TOKEN_PATTERN.findall(cls.inner(part).split("<<", 1)[0])
         if not tokens:
             return ""
+        exec_command = cls.npm_exec(tokens)
+        if exec_command:
+            return cls.plain_shape(" ".join(exec_command))
         if len(tokens) > 1 and tokens[0].rsplit("/", 1)[-1] in RUNNERS and SCRIPT_FILE.search(tokens[1]):
             return f"{tokens[0]} {tokens[1].rsplit('/', 1)[-1]}"
         shape_parts = [tokens[0]]

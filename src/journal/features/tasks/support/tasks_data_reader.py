@@ -2,9 +2,11 @@ from journal.engine.support.lazy_facts import LazyFacts
 from journal.models.agent import Agent
 from journal.models.open_task import OpenTask
 from journal.models.task import Task
-from journal.models.task_state import TaskState
 from journal.repositories.entries import Entries
 from journal.features.tasks.support.person_wait import PersonWait
+from journal.features.tasks.support.wait_progress_reader import WaitProgressReader
+from journal.features.tasks.tasks_options import TasksOptions
+from journal.repositories.setting_rows import SettingRows
 from journal.repositories.plans import Plans
 from journal.repositories.task_logs import TaskLogs
 from journal.repositories.tasks import Tasks
@@ -16,7 +18,7 @@ from journal.support.stage_times import StageTimes
 HISTORY_TOOL_STARTS = 6
 POLL_COMMANDS = 3
 # the tasks an agent took in hand most recently, the one an event names among them: a main agent keeps the link to every task it ever held
-RECENT_HELD_TASKS = 8
+RECENT_OWNED_TASKS = 8
 # the open tasks a line names, the first by priority; the count says how many there are in all
 OPEN_TASKS_SHOWN = 5
 # the open tasks a line names as next, by number
@@ -26,7 +28,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait) -> None:
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels, people: PersonWait, progress: WaitProgressReader, settings: SettingRows) -> None:
+        self.progress, self.settings = progress, settings
         self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages, self.people = scope, stages, people
 
@@ -47,11 +50,14 @@ class TasksDataReader:
             "open_ids": lambda: tuple(self.tasks.open_page_ids(OPEN_TASKS_SHOWN)),
             "open_count": lambda: self.tasks.open_count(),
             "open_next": lambda: ", ".join(str(n) for n in self.tasks.open_page_ids(OPEN_TASKS_NEXT)),
-            "started_ids": lambda: tuple(t.row_id for t in self.tasks.with_state(TaskState.STARTED)),
-            "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_HELD_TASKS),
+            "started_ids": lambda: tuple(t.row_id for t in self.tasks.agent_started()),
+            "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_OWNED_TASKS),
             "task_nouns": lambda: self.labels.hub_nouns("task"),
             "person_waits": lambda: tuple(t.row_id for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if self.people.is_on_a_person(t)),
-            "held_since": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
+            "unprioritised": lambda: tuple(t.row_id for t in self.tasks.unprioritised()),
+            "blocking_priorities": lambda: facts.unprioritised if len(facts.unprioritised) >= self.settings.integer(TasksOptions.PRIORITY_BLOCK_TASKS) else (),
+            "wait_progress": lambda: self.progress.running(agent.session),
+            "last_moves": lambda: {t.row_id: t.update_time.timestamp() for t in (*self.tasks.paused_tasks(), *self.tasks.blocked_tasks()) if t.row_id not in facts.person_waits},
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts
 

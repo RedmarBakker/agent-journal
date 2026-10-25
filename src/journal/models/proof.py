@@ -23,5 +23,5 @@ class Proof(Scoped):
     def with_shortfall(self, shortfall: str) -> "Proof":
         return self.with_(state=ProofState.SHORT, shortfall=shortfall)
 
-    def short(self, shortfall: str, time: float, task_id: int, worker_id: int, dispatcher: str = "", earlier: tuple[str, ...] = (), model: str = "") -> "Proof":
-        return self.with_shortfall(shortfall).with_event(ProofShort(environment_id=self.environment_id, time=time, task_id=task_id, worker_id=worker_id, point=self.point, shortfall=shortfall, dispatcher=dispatcher, earlier=earlier, model=model))
+    def short(self, shortfall: str, time: float, task_id: int, worker_id: int, dispatcher: str | None = None, prior_shortfalls: tuple[str, ...] = (), model: str = "") -> "Proof":
+        return self.with_shortfall(shortfall).with_event(ProofShort(environment_id=self.environment_id, time=time, task_id=task_id, worker_id=worker_id, point=self.point, shortfall=shortfall, dispatcher=dispatcher, prior_shortfalls=prior_shortfalls, model=model))

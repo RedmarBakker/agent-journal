@@ -62,12 +62,12 @@ export function groupOf(task) {
     if (paused(task)) return "paused";
     if (planned(task)) return "planned";
     if (task.state === "started") return "started";
-    if (task.state === "delegated") return "delegated";
+    if (task.delegated && task.state === "open") return "delegated";
     return questionAbout(task) ? "asked" : "open";
 }
 
 export const state = (task) =>
-    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : paused(task) ? "paused" : planned(task) ? "planned" : task.state === "started" ? "started" : task.state === "delegated" ? "delegated" : "open";
+    isClosed(task) ? "done" : task.state === "blocked" ? "blocked" : paused(task) ? "paused" : planned(task) ? "planned" : task.state === "started" ? "started" : task.delegated && task.state === "open" ? "delegated" : "open";
 
 export function happened(r) {
     const kind = meta(r.table);

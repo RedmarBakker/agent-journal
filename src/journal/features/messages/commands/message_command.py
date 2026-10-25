@@ -25,6 +25,7 @@ RECENT_MESSAGES = 20
 
 class MessageCommand(Command):
     noun = "message"
+    uncut_verbs = frozenset({"read", "unread"})
 
     def __init__(self, messages: Messages, reactions: Reactions, links: Links, config: Config, agents: Agents, docs: Docs, reports: Reports) -> None:
         self.agents = agents

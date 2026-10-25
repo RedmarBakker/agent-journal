@@ -47,6 +47,8 @@ from journal.features.tasks.tasks_part import TasksPart
 from journal.features.workers.workers_alignments import WorkersAlignments
 from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.workers.workers_nudges import WorkersNudges
+from journal.features.workers.support.fitness_levels import FitnessLevels
+from journal.features.workers.fitness_options import FitnessOptions
 from journal.features.workers.workers_options import TEST_BUDGET, WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.tasks.states.external_wait import ExternalWait
@@ -151,7 +153,7 @@ class WorkersConduct(Conduct):
     def on_waits_missing(self, event: WaitsMissing, settings: Settings) -> Transition:
         if event.agent_session != event.session:
             return self.none()
-        return self.none(*(WorkersNudges.WAIT_MISSING.create(task=task, other=blocker) for task, blocker in (pair.split(":") for pair in event.pairs)))
+        return self.none(*missing_wait_lines(event))
 
     def on_places_scaled(self, event: PlacesScaled, settings: Settings) -> Transition:
         if event.agent_session != event.session:
@@ -178,11 +180,15 @@ class WorkersConduct(Conduct):
         return place_answer(self, event, settings)
 
 
+def missing_wait_lines(event: WaitsMissing) -> list[Nudge]:
+    return [WorkersNudges.WAIT_MISSING.create(task=task, other=blocker) for task, blocker in event.waits()]
+
+
 def rejection_line(event: ProofShort) -> Nudge:
-    attempts = len(event.earlier) + 1
+    attempts = len(event.prior_shortfalls) + 1
     if attempts == 1:
         return WorkersNudges.PROOF_REJECTED.create(n=event.worker_id, point=event.point)
-    prior_reasons = "; ".join(reason[:REJECTION_REASON_CHARACTERS] for reason in event.earlier)
+    prior_reasons = "; ".join(reason[:REJECTION_REASON_CHARACTERS] for reason in event.prior_shortfalls)
     nudge = WorkersNudges.PROOF_REJECTED_OFTEN if attempts == STRUGGLE_REJECTIONS else WorkersNudges.PROOF_REJECTED_REPEAT
     return nudge.create(n=event.worker_id, point=event.point, times=attempts, earlier=prior_reasons, model=event.model)
 
@@ -269,7 +275,7 @@ def unmoved_task_lines(event: Ticked, settings: Settings) -> tuple[Nudge, ...]:
     if settings.value(WorkersOptions.MODE) != "orchestrator":
         return ()
     tasks = event.data.part(TasksPart)
-    unmoved = tasks.held_since
+    unmoved = tasks.last_moves
     if not unmoved:
         return ()
     long_unmoved = tuple(n for n, last_move in unmoved.items() if Timeout.minutes(settings.integer(WorkersOptions.HELD_STILL_MINUTES)).started(last_move).is_elapsed(event.time))
@@ -436,13 +442,15 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
 
 
 def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
-    profile, threshold = (WorkersProfiles.reviewed_mode_profile if settings.value(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(mode), settings.integer(WorkersOptions.FITNESS_THRESHOLD)
-    if profile is None or threshold <= 0:
+    profile = (WorkersProfiles.reviewed_mode_profile if settings.value(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(mode)
+    fitness = profile.scored(workers.tool_uses) if profile else None
+    if fitness is None or not fitness.is_measured:
         return ()
-    fitness = profile.scored(workers.tool_uses)
-    if not fitness.is_measured or fitness.score >= threshold:
-        return ()
-    return (WorkersNudges.FITNESS_LOW.create(mode=mode, score=fitness.score, gaps=" ".join(f"{gap.text()}." for gap in fitness.gaps)),)
+    gaps = " ".join(f"{gap.text()}." for gap in fitness.gaps)
+    step, threshold = settings.integer(FitnessOptions.LEVEL_STEP), settings.integer(WorkersOptions.FITNESS_THRESHOLD)
+    if step > 0 and fitness.gaps and FitnessLevels.is_fall(fitness.score, workers.fitness_level, step):
+        return (WorkersNudges.FITNESS_DROP.create(mode=mode, score=fitness.score, gaps=gaps),)
+    return (WorkersNudges.FITNESS_LOW.create(mode=mode, score=fitness.score, gaps=gaps),) if 0 < threshold and fitness.score < threshold else ()
 
 
 def is_full(dispatched: tuple, limit: int) -> bool:

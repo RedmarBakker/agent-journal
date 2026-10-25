@@ -12,6 +12,7 @@ from journal.models.plan import Plan
 from journal.models.question import Question
 from journal.models.support.ref import Ref
 from journal.models.task import Task
+from journal.support.task_priority import NORMAL
 from journal.models.task_state import TaskState
 from journal.models.plan_state import PlanState
 from journal.support.actor import Actor
@@ -32,6 +33,7 @@ WORKER_TASK = "task {task} is not worker {worker}'s: a worker works on the task 
 HOLDER_REFUSAL = "task {task} is held by worker {worker} until its work is merged or released: send that worker its next job, or release it first"
 PLAN_LINK = "in_plan"
 USER_PREFIX = "user:"
+AGENT_CREATOR = "agent:"
 CLOSED = (TaskState.COMPLETED, TaskState.CANCELLED)
 
 
@@ -105,16 +107,26 @@ class Tasks(ScopedRepository[Task]):
         return self.query().filter_unlisted("state", list(CLOSED_STATES))
 
     def unfinished_ids(self, numbers: list[int]) -> list[int]:
-        return [number for number in numbers if self.matching(id=number, state=TaskState.OPEN) or self.matching(id=number, state=TaskState.STARTED) or self.matching(id=number, state=TaskState.DELEGATED)]
+        return [number for number in numbers if self.matching(id=number, state=TaskState.OPEN) or self.matching(id=number, state=TaskState.STARTED)]
 
     def ready_waiting_tasks(self, model) -> list[Task]:
         return [task for task in self.waiting_refs(model) if not self.open_waits(task)]
 
-    def other_started_tasks(self, current: Task | None) -> list[Task]:
-        return [task for task in self.with_state(TaskState.STARTED) if current is None or task.id != current.id]
+    def unprioritised(self) -> list[Task]:
+        planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query())
+        return self.selected(self.query().filter(state=TaskState.OPEN, delegated=False, priority=NORMAL, priority_set=False).filter_prefix("creator", AGENT_CREATOR).filter_absent(planned).order("id"))
 
-    def numbered_anywhere(self, ids: list[int]) -> list[Task]:
+    def agent_started(self) -> list[Task]:
+        return self.selected(self.query().filter(state=TaskState.STARTED, delegated=False).order("id"))
+
+    def other_started_tasks(self, current: Task | None) -> list[Task]:
+        return [task for task in self.agent_started() if current is None or task.id != current.id]
+
+    def tasks_numbered(self, ids: list[int]) -> list[Task]:
         return self.selected_globally(self.query().filter_listed("id", ids).order("id")) if ids else []
+
+    def creator_tasks(self, ids: list[int], creator: Actor) -> list[Task]:
+        return self.selected_globally(self.query().filter_listed("id", ids).filter(creator=creator).order("id")) if ids else []
 
     def open_tasks(self) -> list[Task]:
         return self.actionable(TaskState.OPEN)
@@ -143,7 +155,7 @@ class Tasks(ScopedRepository[Task]):
     def free_query(self, state: TaskState, plan_states: tuple[str, ...]) -> Query:
         plans = Query.build(Plan).filter_listed("state", list(plan_states)).filter_named(self.links.query(), "target")
         planned = self.links.query().filter(kind=PLAN_LINK).filter_ref("source", self.query()).filter_existing(plans)
-        return self.query().filter(state=state).filter_absent(planned).order_descending("priority").order("id")
+        return self.query().filter(state=state, delegated=False).filter_absent(planned).order_descending("priority").order("id")
 
     def recent_completions(self, start: datetime, end: datetime) -> list[Task]:
         return self.selected(self.query().filter(state=TaskState.COMPLETED).filter_greater_equal("completed_at", start).filter_less("completed_at", end).order("id"))
@@ -158,8 +170,8 @@ class Tasks(ScopedRepository[Task]):
         return Ref.build(task) in self.scope.bound()
 
     def holder_task(self, holder: Ref) -> Task | None:
-        held = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
-        tasks = self.selected(self.query().filter_listed("state", [TaskState.STARTED, TaskState.DELEGATED]).filter_existing(held).order("id"))
+        hand_links = self.links.query().filter(source=holder, kind=CURRENT_TASK_LINK).filter_ref("target", self.query())
+        tasks = self.selected(self.query().filter_alternatives(self.query().filter(state=TaskState.STARTED), self.query().filter(delegated=True).filter_unlisted("state", list(CLOSED_STATES))).filter_existing(hand_links).order("id"))
         return next((task for task in tasks if task.state == TaskState.STARTED), tasks[0] if tasks else None)
 
     def holder_task_ids(self, holder: Ref) -> tuple[int, ...]:
@@ -177,16 +189,22 @@ class Tasks(ScopedRepository[Task]):
         holders = self.links.sources(task, CURRENT_TASK_LINK)
         return holders[-1] if holders else None
 
-    def agent_held(self, state: TaskState, agents: Query) -> list[Task]:
-        held = self.links.query().filter(kind=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_named(self.links.query(), "source"))
-        return self.selected(self.query().filter(state=state).filter_existing(held).order("id"))
+    def agents_tasks(self, state: TaskState, agents: Query) -> list[Task]:
+        return self.selected(self.agents_state_query(state, agents).order("id"))
+
+    def agents_paused_with(self, reason: str, agents: Query) -> list[Task]:
+        return self.selected(self.agents_state_query(TaskState.PAUSED, agents).filter(pause_reason=reason).order("id"))
+
+    def agents_state_query(self, state: TaskState, agents: Query) -> Query:
+        agent_links = self.links.query().filter(kind=CURRENT_TASK_LINK).filter_ref("target", self.query()).filter_existing(agents.filter_named(self.links.query(), "source"))
+        return self.query().filter(state=state).filter_existing(agent_links)
 
     def row_holders(self, rows: list[Task]) -> dict[int, Ref]:
         return {link.target.id: link.source for link in self.links.model_links("target", rows, CURRENT_TASK_LINK)}
 
     def holder_started(self, started: Task, holder: Ref | None, actor: Actor) -> Task:
         self.assign_holder(started, holder, actor)
-        return self.save(started, actor)
+        return self.save(started.with_(delegated=True) if holder is not None and holder.type == WORKERS else started, actor)
 
     def assign_holder(self, started: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None:
@@ -212,8 +230,8 @@ class Tasks(ScopedRepository[Task]):
             self.links.save(Link(source=holder, target=target, kind=CURRENT_TASK_LINK), actor)
         if holder.type == WORKERS and not self.links.all_matching(source=holder, target=target, kind=WORKED_LINK):
             self.links.save(Link(source=holder, target=target, kind=WORKED_LINK), actor)
-        if holder.type == WORKERS and task.state != TaskState.DELEGATED:
-            self.save(task.delegated(datetime.now(timezone.utc)), actor)
+        if holder.type == WORKERS and not task.delegated:
+            self.save(task.delegate(datetime.now(timezone.utc)), actor)
         for link in self.links.all_matching(source=holder, target=target, kind=QUEUED_LINK):
             self.links.delete(link, actor)
 
@@ -222,29 +240,29 @@ class Tasks(ScopedRepository[Task]):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, or a started or paused one in your own hands, waits in a worker's queue")
         if not self.links.all_matching(source=worker, target=Ref.build(task), kind=QUEUED_LINK):
             self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
-        return self.save(task.delegated(datetime.now(timezone.utc)), actor)
+        return self.save(task.delegate(datetime.now(timezone.utc)), actor)
 
     def queued_first(self, task: Task, worker: Ref, actor: Actor) -> Task:
-        waiting_for = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
-        if not self.is_free(task) and not (task.state == TaskState.DELEGATED and waiting_for):
+        queue_links = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
+        if not self.is_free(task) and not (task.delegated and queue_links):
             raise Rejection(f"task {task.id} is {task.state}: only an open task, a started or paused one in your own hands, or one waiting in a worker's queue, goes first in a worker's queue")
-        for link in waiting_for:
+        for link in queue_links:
             self.links.delete(link, actor)
-        others = [waiting for waiting in self.queue(worker) if waiting.id != task.id]
+        remaining = [queued for queued in self.queue(worker) if queued.id != task.id]
         for link in self.links.all_matching(source=worker, kind=QUEUED_LINK):
             self.links.delete(link, actor)
-        for waiting in (task, *others):
-            self.links.save(Link(source=worker, target=Ref.build(waiting), kind=QUEUED_LINK), actor)
-        return task if task.state == TaskState.DELEGATED else self.save(task.delegated(datetime.now(timezone.utc)), actor)
+        for queued in (task, *remaining):
+            self.links.save(Link(source=worker, target=Ref.build(queued), kind=QUEUED_LINK), actor)
+        return task if task.delegated else self.save(task.delegate(datetime.now(timezone.utc)), actor)
 
-    def let_go(self, task: Task, holder: Ref | None, actor: Actor) -> None:
+    def drop_holder(self, task: Task, holder: Ref | None, actor: Actor) -> None:
         if holder is None or holder.type == WORKERS or task.state not in (TaskState.STARTED, TaskState.PAUSED):
             return
         for link in self.links.all_matching(source=holder, target=Ref.build(task), kind=CURRENT_TASK_LINK):
             self.links.delete(link, actor)
 
     def is_free(self, task: Task) -> bool:
-        return task.state == TaskState.OPEN or (task.state in (TaskState.STARTED, TaskState.PAUSED) and self.holder(task) is None)
+        return (task.state == TaskState.OPEN and not task.delegated) or (task.state in (TaskState.STARTED, TaskState.PAUSED) and self.holder(task) is None)
 
     def queue(self, worker: Ref) -> list[Task]:
         links = sorted(self.links.all_matching(source=worker, kind=QUEUED_LINK), key=lambda link: link.row_id)
@@ -260,14 +278,14 @@ class Tasks(ScopedRepository[Task]):
         self.freed(holder, CURRENT_TASK_LINK, actor)
         self.freed(holder, FINISHED_LINK, actor)
 
-    def finished_on(self, task_id: int, holder: Ref, actor: Actor) -> None:
+    def finish_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         self.release_task(holder, task_id, actor)
         self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK), actor)
 
     # a completed task sent back short: it is the one in hand again, and the task the worker reported on waits for the merge in its place
-    def reopened_on(self, task_id: int, holder: Ref, actor: Actor) -> None:
+    def reopen_holder_task(self, task_id: int, holder: Ref, actor: Actor) -> None:
         for current in self.holder_task_ids(holder):
-            self.finished_on(current, holder, actor)
+            self.finish_holder_task(current, holder, actor)
         for link in self.links.all_matching(source=holder, target=Ref("tasks", task_id), kind=FINISHED_LINK):
             self.links.delete(link, actor)
         self.links.save(Link(source=holder, target=Ref("tasks", task_id), kind=CURRENT_TASK_LINK), actor)
@@ -289,8 +307,9 @@ class Tasks(ScopedRepository[Task]):
     def freed(self, holder: Ref, kind: str, actor: Actor) -> None:
         for link in self.links.all_matching(source=holder, kind=kind):
             self.links.delete(link, actor)
-            for task in self.matching(id=link.target.id, state=TaskState.DELEGATED):
-                self.save(task.released(datetime.now(timezone.utc).timestamp()), actor)
+            for task in self.matching(id=link.target.id, delegated=True):
+                if not task.state.is_closed():
+                    self.save(task.released(datetime.now(timezone.utc).timestamp()), actor)
 
     def block_batch(self, start_at: float) -> list[Task]:
         return [task for task in self.with_state(TaskState.BLOCKED) if task.updated_at is not None and task.updated_at.timestamp() >= start_at]
@@ -302,7 +321,7 @@ class Tasks(ScopedRepository[Task]):
         refs = [Ref(Task.table(), task_id) for task_id in sorted(task_ids)]
         return {link.target.id: link.source.id for link in self.links.ref_links("target", refs, CURRENT_TASK_LINK) if link.source.type == WORKERS}
 
-    def workers_of(self, task_ids: set[int]) -> set[int]:
+    def task_workers(self, task_ids: set[int]) -> set[int]:
         refs = [Ref(Task.table(), task_id) for task_id in sorted(task_ids)]
         queued = {link.source.id for link in self.links.ref_links("target", refs, QUEUED_LINK) if link.source.type == WORKERS}
         return {*self.task_worker_holdings(task_ids).values(), *queued}

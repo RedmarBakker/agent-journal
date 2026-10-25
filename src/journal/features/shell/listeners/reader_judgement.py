@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from journal.events.listener import Listener
 from journal.events.rows.row_resolved import RowResolved
-from journal.features.shell.support.reader_judge import ReaderJudge
+from journal.features.shell.support.reader_judge import TOTAL_MISSING, ReaderJudge
 from journal.models.command_output import CommandOutput
 from journal.models.support.ref import Ref
 from journal.repositories.command_outputs import CommandOutputs
@@ -24,3 +24,6 @@ class ReaderJudgement(Listener[RowResolved]):
         report = self.judge.report(output, datetime.fromtimestamp(event.time, timezone.utc)) if output.watch_reader else None
         if report is not None:
             self.reports.save(report, Actor.system())
+        if output.watch_reader and self.judge.prints_total(output):
+            for demand in self.reports.open_with_finding(output.command, TOTAL_MISSING):
+                self.reports.save(demand.cleared(datetime.fromtimestamp(event.time, timezone.utc)), Actor.system())

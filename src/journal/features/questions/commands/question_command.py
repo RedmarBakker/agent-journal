@@ -15,6 +15,7 @@ from journal.repositories.workers import Workers
 
 class QuestionCommand(Command):
     noun = "question"
+    uncut_verbs = frozenset({"show", "ask"})
 
     def __init__(self, questions: Questions, respondent: AnswerDelivery, messages: Messages, links: Links, workers: Workers) -> None:
         self.questions, self.answering, self.messages, self.links, self.workers = questions, respondent, messages, links, workers

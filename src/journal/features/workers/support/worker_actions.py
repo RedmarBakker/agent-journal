@@ -21,7 +21,7 @@ from journal.models.support.ref import Ref
 from journal.features.workers.support.merge_outcome import MergeOutcome
 from journal.features.workers.support.merge_steps import MergeSteps
 from journal.models.proof import Proof
-from journal.models.support.report_choice import POOL_REFUSAL, ReportChoice
+from journal.models.support.report_choice import ReportChoice
 from journal.models.proof_state import ProofState
 from journal.models.task import Task
 from journal.repositories.proofs import Proofs
@@ -46,7 +46,7 @@ INBOX_MISSING = "worker {n}, {name}, runs {provider}, which takes no message whi
 CHECKED_STATES = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED)
 EDITED_NOTE = "Task {task} was changed while you were away: read it again with journal task show {task}. Then: "
 REBASE_NOTE = f"Your worktree could not be moved up to the project's branch: {{clashing}}. First {REBASE_STEPS}. Then: "
-LIVE_WITHOUT_INBOX = "worker {n}'s last session still runs, and {provider} takes no message while it runs: wait for it to end, then send the job"
+SESSION_BUSY_REFUSAL = "worker {n}'s last session still runs, and {provider} takes no message while it runs: wait for it to end, then send the job"
 JOB_MOVE = "sent a job"
 REDO_MOVE = REJECTION_MOVE
 
@@ -61,7 +61,7 @@ class WorkerActions:
         with self.runner.lock(n):
             return self.relaunch(self.local(n), brief, dispatcher, actor, JOB_MOVE)
 
-    def send_on(self, n: int, brief: str, model: str, profile: str | None, dispatcher: str | None, actor: Actor) -> Worker:
+    def resend(self, n: int, brief: str, model: str, profile: str | None, dispatcher: str | None, actor: Actor) -> Worker:
         with self.runner.lock(n):
             return self.relaunch(self.local(n).with_(model=model, profile=profile), brief, dispatcher, actor, JOB_MOVE)
 
@@ -122,16 +122,16 @@ class WorkerActions:
         worker = self.delivered(n, "proofs to check")
         task = self.checked_task(worker, task_id)
         if task.id in self.tasks.finished_task_ids(Ref.build(worker)):
-            self.tasks.reopened_on(task.id, Ref.build(worker), actor)
+            self.tasks.reopen_holder_task(task.id, Ref.build(worker), actor)
         *first_shortfalls, (point, shortfall) = shortfalls
         proof = self.open_proof(task, point)
-        earlier = tuple(sent.shortfall for sent in self.proofs.task_proofs(task) if sent.state == ProofState.SHORT)
+        prior_shortfalls = tuple(proof.shortfall for proof in self.proofs.short_proofs(task))
         for number, reason in first_shortfalls:
             self.proofs.save(self.open_proof(task, number).with_shortfall(reason), actor)
         if not self.moves.is_remote_run(worker):
             self.resumable(worker)
         shortfall_lines = "; ".join((shortfall, *(f"point {number} is short too: {reason}" for number, reason in first_shortfalls)))
-        self.proofs.save(proof.short(self.failures.under(worker, shortfall_lines), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher or "", earlier, worker.model), actor)
+        self.proofs.save(proof.short(self.failures.with_output(worker, shortfall_lines), datetime.now(timezone.utc).timestamp(), task.id, worker.id, worker.dispatcher, prior_shortfalls, worker.model), actor)
         return task
 
     def unrun(self, n: int, point: int, task_id: int = 0) -> str:
@@ -250,10 +250,8 @@ class WorkerActions:
     def worker_task(self, worker: Worker) -> Task:
         return self.tasks.find(self.tasks.holder_task_ids(Ref.build(worker))[0])
 
-    def chose_report(self, n: int, choice: ReportChoice, actor: Actor) -> Worker:
+    def set_report_choice(self, n: int, choice: ReportChoice, actor: Actor) -> Worker:
         worker = self.workers.find(n)
-        if worker.pool_request and choice.tasks != 1:
-            raise Rejection(POOL_REFUSAL)
         return self.workers.save(worker.with_(report_choice=choice), actor)
 
     def release(self, n: int, actor: Actor) -> Worker:
@@ -280,18 +278,18 @@ class WorkerActions:
         brief = self.rebase_note(worker) + (EDITED_NOTE.format(task=worker.edited_task) if worker.edited_task else "") + brief
         repositories = self.renewal(worker, brief)
         moved, time = worker.with_(dispatcher=worker.dispatcher if dispatcher is None else dispatcher, repositories=repositories, edited_task=0), datetime.now(timezone.utc).timestamp()
-        if self.is_live(worker):
+        if self.is_session_busy(worker):
             self.inbox.deliver(worker.pid, worker.resume, "the agent that dispatched you", brief)
             return self.workers.save(moved.redirected(brief, time, reused, move), actor)
         worker = self.workers.save(moved.resumed(brief, time, WorkerRevived if revival else reused, move), actor)
         self.runner.start(worker, actor)
         return worker
 
-    def is_live(self, worker: Worker) -> bool:
+    def is_session_busy(self, worker: Worker) -> bool:
         if not worker.pid or not self.runner.is_running(worker.pid):
             return False
         if not self.providers.lookup(worker.provider).session_inbox:
-            raise Rejection(LIVE_WITHOUT_INBOX.format(n=worker.id, provider=worker.provider.capitalize()))
+            raise Rejection(SESSION_BUSY_REFUSAL.format(n=worker.id, provider=worker.provider.capitalize()))
         return True
 
     def resumable(self, worker: Worker) -> None:

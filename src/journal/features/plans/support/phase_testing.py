@@ -18,12 +18,12 @@ class PhaseTesting:
         ended = self.plans.ended_phase(plan) if commands else None
         if ended is None:
             return ()
-        closed_at = self.plans.phase_closed_at(ended.phase)
+        closed_at = self.plans.phase_end_time(ended.phase)
         return tuple(command for command in commands if not self.has_passed(command, closed_at))
 
-    def has_passed(self, command: str, after: float) -> bool:
+    def has_passed(self, command: str, moment: float) -> bool:
         run = self.outputs.last_run(command)
-        return run is not None and run.status == 0 and run.update_time.timestamp() > after
+        return run is not None and run.status == 0 and run.update_time.timestamp() > moment
 
     def refusal(self, plan: Plan) -> str:
         unpassed = self.unpassed(plan)

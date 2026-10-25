@@ -9,6 +9,7 @@ from journal.events.announcer import Announcer
 from journal.events.moments.reader_added import ReaderAdded
 from journal.repositories.aliases import Aliases
 from journal.repositories.command_outputs import CommandOutputs
+from journal.repositories.run_history import RunHistory
 from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.activity_title import TITLE_RULE, ActivityTitle
 from journal.console.command import WORKER_KINDS, Command
@@ -18,10 +19,13 @@ from journal.features.shell.support.reader import Reader
 from journal.features.shell.support.reader_judge import ReaderJudge
 from journal.features.shell.support.readers import Readers
 from journal.features.shell.support.reader_commands import ReaderCommands
+from journal.features.shell.support.reader_backfill import ReaderBackfill
+from journal.repositories.scope import Scope
 from journal.support.rejection import Rejection
 
 NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
-
+# the newest stored runs a reader being added is tried on before it is accepted
+QUICK_RUNS = 2
 
 class ReaderCommand(Command):
     """The project's output readers: add one for a shape of output read again and again, list them, and remove one."""
@@ -29,7 +33,8 @@ class ReaderCommand(Command):
     noun = "reader"
     callers = {"list": WORKER_KINDS}
 
-    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, aliases: Aliases) -> None:
+    def __init__(self, readers: Readers, outputs: CommandOutputs, announcer: Announcer, reports: ReaderReports, clock: Clock, judge: ReaderJudge, aliases: Aliases, backfill: ReaderBackfill, scope: Scope, history: RunHistory) -> None:
+        self.backfill, self.scope, self.history = backfill, scope, history
         self.readers, self.outputs, self.announcer, self.reports, self.clock, self.judge = readers, outputs, announcer, reports, clock, judge
         self.aliases = aliases
 
@@ -78,15 +83,16 @@ class ReaderCommand(Command):
             revised = reader.revised(pattern=args.pattern)
             self.tried(revised)
             self.readers.add(revised)
+            self.backfill.queue_trial(revised, QUICK_RUNS, self.scope.id)
         self.announcer.announce(ReaderAdded(reader=args.name))
         print(f"reader {args.name} added: journal output read N --reader {args.name}")
         return 0
 
     def tried(self, reader: Reader) -> None:
-        stored = self.judge.latest_stored_run(reader)
-        misses = self.judge.misses(reader, OutputFiles(Path(stored.folder)).lines()) if stored is not None else []
-        if misses:
-            raise Rejection(f"reader {reader.name} is refused, tried on output {stored.id}: {'; '.join(misses)}")
+        for run in self.judge.stored_runs(reader)[:QUICK_RUNS]:
+            misses = self.judge.misses(reader, OutputFiles(Path(run.folder)).lines())
+            if misses:
+                raise Rejection(f"reader {reader.name} is refused, tried on output {run.id}: {'; '.join(misses)}")
 
     def report(self, args: Namespace, caller: Caller) -> int:
         report = self.reports.save(self.reports.find(args.n).opened(datetime.fromtimestamp(self.clock.time(), timezone.utc)), caller.actor)
@@ -103,12 +109,12 @@ class ReaderCommand(Command):
         return 0
 
     def remove(self, args: Namespace, caller: Caller) -> int:
-        reading = [output.id for output in self.outputs.reader_outputs(args.name) if not output.ended]
+        unfinished = [output.id for output in self.history.reader_unended(args.name)]
         self.readers.removed(args.name)
         aliases = self.aliases.reader_rows(args.name)
         for alias in aliases:
             self.aliases.save(alias.with_(reader=""), caller.actor)
-        print(f"reader {args.name} removed" + (f"; journal {', journal '.join(alias.name for alias in aliases)} now run with no reader" if aliases else "") + (f"; outputs {', '.join(map(str, reading))} were read through it and now show their last lines" if reading else ""))
+        print(f"reader {args.name} removed" + (f"; journal {', journal '.join(alias.name for alias in aliases)} now run with no reader" if aliases else "") + (f"; outputs {', '.join(map(str, unfinished))} were read through it and now show their last lines" if unfinished else ""))
         return 0
 
     def default(self, args: Namespace, caller: Caller) -> int:

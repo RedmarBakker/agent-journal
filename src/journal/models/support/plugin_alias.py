@@ -7,7 +7,7 @@ from journal.models.alias import Alias
 
 @dataclass(frozen=True)
 class PluginAlias:
-    """An alias a plugin's manifest ships: its name, its line with the program named from the plugin's folder, the variables put before it (env in the manifest), the arguments it takes, the reader that reads its output, what it does and whether a run moves to the background the moment it starts."""
+    """An alias a plugin's manifest ships: its name, its line with the program named from the plugin's folder, the variables put before it (env in the manifest), the arguments it takes, the reader that reads its output, what it does and whether a run moves to the background the moment it starts, and whether a worker may run it (workers in the manifest), declared of an alias that only reads."""
 
     name: str
     line: str
@@ -16,6 +16,7 @@ class PluginAlias:
     reader: str = ""
     description: str = ""
     background: bool = False
+    workers: bool = False
 
     @classmethod
     def parsed(cls, data: dict) -> "PluginAlias":
@@ -30,4 +31,4 @@ class PluginAlias:
         remainder = self.line.split(None, 1)[1:]
         line = " ".join([shlex.quote(str(folder / self.program)), *remainder])
         description = self.description or (f"takes {', '.join(self.args)}" if self.args else "")
-        return Alias(name=self.name, line=line, reader=self.reader, description=description, variables=self.variables, plugin=plugin, background=self.background)
+        return Alias(name=self.name, line=line, reader=self.reader, description=description, variables=self.variables, plugin=plugin, background=self.background, worker_access=self.workers)

@@ -10,6 +10,7 @@ from journal.events.agent.tool_starting import ToolStarting
 from journal.events.rows.task_closed import TaskClosed
 from journal.events.rows.task_reopened import TaskReopened
 from journal.features.tasks.tasks_nudges import TasksNudges
+from journal.features.tasks.tasks_options import TasksOptions
 from journal.features.tasks.tasks_part import TasksPart
 from journal.features.tasks.states.external_wait import ExternalWait
 from journal.features.tasks.states.impasse import Impasse
@@ -27,7 +28,7 @@ class TasksConduct(Conduct):
         return self.push(Impasse(reason=event.reason))
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
-        return Transition.merged(self, [polling_check(self, event), impasse_check(self, event)])
+        return Transition.merged(self, [polling_check(self, event), impasse_check(self, event), priorities_check(self, event, settings)])
 
     def on_task_reopened(self, event: TaskReopened, settings: Settings) -> Transition:
         return self.none(TasksNudges.TASK_REOPENED.create(n=event.task_id, reason=event.reason))
@@ -40,6 +41,13 @@ class TasksConduct(Conduct):
         if event.outcome != "completed" or tasks.current_task or not tasks.paused or event.data.part(TaskSuccession):
             return self.none()
         return self.none(TasksNudges.PAUSED_TASK_CLOSURE_REMINDER.create(n=tasks.paused[0], why=tasks.first_pause_reason))
+
+
+def priorities_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    unset = event.data.part(TasksPart).unprioritised
+    if event.subagent or len(unset) < settings.integer(TasksOptions.PRIORITY_REMIND_TASKS):
+        return state.none()
+    return state.none(TasksNudges.PRIORITIES_REMINDER.create(count=len(unset), tasks=", ".join(str(task) for task in unset)))
 
 
 def polling_check(state: BaseState, event: ToolStarting) -> Transition:

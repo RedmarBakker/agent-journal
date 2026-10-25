@@ -24,8 +24,8 @@ class ShellData:
     watch: OutputView
     aliases: tuple[Alias, ...]
     home: str
+    uncut_verbs: tuple[str, ...] = ()
     unwatched_commands: tuple[str, ...] = ()
-    watch_command: str = ""
     unread_reports: tuple[int, ...] = ()
     unfixed_reports: tuple[int, ...] = ()
     refuted_reports: tuple[ReaderReport, ...] = ()

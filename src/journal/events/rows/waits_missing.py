@@ -9,3 +9,6 @@ class WaitsMissing(RowEvent):
 
     agent_session: str
     pairs: tuple[str, ...]
+
+    def waits(self) -> tuple[tuple[str, ...], ...]:
+        return tuple(tuple(pair.split(":")) for pair in self.pairs)

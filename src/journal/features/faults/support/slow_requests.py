@@ -90,7 +90,7 @@ class SlowRequests:
 
     def windowed(self, group: str, kind: str, timing: Timing) -> None:
         self.tally.windowed(group, kind, timing.ms)
-        if self.settings.option(FaultsOptions.LOADS):
+        if self.settings.option(FaultsOptions.LOADS) and not self.is_outward(self.route(timing.route)):
             self.tally.windowed(POINTS_GROUP, kind, timing.loads.points())
             self.tally.loaded(kind, timing.loads)
 

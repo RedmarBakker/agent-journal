@@ -43,6 +43,7 @@ TAKEOVER_WINDOW = timedelta(hours=12)
 
 class EnvironmentCommand(Command):
     noun = "environment"
+    uncut_verbs = frozenset({"overview"})
 
     def __init__(self, environments: Environments, agents: Agents, tasks: Tasks, messages: Messages, questions: Questions, workers: Workers, entries: Entries, rules: Rules, facts: Facts, reminders: Reminders, providers: Providers, config: Config, scope: Scope, memory: MemoryContext, overview_commands: OverviewCommands, taking: ActiveTask, owners: EnvironmentOwners, account: TeamAccount, starts: StartRule, hydration: SessionHydration, sharing: EnvironmentSharing, launches: LaunchFiles) -> None:
         self.owners, self.account, self.starts, self.hydration, self.sharing = owners, account, starts, hydration, sharing
