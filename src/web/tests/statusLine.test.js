@@ -50,7 +50,7 @@ test("the mode buttons read only their mode's name, and the fitness score is a b
     expect(bar).toContain("title: `Fitness ${fitness.value.score} of 100`");
 });
 
-test("the fitness badge opens a timeline of the last hours whose every point names what moved it", async () => {
+test("the fitness badge opens the measures furthest off the ideal and a timeline of the last hours whose every point names what moved it", async () => {
     const {default: FitnessTimeline} = await import("../src/layout/FitnessTimeline.vue");
     const now = Date.now() / 1000;
     const points = [
@@ -60,11 +60,13 @@ test("the fitness badge opens a timeline of the last hours whose every point nam
     ];
     const host = window.document.createElement("div");
     window.document.body.append(host);
-    const app = createApp(FitnessTimeline, {points, hours: 6, low: 70});
+    const app = createApp(FitnessTimeline, {score: 61, lines: ["your merges are 0%, ideal 90-100%: read the proofs"], points, hours: 6, low: 70});
     app.directive("tip", {});
     app.mount(host);
     await nextTick();
-    expect(host.querySelector(".fitness-timeline-heading").textContent).toBe("Fitness over the last 6 hours");
+    expect(host.querySelector(".fitness-timeline-heading").textContent).toBe("Fitness 61 of 100");
+    expect(host.querySelector(".fitness-timeline-lines").textContent).toContain("your merges are 0%, ideal 90-100%: read the proofs");
+    expect(host.querySelector(".fitness-timeline-label").textContent).toBe("Scores over the last 6 hours");
     expect(host.querySelectorAll(".fitness-timeline-dot").length).toBe(2);
     expect(host.querySelectorAll(".fitness-timeline-dot.low").length).toBe(1);
     const moved = [...host.querySelectorAll(".fitness-timeline-point")].map((row) => row.textContent);
@@ -72,7 +74,7 @@ test("the fitness badge opens a timeline of the last hours whose every point nam
     expect(moved[0]).toContain("read the proofs");
     expect(moved[2]).toContain("not scored yet");
     const bar = (await import("node:fs")).readFileSync("src/layout/StatusBar.vue", "utf8");
-    expect(bar).toContain(`<FitnessTimeline :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS"`);
+    expect(bar).toContain(`<FitnessTimeline :score="fitness.score" :lines="fitness.lines" :points="fitness.timeline"`);
     app.unmount();
     host.remove();
 });

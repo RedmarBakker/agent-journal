@@ -2,7 +2,7 @@
 import RollingWord from "../kit/RollingWord.vue";
 import {agent} from "../composables/leadAgent.js";
 import {autoOn, workMode} from "../composables/settings.js";
-import {MODES, modeToggles, toggleOn} from "../domain/modes.js";
+import {MODES, modeToggles, toggleOn, toggleValue} from "../domain/modes.js";
 import {api} from "../api/client.js";
 import {saveSettings} from "../actions/settings.js";
 import Segmented from "../kit/Segmented.vue";
@@ -70,18 +70,17 @@ const {rows: everyWorker, loaded: everyWorkerLoaded, refresh: refreshEveryWorker
 const workersAnchor = ref(null);
 
 const fitness = computed(() => (agent.value?.fitness?.is_measured ? agent.value.fitness : null));
-const fitnessLine = (one) => (fitness.value?.mode === one.key ? ` Fitness ${fitness.value.score} of 100${fitness.value.lines.length ? `: ${fitness.value.lines.join(" ")}` : "."}` : "");
 const modeOptions = computed(() =>
     MODES.map((one) => ({
         ...one,
         label: one.label,
-        tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note) + fitnessLine(one)},
+        tip: {title: one.label, toggles: toggles(one.key), line: (one.key === "solo" && workersOut.value ? `${one.note} Workers already out keep going until they finish.` : one.note)},
     }))
 );
 // the score below which the agent is told how far it drifted from its mode's ideal, as workers.fitness_threshold sets it by default
 const LOW_FITNESS = 70;
 const fitnessTip = computed(
-    () => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: `${fitness.value.lines.length ? fitness.value.lines.join(" ") : "The agent works as this mode's ideal does."} Opens the scores of the last hours.`}
+    () => fitness.value && {title: `Fitness ${fitness.value.score} of 100`, line: "Opens the measures furthest off this mode's ideal and the scores of the last hours."}
 );
 const fitnessOpen = ref(false);
 const fitnessAnchor = ref(null);
@@ -119,11 +118,21 @@ async function pickMode(key) {
 }
 
 // a mode's settings as toggles in its button's hover panel, each saved as the user's own
-const toggles = (mode) => modeToggles(mode).map((toggle) => ({key: toggle.name, label: toggle.label, on: toggleOn(toggle, store.settings), change: (on) => saveToggle(toggle, on)}));
+const toggles = (mode) =>
+    modeToggles(mode).map((toggle) => ({
+        key: toggle.name,
+        label: toggle.label,
+        note: toggle.note,
+        on: toggleOn(toggle, store.settings),
+        change: (on) => saveToggle(toggle, on),
+        choices: toggle.children && toggleOn(toggle, store.settings) ? childChoices(toggle.children) : [],
+        pick: (value) => saveToggle(toggle.children, value),
+    }));
+const childChoices = (children) => children.choices.map((choice) => ({...choice, current: choice.value === toggleValue(children, store.settings)}));
 
-async function saveToggle(toggle, on) {
+async function saveToggle(toggle, value) {
     try {
-        await saveSettings({[toggle.feature]: {[toggle.name]: on}});
+        await saveSettings({[toggle.feature]: {[toggle.name]: value}});
     } catch (e) {
         toast.value = {text: e.message};
     }
@@ -345,7 +354,7 @@ async function runBar(p) {
             </template>
             <template v-if="fitnessOpen && fitness">
                 <MenuPanel :anchor="fitnessAnchor" plain :min-width="340" :max-width="380" :max-height="workersHeight" :gap="12" @click.stop @close="fitnessOpen = false">
-                    <FitnessTimeline :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
+                    <FitnessTimeline :score="fitness.score" :lines="fitness.lines" :points="fitness.timeline" :hours="fitness.timeline_hours" :low="LOW_FITNESS" @close="fitnessOpen = false" />
                 </MenuPanel>
             </template>
             <template v-if="verifiersOpen">

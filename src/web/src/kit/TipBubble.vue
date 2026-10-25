@@ -1,4 +1,5 @@
 <script setup>
+import ChoiceList from "./ChoiceList.vue";
 import Switch from "./Switch.vue";
 
 defineProps({
@@ -25,7 +26,15 @@ defineProps({
         <template v-if="toggles.length">
             <span class="tip-toggles">
                 <template v-for="toggle in toggles" :key="toggle.key">
-                    <Switch class="tip-toggle" :on="toggle.on" :word="toggle.label" :title="toggle.label" beside @change="toggle.change" />
+                    <span class="tip-setting">
+                        <Switch class="tip-toggle" :on="toggle.on" :word="toggle.label" :title="toggle.label" beside @change="toggle.change" />
+                        <template v-if="toggle.note">
+                            <span class="tip-toggle-note">{{ toggle.note }}</span>
+                        </template>
+                        <template v-if="toggle.choices && toggle.choices.length">
+                            <ChoiceList class="tip-toggle-choices" :choices="toggle.choices" @pick="toggle.pick" />
+                        </template>
+                    </span>
                 </template>
             </span>
         </template>
@@ -68,10 +77,30 @@ defineProps({
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: 4px;
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1px solid var(--tip-edge);
+}
+
+.tip-setting {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.tip-toggle-note {
+    display: block;
+    margin: -4px 0 2px 36px;
+    color: var(--text-3);
+    font-size: 11px;
+    line-height: 1.35;
+    text-wrap: pretty;
+}
+
+.tip-toggle-choices {
+    margin: 2px 0 4px 36px;
+    padding: 0;
 }
 
 .tip-keys {

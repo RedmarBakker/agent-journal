@@ -18780,7 +18780,7 @@ def test_the_orchestrator_approves_a_plan_only_when_the_user_allows_it(app: App)
     settings.set("workers.mode", "builder", Actor.user(1))
     assert "only the user approves" in console.run(["plan", "approve", "1"], AGENT).error, "the toggle counts in orchestrator mode only"
     settings.set("workers.mode", "orchestrator", Actor.user(1))
-    assert console.run(["plan", "approve", "1"], AGENT).code == 0, "with the toggle on the orchestrator approves"
+    assert console.run(["plan", "approve", "1"], AGENT).code == 0, "with the toggle on the orchestrator approves, all plans by default"
 
 
 def test_the_orchestrator_approval_setting_is_the_users_to_set(app: App):
@@ -18812,26 +18812,69 @@ def test_the_test_turns_not_ended_are_listed_for_the_viewer_with_since_when_each
     assert [(row["id"], row["worker"], row["state"], row["started_at"]) for row in rows] == [(waiting.id, 3, "waiting", 0.0), (running.id, 4, "running", 1000.0)], "the viewer reads the turns running and waiting, a running one with the time it started, and no ended one"
 
 
-def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_toggles_say(app: App):
+def drafted_plan(app: App, caller: Caller, title: str) -> int:
     from journal.repositories.plans import Plans
+    console = app.console()
+    made = console.run(["plan", "create", title, "--brief", "the goal"], caller)
+    assert made.code == 0, made.error
+    with app.container.get(Scope).environment(MAIN):
+        n = str(max(plan.id for plan in app.container.get(Plans).scoped()))
+    console.run(["plan", "phase", n, "Lay the floor", "--when", "the floor is level"], caller)
+    added = console.run(["plan", "add", n, "pour the slab"], caller)
+    assert added.code == 0, added.error
+    task = added.text.split()[1]
+    assert console.run(["plan", "todos", n, "1", task], caller).code == 0
+    readied = console.run(["plan", "ready", n], caller)
+    assert readied.code == 0, readied.error
+    return int(n)
+
+
+def test_journal_plan_approve_lets_the_orchestrator_approve_only_the_plans_its_approval_choice_names(app: App):
+    from journal.db.connection import Connection
+    from journal.features.workers.support.plan_approval import PlanApproval
     console, settings = app.console(), app.container.get(SettingRows)
     hook(app, "SessionStart")
     console.run(["environment", "overview"], AGENT)
     settings.set("workers.mode", "orchestrator", Actor.user(1))
+    own, users, others = drafted_plan(app, AGENT, "the orchestrator's plan"), drafted_plan(app, USER, "the user's plan"), drafted_plan(app, AGENT, "a worker's plan")
+    app.container.get(Connection).execute("UPDATE plans SET creator = ? WHERE id = ?", (Actor.worker(3).stamp(), others))
+    approve = lambda n: console.run(["plan", "approve", str(n)], AGENT)
+    choose = lambda approval: settings.set("workers.orchestrator_plan_approval", approval.value, Actor.user(1))
+    choose(PlanApproval.ALL)
+    assert all("only the user approves" in approve(n).error for n in (own, users, others)), "with the toggle off the orchestrator approves no plan, whatever the choice"
+    settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
+    choose(PlanApproval.OWN)
+    assert "only the user approves" in approve(users).error and "only the user approves" in approve(others).error, "its own plans are only the plans a main agent created"
+    assert approve(own).code == 0, "and it approves its own"
+    choose(PlanApproval.USER_MADE)
+    assert "only the user approves" in approve(others).error, "a plan a worker made is not a plan the user made"
+    assert approve(users).code == 0, "and it approves the user's"
+    choose(PlanApproval.ALL)
+    assert approve(others).code == 0, "with all plans it approves any"
+    refused = console.run(["settings", "set", "workers.orchestrator_plan_approval", PlanApproval.OWN.value], AGENT)
+    assert refused.code == 1 and "the user's to set" in refused.error, "the journal refuses an agent that changes the choice"
 
-    def drafted(caller: Caller, title: str) -> int:
-        made = console.run(["plan", "create", title, "--brief", "the goal"], caller)
-        assert made.code == 0, made.error
-        with app.container.get(Scope).environment(MAIN):
-            n = str(max(plan.id for plan in app.container.get(Plans).scoped()))
-        console.run(["plan", "phase", n, "Lay the floor", "--when", "the floor is level"], caller)
-        added = console.run(["plan", "add", n, "pour the slab"], caller)
-        assert added.code == 0, added.error
-        task = added.text.split()[1]
-        assert console.run(["plan", "todos", n, "1", task], caller).code == 0
-        readied = console.run(["plan", "ready", n], caller)
-        assert readied.code == 0, readied.error
-        return int(n)
+
+def test_the_switch_to_approve_only_plans_it_did_not_write_becomes_the_plans_the_user_made(app: App):
+    from journal.db.connection import Connection
+    from journal.db.migrations.plan_approval_choice import PlanApprovalChoice
+    connection = app.container.get(Connection)
+    insert = lambda environment, key, value: connection.execute("INSERT INTO settings (environment_id, key, value) VALUES (?, ?, ?)", (environment, key, value))
+    insert(7, "workers.orchestrator_approves_plans", "true")
+    insert(7, "workers.orchestrator_approves_others_plans", "true")
+    insert(8, "workers.orchestrator_approves_plans", "true")
+    insert(8, "workers.orchestrator_approves_others_plans", "false")
+    PlanApprovalChoice().apply(connection)
+    rows = {(row["environment_id"], row["key"]): row["value"] for row in connection.all("SELECT environment_id, key, value FROM settings WHERE environment_id IN (7, 8)")}
+    assert rows == {(7, "workers.orchestrator_approves_plans"): "true", (7, "workers.orchestrator_plan_approval"): '"can approve plans the user made"', (8, "workers.orchestrator_approves_plans"): "true"}, rows
+
+
+def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_toggles_say(app: App):
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    drafted = lambda caller, title: drafted_plan(app, caller, title)
 
     own = drafted(AGENT, "the orchestrator's plan")
     settings.set("workers.orchestrator_writes_plans", False, Actor.user(1))
@@ -18841,17 +18884,17 @@ def test_the_orchestrator_writes_approves_and_releases_plans_only_as_its_mode_to
     settings.set("workers.mode", "orchestrator", Actor.user(1))
     users = drafted(USER, "the user's plan")
     settings.set("workers.orchestrator_approves_plans", True, Actor.user(1))
-    settings.set("workers.orchestrator_approves_others_plans", True, Actor.user(1))
-    assert "only the user approves" in console.run(["plan", "approve", str(own)], AGENT).error, "approving only plans it did not write, the orchestrator may not approve its own"
+    settings.set("workers.orchestrator_plan_approval", "can approve plans the user made", Actor.user(1))
+    assert "only the user approves" in console.run(["plan", "approve", str(own)], AGENT).error, "approving the plans the user made, the orchestrator may not approve its own"
     assert console.run(["plan", "approve", str(users)], AGENT).code == 0, "and approves the user's"
-    settings.set("workers.orchestrator_approves_others_plans", False, Actor.user(1))
-    assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with that toggle off it approves its own too"
+    settings.set("workers.orchestrator_plan_approval", "can approve all plans", Actor.user(1))
+    assert console.run(["plan", "approve", str(own)], AGENT).code == 0, "with all plans it approves its own too"
     tag = lambda: hook(app, "PreToolUse", tool_name="Bash", tool_input={"command": "git tag v9.9.9"}, tool_use_id=f"t-{timing.time()}")
     status, body = tag()
     assert status == 409 and "waits for the user: Orchestrator may release is off" in body["error"], "with May release off the orchestrator's release waits for the user"
     settings.set("workers.orchestrator_releases", True, Actor.user(1))
     assert tag()[0] == 200, "with it on the orchestrator releases"
-    for name in ("orchestrator_writes_plans", "orchestrator_approves_others_plans", "orchestrator_releases"):
+    for name in ("orchestrator_writes_plans", "orchestrator_approves_plans", "orchestrator_releases"):
         refused = console.run(["settings", "set", f"workers.{name}", "on"], AGENT)
         assert refused.code == 1 and "the user's to set" in refused.error, f"workers.{name} is the user's to set, refused from an agent"
 

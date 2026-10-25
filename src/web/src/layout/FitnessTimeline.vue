@@ -7,7 +7,13 @@ const WIDTH = 320;
 const HEIGHT = 72;
 const PAD = 6;
 
-const props = defineProps({points: {type: Array, default: () => []}, hours: {type: Number, required: true}, low: {type: Number, required: true}});
+const props = defineProps({
+    score: {type: Number, required: true},
+    lines: {type: Array, default: () => []},
+    points: {type: Array, default: () => []},
+    hours: {type: Number, required: true},
+    low: {type: Number, required: true},
+});
 const emit = defineEmits(["close"]);
 
 const measured = computed(() => props.points.filter((point) => point.is_measured));
@@ -31,9 +37,18 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
 <template>
     <div class="fitness-timeline">
         <header class="fitness-timeline-head">
-            <h4 class="fitness-timeline-heading">Fitness over the last {{ hours }} hours</h4>
+            <h4 class="fitness-timeline-heading">Fitness {{ score }} of 100</h4>
             <CloseButton @click="emit('close')" />
         </header>
+        <ul class="fitness-timeline-lines">
+            <template v-if="lines.length">
+                <li v-for="line in lines" :key="line">{{ line }}</li>
+            </template>
+            <template v-else>
+                <li>The agent works as this mode's ideal does.</li>
+            </template>
+        </ul>
+        <h5 class="fitness-timeline-label">Scores over the last {{ hours }} hours</h5>
         <template v-if="!points.length">
             <p class="fitness-timeline-none">No score has been recorded in the last {{ hours }} hours.</p>
         </template>
@@ -88,6 +103,27 @@ const tip = (point) => ({title: `Fitness ${point.score} of 100 at ${clock(point.
     color: var(--text);
     font-size: 13px;
     font-weight: 600;
+}
+
+.fitness-timeline-lines {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 8px 8px 0;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.4;
+    list-style: none;
+}
+
+.fitness-timeline-label {
+    flex: none;
+    margin: 10px 8px 0;
+    color: var(--text-3);
+    font-size: 11px;
+    font-weight: 500;
 }
 
 .fitness-timeline-none {

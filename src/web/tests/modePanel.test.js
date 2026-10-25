@@ -11,7 +11,7 @@ const {api} = await import("../src/api/client.js");
 
 const switches = (host) => [...host.querySelectorAll(".statusbar-agentset .switch-inner")].map((word) => word.textContent.trim());
 
-test("hovering the Orchestrator button shows its one-line description and its settings as toggles, which change their settings, and the plan bar keeps none of them", async () => {
+test("hovering the Orchestrator button shows its one-line description and its toggles each with a line under it, plan approval's choices only while it is on, no fitness, and the plan bar keeps none of them", async () => {
     choose("main");
     store.agents = [];
     store.summary = {environments: [{environment: {id: 1, name: "main"}, agent: null, task: null, questions: 0, messages: 0, tasks: 0, silent: false}]};
@@ -35,13 +35,26 @@ test("hovering the Orchestrator button shows its one-line description and its se
     expect(panel.hidden).toBe(false);
     expect(panel.querySelector(".tip-line").textContent.trim()).toBe("The agent plans, hands tasks to workers and reviews their work.");
     const toggles = [...panel.querySelectorAll(".tip-toggle")];
-    expect(toggles.map((toggle) => toggle.textContent.trim())).toEqual(["May write plans", "Approves plans", "Approves only plans it did not write", "May release", "Reviewer"]);
-    expect(toggles.map((toggle) => toggle.getAttribute("aria-checked"))).toEqual(["true", "false", "false", "false", "false"]);
+    expect(toggles.map((toggle) => toggle.textContent.trim())).toEqual(["May write plans", "Approves plans", "May release", "Reviewer"]);
+    expect(toggles.map((toggle) => toggle.getAttribute("aria-checked"))).toEqual(["true", "false", "false", "false"]);
+    expect([...panel.querySelectorAll(".tip-toggle-note")].map((note) => note.textContent.trim())).toEqual([
+        "Drafts plans itself with journal plan create. Off, only you write a plan.",
+        "Approves plans itself with journal plan approve. Off, only you approve a plan.",
+        "Tags a version and publishes a release. Off, a git tag or gh release waits for you.",
+        "A reviewer reads each worker's proofs and runs their tests before you merge.",
+    ]);
+    expect(panel.textContent).not.toContain("Fitness");
+    expect(panel.querySelectorAll(".tip-toggle-choices").length).toBe(0);
     toggles[1].click();
     await nextTick();
     expect(save).toHaveBeenCalledWith({workers: {orchestrator_approves_plans: true}});
     expect(panel.querySelectorAll(".tip-toggle")[1].getAttribute("aria-checked")).toBe("true");
-    panel.querySelectorAll(".tip-toggle")[4].click();
+    const choices = [...panel.querySelectorAll(".tip-toggle-choices .choice")];
+    expect(choices.map((choice) => choice.textContent.trim())).toEqual(["Only its own", "Plans you made", "All plans"]);
+    expect(choices.map((choice) => choice.getAttribute("aria-selected"))).toEqual(["false", "false", "true"]);
+    choices[1].click();
+    expect(save).toHaveBeenCalledWith({workers: {orchestrator_plan_approval: "can approve plans the user made"}});
+    panel.querySelectorAll(".tip-toggle")[3].click();
     expect(save).toHaveBeenCalledWith({reviewing: {reviewer: true}});
     app.unmount();
     host.remove();

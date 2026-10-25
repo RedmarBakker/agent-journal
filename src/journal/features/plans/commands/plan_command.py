@@ -7,7 +7,6 @@ from journal.console.support.hub_choice import HubChoice
 from journal.console.support.hub_rows import HubRows
 from journal.support.row_labels import RowLabels
 from journal.console.command import SUBAGENT_KINDS, Command
-from journal.support.actor_kind import ActorKind
 from journal.support.caller import Caller
 from journal.features.plans.support.plan_testing import PlanTesting
 from journal.features.plans.support.review_rounds import ReviewRounds
@@ -30,6 +29,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.sync.hub_drives import HubDrives
 from journal.support.row_destination import RowDestination
+from journal.features.workers.support.plan_approval import PlanApproval
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.support.caller_kind import CallerKind
@@ -195,20 +195,16 @@ class PlanCommand(Command):
         return 0
 
     def approve(self, args: Namespace, caller: Caller) -> int:
-        if not caller.actor.is_user() and not self.is_orchestrator_approver(caller):
-            raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.find(args.n)
-        if not caller.actor.is_user() and self.is_agent_plan(plan):
+        if not caller.actor.is_user() and not self.is_approver(caller, plan):
             raise Rejection(APPROVAL_REFUSAL)
         plan = self.plans.approve(plan, caller.actor)
         print(f"plan {plan.id} {plan.state}")
         return 0
 
-    def is_orchestrator_approver(self, caller: Caller) -> bool:
-        return self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
-
-    def is_agent_plan(self, plan: Plan) -> bool:
-        return bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_OTHERS_PLANS)) and plan.creation_actor.kind == ActorKind.AGENT
+    def is_approver(self, caller: Caller, plan: Plan) -> bool:
+        allowed = self.is_orchestrator(caller) and bool(self.settings.option(WorkersOptions.ORCHESTRATOR_APPROVES_PLANS))
+        return allowed and PlanApproval(self.settings.option(WorkersOptions.ORCHESTRATOR_PLAN_APPROVAL)).allows(plan, caller.actor)
 
     def is_orchestrator(self, caller: Caller) -> bool:
         return caller.kind == CallerKind.MAIN_AGENT and self.settings.option(WorkersOptions.MODE) == "orchestrator"
