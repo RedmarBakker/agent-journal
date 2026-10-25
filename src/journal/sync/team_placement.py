@@ -29,8 +29,8 @@ class TeamPlacement:
     def team_key(self, row: Model) -> str:
         if not row.shared:
             return NO_TEAM
-        if (row.table(), row.row_id) in self.moves:
-            return self.moves[(row.table(), row.row_id)]
+        if (row.table(), row.id) in self.moves:
+            return self.moves[(row.table(), row.id)]
         placed = self.placements.get(type(row))
         if placed:
             return placed(row)
