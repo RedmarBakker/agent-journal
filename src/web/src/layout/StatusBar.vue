@@ -24,7 +24,6 @@ import WaitingPanel from "../chat/WaitingPanel.vue";
 import {useWaiting} from "../composables/waiting.js";
 import Btn from "../kit/Btn.vue";
 import Icon from "../kit/Icon.vue";
-import Switch from "../kit/Switch.vue";
 import Toast from "../kit/Toast.vue";
 import {peek, route} from "../route.js";
 import MenuPanel from "../kit/MenuPanel.vue";
@@ -37,7 +36,7 @@ import {newestFirst, reviewerEntry, verifierEntry} from "../domain/agentEntries.
 import FitnessTimeline from "./FitnessTimeline.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
-import {runPlan, setAuto} from "../actions/work.js";
+import {runPlan} from "../actions/work.js";
 import {useColleague} from "../composables/colleague.js";
 
 const current = computed(() => heldTask(store.summary, route.value.env));
@@ -274,20 +273,6 @@ async function runBar(p) {
         </template>
         <span class="statusbar-tools">
             <span class="statusbar-agentset">
-                <template v-if="workMode !== 'orchestrator'">
-                    <Switch
-                        :on="autoOn"
-                        word="auto"
-                        labelled
-                        v-tip:auto="
-                            autoOn
-                                ? {title: 'Auto is on', line: 'The agent works through the task list without asking.'}
-                                : {title: 'Auto is off', line: 'The agent asks before picking up the next task.'}
-                        "
-                        @change="setAuto"
-                    />
-                </template>
-                <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
                 <template v-if="fitness">
                     <button
                         type="button"
@@ -300,6 +285,7 @@ async function runBar(p) {
                     </button>
                 </template>
                 <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
+                <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
                 <button
                     type="button"
                     :class="['statusbar-helpers', {none: !workers.length}]"

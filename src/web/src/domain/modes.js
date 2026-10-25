@@ -31,7 +31,8 @@ const ORCHESTRATOR_TOGGLES = [
     {feature: "workers", name: "orchestrator_releases", label: "May release", note: "Tags a version and publishes a release. Off, a git tag or gh release waits for you.", fallback: false},
     {feature: "reviewing", name: "reviewer", label: "Reviewer", note: "A reviewer reads each worker's proofs and runs their tests before you merge.", fallback: false},
 ];
-const MODE_TOGGLES = {orchestrator: ORCHESTRATOR_TOGGLES};
+const WORKING_TOGGLES = [{feature: "tasks", name: "auto", label: "Auto", note: "Works through the task list without asking. Off, it asks before picking up the next task.", fallback: true}];
+const MODE_TOGGLES = {orchestrator: ORCHESTRATOR_TOGGLES, builder: WORKING_TOGGLES, solo: WORKING_TOGGLES};
 
 export const modeToggles = (mode) => MODE_TOGGLES[mode] || [];
 

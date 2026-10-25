@@ -42,7 +42,7 @@ async function bar() {
     return host;
 }
 
-test("the top bar shows the lead agent's fitness score beside the mode buttons, and a dash while it is not measured yet", async () => {
+test("the top bar shows the lead agent's fitness score left of the mode buttons, and a dash while it is not measured yet", async () => {
     store.agents = [lead({mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6})];
     const host = await bar();
     expect(host.querySelector(".statusbar-fitness").textContent.trim()).toBe("88");

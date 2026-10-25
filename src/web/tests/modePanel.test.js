@@ -23,7 +23,7 @@ test("hovering the Orchestrator button shows its one-line description and its to
     app.directive("tip", tip);
     app.mount(host);
     await nextTick();
-    expect(switches(host)).toEqual(["auto"]);
+    expect(switches(host)).toEqual([]);
     store.settings = {...store.settings, workers: {...store.settings.workers, mode: "orchestrator"}};
     await nextTick();
     expect(switches(host)).toEqual([]);
@@ -56,6 +56,37 @@ test("hovering the Orchestrator button shows its one-line description and its to
     expect(save).toHaveBeenCalledWith({workers: {orchestrator_plan_approval: "can approve plans the user made"}});
     panel.querySelectorAll(".tip-toggle")[3].click();
     expect(save).toHaveBeenCalledWith({reviewing: {reviewer: true}});
+    app.unmount();
+    host.remove();
+    save.mockRestore();
+});
+
+test("hovering the Builder button shows the Auto toggle, which flips tasks.auto, and the load and fitness sit left of the mode buttons", async () => {
+    choose("main");
+    store.agents = [{id: 1, role: "main", session: "s", status: "working", state: "following_plan", heard_at: "2026-10-25T10:00:00+00:00", load: {rho: 0.57}, fitness: {mode: "builder", score: 88, is_measured: true, lines: [], timeline: [], timeline_hours: 6}}];
+    store.settings = {features: {}, tasks: {auto: true}, workers: {mode: "builder"}, reviewing: {reviewer: false}};
+    const save = vi.spyOn(api, "saveSettings").mockResolvedValue(null);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const app = createApp({render: () => h("div", [h(StatusBar), h(Tooltip)])});
+    app.directive("tip", tip);
+    app.mount(host);
+    await nextTick();
+    const modes = host.querySelector(".statusbar-mode");
+    const before = (one) => Boolean(one.compareDocumentPosition(modes) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(host.querySelector(".statusbar-fitness"))).toBe(true);
+    expect(before(host.querySelector(".statusbar-load"))).toBe(true);
+    const builder = [...modes.querySelectorAll(".segmented-option")].find((button) => button.textContent.trim() === "Builder");
+    builder.dispatchEvent(new MouseEvent("pointerover", {bubbles: true}));
+    await nextTick();
+    await nextTick();
+    const panel = host.querySelector(".tooltip");
+    const toggles = [...panel.querySelectorAll(".tip-toggle")];
+    expect(toggles.map((toggle) => toggle.textContent.trim())).toEqual(["Auto"]);
+    expect(toggles[0].getAttribute("aria-checked")).toBe("true");
+    toggles[0].click();
+    await nextTick();
+    expect(save).toHaveBeenCalledWith({tasks: {auto: false}});
     app.unmount();
     host.remove();
     save.mockRestore();

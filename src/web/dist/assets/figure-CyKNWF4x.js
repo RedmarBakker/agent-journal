@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-CyKNWF4x.js
 import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-C4tjSSOI.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-DiI9OS9F.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-G6-6uw5T.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-BQPbNW0L.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> 5b169c893 (The auto toggle moves into the builder's dropdown menu, and the load and the fitness value take its old place left of the mode buttons):src/web/dist/assets/figure-DzhahgTc.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
