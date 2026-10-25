@@ -2249,23 +2249,23 @@ def test_with_the_test_budget_the_orchestrator_hears_a_workers_failed_run_in_one
 
     assert ran("12 passed in 3.1s", 0) == [], "a passed run is never told"
     failed = ran("tests/test_parser.py F..\n2 failed, 10 passed in 3.4s", 1)
-    assert failed == ["worker 3, Lady Lovelace, keeper of the parser: 2 failed in its test run"], failed
+    assert failed == ["worker 3: 2 failed in its test run"], failed
     assert len(failed[0]) <= 120, "one short line"
     assert worker.failing_runs == 1, "the count is kept on the worker"
-    assert ran("1 failed, 11 passed in 3s", 1) == ["worker 3, Lady Lovelace, keeper of the parser: 1 failed in its test run"]
+    assert ran("1 failed, 11 passed in 3s", 1) == ["worker 3: 1 failed in its test run"]
     third = ran("1 error in 2s", 1)
-    assert third[0] == "worker 3, Lady Lovelace, keeper of the parser: 1 failed in its test run"
-    assert third[1].startswith("worker 3, Lady Lovelace, keeper of the parser, failed 3 test runs in a row"), "told once on the third failure in a row"
-    assert ran("Traceback (most recent call last)", 1) == ["worker 3, Lady Lovelace, keeper of the parser: 1 failed in its test run"], "not again on the fourth, and a run that names no count failed one"
+    assert third[0] == "worker 3: 1 failed in its test run"
+    assert third[1].startswith("worker 3 failed 3 test runs in a row"), "told once on the third failure in a row"
+    assert ran("Traceback (most recent call last)", 1) == ["worker 3: 1 failed in its test run"], "not again on the fourth, and a run that names no count failed one"
     assert ran("12 passed in 3s", 0) == [] and worker.failing_runs == 0, "a passed run starts the count again"
     for _ in range(2):
         ran("1 failed", 1)
-    assert ran("1 failed", 1)[1].startswith("worker 3, Lady Lovelace, keeper of the parser, failed 3 test runs in a row"), "and the notice comes again after the reset"
+    assert ran("1 failed", 1)[1].startswith("worker 3 failed 3 test runs in a row"), "and the notice comes again after the reset"
     quiet = SettingsValue({WorkersOptions.TESTING.key: TEST_BUDGET, WorkersOptions.FAILING_RUNS.key: 3, WorkersOptions.TEST_RUN_LINES.key: False})
     assert ran("12 passed", 0, quiet) == [] and ran("1 failed", 1, quiet) == [], "with the line off a failed run is not told"
     assert ran("1 failed", 1, quiet) == []
     notice = ran("1 failed", 1, quiet)
-    assert len(notice) == 1 and notice[0].startswith("worker 3, Lady Lovelace, keeper of the parser, failed 3 test runs in a row"), "the notice still comes"
+    assert len(notice) == 1 and notice[0].startswith("worker 3 failed 3 test runs in a row"), "the notice still comes"
     assert ran("1 failed", 1, session="w9") == [], "only the agent that sent the worker hears of it"
     handed = SettingsValue({WorkersOptions.TESTING.key: "Hand the tests over"})
     assert ran("1 failed", 1, handed) == [], "without the test budget nothing is told"
