@@ -7,7 +7,7 @@ from journal.repositories.plugins import Plugins
 
 
 class PluginBrokenNotice(AgentListener[Ticked]):
-    """A plugin that was on and no longer works is named to the agent with its fault, again every five minutes, until it works or is switched off on purpose."""
+    """A plugin that was on and no longer works is named to the agent with its fault, once, again when its fault changes or a day has passed, until it works or is switched off on purpose."""
 
     def __init__(self, plugins: Plugins, watch: PluginWatch, nudges: NudgeLog) -> None:
         self.plugins, self.watch, self.nudges = plugins, watch, nudges

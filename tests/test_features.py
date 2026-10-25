@@ -4184,7 +4184,7 @@ def test_a_plugin_manifest_is_read_and_each_wrong_one_refused_by_name(app: App, 
     with pytest.raises(Rejection, match="skill lint-rules has the name of a skill of plugin lint"):
         reader.read(made({"skills": "skills"}, ("run.py", "skills/lint-rules/SKILL.md")))
 
-def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_every_five_minutes_until_fixed_or_switched_off(app: App, monkeypatch, tmp_path):
+def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_once_and_again_when_its_fault_changes_or_a_day_has_passed(app: App, monkeypatch, tmp_path):
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
     from journal.events.bus import Bus
@@ -4212,14 +4212,16 @@ def test_a_plugin_that_was_on_and_stops_working_is_named_to_the_agent_every_five
     manifest.write_text("{ not json")
     said = tick(10)
     assert len(said) == 1 and "its manifest does not parse" in said[0], said
-    assert len(tick(60)) == 1, "not again within five minutes"
-    assert len(tick(10 + 301)) == 2, "again after five minutes"
+    assert len(tick(60)) == 1 and len(tick(10 + 301)) == 1 and len(tick(10 + 3600)) == 1, "the same fault is not named again at later turns"
+    manifest.write_text("{ still not json")
+    assert len(tick(10 + 3700)) == 2, "a changed fault is named again"
+    assert len(tick(10 + 3700 + 86401)) == 3, "the same fault is named again after a day"
     manifest.write_text('{"name": "lint"}')
-    assert len(tick(10 + 700)) == 2, "once it is fixed it is named no more"
+    assert len(tick(10 + 100000)) == 3, "once it is fixed it is named no more"
     plugins.save(plugins.lookup("lint").with_(enabled=False), Actor.system())
-    assert len(tick(10 + 1100)) == 3 and "nobody switched it off" in keystrokes[-1], "off without the user switching it off is named too"
+    assert len(tick(10 + 100100)) == 4 and "nobody switched it off" in keystrokes[-1], "off without the user switching it off is named too"
     plugins.save(plugins.lookup("lint").with_(enabled=False, is_user_disabled=True), Actor.user(1))
-    assert len(tick(10 + 1500)) == 3, "switched off on purpose it is named no more"
+    assert len(tick(10 + 100500)) == 4, "switched off on purpose it is named no more"
 
 
 def test_a_manifest_and_an_answer_with_a_key_this_journal_does_not_know_still_work_with_a_warning(app: App, tmp_path):
