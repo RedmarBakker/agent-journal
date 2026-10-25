@@ -12624,6 +12624,37 @@ def test_a_worker_reporting_at_its_queues_end_goes_through_three_queued_tasks_an
         assert [tasks.find(n).state for n in (1, 2, 3)] == ["done", "done", "done"] and not tasks.finished_task_ids(Ref("workers", 1)), "one merge closes all three"
 
 
+def test_a_worker_whose_process_ends_mid_queue_is_sent_on_with_its_next_task_and_its_time_limit_restarts_at_each_move(app: App, monkeypatch):
+    from journal.repositories.messages import Messages
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.repositories.workers import Workers
+    from journal.features.workers.support.worker_actions import WorkerActions
+    from journal.repositories.workers import Workers
+    repository_made(app.config.root, {".gitignore": ".journal/\n", "README.md": "one\n"})
+    _, worktree, caller = worktree_worker(app, monkeypatch, "the readme")
+    console = app.console()
+    for title in ("the second job", "the third job"):
+        console.run(["task", "create", title, "--brief", f"{title}: done when it is in"], AGENT)
+    assert console.run(["worker", "queue", "1", "2", "3", "--report", "queue"], AGENT).code == 0
+    committed(worktree, "notes1.md", "note 1\n")
+    moved_at = timing.time()
+    proved_and_out(app, caller, "notes1.md:1")
+    assert worker_row(app).began >= moved_at - 1, "the time limit counts from the move, so a queue is never cut at one task's limit"
+    runner = app.container.get(WorkerRunner)
+    with app.container.get(Scope).environment(MAIN):
+        for path in runner.outputs(worker_row(app)):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("")
+        app.container.get(Workers).save(worker_row(app).with_(resume="w-1"), Actor.system())
+        monkeypatch.setattr(app.container.get(WorkerActions).__class__, "resumable", lambda self, worker: None)
+        runner.finish(worker_row(app), 0, Actor.system())
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        worker = worker_row(app)
+        assert worker.state == "dispatched" and worker.brief.startswith("Go on with your task 2"), "its process ended on task 2, so it is sent on with task 2 in its own session"
+        assert not [m for m in app.container.get(Messages).all() if m.data.get("kind") == "report"], "no report and no merge for the end of a turn inside the queue"
+
+
 def test_a_finished_task_sent_back_short_puts_the_worker_back_on_it_and_one_merge_then_takes_all_three(app: App, monkeypatch):
     from journal.models.support.ref import Ref
     from journal.repositories.tasks import Tasks

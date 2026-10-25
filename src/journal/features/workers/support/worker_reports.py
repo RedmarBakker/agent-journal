@@ -33,6 +33,11 @@ class WorkerReports:
         current, time = self.workers.find(worker.row_id), datetime.now(timezone.utc).timestamp()
         self.workers.save(current.review_requested(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
+    # the task a worker moved on to inside its queue and has not clocked out of, or 0 when it made no move
+    def moved_task(self, worker: Worker) -> int:
+        holder = Ref.build(worker)
+        return next(iter(self.tasks.holder_task_ids(holder)), 0) if self.tasks.finished_task_ids(holder) else 0
+
     # where every task of a worker's queue stands when its run ends without a clock-out: finished and waiting, cut short, still queued
     def queue_line(self, worker: Worker) -> str:
         holder = Ref.build(worker)

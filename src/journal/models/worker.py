@@ -24,6 +24,7 @@ from journal.events.rows.worker_review_requested import WorkerReviewRequested
 from journal.events.rows.worker_merged import WorkerMerged
 from journal.events.rows.worker_released import WorkerReleased
 from journal.events.rows.worker_limited import WorkerLimited
+from journal.events.rows.worker_queue_turn_ended import WorkerQueueTurnEnded
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_notified import WorkerNotified
 from journal.events.rows.worker_retired import WorkerRetired
@@ -166,6 +167,9 @@ class Worker(Helper):
 
     def limited(self, time: float, resumes_at: float, text: str) -> "Worker":
         return self.moved(LIMITED_MOVE, time).with_(state=WorkerState.LIMITED, pid=0, token_hash="", run_end=text, resumes_at=resumes_at).with_event(WorkerLimited(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, waiting for the usage limit", resumes_at=resumes_at))
+
+    def queue_turn_ended(self, time: float, task: int) -> "Worker":
+        return self.moved("ended mid-queue", time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="").with_event(WorkerQueueTurnEnded(environment_id=self.environment_id, time=time, worker=self.mention(), task=task))
 
     def merged(self, task: int, time: float) -> "Worker":
         return self.moved(MERGED, time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))

@@ -109,6 +109,7 @@ class WorkerRunner:
             try:
                 return process.wait(timeout=self.wait_step(worker))
             except subprocess.TimeoutExpired:
+                worker = self.workers.find(worker.row_id)
                 if self.remaining_seconds(worker) == 0:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
@@ -162,6 +163,10 @@ class WorkerRunner:
         resumes_at = UsageLimit.reset_at(f"{ended.error}\n{ended.report}", time.time())
         if resumes_at and current.is_running():
             self.workers.save(current.limited(time.time(), resumes_at, outcome), actor)
+            return
+        moved_task = self.reports.moved_task(current)
+        if current.is_mid_turn() and moved_task:
+            self.workers.save(current.queue_turn_ended(time.time(), moved_task), actor)
             return
         if not self.awaits_report(current):
             self.close(current, outcome, actor)

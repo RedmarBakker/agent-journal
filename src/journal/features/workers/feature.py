@@ -51,6 +51,7 @@ from journal.engine.support.modes import Modes
 from journal.features.plans.states.plans_ready import PlansReady
 from journal.features.workers.listeners.worker_moment_cards import WorkerMomentCards
 from journal.features.workers.listeners.limit_resumes import LimitResumes
+from journal.features.workers.listeners.queue_turn_resumes import QueueTurnResumes
 from journal.features.workers.listeners.worker_merge_card import WorkerMergeCard
 from journal.features.workers.listeners.worker_merge_refusal_card import WorkerMergeRefusalCard
 from journal.features.workers.listeners.dispatch_refusal_cards import DispatchRefusalCards
@@ -81,7 +82,7 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, LimitResumes, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, ModelFitRecord, WaitRecord, FitnessRecord)
+    listeners = (SubagentRecord, SubagentCards, WorkerCards, WorkerMomentCards, WorkerMergeCard, LimitResumes, QueueTurnResumes, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, ModelFitRecord, WaitRecord, FitnessRecord)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)
