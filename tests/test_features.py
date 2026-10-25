@@ -9096,6 +9096,8 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
         tasks, messages = app.container.get(Tasks), app.container.get(Messages)
         parser, lexer = (tasks.save(Task(environment_id=MAIN, title=title, brief="b"), Actor.system()).id for title in ("the parser", "the lexer"))
     monkeypatch.setattr(unlinked_row_numbers, "LEAST_ROW_NUMBER", 1)
+    from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
+    assert UnlinkedRowNumbers.numbers('my message said "3419" without its kind') == [], "a number quoted on its own is cited, never linked"
     with app.container.get(Scope).environment(MAIN):
         said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=text), Actor.agent("s1"))
         bare = said(f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s")

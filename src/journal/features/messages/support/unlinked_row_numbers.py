@@ -17,12 +17,14 @@ COUNT_UNITS = frozenset({
 # the joining words of a list of numbers after one kind word, such as tasks 3345, 3346 and 3347
 LIST_JOINS = frozenset({",", "and", "or", "&", "/"})
 LEAST_ROW_NUMBER = 100
+# the marks a number quoted as itself stands between, such as my message said "3419", which is cited and never linked
+QUOTE_MARKS = frozenset({'"', "'", "“", "”", "‘", "’"})
 # the kind of row a number is linked to, by its word, in the order a number's most likely kind is looked up
 ROW_TABLES = {"task": "tasks", "plan": "plans", "worker": "workers", "report": "reports", "doc": "docs", "question": "questions", "message": "messages"}
 
 
 class UnlinkedRowNumbers:
-    """The numbers in a message written without the kind of row before them, the ones that could name a row: a number of at least three digits, never a count, a time, a size or a version, never inside code, and never one of a list that follows a kind word."""
+    """The numbers in a message written without the kind of row before them, the ones that could name a row: a number of at least three digits, never a count, a time, a size or a version, never inside code or quoted on its own, and never one of a list that follows a kind word."""
 
     @classmethod
     def numbers(cls, text: str) -> list[int]:
@@ -47,7 +49,8 @@ class UnlinkedRowNumbers:
         if not candidate.isdigit() or int(candidate) < LEAST_ROW_NUMBER:
             return False
         next_token = tokens[i + 1].lower() if i + 1 < len(tokens) else ""
-        return next_token not in COUNT_UNITS and cls.preceding_word(tokens, i) not in ROW_KINDS
+        is_quoted = i > 0 and tokens[i - 1] in QUOTE_MARKS and next_token in QUOTE_MARKS
+        return not is_quoted and next_token not in COUNT_UNITS and cls.preceding_word(tokens, i) not in ROW_KINDS
 
     @staticmethod
     def preceding_word(tokens: list[str], i: int) -> str:
