@@ -553,7 +553,7 @@ def test_each_write_to_a_shared_row_is_queued_for_the_team_once_joined_and_waiti
 
     config = Config(tmp_path)
     changes, tasks = OutgoingChanges(connection, bus), tasks_of(connection, bus, scope)
-    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
+    bus.listen(ModelEvent, RecordOutgoingChange(changes, TeamAccount(config), team_placement(connection, bus, scope, config), Links(connection, bus), ServiceHooks()))
     with scope.environment(1):
         before = tasks.save(Task(environment_id=1, title="before joining"), actor=USER)
         assert changes.waiting() == [], "a journal in no team queues nothing"
@@ -694,7 +694,7 @@ def team_journal(tmp_path, name: str):
     bus = Bus()
     scope = Scope(Environments(connection, bus))
     outgoing = OutgoingChanges(connection, bus)
-    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
+    bus.listen(ModelEvent, RecordOutgoingChange(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), Links(connection, bus), ServiceHooks()))
     bus.listen(Purged, RecordPurge(outgoing, TeamAccount(config), team_placement(connection, bus, scope, config), ServiceHooks()))
     blocks = IdBlocks(connection, bus)
     base = (ord(name[0]) - ord("a")) * 100_000

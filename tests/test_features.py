@@ -12037,6 +12037,13 @@ def test_on_a_team_on_the_hub_a_personal_task_never_reaches_the_team_server_and_
         assert synced(lambda: bool(b.container.get(Tasks).global_matching(id=hub_task.id))), "a task in the hub reaches the other journal"
         assert team.log.row("tasks", own.id) is None and not b.container.get(Tasks).global_matching(id=own.id), "a task in Ada's own environment, written before it, never reaches the team server or Bob"
         assert own.id > 0 and a.container.get(Tasks).find(own.id).title == "Ada's own", "and stays on her journal, numbered as before"
+        from journal.models.link import Link
+        from journal.models.support.ref import Ref
+        from journal.repositories.links import Links
+        mention = a.container.get(Links).save(Link(source=Ref.build(own), target=Ref.build(hub_task), kind="mentions"), Actor.user(1))
+        moved = a.container.get(Tasks).save(a.container.get(Tasks).find(own.id).with_(environment_id=hub_task.environment_id), Actor.user(1))
+        assert synced(lambda: [(task.title, task.environment_id) for task in b.container.get(Tasks).global_matching(id=own.id)] == [("Ada's own", moved.environment_id)]), "a task moved into the hub enters the team whole, its title with it"
+        assert synced(lambda: [(link.source, link.target) for link in b.container.get(Links).all_matching(id=mention.id)] == [(Ref.build(own), Ref.build(hub_task))]), "and the link that now joins it to a hub task goes with it"
 
 
 def test_a_member_writes_a_hub_task_and_a_hub_message_on_their_own_journal_with_no_hosted_journal_and_both_reach_the_other(tmp_path, template_journal, monkeypatch):
