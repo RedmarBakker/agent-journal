@@ -1668,6 +1668,7 @@ workers.send_the_job_to_the_subagent  [workers]  {{count}} idle subagents alread
 {{subagents}}. send the job to one with its SendMessage line, or retire one with `journal subagent retire <n>`
 workers.solo_researches_itself  [workers]  you are solo: you sent more subagents than you read and searched yourself. read and research this yourself; a subagent is for the rare job too wide to do in your own turns
 workers.started_plans  [workers]  started plans: {{plans}}
+workers.suite_failed_after_merges  [workers]  the whole suite failed in output {{run}} after the merges of {{workers}}. read what failed, then send the work back to the worker whose change broke it: journal worker send {{n}} "the whole suite fails since your merge: <what failed>; fix it and clock out again"
 workers.task_closed_by_user  [workers]  the user closed your task {{task}}. stop now
 workers.tests_are_handed_over  [workers]  tests are handed over here, so you do not run {{command}}. name the test that proves the point and the command that runs it in your proof; the agent that merges runs them
 workers.tests_go_through_a_turn  [workers]  you do not run {{command}} yourself: tests here run within a budget. run them with journal tests turn

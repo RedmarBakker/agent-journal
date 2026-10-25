@@ -20,6 +20,7 @@ class WorkersNudges:
     WORKER_REPORTED = Nudge("workers", "worker_reported", "worker {{n}} reported", repeat=Timeout.seconds(0))
     STARTED_PLANS = Nudge("workers", "started_plans", "started plans: {{plans}}", repeat=Timeout.minutes(10), blocks_regardless=True)
     PLAN_STALLED = Nudge("workers", "plan_stalled", "plan {{n}} stalled since {{since}}, {{minutes}} min", repeat=Timeout.minutes(525600))
+    SUITE_BROKEN = Nudge("workers", "suite_failed_after_merges", "the whole suite failed in output {{run}} after the merges of {{workers}}", "read what failed, then send the work back to the worker whose change broke it: journal worker send {{n}} \"the whole suite fails since your merge: <what failed>; fix it and clock out again\"", repeat=Timeout.minutes(525600))
     ORCHESTRATE = Nudge("workers", "orchestrate", "{{count}} tasks are open; next: {{tasks}}", "dispatch a worker on each you can, journal worker dispatch \"<Name>\" --task <n>; block a task that waits and go on with the rest", repeat=Timeout.seconds(0))
     TASK_DELEGATION = Nudge("workers", "delegate_the_task", "{{name}} is in hand and you orchestrate; {{logged}}", "hand it to a worker with journal worker dispatch \"<Name>\" --task <n>, and review its report", repeat=Timeout.seconds(0))
     BLOCKED_CHECK = Nudge("workers", "check_blocked_tasks", "tasks {{tasks}} are paused or blocked", "resume a paused one you can go on with, unblock one whose wait has passed or that you can decide, and report what you decided", repeat=Timeout.seconds(300))

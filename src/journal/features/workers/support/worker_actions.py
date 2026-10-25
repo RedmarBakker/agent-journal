@@ -125,7 +125,7 @@ class WorkerActions:
         outcome = f"{merged}; not done: {', '.join(unfinished)}" if unfinished else merged
         closed = self.tasks.save(task.finished_by_merge(datetime.now(timezone.utc), outcome, worker.id), actor)
         self.tasks.release(Ref.build(worker), actor)
-        self.workers.save(worker.merged(datetime.now(timezone.utc).timestamp()), actor)
+        self.workers.save(worker.merged(task.id, datetime.now(timezone.utc).timestamp()), actor)
         self.events.worker_merge_result(WorkerMergeResult(environment_id=worker.environment_id, worker=worker.id, name=worker.name, task=task.id, branch=self.branch.name(worker), worktree=str(self.branch.folder(worker)), commits=commit))
         self.moves.cleared(worker)
         worktree_line = self.merged_worktree_line(self.workers.find(worker.id))

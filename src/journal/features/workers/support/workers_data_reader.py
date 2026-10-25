@@ -1,3 +1,4 @@
+from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.tool_use_counts import ToolUseCounts
 from journal.repositories.edits import Edits
 from journal.engine.support.lazy_facts import LazyFacts
@@ -24,8 +25,8 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, scope: Scope, stages: StageTimes) -> None:
-        self.edits, self.scope, self.stages = edits, scope, stages
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes) -> None:
+        self.edits, self.checks, self.scope, self.stages = edits, checks, scope, stages
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
     def is_unchecked(self, task_id: int) -> bool:
@@ -48,5 +49,6 @@ class WorkersDataReader:
             "tool_uses": lambda: ToolUseCounts.counted(agent),
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
             "load": lambda: agent.load,
+            "merge_check": lambda: self.checks.check(),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

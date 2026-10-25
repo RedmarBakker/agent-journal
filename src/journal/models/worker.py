@@ -33,7 +33,7 @@ SILENCE = Timeout.minutes(20)
 
 @dataclass(frozen=True)
 class Worker(Helper):
-    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
+    """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, when its work was last merged and for which task, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
     kind: str = "worker"
@@ -63,6 +63,8 @@ class Worker(Helper):
     review_pending: bool = False
     failing_runs: int = 0
     review_queued_at: float = 0.0
+    merged_at: float = 0.0
+    merged_task: int = 0
 
     def conversation(self) -> str:
         return self.resume or self.session or self.recovered_session
@@ -115,8 +117,8 @@ class Worker(Helper):
     def unfinished(self, time: float, text: str) -> "Worker":
         return self.moved("ended without clocking out", time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out"))
 
-    def merged(self, time: float) -> "Worker":
-        return self.moved("merged", time).with_(state=WorkerState.MERGED, token_hash="").with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
+    def merged(self, task: int, time: float) -> "Worker":
+        return self.moved("merged", time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))
 
     def released(self, time: float) -> "Worker":
         return self.moved("released", time).with_(state=WorkerState.RELEASED, token_hash="").with_event(WorkerReleased(environment_id=self.environment_id, time=time, worker=self.mention()))

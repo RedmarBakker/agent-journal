@@ -11580,6 +11580,37 @@ def test_a_merge_refused_on_a_clash_records_for_the_orchestrator_the_files_and_t
     assert proofs() == checked and worker_row(app).state == WorkerState.DELIVERED and task_state() != "done", "the worker's proofs and task are kept"
 
 
+def test_a_merge_tells_the_orchestrator_to_run_the_whole_suite_and_a_failing_suite_after_it_names_the_merged_worker(app: App, monkeypatch):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    from journal.repositories.entries import NUDGE, Entries
+    root = workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    merged = checked_and_merged(app)
+    assert merged.code == 0 and "run the whole suite now: it has not passed since the merges of worker 1, Worker 1 (task 1)" in merged.text, merged.text + merged.error
+
+    def ran(command: str, status: int) -> None:
+        with app.container.get(Scope).environment(MAIN):
+            app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain=f"chain-{command}-{status}", command=command, session="s1", ended=True, status=status), Actor.agent("s1"))
+
+    broken = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.suite_failed_after_merges"]
+    ran("journal suite tests/test_data.py -k unrelated", 1)
+    hook(app, "Stop")
+    assert broken() == [], "a failed run of part of the suite names nobody"
+    ran("journal suite", 1)
+    hook(app, "Stop")
+    hook(app, "Stop")
+    [line] = broken()
+    assert "the whole suite failed in output" in line and "after the merges of worker 1, Worker 1 (task 1)" in line and 'journal worker send 1 "the whole suite fails since your merge' in line, "a failing whole suite after the merge names the merged worker once, with the send-back"
+    ran("journal suite", 0)
+    ran("journal suite", 1)
+    hook(app, "Stop")
+    assert len(broken()) == 1, "once the whole suite has passed, a later failure names no merge it passed after"
+
+
 def test_a_worker_sent_a_new_job_naming_another_repository_gets_its_worktree_and_records_it(app: App, monkeypatch):
     root = workspace_made(app, ("platform", "mobile"))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")

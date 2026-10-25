@@ -6,6 +6,7 @@ from journal.chat.card_detail import CardDetail
 from argparse import Namespace
 
 from journal.repositories.setting_rows import SettingRows
+from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.worktree_failure import WorktreeFailure
 from journal.console.command import WORKER_KINDS, Command
@@ -37,6 +38,7 @@ from journal.features.workers.support.pool_dispatch import PoolDispatch
 from journal.sync.team_account import TeamAccount
 from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import MERGER_TESTING, TEST_BUDGET, WorkersOptions
+from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.features.templates.shipped import BUDGET_TESTS, SCOPED_TESTS, ZERO_TESTS
 
 EMPTY_BRIEF_REFUSAL = "task {n} has no brief: a worker's job is its task's brief, so write it first with journal task brief {n} \"<what is done when>\""
@@ -55,8 +57,8 @@ class WorkerCommand(Command):
     noun = "worker"
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch) -> None:
-        self.launch = launch
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks) -> None:
+        self.launch, self.checks = launch, checks
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
@@ -244,6 +246,8 @@ class WorkerCommand(Command):
         print(f"task {outcome.task.id} done: {outcome.task.outcome}; {outcome.worktree or 'it had no worktree'}")
         if outcome.next_task:
             print(outcome.next_task)
+        if self.settings.option(WorkersOptions.MODE) == WorkersProfiles.ORCHESTRATOR.mode:
+            print(f"run the whole suite now: it has not passed since the merges of {self.checks.check().workers_line()}")
         return 0
 
     def queue(self, args: Namespace, caller: Caller) -> int:

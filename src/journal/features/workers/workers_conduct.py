@@ -46,14 +46,14 @@ LOAD_NAMED = 4
 
 
 class WorkersConduct(Conduct):
-    """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, and in orchestrator mode a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line."""
+    """The workers feature's conduct in every state: a subagent past the most allowed at once is blocked, a write into a worker's worktree is blocked, a new subagent whose job names files an idle one of the same kind worked on is blocked in favour of those, unless they are retired, a dispatch whose brief names files an idle worker touched is blocked in favour of that worker, a dispatch past its profile's stored workers is blocked while one of them is idle, retiring an idle worker is blocked until the repeat says why it cannot be reused, the reports not acted on are named at a stop and on the tick, work waiting to be checked is named again every so many tool uses, a worker of this agent's silent for twenty minutes is named once on the tick, a worker this agent dispatches pushes Awaiting on its work, a worker's report is informed as it comes, and in orchestrator mode a stop carries the status of every started plan, and names once a started plan that has not moved for the set minutes while another moves, and once a run of the whole suite that failed after merges, with the workers merged since it last passed and the send-back; and, with the test budget, the agent that sent a worker hears in one short line of each of its test runs that failed, unless that line is off, and once when it has failed the set runs in a row, never of a passed run; and in orchestrator mode its load is named in one line from the warning level on, with what waits and the oldest to clear first, the ways to ease it added from the critical level on, and each place the load opens or closes in one line."""
 
     def on_tool_starting(self, event: ToolStarting, settings: Settings) -> Transition:
         checks = (subagent_reuse_check, limit_check, worktrees_check, files_check, idle_cap_check, retire_check, open_work_check, waiting_work_check, alignment_check, load_check)
         return Transition.merged(self, [check(self, event, settings) for check in checks])
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *plan_lines(event.data, event.time, settings))
+        return self.none(*report_mentions(event.data), *check_reminders(event.data, event.time), *plan_lines(event.data, event.time, settings), *suite_lines(event.data, settings))
 
     def on_ticked(self, event: Ticked, settings: Settings) -> Transition:
         workers = event.data.part(WorkersPart)
@@ -112,6 +112,13 @@ def plan_lines(data: FeatureData, now: float, settings: Settings) -> tuple[Nudge
     if not started:
         return ()
     return (WorkersNudges.STARTED_PLANS.create(plans="; ".join(plan.line(now) for plan in started)), *stalled_lines(started, now, settings))
+
+
+def suite_lines(data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
+    if settings.value(WorkersOptions.MODE) != WorkersProfiles.ORCHESTRATOR.mode:
+        return ()
+    check = data.part(WorkersPart).merge_check
+    return (WorkersNudges.SUITE_BROKEN.create(run=check.failed_run, workers=check.workers_line(), n=check.merged[-1].id),) if check.failed_run else ()
 
 
 def stalled_lines(started: tuple[PlanStatus, ...], now: float, settings: Settings) -> tuple[Nudge, ...]:

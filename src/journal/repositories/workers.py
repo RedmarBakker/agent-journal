@@ -32,6 +32,9 @@ class Workers(ScopedRepository[Worker]):
     def queued_reviews(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.DELIVERED, review_pending=True).filter_greater("review_queued_at", 0).order("review_queued_at"))
 
+    def merged_since(self, time: float) -> list[Worker]:
+        return self.selected(self.query().filter_greater("merged_at", time).order("merged_at"))
+
     def checkable_workers(self) -> list[Worker]:
         return self.selected(self.query().filter(state=WorkerState.DELIVERED).filter_unequal("review_pending", True).order("id"))
 
