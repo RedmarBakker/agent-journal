@@ -179,7 +179,7 @@ class TaskCommand(Command):
 
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
-        self.check.refuse(args.n, args.on)
+        self.check.refuse()
         task = self.tasks.save(self.tasks.find(args.n).blocked(args.why, self._time()), caller.actor)
         self.waits.linked(task, args.on, args.until, args.every, caller.actor)
         print(f"{self.labels.name('task', task)} blocked, waiting on: {self.tasks.reason(task)}")

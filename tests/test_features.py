@@ -15270,7 +15270,7 @@ def test_a_task_given_up_is_cancelled_with_why_and_leaves_the_list(app: App):
     assert "the shared avatar" not in console.run(["task", "list"], AGENT).text
 
 
-def test_a_block_on_work_going_on_here_or_a_batch_of_blocks_is_refused_and_a_real_wait_passes(app: App):
+def test_a_batch_of_blocks_is_refused_and_a_real_wait_passes(app: App):
     from journal.models.task_state import TaskState
     from journal.repositories.tasks import Tasks
     console = app.console()
@@ -15278,10 +15278,6 @@ def test_a_block_on_work_going_on_here_or_a_batch_of_blocks_is_refused_and_a_rea
     for title in ("the parser", "the docs", "the guide", "the index", "the help", "the notes"):
         console.run(["task", "create", title], AGENT)
     console.run(["task", "start", "1"], AGENT)
-    own = console.run(["task", "block", "2", "after the parser", "--on", "task:1"], AGENT)
-    assert own.code != 0 and "task 1 is work going on here, started" in own.error and "journal worker queue" in own.error, "a task waiting on the agent's own task in hand is sequencing, not a block"
-    with app.container.get(Scope).environment(MAIN):
-        assert app.container.get(Tasks).find(2).state == TaskState.OPEN, "and it stays open"
     asked = console.run(["question", "ask", "Which colour?", "--options", "red", "blue"], AGENT)
     assert asked.code == 0, asked.error
     assert console.run(["task", "block", "3", "the user picks the colour", "--on", "question:1"], AGENT).code == 0, "a block on the user's answer is a real wait"
@@ -15290,6 +15286,32 @@ def test_a_block_on_work_going_on_here_or_a_batch_of_blocks_is_refused_and_a_rea
     assert third.code != 0 and "2 tasks were blocked in the last 5 minutes" in third.error, "a third block in the stretch is clearing the list, and refused"
     app.container.get(SettingRows).set("tasks.block_batch_seconds", 0, Actor.user(1))
     assert console.run(["task", "block", "5", "the vendor's second key"], AGENT).code == 0, "once the stretch is over, a block passes again"
+
+
+def test_a_task_waiting_on_a_task_delegated_to_a_worker_opens_when_that_tasks_work_is_merged(app: App):
+    from datetime import datetime, timezone
+    from journal.models.support.ref import Ref
+    from journal.models.task_state import TaskState
+    from journal.models.worker import Worker
+    from journal.repositories.tasks import Tasks
+    from journal.repositories.workers import Workers
+    from journal.support.listener_queue import ListenerQueue
+    console, tasks = app.console(), app.container.get(Tasks)
+    hook(app, "SessionStart")
+    for title in ("the feature", "the end-to-end run"):
+        console.run(["task", "create", title], AGENT)
+    with app.container.get(Scope).environment(MAIN):
+        worker = app.container.get(Workers).save(Worker(environment_id=1, name="Mr. Babbage", brief="b", session="w1"), Actor.system())
+        tasks.handover(tasks.find(1), Ref.build(worker), Actor.system())
+        assert tasks.find(1).state == TaskState.DELEGATED
+    blocked = console.run(["task", "block", "2", "after the feature", "--on", "task:1"], AGENT)
+    assert blocked.code == 0, blocked.error
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(2).state == TaskState.BLOCKED
+        tasks.save(tasks.find(1).finished(datetime.now(timezone.utc), "worker 1's work merged"), Actor.user(1))
+    app.container.get(ListenerQueue).drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert tasks.find(2).state == TaskState.OPEN, "the task opens when the delegated task's work is merged"
 
 
 def test_a_reminder_on_a_moment_is_told_when_its_condition_holds_and_struck_when_single_use(app: App, monkeypatch):
