@@ -1,5 +1,8 @@
 export const PUSH_MS = 280;
 export const FADE_MS = 240;
+// how long the user's own message takes to fade in, there at its full size from the start
+export const OWN_MS = 120;
+const OWN_SLIDE_PX = 6;
 const SLIDE_PX = 14;
 const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 
@@ -26,6 +29,24 @@ export function arrive(el, {pane, follows, frame = requestAnimationFrame, clock 
         }
         if (elapsed < PUSH_MS + FADE_MS) return frame(hold);
         Object.assign(el.style, {boxSizing: "", height: "", overflow: "", opacity: "", transform: "", transition: ""});
+        done();
+    };
+    frame(hold);
+}
+
+// The user's own message, just sent: it is there at once at its full size, so the user sees what they sent before the journal answers,
+// fading in over a moment while the pane is held at its foot; `done` is called once it has.
+export function arriveAtOnce(el, {pane, follows, frame = requestAnimationFrame, clock = () => performance.now()}, done) {
+    if (!pane || !follows()) return done();
+    Object.assign(el.style, {opacity: "0", transform: `translateY(${OWN_SLIDE_PX}px)`});
+    void el.offsetHeight;
+    el.style.transition = `opacity ${OWN_MS}ms ease-out, transform ${OWN_MS}ms ${EASE}`;
+    Object.assign(el.style, {opacity: "1", transform: "translateY(0)"});
+    const began = clock();
+    const hold = () => {
+        if (follows()) pane.scrollTop = pane.scrollHeight;
+        if (clock() - began < OWN_MS) return frame(hold);
+        Object.assign(el.style, {opacity: "", transform: "", transition: ""});
         done();
     };
     frame(hold);

@@ -1,7 +1,7 @@
 import {expect, test} from "vitest";
-import {FADE_MS, PUSH_MS, arrive} from "../src/chat/arrival.js";
+import {FADE_MS, OWN_MS, PUSH_MS, arrive, arriveAtOnce} from "../src/chat/arrival.js";
 
-function stage(follows = () => true) {
+function stage(follows = () => true, arrival = arrive) {
     const log = [];
     const style = new Proxy({}, {set: (target, key, value) => ((target[key] = value), log.push([key, value]), true)});
     const el = {style, offsetHeight: 60};
@@ -16,7 +16,7 @@ function stage(follows = () => true) {
         run?.();
     };
     let finished = false;
-    arrive(el, {pane, follows, frame, clock: () => now}, () => (finished = true));
+    arrival(el, {pane, follows, frame, clock: () => now}, () => (finished = true));
     return {log, el, pane, step, finished: () => finished};
 }
 
@@ -42,3 +42,17 @@ test("a reader who is scrolled up sees nothing move: the turn is let in at once 
     expect(run.finished()).toBe(true);
     expect(run.log).toEqual([]);
 });
+
+test("the user's own message shows the moment it is sent: there at its full size, fading in, and done within a tenth of a second or so", () => {
+    const run = stage(() => true, arriveAtOnce);
+    expect(run.el.style.opacity).toBe("1");
+    expect(run.log.some(([key]) => key === "height")).toBe(false);
+    expect(run.el.style.transition).toContain("opacity");
+    expect(run.pane.scrollTop).toBe(0);
+    run.step(10);
+    expect(run.pane.scrollTop).toBe(1000);
+    run.step(OWN_MS + 5);
+    expect(run.finished()).toBe(true);
+    expect(OWN_MS).toBeLessThan(PUSH_MS);
+});
+

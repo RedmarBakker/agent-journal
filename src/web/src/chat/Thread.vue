@@ -14,7 +14,7 @@ import RunningCommand from "./RunningCommand.vue";
 import {demand} from "../composables/poll.js";
 import {useScrollback} from "../composables/scrollback.js";
 import {useFollowing} from "../composables/following.js";
-import {arrive} from "./arrival.js";
+import {arrive, arriveAtOnce} from "./arrival.js";
 import {useReadingPlace} from "../composables/readingPlace.js";
 import Skeleton from "../kit/Skeleton.vue";
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from "vue";
@@ -332,7 +332,10 @@ function restAtFoot() {
 
 // a turn that arrives while the reader follows the foot is pushed in by the chat gliding up first, then faded in (arrival.js); one that
 // arrives while the reader is away, or before the chat settled, just appears
-const growIn = (el, done) => arrive(el, {pane: scroller.value, follows: () => settledOnce.value && !away.value}, done);
+// a message the user just sent, drawn before the journal has it, whose key is its placeholder's
+const isOwnSent = (el) => (el.dataset?.ref || el.querySelector?.("[data-ref]")?.dataset.ref || "").startsWith("pending:");
+const arrivalPane = () => ({pane: scroller.value, follows: () => settledOnce.value && !away.value});
+const growIn = (el, done) => (isOwnSent(el) ? arriveAtOnce(el, arrivalPane(), done) : arrive(el, arrivalPane(), done));
 
 function watchScroll() {
     const s = scroller.value;
