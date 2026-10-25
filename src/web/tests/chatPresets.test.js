@@ -67,7 +67,7 @@ test("a docked command card shows its title, progress and lines but no command l
     const turn = readFileSync("src/chat/Turn.vue", "utf8");
     expect(dock).not.toContain('class="watch-dock-command"');
     expect(dock).toContain(':title="[card.line,');
-    expect(turn).toContain('<li class="mark-line mark-command">{{ data.line }}</li>');
+    expect(turn).toContain('<p class="mark-command">{{ data.line }}</p>');
 });
 
 test("a bubble holds its React, Reply and Copy buttons, so they sit on its own corner however wide its turn is", () => {

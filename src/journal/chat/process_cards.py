@@ -40,7 +40,8 @@ class ProcessCards:
             ended = {FINAL: True} if open_card and not contents.active else {}
             return self.messages.save(older[0].with_(text=contents.label, session=contents.session or older[0].session, data={**self.docked_data(older[0], data), **ended}), contents.actor)
         roles = self.agents.session_roles(contents.session) if contents.session else []
-        return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data=data), contents.actor)
+        ended = {} if contents.active else {FINAL: True}
+        return self.messages.save(Message(environment_id=contents.environment_id, author=Author.SYSTEM, session=contents.session or None, agent_role=roles[0] if roles else AgentRole.MAIN, text=contents.label, data={**data, **ended}), contents.actor)
 
     def is_unchanged(self, contents: ProcessCardContents) -> bool:
         older = self.messages.keyed(contents.key, contents.actor)

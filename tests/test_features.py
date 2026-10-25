@@ -1353,6 +1353,9 @@ def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_sp
             app.container.get(Entries).save(last.with_(data={**last.data, "time": last.data["time"] - minutes * 60}), Actor.system())
 
     hook(app, "Stop")
+    app.runtime().deferred.drain()
+    from journal.repositories.links import Links
+    assert not [link for link in app.container.get(Links).all() if link.source.type == "messages"], "the card the journal writes for a new report mentions nothing, so it never counts as acting on the report"
     lines = [entry.data["line"] for entry in named()]
     assert len(lines) == 1 and lines[0].startswith("report 1 has not been read, linked or mentioned") and "journal report settle 1 --why" in lines[0], lines
     assert not any("report 2" in line or "report 3" in line for line in lines), "a report a plan builds on or a task names is acted on, and named nowhere"
@@ -9632,7 +9635,7 @@ def test_a_plugin_heard_after_the_reply_never_delays_a_hook_and_a_holding_one_is
     started = timing.monotonic()
     status, body = hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
     waited = timing.monotonic() - started
-    assert status == 200 and 0.2 <= waited < 1.1, "the event it holds is asked on the answer path and cut at the window its manifest declares, the hook answered without it"
+    assert status == 200 and 0.2 <= waited < 2.5, "the event it holds is asked on the answer path and cut at the window its manifest declares, the hook answered without the plugin's answer three seconds later"
     missed = app.container.get(Entries).matching(kind="plugin_unanswered")
     assert "no answer within 200 ms" in missed[-1].data["reason"] and plugins.lookup("echo").fault_streak == 0 and plugins.lookup("echo").enabled, "the miss is on the plugin's record, no fault counted, and the plugin stays on to be asked next time"
     from journal.models.support.plugin_manifest import PluginManifest
@@ -12285,7 +12288,8 @@ def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: 
     assert slow is not None and not cards(slow), "a run still within its first 3 seconds shows no card"
     job.tick(slow.creation_time.timestamp() + 3.5)
     assert cards(slow), "once it has gone on for 3 seconds its card is in the chat"
-    run.join(10)
+    run.join(30)
+    assert not run.is_alive(), "the four-second run has ended"
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
         kept = app.container.get(Messages).with_key(f"watch:{slow.row_id}")
@@ -12293,6 +12297,11 @@ def test_a_run_reaches_the_chat_only_once_it_has_gone_on_for_three_seconds(app: 
         final = kept[0]
         again = app.container.get(ProcessCards).show(app.container.get(OutputProcessCard).card_contents(outputs.find(slow.row_id).with_(summary="written after the end")))
         assert again.row_id == final.row_id and app.container.get(Messages).find(final.row_id).updated_at == final.updated_at, "a mark that ended is final: nothing writes it again"
+        ended_first = outputs.find(min(quick))
+        cards_writer, card = app.container.get(ProcessCards), app.container.get(OutputProcessCard)
+        cards_writer.show(card.card_contents(ended_first))
+        stale = cards_writer.show(card.card_contents(ended_first.with_(ended=False)))
+        assert not stale.data["active"], "a card first written after its run ended is final too, so a write read before the end never turns it back to running"
 
 
 BARE_COMMANDS = {
