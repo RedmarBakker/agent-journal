@@ -26,6 +26,7 @@ The journal's conduct toward the agent is the states on its stack and the conduc
 | stuck | Stuck | Stuck | Wait | journal/features/tasks/states/stuck.py |  | The agent said it is truly stuck. Nothing is said until it works again or the user speaks: its own next tool use or a word from the user pops it. |
 | working | Working | Working | AgentState | journal/features/tasks/states/working.py | tool_starting, stop, session_started, prompt_submitted, ticked, task_logged, task_closed, task_started, plan_started | On one task. Writes are counted since the last log line: after the first N the log is asked for, every M the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is told to carry on, with the log line first when it is old, and is held while an approved plan is not started; a session resumed with it is told where it stands; a quiet quarter hour is told it is still open. Pushed by journal task start, popped by done and pause. |
 | verifying | Verifying a dismissal | Verifying | BaseState | journal/features/verification/states/verifying.py | tool_starting, reader_report_judged | The verifier the journal sends to judge a dismissed reader report: every tool but its verdict is refused and no feature's conduct reaches it, so it cannot leave; its verdict ends its session. |
+| reviewing | Reviewing a worker's work | Reviewing | BaseState | journal/features/reviewing/states/reviewing.py | tool_starting, stop, worker_reviewed | The reviewer the journal sends, in orchestrator mode with the reviewer on, to review a clocked-out worker's work: it reads and runs the tests, but every file edit is refused, a stop is refused until it gives its report with journal review, and no feature's conduct reaches it, so it cannot leave; its report ends its session. |
 
 ## Every line, by feature
 
@@ -98,6 +99,10 @@ One row per line the journal may say: the feature, the nudge key, its words with
 | profiles | profiles.worker_profile_is_not_a_subagent | {{name}} is a worker profile: it writes | ProfilesConduct.on_tool_starting_profiles |
 | questions | questions.question_answered | question {{n}} is answered | Waiting.on_question_answered, Waiting.on_resume |
 | questions | questions.ask_through_the_journal | a question goes through the journal, not your own question tool | QuestionsConduct.on_tool_starting_questions |
+| reviewing | reviewing.review_failed | the reviewer of worker {{n}}, {{name}}, ended without a report: task {{task}} waits for your own check | ReviewingConduct.on_worker_review_failed_reviewing |
+| reviewing | reviewing.reviewer_changes_no_file | you are a reviewer: you change no file and merge nothing | Reviewing.on_tool_starting |
+| reviewing | reviewing.reviewer_gives_its_report | your review is not given yet | Reviewing.on_stop |
+| reviewing | reviewing.work_reviewed | reviewer {{reviewer}} reviewed worker {{n}}, {{name}}, on task {{task}}: {{report}} | ReviewingConduct.on_worker_reviewed_reviewing |
 | secrets | secrets.secrets_out_of_reach | the secrets and the MCP keys in the private folder are out of your reach | SecretsConduct.on_tool_starting_secrets |
 | secrets | secrets.secret_allowed_for_programs | the user let secret {{n}}, {{title}}, go to {{programs}} | SecretsConduct.on_secret_allowed_secrets |
 | sequences | sequences.step_to_follow | sequence {{n}}, step {{step}}: {{text}} | RunTracker.step, SequencesConduct.on_stop_sequences, SequencesConduct.on_ticked_sequences |
