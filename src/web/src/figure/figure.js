@@ -25,9 +25,16 @@ const DECODER = "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/dr
 // the share of the picture below the ground the figure stands on, where the chat box's top edge runs
 export const GROUND = (FRAMED_HEIGHT / 2 - FRAMED_MIDDLE) / FRAMED_HEIGHT;
 
-// the figure is drawn four times as wide as its canvas, each of those pixels multisampled, and halved twice, each halving averaging
-// every two by two pixels into one, so its edges and its screen's pixel grid are smooth without going soft in any browser; a single
-// shrink by more than two lets a browser that samples bilinearly skip pixels and leave stair steps
+// the figure's body is drawn twice as wide as its canvas, as EEVEE draws it with 16 samples a pixel through a 1.5 px filter, scaled down
+// and softened by SOFTEN of a cell pixel, which measured closest to Blender's own frames, never past SOFTEN_MOST of the canvas's pixels,
+// so a picture drawn larger than the cell is no softer to the eye than the chat's
+const BODY_SUPERSAMPLE = 2;
+const SOFTEN = 0.5;
+const SOFTEN_MOST = 0.5;
+const softenOn = (canvas) => Math.min((SOFTEN * canvas.width) / CELL, SOFTEN_MOST);
+// its screen, and a parcel's server block, are drawn four times as wide, each of those pixels multisampled, and halved twice, each
+// halving averaging every two by two pixels into one, so the screen's pixel grid is smooth and crisp, never softened; a single shrink by
+// more than two lets a browser that samples bilinearly skip pixels and leave stair steps
 const SUPERSAMPLE = 4;
 
 // toon.py; the step is on N.L, worked out from its ramp: a 0.8 grey Diffuse BSDF under a sun of strength pi and the
@@ -3495,7 +3502,7 @@ const FLAT = /* glsl */ `
 // `pixels` holds for it, drawn brighter than that colour and brightest at its middle (`shine`); the lines between the pixels are the
 // glass, `gap` of a pixel wide and never under `line` of the screen's own pixels however small the figure is drawn, nor over half a
 // pixel, so each pixel reads on its own,
-// and lit pixels are `dark` as bright there under a dance's band. It is drawn with the figure, supersampled and multisampled (Stage.draw). It is
+// and lit pixels are `dark` as bright there under a dance's band. It is drawn on its own, supersampled and never softened (Stage.drawScreen). It is
 // lit whole by a dance (visor.js discoScreen): a band about its middle reaching `across` and `open` of the way to its sides and its top
 // and bottom, white with `flash` and else `glow`, as strong as `lit`.
 // parts of a voice's model the figure never shows: the homie's headphones, until they are modelled again
@@ -5129,6 +5136,9 @@ export class Stage {
         this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
         this.renderer.setPixelRatio(1);
         this.renderer.setClearColor(0x000000, 0);
+        this.screenRenderer = new THREE.WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true});
+        this.screenRenderer.setPixelRatio(1);
+        this.screenRenderer.setClearColor(0x000000, 0);
     }
 
     headAt(figure, moves) {
@@ -5167,17 +5177,48 @@ export class Stage {
     draw(figure, clip, frame, facing, canvas, {blend = null, ...options} = {}) {
         const {pose, turned} = drawnPose(figure.rig, figure.stance, clip, frame, facing, options);
         const moves = place(figure, pose, turned, blend);
+        this.drawBody(figure, canvas);
+        this.drawScreen(figure, canvas);
+        return moves;
+    }
+
+    // The figure but its screen, drawn softened onto `canvas`, as Blender draws it
+    drawBody(figure, canvas) {
+        const size = canvas.width * BODY_SUPERSAMPLE;
+        if (this.renderer.domElement.width !== size) this.renderer.setSize(size, size, false);
+        for (const material of figure.screens) material.visible = false;
+        this.renderer.render(figure.scene, this.camera);
+        for (const material of figure.screens) material.visible = true;
+        const context = canvas.getContext("2d");
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.filter = `blur(${softenOn(canvas)}px)`;
+        context.drawImage(this.renderer.domElement, 0, 0, canvas.width, canvas.height);
+        context.filter = "none";
+    }
+
+    // The screen laid over the body supersampled and never softened: the scene drawn four times as wide with every part but the screen
+    // writing no colour, though still hiding what lies behind it, so only the screen's own pixels where it shows are drawn, halved twice
+    // and laid on the picture; the screen's own outline, which pokes through its curved middle, is left to the body
+    drawScreen(figure, canvas) {
         const size = canvas.width * SUPERSAMPLE;
-        if (this.renderer.domElement.width !== size) {
-            this.renderer.setSize(size, size, false);
-        }
-        // the screen's own outline pokes through its curved middle, so it is left out of the drawing
+        if (this.screenRenderer.domElement.width !== size) this.screenRenderer.setSize(size, size, false);
+        const muted = new Set();
+        figure.scene.traverse((node) => {
+            for (const material of [node.material ?? []].flat()) if (material.colorWrite && !figure.screens.includes(material)) muted.add(material);
+        });
+        for (const material of muted) material.colorWrite = false;
         const outlined = figure.visorHulls.map((hull) => hull.visible);
         for (const hull of figure.visorHulls) hull.visible = false;
-        this.renderer.render(figure.scene, this.camera);
+        this.screenRenderer.render(figure.scene, this.camera);
         figure.visorHulls.forEach((hull, index) => (hull.visible = outlined[index]));
-        this.halvedOnto(this.renderer.domElement, 0, 0, size, size, canvas);
-        return moves;
+        for (const material of muted) material.colorWrite = true;
+        this.screenCanvas ??= document.createElement("canvas");
+        this.screenCanvas.width = canvas.width;
+        this.screenCanvas.height = canvas.height;
+        this.halvedOnto(this.screenRenderer.domElement, 0, 0, size, size, this.screenCanvas);
+        canvas.getContext("2d").drawImage(this.screenCanvas, 0, 0);
     }
 
     // The part of `source` at (x, y), `width` by `height`, drawn onto `canvas` halved twice through a canvas between, each halving
