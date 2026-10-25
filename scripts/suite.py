@@ -16,6 +16,8 @@ SHARD_TIMEOUT_SECONDS = 600
 COUNTS = re.compile(r"(\d+) (passed|failed|errors?|skipped|deselected|xfailed|xpassed)")
 FAILURE_START = re.compile(r"^(=+ (FAILURES|ERRORS) =+|_{3,} .+ _{3,})$")
 SUMMARY_START = re.compile(r"^=+ short test summary info =+$")
+PERCENT = re.compile(r"\[\s*(\d+)%\]")
+PROGRESS_SECONDS = 2.0
 
 
 def shard_count() -> int:
@@ -49,11 +51,27 @@ def failure_lines(text: str) -> list[str]:
     return lines
 
 
+def shard_percent(output: Path) -> int:
+    found = PERCENT.findall(output.read_text())
+    return int(found[-1]) if found else 0
+
+
+def progress_shown(shards: list[tuple[subprocess.Popen, Path]]) -> None:
+    shown, began = -1, time.monotonic()
+    while any(process.poll() is None for process, _ in shards) and time.monotonic() - began < SHARD_TIMEOUT_SECONDS:
+        percent = sum(100 if process.poll() is not None else shard_percent(output) for process, output in shards) // len(shards)
+        if percent != shown:
+            print(f"running tests [{percent:3d}%]", flush=True)
+            shown = percent
+        time.sleep(PROGRESS_SECONDS)
+
+
 def whole_suite() -> int:
     count, began = shard_count(), time.monotonic()
     with tempfile.TemporaryDirectory() as folder:
         shards = [started(index, count, Path(folder)) for index in range(count)]
         print(f"running the suite in {count} shards side by side", flush=True)
+        progress_shown(shards)
         totals: dict[str, int] = {}
         failures: list[str] = []
         for done, (process, output) in enumerate(shards, start=1):
