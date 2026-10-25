@@ -2,6 +2,7 @@ import {createApp, h, nextTick} from "vue";
 import {expect, test, vi} from "vitest";
 
 window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
+document.elementFromPoint ??= () => null;
 const {default: StatusBar} = await import("../src/layout/StatusBar.vue");
 const {default: Tooltip} = await import("../src/kit/Tooltip.vue");
 const {tip} = await import("../src/kit/tip.js");
