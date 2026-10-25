@@ -76,7 +76,9 @@ class Links(Repository[Link]):
         return self.matching(source=Ref.build(source), target=Ref.build(target))
 
     def remove_links(self, model: Model, actor: Actor) -> None:
-        self.purged_rows(Link, self.touching(model), actor)
+        ref = Ref.build(model)
+        self.purged_rows(Link, self.query().filter(source=ref).filter_unlisted("kind", list(Link.SURVIVING_SOURCE)), actor)
+        self.purged_rows(Link, self.query().filter(target=ref).filter_unlisted("kind", list(Link.SURVIVING_TARGET)), actor)
 
     def touching_any(self, models: Sequence[Model]) -> list[Link]:
         refs = [Ref.build(model) for model in models]

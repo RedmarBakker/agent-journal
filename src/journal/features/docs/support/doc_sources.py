@@ -1,11 +1,12 @@
 from journal.models.doc import Doc
+from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.repositories.docs import Docs
 from journal.repositories.links import Links
 from journal.repositories.scope import Scope
 
-COPIED_FROM = "copied_from"
-ATTACHED = "attached_to"
+COPIED_FROM = Link.COPIED_FROM
+ATTACHED = Link.ATTACHED_TO
 
 
 class DocSources:
