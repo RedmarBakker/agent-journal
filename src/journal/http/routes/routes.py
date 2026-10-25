@@ -57,6 +57,7 @@ from journal.http.controllers.viewer import ViewerController
 from journal.http.controllers.client_errors import ClientErrorController
 from journal.http.controllers.voices import VoiceController
 from journal.http.controllers.subagents import SubagentController
+from journal.http.controllers.verifiers import VerifierController
 from journal.http.controllers.workers import WorkerController
 from journal.http.router import Router
 
@@ -194,6 +195,8 @@ class Routes:
         self.listed(router, "subagents", get(SubagentController))
         self.acts(router, "workers", get(WorkerController), "send", "message", "stop", "complete", "check", "short_check", "merge", "release")
         router.get(f"{API}/workers/{{id}}/transcript", get(TranscriptController).worker_transcript)
+        self.listed(router, "verifiers", get(VerifierController))
+        router.get(f"{API}/verifiers/{{id}}/transcript", get(TranscriptController).verifier_transcript)
 
     def chat(self, router: Router) -> None:
         get = self.container.get

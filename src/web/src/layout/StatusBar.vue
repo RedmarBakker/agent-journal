@@ -27,6 +27,8 @@ import {peek, route} from "../route.js";
 import MenuPanel from "../kit/MenuPanel.vue";
 import WorkerList from "../chat/WorkerList.vue";
 import {useEveryWorker, useWorkers} from "../composables/workers.js";
+import {useEveryVerifier} from "../composables/verifiers.js";
+import VerifierList from "../chat/VerifierList.vue";
 import {isWorking} from "../domain/workers.js";
 import {rows} from "../sync/rows.js";
 import {runPlan, setAuto} from "../actions/work.js";
@@ -96,6 +98,16 @@ async function pauseOrResume() {
         wanted.value = null;
         toast.value = {text: e.message};
     }
+}
+
+const verifiersOpen = ref(false);
+const verifiersAnchor = ref(null);
+const {rows: everyVerifier, loaded: everyVerifierLoaded, refresh: refreshEveryVerifier} = useEveryVerifier(verifiersOpen);
+
+function toggleVerifiers(e) {
+    verifiersAnchor.value = e.currentTarget;
+    verifiersOpen.value = !verifiersOpen.value;
+    if (verifiersOpen.value) refreshEveryVerifier();
 }
 
 function toggleWorkers(e) {
@@ -221,6 +233,15 @@ async function runBar(p) {
                     <Icon name="family" />
                     {{ workersOut }}
                 </button>
+                <button
+                    type="button"
+                    class="statusbar-helpers"
+                    v-tip:verifiers="{title: 'Verifiers', line: 'Agents the journal sent by itself to judge a dismissed reader report. Opens the list.'}"
+                    :aria-expanded="verifiersOpen"
+                    @click.stop="toggleVerifiers"
+                >
+                    <Icon name="verifier" />
+                </button>
             </span>
             <template v-if="workersOpen">
                 <MenuPanel
@@ -234,6 +255,20 @@ async function runBar(p) {
                     @close="workersOpen = false"
                 >
                     <WorkerList :rows="everyWorker" :loading="!everyWorkerLoaded" @changed="refreshEveryWorker(), refreshWorkers()" @close="workersOpen = false" />
+                </MenuPanel>
+            </template>
+            <template v-if="verifiersOpen">
+                <MenuPanel
+                    :anchor="verifiersAnchor"
+                    plain
+                    :min-width="300"
+                    :max-width="360"
+                    :height="workersHeight"
+                    :gap="12"
+                    @click.stop
+                    @close="verifiersOpen = false"
+                >
+                    <VerifierList :rows="everyVerifier" :loading="!everyVerifierLoaded" @close="verifiersOpen = false" />
                 </MenuPanel>
             </template>
             <Btn

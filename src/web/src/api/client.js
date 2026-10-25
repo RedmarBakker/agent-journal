@@ -346,6 +346,10 @@ export class ApiClient {
         return this.get(this.here(`${path}${query(fields)}`), `${path}.${readKind(fields)}`);
     }
 
+    verifierTranscript(id, fields = {}) {
+        return this.get(this.here(`/verifiers/${id}/transcript${query(fields)}`), `/verifiers/${id}/transcript.${readKind(fields)}`);
+    }
+
     workerTranscript(id, fields = {}) {
         return this.get(this.here(`/workers/${id}/transcript${query(fields)}`), `/workers/${id}/transcript.${readKind(fields)}`);
     }

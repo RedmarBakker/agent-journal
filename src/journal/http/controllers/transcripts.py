@@ -14,15 +14,17 @@ from journal.providers.provider import Provider
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
 from journal.support.missing_row import MissingRow
+from journal.repositories.verifiers import Verifiers
 from journal.repositories.workers import Workers
 
 
 
 class TranscriptController:
-    """The conversation of an agent, of one of its subagents and of a worker, read from the provider's own files."""
+    """The conversation of an agent, of one of its subagents, of a worker and of a verifier, read from the provider's own files."""
 
-    def __init__(self, config: Config, providers: Providers, agents: Agents, workers: Workers, subagents: Subagents, runner: WorkerRunner, branch: WorkerBranch, turns: TranscriptTurns) -> None:
+    def __init__(self, config: Config, providers: Providers, agents: Agents, workers: Workers, subagents: Subagents, runner: WorkerRunner, branch: WorkerBranch, turns: TranscriptTurns, verifiers: Verifiers) -> None:
         self.config, self.providers, self.agents, self.workers, self.subagents, self.runner, self.branch, self.turns = config, providers, agents, workers, subagents, runner, branch, turns
+        self.verifiers = verifiers
 
     def agent_transcript(self, request: Request) -> Response:
         agent = self.agents.find(request.number("id"))
@@ -42,6 +44,11 @@ class TranscriptController:
         place = self.branch.place(worker)
         session = worker.conversation() or self.found_session(worker)
         return self.answer(request, provider, provider.transcript(place, session) if session else None)
+
+    def verifier_transcript(self, request: Request) -> Response:
+        verifier = self.verifiers.find(request.number("id"))
+        provider = self.providers.lookup(verifier.provider)
+        return self.answer(request, provider, provider.transcript(self.config.root, verifier.session) if verifier.session else None)
 
     def found_session(self, worker: Worker) -> str:
         session = self.runner.latest_session(worker)

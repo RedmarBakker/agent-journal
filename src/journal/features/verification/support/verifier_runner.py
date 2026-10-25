@@ -21,17 +21,17 @@ VERIFIER_SECONDS = 600
 
 
 class VerifierRunner:
-    """Runs a verifier the journal sent: its program headless on its brief in the project, its shell marked a verifier's with its own number and token and the journal's hooks wired in; a process that ends, or runs past its ten minutes, without a verdict ends the verifier, and a verdict stops its process."""
+    """Runs a verifier the journal sent: its program headless on its brief in the project, a fresh session or the one it judged in last, its shell marked a verifier's with its own number and token and the journal's hooks wired in; a process that ends, or runs past its ten minutes, without a verdict ends the verifier, and a verdict stops its process."""
 
     def __init__(self, config: Config, providers: Providers, setup: HelperSetup, verifiers: Verifiers, environments: Environments, agents: Agents, scope: Scope) -> None:
         self.config, self.providers, self.setup, self.verifiers = config, providers, setup, verifiers
         self.environments, self.agents, self.scope = environments, agents, scope
 
-    def start(self, verifier: Verifier) -> Verifier:
+    def start(self, verifier: Verifier, resume: str) -> Verifier:
         provider, token = self.providers.lookup(verifier.provider), AgentToken.random()
-        verifier = self.verifiers.save(verifier.with_(session=provider.worker_session(""), token_hash=token.digest()), Actor.system())
+        verifier = self.verifiers.save(verifier.with_(session=provider.worker_session(resume), token_hash=token.digest()), Actor.system())
         settings = self.setup.hook_settings(provider, self.config.root, self.output(verifier).with_suffix(".settings.json"))
-        command = [*provider.worker_command(verifier.brief, verifier.model, "", verifier.session), *provider.worker_settings_flags(settings)]
+        command = [*provider.worker_command(verifier.brief, verifier.model, resume, verifier.session), *provider.worker_settings_flags(settings)]
         environ = self.setup.variables(self.environments.find(verifier.environment_id).name, Actor.verifier(verifier.id), token)
         threading.Thread(target=self.run, args=(verifier, command, environ), name=f"verifier-{verifier.id}", daemon=True).start()
         return verifier
@@ -41,7 +41,7 @@ class VerifierRunner:
             output = self.output(verifier)
             output.parent.mkdir(parents=True, exist_ok=True)
             try:
-                with output.open("w") as log_file:
+                with output.open("a") as log_file:
                     process = subprocess.Popen(command, cwd=self.config.root, env=environ, stdin=subprocess.DEVNULL, stdout=log_file, stderr=subprocess.STDOUT, text=True, start_new_session=True)
             except OSError:
                 self.ended(verifier)

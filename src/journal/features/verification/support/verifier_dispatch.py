@@ -17,19 +17,25 @@ MODEL_PROFILE = "journal-medior"
 
 
 class VerifierDispatch:
-    """Sends a verifier, as the journal and never an agent: a verifier named after Diogenes, handed the evidence as its whole brief, linked to the row whose dismissal it judges, and started by its own runner; and finds the row a verifier judges."""
+    """Sends a verifier, as the journal and never an agent: the idle one that judged last, in its own session with its memory of that judgement, else a new one named after Diogenes, handed the evidence as its whole brief, linked to the row whose dismissal it judges, and started by its own runner; and finds the row a verifier judges now, the last it was linked to."""
 
     def __init__(self, verifiers: Verifiers, links: Links, runner: VerifierRunner, providers: Providers, profiles: ProfileFiles) -> None:
         self.verifiers, self.links, self.runner, self.providers, self.profiles = verifiers, links, runner, providers, profiles
 
     def sent(self, target: Scoped, brief: str) -> Verifier:
+        idle = self.verifiers.idle()
+        if idle:
+            return self.judging(idle[0].next_judgement(brief), target, idle[0].session)
         provider = self.providers.default()
-        verifier = self.verifiers.save(Verifier(environment_id=target.environment_id, name=DIOGENES, brief=brief, provider=provider.name, model=provider.profile_model(self.profiles.read(MODEL_PROFILE))), Actor.system())
+        return self.judging(Verifier(environment_id=target.environment_id, name=DIOGENES, brief=brief, provider=provider.name, model=provider.profile_model(self.profiles.read(MODEL_PROFILE))), target, "")
+
+    def judging(self, verifier: Verifier, target: Scoped, resume: str) -> Verifier:
+        verifier = self.verifiers.save(verifier, Actor.system())
         self.links.save(Link(source=Ref.build(verifier), target=Ref.build(target), kind=VERIFIES), Actor.system())
-        return self.runner.start(verifier)
+        return self.runner.start(verifier, resume)
 
     def judged(self, number: int) -> Ref:
         targets = self.links.targets(self.verifiers.find(number), VERIFIES)
         if not targets:
             raise Rejection(f"verifier {number} judges nothing: only a verifier the journal sent gives a verdict")
-        return targets[0]
+        return targets[-1]

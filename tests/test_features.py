@@ -14549,12 +14549,11 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     def dismissed(why: str) -> tuple[ReaderReport, object]:
         with app.container.get(Scope).environment(MAIN):
             report = reports.save(ReaderReport(environment_id=MAIN, reader="builds", output=output, command="make all", session="s1", findings=("the card showed lines too long or too much like code to read at a glance: \"cc -O2 -Wall\"",), fixes=("narrow the pattern to the short lines a person reads",)), Actor.system())
-            sent = {verifier.id for verifier in verifiers.scoped()}
         console.run(["reader", "report", str(report.id)], AGENT)
         assert console.run(["reader", "dismiss", str(report.id), "--why", why], AGENT).code == 0
         app.runtime().deferred.drain()
         with app.container.get(Scope).environment(MAIN):
-            [verifier] = [verifier for verifier in verifiers.scoped() if verifier.id not in sent]
+            [verifier] = [verifier for verifier in verifiers.scoped() if verifier.is_verifying()]
             deadline = timing.time() + 10
             while not verifiers.find(verifier.id).pid and timing.time() < deadline:
                 timing.sleep(0.02)
@@ -14597,6 +14596,14 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert console.run(["reader", "add", "builds", "--pattern", "^(built|failed)\\b"], AGENT).code == 0
     assert write()[0] == 200, "only the reader written anew releases the hold"
     sound, kept_verifier = dismissed("the reader now picks only the line that starts with built")
+    assert kept_verifier.id == verifier.id and kept_verifier.session == verifier.session and len(verifiers.scoped()) == 1 and kept_verifier.brief != verifier.brief, "the idle verifier takes the next judgement in its own session, with its new brief"
+    verifier_hook(kept_verifier, "SessionStart")
+    assert sessions.top(kept_verifier.session).name == "verifying", "and rests on Verifying again"
+    from in_process import got
+    listed = got(app, "/journal/verifiers", {"X-Journal-Env": "main"})[1]["rows"]
+    shown = got(app, f"/journal/verifiers?ids={verifier.id}", {"X-Journal-Env": "main"})[1]["rows"][0]
+    assert [row["id"] for row in listed] == [verifier.id] and shown["judged"] == [f"reader_reports:{report.id}", f"reader_reports:{sound.id}"] and shown["session"] == verifier.session, "the viewer lists the verifier with its session, and reads the reports it judged in order"
+    assert got(app, f"/journal/verifiers/{verifier.id}/transcript", {"X-Journal-Env": "main"})[0] == 200, "and its transcript"
     console.run(["verdict", "yes", "the pattern picks the built line alone"], Caller.verifier("main", kept_verifier.id, kept_verifier.session, "claude"))
     app.runtime().deferred.drain()
     with app.container.get(Scope).environment(MAIN):
