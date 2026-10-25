@@ -13562,6 +13562,53 @@ def test_a_driven_hub_task_is_the_environments_task_its_agent_writing_with_none_
         team.close(server)
 
 
+def test_while_a_hub_plan_is_driven_a_task_added_to_it_and_a_report_about_a_hub_task_land_on_the_hub_a_document_stays_local_and_each_answer_says_where(tmp_path, template_journal, monkeypatch):
+    import subprocess
+    from conftest import copied
+    from journal.models.plan import Plan
+    from journal.repositories.docs import Docs
+    from journal.repositories.environments import Environments
+    from journal.repositories.plans import Plans
+    from journal.repositories.reports import Reports
+    from journal.repositories.tasks import Tasks
+    from sync_server.team_server import TeamServer
+
+    def git(*arguments: str) -> None:
+        subprocess.run(["git", *arguments], capture_output=True, check=True, timeout=30)
+
+    git("init", "-q", str(tmp_path / "a"))
+    git("-C", str(tmp_path / "a"), "-c", "user.name=Ada", "-c", "user.email=ada@example.com", "commit", "-q", "--allow-empty", "-m", "first")
+    (tmp_path / "server").mkdir()
+    team = TeamServer(tmp_path / "server")
+    server = team.started("127.0.0.1", 0)
+    journal = booted(copied(template_journal, tmp_path / "a"), monkeypatch)
+    try:
+        joined = journal.console().run(["team", "join", f"http://127.0.0.1:{server.server_address[1]}", "--email", "ada@example.com", "--name", "Ada", "--password", "correct horse battery"], USER)
+        assert joined.code == 0, joined.error
+        console = journal.console()
+        main, hub = journal.container.get(Environments).existing("main"), journal.container.get(Environments).hubs()[0]
+        assert hook(journal, "SessionStart")[0] == 200
+        console.run(["environment", "overview"], AGENT)
+        with journal.container.get(Scope).environment(hub.row_id):
+            plan = journal.container.get(Plans).save(Plan(environment_id=hub.row_id, title="the launch"), Actor.user(1))
+        assert console.run(["plan", "drive", str(plan.id)], USER).code == 0
+        added = console.run(["plan", "add", str(plan.id), "the footer", "--brief", "the footer names the shop"], AGENT)
+        assert added.code == 0 and added.text.strip().endswith(f"on the {hub.team_name} hub"), added.text
+        task = next(row for row in journal.container.get(Tasks).global_matching(title="the footer"))
+        assert task.environment_id == hub.row_id, "a task added to the driven plan is a hub row"
+        reported = console.run(["report", "create", "What the footer test found", "--body", "it names the shop", "--about", f"tasks:{task.id}"], AGENT)
+        assert reported.code == 0 and f"on the {hub.team_name} hub" in reported.text, reported.text
+        assert journal.container.get(Reports).global_matching(title="What the footer test found")[0].environment_id == hub.row_id, "a report about a hub task lands on the hub"
+        notes = tmp_path / "notes.md"
+        notes.write_text("# Notes\n\nthe footer\n")
+        made = console.run(["doc", "create", "Footer notes", "--file", str(notes)], AGENT)
+        assert made.code == 0 and made.text.strip().endswith(f"kept in {main.name} on this machine"), made.text
+        assert journal.container.get(Docs).global_matching(title="Footer notes")[0].environment_id == main.row_id, "any other row made while driving stays local"
+    finally:
+        journal.runtime().stop()
+        team.close(server)
+
+
 def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(tmp_path, template_journal, monkeypatch):
     import subprocess
     from conftest import copied

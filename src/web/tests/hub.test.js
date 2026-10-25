@@ -1,7 +1,7 @@
 import {readFileSync} from "node:fs";
 import {createApp, h} from "vue";
 import {afterEach, expect, test, vi} from "vitest";
-import {driverLine, ownEnvironments, teamGroups} from "../src/domain/hub.js";
+import {destination, driverLine, ownEnvironments, teamGroups} from "../src/domain/hub.js";
 import HubBoard from "../src/pages/HubBoard.vue";
 import HubHome from "../src/pages/HubHome.vue";
 
@@ -75,6 +75,16 @@ test("a driven hub task and plan show who drives them, the person and the agent,
     const home = mounted(HubHome, {hub, plans: [{id: 2, table: "plans", title: "Launch", ...driver}]});
     expect(home.querySelector("[data-hub-plans] [data-driver]").textContent).toBe("Driven by Ada, the agent of main on laptop");
     expect(driverLine({driver: ""})).toBe("");
+});
+
+test("the New dialog says whether a row made in the open environment lands on the hub or stays on this machine, and says nothing in a journal with no hub", () => {
+    expect(destination(environments[0], environments)).toBe("Stays in main, on this machine");
+    expect(destination(hub, environments)).toBe("Lands on the acme hub");
+    expect(destination({id: 1, name: "main", kind: "local"}, [{id: 1, name: "main", kind: "local"}])).toBe("");
+    expect(destination(undefined, environments)).toBe("");
+    const dialog = readFileSync("src/resource/NewResource.vue", "utf8");
+    expect(dialog).toContain("destination(rows(\"environments\")");
+    expect(dialog).toContain("data-landing");
 });
 
 test("a hosted journal opens on the hub home with its documents, plans and board and lists no unshared environment", async () => {

@@ -29,6 +29,7 @@ from journal.repositories.plans import PHASE_LINK, PLAN_LINK, PHASE_TASK_LINK, P
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.sync.hub_drives import HubDrives
+from journal.support.row_destination import RowDestination
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.support.caller_kind import CallerKind
@@ -41,10 +42,10 @@ class PlanCommand(Command):
     noun = "plan"
     callers = {"show": SUBAGENT_KINDS}
 
-    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting) -> None:
+    def __init__(self, plans: Plans, phases: Phases, tasks: Tasks, links: Links, subagents: SubagentEntries, waits: Waits, rounds: ReviewRounds, taking: ActiveTask, testing: PlanTesting, hub_rows: HubRows, hub: HubChoice, labels: RowLabels, settings: SettingRows, drives: HubDrives, statuses: PlanStatuses, phase_testing: PhaseTesting, destination: RowDestination) -> None:
         self.plans, self.phases, self.tasks, self.links, self.subagents, self.waits = plans, phases, tasks, links, subagents, waits
         self.rounds, self.taking, self.plan_testing, self.hub_rows, self.hub, self.labels = rounds, taking, testing, hub_rows, hub, labels
-        self.settings, self.drives, self.statuses, self.phase_testing = settings, drives, statuses, phase_testing
+        self.settings, self.drives, self.statuses, self.phase_testing, self.destination = settings, drives, statuses, phase_testing, destination
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "draft a plan")
@@ -114,7 +115,7 @@ class PlanCommand(Command):
         self.links.save(Link(source=Ref.build(task), target=Ref.build(plan), kind=PLAN_LINK), caller.actor)
         for counterpart in previous:
             self.relink(counterpart, plan, caller)
-        print(f"task {task.id} added to plan {plan.id}{' first' if args.first else ''}")
+        print(f"{self.labels.name('task', task)} added to {self.labels.name('plan', plan)}{' first' if args.first else ''}{self.destination.phrase(task)}")
         return 0
 
     def relink(self, task: Task, plan: Plan, caller: Caller) -> None:

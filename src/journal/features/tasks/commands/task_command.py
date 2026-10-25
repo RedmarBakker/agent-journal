@@ -30,6 +30,7 @@ from journal.repositories.questions import Questions
 from journal.repositories.tasks import Tasks
 from journal.features.tasks.support.next_open_task import NextOpenTask
 from journal.sync.hub_drives import HubDrives
+from journal.support.row_destination import RowDestination
 from journal.sync.team_account import TeamAccount
 CURRENT = "current"
 
@@ -40,10 +41,11 @@ class TaskCommand(Command):
     noun = "task"
     callers = {"show": HELPER_KINDS, "list": SUBAGENT_KINDS, "log": WORKER_KINDS}
 
-    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling, drives: HubDrives, account: TeamAccount) -> None:
+    def __init__(self, tasks: Tasks, logs: TaskLogs, messages: Messages, links: Links, plans: Plans, taking: ActiveTask, questions: Questions, waits: Waits, briefing: TaskBriefing, clock: Clock, next_task: NextOpenTask, check: BlockCheck, reminder: MessageReminder, labels: RowLabels, hub: HubChoice, filing: HubFiling, drives: HubDrives, account: TeamAccount, destination: RowDestination) -> None:
         self.clock, self.next_task, self.reminder = clock, next_task, reminder
         self.tasks, self.logs, self.messages, self.links, self.plans, self.taking, self.questions, self.waits, self.briefing = tasks, logs, messages, links, plans, taking, questions, waits, briefing
         self.check, self.labels, self.hub, self.filing, self.drives, self.account = check, labels, hub, filing, drives, account
+        self.destination = destination
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "file a task")
@@ -108,7 +110,7 @@ class TaskCommand(Command):
                 task = self.taking.start(task, caller)
             unfiled = "" if args.message else self.reminder.creation_line(task, self.tasks.previous_creation(task))
             line = f"{self.labels.name('task', task)} {task.state}" + (f" (from message {args.message})" if args.message else "")
-        print("\n".join(filter(None, [line, unfiled])))
+        print("\n".join(filter(None, [line + self.destination.phrase(task), unfiled])))
         return 0
 
     def message_link(self, message: int, task: Task, caller: Caller) -> None:

@@ -1,7 +1,10 @@
 <script setup>
 import {meta} from "../domain/tables.js";
 import {createsOf} from "../domain/acts.js";
-import {reactive, ref} from "vue";
+import {computed, reactive, ref} from "vue";
+import {destination} from "../domain/hub.js";
+import {route} from "../route.js";
+import {rows} from "../sync/rows.js";
 import {api} from "../api/client.js";
 import Dialog from "../kit/Dialog.vue";
 import ResourceEdit from "./ResourceEdit.vue";
@@ -12,6 +15,7 @@ const emit = defineEmits(["made", "close"]);
 const fields = createsOf(props.table);
 const draft = reactive(Object.fromEntries(Object.keys(fields).map((field) => [field, ""])));
 const error = ref("");
+const landing = computed(() => destination(rows("environments").find((row) => row.name === route.value.env), rows("environments")));
 
 async function submit() {
     error.value = "";
@@ -30,12 +34,19 @@ async function submit() {
     </template>
     <template v-else>
         <Dialog :title="`New ${meta(table).title.toLowerCase()}`" @close="emit('close')">
+            <p v-if="landing" class="landing" data-landing>{{ landing }}</p>
             <ResourceEdit v-model:draft="draft" class="new" :table="table" :fields="fields" :error="error" @save="submit" @cancel="emit('close')" />
         </Dialog>
     </template>
 </template>
 
 <style scoped>
+.landing {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    color: var(--text-2);
+}
+
 .new {
     display: flex;
     flex-direction: column;

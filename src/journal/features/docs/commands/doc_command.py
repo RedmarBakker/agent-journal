@@ -15,6 +15,7 @@ from journal.models.link import Link
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.repositories.scope import Scope
+from journal.support.row_destination import RowDestination
 from journal.support.rejection import Rejection
 from journal.repositories.docs import Docs
 from journal.repositories.doc_revisions import DocRevisions
@@ -28,8 +29,9 @@ class DocCommand(Command):
     noun = "doc"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS, "update": WORKER_KINDS}
 
-    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, hub_move: HubMove, sources: DocSources) -> None:
+    def __init__(self, docs: Docs, revisions: DocRevisions, clock: Clock, hub_rows: HubRows, hub: HubChoice, account: TeamAccount, links: Links, scope: Scope, hub_move: HubMove, sources: DocSources, destination: RowDestination) -> None:
         self.docs, self.doc_revisions, self.clock, self.hub_rows, self.hub, self.account, self.links, self.scope, self.hub_move, self.sources = docs, revisions, clock, hub_rows, hub, account, links, scope, hub_move, sources
+        self.destination = destination
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a document of this environment; the project's and every hub's are read here too")
@@ -70,7 +72,7 @@ class DocCommand(Command):
 
     def create(self, args: Namespace, caller: Caller) -> int:
         doc = self.docs.save(Doc(title=args.title, abstract=args.abstract, body=Path(args.file).read_text()), caller.actor)
-        print(f"doc {doc.id}: {doc.title}")
+        print(f"doc {doc.id}: {doc.title}{self.destination.phrase(doc)}")
         return 0
 
     def update(self, args: Namespace, caller: Caller) -> int:

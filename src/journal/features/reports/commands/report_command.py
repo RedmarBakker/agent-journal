@@ -14,6 +14,7 @@ from journal.support.rejection import Rejection
 from journal.repositories.links import Links
 from journal.repositories.messages import Messages
 from journal.repositories.reports import Reports
+from journal.support.row_destination import RowDestination
 
 ROW = re.compile(r"^[a-z_]+:\d+$")
 
@@ -22,8 +23,8 @@ class ReportCommand(Command):
     noun = "report"
     callers = {"show": HELPER_KINDS, "create": WORKER_KINDS}
 
-    def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering) -> None:
-        self.reports, self.links, self.gathering = reports, links, gathering
+    def __init__(self, reports: Reports, links: Links, gathering: UpdateGathering, destination: RowDestination) -> None:
+        self.reports, self.links, self.gathering, self.destination = reports, links, gathering, destination
 
     def arguments(self, verbs) -> None:
         creation = self.verb(verbs, "create", "write a report: what was checked or researched now")
@@ -49,10 +50,10 @@ class ReportCommand(Command):
     def create(self, args: Namespace, caller: Caller) -> int:
         body = Path(args.file).read_text() if args.file else args.body
         rows = self.mentioned_rows(args.about)
-        report = self.reports.save(Report(title=args.title, body=body), caller.actor)
+        report = self.reports.save(Report(environment_id=self.destination.hub_environment_id(rows), title=args.title, body=body), caller.actor)
         for row in rows:
             self.links.save(Link(source=Ref.build(report), target=row, kind=Messages.SUBJECT_LINK), caller.actor)
-        print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else ""))
+        print(f"report {report.id}: {report.title}" + (f", about {', '.join(map(str, rows))}" if rows else "") + self.destination.phrase(report))
         return 0
 
     @staticmethod
