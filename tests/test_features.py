@@ -13636,6 +13636,18 @@ def test_a_keyed_plugin_card_answered_again_unchanged_stays_where_it_is_and_a_ch
         assert len(cards()) == 1 and cards()[0].id > first.id and cards()[0].text == "2 sins in a.py", "a changed card moves to the bottom"
 
 
+def test_a_scoped_suite_run_counts_its_finished_tests_against_the_total_it_collected(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("suite_script", Path(__file__).parents[1] / "scripts" / "suite.py")
+    suite = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(suite)
+    output = tmp_path / "run.txt"
+    output.write_text("collected 2 items\n.")
+    assert suite.shard_progress(output) == (1, 2) and suite.progress_line(1, 2) == "running tests [ 50%] 1 of 2 finished", "one of the two tests counted, as the pytest reader's percentage reads it"
+    output.write_text("collected 2 items\n..                                                                       [100%]\n2 passed in 0.6s\n")
+    assert suite.progress_line(*suite.shard_progress(output)) == "running tests [100%] 2 of 2 finished", "and both once they ran"
+
+
 def test_merges_past_the_limit_wait_for_a_place_before_plugins_are_asked(app: App):
     import threading
     import time

@@ -126,6 +126,7 @@ def scope(connection: Connection, bus: Bus) -> Scope:
 
 # the shard of a parallel suite this run is, as index/count, set by scripts/suite.py
 SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
+TALLY_VARIABLE = "JOURNAL_TEST_TALLY"
 
 
 DURATIONS_IN_VARIABLE = "JOURNAL_TEST_DURATIONS_IN"
@@ -148,8 +149,13 @@ def pytest_collection_modifyitems(config, items):
     kept = [item for item in items if item.nodeid in mine]
     config.hook.pytest_deselected(items=[item for item in items if item.nodeid not in mine])
     items[:] = kept
-    sys.__stdout__.write(f"collected {len(kept)} items\n")
-    sys.__stdout__.flush()
+
+
+def pytest_collection_finish(session) -> None:
+    """A shard of the parallel suite, or a run of named tests the suite script counts, prints how many tests it will run, after every deselection, so its progress is counted against it."""
+    if os.environ.get(SHARD_VARIABLE) or os.environ.get(TALLY_VARIABLE):
+        sys.__stdout__.write(f"collected {len(session.items)} items\n")
+        sys.__stdout__.flush()
 
 
 def pytest_runtest_logreport(report) -> None:

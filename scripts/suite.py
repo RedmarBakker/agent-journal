@@ -1,4 +1,4 @@
-"""Runs the test suite: a run naming tests or options is one pytest run; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up."""
+"""Runs the test suite: a run naming tests or options is one pytest run that counts its finished tests against its total as it goes; the whole suite is split into shards run side by side, one per core but two, and their outcomes added up."""
 import json
 import os
 import re
@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PYTEST = [sys.executable, "-m", "pytest", "-p", "no:warnings"]
 SHARD_VARIABLE = "JOURNAL_TEST_SHARD"
+TALLY_VARIABLE = "JOURNAL_TEST_TALLY"
 SPARE_CORES = 2
 MOST_SHARDS = 8
 SHARD_TIMEOUT_SECONDS = 600
@@ -73,10 +74,14 @@ def progress_shown(shards: list[tuple[subprocess.Popen, Path]]) -> None:
         counts = [shard_progress(output) for _, output in shards]
         finished, total = sum(done for done, _ in counts), sum(whole for _, whole in counts)
         percent = 100 * finished // total if total else 0
-        if percent != shown or time.monotonic() - last_shown >= HEARTBEAT_SECONDS:
-            print(f"running tests [{percent:3d}%] {finished} of {total} finished", flush=True)
+        if total and (percent != shown or time.monotonic() - last_shown >= HEARTBEAT_SECONDS):
+            print(progress_line(finished, total), flush=True)
             shown, last_shown = percent, time.monotonic()
         time.sleep(PROGRESS_SECONDS)
+
+
+def progress_line(finished: int, total: int) -> str:
+    return f"running tests [{100 * finished // total if total else 0:3d}%] {finished} of {total} finished"
 
 
 def durations_kept(folder: Path) -> None:
@@ -115,9 +120,24 @@ def whole_suite() -> int:
         return 1 if totals.get("failed") or totals.get("errors") or not totals.get("passed") or any(process.returncode not in (0, 5) for process, _ in shards) else 0
 
 
+def scoped_run(arguments: list[str]) -> int:
+    with tempfile.TemporaryDirectory() as folder:
+        output = Path(folder) / "run.txt"
+        process = subprocess.Popen([*PYTEST, *arguments], cwd=ROOT, env={**os.environ, "PYTHONUNBUFFERED": "1", TALLY_VARIABLE: "1"}, stdout=output.open("w"), stderr=subprocess.STDOUT)
+        progress_shown([(process, output)])
+        try:
+            process.wait(timeout=SHARD_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            print(f"the run went past {SHARD_TIMEOUT_SECONDS} seconds and was stopped")
+        print(progress_line(*shard_progress(output)), flush=True)
+        print(output.read_text(), end="", flush=True)
+        return process.returncode
+
+
 def main(arguments: list[str]) -> int:
     if arguments:
-        return subprocess.run([*PYTEST, *arguments], cwd=ROOT).returncode
+        return scoped_run(arguments)
     return whole_suite()
 
 
