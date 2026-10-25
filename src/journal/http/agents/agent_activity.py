@@ -4,6 +4,7 @@ from dataclasses import asdict
 from journal.engine.support.stack_history import StackHistory
 from journal.engine.states.wait import Wait
 from journal.engine.states_catalogue import StatesCatalogue
+from journal.features.reviewing.reviewing_options import ReviewingOptions
 from journal.features.sequences.listeners.record_run_changes import RUN
 from journal.features.shell.support.activity_label import ActivityLabel
 from journal.features.shell.support.shell_record import PART_END, PART_START
@@ -108,7 +109,7 @@ class AgentActivity:
         }
 
     def fitness(self, agent: Agent) -> FitnessScore | None:
-        profile = WorkersProfiles.mode_profile(str(self.settings.option(WorkersOptions.MODE)))
+        profile = (WorkersProfiles.reviewed_mode_profile if self.settings.option(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(str(self.settings.option(WorkersOptions.MODE)))
         return profile.scored(ToolUseCounts.counted(agent)) if profile else None
 
     def rolling(self) -> dict:

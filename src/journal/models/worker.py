@@ -156,7 +156,7 @@ class Worker(Helper):
         return self.state in (WorkerState.STOPPED, WorkerState.MERGED, WorkerState.RELEASED, WorkerState.UNFINISHED)
 
     def is_unanswered(self, time: float, seconds: float) -> bool:
-        return self.state == WorkerState.DELIVERED and time - self.silence.timeout.start > seconds
+        return self.state == WorkerState.DELIVERED and not self.in_review and time - self.silence.timeout.start > seconds
 
     def is_idle(self) -> bool:
         return self.state == WorkerState.REPORTED and not self.adopted

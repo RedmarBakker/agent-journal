@@ -11,5 +11,5 @@ class ReviewRouting:
     def __init__(self, settings: SettingRows) -> None:
         self.settings = settings
 
-    def is_on(self) -> bool:
+    def is_enabled(self) -> bool:
         return self.settings.option(WorkersOptions.MODE) == ORCHESTRATOR and bool(self.settings.option(ReviewingOptions.REVIEWER))

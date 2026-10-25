@@ -1833,6 +1833,30 @@ def test_an_orchestrator_that_merges_without_reading_proofs_or_running_tests_sco
     assert unprepared.gaps[0].label == "your merges that followed a read of the proofs and a test run among your merges" and unprepared.gaps[0].percent == 0, "and it is the measure named"
 
 
+def test_with_the_reviewer_on_the_orchestrator_is_not_measured_on_merge_preparation_and_its_answer_time_runs_from_the_review(app: App):
+    from journal.features.reviewing.reviewing_options import ReviewingOptions
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.workers_conduct import fitness_lines
+    from journal.models.reviewer import Reviewer
+    from journal.models.worker import Worker
+    from journal.engine.support.settings import Settings
+    from journal.features.workers.workers_profiles import WorkersProfiles
+    unprepared = ToolUseCounts(mode="orchestrator", merges=4, prepared_merges=0, research_count=20)
+    assert WorkersProfiles.ORCHESTRATOR.scored(unprepared).score < 100 and WorkersProfiles.reviewed_mode_profile("orchestrator").scored(unprepared).score == 100, "with the reviewer on, merges with no proof read or test run of its own cost the orchestrator nothing"
+    assert WorkersProfiles.reviewed_mode_profile("builder") is WorkersProfiles.BUILDER, "the other modes are measured as they were"
+    data = type("Workers", (), {"tool_uses": unprepared})()
+    values = {WorkersOptions.FITNESS_THRESHOLD.key: 100, ReviewingOptions.REVIEWER.key: False}
+    assert fitness_lines("orchestrator", data, Settings(values)), "with the reviewer off a low score is told as today"
+    assert not fitness_lines("orchestrator", data, Settings({**values, ReviewingOptions.REVIEWER.key: True})), "and with it on the merge measure no longer lowers it"
+    worker = Worker(id=7, environment_id=1, name="Lady Lovelace", dispatcher="s1")
+    clocked = worker.delivered(100.0)
+    assert clocked.is_unanswered(500.0, 300), "with the reviewer off a clock-out waits on the orchestrator from the clock-out"
+    in_review = worker.delivered_to_review(100.0, "the parser is done")
+    assert not in_review.is_unanswered(1000.0, 300), "a worker in review waits on the reviewer, not the orchestrator"
+    reviewed = in_review.reviewed(900.0, 1, Reviewer(id=9, environment_id=1, session="r-1"), "1 passed")
+    assert not reviewed.is_unanswered(1000.0, 300) and reviewed.is_unanswered(1300.0, 300), "its answer time runs from the reviewer's report"
+
+
 def test_the_fitness_score_waits_for_fifty_tool_uses_in_the_current_work_mode_and_counts_only_those(app: App):
     from journal.features.workers.support.tool_use_counts import ToolUseCounts
     from journal.http.agents.agent_activity import AgentActivity

@@ -33,6 +33,7 @@ from journal.features.workers.workers_nudges import WorkersNudges
 from journal.features.workers.workers_options import WorkersOptions
 from journal.features.workers.workers_part import WorkersPart
 from journal.features.tasks.states.external_wait import ExternalWait
+from journal.features.reviewing.reviewing_options import ReviewingOptions
 
 INDEPENDENT_ROLES = ("auditor", "reviewer", "plan-reviewer", "critic")
 
@@ -220,7 +221,7 @@ def alignment_check(state: BaseState, event: ToolStarting, settings: Settings) -
 
 
 def fitness_lines(mode: str, workers, settings: Settings) -> tuple[Nudge, ...]:
-    profile, threshold = WorkersProfiles.mode_profile(mode), settings.integer(WorkersOptions.FITNESS_THRESHOLD)
+    profile, threshold = (WorkersProfiles.reviewed_mode_profile if settings.value(ReviewingOptions.REVIEWER) else WorkersProfiles.mode_profile)(mode), settings.integer(WorkersOptions.FITNESS_THRESHOLD)
     if profile is None or threshold <= 0:
         return ()
     fitness = profile.scored(workers.tool_uses)

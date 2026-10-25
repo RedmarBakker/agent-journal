@@ -15,10 +15,11 @@ OWN_EDIT_SHARE = FitnessMeasure("your own file edits among your tool uses", lamb
 
 
 class WorkersProfiles:
-    """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself."""
+    """The ideal agent of each work mode: the builder writes most of its work and researches itself, the orchestrator hands most of the work out and still makes small fixes, the solo agent does all of it itself; with the reviewer on, reading the proofs and running the tests before a merge are the reviewer's, so the orchestrator is not measured on them."""
 
     BUILDER = ModeProfile("builder", (FILE_EDIT_SHARE, RESEARCH_SHARE))
     ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, PREPARED_MERGE_SHARE, OWN_EDIT_SHARE))
+    REVIEWED_ORCHESTRATOR = ModeProfile("orchestrator", (WORKER_WAIT_SHARE, TASK_WAIT_SHARE, REUSE_SHARE, BRIEF_SHARE, OWN_EDIT_SHARE))
     SOLO = ModeProfile("solo", (SOLO_FILE_EDIT_SHARE, SOLO_RESEARCH_SHARE))
 
     ALL = (BUILDER, ORCHESTRATOR, SOLO)
@@ -26,3 +27,7 @@ class WorkersProfiles:
     @classmethod
     def mode_profile(cls, mode: str) -> ModeProfile | None:
         return next((profile for profile in cls.ALL if profile.mode == mode), None)
+
+    @classmethod
+    def reviewed_mode_profile(cls, mode: str) -> ModeProfile | None:
+        return cls.REVIEWED_ORCHESTRATOR if mode == cls.ORCHESTRATOR.mode else cls.mode_profile(mode)

@@ -23,4 +23,4 @@ class ReviewingFeature(Feature):
     commands = (ReviewCommand,)
     listeners = (ReviewerStart, ReviewHandback, ReviewerRetirement)
     conduct = (ReviewingConduct,)
-    nudges = (ReviewingNudges.REVIEWER_WRITES, ReviewingNudges.REVIEW_OWED, ReviewingNudges.WORK_REVIEWED, ReviewingNudges.REVIEW_FAILED)
+    nudges = (ReviewingNudges.REVIEWER_WRITES, ReviewingNudges.REPORT_REQUEST, ReviewingNudges.WORK_REVIEWED, ReviewingNudges.REVIEW_FAILED)

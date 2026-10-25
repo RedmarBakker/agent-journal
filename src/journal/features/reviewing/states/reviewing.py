@@ -22,7 +22,7 @@ class Reviewing(BaseState):
         return self.refuse(ReviewingNudges.REVIEWER_WRITES.create()) if event.call.writes else self.none()
 
     def on_stop(self, event: Stop, settings: Settings) -> Transition:
-        return self.refuse(ReviewingNudges.REVIEW_OWED.create())
+        return self.refuse(ReviewingNudges.REPORT_REQUEST.create())
 
     def on_worker_reviewed(self, event: WorkerReviewed, settings: Settings) -> Transition:
         return self.push(Ended()) if event.reviewer_session == event.session else self.none()

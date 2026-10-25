@@ -30,7 +30,7 @@ class WorkerReports:
     def delivered(self, worker: Worker, text: str, actor: Actor) -> None:
         self.posted(worker, text, actor)
         current, time = self.workers.find(worker.row_id), datetime.now(timezone.utc).timestamp()
-        self.workers.save(current.delivered_to_review(time, text) if self.routing.is_on() and not worker.pool_request else current.delivered(time), actor)
+        self.workers.save(current.delivered_to_review(time, text) if self.routing.is_enabled() and not worker.pool_request else current.delivered(time), actor)
 
     def posted(self, worker: Worker, text: str, actor: Actor) -> Message:
         message = self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=f"{self.lead(worker)}{text}", data={"kind": Message.REPORT, "worker": worker.name, "worker_id": worker.id}), actor)
