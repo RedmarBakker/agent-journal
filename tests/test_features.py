@@ -12317,6 +12317,14 @@ def test_an_agent_view_reaches_the_team_server_for_a_shared_environment_and_the_
         assert own.key not in keys and bobs_own.key not in keys, "a person's environment they have not shared never sends its agent view to the team server"
 
 
+def test_on_a_team_not_yet_moved_to_the_hub_the_agent_view_of_every_environment_reaches_the_team_server_as_before(tmp_path, template_journal, monkeypatch):
+    from journal.http.agents.agent_view_sender import AgentViewSender
+    from journal.repositories.environments import Environments
+    with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):
+        a.container.get(AgentViewSender).send(timing.time() + 3600)
+        assert a.container.get(Environments).existing("main").key in team.agent_views.views_by_key, "a team from before the hub sees each person's agents as it always has"
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

@@ -11,6 +11,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.scope import Scope
 from journal.sync.hosts import Hosts
 from journal.sync.team_account import TeamAccount
+from journal.sync.team_placement import TeamPlacement
 from journal.sync.team_refusal import TeamRefusal
 from journal.sync.team_server_link import TeamServerLink
 
@@ -21,11 +22,11 @@ TERMINAL_LINE_COUNT = 50
 
 
 class AgentViewSender:
-    """Sends the team server the agent bar rows of each environment this journal hosts that the team may see, a shared one or the hub, and the Team chat only from the machine that holds it, never a person's environment they have not shared, each with its agent's newest terminal lines and the voice its owner chose here, whose figure the hosted journal shows, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
+    """Sends the team server the agent bar rows of each environment this journal hosts whose rows TeamPlacement sends the team, on a team on the hub a shared one or the hub and never a person's environment they have not shared, on a team not yet moved there every one as before, and the Team chat only from the machine that holds it, each with its agent's newest terminal lines and the voice its owner chose here, whose figure the hosted journal shows, while it is in a team, every time they change and again before the server's copy goes stale, so the owner on the hosted journal and a colleague see the agent as it is here; a fault waits a minute and is never the sync's."""
 
-    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink, voices: VoiceChoice) -> None:
+    def __init__(self, account: TeamAccount, hosts: Hosts, agents: Agents, activity: AgentActivity, terminal: TerminalLines, scope: Scope, link: TeamServerLink, voices: VoiceChoice, placement: TeamPlacement) -> None:
         self.account, self.hosts, self.agents, self.activity, self.terminal, self.scope, self.link = account, hosts, agents, activity, terminal, scope, link
-        self.voices = voices
+        self.voices, self.placement = voices, placement
         self.last_views: dict[str, list[dict]] = {}
         self.last_send_at = 0.0
         self.stopping = threading.Event()
@@ -61,7 +62,7 @@ class AgentViewSender:
         return {environment.key: self.rows(environment.row_id) for environment in self.hosts.hosted_environments() if self.is_viewed(environment)}
 
     def is_viewed(self, environment: Environment) -> bool:
-        return self.account.is_chat_holder() if environment.is_session() else not environment.is_private()
+        return self.account.is_chat_holder() if environment.is_session() else self.placement.is_sent(environment)
 
     def rows(self, environment_id: int) -> list[dict]:
         with self.scope.environment(environment_id):
