@@ -15825,6 +15825,30 @@ def test_a_dismissed_reader_report_is_judged_by_a_verifier_the_journal_sends_who
     assert status == 200 and "dismissal" not in str(body), "and the main agent hears nothing of it"
 
 
+def test_a_reviewer_sent_inside_a_transaction_still_open_runs_once_the_transaction_commits(app: App):
+    from journal.features.reviewing.support.reviewer_dispatch import ReviewerDispatch
+    from journal.features.reviewing.support.reviewer_runner import ReviewerRunner
+    from journal.models.reviewer_state import ReviewerState
+    from journal.models.worker import Worker
+    from journal.repositories.reviewers import Reviewers
+    from journal.repositories.workers import Workers
+    with app.container.get(Scope).environment(MAIN):
+        workers, reviewers = app.container.get(Workers), app.container.get(Reviewers)
+        worker = workers.save(Worker(environment_id=MAIN, name="Lady Lovelace"), Actor.system())
+        with workers.writing():
+            sent = app.container.get(ReviewerDispatch).sent(worker, "review the parser")
+            timing.sleep(0.5)
+        deadline = timing.time() + 10
+        while not reviewers.find(sent.id).pid and timing.time() < deadline:
+            timing.sleep(0.02)
+        running = reviewers.find(sent.id)
+        assert running.pid and running.state == ReviewerState.REVIEWING, "a listener on the event that sends a reviewer holds the transaction that saved its row, and its run saves its process once that transaction commits"
+        app.container.get(ReviewerRunner).stop(running)
+        while reviewers.find(sent.id).state == ReviewerState.REVIEWING and timing.time() < deadline:
+            timing.sleep(0.02)
+        assert reviewers.find(sent.id).state == ReviewerState.ENDED, "and a run that ends without a report ends the reviewer"
+
+
 def test_with_the_reviewer_on_a_clocked_out_workers_report_goes_to_the_journals_reviewer_whose_report_reaches_the_orchestrator(app: App, monkeypatch):
     from journal.features.reviewing.support.reviewer_dispatch import JURAN
     from journal.models.agent_role import AgentRole

@@ -21,7 +21,7 @@ from journal.support.process_check import ProcessCheck
 
 
 class HelperRunner[H: Helper]:
-    """Runs an agent the journal sends itself, a verifier or a reviewer: its program headless on its brief in the project, a fresh session or the one it worked in last, its shell marked with its kind, its own number and token and the journal's hooks wired in; a process that ends, or runs past its limit, before its answer ends the agent, unless a newer run of the same agent has taken its row, and its answer stops its process."""
+    """Runs an agent the journal sends itself, a verifier or a reviewer: its program headless on its brief in the project, a fresh session or the one it worked in last, its shell marked with its kind, its own number and token and the journal's hooks wired in; a process that ends, or runs past its limit, before its answer ends the agent, unless a newer run of the same agent has taken its row, and its answer stops its process. Its row is read under the write lock, since the sender may still hold the transaction that saved it, as a listener on the event that sent it does."""
 
     seconds: ClassVar[int]
 
@@ -48,20 +48,21 @@ class HelperRunner[H: Helper]:
             except OSError:
                 self.ended(helper)
                 return
-            self.rows.save(self.rows.find(helper.row_id).running_as(process.pid), Actor.system())
+            self.rows.rewritten(helper, Actor.system(), lambda current: current.running_as(process.pid))
             try:
                 process.wait(timeout=self.seconds)
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            current = self.rows.find(helper.row_id)
+            with self.rows.writing():
+                current = self.rows.find(helper.row_id)
             if current.pid == process.pid:
                 self.ended(current)
 
     def ended(self, helper: H) -> None:
         for agent in self.agents.active_session_agents(helper.session):
             self.agents.save(agent.retired(time.time()), Actor.system())
-        self.rows.save(self.rows.find(helper.row_id).ended(), Actor.system())
+        self.rows.rewritten(helper, Actor.system(), lambda current: current.ended())
 
     def stop(self, helper: H) -> None:
         if helper.pid and ProcessCheck.is_running(helper.pid) and os.getpgid(helper.pid) == helper.pid:

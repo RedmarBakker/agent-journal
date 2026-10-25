@@ -28,12 +28,13 @@ class ReviewerRunner(HelperRunner[Reviewer]):
         self.workers, self.tasks, self.links = workers, tasks, links
 
     def ended(self, reviewer: Reviewer) -> None:
-        current = self.rows.find(reviewer.row_id)
         try:
-            if current.is_reviewing():
-                self.return_work(current)
+            with self.rows.writing():
+                current = self.rows.find(reviewer.row_id)
+                if current.is_reviewing():
+                    self.return_work(current)
         finally:
-            super().ended(current)
+            super().ended(reviewer)
 
     def return_work(self, reviewer: Reviewer) -> None:
         worker = self.workers.find(self.links.worker(reviewer).id)
