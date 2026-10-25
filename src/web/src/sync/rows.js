@@ -300,9 +300,12 @@ async function openWhole(table) {
     store.rows[table] = (store.rows[table] || []).map((r) => rowsById.get(r.id) || r);
 }
 
-async function read(table) {
+// a table read before is caught up by its changes, which a refresh follows; a whole read after a break, or a first one, reads the newest page
+const isPaged = (table, whole) => !loaded.has(table) || (whole && (store.paging.size[table] || pageOf(table)) === pageOf(table) && !keptTables.has(table));
+
+async function read(table, whole) {
     if (!watchedTables.has(table)) return counted(table);
-    const rows = await ((store.paging.size[table] || pageOf(table)) === pageOf(table) && !keptTables.has(table) ? paged(table) : caughtUp(table));
+    const rows = await (isPaged(table, whole) ? paged(table) : caughtUp(table));
     if (READ_WHOLE.has(table)) await openWhole(table);
     return rows;
 }
@@ -313,14 +316,14 @@ async function entriesAndSettings() {
     if (JSON.stringify(settings) !== JSON.stringify(store.settings)) store.settings = settings;
 }
 
-const failedTable = (table) =>
-    read(table).then(
+const failedTable = (table, whole) =>
+    read(table, whole).then(
         () => null,
         () => table
     );
 
 async function pull(tables, whole) {
-    const failed = (await Promise.all(tables.map(failedTable))).filter(Boolean);
+    const failed = (await Promise.all(tables.map((table) => failedTable(table, whole)))).filter(Boolean);
     failed.forEach((table) => (owed.add(table), changed.add(table)));
     if (whole) await entriesAndSettings();
     if (failed.length) throw new Error(`could not read ${failed.join(", ")}`);
