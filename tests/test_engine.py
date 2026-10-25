@@ -1898,6 +1898,33 @@ def test_a_codex_hook_review_menu_is_answered_by_trusting_the_hooks_the_journal_
         assert any('chose "Trust all and continue"' in m.text for m in app.container.get(Messages).scoped()), "and a card in the chat says so"
 
 
+def test_an_agent_stopped_at_the_context_limit_has_compact_typed_once_and_an_ordinary_stop_has_nothing(app: App, monkeypatch):
+    from journal.features.usage.jobs.context_limit_compaction import ContextLimitCompaction
+    from journal.supervisor_link import SupervisorLink
+    transmitted = []
+    monkeypatch.setattr(SupervisorLink, "_send", lambda self, environment_id, verb, fields: transmitted.append({"verb": verb, **fields}))
+    hook(app, "SessionStart")
+    job = app.container.get(ContextLimitCompaction)
+    screens = app.config.home / "runtime" / "screens"
+    screens.mkdir(parents=True, exist_ok=True)
+    (app.config.home / "runtime" / "inboxes").mkdir(parents=True, exist_ok=True)
+    (app.config.home / "runtime" / "inboxes" / "main").write_text(json.dumps({"socket": "/tmp/none.sock", "protocol": 1, "screen": str(screens / "main.out")}))
+    prompt = "\r\n──────\r\n❯ \r\n──────\r\n  agent-journal · main\r\n"
+    (screens / "main.out").write_text("⏺ Done, the footer is in.\r\n" + prompt)
+    job.tick(0.0)
+    assert transmitted == [], "an ordinary stop has nothing typed"
+    limited = "⏺ Reading the rest.\r\n  ⎿  \x1b[31mContext\x1b[1Climit reached\x1b[39m · /compact or /clear to continue\r\n" + prompt
+    (screens / "main.out").write_text(limited)
+    job.tick(0.0)
+    job.tick(0.0)
+    assert transmitted == [{"verb": "type", "name": "agent", "line": "/compact", "after": 0.0}], "a stop at the context limit has /compact typed into the front, once while the notice stays"
+    (screens / "main.out").write_text("✻ Compacting conversation… (4s)\r\n" + prompt)
+    job.tick(0.0)
+    (screens / "main.out").write_text(limited)
+    job.tick(0.0)
+    assert len(transmitted) == 2, "the next stop at the limit is a new occurrence and is compacted again"
+
+
 def test_a_compaction_that_left_no_start_never_keeps_the_agents_lines_off_under_another_state():
     from journal.engine.states.compacting import Compacting
     from journal.events.agent.tool_finished import ToolFinished

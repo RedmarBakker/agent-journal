@@ -13,6 +13,7 @@ from journal.models.mcp_server import McpServer
 from journal.providers.support.agent_status import AgentStatus
 from journal.providers.support.context_file import ContextFile
 from journal.providers.support.hooks_ready import HooksReady
+from journal.providers.support.menu import Menu
 from journal.providers.support.profile import Profile
 from journal.support.undecoded_tool import UndecodedTool
 from journal.support.alias_call import AliasCall
@@ -66,6 +67,8 @@ class Provider(ABC):
     foreign_settings: ClassVar[tuple[str, ...]] = ()
     hook_kinds: ClassVar[tuple[HookKind, ...]] = tuple(HookKind)
     controls: ClassVar[dict] = {"groups": [], "note": ""}
+    context_limit_notice: ClassVar[str] = ""
+    compact_command: ClassVar[str] = ""
     capabilities: ClassVar[frozenset[Capability]]
     decoders: ClassVar[dict[str, Callable[[dict], Operation]]]
     profile_suffix: ClassVar[str]
@@ -103,6 +106,9 @@ class Provider(ABC):
     def line_count(path: Path) -> int:
         with path.open("rb") as file:
             return sum(block.count(b"\n") for block in iter(lambda: file.read(COUNT_BYTES), b""))
+
+    def is_at_context_limit(self, screen: str) -> bool:
+        return bool(self.context_limit_notice) and "".join(self.context_limit_notice.split()) in "".join(Menu.plain(screen).split())
 
     @abstractmethod
     def subagent_transcript(self, project: Path, parent: str, agent_id: str) -> Path | None: ...

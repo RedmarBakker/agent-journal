@@ -68,6 +68,8 @@ class Claude(Provider):
     profile_suffix = ".md"
     default = True
     session_inbox = True
+    context_limit_notice = "Context limit reached"
+    compact_command = "/compact"
     controls = {
         "groups": [
             {"key": "model", "label": "Model", "choices": [{"value": v, "label": l, "command": f"/model {v}"} for v, l in (("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"), ("fable", "Fable"))]},
