@@ -2,7 +2,7 @@
 import RollingWord from "../kit/RollingWord.vue";
 import {agent} from "../composables/leadAgent.js";
 import {autoOn, workMode} from "../composables/settings.js";
-import {MODES, modeToggles, toggleOn, toggleValue} from "../domain/modes.js";
+import {MODES, modeToggles, switchQuestion, toggleOn, toggleValue} from "../domain/modes.js";
 import {api} from "../api/client.js";
 import {saveSettings} from "../actions/settings.js";
 import Segmented from "../kit/Segmented.vue";
@@ -115,6 +115,21 @@ const loadTip = computed(
         }
 );
 const keepMode = (key) => (store.settings = {...store.settings, workers: {...store.settings.workers, mode: key}});
+
+const modeAsk = ref(null);
+const modeAnchor = ref(null);
+
+function askMode(key) {
+    const question = key === workMode.value ? "" : switchQuestion(key, {task: current.value, workersOut: workersOut.value, state: stateOf(agent.value)});
+    if (!question) return pickMode(key);
+    modeAsk.value = {key, question};
+}
+
+function confirmMode() {
+    const key = modeAsk.value.key;
+    modeAsk.value = null;
+    pickMode(key);
+}
 
 async function pickMode(key) {
     const was = workMode.value;
@@ -291,7 +306,20 @@ async function runBar(p) {
                     </button>
                 </template>
                 <span v-if="load" :class="['statusbar-load', loadLevel]" v-tip:load="loadTip">Load {{ load.rho.toFixed(2) }}</span>
-                <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="pickMode" />
+                <span ref="modeAnchor" class="statusbar-mode-wrap">
+                    <Segmented class="statusbar-mode" :options="modeOptions" :value="workMode" @pick="askMode" />
+                </span>
+                <template v-if="modeAsk">
+                    <MenuPanel :anchor="modeAnchor" :gap="8" :max-width="320" @click.stop @close="modeAsk = null">
+                        <div class="mode-ask">
+                            <p>{{ modeAsk.question }}</p>
+                            <div class="mode-ask-actions">
+                                <Btn small @click="modeAsk = null">Keep the mode</Btn>
+                                <Btn small kind="primary" @click="confirmMode">Switch</Btn>
+                            </div>
+                        </div>
+                    </MenuPanel>
+                </template>
                 <button
                     type="button"
                     :class="['statusbar-helpers', {none: !workers.length}]"
@@ -429,6 +457,24 @@ async function runBar(p) {
 </template>
 
 <style scoped>
+.mode-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+
+.mode-ask p {
+    margin: 0;
+    font-size: 13px;
+}
+
+.mode-ask-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 .statusbar {
     height: 52px;
     flex: none;

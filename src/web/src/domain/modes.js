@@ -7,6 +7,15 @@ export const MODES = [
 
 export const DEFAULT_MODE = "builder";
 
+// The question a mode switch asks while the agent works, so a stray click never switches it: a task in hand, a worker out or a turn running; none while it is idle.
+export function switchQuestion(target, {task = null, workersOut = 0, state = ""} = {}) {
+    const label = MODES.find((mode) => mode.key === target)?.label || target;
+    if (task) return `Switch to ${label}? The agent is working on task ${task.id}.`;
+    if (workersOut) return `Switch to ${label}? The agent has ${workersOut} workers out.`;
+    if (state === "working") return `Switch to ${label}? The agent is in the middle of a turn.`;
+    return "";
+}
+
 // The settings each mode's button shows in its hover panel, below its one line, each with a line saying what it does; every one is the user's to set.
 // Each names the setting it saves, by its feature and its name, and the value it has when the user never set it; a switch's children are a choice shown under it while it is on.
 const ORCHESTRATOR_TOGGLES = [
