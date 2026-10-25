@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.models.author import Author
-from journal.models.message import RECORDED_TEXT, Message
+from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.config import Config
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
@@ -116,8 +116,7 @@ class MessageCommand(Command):
         missing = [f"{kind} {number}" for (number, _), kind in zip(spans, kinds) if not self.rows.is_row(Ref(ROW_TABLES[kind], number))]
         if missing:
             raise Rejection(f"no {', no '.join(missing)} exists, so nothing was changed: give the kind each number really is")
-        recorded = {RECORDED_TEXT: message.data.get(RECORDED_TEXT, message.text)}
-        linked = self.messages.save(message.with_(text=UnlinkedRowNumbers.linked(message.text, kinds)).with_merged("data", recorded), caller.actor)
+        linked = self.messages.save(message.with_(text=UnlinkedRowNumbers.linked(message.text, kinds)), caller.actor)
         print(f"message {args.n} now reads: {linked.text}")
         return 0
 

@@ -14,7 +14,8 @@ from journal.support.actor import Actor
 from journal.models.author import Author
 from journal.models.entry import Entry
 from journal.models.link import Link
-from journal.models.message import RECORDED_TEXT, Message
+from journal.models.message import Message
+from journal.support.voice_key import VoiceKey
 from journal.models.support.ref import Ref
 from journal.providers.providers import Providers
 from journal.repositories.agents import Agents
@@ -31,10 +32,7 @@ JOURNAL_LINE = "[journal] "
 SHORT_CHARACTERS = 240
 REPEAT_OVERLAP_RATIO = 0.6
 
-# the key of the turn part a recorded message came from, so an edit of its text never records the part again
-TURN_KEY = "turn"
-# the agent's latest messages a turn part is matched against
-RECENT_VOICE_MESSAGES = 30
+
 
 class RecordTurn(AgentListener[TurnDisplayed]):
     """Every whole turn the agent writes for the user becomes a message in the chat, with its tags removed. A [!reply:N] tag opening a line makes it the answer to message N (N,M answers both) and marks them read; a tag elsewhere is text, and the agent is informed so. A [!log:N] turn belongs to the task's log alone. A turn that is only a reaction is not posted: the agent is instructed to react. A turn that only answered a journal line and changed nothing is stored as an acknowledgement, out of the chat."""
@@ -60,16 +58,16 @@ class RecordTurn(AgentListener[TurnDisplayed]):
 
     def _record(self, event: TurnDisplayed) -> None:
         actor, full = Actor.agent(event.session), event.text
-        for position, (tagged, part) in enumerate(self.sections(full)):
-            turn_key = f"{event.turn_id}:{event.index}:{position}" if event.turn_id else ""
-            if self.is_recorded(part, turn_key):
-                continue
+        for tagged, part in self.sections(full):
             text = Tags.visible(part)
+            key = VoiceKey.create("turn", event.session, text)
+            if self.messages.voice_stored(key, text):
+                continue
             answered = self.unanswered(tagged, event)
             silent = (Tags.hidden(part) and not answered) or self.is_repeat_reply(text, tagged, event)
             acknowledgement = not answered and len(text) <= SHORT_CHARACTERS and "?" not in text and self._journal_answer(event)
             if text and not silent:
-                reply = self.messages.save(Message(author=Author.AGENT, text=text, reply_target=answered[0] if answered else None, acknowledgement=acknowledgement, data={TURN_KEY: turn_key} if turn_key else {}), actor)
+                reply = self.messages.save(Message(author=Author.AGENT, text=text, reply_target=answered[0] if answered else None, acknowledgement=acknowledgement, idempotency=key), actor)
                 for n in answered[1:]:
                     self._other_answers(reply, n, actor)
             for n in answered:
@@ -109,11 +107,6 @@ class RecordTurn(AgentListener[TurnDisplayed]):
             return []
         obligations = {m.id for m in self.messages.unread() + self.messages.unanswered()}
         return [n for n in strays if n in obligations]
-
-    def is_recorded(self, part: str, turn_key: str) -> bool:
-        recent = self.messages.recent_voice(RECENT_VOICE_MESSAGES)
-        visible = Tags.visible(part)
-        return any(visible in (message.text, message.data.get(RECORDED_TEXT)) or (turn_key and message.data.get(TURN_KEY) == turn_key) for message in recent)
 
     @staticmethod
     def sections(full: str) -> list[tuple[list[int], str]]:

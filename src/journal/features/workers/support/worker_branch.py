@@ -265,6 +265,18 @@ class WorkerBranch:
             self.git("commit", "-qm", "Build the built files again on the project's branch", cwd=folder)
         return ""
 
+    # the files the worker's branch would clash in if it merged now, read by git merge-tree without touching the branch or the checkout
+    def clash_preview(self, worker: Worker) -> str:
+        clashing = []
+        for repository in self.pending(worker):
+            tip = self.tip(repository, worker)
+            if not self.is_commit(repository, tip):
+                continue
+            tree = self.git("merge-tree", "--write-tree", "--name-only", "--no-messages", "HEAD", tip, cwd=repository.checkout)
+            if tree.returncode == 1:
+                clashing += [str(repository.path(path)) for path in tree.stdout.split()[1:]]
+        return ", ".join(clashing)
+
     def merged(self, repository: WorkerRepository, worker: Worker) -> str:
         merged = self.git("merge", "--no-edit", self.tip(repository, worker), cwd=repository.checkout)
         if merged.returncode == 0:

@@ -9,8 +9,6 @@ from journal.models.author import Author
 from journal.models.scoped import Scoped
 TERMINAL_LINE = "typed"
 
-# the text a message had when its turn was recorded, kept when it is edited so the record of the turn still knows it
-RECORDED_TEXT = "recorded_text"
 
 @dataclass(frozen=True)
 class Message(Scoped):

@@ -24,6 +24,8 @@ CHAT_PAGE_ROWS = 400
 # the newest cards of one kind looked at by a cleanup at boot
 NEWEST_SHOWN = 2000
 
+# the agent's latest messages words stored before they carried their key are matched against by text
+RECENT_VOICE_MESSAGES = 30
 
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
@@ -120,6 +122,9 @@ class Messages(ScopedRepository[Message]):
     def peer_questions(self) -> list[Message]:
         questions = self.selected(self.query().filter_json("data->kind", Message.PEER).filter_json("data->asks", 1).order("id"))
         return [question for question in questions if not self.selected(self.query().filter_json("data->sent_to", question.data[Message.PEER]).filter_greater("id", question.id).limit(1))]
+
+    def voice_stored(self, key: str, text: str) -> bool:
+        return bool(self.sent_with(key)) or any(message.text == text for message in self.recent_voice(RECENT_VOICE_MESSAGES))
 
     def sent_with(self, key: str) -> list[Message]:
         return self.selected(self.query().filter(idempotency=key).order("id").limit(1))

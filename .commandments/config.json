@@ -15,6 +15,7 @@
         "PlainViewerTextDetector",
         "PlainServerTextDetector",
         "PlainJournalTextDetector",
+        "AgentWordsWithoutKeyDetector",
         "PlainViewerScriptTextDetector",
         "PlainViewerPageTextDetector",
         "LongAnswerWaitDetector",

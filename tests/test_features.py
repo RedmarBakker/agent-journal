@@ -5426,8 +5426,8 @@ def test_a_block_arriving_twice_at_once_is_recorded_once(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     record = app.container.get(RecordTurn)
-    checked = RecordTurn.is_recorded
-    monkeypatch.setattr(RecordTurn, "is_recorded", lambda self, part, turn_key: (checked(self, part, turn_key), timing.sleep(0.2))[0])
+    checked = Messages.voice_stored
+    monkeypatch.setattr(Messages, "voice_stored", lambda self, key, text: (checked(self, key, text), timing.sleep(0.2))[0])
     block = TurnDisplayed(text="Checking the worker's inspector now.", delta="", turn_id="t1", final=True).placed("s1", 1, "claude", 0.0, 0.0)
     threads = [threading.Thread(target=contextvars.copy_context().run, args=(record.handle, block)) for _ in range(2)]
     [t.start() for t in threads]
@@ -9104,7 +9104,8 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
     assert UnlinkedRowNumbers.numbers('my message said "3419" without its kind') == [], "a number quoted on its own is cited, never linked"
     with app.container.get(Scope).environment(MAIN):
-        said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=text), Actor.agent("s1"))
+        from journal.support.voice_key import VoiceKey
+        said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))
         bare = said(f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s")
     app.runtime().deferred.drain()
     line = json.dumps(hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})[1])
@@ -9117,7 +9118,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     from journal.events.agent.turn_displayed import TurnDisplayed
     app.container.get(RecordTurn).handle(TurnDisplayed(text=f"Writing {parser} (the parser) and {lexer} (the lexer) together, 1183 passed in 92s", turn_id="another-id").placed("s1", 1, "claude", 0.0, 0.0))
     with app.container.get(Scope).environment(MAIN):
-        assert len([m for m in messages.scoped() if "(the parser)" in m.text]) == 1, "the transcript's old text of a linked message is known by the text it was recorded with, so the turn is never recorded again"
+        assert len([m for m in messages.scoped() if "(the parser)" in m.text]) == 1, "a linked message keeps the key of the words it was recorded from, so the transcript's old text never records the turn again"
     with app.container.get(Scope).environment(MAIN):
         assert messages.find(bare.id).text == f"Writing task {parser} (the parser) and task {lexer} (the lexer) together, 1183 passed in 92s", "one kind links every number, and the count stays as it was"
         said(f"task {parser} is done")
