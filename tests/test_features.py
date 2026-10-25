@@ -20699,3 +20699,17 @@ def test_a_sequence_started_inside_another_is_followed_first_holds_any_work_unti
     assert "ran its last step" in ended and "step 1: plan it" in ended, "when the inner ends the outer's step is announced again"
     assert app.container.get(RunTracker).current("s1", 1).sequence_id == int(outer), "and the outer is the top again"
     assert bash("make build")[0] == 200, "the outer, taken up before, resumes with its step taken up"
+
+
+def test_a_git_push_alias_run_raises_no_one_word_title_report_and_its_label_says_what_runs():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from journal.features.shell.support.activity_label import ActivityLabel
+    from journal.features.shell.support.reader_judge import ReaderJudge
+    from journal.models.alias import Alias
+    judge = ReaderJudge(None, None, None, SimpleNamespace(open_with_output_finding=lambda output, finding: []), None, None, None, None, SimpleNamespace(index=lambda: {"push-development": Alias(name="push-development", line="git push origin development")}))
+    output = lambda command: SimpleNamespace(id=9, command=command, environment_id=1, session="s1", watch_reader="")
+    assert judge.one_word_title_report(output("journal push-development"), "Pushing") is None, "a git push, by its alias, may have no reader of its own, so its title is never reported"
+    assert judge.one_word_title_report(output("git commit -m x"), "Committing") is None
+    assert judge.one_word_title_report(output("make"), "Building") is not None, "any other run with a one word title is still reported"
+    assert ActivityLabel.build("git push origin development") == "pushing to origin" and len(ActivityLabel.build("git push").split()) > 1, "and the journal's own label for a push says what runs"

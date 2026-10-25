@@ -6,7 +6,7 @@ from journal.support.command_shape import CommandShape
 
 # the everyday git a line may do and still show no card, since the journal's commit and push marks say it; a rebase or a history
 # rewrite is not among them
-GIT_ROUTINE_LABELS = frozenset({"committing", "pushing", "pulling", "staging", "switching branch", "tagging", "checking git", "fetching", "merging", "reading history", "reading a diff", "listing", "searching"})
+GIT_ROUTINE_LABELS = frozenset({"committing", "pushing to origin", "pulling", "staging", "switching branch", "tagging", "checking git", "fetching", "merging", "reading history", "reading a diff", "listing", "searching"})
 # a read whose same command took this long before shows its card, neutral, while it runs
 LONG_READ_SECONDS = 30
 

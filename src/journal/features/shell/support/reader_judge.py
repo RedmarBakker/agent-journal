@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from journal.features.shell.support.activity_label import ActivityLabel
+from journal.features.shell.support.git_writes import GitWrites
 from journal.features.shell.support.card_line import CardLine
 from journal.features.shell.support.count_forms import PERCENT_PATTERN, CountForms
 from journal.features.shell.support.output_files import OutputFiles
@@ -79,7 +80,7 @@ class ReaderJudge:
         return ReaderReport(environment_id=output.environment_id, reader=reader.name, output=output.id, command=output.command, session=output.session, findings=tuple(shortfall[0] for shortfall in shortfalls), fixes=tuple(shortfall[1] for shortfall in shortfalls))
 
     def one_word_title_report(self, output: CommandOutput, title: str) -> ReaderReport | None:
-        if self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE):
+        if self.reports.open_with_output_finding(output.id, SINGLE_WORD_TITLE) or GitWrites.is_writing(CommandShape.command_name(Alias.resolved(output.command, self.aliases.index()))):
             return None
         reader = output.watch_reader
         return ReaderReport(environment_id=output.environment_id, reader=reader, output=output.id, command=output.command, session=output.session, findings=(f'{SINGLE_WORD_TITLE}: "{title}"',), fixes=("give the reader a label that says what runs, such as 'Running the rename tool', and a --topic that names it: journal reader add " + (reader or "<name>") + " --label ... --topic ...",))
