@@ -31,3 +31,4 @@ class WorkersData:
     load: AgentLoad = AgentLoad()
     merge_check: MergeCheck = MergeCheck()
     last_calls: dict[int, str] = field(default_factory=dict)
+    resumable: tuple[int, ...] = ()

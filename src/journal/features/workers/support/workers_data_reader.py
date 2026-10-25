@@ -7,9 +7,11 @@ from journal.repositories.scope import Scope
 from journal.support.stage_times import StageTimes
 from journal.config import Config
 from journal.features.workers.support.worker_branch import WorkerBranch
+from journal.features.workers.support.worker_resumes import WorkerResumes
 from journal.features.workers.support.worker_worktree import WorkerWorktree
 from journal.features.workers.support.ready_work import ReadyWork
 from journal.models.agent import Agent
+from journal.models.worker_state import WorkerState
 from journal.models.support.ref import Ref
 from journal.repositories.command_outputs import CommandOutputs
 from journal.models.proof_state import ProofState
@@ -28,12 +30,12 @@ ACTED = (ProofState.CHECKED, ProofState.CHECKED_UNFINISHED, ProofState.SHORT)
 class WorkersDataReader:
     """Reads the workers feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields WorkersData names."""
 
-    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries) -> None:
-        self.edits, self.checks, self.scope, self.stages, self.entries = edits, checks, scope, stages, entries
+    def __init__(self, workers: Workers, subagents: Subagents, config: Config, branch: WorkerBranch, tasks: Tasks, todos: WorkerTodos, outputs: CommandOutputs, proofs: Proofs, edits: Edits, checks: MergeChecks, scope: Scope, stages: StageTimes, entries: Entries, resumes: WorkerResumes) -> None:
+        self.edits, self.checks, self.scope, self.stages, self.entries, self.resumes = edits, checks, scope, stages, entries, resumes
         self.workers, self.subagents, self.config, self.branch, self.tasks, self.todos, self.outputs, self.proofs = workers, subagents, config, branch, tasks, todos, outputs, proofs
 
     def last_call(self, session: str) -> str:
-        started = self.entries.tool_starts(session, 1)
+        started = self.entries.tool_starts(session, 1) if session else []
         call = started[0].recorded_call() if started else None
         if call is None:
             return "no tool call yet"
@@ -60,6 +62,7 @@ class WorkersDataReader:
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
             "load": lambda: agent.load,
             "merge_check": lambda: self.checks.check(),
-            "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers if w.session},
+            "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
+            "resumable": lambda: tuple(w.id for w in facts.rows if w.state == WorkerState.UNFINISHED and self.resumes.is_resumable(w)),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

@@ -120,7 +120,7 @@ class Worker(Helper):
 
     def unfinished(self, time: float, text: str) -> "Worker":
         times = sum(1 for word, _ in self.moves.steps if word == ENDED_UNFINISHED) + 1
-        return self.moved(ENDED_UNFINISHED, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out", times=times, has_session=bool(self.resume), is_run_limit=text.startswith(RUN_LIMIT_END)))
+        return self.moved(ENDED_UNFINISHED, time).with_(state=WorkerState.UNFINISHED, pid=0, token_hash="", run_end=text).with_event(WorkerUnfinished(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, ended without clocking out", times=times, is_run_limit=text.startswith(RUN_LIMIT_END)))
 
     def merged(self, task: int, time: float) -> "Worker":
         return self.moved("merged", time).with_(state=WorkerState.MERGED, token_hash="", merged_at=time, merged_task=task).with_event(WorkerMerged(environment_id=self.environment_id, time=time, worker=self.mention()))

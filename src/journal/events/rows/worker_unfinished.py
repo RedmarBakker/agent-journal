@@ -10,5 +10,4 @@ class WorkerUnfinished(RowResolved):
 
     worker: WorkerMention
     times: int = 1
-    has_session: bool = False
     is_run_limit: bool = False
