@@ -63,6 +63,7 @@ from journal.features.workers.listeners.merged_lines_record import MergedLinesRe
 from journal.features.workers.listeners.quick_report_drop_card import QuickReportDropCard
 from journal.features.workers.listeners.tiny_job_drop_card import TinyJobDropCard
 from journal.features.workers.listeners.worker_merge_card import WorkerMergeCard
+from journal.features.workers.listeners.worker_started_card import WorkerStartedCard
 from journal.features.workers.listeners.worker_merge_refusal_card import WorkerMergeRefusalCard
 from journal.features.workers.listeners.dispatch_refusal_cards import DispatchRefusalCards
 from journal.features.workers.listeners.silent_worker_record import SilentWorkerRecord
@@ -95,7 +96,7 @@ class Workers(Feature[WorkersData]):
     jobs = (WorkerWatch, WorktreeCleanup)
     process_cards = (WorkerProcessCard, SubagentProcessCard, TestRunProcessCard)
     host_writers = (PoolWorkerWrites, PoolRunnerWrites)
-    listeners = (FitnessLevelRecord, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, LimitResumes, QueueTurnResumes, ReportUseRecord, MergedLinesRecord, QuickReportDropCard, TinyJobDropCard, ReportUseMeasure, QueueUseRecord, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord)
+    listeners = (FitnessLevelRecord, SubagentRecord, SubagentCards, WorkerCards, TestRunCard, WorkerMomentCards, WorkerMergeCard, WorkerStartedCard, LimitResumes, QueueTurnResumes, ReportUseRecord, MergedLinesRecord, QuickReportDropCard, TinyJobDropCard, ReportUseMeasure, QueueUseRecord, WorkerMergeRefusalCard, DispatchRefusalCards, SilentWorkerRecord, UnfinishedClockOut, WorkerTaskChanges, ShortfallReturn, MergeClashReturn, BranchClashCheck, TaskTouch, WorkerBriefRecord, WorkerNoteRecord, WorkerTurnRecord, SubagentTurnRecord, SubagentMessageRecord, PoolJobIntake, TestRunRecord, TestTurnRelease, TestTurnTaskRelease, LoadRecord, LoadTickRecord, ModelFitRecord, WaitRecord, FitnessRecord)
     data = (WorkersDataReader,)
     conduct = (WorkersConduct,)
     worker_conduct = (ClockConduct,)

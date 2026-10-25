@@ -10519,7 +10519,7 @@ def test_the_main_agent_merges_a_workers_checked_work_which_closes_its_task(app:
     from journal.repositories.messages import Messages
     with app.container.get(Scope).environment(MAIN):
         idle = [message.text for message in app.container.get(Messages).scoped() if "work on task 2 merged" in message.text]
-    assert idle == ["Worker 2, Mr. Babbage: work on task 2 merged; it is idle"], "a merge with an empty queue is one mark saying the worker is idle"
+    assert idle == ["Worker 2, Mr. Babbage: work on task 2 merged"], "a merge with an empty queue is the one mark"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.find(2).state == TaskState.COMPLETED, "a worker with no worktree has its task closed by its merge alone"
     console.run(["task", "create", "the guide", "--brief", "the guide is written"], AGENT)
@@ -10579,7 +10579,7 @@ def test_a_busy_worker_takes_a_queue_of_tasks_each_delegated_to_it_and_the_merge
     from journal.repositories.messages import Messages
     with app.container.get(Scope).environment(MAIN):
         marks = [message.text for message in app.container.get(Messages).scoped() if message.data.get("card_type") == "moment"]
-    assert [mark for mark in marks if "work on task 1 merged" in mark] == ["Worker 1, Mr. Babbage: work on task 1 merged; it went on to task 2"], "a merge that sends the worker on is one mark naming both tasks"
+    assert [mark for mark in marks if "task 1 merged" in mark or "started on task 2" in mark] == ["Worker 1, Mr. Babbage: work on task 1 merged", "Worker 1, Mr. Babbage: started on task 2"], "a merge that sends the worker on is two marks, the merge and the start, in that order"
     assert not [mark for mark in marks if mark.startswith("Completed task 1") or mark.endswith("merged") or "sent its next job" in mark], "and the task's finish, the worker's merged standing and its next job write none"
     with app.container.get(Scope).environment(MAIN):
         assert tasks.holder(tasks.find(2)) is not None and tasks.find(3).delegated, "the merge sends the worker its next queued task by itself; the one after waits"
