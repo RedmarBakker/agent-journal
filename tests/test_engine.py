@@ -1591,8 +1591,8 @@ def test_the_work_mode_is_the_bottom_state_the_orchestrator_dispatches_the_build
     from journal.features.workers.states.soloing import Soloing
     from journal.models.open_task import OpenTask
     settings = lambda mode: SettingsValue({WorkersOptions.MODE.key: mode, TasksOptions.AUTO.key: True, TasksOptions.LOG_AGE_LIMIT.key: 10, TasksOptions.FIRST_DELAY.key: 25})
-    tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_next="task 3 (the footer), task 4 (the margin)")
-    started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
+    tasks = TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=(), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=OpenTask(3, "the footer", "", 0), last_commands=(), agent_tasks=(7,), open_ids=(3, 4), open_count=2, open_next="task 3 (the footer), task 4 (the margin)")
+    started = StartedPlan(plan_id=2, next_task=3, started_task=0, started_task_briefing="", recent_tasks=(3, 4), remaining_tasks=2, checkpoint_pause=False, checkpoint_phase=0, testing="")
     of = lambda plan: FeatureData({"plans": PlansData((), plan, 0), "tasks": tasks})
     from journal.engine.states_catalogue import StatesCatalogue
     from journal.engine.support.stack import Stack

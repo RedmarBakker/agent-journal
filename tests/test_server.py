@@ -952,16 +952,27 @@ def test_a_read_of_an_unknown_environment_is_not_found_and_makes_none(tmp_path: 
         app.runtime().stop()
 
 
-def test_a_chat_lists_its_last_fifty_messages_and_the_rest_on_scrolling_up():
+def test_a_chat_lists_its_last_fifty_messages_and_the_rest_on_scrolling_up(tmp_path: Path):
     from journal.http.listing import Listing
+    from journal.models.author import Author
     from journal.models.message import Message
-    rows = [Message(id=n, text=f"m{n}") for n in range(1, 61)]
-    listing = Listing.query_listing({})
-    assert [r.id for r in listing.listed(rows, lambda r: True)["rows"]] == list(range(1, 61)), "a work list shows every open row, however many"
-    page = listing.listed(rows, lambda r: True, timeline=True)
-    assert [r.id for r in page["rows"]] == list(range(11, 61)) and not page["is_last_page"], "a chat pages strictly: the last fifty, the rest on scrolling up"
-    older = Listing.query_listing({"before": "11"}).listed(rows, lambda r: True, timeline=True)
-    assert [r.id for r in older["rows"]] == list(range(1, 11)) and older["is_last_page"]
+    from journal.repositories.messages import Messages
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    try:
+        messages = app.container.get(Messages)
+        with app.container.get(Scope).environment(1):
+            ids = [messages.save(Message(author=Author.USER, text=f"m{n}"), Actor.system()).row_id for n in range(60)]
+            rows = messages.query().filter_listed("id", ids)
+            no_rows = rows.filter_listed("id", ())
+            listing = Listing.query_listing({})
+            assert [r.id for r in listing.listed(messages, rows, rows, no_rows)["rows"]] == ids, "a work list shows every open row, however many"
+            page = listing.timeline(messages, rows, no_rows)
+            assert [r.id for r in page["rows"]] == ids[10:] and not page["is_last_page"], "a chat pages strictly: the last fifty, the rest on scrolling up"
+            older = Listing.query_listing({"before": str(ids[10])}).timeline(messages, rows, no_rows)
+            assert [r.id for r in older["rows"]] == ids[:10] and older["is_last_page"]
+    finally:
+        app.runtime().stop()
 
 def test_the_profiles_page_lists_the_agents_folder_and_saves_a_profile_as_claude_reads_it(server):
     status, read = call(server, "GET", "/journal/profiles")

@@ -2,9 +2,9 @@
  "GET /journal/bar": 75,
  "POST /cli/task complete": 49,
  "POST /journal/plans/1": 81,
- "POST /journal/tasks/1/finish": 60,
+ "POST /journal/tasks/1/finish": 61,
  "hook MessageDisplay": 131,
- "hook SessionStart": 275,
+ "hook SessionStart": 282,
  "hook StopFailure": 124,
  "hook SubagentStart": 120,
  "hook SubagentStop": 122

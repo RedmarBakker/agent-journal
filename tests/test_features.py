@@ -15043,14 +15043,20 @@ def test_the_workers_list_returns_its_page_and_beside_it_only_the_workers_still_
     assert "report" in whole, "a worker read by its id comes with its report"
 
 
-def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many_are_open():
+def test_no_list_returns_more_than_its_page_and_a_page_of_open_rows_however_many_are_open(app: App):
     from journal.http.listing import Listing
     from journal.models.task import Task
-    rows = [Task(id=number, environment_id=1, title=str(number)) for number in range(1, 301)]
-    page = Listing(limit=20).listed(rows, lambda row: True)
-    assert [row.row_id for row in page["rows"]] == list(range(261, 301)), "three hundred open rows return the page and the page of open rows before it, never all three hundred"
-    mixed = Listing(limit=20).listed(rows, lambda row: row.row_id % 2 == 1)
-    assert len(mixed["rows"]) <= 40, "the page and at most a page of open rows beside it"
+    from journal.repositories.tasks import Tasks
+    tasks = app.container.get(Tasks)
+    ids = [tasks.save(Task(environment_id=MAIN, title=str(number)), Actor.system()).row_id for number in range(300)]
+    rows = tasks.query().filter_listed("id", ids)
+    no_rows = rows.filter_listed("id", ())
+    page = Listing(limit=20).listed(tasks, rows, rows, no_rows)
+    assert [row.row_id for row in page["rows"]] == ids[-40:], "three hundred open rows return the page and the page of open rows before it, never all three hundred"
+    mixed = Listing(limit=20).listed(tasks, rows, rows.filter_listed("id", ids[::2]), no_rows)
+    assert len(mixed["rows"]) <= 40 and [row.row_id for row in mixed["rows"]][-20:] == ids[-20:], "the page and at most a page of open rows beside it"
+    changed = Listing.query_listing({"since": str(timing.time() + 60)}).listed(tasks, rows, rows, no_rows)
+    assert changed == {"rows": [], "is_last_page": True}, "a change read finds the rows changed since, here none, in SQL"
 
 
 def test_how_workers_test_picks_the_test_template_a_dispatch_puts_in_the_brief(app: App):
