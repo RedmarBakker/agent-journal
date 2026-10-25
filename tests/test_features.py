@@ -3787,7 +3787,7 @@ def test_a_worker_sent_back_short_gets_the_failures_its_workers_latest_failed_ru
         (folder / "0.out").write_text("\n".join(lines) + "\n")
         return outputs.save(CommandOutput(chain=name, command="pytest tests/x.py", folder=str(folder), ran_in=ran_in, ended=True, status=status), Actor.system())
 
-    failed = FailedRuns(outputs, readers, SimpleNamespace(folder=lambda worker: worktree))
+    failed = FailedRuns(outputs, readers, SimpleNamespace(place=lambda worker: worktree))
     before = Worker(moves=WorkerMoves((("clocked out", time.time() - 100),)))
     try:
         assert failed.under(before, "the tests fail") == "the tests fail", "a send-back with no run carries only the reason"
@@ -3945,7 +3945,7 @@ def test_a_workers_turn_to_run_tests_starts_when_fewer_runs_go_than_the_budget_e
             return row
 
     crew = Crew()
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, app.container.get(CommandOutputs), app.container.get(Scope), crew, app.container.get(Environments))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -4047,7 +4047,7 @@ def test_a_test_run_stops_at_its_time_limit_a_worker_that_ends_takes_out_its_tur
     def fresh():
         started.clear(), gates.clear(), results.clear(), stops.clear()
         gates.update({n: threading.Event() for n in range(1, 5)})
-        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments))
+        return TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path / f"wt{worker.id}"), app.container.get(Readers), settings, outputs, scope, crew, app.container.get(Environments))
 
     def worker(number):
         return SimpleNamespace(id=number, name=f"Worker {number}", pool_request=0, environment_id=1)
@@ -4139,7 +4139,7 @@ def test_a_turn_runs_the_projects_test_command_is_refused_without_one_and_a_work
         (folders[name] / "tests").mkdir(parents=True)
     folders["bare"].mkdir()
     where = {1: "a", 2: "a", 3: "b", 4: "bare"}
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: folders[where[worker.id]]), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
     settings.set(WorkersOptions.TEST_RUNS.key, 3, Actor.user(1))
     results = {}
 
@@ -4215,7 +4215,7 @@ def test_a_turn_of_more_ids_than_tests_per_run_runs_in_batches_each_in_the_budge
             going.pop()
             yield outcome
 
-    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(folder=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
+    turns = TestTurns(app.container.get(TurnRows), Runner(), SimpleNamespace(place=lambda worker: tmp_path), app.container.get(Readers), settings, app.container.get(CommandOutputs), scope, Crew(), app.container.get(Environments))
     settings.set(WorkersOptions.TEST_COMMAND.key, "pytest -q", Actor.user(1))
     settings.set(WorkersOptions.TESTS_PER_RUN.key, 2, Actor.user(1))
     settings.set(WorkersOptions.TEST_RUNS.key, 1, Actor.user(1))

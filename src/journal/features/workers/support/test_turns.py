@@ -13,6 +13,7 @@ from journal.features.workers.support.test_run_result import TestRunResult
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.test_turn import TestTurn
+from journal.support.foreground_option import FOREGROUND_OPTION
 from journal.models.test_turn_state import TestTurnState
 from journal.models.worker import Worker
 from journal.repositories.command_outputs import CommandOutputs
@@ -44,7 +45,7 @@ class TestTurns:
     def take(self, worker: Worker, ids: str, caller: Caller) -> str:
         if worker.pool_request:
             raise Rejection(f"worker {worker.id}, {worker.name}, runs on another machine of the team: its tests run there, not through a turn here")
-        folder, ran = str(self.branch.folder(worker)), []
+        folder, ran = str(self.branch.place(worker)), []
         for batch in self.batches(ids):
             turn = self.asked(worker, batch, f"{self.command(folder)} {batch}", folder)
             if not self.waited(turn):
@@ -96,15 +97,28 @@ class TestTurns:
             limit.cancel()
             self.turns.save(self.turns.find(turn.id).ended(), Actor.system())
             raise
-        output = self.run_output(turn, started)
+        output = self.awaited(self.run_output(turn, started), started)
         later = self.turns.find(turn.id)
         if output is not None and not output.ended:
             self.turns.save(later.backgrounded(output.row_id), Actor.system())
             return text
+        text = self.printed(output) if output is not None else text
         limit.cancel()
         self.turns.save(later.ended(), Actor.system())
         self.recorded(later, TestRunResult.printed(text, self.readers.reading(turn.command)))
         return text
+
+    def awaited(self, output, started: float):
+        """A run the shell runner moved to the background is waited for until the foreground limit has passed since it began, so a turn's result is handed back in the foreground."""
+        deadline = started + self.settings.integer(FOREGROUND_OPTION)
+        while output is not None and not output.ended and time.time() < deadline:
+            time.sleep(POLL_SECONDS)
+            output = self.outputs.find(output.row_id)
+        return output
+
+    @staticmethod
+    def printed(output) -> str:
+        return "\n".join([*OutputFiles(Path(output.folder)).lines(), f"{EXIT} {output.status}", ""])
 
     def recorded(self, turn: TestTurn, result: TestRunResult) -> None:
         later = self.turns.find(turn.id)
