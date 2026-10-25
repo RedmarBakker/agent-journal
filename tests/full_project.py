@@ -1,4 +1,4 @@
-"""Builds tests/fixtures/full_project.db.gz, the database of a full project the route timing run measures against, shaped as a journal worked in for weeks: an agent that finished hundreds of the tasks it took in hand, a started plan of many tasks over many phases, sessions long ended, wait checks, the session's subagents and command outputs, a third of them whole runs of the suite, and the notices it pinned, most closed. Every row is generated here from a fixed seed and a list of plain words, never copied from a real journal, since the repository is public. Built again, from the checkout's root, when the schema moves far enough that the saved file no longer boots: PYTHONPATH=src python3 -m tests.full_project"""
+"""Builds tests/fixtures/full_project.db.gz, the database of a full project the route timing run measures against, shaped as a journal worked in for weeks: an agent that finished hundreds of the tasks it took in hand, a started plan of many tasks over many phases, sessions long ended, wait checks, the session's subagents and command outputs, a third of them whole runs of the suite, shell calls with what they printed, edits with their texts, and the notices it pinned, most closed. Every row is generated here from a fixed seed and a list of plain words, never copied from a real journal, since the repository is public. Built again, from the checkout's root, when the schema moves far enough that the saved file no longer boots: PYTHONPATH=src python3 -m tests.full_project"""
 import gzip
 import random
 import re
@@ -18,6 +18,7 @@ from journal.features.workers.workers_options import WorkersOptions
 from journal.models.agent import Agent
 from journal.models.author import Author
 from journal.models.check import Check
+from journal.models.edit import Edit
 from journal.models.command_output import CommandOutput
 from journal.models.message import Message
 from journal.models.notice import Notice
@@ -28,6 +29,7 @@ from journal.models.setting import Setting
 from journal.repositories.agents import Agents
 from journal.repositories.checks import Checks
 from journal.repositories.command_outputs import CommandOutputs
+from journal.repositories.edits import Edits
 from journal.repositories.environments import Environments
 from journal.repositories.messages import Messages
 from journal.repositories.notices import Notices
@@ -58,8 +60,12 @@ SUITE_COMMAND, SUITE_OUTPUT_STEP = "journal suite", 3
 # in a journal worked in for weeks, and the watch on workers out (workers/jobs/worker_watch.py) never rewrites them while a run measures
 IDLE_WORKERS = 5
 MESSAGES, TOOL_CALLS, DISPLAYS, COMMENTS, REACTIONS = 4000, 1200, 300, 400, 300
+# the user's newest messages, not yet read; the agent read the rest as they came
+UNREAD_MESSAGES = 2
 DOCS, REPORTS, ABOUT_REPORTS, CHECKS, FACTS, RULES, REMINDERS, QUESTIONS = 80, 60, 20, 25, 40, 30, 30, 20
 SPARE_TASKS, SPARE_MESSAGES = 50, 100
+# shell calls with what they printed, and edits with the texts before and after, as an agent leaves them over a day
+SHELL_CALLS, SHELL_OUTPUT_SENTENCES, EDITS, EDIT_LINES = 100, 30, 100, 40
 MAIN = {"X-Journal-Env": "main"}
 USER, AGENT = Caller.user("main"), Caller.agent("main", "s1", "claude")
 
@@ -158,7 +164,7 @@ def workers(app: App, words: random.Random) -> None:
 def chat(app: App, words: random.Random) -> list[int]:
     messages = app.container.get(Messages)
     with app.container.get(Scope).environment(app.container.get(Environments).existing("main").row_id):
-        saved = [messages.save(Message(author=Author.USER, text=sentence(words)) if n % 2 == 0 else Message(author=Author.AGENT, session="s1", text=sentence(words)), Actor.user(1) if n % 2 == 0 else Actor.agent("s1")) for n in range(MESSAGES)]
+        saved = [messages.save(Message(author=Author.USER, text=sentence(words), read_at=None if n >= MESSAGES - 2 * UNREAD_MESSAGES else datetime.now(timezone.utc)) if n % 2 == 0 else Message(author=Author.AGENT, session="s1", text=sentence(words)), Actor.user(1) if n % 2 == 0 else Actor.agent("s1")) for n in range(MESSAGES)]
     return [message.row_id for message in saved]
 
 
@@ -167,6 +173,11 @@ def hooks(app: App, words: random.Random) -> None:
         call = {"tool_name": "Read", "tool_input": {"file_path": f"src/{words.choice(WORDS)}.py"}, "tool_use_id": f"t-{n}"}
         hook(app, "PreToolUse", **call)
         hook(app, "PostToolUse", **call, tool_response="")
+        app.runtime().deferred.drain()
+    for n in range(SHELL_CALLS):
+        call = {"tool_name": "Bash", "tool_input": {"command": f"grep -rn {words.choice(WORDS)} src"}, "tool_use_id": f"s-{n}"}
+        hook(app, "PreToolUse", **call)
+        hook(app, "PostToolUse", **call, tool_response={"stdout": "\n".join(sentence(words) for _ in range(SHELL_OUTPUT_SENTENCES)), "stderr": ""})
         app.runtime().deferred.drain()
     for _ in range(DISPLAYS):
         hook(app, "MessageDisplay", message=sentence(words))
@@ -211,6 +222,9 @@ def history(app: App, words: random.Random) -> None:
         for n in range(SUBAGENTS):
             brief = " ".join(sentence(words) for _ in range(12))
             app.container.get(Subagents).save(Subagent(environment_id=main_id, dispatch=f"sub:{n}", dispatcher="s1", task=phrase(words, 5), brief=brief, agent_type="Explore", session=f"agent-{n}", state=SubagentState.FINISHED), system)
+        for n in range(EDITS):
+            before, after = "\n".join(sentence(words) for _ in range(EDIT_LINES)), "\n".join(sentence(words) for _ in range(EDIT_LINES))
+            app.container.get(Edits).save(Edit(environment_id=main_id, session="s1", path=f"src/{words.choice(WORDS)}.py", time=time.time(), added=EDIT_LINES, removed=EDIT_LINES, tool_use=n + 1, old_text=before, new_text=after), system)
         for n in range(OUTPUTS):
             command = SUITE_COMMAND if n % SUITE_OUTPUT_STEP == 0 else f"python3 -m pytest -q tests/test_{words.choice(WORDS)}.py"
             app.container.get(CommandOutputs).save(CommandOutput(environment_id=main_id, chain=f"c-{n}", command=command, session="s1", ended=True, status=0, summary="\n".join(sentence(words) for _ in range(8))), system)

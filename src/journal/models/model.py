@@ -17,6 +17,7 @@ class Model:
     timeline_visible: ClassVar[bool] = True
     shared: ClassVar[bool] = True
     local_fields: ClassVar[tuple[str, ...]] = ()
+    unshown_fields: ClassVar[tuple[str, ...]] = ()
 
     id: int | None = None
     created_at: datetime | None = None

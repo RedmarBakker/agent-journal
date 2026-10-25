@@ -1410,3 +1410,24 @@ def test_a_read_that_leaves_columns_or_keys_out_loads_its_rows_with_those_fields
     assert loads.points() < 10, f"what was left out is not loaded: {loads.line()}"
     with pytest.raises(UnknownColumn):
         reports.query().without("no_such_column")
+
+
+def test_a_change_takes_the_row_as_it_was_from_the_read_its_repository_holds_and_the_timeline_records_only_what_a_view_shows(connection, bus, scope):
+    from journal.features.listeners.record_changes import RecordChanges
+    from journal.models.agent import Agent
+    from journal.models.support.agent_load import AgentLoad
+    from journal.repositories.entries import Entries
+    from journal.repositories.load_tally import LoadTally
+    agents, entries = Agents(connection, bus, scope), Entries(connection, bus, scope)
+    bus.listen(Updated, RecordChanges(entries))
+    with scope.environment(1):
+        agents.save(Agent(environment_id=1, session="s1", provider="claude"), USER)
+        held = agents.session_rows("s1")[0]
+        LoadTally.begin()
+        counted = agents.save(held.with_(tool_uses=1), USER)
+        loads = LoadTally.ended()
+        agents.save(counted, USER)
+        agents.save(counted.with_(load=AgentLoad(rho=0.5, measured_at=1.0)), USER)
+        changes = [entry.data["changed"] for entry in entries.all_matching(kind="updated")]
+    assert [(load.model, load.rows) for load in loads.counts if load.rows] == [], f"the row as it was comes from the session read the cache holds: {loads.line()}"
+    assert changes == [["tool_uses"]], "a save that changed nothing and a change of the load alone are no timeline entries"

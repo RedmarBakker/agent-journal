@@ -39,7 +39,7 @@ MATCH_ROWS = 40
 
 
 class Repository(Generic[M]):
-    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted. While its rows are listed, it and every other repository read none but them, save a count."""
+    """Reads and writes one model's table. Every write names its actor, stamps the row with it, and tells the bus at each step: saving, creating or updating, created or updated, saved; deleting, deleted. A change takes the row as it was from a read the cache holds of it alone, before it reads the row by its number, and a new row leaves its read by its number held. While its rows are listed, it and every other repository read none but them, save a count."""
 
     model: type[M]
 
@@ -78,6 +78,10 @@ class Repository(Generic[M]):
     def grouped_counts(self, query: Query, column: str) -> dict[str, int]:
         with self.connection.unlisted():
             return {row["value"]: row["total"] for row in self.connection.all(*self._scoped(query).grouped(column))}
+
+    def grouped_sums(self, query: Query, column: str, *summed: str) -> dict[str, int]:
+        with self.connection.unlisted():
+            return {row["value"]: row["total"] for row in self.connection.all(*self._scoped(query).grouped_sum(column, *summed))}
 
     def listing(self) -> AbstractContextManager[None]:
         return self.connection.listing(self.model.storage())
@@ -203,7 +207,7 @@ class Repository(Generic[M]):
 
     def touch(self, row: M, actor: Actor, **fields) -> M:
         with self.connection.transaction():
-            prior_row = self.find(row.row_id)
+            prior_row = self._prior(row)
             stamped = prior_row.with_(**fields, updated_at=self._time(), updater=actor)
             reads = self._rewritable(stamped)
             LoadTally.count_write(self.table)
@@ -289,6 +293,7 @@ class Repository(Generic[M]):
         cursor = self.connection.execute(*self.query().insert(**values))
         created = stamped.with_(id=cursor.lastrowid)
         self.stored()
+        self._rewritten([self.query().filter(id=created.id)], created)
         self.bus.dispatch(Created(model=created, actor=actor))
         return created
 
@@ -297,7 +302,7 @@ class Repository(Generic[M]):
 
     def _update(self, row: M, actor: Actor) -> M:
         stamped = row.with_(updated_at=self._time(), updater=actor)
-        prior_row = self.find(row.row_id)
+        prior_row = self._prior(row)
         Title.check_target(row, prior_row)
         self.bus.dispatch(Updating(model=stamped, actor=actor))
         reads = self._rewritable(stamped)
@@ -336,8 +341,15 @@ class Repository(Generic[M]):
         return []
 
     def _rewritable(self, row: M) -> list[Query]:
-        cached_queries = [query for query in self._row_reads(row) if [cached_row.id for cached_row in self.connection.stored_rows(query.tables(), *query.select())] == [row.id]]
-        return [self.query().filter(id=row.id), *cached_queries]
+        return [self.query().filter(id=row.id), *(query for query, _ in self._held_reads(row))]
+
+    def _prior(self, row: M) -> M:
+        held = self._held_reads(row)
+        return held[0][1] if held else self.find(row.row_id)
+
+    def _held_reads(self, row: M) -> list[tuple[Query, M]]:
+        reads = [(query, self.connection.stored_rows(query.tables(), *query.select())) for query in self._row_reads(row)]
+        return [(query, rows[0]) for query, rows in reads if [cached_row.id for cached_row in rows] == [row.id]]
 
     def _rewritten(self, reads: list[Query], row: M) -> None:
         values = {column.name: column.sql(getattr(row, column.name)) for column in self.columns}

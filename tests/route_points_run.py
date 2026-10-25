@@ -13,6 +13,7 @@ from journal.features.workers.workers_options import WorkersOptions
 from journal.db.connection import Connection
 from journal.features.faults.support.slow_requests import UNMEASURED_PATHS, SlowRequests
 from journal.models.support.request_loads import RequestLoads
+from journal.repositories.entries import Entries
 from journal.repositories.environments import Environments
 from journal.repositories.plans import Plans
 from journal.repositories.scope import Scope
@@ -96,6 +97,10 @@ POLLED = {"GET /journal/bar": "polled every half second while the agent works, o
 # lists the viewer reads whole when a page or the chat opens, seldom enough that the cache has long let their rows go, counted against a cold cache, each with why
 OPENED = {"GET /journal/docs": "read when the library opens", "GET /journal/reports": "read when the reports open", "GET /journal/notices": "read when the chat opens, for the pins above it",
           "GET /journal/reactions": "read when the chat opens, for the emoji on its messages"}
+# a shell call as the agent makes them, and what one prints; the viewer polls the timeline every second, so a turn of a few calls lies between two polls
+SHELL_CALL = {"tool_name": "Bash", "tool_input": {"command": "grep -rn parser src"}}
+SHELL_OUTPUT = "\n".join(f"src/parser.py:{line}: the parser reads the header row of the table and the footer" for line in range(40))
+TURN_SHELL_CALLS = 3
 # the plan the full project has started, its first task in the agent's hand
 STARTED_PLAN = 1
 # the hooks are answered as the agent orchestrates, the mode whose listeners read the most: its workers, its load, its suite runs and what it never acted on
@@ -230,15 +235,34 @@ def orchestrating(app: App) -> None:
     app.container.get(SettingRows).set(WorkersOptions.MODE.key, ORCHESTRATOR, Actor.user(1))
 
 
+def hook_cases() -> dict[str, tuple[HookKind, dict]]:
+    """Every hook kind with its body, and a shell call after the tool call, since the agent's calls are mostly shell lines and a shell call reads what the earlier ones ran."""
+    shell = {"hook PreToolUse shell": (HookKind.PRE_TOOL_USE, SHELL_CALL)}
+    return {name: case for kind, body in hook_bodies().items() for name, case in {f"hook {kind.value}": (kind, body), **(shell if kind == HookKind.PRE_TOOL_USE else {})}.items()}
+
+
+def hook_body(kind: HookKind, body: dict, try_name: str) -> tuple[str, bytes]:
+    return JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode()
+
+
 def test_every_hook_kind_answers_within_its_budget_on_a_full_project_whose_agent_orchestrates(full_project: App):
     orchestrating(full_project)
-    bodies = hook_bodies()
-    posted = lambda kind, body, try_name: (JSON, json.dumps({"hook_event_name": kind.value, "session_id": "s1", "tool_use_id": f"{try_name}-{kind.value}", **body}).encode())
-    for kind, body in bodies.items():
-        answer_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "warm"))
-    loads = {kind: cold_loads(full_project, "POST", HOOK_PATH, posted(kind, body, "counted")) for kind, body in bodies.items()}
-    hooks = over(recorded({f"hook {kind.value}": load for kind, load in loads.items()}))
+    cases = hook_cases()
+    for name, (kind, body) in cases.items():
+        answer_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"warm {name}"))
+    hooks = over(recorded({name: cold_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"counted {name}")) for name, (kind, body) in cases.items()}))
     assert not hooks, "\n".join(hooks)
+
+
+def test_the_timeline_poll_after_a_turn_of_shell_calls_answers_within_its_budget(full_project: App):
+    orchestrating(full_project)
+    with full_project.container.get(Scope).environment(full_project.container.get(Environments).existing("main").row_id):
+        polled_to = full_project.container.get(Entries).last_id()
+    for n in range(TURN_SHELL_CALLS):
+        for kind, body in ((HookKind.PRE_TOOL_USE, SHELL_CALL), (HookKind.POST_TOOL_USE, {**SHELL_CALL, "tool_response": {"stdout": SHELL_OUTPUT, "stderr": ""}})):
+            answer_loads(full_project, "POST", HOOK_PATH, hook_body(kind, body, f"turn {n}"))
+    polled = over(recorded({"GET /journal/entries after a turn": cold_loads(full_project, "GET", f"/journal/entries?since={polled_to}", EMPTY)}))
+    assert not polled, "\n".join(polled)
 
 
 def in_hand(app: App) -> int:

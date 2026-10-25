@@ -17,7 +17,7 @@ HEARTBEAT_SECONDS = 15.0
 
 
 class EntryController:
-    """The timeline as the viewer stays live by it: the entries after an id, or the newest; and the same as a stream while a tab is open."""
+    """The timeline as the viewer stays live by it: the entries of the kinds it shows after an id, or the newest, without what a tool was given and gave back; and the same as a stream while a tab is open."""
 
     def __init__(self, entries: Entries, scope: Scope) -> None:
         self.entries, self.scope = entries, scope
@@ -26,8 +26,8 @@ class EntryController:
         start = int(request.queried("since"))
         if start > self.entries.last_id():
             start = 0
-        rows = self.entries.recent_shown(start) if start else list(reversed(self.entries.shown_recent(int(request.queried("last", RECENT_ENTRIES)))))
-        return Response.json([entry for entry in rows if entry.kind in AGENT_EVENT_KINDS])
+        rows = self.entries.recent_shown(start, AGENT_EVENT_KINDS) if start else list(reversed(self.entries.shown_recent(int(request.queried("last", RECENT_ENTRIES)), AGENT_EVENT_KINDS)))
+        return Response.json(rows)
 
     def stream(self, request: Request) -> StreamResponse:
         environment = self.scope.id
@@ -45,11 +45,10 @@ class EntryController:
             while True:
                 time.sleep(0.5)
                 silence_seconds += 0.5
-                for entry in read(lambda: self.entries.recent_shown(newest_id)):
+                for entry in read(lambda: self.entries.recent_shown(newest_id, AGENT_EVENT_KINDS)):
                     newest_id = entry.id
-                    if entry.kind in AGENT_EVENT_KINDS:
-                        silence_seconds = 0.0
-                        yield self.event(entry)
+                    silence_seconds = 0.0
+                    yield self.event(entry)
                 if silence_seconds >= HEARTBEAT_SECONDS:
                     silence_seconds = 0.0
                     yield b"event: beat\ndata: keep\n\n"

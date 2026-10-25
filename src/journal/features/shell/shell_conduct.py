@@ -70,8 +70,11 @@ def journal_isolation_check(state: BaseState, event: ToolStarting, settings: Set
 
 
 def folder_change_check(state: BaseState, event: ToolStarting, settings: Settings) -> Transition:
+    changes = FolderChange.targets([part.text for part in event.call.parts])
+    if not changes:
+        return state.none()
     home = event.data.part(ShellPart).home
-    targets = [target for target in FolderChange.targets([part.text for part in event.call.parts]) if not FolderChange.is_home(target, home)]
+    targets = [target for target in changes if not FolderChange.is_home(target, home)]
     return state.refuse(ShellNudges.FOLDER_CHANGE_REFUSAL.create(target=targets[0], home=home)) if targets else state.none()
 
 

@@ -68,8 +68,7 @@ class TasksDataReader:
         return OpenTask(free[0].row_id, free[0].title, free[0].brief, 0) if free else None
 
     def last_commands(self, agent: Agent) -> tuple[str, ...]:
-        commands = [command for e in self.entries.tool_starts(agent.session, HISTORY_TOOL_STARTS) if (command := e.recorded_call().command)]
-        return tuple(commands[:POLL_COMMANDS])
+        return tuple(self.entries.recent_commands(agent.session, HISTORY_TOOL_STARTS, POLL_COMMANDS))
 
     def last_log(self, task: Task) -> str:
         logs = self.logs.logs(task)

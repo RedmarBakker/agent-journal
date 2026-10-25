@@ -13,6 +13,7 @@ class Subagent(Scoped):
     """A subagent an agent dispatched: the dispatch entry it was loaded from, what it was asked to do, its type and model, its own session once known, its status, and the tool's error when the dispatch failed. Ended is a subagent from before the journal stored these rows whose end it never saw."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("task", "brief")
+    unshown_fields: ClassVar[tuple[str, ...]] = ("transcript_bytes",)
     dispatch: str = ""
     dispatcher: str = ""
     task: str = ""

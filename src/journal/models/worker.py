@@ -51,6 +51,7 @@ class Worker(Helper):
     """An agent sent to write one bounded job, in a worktree of its own when it changes code: out while dispatched whatever its process, so one ended unreported or mid-report still counts as out until its report is filed; idle once it reported, until its report is acted on; in review while the journal's reviewer reviews what it clocked out with, and queued for review from its clock-out until a reviewer takes it; retired once stopped or acted on. It keeps each move it made with its time, how many of its test runs in a row have failed, how its merged work fit the model it ran on, what its runs have cost in dollars, when its work was last merged and for which task, when it goes on by itself after stopping at the usage limit, the branch it commits on, and, for one sent to the team's pool, the team server's number of the request that asked for it and the branch on origin its worktree is cut from."""
 
     text_fields: ClassVar[tuple[str, ...]] = ("name", "brief")
+    unshown_fields: ClassVar[tuple[str, ...]] = ("transcript_bytes",)
     kind: str = "worker"
     profile: str | None = None
     worktree: bool = False

@@ -10,6 +10,7 @@ import {loadPhones} from "../composables/phones.js";
 import {checkTunnel} from "../composables/shares.js";
 import {RECENT, pageOf} from "./paging.js";
 import {reviewSteps} from "../domain/reviewer.js";
+import {updatedAt} from "../domain/row.js";
 
 const LIVE = 5;
 const BUSY_EVERY = 500;
@@ -42,6 +43,33 @@ async function heldElsewhere({scope, table, id}) {
     await scope.holding(table, [id]);
     await scope.recent("comments", PAGE);
 }
+
+// The workers a poll holds, per poll and environment: each round asks only for the rows changed since the newest it holds, as
+// the watch rewrites a running worker every few seconds, and reads the whole page again when more changed than a page holds.
+const heldWorkers = new Map();
+
+async function workerChanges(key, limit) {
+    const place = `${key}:${api.env()}`;
+    const held = heldWorkers.get(place);
+    if (!held) return keptWorkers(place, (await api.list("workers", {limit})).rows || []);
+    const since = Math.max(0, ...held.map(updatedAt));
+    const after = held.length ? Math.min(...held.map((row) => row.id)) - 1 : 0;
+    const got = await api.list("workers", {limit, since, after});
+    if (!got.is_last_page) {
+        heldWorkers.delete(place);
+        return workerChanges(key, limit);
+    }
+    const fresh = new Set(got.rows.map((row) => row.id));
+    return keptWorkers(
+        place,
+        [...held.filter((row) => !fresh.has(row.id)), ...got.rows].sort((one, other) => one.id - other.id)
+    );
+}
+
+const keptWorkers = (place, rows) => {
+    heldWorkers.set(place, rows);
+    return rows;
+};
 
 // Every poller the viewer runs, declared once here and nowhere else, and never at runtime: its key, what it reads from the
 // params its users hand it, and how often in milliseconds (or a function of the moment). One that runs per agent or per row
@@ -89,8 +117,8 @@ export const POLLERS = Object.freeze({
     "share.page": {read: () => sharedData(), every: 20000},
     "outbox.retry": {read: ({retry}) => retry(), every: 5000},
     "tour.start": {read: ({clear}) => clear(), every: 800},
-    "workers.index": {read: () => api.list("workers", {limit: pageOf("workers")}).then((got) => got.rows || []), every: 5000},
-    "workers.every": {read: () => api.list("workers", {limit: 200}).then((got) => got.rows || []), every: 5000},
+    "workers.index": {read: () => workerChanges("workers.index", pageOf("workers")), every: 5000},
+    "workers.every": {read: () => workerChanges("workers.every", 200), every: 5000},
     "verifiers.every": {read: () => api.list("verifiers", {limit: 200}).then((got) => got.rows || []), every: 5000},
     "reviewer.steps": {read: readReviewSteps, every: 3000},
     "tests.turns": {read: () => api.list("test_turns", {limit: pageOf("test_turns")}).then((got) => got.rows || []), every: 3000},

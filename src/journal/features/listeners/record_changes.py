@@ -16,7 +16,7 @@ ACTIONS = {Created: "created", Updated: "updated", Deleted: "deleted", SyncedCre
 
 
 class RecordChanges(Listener[ModelEvent]):
-    """Every row made, changed or removed is an entry in the timeline, which is what the viewer's live updates read, but for a model stored out of it; a link's entry names the tables of the two rows it joins, whose views it changes too."""
+    """Every row made, changed or removed is an entry in the timeline, which is what the viewer's live updates read, but for a model stored out of it and a save that changed nothing a view shows; a link's entry names the tables of the two rows it joins, whose views it changes too."""
 
     def __init__(self, entries: Entries) -> None:
         self.entries = entries
@@ -28,5 +28,7 @@ class RecordChanges(Listener[ModelEvent]):
         model = event.model
         environment = model.environment_id if isinstance(model, Scoped) else PROJECT
         changed = list(event.changed()) if isinstance(event, Updated) else []
+        if isinstance(event, Updated) and event.previous is not None and not set(changed) - set(model.unshown_fields):
+            return
         joined = [model.source.type, model.target.type] if isinstance(model, Link) else []
         self.entries.save(Entry(environment_id=environment, kind=action, actor=event.actor, data={"table": model.table(), "id": model.id, "title": getattr(model, "title", "") or getattr(model, "text", "")[:80], "changed": changed, "joins": joined}), event.actor)

@@ -27,6 +27,7 @@ MODEL_FITS_KEPT = 10
 
 class Agent(Scoped):
     shared: ClassVar[bool] = False
+    unshown_fields: ClassVar[tuple[str, ...]] = ("load",)
 
 
     session: str = ""

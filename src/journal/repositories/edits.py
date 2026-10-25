@@ -17,12 +17,12 @@ class Edits(ScopedRepository[Edit]):
 
     def record(self, edit: Edit, actor: Actor) -> Edit:
         stored = self.save(edit, actor)
-        for old in self.selected(self.query().order_descending("id").offset(EDIT_ROWS)):
+        for old in self.selected(self.query().with_columns("session").order_descending("id").offset(EDIT_ROWS)):
             self.delete(old, actor)
         return stored
 
     def tool_use_edits(self, session: str, tool_use: int) -> list[Edit]:
-        return self.selected(self.query().filter(session=session, tool_use=tool_use).order("id"))
+        return self.selected(self.query().filter(session=session, tool_use=tool_use).without("old_text", "new_text").order("id"))
 
     def agent_edits(self, session: str, start: float, last: int, ceiling_id: int = 0) -> list[Edit]:
         query = self.query().filter(session=session).filter_greater("time", start)
@@ -32,4 +32,5 @@ class Edits(ScopedRepository[Edit]):
         return bool(self.selected(self.query().filter(session=session).filter_less("id", first).limit(1)))
 
     def code_line_count(self, session: str, start_at: float) -> int:
-        return sum(edit.added + edit.removed for edit in self.selected(self.query().filter(session=session).filter_greater("time", start_at).order("id")) if CodeFiles.has_code((edit.path,)))
+        lines = self.grouped_sums(self.query().filter(session=session).filter_greater("time", start_at), "path", "added", "removed")
+        return sum(count for path, count in lines.items() if CodeFiles.has_code((path,)))

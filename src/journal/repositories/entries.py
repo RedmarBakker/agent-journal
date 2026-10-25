@@ -49,18 +49,27 @@ class Entries(ScopedRepository[Entry]):
         return self.line_moment(self.lines(session).filter_json("data->key", key))
 
     def line_moment(self, query: Query) -> Moment | None:
-        newest = self.selected(query.order_descending("id").limit(1))
+        newest = self.selected(query.with_columns("data").without_keys("data", "line").order_descending("id").limit(1))
         return Moment(seconds=newest[0].data.get("time", 0.0), tool_uses=newest[0].data.get("tool_use", 0)) if newest else None
 
     def last_lines(self, session: str, key: str) -> float:
         return float(self.maximum(self.lines(session).filter_json("data->key", key), "data->time", 0))
 
     def tool_starts(self, session: str, last: int = 500) -> list[Entry]:
-        return self.selected(self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).order_descending("id").limit(last))
+        return self.selected(self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
+
+    def recent_commands(self, session: str, window: int, count: int) -> list[str]:
+        starts = self.query().filter(kind="ToolStarting", actor=Actor.agent(session))
+        oldest = self.selected_ids(starts.order_descending("id").limit(1).offset(window - 1))
+        within = starts.filter_greater_equal("id", oldest[0]) if oldest else starts
+        commands = within.filter_present("data->call->command").filter_unequal("data->call->command", "")
+        first = self.selected_ids(commands.order_descending("id").limit(1).offset(count - 1))
+        newest = commands.filter_greater_equal("id", first[0]) if first else commands
+        return [command for command, times in self.grouped_counts(newest, "data->call->command").items() for _ in range(times)]
 
     def output_tool_starts(self, session: str, last: int = 500) -> list[Entry]:
         mentions = self.query().filter_alternatives(self.query().filter_containing("data", "outputs/"), self.query().filter_containing("data", "journal output read "))
-        return self.selected(mentions.filter(kind="ToolStarting", actor=Actor.agent(session)).order_descending("id").limit(last))
+        return self.selected(mentions.filter(kind="ToolStarting", actor=Actor.agent(session)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def shape_commands(self, session: str, shape: str, last: int = 200) -> set[str]:
         rows = self.selected(self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).filter_json("data->call->shape", shape).order_descending("id").limit(last))
@@ -71,10 +80,10 @@ class Entries(ScopedRepository[Entry]):
 
     def newer_shell_starts(self, session: str, earliest: datetime, last: int = 500) -> list[Entry]:
         shell = self.query().filter(kind="ToolStarting", actor=Actor.agent(session)).filter_present("data->call->command").filter_unequal("data->call->command", "")
-        return self.selected(shell.filter_greater("created_at", earliest).order_descending("id").limit(last))
+        return self.selected(shell.filter_greater("created_at", earliest).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def newer_tool_ends(self, session: str, earliest: datetime, last: int = 500) -> list[Entry]:
-        return self.selected(self.query().filter_listed("kind", ("ToolFinished", "ToolFailed")).filter(actor=Actor.agent(session)).filter_greater("created_at", earliest).order_descending("id").limit(last))
+        return self.selected(self.query().filter_listed("kind", ("ToolFinished", "ToolFailed")).filter(actor=Actor.agent(session)).filter_greater("created_at", earliest).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def newer_kind_entries(self, kind: str, earliest: datetime, last: int = 50) -> list[Entry]:
         return self.selected(self.query().filter(kind=kind).filter_greater("created_at", earliest).order_descending("id").limit(last))
@@ -106,7 +115,7 @@ class Entries(ScopedRepository[Entry]):
         return self.selected(self.query().filter_listed("kind", ("ToolFinished", "ToolFailed")).filter(actor=Actor.agent(session)).order_descending("id").limit(last))
 
     def last_line_entry(self, session: str, keys: tuple[str, ...]) -> Entry | None:
-        rows = self.selected(self.lines(session).filter_listed("data->key", keys).order_descending("id").limit(1))
+        rows = self.selected(self.lines(session).filter_listed("data->key", keys).with_columns("data", "created_at").without_keys("data", "line").order_descending("id").limit(1))
         return rows[0] if rows else None
 
     def refused_stops(self, session: str, count: int) -> list[str]:
@@ -154,10 +163,10 @@ class Entries(ScopedRepository[Entry]):
         return [entry for entry in self.selected(self.query().filter(kind=kind).filter_json("data->session", session).order_descending("id").limit(200)) if not entry.data.get("delivered")]
 
     def agent_kinds_newest(self, session: str, kinds: Sequence[str], last: int) -> list[Entry]:
-        return self.selected(self.query().filter(actor=Actor.agent(session)).filter_listed("kind", list(kinds)).order_descending("id").limit(last))
+        return self.selected(self.query().filter(actor=Actor.agent(session)).filter_listed("kind", list(kinds)).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def session_kind_newest(self, session: str, kind: str, last: int) -> list[Entry]:
-        return self.selected(self.query().filter(kind=kind).filter_json("data->session", session).order_descending("id").limit(last))
+        return self.selected(self.query().filter(kind=kind).filter_json("data->session", session).without_keys("data", *PAYLOAD_KEYS).order_descending("id").limit(last))
 
     def kind_entries_scoped(self, last: int = 400) -> list[Entry]:
         return self.selected(self.query().order_descending("id").limit(last))
@@ -187,11 +196,14 @@ class Entries(ScopedRepository[Entry]):
     def agent_calls(self, last: int = 500) -> list[Entry]:
         return self.selected(DISPATCHES.filter(kind="ToolStarting").order_descending("id").limit(last))
 
-    def recent_shown(self, id: int) -> list[Entry]:
-        return self.with_project(self.query().filter_greater("id", id).order("id"))
+    def recent_shown(self, id: int, kinds: Sequence[str]) -> list[Entry]:
+        return self.with_project(self.shown_query(kinds).filter_greater("id", id).order("id"))
 
-    def shown_recent(self, last: int) -> list[Entry]:
-        return self.with_project(self.query().order_descending("id").limit(last))
+    def shown_recent(self, last: int, kinds: Sequence[str]) -> list[Entry]:
+        return self.with_project(self.shown_query(kinds).order_descending("id").limit(last))
+
+    def shown_query(self, kinds: Sequence[str]) -> Query:
+        return self.query().filter_listed("kind", sorted(kinds)).without_keys("data", *PAYLOAD_KEYS)
 
     def recent(self, id: int) -> list[Entry]:
         return self.selected(self.query().filter_greater("id", id).order("id"))
