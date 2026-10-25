@@ -985,10 +985,13 @@ def test_a_team_setting_reaches_the_other_journal_and_a_personal_one_does_not_be
     from journal.repositories.setting_rows import SettingRows
     from journal.repositories.shared_tables import SharedTables
     from journal.services.service_hooks import ServiceHooks
+    from journal.events.models.synced import Synced
     from journal.sync.migration_withdrawal import MigrationWithdrawal
+    from journal.sync.pulled_settings import PulledSettings
 
-    team, (_, scope_a, tasks_a, outgoing_a, _), (_, scope_b, tasks_b, _, _), carried = served_team_journals(tmp_path)
+    team, (_, scope_a, tasks_a, outgoing_a, _), (bus_b, scope_b, tasks_b, _, _), carried = served_team_journals(tmp_path)
     settings_a, settings_b = SettingRows(tasks_a.connection, tasks_a.bus, scope_a), SettingRows(tasks_b.connection, tasks_b.bus, scope_b)
+    bus_b.listen(Synced, PulledSettings(settings_b))
     on_server = lambda: {row.fields["key"]: row.fields["value"] for row in team.log.copied_rows() if row.row_table == "settings"}
     settings_a.set(WorkersOptions.WORKER_LIMIT.key, 3, USER)
     settings_a.set(VoicesOptions.NAME.key, "Ada", USER)
