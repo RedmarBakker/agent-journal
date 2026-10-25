@@ -63,6 +63,6 @@ class WorkersDataReader:
             "load": lambda: agent.load,
             "merge_check": lambda: self.checks.check(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
-            "resumable": lambda: tuple(w.id for w in facts.rows if w.state == WorkerState.UNFINISHED and self.resumes.is_resumable(w)),
+            "resumable": lambda: tuple(w.id for w in self.workers.matching(state=WorkerState.UNFINISHED, dispatcher=agent.session) if self.resumes.is_resumable(w)),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
         return facts

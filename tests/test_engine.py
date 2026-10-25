@@ -664,7 +664,7 @@ def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_sh
     from journal.events.rows.worker_mention import WorkerMention
     from journal.events.rows.worker_stopped import WorkerStopped
     from journal.events.rows.worker_unfinished import WorkerUnfinished
-    settings = SettingsValue({})
+    settings = SettingsValue({WorkersOptions.MODE.key: "builder"})
     workers = lambda *resumable: FeatureData({"workers": WorkersData(dispatched_workers=(), idle_workers=(), active_subagents=0, subagents=(), worktrees_root=Path("."), worktrees=(), resumable=resumable)})
     said = lambda event, *resumable: [n.rendered() for n in Ready().respond(event.with_data(workers(*resumable)), settings, (WorkersConduct,)).nudges]
     short = ProofShort(environment_id=1, time=1.0, task_id=5, worker_id=3, point=2, shortfall="the tests", dispatcher="s1")
