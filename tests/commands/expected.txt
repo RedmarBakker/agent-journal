@@ -1684,7 +1684,7 @@ workers.worker_reported  [workers]  worker {{n}} reported
 workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-243 nudges
+244 nudges
 
 $ agent: journal worker list
 exit 0
