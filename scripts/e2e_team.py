@@ -166,6 +166,7 @@ def check_hub_write() -> str:
 
 
 def check_personal_task() -> str:
+    journal("a", "environment", "unshare", "main")
     journal("a", "task", "create", f"personal task {STAMP}", "--brief", "stays here")
     time.sleep(40)
     on_b = [environment for environment in ("ada-main", "main", "team", hubs("b")[0]["name"]) if f"personal task {STAMP}" in titles("b", environment)]
