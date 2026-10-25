@@ -66,7 +66,7 @@ class ScopedRepository(Repository[S]):
         binding_rows = self.query().filter_listed("id", [ref.id for ref in bindings if ref.type == self.table])
         return query.filter_alternatives(environment_rows, binding_rows, self.query().filter_existing(membership))
 
-    def _pulled_dispatched(self, row: S, previous: S, actor: Actor) -> None:
+    def pulled_dispatched(self, row: S, previous: S, actor: Actor) -> None:
         drivers = self.scope.binders(Ref.build(row), self.member_links)
         for event in row.pulled_events(previous):
             for environment_id in drivers:

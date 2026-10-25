@@ -12850,6 +12850,7 @@ def test_a_hub_task_bob_finishes_reaches_the_agent_of_adas_environment_driving_i
         finished_by_bob(planned.id)
         finished_by_bob(driven.id)
         assert synced(lambda: a.container.get(Tasks).find(driven.id).state == TaskState.FINISHED and a.container.get(Tasks).find(planned.id).state == TaskState.FINISHED), "Bob's finishes reach Ada's journal"
+        assert synced(lambda: any(event.task_id == driven.id for event in heard)), "the driven task's finish is heard on Ada's journal"
         assert [(event.task_id, event.outcome, event.environment_id) for event in heard] == [(driven.id, "done", main.row_id)], "the driven task's finish is heard once, in the environment driving it, and the unbound plan's task in none"
         assert "s1" in {agent.session for agent in a.container.get(StateMachine).audience(heard[0])}, "it reaches the agent of that environment"
         assert getattr(a.container.get(SessionAgents).top("s1"), "task_id", 0) != driven.id, "whose task in hand is let go"

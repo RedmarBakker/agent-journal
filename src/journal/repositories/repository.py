@@ -260,14 +260,9 @@ class Repository(Generic[M]):
                 self.connection.execute(*self.query().filter(id=id).update(**{**parsed, "updated_at": self._time()}))
             self.stored()
             rows = self._loaded(self.query().filter(id=id))
-            for row in rows:
-                self.bus.dispatch(SyncedUpdate(model=row, actor=actor))
             for row, previous in zip(rows, previous_rows):
-                self._pulled_dispatched(row, previous, actor)
+                self.bus.dispatch(SyncedUpdate(model=row, actor=actor, previous=previous))
             return rows
-
-    def _pulled_dispatched(self, row: M, previous: M, actor: Actor) -> None:
-        return None
 
     def pulled_deletion(self, id: int, actor: Actor) -> list[M]:
         with self.connection.transaction():
