@@ -55,6 +55,12 @@ function mount() {
     return host;
 }
 
+// a closed pane folds away for 380 ms before it leaves the page
+const folded = async () => {
+    await new Promise((done) => setTimeout(done, 450));
+    for (let i = 0; i < 6; i++) await flush();
+};
+
 const settled = async () => {
     await new Promise((done) => setTimeout(done, 80));
     for (let i = 0; i < 6; i++) await flush();
@@ -85,7 +91,7 @@ test("with the reviewer off, Home shows no reviewer pane, and turning it off tak
     await settled();
     expect(host.querySelector(".home-view.reviewer")).not.toBe(null);
     store.settings = {...store.settings, reviewing: {reviewer: false}};
-    await settled();
+    await folded();
     expect(host.querySelector(".home-view.reviewer")).toBe(null);
     expect(host.querySelector(".home-view.chat")).not.toBe(null);
     app.unmount();
