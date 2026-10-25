@@ -12500,6 +12500,22 @@ def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_test_run_in_a_cl
     assert again.get("decision") == "block" and "worker 1 (Worker 1) clocked out and their work waits for you" in again["reason"], again
 
 
+def test_an_orchestrators_stop_is_let_through_while_it_awaits_a_run_started_by_a_cd_into_a_clocked_out_workers_worktree(app: App, monkeypatch):
+    from journal.models.command_output import CommandOutput
+    from journal.repositories.command_outputs import CommandOutputs
+    workspace_made(app, ("platform",))
+    _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    committed(folder / "platform", "app.php", "<?php\n// the worker's line\n")
+    assert proved_and_out(app, caller, "platform/app.php:1").code == 0
+    with app.container.get(Scope).environment(MAIN):
+        run = app.container.get(CommandOutputs).save(CommandOutput(environment_id=MAIN, chain="chain-cd-tests", command=f"(cd {folder} && python3 scripts/suite.py)", session="s1", ran_in=str(folder.parent)), Actor.agent("s1"))
+    awaited = app.console().run(["await", "begin", "the worker's suite", "--output", str(run.id)], AGENT)
+    assert awaited.code == 0, awaited.error
+    body = hook(app, "Stop")[1]
+    assert "clocked out and their work waits" not in body.get("reason", ""), "a run started by a cd into the worker's worktree counts as a run in it"
+
+
 def test_an_orchestrators_stop_is_refused_while_clocked_out_work_waits_and_told_to_wait_while_its_workers_are_out(app: App, monkeypatch):
     workspace_made(app, ("platform",))
     _, folder, caller = worktree_worker(app, monkeypatch, "platform totals")
