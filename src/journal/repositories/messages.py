@@ -24,8 +24,6 @@ CHAT_PAGE_ROWS = 400
 # the newest cards of one kind looked at by a cleanup at boot
 NEWEST_SHOWN = 2000
 
-# the agent's latest messages words stored before they carried their key are matched against by text
-RECENT_VOICE_MESSAGES = 30
 
 class Messages(ScopedRepository[Message]):
     ANSWERS = "answers"
@@ -123,15 +121,16 @@ class Messages(ScopedRepository[Message]):
         questions = self.selected(self.query().filter_json("data->kind", Message.PEER).filter_json("data->asks", 1).order("id"))
         return [question for question in questions if not self.selected(self.query().filter_json("data->sent_to", question.data[Message.PEER]).filter_greater("id", question.id).limit(1))]
 
-    def voice_stored(self, key: str, text: str) -> bool:
-        return bool(self.sent_with(key)) or any(message.text == text for message in self.recent_voice(RECENT_VOICE_MESSAGES))
-
     def sent_with(self, key: str) -> list[Message]:
         return self.selected(self.query().filter(idempotency=key).order("id").limit(1))
 
     def posted(self, message: Message, actor: Actor) -> Message:
-        prior_items = self.sent_with(message.idempotency) if message.idempotency else []
-        return prior_items[0] if prior_items else self.save(message.arrived(), actor)
+        return self.recorded(message.arrived(), actor) if message.idempotency else self.save(message.arrived(), actor)
+
+    def recorded(self, message: Message, actor: Actor) -> Message:
+        with self.writing():
+            prior = self.sent_with(message.idempotency)
+            return prior[0] if prior else self.save(message, actor)
 
     def window(self, chat: Query, last: int, previous: int = 0, following: int = 0) -> list[Message]:
         return self.latest_rows(self.bounded(chat, previous, following), last)
@@ -200,9 +199,6 @@ class Messages(ScopedRepository[Message]):
     def recent_replies(self, time: datetime) -> list[Message]:
         return self.selected(self.main_voice().filter_present("reply_target").filter_greater_equal("created_at", time).order("created_at").order("id"))
 
-    def reply_text(self, n: int, text: str) -> list[Message]:
-        return self.selected(self.main_voice().filter(reply_target=n, text=text.strip()))
-
     def recent(self, last: int) -> list[Message]:
         return self.window(self.main_chat(), last)
 
@@ -219,9 +215,6 @@ class Messages(ScopedRepository[Message]):
     def comment_query(self, links: Query) -> Query:
         candidates = self.query().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present("reply_target"))
         return candidates.filter_existing(links.filter_ref("source", self.query()))
-
-    def recent_voice(self, last: int) -> list[Message]:
-        return list(reversed(self.selected(self.main_voice().order_descending("id").limit(last))))
 
     def new_hydrations(self) -> list[Message]:
         return self.selected(self.query().filter_json("data->kind", Message.HYDRATION).filter_json("data->reading_request", False).order("id"))

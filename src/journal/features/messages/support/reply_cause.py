@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
 from journal.models.author import Author
-from journal.models.link import Link
 from journal.models.model import Model
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -31,5 +30,5 @@ class ReplyCause:
             requested = self.messages.find(reply.reply_target)
         except MissingRow:
             return
-        if requested.author == Author.USER and Ref.build(row) not in self.links.targets(requested, Messages.SUBJECT_LINK):
-            self.links.save(Link(source=Ref.build(requested), target=Ref.build(row), kind=Messages.SUBJECT_LINK), actor)
+        if requested.author == Author.USER:
+            self.links.linked(Ref.build(requested), Ref.build(row), Messages.SUBJECT_LINK, actor)

@@ -72,6 +72,11 @@ class Links(Repository[Link]):
             return self.sources(model, kind)
         return [link.source for link in self.selected(self.query().filter(target=Ref.build(model), kind=kind).filter_unlisted("source", list(refs)).order("id"))]
 
+    def linked(self, source: Ref, target: Ref, kind: str, actor: Actor) -> Link:
+        with self.writing():
+            existing = self.matching(source=source, target=target, kind=kind)
+            return existing[0] if existing else self.save(Link(source=source, target=target, kind=kind), actor)
+
     def connecting(self, source: Model, target: Model) -> list[Link]:
         return self.matching(source=Ref.build(source), target=Ref.build(target))
 

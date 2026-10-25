@@ -8,6 +8,7 @@ from journal.repositories.agents import Agents
 from journal.repositories.messages import Messages
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.voice_key import VoiceKey
 
 
 class WorkerChat:
@@ -24,14 +25,12 @@ class WorkerChat:
             return worker
         blocks = self.providers.lookup(worker.provider).authored_texts(self.branch.place(worker), worker.conversation(), worker.transcript_bytes)
         for i, text in enumerate(blocks.texts):
-            self.turn(worker, text, f"transcript:{worker.conversation()}:{worker.transcript_bytes}:{i}")
+            self.turn(worker, text, VoiceKey.placed(worker.conversation(), worker.transcript_bytes, i))
         return worker if blocks.time == worker.transcript_bytes else self.workers.touch(worker, Actor.system(), transcript_bytes=blocks.time)
 
     def is_agent_session(self, worker: Worker) -> bool:
         return any(not role.is_sent() for role in self.agents.session_roles(worker.conversation()))
 
     def turn(self, worker: Worker, text: str, key: str) -> None:
-        if self.messages.sent_with(key):
-            return
-        self.messages.save(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=AgentRole.WORKER, idempotency=key), Actor.agent(worker.conversation()))
+        self.messages.recorded(Message(environment_id=worker.environment_id, author=Author.AGENT, text=text, session=worker.conversation(), agent_role=AgentRole.WORKER, idempotency=key), Actor.agent(worker.conversation()))
 

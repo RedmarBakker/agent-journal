@@ -61,7 +61,7 @@ class RecordTurn(AgentListener[TurnDisplayed]):
         for tagged, part in self.sections(full):
             text = Tags.visible(part)
             key = VoiceKey.create("turn", event.session, text)
-            if self.messages.voice_stored(key, text):
+            if self.messages.sent_with(key):
                 continue
             answered = self.unanswered(tagged, event)
             silent = (Tags.hidden(part) and not answered) or self.is_repeat_reply(text, tagged, event)

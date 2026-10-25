@@ -12,6 +12,7 @@ from journal.repositories.messages import Messages
 from journal.repositories.subagents import Subagents
 from journal.repositories.workers import Workers
 from journal.support.actor import Actor
+from journal.support.voice_key import VoiceKey
 
 
 class SubagentChat:
@@ -33,13 +34,11 @@ class SubagentChat:
         if not subagent.transcript_bytes:
             self.instruction(subagent, subagent.brief.strip(), Actor.agent(subagent.dispatcher))
         for i, text in enumerate(blocks.texts):
-            self.turn(subagent, text, f"transcript:{subagent.session}:{subagent.transcript_bytes}:{i}")
+            self.turn(subagent, text, VoiceKey.placed(subagent.session, subagent.transcript_bytes, i))
         return self.subagents.save(subagent.with_(transcript_bytes=blocks.time), Actor.agent(subagent.dispatcher))
 
     def turn(self, subagent: Subagent, text: str, key: str) -> None:
-        if self.messages.sent_with(key):
-            return
-        self.messages.save(Message(environment_id=subagent.environment_id, author=Author.AGENT, text=text, session=subagent.session, agent_role=AgentRole.SUBAGENT, idempotency=key), Actor.agent(subagent.dispatcher))
+        self.messages.recorded(Message(environment_id=subagent.environment_id, author=Author.AGENT, text=text, session=subagent.session, agent_role=AgentRole.SUBAGENT, idempotency=key), Actor.agent(subagent.dispatcher))
 
     def place(self, subagent: Subagent) -> Path:
         workers = self.workers.session_worker(subagent.dispatcher)

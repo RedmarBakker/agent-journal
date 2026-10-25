@@ -2,7 +2,6 @@ import re
 from journal.events.models.created import Created
 from journal.events.listener import Listener
 from journal.models.author import Author
-from journal.models.link import Link
 from journal.models.message import Message
 from journal.models.support.ref import Ref
 from journal.repositories.links import Links
@@ -32,5 +31,4 @@ class TaskMentionLinks(Listener[Created]):
                 task = self.tasks.find(n)
             except MissingRow:
                 continue
-            if Ref.build(task) not in self.links.targets(requested, Messages.SUBJECT_LINK):
-                self.links.save(Link(source=Ref.build(requested), target=Ref.build(task), kind=Messages.SUBJECT_LINK), event.actor)
+            self.links.linked(Ref.build(requested), Ref.build(task), Messages.SUBJECT_LINK, event.actor)

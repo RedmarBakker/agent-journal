@@ -27,12 +27,8 @@ class ReplyTaskLinks(Listener[Created]):
         if requested.author != Author.USER:
             return
         for reply in self.messages.replies(requested):
-            self.linked(reply, link.target, actor)
+            self.links.linked(Ref.build(reply), link.target, Messages.SUBJECT_LINK, actor)
 
     def reply_link(self, reply: Message, actor: Actor) -> None:
         for task in self.links.typed_targets(self.messages.find(reply.reply_target), Messages.SUBJECT_LINK, Task.table()):
-            self.linked(reply, task, actor)
-
-    def linked(self, reply: Message, task: Ref, actor: Actor) -> None:
-        if task not in self.links.targets(reply, Messages.SUBJECT_LINK):
-            self.links.save(Link(source=Ref.build(reply), target=task, kind=Messages.SUBJECT_LINK), actor)
+            self.links.linked(Ref.build(reply), task, Messages.SUBJECT_LINK, actor)

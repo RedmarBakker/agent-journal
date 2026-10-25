@@ -19,5 +19,4 @@ class ThoughtRecord(AgentListener[ToolStarting]):
         saved = (t.strip() for t in self.providers.lookup(event.provider).turn_thoughts(self.config.root, event.session))
         for thought in dict.fromkeys(t for t in saved if t):
             key = VoiceKey.create("thought", event.session, thought)
-            if not self.messages.voice_stored(key, thought):
-                self.messages.save(Message(author=Author.AGENT, text=thought, data={"kind": Message.THOUGHT}, idempotency=key), Actor.agent(event.session))
+            self.messages.recorded(Message(author=Author.AGENT, text=thought, data={"kind": Message.THOUGHT}, idempotency=key), Actor.agent(event.session))

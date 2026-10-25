@@ -27,7 +27,7 @@ class JobRecord(AgentListener[ToolFinished]):
     def scheduled(self, event: ToolFinished, schedule: JobSchedule) -> None:
         job_match = JOB_ID.search(event.output)
         if job_match:
-            self.jobs.save(ScheduledJob(environment_id=event.environment_id, session=event.session, job_id=job_match.group(0), cron=schedule.cron, prompt=schedule.prompt, recurring=schedule.recurring), Actor.agent(event.session))
+            self.jobs.recorded(ScheduledJob(environment_id=event.environment_id, session=event.session, job_id=job_match.group(0), cron=schedule.cron, prompt=schedule.prompt, recurring=schedule.recurring), Actor.agent(event.session))
 
     def cancelled(self, event: ToolFinished, cancel: JobCancel) -> None:
         for job in self.jobs.job(event.session, cancel.job_id):

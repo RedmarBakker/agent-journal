@@ -2634,7 +2634,7 @@ def test_a_workers_words_never_answer_the_users_message_nor_count_as_the_main_ag
         messages.save(Message(environment_id=1, author="user", text="and the header?", agent_role=AgentRole.WORKER), Actor.user(1))
         assert [m.id for m in messages.unanswered()] == [1], "neither the worker's turn nor its report answers the user"
         assert [m.text for m in messages.unread()] == [], "a message in a worker's chat is not the main agent's to read"
-        assert [m.text for m in messages.recent_voice(30)] == [], "nothing here was the main agent's own words"
+        assert messages.latest_voice() is None, "nothing here was the main agent's own words"
         assert [m.text for m in messages.recent(30) if m.text in ("Done.", "and the header?")] == [] and messages.unviewed() == 1, "the main chat lists neither, and counts only the report as unseen"
     worker_turn = [m for m in messages.all() if m.text == "Done."][0]
     assert app.console().run(["message", "send", "Good; now the header.", "--reply-to", str(worker_turn.id)], AGENT).code == 0
@@ -5441,8 +5441,8 @@ def test_a_block_arriving_twice_at_once_is_recorded_once(app: App, monkeypatch):
     from journal.repositories.messages import Messages
     hook(app, "SessionStart")
     record = app.container.get(RecordTurn)
-    checked = Messages.voice_stored
-    monkeypatch.setattr(Messages, "voice_stored", lambda self, key, text: (checked(self, key, text), timing.sleep(0.2))[0])
+    checked = Messages.sent_with
+    monkeypatch.setattr(Messages, "sent_with", lambda self, key: (checked(self, key), timing.sleep(0.2))[0])
     block = TurnDisplayed(text="Checking the worker's inspector now.", delta="", turn_id="t1", final=True).placed("s1", 1, "claude", 0.0, 0.0)
     threads = [threading.Thread(target=contextvars.copy_context().run, args=(record.handle, block)) for _ in range(2)]
     [t.start() for t in threads]
@@ -7848,6 +7848,31 @@ def test_a_second_reply_with_the_same_words_to_the_same_message_is_not_sent_and_
     assert first.code == 0 and repeat.code == 0 and "already has this reply in the chat: not sent again" in repeat.text
     assert [m.text for m in app.container.get(Messages).recent(10) if m.reply_target == 1] == ["Looking now."], "the chat shows the reply once"
     assert "sent" in console.run(["message", "send", "Found it.", "--reply-to", "1"], AGENT).text, "other words to the same message are sent"
+
+
+def test_a_reply_by_command_edited_since_is_known_by_its_key_and_never_sent_again(app: App):
+    from journal.repositories.messages import Messages
+    console, messages = app.console(), app.container.get(Messages)
+    console.run(["message", "send", "Can you look?"], USER)
+    console.run(["message", "send", "Looking at the footer now.", "--reply-to", "1"], AGENT)
+    reply = [m for m in messages.recent(10) if m.reply_target == 1][0]
+    with app.container.get(Scope).environment(MAIN):
+        messages.save(reply.with_(text="Looking at the footer, task 3, now."), Actor.system())
+    repeat = console.run(["message", "send", "Looking at the footer now.", "--reply-to", "1"], AGENT)
+    assert "already has this reply in the chat: not sent again" in repeat.text, "the reply keeps the key of the words it was sent with, so an edit of its text never lets them be sent again"
+    assert [m.text for m in messages.recent(10) if m.reply_target == 1] == ["Looking at the footer, task 3, now."], "the chat shows the edited reply once"
+
+
+def test_a_message_linked_to_one_task_by_two_recorders_has_one_link(app: App):
+    from journal.models.support.ref import Ref
+    from journal.repositories.links import Links
+    from journal.repositories.messages import Messages
+    console, links, messages = app.console(), app.container.get(Links), app.container.get(Messages)
+    console.run(["message", "send", "please fix the footer"], USER)
+    console.run(["message", "send", "on it", "--reply-to", "1"], AGENT)
+    console.run(["task", "create", "the footer"], AGENT)
+    console.run(["message", "send", "Filed as task 1.", "--reply-to", "1", "--confirm"], AGENT)
+    assert links.targets(messages.find(1), Messages.SUBJECT_LINK) == [Ref("tasks", 1)], "the task made right after the reply and the task the next reply names are one link, made through Links.linked"
 
 
 def test_a_subagent_in_a_worktree_of_its_own_never_moves_the_main_conversation(app: App, tmp_path):
@@ -17577,6 +17602,16 @@ def test_a_job_the_agent_schedules_is_listed_on_its_row_until_it_cancels_it(app:
     hook(app, "PostToolUse", tool_name="CronDelete", tool_input={"id": "200ed8b1"}, tool_response="Cancelled job 200ed8b1.", tool_use_id="c2")
     app.runtime().deferred.drain()
     assert jobs() == [], "a cancelled job is no longer listed"
+
+
+def test_a_job_whose_tool_answer_arrives_twice_is_recorded_once(app: App):
+    from journal.repositories.scheduled_jobs import ScheduledJobs
+    hook(app, "SessionStart")
+    created = {"cron": "*/5 * * * *", "prompt": "check the build", "recurring": True}
+    for _ in range(2):
+        hook(app, "PostToolUse", tool_name="CronCreate", tool_input=created, tool_response="Scheduled recurring job 4f0c2a9e (*/5 * * * *). Session-only.", tool_use_id="c1")
+    app.runtime().deferred.drain()
+    assert [job.job_id for job in app.container.get(ScheduledJobs).session_jobs("s1")] == ["4f0c2a9e"], "a job is known by its session and its id, so its tool's answer read again records no second job"
 
 
 def test_the_user_stops_a_scheduled_job_from_the_viewer_and_the_agent_is_typed_to_delete_it(app: App, monkeypatch):

@@ -5,6 +5,7 @@ from journal.console.command import Command
 from journal.support.caller import Caller
 from journal.models.author import Author
 from journal.models.message import Message
+from journal.support.voice_key import VoiceKey
 from journal.models.support.ref import Ref
 from journal.config import Config
 from journal.features.messages.support.reaction_emoji import ReactionEmoji
@@ -68,14 +69,15 @@ class MessageCommand(Command):
 
     def reply(self, args: Namespace, caller: Caller) -> int:
         answered = self.messages.find(args.reply_to)
-        if self.messages.reply_text(answered.row_id, args.text):
+        key = VoiceKey.create("reply", str(answered.row_id), args.text.strip())
+        if self.messages.sent_with(key):
             print(f"message {answered.id} already has this reply in the chat: not sent again")
             return 0
         older = self.messages.first_reply(answered)
         if older is not None and not args.confirm:
             print(f"message {answered.id} already has your reply {older.id}: not sent. Send it again only if it says something new, with --confirm")
             return 1
-        message = self.messages.save(Message.answer(answered, args.text), caller.actor)
+        message = self.messages.save(Message.answer(answered, args.text).with_(idempotency=key), caller.actor)
         self.messages.read(answered, caller.actor, self._tool_use(caller))
         print(f"message {message.id} sent")
         return 0
