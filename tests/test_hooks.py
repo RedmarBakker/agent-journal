@@ -184,12 +184,14 @@ def test_the_agent_is_told_in_one_line_on_its_next_hook_what_went_through_unchec
     log = app.config.home / "runtime" / "bypass.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text("1761393836 hook claude\n1761393837 hook claude\n1761393840 shell setopt NO_EXTENDED_GLOB 2>/dev/null || true && eval 'git status' < /dev/null && pwd -P >| /tmp/cwd\n")
-    status, body = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
-    line = json.dumps(body)
-    assert status == 200 and "2 hooks let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded" in line and "git status" in line and "run again what ran unrecorded" in line, line
+    status, _ = post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
     app.container.get(ListenerQueue).drain()
-    again = json.dumps(post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})[1])
-    assert "went through unchecked" not in again and "ran in the shell itself" not in again, "the line is said once"
+    told = lambda: [entry.data["line"] for entry in app.container.get(Entries).scoped() if entry.kind == "nudge" and entry.data.get("key") == "health.went_through_unchecked"]
+    [line] = told()
+    assert status == 200 and "2 hooks let the tool go on unchecked and 1 shell command ran in the shell itself, unrecorded" in line and "git status" in line and "run again what ran unrecorded" in line, line
+    post_hook(app, {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Read", "tool_input": {}})
+    app.container.get(ListenerQueue).drain()
+    assert len(told()) == 1, "the line is said once"
 
 
 def post_command(app, argv: list[str], headers: dict | None = None, session: str | None = None, body: dict | None = None) -> dict:
