@@ -12,4 +12,4 @@ class WorkerModelMismatch(RowEvent):
     fit: str
     model: str
     points: float
-    send_backs: int
+    rejections: int

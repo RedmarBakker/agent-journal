@@ -24,7 +24,7 @@ class FailedRuns:
         return "\n".join([reason, *lines]) if lines else reason
 
     def picked(self, worker: Worker) -> list[str]:
-        clocked_out = worker.clocked_out_at()
+        clocked_out = worker.delivery_time()
         for output in reversed(self.outputs.ran_within(str(self.branch.folder(worker)))):
             reader = self.readers.reading(output.command)
             if output.creation_time.timestamp() < clocked_out:
@@ -34,7 +34,7 @@ class FailedRuns:
         return []
 
     def unrun(self, worker: Worker, proof: str) -> str:
-        clocked_out = worker.clocked_out_at()
+        clocked_out = worker.delivery_time()
         commands = [output.command for output in self.outputs.ran_within(str(self.branch.folder(worker))) if output.creation_time.timestamp() >= clocked_out]
         if any(self.runs.is_whole_run(command) for command in commands):
             return ""

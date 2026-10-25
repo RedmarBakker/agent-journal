@@ -70,7 +70,7 @@ class ToolUses:
         workers = self.workers.matching(id=numbers[0]) if numbers else []
         if not workers:
             return agent.unchecked_merge()
-        return agent.worker_merged(str(self.branch.place(workers[0]).resolve()), workers[0].clocked_out_at())
+        return agent.worker_merged(str(self.branch.place(workers[0]).resolve()), workers[0].delivery_time())
 
     def has_unanswered(self, time: float) -> bool:
         return any(worker.is_unanswered(time, ANSWER_SECONDS, self.tested_at(worker, time)) for worker in self.workers.checkable_workers())

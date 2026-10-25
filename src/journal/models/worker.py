@@ -44,7 +44,7 @@ RUN_LIMIT_END = "stopped after"
 LIMITED_MOVE = "stopped at the usage limit"
 RUN_LIMIT_REASON = "run limit"
 # the move that hands a worker a point back, the one that takes its work in, and its clock-out
-SENT_BACK, MERGED, CLOCKED_OUT = "sent back", "merged", "clocked out"
+REJECTION_MOVE, MERGED, DELIVERY_MOVE = "sent back", "merged", "clocked out"
 
 
 @dataclass(frozen=True)
@@ -110,17 +110,17 @@ class Worker(Helper):
         total = self.cost_dollars + cost
         return self.with_(cost_dollars=total).with_event(WorkerSpent(environment_id=self.environment_id, time=time, worker=self.mention(), model=self.model, tier=tier, profile_tier=profile_tier, before_dollars=self.cost_dollars, cost_dollars=total))
 
-    def clocked_out_at(self) -> float:
-        return next((time for word, time in reversed(self.moves.steps) if word == CLOCKED_OUT), 0.0)
+    def delivery_time(self) -> float:
+        return next((time for word, time in reversed(self.moves.steps) if word == DELIVERY_MOVE), 0.0)
 
-    def send_backs(self) -> int:
-        return self.moves.counted_since(SENT_BACK, MERGED)
+    def rejections(self) -> int:
+        return self.moves.counted_since(REJECTION_MOVE, MERGED)
 
-    def model_measured(self, fit: ModelFit, send_backs: int, time: float) -> "Worker":
+    def model_measured(self, fit: ModelFit, rejections: int, time: float) -> "Worker":
         measured = self.with_(model_fit=fit)
         if not fit.is_mismatch():
             return measured
-        return measured.with_event(WorkerModelMismatch(environment_id=self.environment_id, time=time, worker=self.mention(), fit=fit.measured, model=self.model, points=fit.points, send_backs=send_backs))
+        return measured.with_event(WorkerModelMismatch(environment_id=self.environment_id, time=time, worker=self.mention(), fit=fit.measured, model=self.model, points=fit.points, rejections=rejections))
 
     def model_judged(self, verdict: str, reason: str, verifier_session: str, time: float) -> "Worker":
         return self.with_(model_fit=self.model_fit.judged(verdict, reason)).with_event(WorkerModelJudged(environment_id=self.environment_id, time=time, worker=self.mention(), verdict=verdict, reason=reason, verifier_session=verifier_session))
@@ -135,10 +135,10 @@ class Worker(Helper):
         return self.contacted(time).moved("clocked in", time).with_(state=WorkerState.READY).with_event(WorkerReady(environment_id=self.environment_id, time=time, worker=self.mention()))
 
     def delivered(self, time: float) -> "Worker":
-        return self.contacted(time).moved(CLOCKED_OUT, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
+        return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED).with_event(WorkerDelivered(environment_id=self.environment_id, time=time, worker=self.mention(), ref=self.mention().ref(), outcome=f"{self.mention().title()}, clocked out"))
 
     def review_requested(self, time: float, report: str) -> "Worker":
-        return self.contacted(time).moved(CLOCKED_OUT, time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
+        return self.contacted(time).moved(DELIVERY_MOVE, time).with_(state=WorkerState.DELIVERED, review_pending=True, review_queued_at=time).with_event(WorkerReviewRequested(environment_id=self.environment_id, time=time, worker=self.mention(), report=report))
 
     def reviewed(self, time: float, task: int, reviewer: Reviewer, report: str) -> "Worker":
         return self.review_ended(time, "reviewed").with_event(WorkerReviewed(environment_id=self.environment_id, time=time, worker=self.mention(), task=task, reviewer=reviewer.id, reviewer_session=reviewer.session, report=report))

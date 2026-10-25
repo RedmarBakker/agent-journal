@@ -4,7 +4,7 @@ from journal.features.workers.support.load_item import LoadItem
 from journal.features.workers.workers_options import WorkersOptions
 from journal.models.author import Author
 from journal.models.support.ref import Ref
-from journal.models.worker import CLOCKED_OUT, MERGED, SENT_BACK, Worker
+from journal.models.worker import DELIVERY_MOVE, MERGED, REJECTION_MOVE, Worker
 from journal.repositories.messages import Messages
 from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
@@ -12,7 +12,7 @@ from journal.repositories.workers import Workers
 
 # a worker's moves that bring it to the orchestrator, and those that clear what it brought
 UNFINISHED, IDLE = "ended without clocking out", "reported"
-CLEARING = (SENT_BACK, MERGED, "released", "retired", "stopped", "sent a job")
+CLEARING = (REJECTION_MOVE, MERGED, "released", "retired", "stopped", "sent a job")
 DISPATCHES = ("dispatched", "sent a job")
 
 
@@ -32,13 +32,13 @@ class LoadItems:
 
     def worker_items(self, worker: Worker, idle_weight: float) -> list[LoadItem]:
         ref, repeat, pending, items = str(Ref.build(worker)), False, None, []
-        weights = {CLOCKED_OUT: 1.0, UNFINISHED: 1.0, IDLE: idle_weight}
+        weights = {DELIVERY_MOVE: 1.0, UNFINISHED: 1.0, IDLE: idle_weight}
         for word, time in worker.moves.steps:
             if word in weights and pending is None and weights[word]:
-                pending = LoadItem(ref, time, self.settings.decimal(WorkersOptions.WEIGHT_REPEAT_SEND_BACK) if word == CLOCKED_OUT and repeat else weights[word])
+                pending = LoadItem(ref, time, self.settings.decimal(WorkersOptions.WEIGHT_REPEAT_SEND_BACK) if word == DELIVERY_MOVE and repeat else weights[word])
             elif word in CLEARING:
                 items += [pending.cleared(time)] if pending is not None else []
-                pending, repeat = None, word == SENT_BACK
+                pending, repeat = None, word == REJECTION_MOVE
         return [*items, *([pending] if pending is not None else [])]
 
     def message_items(self, since: datetime) -> list[LoadItem]:

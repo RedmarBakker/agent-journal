@@ -13,7 +13,7 @@ from journal.features.workers.support.merge_clash import MergeClash
 from journal.features.workers.support.worker_branch import REBASE_STEPS, WorkerBranch
 from journal.features.workers.support.pool_worker_moves import NOTE, REDO, STOPPED, PoolWorkerMoves
 from journal.features.workers.support.worker_runner import WorkerRunner
-from journal.models.worker import SENT_BACK, Worker
+from journal.models.worker import REJECTION_MOVE, Worker
 from journal.models.worker_state import WorkerState
 from journal.providers.providers import Providers
 from journal.providers.support.session_inbox import SessionInbox
@@ -47,7 +47,7 @@ EDITED_NOTE = "Task {task} was changed while you were away: read it again with j
 REBASE_NOTE = f"Your worktree could not be moved up to the project's branch: {{clashing}}. First {REBASE_STEPS}. Then: "
 LIVE_WITHOUT_INBOX = "worker {n}'s last session still runs, and {provider} takes no message while it runs: wait for it to end, then send the job"
 JOB_MOVE = "sent a job"
-REDO_MOVE = SENT_BACK
+REDO_MOVE = REJECTION_MOVE
 
 class WorkerActions:
     """What is done to a worker after its dispatch, by its command and from the viewer alike, each under the worker's lock: its next job sent, or a point sent back, into the session it still runs in when its process lives on, so it never runs in two sessions and keeps its token, else in a new run of its last session; a word informed while it runs, a stop, a retire."""

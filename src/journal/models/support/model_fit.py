@@ -2,7 +2,7 @@ from dataclasses import dataclass, replace
 
 from journal.models.model_tier import ModelTier
 
-RIGHT, TOO_STRONG, TOO_WEAK = "right", "too strong", "too weak"
+RIGHT, OVERPOWERED, UNDERPOWERED = "right", "too strong", "too weak"
 
 
 @dataclass(frozen=True)
@@ -27,4 +27,4 @@ class ModelFit:
         return self.verdict or self.measured
 
     def is_mismatch(self) -> bool:
-        return self.measured in (TOO_STRONG, TOO_WEAK)
+        return self.measured in (OVERPOWERED, UNDERPOWERED)

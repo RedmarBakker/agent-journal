@@ -389,7 +389,7 @@ class WorkerCommand(Command):
 
     @staticmethod
     def standing_line(worker: Worker) -> str:
-        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} spent, sent back {worker.send_backs()} times on this task, reports {worker.report_choice.label()}"
+        return f"{'':>16}on {worker.model}, ${worker.cost_dollars:.2f} spent, sent back {worker.rejections()} times on this task, reports {worker.report_choice.label()}"
 
     def print_subagents(self, session: str | None) -> None:
         subagents = [] if session is None else self.subagents.session_subagents(session)

@@ -4222,10 +4222,10 @@ def test_merged_work_is_measured_against_its_model_a_sample_is_judged_by_a_gener
     hook(app, "SessionStart")
 
     # a worker's job on `model`, `lines` lines over `files` files, sent back `send_backs` times over `minutes`, merged now
-    def merged(name, model, lines, files, send_backs, minutes):
+    def merged(name, model, lines, files, rejections, minutes):
         now = timing.time()
         start = now - minutes * 60
-        steps = [("dispatched", start), *[move for back in range(send_backs) for move in (("clocked out", start + 60 + back), ("sent back", start + 90 + back))], ("clocked out", now - 30)]
+        steps = [("dispatched", start), *[move for back in range(rejections) for move in (("clocked out", start + 60 + back), ("sent back", start + 90 + back))], ("clocked out", now - 30)]
         with app.container.get(Scope).environment(MAIN):
             worker = workers.save(Worker(environment_id=MAIN, name=name, model=model, session=f"ws-{name}", dispatcher="s1", brief="Change src/parser.py; done when its test passes", moves=WorkerMoves(tuple(steps))), Actor.system())
             for n in range(files):

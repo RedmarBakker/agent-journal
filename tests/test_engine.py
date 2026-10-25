@@ -2373,11 +2373,11 @@ def test_a_workers_moves_and_the_users_messages_are_the_items_its_load_counts():
 def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest_and_with_the_ways_to_ease_it_when_critical():
     from pathlib import Path
     from journal.features.workers.support.workers_data import WorkersData
-    from journal.features.workers.workers_conduct import load_check
+    from journal.features.workers.workers_conduct import crowd_check
     from journal.features.workers.workers_options import WorkersOptions
     from journal.models.support.agent_load import AgentLoad
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.LOAD_WARN.key: 0.7, WorkersOptions.LOAD_CRITICAL.key: 0.9})
-    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
+    told = lambda rho, refs=("workers:12", "messages:553", "workers:15"): [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), (), load=AgentLoad(rho=rho, waiting_refs=refs[:8], waiting_items=len(refs), measured_at=1.0))})), settings).nudges]
     assert told(0.6) == [], "under the warning level nothing is said"
     rising = told(0.74)
     assert rising == ["your load is 0.74: worker 12, message 553, worker 15 wait; clear worker 12 first, the oldest"] and len(rising[0]) <= 120, rising
@@ -2385,7 +2385,7 @@ def test_the_load_is_named_from_the_warning_level_with_what_waits_and_the_oldest
     assert critical[0].startswith("your load is 0.93, critical: worker 12, message 553, worker 15 wait, worker 12 the oldest") and "turn the reviewer on" in critical[0] and "queue work" in critical[0] and "lower workers.most_out" in critical[0]
     assert told(0.8, tuple(f"workers:{n}" for n in range(10)))[0].startswith("your load is 0.8: worker 0, worker 1, worker 2, worker 3 and 6 more wait")
     assert told(0.8, ()) == [], "with nothing waiting there is nothing to clear, so nothing is said"
-    assert [n.rendered() for n in load_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())})), settings).nudges] == [], "an unmeasured load says nothing"
+    assert [n.rendered() for n in crowd_check(Ready(), ToolStarting(call=ToolCall(tool="Read", input={}, operation=Claude().operation("Read", {}))).with_data(FeatureData({"workers": WorkersData((), (), 0, (), Path("/w"), ())})), settings).nudges] == [], "an unmeasured load says nothing"
 
 
 def test_a_place_opens_once_the_load_held_over_its_level_and_closes_once_it_held_under_with_each_dwell_honoured_and_each_change_named():
@@ -2475,19 +2475,19 @@ def test_a_wait_written_in_words_is_told_to_be_a_block_and_blocked_work_that_sta
     from journal.features.plans.support.plan_status import PlanStatus
     from journal.features.plans.support.plans_data import PlansData
     from journal.features.tasks.support.tasks_data import TasksData
-    from journal.features.workers.workers_conduct import held_lines, unordered_lines, written_wait_check, written_wait_lines
+    from journal.features.workers.workers_conduct import unmoved_task_lines, unordered_lines, text_wait_check, text_wait_lines
     settings = SettingsValue({WorkersOptions.MODE.key: "orchestrator", WorkersOptions.HELD_STILL_MINUTES.key: 60, WorkersOptions.HELD_SHARE.key: 0.4, WorkersOptions.UNORDERED_PLAN_TASKS.key: 10})
     builder = SettingsValue({WorkersOptions.MODE.key: "builder"})
-    worded = lambda line, settings=settings: [n.rendered() for n in written_wait_check(Ready(), ToolStarting(call=shell(line)), settings).nudges]
+    worded = lambda line, settings=settings: [n.rendered() for n in text_wait_check(Ready(), ToolStarting(call=shell(line)), settings).nudges]
     block_line = "you wrote a wait in words; the journal cannot see it. block the task so it opens by itself: journal task block <n> --on task:<m> for a task it waits on, --until '<command>' for anything else"
     assert worded("journal task log 5 'waiting for the API key from the user'") == [block_line], "a log line that says it waits is told to be a block"
     assert worded("journal message send 'task 7 waits on task 4 to merge'") == [block_line], "and a message"
     assert worded("journal task block 7 'waits on the lexer' --on task:4") == [], "a block with --on is the wait itself"
     assert worded("journal task log 5 'the parser reads every rule'") == [], "a log line with no wait in it is not"
     assert worded("journal task log 5 'waiting for the API key'", builder) == [], "only the orchestrator is told"
-    assert [n.key for n in written_wait_lines("I am blocked on the deploy until it lands", settings)] == ["workers.make_the_wait_a_block"], "a reply that says it waits is told the same"
+    assert [n.key for n in text_wait_lines("I am blocked on the deploy until it lands", settings)] == ["workers.make_the_wait_a_block"], "a reply that says it waits is told the same"
     tasks = lambda held, open_count=10: FeatureData({"tasks": TasksData(current_task=0, last_log_line="", paused=(), pause_summary="", blocked=tuple(held), blocked_without_wait=(), blocked_without_wait_summary="", broken_waits=(), broken_waits_summary="", first_pause_reason="", next_open=None, last_commands=(), open_count=open_count, held_since=held)})
-    held = lambda data, time: [n.rendered() for n in held_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
+    held = lambda data, time: [n.rendered() for n in unmoved_task_lines(Ticked(silence_seconds=0.0, time=time).with_data(data), settings)]
     still = "these blocked or paused tasks stand still: 3, 5; the plan needs restructuring. check what each waits on, unblock what has arrived, split or reorder what cannot move"
     assert held(tasks({3: 1000.0, 5: 1200.0}), 1000.0 + 59 * 60) == [], "blocked work that moved within the hour is not named"
     assert held(tasks({3: 1000.0, 5: 1200.0}), 1200.0 + 60 * 60) == [still], "once both stood still for the set time they are named with their ids"

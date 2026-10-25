@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from journal.models.model_tier import ModelTier
-from journal.models.support.model_fit import RIGHT, TOO_STRONG, TOO_WEAK, ModelFit
+from journal.models.support.model_fit import RIGHT, OVERPOWERED, UNDERPOWERED, ModelFit
 
 # what each recorded measure of a worker's work adds to its complexity, a point each so much
 LINES_A_POINT, FILES_A_POINT, TOOL_USES_A_POINT, MINUTES_A_POINT, TESTS_A_POINT = 40, 2, 30, 15, 2
@@ -44,5 +44,5 @@ class WorkComplexity:
         if tier == ModelTier.UNKNOWN or not self.files:
             return ""
         if tier.rank() > called_for.rank():
-            return TOO_STRONG
-        return TOO_WEAK if tier.rank() < called_for.rank() and self.send_backs >= REPEATED_SEND_BACKS else RIGHT
+            return OVERPOWERED
+        return UNDERPOWERED if tier.rank() < called_for.rank() and self.send_backs >= REPEATED_SEND_BACKS else RIGHT
