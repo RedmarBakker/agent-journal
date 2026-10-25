@@ -31,6 +31,7 @@ class ReminderCommand(MemoryCommand):
     @staticmethod
     def moment(text: str) -> datetime:
         try:
-            return datetime.strptime(text.strip(), Reminder.MOMENT).astimezone(timezone.utc)
+            local = datetime.strptime(text.strip(), Reminder.MOMENT)
         except ValueError as wrong:
             raise Rejection(f"--at takes a local date and time such as 2026-10-24 09:30, not {text}") from wrong
+        return min(local.replace(fold=fold).astimezone(timezone.utc) for fold in (0, 1))

@@ -14865,3 +14865,18 @@ def test_a_plan_starts_its_next_task_after_the_finished_mark_and_a_second_start_
     app.runtime().deferred.drain()
     marks = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
     assert marks == ["Started task 1: write the notes", "Finished task 1: write the notes", "Started task 2: tag it"], marks
+
+
+def test_a_reminder_set_for_a_local_time_in_a_repeated_hour_is_due_at_its_earlier_moment(monkeypatch: pytest.MonkeyPatch):
+    import time
+    from datetime import datetime, timezone
+
+    from journal.features.memory.commands.reminder_command import ReminderCommand
+
+    monkeypatch.setenv("TZ", "Europe/Amsterdam")
+    time.tzset()
+    try:
+        assert ReminderCommand.moment("2026-10-25 02:30") == datetime(2026, 10, 25, 0, 30, tzinfo=timezone.utc), "the clocks went back at 03:00, so 02:30 happened twice, and the reminder is due at the first"
+    finally:
+        monkeypatch.undo()
+        time.tzset()
