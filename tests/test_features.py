@@ -20137,6 +20137,24 @@ def test_every_card_kind_is_a_registered_chat_mark_in_a_group_served_with_the_ma
 
 
 
+def test_the_fitness_level_told_is_kept_through_state_changes_and_a_measure_moving_under_one_score_adds_no_point(app: App):
+    from journal.features.workers.support.fitness_point import FitnessPoint
+    from journal.features.workers.support.fitness_score import FitnessScore
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    app.console().run(["environment", "overview"], AGENT)
+    agents = app.container.get(Agents)
+    with app.container.get(Scope).environment(MAIN):
+        agents.save(agents.session_rows("s1")[0].with_(fitness_level=50), Actor.system())
+    app.console().run(["task", "create", "the parser", "--start"], AGENT)
+    hook(app, "PreToolUse", tool_name="Read", tool_input={"file_path": "a.py"})
+    app.runtime().deferred.drain()
+    with app.container.get(Scope).environment(MAIN):
+        assert agents.session_rows("s1")[0].fitness_level == 50, "the level told is a field of the agent's own, so a state pushed or swapped over the work never writes it over"
+    point = FitnessPoint.first(FitnessScore(mode="builder", score=50, is_measured=True, parts=(("own code share", 100),)), 1.0)
+    assert point.is_same(FitnessScore(mode="builder", score=50, is_measured=True, parts=(("own code share", 0),))), "a measure that moves under an unchanged score adds no point to the timeline"
+
+
 def test_a_fitness_that_falls_past_a_mark_is_told_once_and_a_rise_lets_the_marks_above_be_told_again():
     from journal.features.workers.support.fitness_levels import FitnessLevels
 

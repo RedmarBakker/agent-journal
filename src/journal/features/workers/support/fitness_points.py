@@ -6,7 +6,7 @@ from journal.support.actor import Actor
 
 
 class FitnessPoints:
-    """An agent's fitness scored as the status bar shows it and kept as a point of its timeline whenever the score, a gap or a measure differs from the point before: after its own tool uses and after each report its workers file."""
+    """An agent's fitness scored as the status bar shows it and kept as a point of its timeline whenever the score itself moves, or the mode, whether it is measured, or a drop, never for a measure that moves under an unchanged score: after its own tool uses and after each report its workers file."""
 
     def __init__(self, scoring: FitnessScoring, entries: Entries) -> None:
         self.scoring, self.entries = scoring, entries

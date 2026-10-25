@@ -76,6 +76,7 @@ class Agent(Scoped):
     queued_lines: tuple[str, ...] = ()
     load: AgentLoad = AgentLoad()
     mode_loads: dict = field(default_factory=dict)
+    fitness_level: int = 100
     model_fits: tuple[str, ...] = ()
     wait_use: WaitUse = WaitUse()
     report_use: ReportUse = ReportUse()

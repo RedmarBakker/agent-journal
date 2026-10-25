@@ -9,11 +9,9 @@ from journal.repositories.agents import Agents
 from journal.repositories.setting_rows import SettingRows
 from journal.support.actor import Actor
 
-LEVEL_KEY = "fitness_level"
-
 
 class FitnessLevelRecord(AgentListener[ToolFinished]):
-    """After each tool use of the main agent, the level its fitness stands on is kept on its row, so a fall past a lower level is told once and a rise lets the levels above be told again."""
+    """After each tool use of the main agent, the level its fitness stands on is kept on its row in a field of its own, never in the data of the state on top of its stack, which every state change writes over, so a fall past a lower level is told once and a rise lets the levels above be told again."""
 
     def __init__(self, agents: Agents, scoring: FitnessScoring, settings: SettingRows) -> None:
         self.agents, self.scoring, self.settings = agents, scoring, settings
@@ -27,5 +25,5 @@ class FitnessLevelRecord(AgentListener[ToolFinished]):
             return
         step = self.settings.integer(FitnessOptions.LEVEL_STEP)
         level = FitnessLevels.standing(fitness.score, step) if step > 0 else 100
-        if level != rows[0].data.get(LEVEL_KEY):
-            self.agents.save(rows[0].with_merged("data", {LEVEL_KEY: level}), Actor.system())
+        if level != rows[0].fitness_level:
+            self.agents.save(rows[0].with_(fitness_level=level), Actor.system())

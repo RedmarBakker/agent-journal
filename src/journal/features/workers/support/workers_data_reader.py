@@ -63,7 +63,7 @@ class WorkersDataReader:
             "tool_uses": lambda: ToolUseCounts.counted(agent),
             "code_lines": lambda: self.edits.code_line_count(agent.session, facts.tool_uses.last_handover_at),
             "workload": lambda: agent.load,
-            "fitness_level": lambda: agent.data.get("fitness_level", 100),
+            "fitness_level": lambda: agent.fitness_level,
             "merge_check": lambda: self.checks.failure(),
             "last_calls": lambda: {w.id: self.last_call(w.session) for w in facts.dispatched_workers},
             "resumable": lambda: tuple(w.id for w in self.workers.unfinished_accepted(agent.session, self.resumes.is_resumable)),

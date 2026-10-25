@@ -35,7 +35,7 @@ class FitnessPoint:
         return cls(float(data["at"]), data["mode"], int(data["score"]), bool(data["is_measured"]), tuple(data["gaps"]), tuple((label, int(percent)) for label, percent in data["parts"]), data["moved"], int(data.get("drop_points", 0)))
 
     def is_same(self, score: FitnessScore) -> bool:
-        return (self.mode, self.score, self.is_measured, self.gaps, self.parts, self.drop_points) == (score.mode, score.score, score.is_measured, score.lines, score.parts, score.drop_points)
+        return (self.mode, self.score, self.is_measured, self.drop_points) == (score.mode, score.score, score.is_measured, score.drop_points)
 
     def following(self, score: FitnessScore, scored_at: float) -> "FitnessPoint":
         if score.mode != self.mode or not score.is_measured or not self.is_measured:

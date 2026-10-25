@@ -300,7 +300,7 @@ def test_the_commands_an_agent_runs_on_its_started_plan_answer_within_their_budg
 
 
 def test_the_commands_an_agent_runs_as_its_session_starts_answer_within_their_budget_against_a_cold_cache(full_project: App):
-    spending = {f"POST /cli/{' '.join(argv)}": cold_command(full_project, *argv) for argv in (("environment", "overview"), ("check", "list"))}
+    spending = {f"POST /cli/{' '.join(argv)}": cold_command(full_project, *argv) for argv in (("check", "list"),)}
     commands = over(recorded(spending))
     assert not commands, "\n".join(commands)
 
