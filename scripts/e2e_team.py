@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -207,17 +208,20 @@ def hosted(method: str, path: str, body: dict | None = None, cookie: str = "") -
     return connection.getresponse()
 
 
+# a opens the team's journal as the viewer's Open does: its own journal asks the team server for a one-time link, and the link opens a session
 def signed_in() -> str:
-    email, _ = PEOPLE["a"]
-    reply = hosted("POST", "/sign-in", {"email": email, "password": PASSWORD})
-    cookie = (reply.getheader("Set-Cookie") or "").split(";")[0]
-    return cookie if reply.status == 303 and cookie else ""
+    request = urllib.request.Request(f"http://127.0.0.1:{PORTS['a']}/journal/team/open", data=b"{}", method="POST", headers={"Content-Type": "application/json", "X-Journal-Env": "main"})
+    with urllib.request.urlopen(request, timeout=20) as reply:
+        link = urllib.parse.urlsplit(json.loads(reply.read())["url"])
+    opened = hosted("GET", f"{link.path}?{link.query}")
+    cookie = (opened.getheader("Set-Cookie") or "").split(";")[0]
+    return cookie if opened.status == 303 and cookie else ""
 
 
 def check_hosted_journal() -> str:
     cookie = waiting_for(signed_in, 180)
     if not cookie:
-        return "FAIL: the hosted journal took no sign-in with a's team account within three minutes"
+        return "FAIL: the hosted journal opened no session from a's one-time link within three minutes"
     reply = hosted("GET", "/journal/environments", cookie=cookie)
     rows = json.loads(reply.read()).get("rows", []) if reply.status == 200 else []
     hub = next((row for row in rows if row.get("kind") == "hub"), None)
@@ -225,7 +229,7 @@ def check_hosted_journal() -> str:
     home = hosted("GET", "/journal/tasks?limit=49", cookie=cookie)
     tasks = [row.get("title") for row in json.loads(home.read()).get("rows", [])] if home.status == 200 else []
     opened = f"hub task {STAMP}" in tasks
-    return f"{'OK' if found and opened else 'FAIL'}: a signed in to the hosted journal at http://{SERVER}: it shows the hub {hub.get('name') if hub else 'none'} of the team (environments {reply.status}: {[row.get('name') for row in rows]}) and its home holds the hub task filed here {opened} (tasks {home.status})"
+    return f"{'OK' if found and opened else 'FAIL'}: a opened the hosted journal at http://{SERVER} from its own journal: it shows the hub {hub.get('name') if hub else 'none'} of the team (environments {reply.status}: {[row.get('name') for row in rows]}) and its home holds the hub task filed here {opened} (tasks {home.status})"
 
 
 def check_pre_hub_copy() -> str:
