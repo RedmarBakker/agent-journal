@@ -1,10 +1,12 @@
 import {createApp, h, nextTick} from "vue";
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
+import {api} from "../src/api/client.js";
 import agentPage from "../src/resource/AgentPage.vue?raw";
 
 const row = (table) => ({table, id: 1, ref: `${table}:1`, brief: "Words", sections: [], data: {}, refs: []});
 
 async function shown(props) {
+    vi.spyOn(api, "commentsOn").mockResolvedValue({rows: [], is_last_page: true});
     window.matchMedia = window.matchMedia || (() => ({matches: false, addEventListener() {}, removeEventListener() {}}));
     const {default: DocumentPage} = await import("../src/resource/DocumentPage.vue");
     const host = window.document.createElement("div");

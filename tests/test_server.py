@@ -853,6 +853,25 @@ def test_a_users_message_and_the_agents_reply_to_it_are_two_message_rows(tmp_pat
         app.runtime().stop()
 
 
+def test_a_report_read_by_id_carries_its_comment_count_and_its_comments_are_listed_on_their_own(tmp_path: Path):
+    app = main_journal(Config(tmp_path, port=0))
+    app.runtime().start()
+    server = app.server()
+    try:
+        report = call(server, "POST", "/journal/reports", {"title": "Findings", "body": "## One\n\nText"})[1]["id"]
+        other = call(server, "POST", "/journal/reports", {"title": "Other", "body": "## Two\n\nText"})[1]["id"]
+        for on, text in ((report, "first"), (report, "second"), (other, "elsewhere")):
+            call(server, "POST", "/journal/comments", {"on": f"reports:{on}", "text": text})
+        shown = call(server, "GET", f"/journal/reports?ids={report}")[1]["rows"][0]
+        assert shown["comment_count"] == 2, "a report read by id says how many comments are under it"
+        assert "comment_count" not in call(server, "GET", "/journal/reports")[1]["rows"][0], "the list of reports reads no counts"
+        under = call(server, "GET", f"/journal/comments?on=reports:{report}")[1]["rows"]
+        assert [c["text"] for c in under] == ["first", "second"] and all(c["on"] == [f"reports:{report}"] for c in under), "the comments under one row are listed on their own"
+        assert call(server, "GET", "/journal/comments?on=nothing:1")[0] >= 400, "a row that is not there is refused"
+    finally:
+        app.runtime().stop()
+
+
 def test_the_message_stream_holds_the_users_words_the_agents_and_the_systems_cards_by_number(tmp_path: Path):
     from journal.chat.moment_cards import MomentCards
     from journal.support.card_kind import CardKind

@@ -259,6 +259,11 @@ export class ApiClient {
         return this.create("comments", {on, text});
     }
 
+    // every comment under one row, named as reports:12
+    commentsOn(on) {
+        return this.get(this.here(`/comments${query({on})}`), "comments.on");
+    }
+
     // every row and conversation line here that holds all the words
     search(words, {models = [], conversations = false} = {}) {
         const narrowed = {words, models: models.join(","), conversations: conversations ? 1 : ""};

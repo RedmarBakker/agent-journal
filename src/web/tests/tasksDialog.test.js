@@ -78,6 +78,7 @@ beforeEach(() => {
     vi.spyOn(api, "act").mockResolvedValue({});
     vi.spyOn(api, "create").mockResolvedValue({id: 9});
     vi.spyOn(api, "taskLogs").mockResolvedValue([]);
+    vi.spyOn(api, "commentsOn").mockResolvedValue({rows: [], is_last_page: true});
 });
 
 afterEach(async () => {

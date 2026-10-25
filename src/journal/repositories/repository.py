@@ -122,6 +122,11 @@ class Repository(Generic[M]):
     def linked_rows(self, ids: Iterable[int]) -> dict[int, list[Ref]]:
         return self._linked(self.link_query.filter_listed("source", [f"{self.table}:{row_id}" for row_id in ids]))
 
+    def linking_counts(self, kind: str, ids: Iterable[int]) -> dict[int, int]:
+        query = self.link_query.filter(kind=kind).filter_listed("target", [f"{self.table}:{row_id}" for row_id in ids])
+        with self.connection.unlisted():
+            return {Ref.parse(row["value"]).id: row["total"] for row in self.connection.all(*query.grouped("target"))}
+
     def _linked(self, query: Query) -> dict[int, list[Ref]]:
         rows: dict[int, list[Ref]] = {}
         for link in self.connection.all(*query.order("id").select()):

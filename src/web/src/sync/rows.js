@@ -103,13 +103,23 @@ async function heldIds(table, ids) {
         const found = new Set(got.rows.map((r) => r.id));
         missing.filter((id) => !found.has(id)).forEach((id) => none.add(id));
         absent.set(table, none);
-        if (!got.rows.length) return;
-        const known = new Set((store.rows[table] || []).map((r) => r.id));
-        store.rows[table] = [...withoutAnswered(store.rows[table] || [], got.rows), ...got.rows.filter((r) => !known.has(r.id))].sort(orderOf(table));
-        store.paging.size[table] = store.rows[table].length;
+        added(table, got.rows);
     } finally {
         missing.forEach((id) => pending.delete(id));
     }
+}
+
+// rows read apart from the table's pages, put among the rows held, a held row of the same id replaced
+function added(table, fresh) {
+    if (!fresh.length) return;
+    const known = new Set((store.rows[table] || []).map((r) => r.id));
+    store.rows[table] = [...withoutAnswered(store.rows[table] || [], fresh), ...fresh.filter((r) => !known.has(r.id))].sort(orderOf(table));
+    store.paging.size[table] = store.rows[table].length;
+}
+
+// Every comment under one row, named as reports:12, read when its comments are shown and never with the row.
+export async function readComments(ref) {
+    added("comments", (await api.commentsOn(ref)).rows);
 }
 
 watch(() => `${route.value.env}/${route.value.page}/${route.value.open ? route.value.open.table : ""}`, forget);

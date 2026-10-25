@@ -1,6 +1,6 @@
 <script setup>
 import Byline from "../kit/Byline.vue";
-import {computed, inject, nextTick, reactive, ref, watch} from "vue";
+import {computed, inject, nextTick, onUnmounted, reactive, ref, watch} from "vue";
 import {useScope} from "../composables/scope.js";
 import Btn from "../kit/Btn.vue";
 import CloseButton from "../kit/CloseButton.vue";
@@ -28,6 +28,12 @@ const discussion = inject("discussion", null);
 const scope = useScope();
 const list = ref(null);
 const on = computed(() => refOf(props.resource));
+// the thread's comments are read when it is shown, never with the row, and kept while it stays open
+if (props.showThread) {
+    scope.keepRows("comments");
+    onUnmounted(() => scope.releaseRows("comments"));
+    watch(on, (row) => scope.readComments(row), {immediate: true});
+}
 const onRow = computed(() =>
     scope
         .rows("comments")

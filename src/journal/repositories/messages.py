@@ -7,6 +7,7 @@ from journal.db.query import Query
 from journal.models.agent_role import AgentRole
 from journal.models.author import Author
 from journal.models.message import Message
+from journal.models.support.ref import Ref
 from journal.repositories.links import Links
 from journal.support.rejection import Rejection
 from journal.repositories.agents import Agents
@@ -197,9 +198,14 @@ class Messages(ScopedRepository[Message]):
         return [message for message in self.recent_voice(last) if message.text == text]
 
     def comments(self) -> list[Message]:
-        links = self.link_query.filter(kind=self.COMMENT_LINK).filter_ref("source", self.query())
+        return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK)).order("id"))
+
+    def comments_on(self, ref: Ref) -> list[Message]:
+        return self.selected(self.comment_query(self.link_query.filter(kind=self.COMMENT_LINK, target=str(ref))).order("id"))
+
+    def comment_query(self, links: Query) -> Query:
         candidates = self.query().filter_alternatives(self.query().filter(author=Author.USER), self.query().filter_present("reply_target"))
-        return self.selected(candidates.filter_existing(links).order("id"))
+        return candidates.filter_existing(links.filter_ref("source", self.query()))
 
     def recent_voice(self, last: int) -> list[Message]:
         return list(reversed(self.selected(self.main_voice().order_descending("id").limit(last))))

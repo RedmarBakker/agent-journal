@@ -7,20 +7,22 @@ from journal.http.support.request import Request
 from journal.support.response import Response
 from journal.models.doc import Doc
 from journal.models.report import Report
+from journal.repositories.messages import Messages
 from journal.support.docx_export import DocxExport
 
 W = TypeVar("W", Doc, Report)
 
 
 class WritingController(Controller[W]):
-    """What documents and reports share: a list includes each without its body and the rows it links to, which are requested by id; a section is added at the end of the body."""
+    """What documents and reports share: a list includes each without its body, the rows it links to and how many comments are under it, which are requested by id; a section is added at the end of the body."""
 
     def index_page(self, rows: list[W]) -> list[dict]:
         return [{name: value for name, value in ModelFields.build(row).items() if name != "body"} for row in rows]
 
     def shown_page(self, rows: list[W]) -> list[dict]:
         linked = self.repository.linked_rows(row.row_id for row in rows)
-        return [{**ModelFields.build(row), "links": self.links(row, linked)} for row in rows]
+        comment_counts = self.repository.linking_counts(Messages.COMMENT_LINK, [row.row_id for row in rows])
+        return [{**ModelFields.build(row), "links": self.links(row, linked), "comment_count": comment_counts.get(row.id, 0)} for row in rows]
 
     @staticmethod
     def links(row: W, linked: dict) -> list[str]:

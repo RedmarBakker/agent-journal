@@ -1,4 +1,5 @@
 from journal.http.controllers.shaped_rows_controller import ShapedRowsController
+from journal.http.row_list import RowList
 from journal.http.support.model_fields import ModelFields
 from journal.http.support.request import Request
 from journal.support.response import Response
@@ -15,12 +16,18 @@ COMMENTED = ("tasks", "plans", "docs", "reports", "facts", "rules", "reminders",
 
 
 class CommentController(ShapedRowsController[Message]):
-    """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does. Their list is the messages alone; one read by id names the row it is under."""
+    """A comment written under a row in the viewer is a message from the user linked to the row as comments_on, shown under it; it reaches the agent as any message does. Their list is the messages alone, or with on=tasks:12 every comment under that row; one read by id names the row it is under."""
 
     is_timeline = True
 
     def __init__(self, messages: Messages, links: Links, rows: Rows) -> None:
         self.repository, self.links, self.references = messages, links, rows
+
+    def index(self, request: Request) -> Response:
+        if "on" not in request.query:
+            return super().index(request)
+        rows = self.repository.comments_on(self.row(str(request.query["on"])))
+        return Response.json(RowList(rows=self.shown_page(rows), is_last_page=True, counts=self.counts(rows)))
 
     def rows(self) -> list[Message]:
         return self.repository.comments()
