@@ -9,5 +9,10 @@ class RowLabels:
         self.environments = environments
 
     def name(self, noun: str, row: Scoped) -> str:
-        team = next((hub.team_name for hub in self.environments.hubs() if hub.row_id == row.environment_id), "")
-        return f"{team} {noun} {row.row_id}" if team else f"{noun} {row.row_id}"
+        return f"{self.noun(noun, row.environment_id)} {row.row_id}"
+
+    def noun(self, noun: str, environment_id: int) -> str:
+        return self.hub_nouns(noun).get(environment_id, noun)
+
+    def hub_nouns(self, noun: str) -> dict[int, str]:
+        return {hub.row_id: f"{hub.team_name} {noun}" for hub in self.environments.hubs()}

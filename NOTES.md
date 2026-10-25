@@ -1543,3 +1543,9 @@ A call to MomentCards or ProcessCards outside features/*/listeners is a sin, jud
 - **One environment per machine.** The server cannot tell two environments of one device apart, so PlanBindings refuses a second environment on the same machine before the lease is asked, naming who drives it and from which environment.
 - **The hub row names its driver.** Task and Plan carry driver (the person) and driver_agent (the agent of <environment> on <device>), written on the hub row, so they sync to every journal; the hub board's cards and the hub home's plans show Driven by. The hosted journal refuses a drive, since it runs no agent; the viewer has no Drive button at all, so drive is a command.
 - **Open.** A journal on a version from before device_name reads a lease answer from a newer server and fails on the unknown field. A lapsed driver's name stays on the row until the row is taken over or released.
+
+## A driving agent names the hub row with its team (task 3125)
+
+- **The working state carries the noun.** Working keeps task_noun, task unless it was pushed for a hub task, then acme task, from the tasks data's task_nouns (RowLabels.hub_nouns, the one place a hub row's noun is made; RowLabels.name and noun build on it). Every line the agent gets while working (carry on, log requests, the reminders, the compaction summary) names it as acme task 57, and the plan states keep it as they swap.
+- **The card reaches the driving environment.** A task's move card names it with RowLabels and is written in every environment its event is heard in: its own, the hub, and each environment it is bound to.
+- **Open.** Other task nudges (task opened, paused, next) still say task {n}; a worker's Working, pushed at clock-in, names its task plainly.

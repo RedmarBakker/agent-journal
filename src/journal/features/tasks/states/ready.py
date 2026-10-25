@@ -49,10 +49,14 @@ class Ready(BaseState):
     def on_session_started(self, event: SessionStarted, settings: Settings) -> Transition:
         return self.swap(self.active(event.time))
 
+    @staticmethod
+    def task_noun(data: FeatureData, environment_id: int) -> str:
+        return data.part(TasksPart).task_nouns.get(environment_id, "task")
+
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         if event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
-        return self.push(self.working_state(task_id=event.task_id, logged_at=event.time))
+        return self.push(self.working_state(task_id=event.task_id, logged_at=event.time, task_noun=self.task_noun(event.data, event.environment_id)))
 
     def on_prompt_submitted(self, event: PromptSubmitted, settings: Settings) -> Transition:
         return self.swap(replace(self.active(event.time), stop_round=0))

@@ -12751,6 +12751,37 @@ def test_sharing_an_environment_made_after_joining_sends_its_older_and_new_messa
         assert on_b()[0][0].name == "ada-lab", "Bob's journal knows it by Ada's name for it"
 
 
+def test_a_driven_hub_task_is_named_with_its_team_in_the_agents_task_line_and_in_the_chat_card_of_the_environment_driving_it(app: App):
+    from journal.engine.support.session_agents import SessionAgents
+    from journal.models.environment import Environment
+    from journal.models.task import Task
+    from journal.repositories.environments import Environments
+    from journal.repositories.messages import Messages
+    from journal.repositories.tasks import Tasks
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["environment", "overview"], AGENT)
+    server, _ = joined_team(app)
+    try:
+        hub = app.container.get(Environments).save(Environment.hub("k-acme", "acme"), Actor.system())
+        with app.container.get(Scope).environment(hub.row_id):
+            task = app.container.get(Tasks).save(Task(environment_id=hub.row_id, title="ship it"), Actor.user(1))
+        driven = console.run(["task", "drive", str(task.id)], USER)
+        assert driven.code == 0, driven.error
+        started = console.run(["task", "start", str(task.id)], AGENT)
+        assert started.code == 0 and f"acme task {task.id} started" in started.text, started.error
+        assert app.container.get(SessionAgents).top("s1").label() == f"acme task {task.id}", "the task in hand is named with its team"
+        status, body = hook(app, "Stop")
+        assert f"acme task {task.id} is in hand" in body.get("reason", ""), body
+        app.runtime().deferred.drain()
+        with app.container.get(Scope).environment(MAIN):
+            marks = [m.text for m in app.container.get(Messages).all() if m.data.get("shows") == "task_moves"]
+        assert f"Started acme task {task.id}: ship it" in marks, marks
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_on_a_team_not_yet_moved_to_the_hub_a_personal_task_syncs_as_before(tmp_path, template_journal, monkeypatch):
     from journal.repositories.tasks import Tasks
     with two_team_journals(tmp_path, template_journal, monkeypatch, on_hub=False) as (team, a, b, _):

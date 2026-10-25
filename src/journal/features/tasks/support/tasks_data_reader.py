@@ -9,6 +9,7 @@ from journal.repositories.task_logs import TaskLogs
 from journal.repositories.tasks import Tasks
 from journal.repositories.workers import Workers
 from journal.repositories.scope import Scope
+from journal.support.row_labels import RowLabels
 from journal.support.stage_times import StageTimes
 
 HISTORY_TOOL_STARTS = 6
@@ -24,8 +25,8 @@ OPEN_TASKS_NEXT = 3
 class TasksDataReader:
     """Reads the tasks feature's part of the feature data for an agent, each fact the first time a listener asks for it, with the fields TasksData names."""
 
-    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes) -> None:
-        self.tasks, self.plans, self.entries, self.logs, self.workers = tasks, plans, entries, logs, workers
+    def __init__(self, tasks: Tasks, plans: Plans, entries: Entries, logs: TaskLogs, workers: Workers, scope: Scope, stages: StageTimes, labels: RowLabels) -> None:
+        self.tasks, self.plans, self.entries, self.logs, self.workers, self.labels = tasks, plans, entries, logs, workers, labels
         self.scope, self.stages = scope, stages
 
     def read(self, agent: Agent) -> LazyFacts:
@@ -47,6 +48,7 @@ class TasksDataReader:
             "open_next": lambda: ", ".join(str(t.row_id) for t in self.tasks.open_page(OPEN_TASKS_NEXT)),
             "started_ids": lambda: tuple(t.row_id for t in self.tasks.with_state(TaskState.STARTED)),
             "agent_tasks": lambda: self.tasks.recent_task_ids(self.workers.agent_holder(agent), RECENT_HELD_TASKS),
+            "task_nouns": lambda: self.labels.hub_nouns("task"),
         }, lambda: self.scope.environment(agent.environment_id), self.stages)
 
     def current_id(self, agent: Agent) -> int:

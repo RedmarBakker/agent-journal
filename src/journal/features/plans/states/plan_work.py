@@ -28,9 +28,9 @@ class PlanWork(Working):
         started = event.data.part(PlansPart).started
         if started is None or event.task_id != self.task_id or event.task_id not in started.recent_tasks:
             return self.none()
-        return self.swap(self.plan_state(plan_id=started.plan_id, task_id=self.task_id, approved=True, logged_at=self.logged_at))
+        return self.swap(self.plan_state(plan_id=started.plan_id, task_id=self.task_id, approved=True, logged_at=self.logged_at, task_noun=self.task_noun))
 
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
         if event.task_id != self.task_id:
             return self.none()
-        return self.swap(self.plan_state(plan_id=event.plan_id, task_id=self.task_id, approved=True, logged_at=self.logged_at, edits=self.edits, active_at=self.active_at))
+        return self.swap(self.plan_state(plan_id=event.plan_id, task_id=self.task_id, approved=True, logged_at=self.logged_at, edits=self.edits, active_at=self.active_at, task_noun=self.task_noun))

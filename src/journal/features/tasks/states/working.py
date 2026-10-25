@@ -27,7 +27,7 @@ COMPACT = "compact"
 
 @dataclass(frozen=True)
 class Working(BaseState):
-    """On one task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is instructed to carry on, with the log line first once the same span has passed; a session resumed with it is informed where it stands; a quiet quarter hour is informed it is still open. Pushed by journal task start, popped by done and pause."""
+    """On one task, named with its team when it is a hub task. Writes are counted since the last log line: once N writes or so many minutes have passed since it, whichever is first, the log is asked for on the next tool use, once; every M writes the task is named back, and past the limit the next write waits for the log line. A stop with the task in hand is instructed to carry on, with the log line first once the same span has passed; a session resumed with it is informed where it stands; a quiet quarter hour is informed it is still open. Pushed by journal task start, popped by done and pause."""
 
     name = "working"
     title = "Working"
@@ -39,11 +39,12 @@ class Working(BaseState):
     active_at: float = 0.0
     log_requested: bool = False
     reminder_edits: int = 0
+    task_noun: str = "task"
 
     def label(self) -> str:
         if self.task_id and self.focus:
-            return f"task {self.task_id}, {self.focus}"
-        return f"task {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
+            return f"{self.task_noun} {self.task_id}, {self.focus}"
+        return f"{self.task_noun} {self.task_id}" if self.task_id else f"the work in hand, {self.focus}"
 
     def logged(self, time: float) -> "Working":
         return replace(self, logged_at=time, edits=0, log_requested=False, reminder_edits=0)

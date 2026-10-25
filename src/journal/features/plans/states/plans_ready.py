@@ -26,6 +26,9 @@ class PlansReady(Ready):
     def plan_state(self, **fields) -> BaseState:
         return FollowingPlan(**fields)
 
+    def approved_plan_state(self, plan_id: int, task_id: int, time: float, task_noun: str) -> BaseState:
+        return self.plan_state(plan_id=plan_id, task_id=task_id, approved=True, logged_at=time, task_noun=task_noun)
+
     def working_state(self, **fields) -> BaseState:
         return PlansWorking(**fields)
 
@@ -39,13 +42,13 @@ class PlansReady(Ready):
     def on_task_started(self, event: TaskStarted, settings: Settings) -> Transition:
         started = event.data.part(PlansPart).started
         if started and event.task_id in started.recent_tasks and event.task_id in event.data.part(TasksPart).agent_tasks:
-            return self.push(self.plan_state(plan_id=started.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
+            return self.push(self.approved_plan_state(started.plan_id, event.task_id, event.time, self.task_noun(event.data, event.environment_id)))
         return super().on_task_started(event, settings)
 
     def on_plan_started(self, event: PlanStarted, settings: Settings) -> Transition:
         if event.task_id and event.task_id not in event.data.part(TasksPart).agent_tasks:
             return self.none()
-        return self.push(self.plan_state(plan_id=event.plan_id, task_id=event.task_id, approved=True, logged_at=event.time))
+        return self.push(self.approved_plan_state(event.plan_id, event.task_id, event.time, self.task_noun(event.data, event.environment_id)))
 
     def open_lines(self, data: FeatureData, settings: Settings) -> tuple[Nudge, ...]:
         approved = data.part(PlansPart).approved
