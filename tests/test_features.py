@@ -12571,7 +12571,8 @@ def test_a_linked_and_revised_document_put_on_the_hub_keeps_its_links_and_revisi
         from journal.repositories.tasks import Tasks
         task = next(iter(a.container.get(Tasks).global_matching(title="About the page")))
         about = links.save(Link(source=Ref.build(task), target=Ref.build(doc), kind="about_document"), Actor.system())
-        before = len(revisions.document_revisions(doc))
+        with a.container.get(Scope).environment(doc.environment_id):
+            before = len(revisions.document_revisions(doc))
         assert before == 2, "the document has two revisions before it moves"
         shared = a.console().run(["doc", "share", str(doc.id), "--keep-copy"], USER)
         assert shared.code == 0, shared.error
