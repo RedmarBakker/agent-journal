@@ -31,4 +31,4 @@ class ModeProfile:
         score = max(0, round(100 * sum(measure.weight * closeness for measure, closeness in weighed) / sum(measure.weight for measure, _ in weighed)) - counts.report_use.unrecovered_points)
         worst = sorted((pair for pair in weighed if pair[1] < 1.0), key=lambda pair: pair[1] * pair[0].weight - pair[0].weight)
         gaps = tuple(measure.gap(counts) for measure, _ in worst[:GAP_COUNT])
-        return FitnessScore(self.mode, score, gaps, parts=tuple((measure.label, round(100 * closeness)) for measure, closeness in weighed))
+        return FitnessScore(self.mode, score, gaps, parts=tuple((measure.label, round(100 * closeness)) for measure, closeness in weighed), drop_points=counts.report_use.unrecovered_points, drop_cause=counts.report_use.drop_cause)

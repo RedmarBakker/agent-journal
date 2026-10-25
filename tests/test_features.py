@@ -2029,7 +2029,7 @@ def test_every_fitness_score_is_kept_with_its_time_and_gaps_as_a_timeline_point_
     assert moves[0] == "not scored yet: too few tool uses in this mode" and "first score in this mode" in moves, moves
     assert any(move.startswith("your own file edits among your edits and handovers: ") and move.endswith("% of the ideal") for move in moves), "a point names the measure that moved the score"
     shape = lambda point: (point.score, point.is_measured, point.gaps, point.parts)
-    assert all(points[n].at <= points[n + 1].at and shape(points[n]) != shape(points[n + 1]) for n in range(len(points) - 1)), "a point is kept only when the score, a gap or a measure moved"
+    assert all(points[n].scored_at <= points[n + 1].scored_at and shape(points[n]) != shape(points[n + 1]) for n in range(len(points) - 1)), "a point is kept only when the score, a gap or a measure moved"
     fitness = app.container.get(AgentActivity).page([app.container.get(Agents).current()])[0]["fitness"]
     newest = fitness["timeline"][-1]
     assert (newest["score"], newest["gaps"]) == (fitness["score"], fitness["lines"]) and newest["at"] > 0, "the status bar's row carries the timeline, the newest point the score it shows"
@@ -12639,9 +12639,17 @@ def test_worker_reports_while_plenty_is_open_lower_the_fitness_and_a_quick_one_d
         busy = busy.recorded(minute * 60, 5)
     busy = busy.recorded(3500, 1).measured(3600, 60, 3, rates, 30)
     assert busy.hourly_reports == 6 and measure.closeness(counts(busy)) == (8 - 6) / 6, "six reports an hour while plenty was open fall toward no score, and a report with little open is not counted"
-    quick = ReportUse().recorded(1000, 5).dropped(1000, 20)
+    quick = ReportUse().recorded(1000, 5).dropped(1000, 20, "worker 1 reported after 40 seconds with 5 tasks open")
     assert quick.measured(1000, 60, 3, rates, 30).unrecovered_points == 20, "a quick report's drop is whole at once"
     assert quick.measured(1000 + 15 * 60, 60, 3, rates, 30).unrecovered_points == 10 and quick.measured(1000 + 30 * 60, 60, 3, rates, 30).unrecovered_points == 0, "and wears off straight to nothing over its recovery minutes"
+    from journal.features.workers.support.fitness_point import FitnessPoint
+    from journal.features.workers.support.fitness_score import FitnessScore
+    before = FitnessPoint.of(FitnessScore("builder", 100), 0, "first score in this mode")
+    dropped = before.following(FitnessScore("builder", 80, drop_points=20, drop_cause="worker 1 reported after 40 seconds with 5 tasks open"), 1000)
+    assert dropped.moved == "worker 1 reported after 40 seconds with 5 tasks open, which cost 20 points", "the timeline names the drop's cause"
+    recovering = dropped.following(FitnessScore("builder", 81, drop_points=19, drop_cause="worker 1 reported after 40 seconds with 5 tasks open"), 1090)
+    assert recovering.moved == "a quick report's drop recovering: 19 points still off"
+    assert recovering.is_same(FitnessScore("builder", 81, drop_points=19)), "and the recovery writes a point only when the score moves by a point"
 
 
 def test_a_clock_out_is_kept_on_the_dispatchers_row_with_the_open_work_and_a_quick_one_with_plenty_open_drops_the_fitness(app: App, monkeypatch):

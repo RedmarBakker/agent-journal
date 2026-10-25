@@ -24,8 +24,10 @@ class ReportUseRecord(Listener[WorkerDelivered]):
         open_tasks = self.plans.open_work_count()
         use = rows[0].report_use.recorded(event.time, open_tasks)
         agent = self.agents.find(rows[0].row_id)
-        if self.is_quick(event.time - worker.job_start_time(), open_tasks):
-            saved = self.agents.save(agent.quick_report_dropped(self.measuring.measured(use.dropped(event.time, self.settings.integer(WorkersOptions.QUICK_REPORT_DROP)), event.time), event.time, worker.id, open_tasks), Actor.system())
+        seconds = event.time - worker.job_start_time()
+        if self.is_quick(seconds, open_tasks):
+            cause = f"worker {worker.id} reported after {seconds:.0f} seconds with {open_tasks} tasks open"
+            saved = self.agents.save(agent.quick_report_dropped(self.measuring.measured(use.dropped(event.time, self.settings.integer(WorkersOptions.QUICK_REPORT_DROP), cause), event.time), event.time, worker.id, open_tasks), Actor.system())
         else:
             saved = self.agents.save(agent.with_(report_use=self.measuring.measured(use, event.time)), Actor.system())
         self.points.recorded(saved, event.time)
