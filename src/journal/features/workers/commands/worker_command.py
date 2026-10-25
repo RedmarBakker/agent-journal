@@ -6,6 +6,7 @@ from journal.chat.card_detail import CardDetail
 from argparse import Namespace
 
 from journal.repositories.setting_rows import SettingRows
+from journal.features.tasks.active_task import ActiveTask
 from journal.features.workers.support.merge_checks import MergeChecks
 from journal.features.workers.support.worker_branch import WorkerBranch
 from journal.support.worktree_failure import WorktreeFailure
@@ -57,8 +58,8 @@ class WorkerCommand(Command):
     noun = "worker"
     callers = {"peers": WORKER_KINDS, "notify": WORKER_KINDS, "send": WORKER_KINDS, "report": WORKER_KINDS}
 
-    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks) -> None:
-        self.launch, self.checks = launch, checks
+    def __init__(self, workers: Workers, messages: Messages, runner: WorkerRunner, reports: WorkerReports, scope: Scope, profiles: ProfileFiles, providers: Providers, branch: WorkerBranch, settings: SettingRows, actions: WorkerActions, subagents: Subagents, tasks: Tasks, agents: Agents, events: CommandEvents, libraries: WorkerLibraries, plans: Plans, templates: Templates, starts: StartRule, pool: PoolDispatch, account: TeamAccount, launch: WorkerLaunch, checks: MergeChecks, taking: ActiveTask) -> None:
+        self.launch, self.checks, self.taking = launch, checks, taking
         self.tasks, self.agents, self.events, self.libraries, self.plans, self.templates, self.starts = tasks, agents, events, libraries, plans, templates, starts
         self.workers, self.messages, self.providers = workers, messages, providers
         self.branch, self.settings, self.actions, self.subagents = branch, settings, actions, subagents
@@ -97,7 +98,7 @@ class WorkerCommand(Command):
         line.add_argument("--task", type=int, help="the task this job works on, which its plan then leaves to it")
         line.add_argument("--model", help="the model it runs the job on from now, in the same session and worktree")
         line.add_argument("--profile", help="the worker profile it works by from now, and its model unless --model names one")
-        queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order: each is delegated to it at once, and the next is sent to it when its work is merged")
+        queue = self.verb(verbs, "queue", "hand a worker open tasks to take next, in order, a started or paused one in your own hands let go to it: each is delegated to it at once, and the next is sent to it when its work is merged")
         queue.add_argument("n", type=int)
         queue.add_argument("tasks", type=int, nargs="+")
         queue.add_argument("--first", action="store_true", help="put the tasks at the head of the queue, in the order given, taking one from another worker's queue if it is there, so the first is the next one sent")
@@ -270,6 +271,7 @@ class WorkerCommand(Command):
     def queue(self, args: Namespace, caller: Caller) -> int:
         worker = self.workers.find(args.n)
         for n in reversed(args.tasks) if args.first else args.tasks:
+            self.tasks.let_go(self.tasks.find(n), self.taking.holder(caller), caller.actor)
             (self.tasks.queued_first if args.first else self.tasks.queued)(self.tasks.find(n), Ref.build(worker), caller.actor)
         print(f"worker {worker.id} {worker.name} queue: {', '.join(f'task {task.id}' for task in self.tasks.queue(Ref.build(worker)))}, each delegated to it")
         if not worker.is_running() and self.tasks.holder_task(Ref.build(worker)) is None:

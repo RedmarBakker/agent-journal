@@ -227,16 +227,21 @@ class Plans(ScopedRepository[Plan]):
 
     def start(self, plan: Plan, holder: Ref | None, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)
-        if plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan)):
-            return self.save(plan.finished(time.timestamp()), actor)
         task = self.resumable(plan)
-        if task is None:
-            return self.save(plan.started_without_task(time.timestamp()), actor)
+        if task is None or self.is_done(plan):
+            return self.opened(plan, actor)
         following = task.plan_started(time, plan.row_id)
         self.tasks.assign_holder(following, holder, actor)
         started = self.save(plan.started(task, time.timestamp()), actor)
         self.tasks.save(following, actor)
         return started
+
+    def opened(self, plan: Plan, actor: Actor) -> Plan:
+        time = datetime.now(timezone.utc).timestamp()
+        return self.save(plan.finished(time) if self.is_done(plan) else plan.started_without_task(time), actor)
+
+    def is_done(self, plan: Plan) -> bool:
+        return plan.startable().is_finished(self.tasks.counted(self.plan_task_query(plan)), self.remaining_count(plan))
 
     def postpone(self, plan: Plan, actor: Actor) -> Plan:
         time = datetime.now(timezone.utc)

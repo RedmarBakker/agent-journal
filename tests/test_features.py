@@ -9598,6 +9598,53 @@ def test_one_link_holds_a_task_for_its_worker_until_it_is_released(app: App, mon
     assert console.run(["task", "start", "1"], AGENT).code == 0, "and the task is free again"
 
 
+def test_in_orchestrator_mode_a_plan_leaves_its_next_task_open_and_a_held_task_goes_to_a_busy_workers_queue(app: App, monkeypatch):
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.tasks import Tasks
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    app.container.get(SettingRows).set("workers.mode", "orchestrator", Actor.user(1))
+    console.run(["plan", "create", "release", "--brief", "ship it"], USER)
+    for title in ("write the notes", "tag it", "announce it"):
+        console.run(["plan", "add", "1", title], USER)
+    console.run(["plan", "approve", "1"], USER)
+    started = console.run(["plan", "start", "1"], AGENT)
+    tasks = app.container.get(Tasks)
+    assert started.code == 0 and "is started" not in started.text and [tasks.find(n).state for n in (1, 2, 3)] == ["open", "open", "open"], "in orchestrator mode the plan starts no task in the orchestrator's hands"
+    assert console.run(["task", "start", "1"], AGENT).code == 0
+    assert console.run(["task", "complete", "1"], AGENT).code == 0
+    assert tasks.find(2).state == "open", "a finished plan task leaves the next one open, never started by the orchestrator"
+
+    dispatched = console.run(["worker", "dispatch", "Worker 1", "--task", "2", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    assert dispatched.code == 0, dispatched.error
+    assert console.run(["task", "start", "3"], AGENT).code == 0
+    queued = console.run(["worker", "queue", "1", "3"], AGENT)
+    assert queued.code == 0 and "task 3" in queued.text and tasks.find(3).state == "delegated", queued.error
+    from journal.models.support.ref import Ref
+    with app.container.get(Scope).environment(MAIN):
+        assert [task.id for task in tasks.queue(Ref("workers", 1))] == [3] and tasks.holder(tasks.find(3)) is None, "a task the caller held goes to the busy worker's queue, let go from the caller's hands"
+
+
+def test_a_workers_stop_hears_nothing_of_an_approved_plan_waiting(app: App):
+    from journal.models.agent import Agent
+    from journal.models.agent_role import AgentRole
+    from journal.repositories.agents import Agents
+    hook(app, "SessionStart")
+    console = app.console()
+    console.run(["environment", "overview"], AGENT)
+    console.run(["plan", "create", "release", "--brief", "ship it"], USER)
+    console.run(["plan", "add", "1", "write the notes"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    assert "journal plan start 1" in json.dumps(hook(app, "Stop")[1]), "the main agent is told the approved plan waits"
+    with app.container.get(Scope).environment(MAIN):
+        app.container.get(Agents).save(Agent(environment_id=1, session="w-1", provider="claude", state="duty", role=AgentRole.WORKER), Actor.system())
+    worker_stop = posted(app, "/hooks/claude", {"hook_event_name": "Stop", "session_id": "w-1"}, {"X-Journal-Env": "main"})[1]
+    assert "journal plan start" not in json.dumps(worker_stop) and "is approved and not started" not in json.dumps(worker_stop), "a worker is never told to start, approve or ready a plan"
+
+
 def test_a_worker_runs_the_workers_verbs_on_its_own_rows_alone(app: App, monkeypatch):
     from journal.features.workers.support.worker_runner import WorkerRunner
     from journal.models.command_output import CommandOutput

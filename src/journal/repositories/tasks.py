@@ -214,16 +214,16 @@ class Tasks(ScopedRepository[Task]):
             self.links.delete(link, actor)
 
     def queued(self, task: Task, worker: Ref, actor: Actor) -> Task:
-        if task.state != TaskState.OPEN:
-            raise Rejection(f"task {task.id} is {task.state}: only an open task waits in a worker's queue")
+        if not self.is_free(task):
+            raise Rejection(f"task {task.id} is {task.state}: only an open task, or a started or paused one in your own hands, waits in a worker's queue")
         if not self.links.all_matching(source=worker, target=Ref.build(task), kind=QUEUED_LINK):
             self.links.save(Link(source=worker, target=Ref.build(task), kind=QUEUED_LINK), actor)
         return self.save(task.delegated(datetime.now(timezone.utc)), actor)
 
     def queued_first(self, task: Task, worker: Ref, actor: Actor) -> Task:
         waiting_for = self.links.all_matching(target=Ref.build(task), kind=QUEUED_LINK)
-        if task.state != TaskState.OPEN and not (task.state == TaskState.DELEGATED and waiting_for):
-            raise Rejection(f"task {task.id} is {task.state}: only an open task, or one waiting in a worker's queue, goes first in a worker's queue")
+        if not self.is_free(task) and not (task.state == TaskState.DELEGATED and waiting_for):
+            raise Rejection(f"task {task.id} is {task.state}: only an open task, a started or paused one in your own hands, or one waiting in a worker's queue, goes first in a worker's queue")
         for link in waiting_for:
             self.links.delete(link, actor)
         others = [waiting for waiting in self.queue(worker) if waiting.id != task.id]
@@ -232,6 +232,15 @@ class Tasks(ScopedRepository[Task]):
         for waiting in (task, *others):
             self.links.save(Link(source=worker, target=Ref.build(waiting), kind=QUEUED_LINK), actor)
         return task if task.state == TaskState.DELEGATED else self.save(task.delegated(datetime.now(timezone.utc)), actor)
+
+    def let_go(self, task: Task, holder: Ref | None, actor: Actor) -> None:
+        if holder is None or holder.type == WORKERS or task.state not in (TaskState.STARTED, TaskState.PAUSED):
+            return
+        for link in self.links.all_matching(source=holder, target=Ref.build(task), kind=CURRENT_TASK_LINK):
+            self.links.delete(link, actor)
+
+    def is_free(self, task: Task) -> bool:
+        return task.state == TaskState.OPEN or (task.state in (TaskState.STARTED, TaskState.PAUSED) and self.holder(task) is None)
 
     def queue(self, worker: Ref) -> list[Task]:
         links = sorted(self.links.all_matching(source=worker, kind=QUEUED_LINK), key=lambda link: link.row_id)

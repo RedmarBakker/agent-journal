@@ -30,6 +30,7 @@ from journal.repositories.setting_rows import SettingRows
 from journal.repositories.tasks import Tasks
 from journal.sync.hub_drives import HubDrives
 from journal.features.workers.workers_options import WorkersOptions
+from journal.features.workers.workers_profiles import WorkersProfiles
 from journal.support.caller_kind import CallerKind
 CURRENT = "current"
 
@@ -207,10 +208,13 @@ class PlanCommand(Command):
         plan = self.plans.find(args.n)
         if refusal := self.phase_testing.refusal(plan):
             raise Rejection(refusal)
-        plan = self.plans.start(plan, self.taking.holder(caller), caller.actor)
+        plan = self.plans.opened(plan, caller.actor) if self.is_orchestrating() else self.plans.start(plan, self.taking.holder(caller), caller.actor)
         current = self.plans.started_task(plan)
         print(f"plan {plan.id} {plan.state}" + (f": task {current.id}, {current.title} is started" if current else ""))
         return 0
+
+    def is_orchestrating(self) -> bool:
+        return self.settings.option(WorkersOptions.MODE) == WorkersProfiles.ORCHESTRATOR.mode
 
     def block(self, args: Namespace, caller: Caller) -> int:
         self.waits.refuse_unnamed(args.why, args.on, args.until)
