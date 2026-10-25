@@ -17,6 +17,7 @@ from journal.events.rows.worker_delivered import WorkerDelivered
 from journal.events.rows.worker_unfinished import WorkerUnfinished
 from journal.events.rows.worker_reported import WorkerReported
 from journal.events.rows.places_scaled import PlacesScaled
+from journal.events.rows.waits_missing import WaitsMissing
 from journal.events.rows.worker_model_mismatch import WorkerModelMismatch
 from journal.events.rows.worker_spent import WorkerSpent
 from journal.events.rows.task_delegated import TaskDelegated
@@ -126,6 +127,11 @@ class WorkersConduct(Conduct):
         if event.fit == TOO_STRONG:
             return self.none(WorkersNudges.MODEL_TOO_STRONG.create(n=event.worker.id, model=event.model))
         return self.none(WorkersNudges.MODEL_TOO_WEAK.create(n=event.worker.id, model=event.model, send_backs=event.send_backs))
+
+    def on_waits_missing(self, event: WaitsMissing, settings: Settings) -> Transition:
+        if event.agent_session != event.session:
+            return self.none()
+        return self.none(*(WorkersNudges.WAIT_MISSING.create(task=task, other=other) for task, other in (pair.split(":") for pair in event.pairs)))
 
     def on_places_scaled(self, event: PlacesScaled, settings: Settings) -> Transition:
         if event.agent_session != event.session:

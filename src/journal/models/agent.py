@@ -13,6 +13,8 @@ from journal.events.rows.skill_read import SkillRead
 from journal.events.rows.places_scaled import PlacesScaled
 from journal.models.agent_role import AgentRole
 from journal.models.support.agent_load import AgentLoad
+from journal.models.support.wait_use import WaitUse
+from journal.events.rows.waits_missing import WaitsMissing
 from journal.models.scoped import Scoped
 
 
@@ -63,6 +65,7 @@ class Agent(Scoped):
     queued_lines: tuple[str, ...] = ()
     load: AgentLoad = AgentLoad()
     model_fits: tuple[str, ...] = ()
+    wait_use: WaitUse = WaitUse()
 
     def queued(self, lines: str) -> "Agent":
         return self.with_(queued_lines=(*self.queued_lines, lines))
@@ -142,6 +145,11 @@ class Agent(Scoped):
     def model_fit_kept(self, worker: int, fit: str) -> "Agent":
         kept = tuple(entry for entry in self.model_fits if entry.split(":", 1)[0] != str(worker))
         return self.with_(model_fits=(*kept, f"{worker}:{fit}")[-MODEL_FITS_KEPT:])
+
+    def waits_measured(self, use: WaitUse, time: float) -> "Agent":
+        found = tuple(pair for pair in use.missing if pair not in self.wait_use.missing)
+        measured = self.with_(wait_use=use)
+        return measured.with_event(WaitsMissing(environment_id=self.environment_id, time=time, agent_session=self.session, pairs=found)) if found else measured
 
     def load_measured(self, load: AgentLoad) -> "Agent":
         return self.with_(load=replace(load, scaled_at=self.load.scaled_at))

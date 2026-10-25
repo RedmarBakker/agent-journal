@@ -11441,6 +11441,51 @@ def test_a_request_to_the_whole_team_is_on_every_members_page_and_claimed_by_its
         team.close(server)
 
 
+def test_the_orchestrator_fitness_scores_waits_with_on_or_until_well_waits_in_words_against_and_names_a_task_that_names_another_without_waiting_on_it(app: App):
+    from journal.features.workers.support.tool_use_counts import ToolUseCounts
+    from journal.features.workers.support.wait_reading import WaitReading
+    from journal.features.workers.workers_profiles import WAIT_SHARE
+    from journal.models.support.wait_use import WaitUse
+    from journal.repositories.agents import Agents
+    from journal.repositories.entries import NUDGE, Entries
+    console, settings = app.console(), app.container.get(SettingRows)
+    hook(app, "SessionStart")
+    console.run(["plan", "create", "release", "--brief", "ship"], USER)
+    for title in ("the schema", "the parser", "the lexer", "the docs"):
+        console.run(["plan", "add", "1", title, "--brief", "b"], USER)
+    console.run(["plan", "approve", "1"], USER)
+    console.run(["plan", "start", "1"], AGENT)
+    settings.set("workers.mode", "orchestrator", Actor.user(1))
+    agents, reading = app.container.get(Agents), app.container.get(WaitReading)
+
+    def measured() -> tuple[WaitUse, float | None]:
+        agent = agents.session_rows("s1")[0]
+        saved = agents.save(agent.waits_measured(reading.measured(), timing.time()), Actor.system())
+        app.runtime().deferred.drain()
+        return saved.wait_use, WAIT_SHARE.closeness(ToolUseCounts.counted(agents.find(saved.row_id)))
+
+    assert console.run(["task", "block", "3", "the parser first", "--on", "task:2"], AGENT).code == 0
+    assert console.run(["task", "block", "4", "the release is tagged", "--until", "test -f /tmp/never-there-3225"], AGENT).code == 0
+    use, score = measured()
+    assert (use.with_wait, use.worded, use.missing) == (2, 0, ()) and score == 1.0, f"every wait with --on or --until scores whole: {use}, {score}"
+    for n in (3, 4):
+        assert console.run(["task", "unblock", str(n)], AGENT).code == 0
+    assert console.run(["task", "block", "3", "the schema has to settle"], AGENT).code == 0
+    assert console.run(["task", "block", "4", "the user decides the colour"], AGENT).code == 0
+    use, score = measured()
+    assert (use.with_wait, use.worded, use.outside) == (0, 1, 1) and score == 0.0, f"a reason in words scores against, one that names the user is neutral: {use}, {score}"
+    for n in (3, 4):
+        assert console.run(["task", "unblock", str(n)], AGENT).code == 0
+    edited = console.run(["task", "edit", "4", "--brief", "write it once task 2 is merged"], AGENT)
+    assert edited.code == 0, edited.error
+    use, score = measured()
+    assert use.missing == ("4:2",) and score == 0.0, f"a task naming another open task it does not wait on counts against: {use}, {score}"
+    told = [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]
+    assert told == ["task 4 names task 2, still open, and does not wait on it. journal task block 4 --on task:2"], told
+    measured()
+    assert len([entry for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key") == "workers.task_names_another_without_a_wait"]) == 1, "a missing wait is named once"
+
+
 def test_waits_are_taught_as_blocks_and_blocked_work_that_stands_still_and_a_plan_with_no_dependencies_are_named_to_the_orchestrator(app: App, monkeypatch):
     from journal.engine.clock import Clock
     from journal.events.agent.ticked import Ticked
