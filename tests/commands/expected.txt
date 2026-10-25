@@ -1180,6 +1180,7 @@ updates.repository = 'https://github.com/jessegall/agent-journal'  (the user set
 updates.branch = ''  (the user sets it)
 updates.auto = False  (the user sets it)
 updates.check_minutes = 60
+updates.boot_seconds = 60
 suggestions.first_after = 15
 suggestions.every = 60
 record.kept = 10000
