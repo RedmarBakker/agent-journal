@@ -1682,9 +1682,11 @@ workers.worker_quiet  [workers]  worker {{n}} quiet {{minutes}} min; last: {{las
 workers.worker_quiet_split  [workers]  worker {{n}} quiet {{minutes}} min; split its job?
 workers.worker_reported  [workers]  worker {{n}} reported
 workers.worker_sent_back  [workers]  worker {{n}} back on point {{point}}
+workers.worker_sent_back_again  [workers]  worker {{n}} back on point {{point}} again; earlier: {{earlier}}
+workers.worker_sent_back_repeatedly  [workers]  worker {{n}} back on point {{point}} {{times}} times; earlier: {{earlier}}. change the target, the model or the worker
 workers.worker_stopped_unreported  [workers]  worker {{n}} stopped before it reported{{cause}}
 workers.worker_test_run_failed  [workers]  worker {{n}}: {{failed}} failed in its test run
-244 nudges
+246 nudges
 
 $ agent: journal worker list
 exit 0

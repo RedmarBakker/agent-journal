@@ -12,3 +12,4 @@ class ProofShort(RowEvent):
     point: int
     shortfall: str
     dispatcher: str = ""
+    earlier: tuple[str, ...] = ()

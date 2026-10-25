@@ -46,4 +46,6 @@ class WorkersNudges:
     SILENT_WORKER = Nudge("workers", "worker_quiet", "worker {{n}} quiet {{minutes}} min; last: {{last}}", repeat=Timeout.seconds(0))
     SPLIT_ADVICE = Nudge("workers", "worker_quiet_split", "worker {{n}} quiet {{minutes}} min; split its job?", repeat=Timeout.seconds(0))
     SENT_BACK = Nudge("workers", "worker_sent_back", "worker {{n}} back on point {{point}}", repeat=Timeout.seconds(0))
+    SENT_BACK_AGAIN = Nudge("workers", "worker_sent_back_again", "worker {{n}} back on point {{point}} again; earlier: {{earlier}}", repeat=Timeout.seconds(0))
+    SENT_BACK_REPEATEDLY = Nudge("workers", "worker_sent_back_repeatedly", "worker {{n}} back on point {{point}} {{times}} times; earlier: {{earlier}}", "change the target, the model or the worker", repeat=Timeout.seconds(0))
     SUBAGENT_REUSE = Nudge("workers", "send_the_job_to_the_subagent", "{{count}} idle subagents already worked on files this job names:\n{{subagents}}", "send the job to one with its SendMessage line, or retire one with `journal subagent retire <n>`", repeat=Timeout.seconds(0))

@@ -46,6 +46,8 @@ TEST_LINE_NAME = 60
 LOAD_NAMED = 4
 # what a line says of a worker whose run hit the time limit
 RUN_LIMIT_CAUSE = ": run limit"
+# the most of an earlier reason a send-back line quotes
+SENT_BACK_REASON = 30
 
 
 class WorkersConduct(Conduct):
@@ -106,13 +108,22 @@ class WorkersConduct(Conduct):
     def on_proof_short(self, event: ProofShort, settings: Settings) -> Transition:
         if not event.dispatcher or event.dispatcher != event.session:
             return self.none()
-        return self.none(WorkersNudges.SENT_BACK.create(n=event.worker_id, point=event.point))
+        return self.none(sent_back_line(event))
 
     def on_worker_merged(self, event: WorkerMerged, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
 
     def on_worker_retired(self, event: WorkerRetired, settings: Settings) -> Transition:
         return place_answer(self, event, settings)
+
+
+def sent_back_line(event: ProofShort) -> Nudge:
+    times = len(event.earlier) + 1
+    if times == 1:
+        return WorkersNudges.SENT_BACK.create(n=event.worker_id, point=event.point)
+    earlier = "; ".join(reason[:SENT_BACK_REASON] for reason in event.earlier)
+    nudge = WorkersNudges.SENT_BACK_AGAIN if times == 2 else WorkersNudges.SENT_BACK_REPEATEDLY
+    return nudge.create(n=event.worker_id, point=event.point, times=times, earlier=earlier)
 
 
 def quiet_line(worker, last: str, time: float) -> Nudge:

@@ -20,5 +20,5 @@ class Proof(Scoped):
     def checked(self) -> "Proof":
         return self.with_(state=ProofState.CHECKED_UNFINISHED if self.state == ProofState.UNFINISHED else ProofState.CHECKED)
 
-    def short(self, shortfall: str, time: float, task_id: int, worker_id: int, dispatcher: str = "") -> "Proof":
-        return self.with_(state=ProofState.SHORT, shortfall=shortfall).with_event(ProofShort(environment_id=self.environment_id, time=time, task_id=task_id, worker_id=worker_id, point=self.point, shortfall=shortfall, dispatcher=dispatcher))
+    def short(self, shortfall: str, time: float, task_id: int, worker_id: int, dispatcher: str = "", earlier: tuple[str, ...] = ()) -> "Proof":
+        return self.with_(state=ProofState.SHORT, shortfall=shortfall).with_event(ProofShort(environment_id=self.environment_id, time=time, task_id=task_id, worker_id=worker_id, point=self.point, shortfall=shortfall, dispatcher=dispatcher, earlier=earlier))

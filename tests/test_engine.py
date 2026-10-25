@@ -670,6 +670,10 @@ def test_a_worker_sent_back_ended_or_stopped_is_told_to_its_dispatcher_in_one_sh
     short = ProofShort(environment_id=1, time=1.0, task_id=5, worker_id=3, point=2, shortfall="the tests", dispatcher="s1")
     assert said(short.reaching("s1")) == ["worker 3 back on point 2"], "a worker sent back is told as one line with ids"
     assert said(short.reaching("s2")) == [], "to the agent that dispatched it alone"
+    second = replace(short, earlier=("the alias names are missing",))
+    assert said(second.reaching("s1")) == ["worker 3 back on point 2 again; earlier: the alias names are missing"], "the second send-back of a task says so, with the first reason"
+    third = replace(short, earlier=("the alias names are missing", "the tests do not run"))
+    assert said(third.reaching("s1")) == ["worker 3 back on point 2 3 times; earlier: the alias names are missing; the tests do not run. change the target, the model or the worker"], "the third also tells the orchestrator to change the target, the model or the worker"
     worker = WorkerMention(3, "Lady Lovelace", "s1")
     ended = lambda times, limit=False: WorkerUnfinished(environment_id=1, time=1.0, worker=worker, ref="workers:3", outcome="worker 3, ended", times=times, is_run_limit=limit).reaching("s1")
     assert said(ended(1), 3) == [], "a run that ends without clocking out is not told the first time: the journal asks the worker itself"

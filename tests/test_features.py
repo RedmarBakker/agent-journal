@@ -11011,6 +11011,32 @@ def test_retiring_a_worker_the_dispatcher_waits_on_stops_it_and_ends_the_wait(ap
     assert sessions.top("s1").name != "awaiting", "and ends with the last"
 
 
+def test_a_task_sent_back_a_second_time_is_marked_with_the_first_reason_and_a_third_time_the_orchestrator_is_told_to_change_something(app: App, monkeypatch):
+    from journal.features.workers.support.worker_runner import WorkerRunner
+    from journal.repositories.entries import NUDGE, Entries
+    from journal.repositories.workers import Workers
+    monkeypatch.setattr(WorkerRunner, "start", lambda self, worker, actor: None)
+    kept_conversation(app, monkeypatch)
+    console = app.console()
+    hook(app, "SessionStart")
+    console.run(["task", "create", "the parser", "--brief", "reads the grammar"], AGENT)
+    console.run(["worker", "dispatch", "Lady Lovelace", "--task", "1", "--changes", "the files of its task", "--tests", "Scoped tests", "--profile", "journal-medior", "--model", "sonnet"], AGENT)
+    lovelace = Caller.worker("main", 1, "w-1", "claude")
+    sent_back = lambda: [entry.data["line"] for entry in app.container.get(Entries).all_matching(kind=NUDGE) if entry.data.get("key", "").startswith("workers.worker_sent_back")]
+    with app.container.get(Scope).environment(MAIN):
+        workers = app.container.get(Workers)
+        for round, reason in enumerate(("the alias names are missing", "the tests do not run", "the lexer is still missing")):
+            workers.save(workers.find(1).with_(token_hash="h", session="w-1", resume="w-1").ready(float(round + 1)), Actor.system())
+            console.run(["proof", "1", f"parser.py:{round + 1}, test passes"], lovelace)
+            assert console.run(["clock-out", f"round {round + 1}"], lovelace).code == 0
+            assert console.run(["worker", "check", "1", "1", "--short", reason], AGENT).code == 0
+            app.runtime().deferred.drain()
+    lines = sent_back()
+    assert lines[0] == "worker 1 back on point 1", lines
+    assert lines[1] == "worker 1 back on point 1 again; earlier: the alias names are missing", "the second send-back says so, with the first reason"
+    assert lines[2] == "worker 1 back on point 1 3 times; earlier: the alias names are missing; the tests do not run. change the target, the model or the worker", "the third also tells the orchestrator to change the target, the model or the worker"
+
+
 def test_a_worker_still_quiet_at_forty_minutes_is_told_once_more_with_its_last_tool_call_and_advice_to_split(app: App, monkeypatch):
     from journal.repositories.workers import Workers
     keystrokes = []
