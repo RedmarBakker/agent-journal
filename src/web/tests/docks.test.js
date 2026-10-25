@@ -43,7 +43,7 @@ describe("rows docked above the chat", () => {
         };
         const [turn] = threadTurns([made], []).turns;
         expect(turn.kind).toBe("made");
-        expect(turn.made).toEqual({table: "reports", id: 2, title: expect.any(String), line: ""});
+        expect(turn.made).toEqual({table: "reports", id: 2, title: expect.any(String), });
     });
 
     test("stand in the thread as a card that says the row is docked, with the row's icon", () => {

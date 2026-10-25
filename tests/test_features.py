@@ -1324,7 +1324,7 @@ def test_a_document_the_agent_writes_is_a_message_in_its_chat(app: App, tmp_path
     app.console().run(["doc", "create", "Yours", "--file", str(tmp_path / "notes.md"), "--abstract", "the user's own"], USER)
     app.runtime().deferred.drain()
     produced = [(m.text, m.data["summary"]) for m in app.container.get(Messages).all() if m.data.get("kind") == "made"]
-    assert produced == [("Deploys", "How a deploy goes")], "the agent's document is marked in the chat; the user's own is not"
+    assert produced == [("Created document 1: Deploys", "How a deploy goes")], "the agent's document is marked in the chat; the user's own is not"
 
 def test_a_report_never_acted_on_is_named_to_the_orchestrator_again_at_varied_spans_until_it_is_signed_off(app: App):
     from journal.db.connection import Connection
@@ -1375,7 +1375,7 @@ def test_a_report_the_agent_writes_is_a_made_message_docked_above_the_chat(app: 
     app.console().run(["report", "create", "Yours", "--body", "the user's own"], USER)
     app.runtime().deferred.drain()
     [produced] = [m for m in app.container.get(Messages).all() if m.data.get("kind") == "made"]
-    assert produced.text == "What the check found" and produced.data["made_type"] == "reports" and produced.data["row"] == "reports:1", "the agent's report is marked in the chat; the user's own is not"
+    assert produced.text == "Created report 1: What the check found" and produced.data["kind"] == "made" and produced.data["made_type"] == "reports" and produced.data["row"] == "reports:1", "the agent's report is marked in the chat; the user's own is not"
     assert produced.data["docked"] is True and produced.data["heading"] == "Report 1: What the check found" and produced.data["summary"] == "Three faults."
     assert produced.data["key"] == "made:report:1" and produced.data["dock"]["buttons"][0] == {"label": "Open", "act": "open"}
     assert app.console().run(["report", "1", "undock"], USER).code == 0 and app.container.get(Messages).find(produced.id).data["docked"] is False

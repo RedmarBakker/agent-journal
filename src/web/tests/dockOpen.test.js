@@ -79,7 +79,7 @@ describe("a row docked above the chat", () => {
         const dock = await shown(RowDock, {message: dockedReport});
         expect(dock.textContent).not.toContain("Download");
         app.unmount();
-        const made = await shown(MadeCard, {made: {table: "reports", id: 2, title: "Report 2: Found", line: ""}});
+        const made = await shown(MadeCard, {made: {table: "reports", id: 2, title: "Created report 2: Found"}});
         expect(made.textContent).not.toContain("Download");
         expect(made.querySelector("[download]")).toBeNull();
     });
@@ -99,4 +99,11 @@ describe("where a document is read", () => {
         const task = await shown(ResourceControls, {resource: {table: "tasks", id: 4, title: "Write it", state: "open", files: []}});
         expect(task.querySelector("a.download")).toBeNull();
     });
+});
+
+test("a created report is one line in its family's icon, opening the report on a click", async () => {
+    const made = await shown(MadeCard, {made: {table: "reports", id: 1072, title: "Created report 1072: Plan 1032 reviewed for what is missing"}});
+    expect(made.textContent.trim()).toBe("Created report 1072: Plan 1032 reviewed for what is missing");
+    expect(made.querySelector("svg, .icon")).not.toBeNull();
+    expect(made.querySelectorAll(".thread-made-line").length).toBe(0);
 });

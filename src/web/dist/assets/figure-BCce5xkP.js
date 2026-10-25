@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:src/web/dist/assets/figure-BCce5xkP.js
 import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-rzxrPi1t.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-BQPbNW0L.js";import"./preload-helper-Dp1pzeXC.js";/**
+========
+import{H as te,A as ne,p as ae,a as Vp,b as Wp,h as oh,s as Xp,o as qp,P as Kd,R as jp,f as $p,c as gs,F as Yp,S as Kp,g as Zp,d as Jp,U as Ma,G as ws,V as Qp,e as em,T as tm,i as nm,j as rs,L as im,k as sm,m as rm,n as om}from"./main-1810Y7bN.js";import{e as al}from"./tokens-CLu2SQEO.js";import"./tip-BQPbNW0L.js";import"./preload-helper-Dp1pzeXC.js";/**
+>>>>>>>> c34e07fd1 (A report or document the agent creates is one line in the chat, Created report 1072 and its title, in its family's icon and no colour, opening the row on a click):src/web/dist/assets/figure-f-aO5qLA.js
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
