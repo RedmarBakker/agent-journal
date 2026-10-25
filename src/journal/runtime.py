@@ -130,7 +130,7 @@ class Runtime:
         self.container.get(ServiceStart).run()
         self.replacement_announced()
         notices = self.container.get(BootNotices)
-        notices.wait_told(self.container.get(SettingRows).decimal(UpdatesOptions.BOOT_SECONDS))
+        notices.write_boot_seconds(self.container.get(SettingRows).decimal(UpdatesOptions.BOOT_SECONDS))
         notices.announce()
         gc.freeze()
 

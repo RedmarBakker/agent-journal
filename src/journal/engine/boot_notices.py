@@ -27,7 +27,7 @@ class BootNotices:
         for text in faults:
             self.announcer.announce(BootFailed(text=text, time=time.time()))
 
-    def wait_told(self, seconds: float) -> None:
+    def write_boot_seconds(self, seconds: float) -> None:
         path = self.config.home / "runtime" / BOOT_SECONDS
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(str(seconds))
