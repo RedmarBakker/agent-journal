@@ -9103,6 +9103,7 @@ def test_a_number_in_the_agents_message_that_names_a_row_without_its_kind_is_tol
     monkeypatch.setattr(unlinked_row_numbers, "LEAST_ROW_NUMBER", 1)
     from journal.features.messages.support.unlinked_row_numbers import UnlinkedRowNumbers
     assert UnlinkedRowNumbers.numbers('my message said "3419" without its kind') == [], "a number quoted on its own is cited, never linked"
+    assert UnlinkedRowNumbers.numbers("All 1215 pass, and 3 fail") == [], "a count of tests that pass or fail is a count, never a row"
     with app.container.get(Scope).environment(MAIN):
         from journal.support.voice_key import VoiceKey
         said = lambda text: messages.save(Message(environment_id=MAIN, author=Author.AGENT, agent_role=AgentRole.MAIN, session="s1", text=text, idempotency=VoiceKey.create("turn", "s1", text)), Actor.agent("s1"))

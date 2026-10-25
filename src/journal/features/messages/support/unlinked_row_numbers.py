@@ -10,7 +10,7 @@ ROW_KINDS = frozenset({
 })
 # the words that make a number a count, a time or a size, never a row
 COUNT_UNITS = frozenset({
-    "passed", "failed", "errors", "error", "tests", "test", "seconds", "second", "minutes", "minute", "hours", "hour", "ms", "s", "points",
+    "passed", "pass", "passing", "failed", "fail", "failing", "errors", "error", "tests", "test", "seconds", "second", "minutes", "minute", "hours", "hour", "ms", "s", "points",
     "files", "file", "lines", "runs", "rows", "bytes", "mb", "gb", "kb", "%", "times", "tool", "uses", "words", "characters", "chars",
     "of", "more", "deselected", "skipped", "items", "places", "workers", "tasks", "sins", "commits", "messages",
 })
